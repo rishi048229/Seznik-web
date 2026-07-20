@@ -1,0 +1,730 @@
+import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useCreateSale } from '@/hooks/useSales'
+import { useCustomers } from '@/hooks/useCustomers'
+import { useSettings } from '@/hooks/useSettings'
+import { useProducts } from '@/hooks/useProducts'
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
+import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
+import { Badge } from '@/components/ui/Badge'
+import { formatINR } from '@/utils/currency'
+import { generateReceiptHTML, printReceipt } from '@/utils/receipt'
+import { ROUTES } from '@/constants/routes'
+import toast from 'react-hot-toast'
+import type { Sale } from '@/types/sale.types'
+
+interface CartItem {
+  id: string
+  productName: string
+  quantity: number
+  sellingPrice: number
+  discount: number
+  taxRate: number
+  total: number
+}
+
+export const POSLitePage = () => {
+  const navigate = useNavigate()
+  const { mutate: createSale, isPending: isCreating } = useCreateSale()
+  const { data: customers } = useCustomers()
+  const { data: settings } = useSettings()
+  const { data: products } = useProducts()
+
+  const scanInputRef = useRef<HTMLInputElement>(null)
+  const [isScanMode, setIsScanMode] = useState(false)
+  const [scanInput, setScanInput] = useState('')
+
+  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
+  const [items, setItems] = useState<CartItem[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false)
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [orderDiscount, setOrderDiscount] = useState(0)
+  const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
+  const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
+  const [amountPaid, setAmountPaid] = useState('')
+  const [completedSaleId, setCompletedSaleId] = useState<string>('')
+  const [completedInvoiceNumber, setCompletedInvoiceNumber] = useState<string>('')
+  const [lastSaleData, setLastSaleData] = useState<{
+    items: CartItem[]
+    subtotal: number
+    tax: number
+    orderDiscountAmount: number
+    finalTotal: number
+    method: typeof method
+    amountPaidNum: number
+    selectedCustomer: string
+  } | null>(null)
+
+  // GST mode: 'exclusive' = price is base (GST added on top), 'inclusive' = price already includes GST
+  const [gstMode, setGstMode] = useState<'exclusive' | 'inclusive'>('exclusive')
+
+  // Manual product entry form
+  const [productName, setProductName] = useState('')
+  const [productPrice, setProductPrice] = useState('')
+  const [productQty, setProductQty] = useState('1')
+  const [productTaxRate, setProductTaxRate] = useState('0')
+
+  // Barcode scan: look up product from catalog and add directly to cart
+  const handleBarcodeScan = (barcode: string) => {
+    const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
+    if (!product) {
+      toast.error(`No product found for barcode: ${barcode}`)
+      return
+    }
+    const existing = items.find(i => i.id === product.id)
+    if (existing) {
+      setItems(prev => prev.map(i =>
+        i.id === product.id
+          ? { ...i, quantity: i.quantity + 1, total: i.sellingPrice * (i.quantity + 1) }
+          : i
+      ))
+    } else {
+      setItems(prev => [...prev, {
+        id: product.id,
+        productName: product.name,
+        quantity: 1,
+        sellingPrice: product.sellingPrice,
+        discount: 0,
+        taxRate: product.taxRate,
+        total: product.sellingPrice,
+      }])
+    }
+    toast.success(`${product.name} added via scan`)
+  }
+
+  // Physical USB/Bluetooth barcode scanner — fires when no input is focused
+  useBarcodeScanner({
+    mode: 'pos',
+    onScan: handleBarcodeScan,
+    enabled: !isPaymentOpen && !isPrintModalOpen && !isScanMode,
+  })
+
+  // Manual scan input submit (for on-screen scan mode or typing a barcode)
+  const handleScanSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const code = scanInput.trim()
+    if (code.length >= 4) handleBarcodeScan(code)
+    setScanInput('')
+  }
+
+  const toggleScanMode = () => {
+    setIsScanMode(prev => {
+      if (!prev) setTimeout(() => scanInputRef.current?.focus(), 50)
+      return !prev
+    })
+    setScanInput('')
+  }
+
+  const addItem = () => {
+    if (!productName.trim()) {
+      toast.error('Please enter product name')
+      return
+    }
+    const price = parseFloat(productPrice)
+    if (isNaN(price) || price <= 0) {
+      toast.error('Please enter valid price')
+      return
+    }
+    const qty = parseInt(productQty)
+    if (isNaN(qty) || qty <= 0) {
+      toast.error('Please enter valid quantity')
+      return
+    }
+    const taxRate = parseFloat(productTaxRate) || 0
+    if (taxRate < 0 || taxRate > 100) {
+      toast.error('GST rate must be between 0 and 100')
+      return
+    }
+
+    // If GST inclusive, back-calculate the base price: basePrice = price / (1 + rate/100)
+    const basePrice = gstMode === 'inclusive' && taxRate > 0
+      ? price / (1 + taxRate / 100)
+      : price
+
+    const newItem: CartItem = {
+      id: `temp-${Date.now()}-${Math.random()}`,
+      productName: productName.trim(),
+      quantity: qty,
+      sellingPrice: basePrice,
+      discount: 0,
+      taxRate,
+      total: basePrice * qty,
+    }
+
+    setItems(prev => [...prev, newItem])
+    setProductName('')
+    setProductPrice('')
+    setProductQty('1')
+    setProductTaxRate('0')
+    toast.success(`${newItem.productName} added`)
+  }
+
+  const removeItem = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const updateQty = (id: string, newQty: number) => {
+    if (newQty <= 0) {
+      removeItem(id)
+    } else {
+      setItems(prev =>
+        prev.map(i =>
+          i.id === id ? { ...i, quantity: newQty, total: i.sellingPrice * newQty } : i
+        )
+      )
+    }
+  }
+
+  const clearCart = () => {
+    setItems([])
+    setOrderDiscount(0)
+    setSelectedCustomer('')
+  }
+
+  const subtotal = items.reduce((sum, item) => sum + item.total, 0)
+  const orderDiscountAmount = orderDiscountType === 'flat'
+    ? orderDiscount
+    : subtotal * (orderDiscount / 100)
+
+  const taxAmount = items.reduce(
+    (sum, item) => sum + ((item.sellingPrice * item.quantity - item.discount) * (item.taxRate || 0) / 100),
+    0
+  )
+  const finalTotal = subtotal + taxAmount - orderDiscountAmount
+  const uniqueTaxRates = Array.from(new Set(items.map(item => item.taxRate || 0).filter(rate => rate > 0)))
+  const taxLabel = uniqueTaxRates.length === 0
+    ? 'GST'
+    : uniqueTaxRates.length === 1
+      ? `GST (${uniqueTaxRates[0]}%)`
+      : 'GST (Item-wise)'
+
+  const amountPaidNum = parseFloat(amountPaid) || 0
+  const change = amountPaidNum - finalTotal
+  const isComplete = method === 'cash' ? amountPaidNum >= finalTotal : true
+
+  const handleCheckout = () => {
+    const saleData: Parameters<typeof createSale>[0] = {
+      items: items.map(item => ({
+        productId: '',
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: item.taxRate,
+        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+        total: item.sellingPrice * item.quantity - item.discount,
+      })),
+      subtotal,
+      totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
+      totalTax: taxAmount,
+      grandTotal: finalTotal,
+      paymentMethod: method,
+      amountPaid: method === 'cash' ? amountPaidNum : finalTotal,
+      changeReturned: method === 'cash' ? change : 0,
+      isQuickBill: false,
+    }
+
+    if (selectedCustomer) {
+      saleData.customerId = selectedCustomer
+    }
+
+    createSale(saleData, {
+      onSuccess: (result) => {
+        const saleId = result.id
+        const invoiceNumber = result.invoiceNumber
+        setLastSaleData({
+          items: [...items],
+          subtotal,
+          tax: taxAmount,
+          orderDiscountAmount,
+          finalTotal,
+          method,
+          amountPaidNum: method === 'cash' ? amountPaidNum : finalTotal,
+          selectedCustomer,
+        })
+        setCompletedSaleId(saleId)
+        setCompletedInvoiceNumber(invoiceNumber)
+        clearCart()
+        setIsPaymentOpen(false)
+        setIsPrintModalOpen(true)
+        toast.success('Sale completed!')
+      },
+      onError: (error) => {
+        const msg = error instanceof Error ? error.message : 'Failed to create sale'
+        console.error('Sale creation failed:', error)
+        toast.error(msg)
+      },
+    })
+  }
+
+  // Accept format directly to avoid React state race condition
+  const handlePrint = (format: 'a4' | 'thermal') => {
+    if (!lastSaleData) return
+
+    const receiptConfig = settings?.receiptConfig
+    const customerName = lastSaleData.selectedCustomer
+      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
+      : ''
+
+    const paperWidth: '50mm' | '210mm' = format === 'thermal' ? '50mm' : '210mm'
+
+    const tempSale: Sale = {
+      id: completedSaleId,
+      invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
+      items: lastSaleData.items.map(item => ({
+        productId: item.id,
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: item.taxRate,
+        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+        total: item.sellingPrice * item.quantity - item.discount,
+      })),
+      subtotal: lastSaleData.subtotal,
+      totalDiscount: lastSaleData.orderDiscountAmount + lastSaleData.items.reduce((s, i) => s + i.discount, 0),
+      totalTax: lastSaleData.tax,
+      grandTotal: lastSaleData.finalTotal,
+      paymentMethod: lastSaleData.method,
+      amountPaid: lastSaleData.amountPaidNum,
+      changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
+      isQuickBill: false,
+      createdAt: new Date() as any,
+    }
+
+    const receiptHTML = generateReceiptHTML({
+      sale: tempSale,
+      receiptConfig,
+      businessName: settings?.businessName,
+      businessAddress: settings?.businessAddress,
+      customerName,
+      width: paperWidth,
+      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
+      settingsTaxName: 'GST',
+    })
+
+    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, () => {
+      setIsPrintModalOpen(false)
+      setCompletedSaleId('')
+      setCompletedInvoiceNumber('')
+      setMethod('cash')
+      setAmountPaid('')
+      navigate(ROUTES.SALES)
+    })
+  }
+
+  return (
+    <div className="flex flex-col sm:flex-row h-[calc(100dvh-56px)] gap-0 -m-3 sm:-m-4 lg:-m-6">
+
+      {/* Mobile Tab Switcher */}
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+        <button
+          onClick={() => setMobileTab('products')}
+          className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+            mobileTab === 'products'
+              ? 'text-indigo-600 border-b-2 border-indigo-600'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Quick Sale
+        </button>
+        <button
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
+            mobileTab === 'cart'
+              ? 'text-indigo-600 border-b-2 border-indigo-600'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Cart
+          {items.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold">
+              {items.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Left: Manual Entry Form + Product List */}
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
+        <div className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quick Sale - Manual Entry</h2>
+            <button
+              type="button"
+              onClick={toggleScanMode}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
+                isScanMode
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
+              }`}
+            >
+              {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
+              {isScanMode ? 'Scanning...' : 'Scan Barcode'}
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Add any product manually — or scan a barcode to add registered products instantly
+          </p>
+
+          {/* Barcode Scan Input Panel */}
+          {isScanMode && (
+            <div className="mb-4 p-4 rounded-xl border-2 border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+                <ScanLine size={18} className="animate-pulse" />
+                Scan mode active — point your scanner or type a barcode below
+              </div>
+              <form onSubmit={handleScanSubmit} className="flex gap-2">
+                <Input
+                  ref={scanInputRef}
+                  value={scanInput}
+                  onChange={e => setScanInput(e.target.value)}
+                  placeholder="Scan or type barcode, then press Enter..."
+                  className="flex-1"
+                  autoComplete="off"
+                />
+                <Button type="submit" disabled={scanInput.trim().length < 4}>
+                  Add
+                </Button>
+                <Button type="button" variant="ghost" onClick={toggleScanMode}>
+                  Done
+                </Button>
+              </form>
+            </div>
+          )}
+
+          {/* Manual Product Entry Form */}
+          <Card className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Product Name *
+                </label>
+                <Input
+                  value={productName}
+                  onChange={e => setProductName(e.target.value)}
+                  placeholder="Enter product name"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Price (₹) *
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={productPrice}
+                  onChange={e => setProductPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Quantity *
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={productQty}
+                  onChange={e => setProductQty(e.target.value)}
+                  placeholder="1"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  GST (%)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={productTaxRate}
+                  onChange={e => setProductTaxRate(e.target.value)}
+                  placeholder="0"
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col md:flex-row items-start md:items-center gap-4">
+              {/* GST Mode Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setGstMode('exclusive')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    gstMode === 'exclusive'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  + GST (Excl.)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGstMode('inclusive')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    gstMode === 'inclusive'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Incl. GST
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                {gstMode === 'exclusive'
+                  ? 'Price is base price — GST will be added on top'
+                  : 'Price already includes GST — base price will be extracted'}
+              </p>
+              <Button
+                onClick={addItem}
+                leftIcon={<Plus size={16} />}
+                className="md:ml-auto w-full md:w-auto"
+              >
+                Add to Cart
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+
+        {/* Mobile: View Cart sticky bar */}
+        {items.length > 0 && (
+          <div className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <button
+              onClick={() => setMobileTab('cart')}
+              className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"
+            >
+              <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length} items</span>
+              <span>View Cart</span>
+              <span className="font-bold">{formatINR(finalTotal)}</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Right: Cart Panel */}
+      <Card className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+        {/* Cart Header */}
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
+            <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+          </div>
+
+          {/* Customer Selector */}
+          <div className="relative">
+            <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+            <select
+              value={selectedCustomer}
+              onChange={e => setSelectedCustomer(e.target.value)}
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+            >
+              <option value="">— Walk-in Customer —</option>
+              {customers?.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Order Discount */}
+        {items.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                placeholder="Discount"
+                value={orderDiscount || ''}
+                onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                className="flex-1"
+              />
+              <div className="relative">
+                <select
+                  value={orderDiscountType}
+                  onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
+                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+                >
+                  <option value="flat">₹</option>
+                  <option value="percent">%</option>
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Totals */}
+        <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-2 bg-gray-50 dark:bg-gray-800">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Subtotal ({items.length} items)</span>
+            <span className="text-gray-900 dark:text-gray-100">{formatINR(subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">
+              {taxLabel}
+            </span>
+            <span className="text-gray-900 dark:text-gray-100">{formatINR(taxAmount)}</span>
+          </div>
+          {orderDiscountAmount > 0 && (
+            <div className="flex justify-between text-sm text-emerald-600">
+              <span>Discount</span>
+              <span>-{formatINR(orderDiscountAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-gray-900 dark:text-gray-100">Total Amount</span>
+            <span className="text-[#0a0a2e]">{formatINR(finalTotal)}</span>
+          </div>
+        </div>
+
+        {/* Payment Button */}
+        <div className="p-6">
+          <Button
+            onClick={() => setIsPaymentOpen(true)}
+            disabled={items.length === 0 || isCreating}
+            className="w-full py-4 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+          >
+            <Printer size={18} className="mr-2" />
+            Complete & Print
+          </Button>
+        </div>
+      </Card>
+
+      {/* Payment Modal */}
+      <Modal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} title="Complete Payment" size="md">
+        <div className="space-y-6">
+          {/* Total Display */}
+          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Total Amount</p>
+            <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
+          </div>
+
+          {/* Payment Methods */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Payment Method</label>
+            <div className="grid grid-cols-4 gap-3">
+              {([
+                { id: 'cash' as const, label: 'Cash', icon: Wallet },
+                { id: 'card' as const, label: 'Card', icon: CreditCard },
+                { id: 'upi' as const, label: 'UPI', icon: Smartphone },
+                { id: 'credit' as const, label: 'Credit', icon: UserPlus },
+              ]).map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setMethod(id)}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                    method === id
+                      ? 'border-[#0a0a2e] bg-[#0a0a2e]/5'
+                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon size={24} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
+                  <span className={`text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>
+                    {label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cash Payment - Amount Paid */}
+          {method === 'cash' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Amount Received
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                value={amountPaid}
+                onChange={e => setAmountPaid(e.target.value)}
+                placeholder="0.00"
+                className="text-lg py-3"
+              />
+              {amountPaidNum > 0 && (
+                <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-700 dark:text-emerald-300">Change</span>
+                    <span className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                      {formatINR(Math.max(0, change))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Complete Button */}
+          <Button
+            onClick={handleCheckout}
+            loading={isCreating}
+            disabled={method === 'cash' && !isComplete}
+            className="w-full py-4 text-base font-bold"
+          >
+            Complete Sale
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Print Modal */}
+      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Receipt" size="sm">
+        <div className="space-y-6">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {completedInvoiceNumber && `Invoice: ${completedInvoiceNumber}`}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Select print format:</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => handlePrint('a4')}
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+            >
+              <Printer size={32} className="text-gray-400" />
+              <div className="text-center">
+                <p className="font-bold text-gray-900 dark:text-gray-100">A4 Paper</p>
+                <p className="text-xs text-gray-400">Standard format</p>
+              </div>
+            </button>
+            <button
+              onClick={() => handlePrint('thermal')}
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+            >
+              <Printer size={32} className="text-gray-400" />
+              <div className="text-center">
+                <p className="font-bold text-gray-900 dark:text-gray-100">50mm Thermal</p>
+                <p className="text-xs text-gray-400">POS printer</p>
+              </div>
+            </button>
+          </div>
+
+          <Button
+            variant="ghost"
+            onClick={() => { setIsPrintModalOpen(false); setCompletedSaleId(''); setCompletedInvoiceNumber('') }}
+            className="w-full"
+          >
+            Skip Print
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  )
+}

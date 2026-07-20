@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String   @id @default(uuid())
+  uid                 String   @unique // For migrating from firebase if needed
+  email               String?  @unique
+  password            String?
+  displayName         String?
+  photoURL            String?
+  businessName        String?
+  plan                String   @default("free")
+  onboardingCompleted Boolean  @default(false)
+  role                String?
+  permissions         Json?
+  
+  // Relations for managed users (if needed in backend, otherwise stored as JSON)
+  // To keep it 1:1 with Firestore subcollections, we can create a separate ManagedUser model
+  managedUsers        ManagedUser[]
+  categories          Category[]
+  settings            Settings?
+  customers           Customer[]
+  suppliers           Supplier[]
+  products            Product[]
+  stockHistory        StockHistory[]
+  sales               Sale[]
+  purchases           Purchase[]
+  expenses            Expense[]
+  creditTransactions  CreditTransaction[]
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ManagedUser {
+  id          String   @id @default(uuid())
+  uid         String   @unique
+  displayName String?
+  email       String?
+  password    String?
+  role        String?
+  permissions Json?
+  photoURL    String?
+  businessName String?
+  plan        String   @default("free")
+  
+  adminId     String
+  admin       User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  isActive  Boolean  @default(true)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Settings {
+  id                 String   @id @default(uuid())
+  businessName       String?
+  businessAddress    String?
+  businessPhone      String?
+  businessGSTIN      String?
+  businessLogoURL    String?
+  personalInfo       Json?
+  invoiceConfig      Json?
+  notificationConfig Json?
+  receiptConfig      Json?
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  name          String
+  phone         String
+  email         String?
+  address       String?
+  creditBalance Float    @default(0)
+  creditLimit   Float    @default(0)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sales         Sale[]
+  creditTransactions CreditTransaction[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String
+  email     String?
+  address   String?
+  gstin     String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products  Product[]
+  purchases Purchase[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id                String   @id @default(uuid())
+  name              String
+  sku               String
+  barcode           String?
+  categoryId        String
+  category          Category @relation(fields: [categoryId], references: [id])
+  supplierId        String?
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
+  imageURL          String?
+  costPrice         Float    @default(0)
+  sellingPrice      Float    @default(0)
+  taxRate           Float    @default(0)
+  currentStock      Float    @default(0)
+  lowStockThreshold Float    @default(0)
+  unit              String   @default("piece")
+  isActive          Boolean  @default(true)
+  
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  stockHistory      StockHistory[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model StockHistory {
+  id          String   @id @default(uuid())
+  change      Float
+  reason      String
+  barcode     String?
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model Sale {
+  id              String   @id @default(uuid())
+  invoiceNumber   String
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  items           Json
+  subtotal        Float
+  totalDiscount   Float
+  totalTax        Float
+  grandTotal      Float
+  paymentMethod   String
+  amountPaid      Float
+  changeReturned  Float
+  isQuickBill     Boolean  @default(false)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+}
+
+model Purchase {
+  id              String   @id @default(uuid())
+  invoiceNumber   String
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  items           Json
+  subtotal        Float
+  totalTax        Float
+  grandTotal      Float
+  paymentMethod   String
+  amountPaid      Float
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  amount      Float
+  category    String
+  description String?
+  date        DateTime
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model CreditTransaction {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount      Float
+  type        String
+  referenceId String?
+  notes       String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}

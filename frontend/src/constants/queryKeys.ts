@@ -1,0 +1,15 @@
+export const QUERY_KEYS = {
+  PRODUCTS: 'products',
+  CATEGORIES: 'categories',
+  SUPPLIERS: 'suppliers',
+  CUSTOMERS: 'customers',
+  SALES: 'sales',
+  PURCHASES: 'purchases',
+  EXPENSES: 'expenses',
+  CREDITS: 'credits',
+  REPORTS_DASHBOARD: 'reports-dashboard',
+  REPORTS_SALES: 'reports-sales',
+  REPORTS_PL: 'reports-pl',
+  REPORTS_TAX: 'reports-tax',
+  SETTINGS: 'settings',
+} as const
