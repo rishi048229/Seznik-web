@@ -16,6 +16,17 @@ export const createExpense = async (
   return expense.id
 }
 
+export const updateExpense = async (
+  uid: string,
+  expenseId: string,
+  data: Partial<Omit<Expense, 'id' | 'createdAt'>>
+): Promise<void> => {
+  await fetchApi(`/expenses/${expenseId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
 export const deleteExpense = async (uid: string, expenseId: string): Promise<void> => {
   await fetchApi(`/expenses/${expenseId}`, {
     method: 'DELETE',

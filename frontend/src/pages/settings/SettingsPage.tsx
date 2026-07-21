@@ -7,17 +7,12 @@ import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { LANGUAGES } from '@/i18n/translations'
 import { Spinner } from '@/components/ui/Spinner'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
+import { Check } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-const settingsTabs = [
-  { key: 'business', label: 'Business Profile' },
-  { key: 'personal', label: 'Personal Info' },
-  { key: 'invoice', label: 'Edit Invoice' },
-  { key: 'notifications', label: 'Notifications' },
-  { key: 'permissions', label: 'Permissions & Accounts' },
-]
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -49,6 +44,16 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { user } = useAuth()
+  const { t, language, setLanguage } = useLanguage()
+
+  const settingsTabs = [
+    { key: 'business', label: t('settings.businessProfile') },
+    { key: 'personal', label: t('settings.personalInfo') },
+    { key: 'invoice', label: t('settings.editInvoice') },
+    { key: 'notifications', label: t('settings.notifications') },
+    { key: 'permissions', label: t('settings.permissions') },
+    { key: 'language', label: t('settings.language') },
+  ]
 
   const isPending = isUpdating || isCreating
   const hasSettings = !!settings
@@ -386,6 +391,33 @@ export const SettingsPage = () => {
             )}
             {activeTab === 'permissions' && (
               <PermissionsAndAccounts />
+            )}
+            {activeTab === 'language' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('settings.appLanguage')}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('settings.chooseLanguage')}</p>
+                </div>
+                <div className="space-y-2 max-w-md">
+                  {LANGUAGES.map(lang => {
+                    const selected = language === lang.code
+                    return (
+                      <button
+                        key={lang.code}
+                        onClick={() => setLanguage(lang.code)}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
+                          selected
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        }`}
+                      >
+                        <span>{lang.label}</span>
+                        {selected && <Check size={16} className="text-indigo-600 dark:text-indigo-400" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             )}
           </Card>
         </>

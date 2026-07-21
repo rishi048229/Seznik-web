@@ -59,3 +59,53 @@ export const useTaxReport = (startDate: Date, endDate: Date) => {
     enabled: !!user,
   })
 }
+
+export const usePaymentModeBreakdown = () => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.REPORTS_PAYMENT_MODES, user?.uid],
+    queryFn: () => reportService.getPaymentModeBreakdown(user!.uid),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export const useProfitBreakdown = () => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.REPORTS_PROFIT_BREAKDOWN, user?.uid],
+    queryFn: () => reportService.getProfitBreakdown(user!.uid),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export const useTopProducts = (limit = 5) => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.REPORTS_TOP_PRODUCTS, user?.uid, limit],
+    queryFn: () => reportService.getTopProducts(user!.uid, limit),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export const useTopCategories = (limit = 3) => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.REPORTS_TOP_CATEGORIES, user?.uid, limit],
+    queryFn: () => reportService.getTopCategories(user!.uid, limit),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export const useExpenseSummary = () => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.REPORTS_EXPENSE_SUMMARY, user?.uid],
+    queryFn: () => reportService.getExpenseSummary(user!.uid),
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+  })
+}

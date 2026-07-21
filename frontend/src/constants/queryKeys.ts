@@ -11,5 +11,10 @@ export const QUERY_KEYS = {
   REPORTS_SALES: 'reports-sales',
   REPORTS_PL: 'reports-pl',
   REPORTS_TAX: 'reports-tax',
+  REPORTS_PAYMENT_MODES: 'reports-payment-modes',
+  REPORTS_PROFIT_BREAKDOWN: 'reports-profit-breakdown',
+  REPORTS_TOP_PRODUCTS: 'reports-top-products',
+  REPORTS_TOP_CATEGORIES: 'reports-top-categories',
+  REPORTS_EXPENSE_SUMMARY: 'reports-expense-summary',
   SETTINGS: 'settings',
 } as const

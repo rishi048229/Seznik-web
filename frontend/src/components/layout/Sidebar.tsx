@@ -19,21 +19,23 @@ import {
   MoveLeft,
 } from 'lucide-react'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
+import { useLanguage } from '@/contexts/LanguageContext'
+import type { TranslationKey } from '@/i18n/translations'
 
-const getAllNavItems = () => [
-  { path: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-  { path: ROUTES.POS, label: 'POS', icon: ShoppingCart },
-  { path: ROUTES.POS_LITE, label: 'POS Lite', icon: MoveLeft },
-  { path: ROUTES.PRODUCTS, label: 'Products', icon: Package },
-  { path: ROUTES.CATEGORIES, label: 'Categories', icon: Tag },
-  { path: ROUTES.CUSTOMERS, label: 'Customers', icon: Users },
-  { path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: Truck, permission: 'canAccessSuppliers' as const },
-  { path: ROUTES.SALES, label: 'Sales', icon: FileText },
-  { path: ROUTES.PURCHASES, label: 'Purchases', icon: TrendingUp, permission: 'canAccessPurchases' as const },
-  { path: ROUTES.EXPENSES, label: 'Expenses', icon: Wallet, permission: 'canAccessExpenses' as const },
-  { path: ROUTES.CREDITS, label: 'Credits', icon: CreditCard },
-  { path: ROUTES.REPORTS, label: 'Reports', icon: BarChart3, permission: 'canAccessReports' as const },
-  { path: ROUTES.SETTINGS, label: 'Settings', icon: Settings },
+const getAllNavItems = (): { path: string; labelKey: TranslationKey; icon: typeof LayoutDashboard; permission?: 'canAccessSuppliers' | 'canAccessPurchases' | 'canAccessExpenses' | 'canAccessReports' }[] => [
+  { path: ROUTES.DASHBOARD, labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart },
+  { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft },
+  { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package },
+  { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag },
+  { path: ROUTES.CUSTOMERS, labelKey: 'nav.customers', icon: Users },
+  { path: ROUTES.SUPPLIERS, labelKey: 'nav.suppliers', icon: Truck, permission: 'canAccessSuppliers' },
+  { path: ROUTES.SALES, labelKey: 'nav.sales', icon: FileText },
+  { path: ROUTES.PURCHASES, labelKey: 'nav.purchases', icon: TrendingUp, permission: 'canAccessPurchases' },
+  { path: ROUTES.EXPENSES, labelKey: 'nav.expenses', icon: Wallet, permission: 'canAccessExpenses' },
+  { path: ROUTES.CREDITS, labelKey: 'nav.credits', icon: CreditCard },
+  { path: ROUTES.REPORTS, labelKey: 'nav.reports', icon: BarChart3, permission: 'canAccessReports' },
+  { path: ROUTES.SETTINGS, labelKey: 'nav.settings', icon: Settings },
 ]
 
 interface SidebarProps {
@@ -44,11 +46,14 @@ interface SidebarProps {
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { data: products } = useProducts()
   const { user, userProfile, permissions } = useAuth()
+  const { t } = useLanguage()
   const lowStockCount = products?.filter(p => p.currentStock <= p.lowStockThreshold).length ?? 0
   
   // Filter nav items based on permissions
   const navItems = getAllNavItems().filter(item => {
     if (!item.permission) return true
+    if (userProfile?.role === 'admin') return true
+    
     if (item.permission === 'canAccessSuppliers') return canAccessSuppliers(permissions ?? undefined)
     if (item.permission === 'canAccessPurchases') return canAccessPurchases(permissions ?? undefined)
     if (item.permission === 'canAccessExpenses') return canAccessExpenses(permissions ?? undefined)
@@ -110,7 +115,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   }
                 >
                   <Icon size={18} className="mr-3 flex-shrink-0" />
-                  {item.label}
+                  {t(item.labelKey)}
                   {isProducts && lowStockCount > 0 && (
                     <span className="ml-auto bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-xs font-medium px-2 py-0.5 rounded-full">
                       {lowStockCount}

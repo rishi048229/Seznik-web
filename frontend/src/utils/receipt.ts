@@ -1,5 +1,6 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
+import { EscPosBuilder } from './escpos'
 
 interface GenerateReceiptHTMLParams {
   sale: Sale
@@ -487,4 +488,130 @@ export const printReceipt = (
   }
 
   iframe.srcdoc = fullHTML
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generateReceiptEscPos — same thermal receipt content as the 50mm HTML
+// template above, but as raw ESC/POS bytes for direct Bluetooth printing.
+// ─────────────────────────────────────────────────────────────────────────────
+interface GenerateReceiptEscPosParams {
+  sale: Sale
+  receiptConfig?: ReceiptConfig | null
+  businessName?: string
+  businessAddress?: string
+  customerName?: string
+  settingsTaxRate?: number
+}
+
+const LINE_WIDTH = 32 // 58mm printer, standard font: 384 dots / 12 dots per char
+
+export const generateReceiptEscPos = ({
+  sale,
+  receiptConfig,
+  businessName,
+  businessAddress,
+  customerName,
+  settingsTaxRate,
+}: GenerateReceiptEscPosParams): Uint8Array => {
+  const companyName = receiptConfig?.companyName || businessName || 'Your Company'
+  const companyAddress = receiptConfig?.address || businessAddress || ''
+  const companyPhone = receiptConfig?.phone || ''
+  const companyGSTIN = receiptConfig?.gstin || ''
+  const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
+
+  const saleItems = sale.items ?? []
+  const dateObj = sale.createdAt?.toDate ? new Date(sale.createdAt.toDate()) : new Date()
+  const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+  const methodLabel =
+    sale.paymentMethod === 'cash' ? 'Cash Sale'
+      : sale.paymentMethod === 'card' ? 'Card'
+        : sale.paymentMethod === 'upi' ? 'UPI'
+          : 'Credit'
+
+  const totalTax = sale.totalTax || 0
+  const taxableAmount = saleItems.reduce(
+    (sum, item) => sum + (item.sellingPrice * item.quantity - (item.discount || 0)),
+    0
+  )
+  const uniqueItemTaxRates = Array.from(new Set(saleItems.map(item => item.taxRate || 0).filter(rate => rate > 0)))
+  const hasMixedTaxRates = uniqueItemTaxRates.length > 1
+  const inferredTaxRate = taxableAmount > 0 ? (totalTax / taxableAmount) * 100 : 0
+  const effectiveTaxRate = hasMixedTaxRates
+    ? inferredTaxRate
+    : (saleItems[0]?.taxRate ?? inferredTaxRate ?? settingsTaxRate ?? 0)
+  const halfTaxRate = effectiveTaxRate / 2
+  const sgstAmt = totalTax / 2
+  const cgstAmt = totalTax - sgstAmt
+  const taxableAmt = sale.subtotal - (sale.totalDiscount || 0)
+  const paymentMade = sale.amountPaid || 0
+  const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
+
+  const money = (n: number) => `Rs.${n.toFixed(2)}`
+
+  const b = new EscPosBuilder()
+  b.init()
+
+  // ── Header ──
+  b.align('center')
+  b.bold(true).line('TAX INVOICE')
+  b.line(companyName)
+  b.bold(false)
+  if (companyAddress) b.line(companyAddress)
+  if (companyPhone) b.line(`Phone No: ${companyPhone}`)
+  if (companyGSTIN) b.line(`GSTIN: ${companyGSTIN}`)
+  b.hr(LINE_WIDTH)
+
+  // ── Meta ──
+  b.align('left')
+  b.line(`Invoice No : ${sale.invoiceNumber || '---'}`)
+  b.line(`Date       : ${dateStr}`)
+  b.line(`Bill To    : ${methodLabel}`)
+  if (customerName) b.line(`Mobile     : ${customerName}`)
+  b.hr(LINE_WIDTH)
+
+  // ── Items ──
+  b.bold(true).line('SN ITEMS').bold(false)
+  b.hr(LINE_WIDTH)
+  saleItems.forEach((item: SaleItem, index: number) => {
+    const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
+    b.bold(true)
+    b.twoCol(`${index + 1}. ${item.productName}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, LINE_WIDTH)
+    b.bold(false)
+    b.line(`  ${item.quantity} Pc  Rate:${item.sellingPrice.toFixed(2)}  Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'}  Amt:${lineTotal.toFixed(2)}`)
+  })
+  b.hr(LINE_WIDTH)
+
+  // ── Summary ──
+  b.twoCol('Sub Total', money(sale.subtotal), LINE_WIDTH)
+  if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, LINE_WIDTH)
+  b.twoCol('Taxable Amt', money(taxableAmt), LINE_WIDTH)
+  if (totalTax > 0) {
+    b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), LINE_WIDTH)
+    b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), LINE_WIDTH)
+  }
+  b.hr(LINE_WIDTH, '=')
+
+  b.bold(true)
+  b.twoCol('Total Amount', money(sale.grandTotal), LINE_WIDTH)
+  b.bold(false)
+  b.twoCol('Paid Amount', money(paymentMade), LINE_WIDTH)
+  b.twoCol('Balance Amount', money(balanceDue), LINE_WIDTH)
+  b.hr(LINE_WIDTH)
+
+  // ── Terms ──
+  b.align('center')
+  b.bold(true).line('Terms and Conditions').bold(false)
+  b.align('left')
+  b.line(`1. ${(receiptConfig?.termsLine1 || 'Goods once sold will not be taken back or exchanged').replace(/^\d+\.\s*/, '')}`)
+  b.line(`2. ${(receiptConfig?.termsLine2 || 'All disputes are subject to local jurisdiction only').replace(/^\d+\.\s*/, '')}`)
+  if (receiptConfig?.termsLine3) b.line(receiptConfig.termsLine3)
+
+  // ── Footer ──
+  b.align('center')
+  b.line(footerMessage)
+  b.feed(3)
+  b.cut()
+
+  return b.toBytes()
 }

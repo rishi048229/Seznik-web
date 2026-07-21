@@ -81,7 +81,7 @@ export const ExpensesPage = () => {
       const start = new Date(filterStartDate)
       start.setHours(0, 0, 0, 0)
       result = result.filter(e => {
-        const eDate = e.expenseDate?.toDate ? new Date(e.expenseDate.toDate()) : new Date()
+        const eDate = e.expenseDate ? (typeof e.expenseDate === 'string' ? new Date(e.expenseDate) : (e.expenseDate as any).toDate ? (e.expenseDate as any).toDate() : new Date(e.expenseDate)) : new Date()
         return eDate >= start
       })
     }
@@ -90,7 +90,7 @@ export const ExpensesPage = () => {
       const end = new Date(filterEndDate)
       end.setHours(23, 59, 59, 999)
       result = result.filter(e => {
-        const eDate = e.expenseDate?.toDate ? new Date(e.expenseDate.toDate()) : new Date()
+        const eDate = e.expenseDate ? (typeof e.expenseDate === 'string' ? new Date(e.expenseDate) : (e.expenseDate as any).toDate ? (e.expenseDate as any).toDate() : new Date(e.expenseDate)) : new Date()
         return eDate <= end
       })
     }
@@ -120,8 +120,8 @@ export const ExpensesPage = () => {
       header: 'Date',
       render: (row) => (
         <span>
-          {row.expenseDate?.toDate
-            ? new Date(row.expenseDate.toDate()).toLocaleDateString('en-US', {
+          {row.expenseDate
+            ? new Date((row.expenseDate as any)?.toDate ? (row.expenseDate as any).toDate() : row.expenseDate).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', year: 'numeric',
               })
             : '—'}
@@ -199,7 +199,7 @@ export const ExpensesPage = () => {
       amount: String(row.amount),
       description: row.description,
       paymentMethod: row.paymentMethod,
-      expenseDate: row.expenseDate?.toDate ? new Date(row.expenseDate.toDate()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      expenseDate: row.expenseDate ? new Date((row.expenseDate as any)?.toDate ? (row.expenseDate as any).toDate() : row.expenseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     })
     setReceiptImageURL(row.receiptImageURL || '')
     setEditId(row.id)

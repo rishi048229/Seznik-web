@@ -7,7 +7,7 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -15,8 +15,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
+import { useBlePrinter } from '@/hooks/useBlePrinter'
 import toast from 'react-hot-toast'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
@@ -35,9 +36,11 @@ export const POSPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [isScanMode, setIsScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const blePrinter = useBlePrinter()
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
   const [orderDiscount, setOrderDiscount] = useState(0)
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
@@ -207,19 +210,10 @@ export const POSPage = () => {
     })
   }
 
-  // Accept format directly to avoid React state race condition
-  const handlePrint = (format: 'a4' | 'thermal') => {
-    if (!lastSaleData) return
-
-    const receiptConfig = settings?.receiptConfig
-    const customerName = lastSaleData.selectedCustomer
-      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-      : ''
-
-    const paperWidth: '50mm' | '210mm' = format === 'thermal' ? '50mm' : '210mm'
-
-    // Build sale object from lastSaleData (cart items are already cleared)
-    const tempSale: Sale = {
+  // Build sale object from lastSaleData (cart items are already cleared)
+  const buildTempSale = (): Sale | null => {
+    if (!lastSaleData) return null
+    return {
       id: completedSaleId,
       invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
       items: lastSaleData.items.map(item => ({
@@ -242,6 +236,28 @@ export const POSPage = () => {
       isQuickBill: false,
       createdAt: new Date() as any,
     }
+  }
+
+  const finishPrintFlow = () => {
+    setIsPrintModalOpen(false)
+    setCompletedSaleId('')
+    setCompletedInvoiceNumber('')
+    setMethod('cash')
+    setAmountPaid('')
+    navigate(ROUTES.SALES)
+  }
+
+  // Accept format directly to avoid React state race condition
+  const handlePrint = (format: 'a4' | 'thermal') => {
+    const tempSale = buildTempSale()
+    if (!tempSale || !lastSaleData) return
+
+    const receiptConfig = settings?.receiptConfig
+    const customerName = lastSaleData.selectedCustomer
+      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
+      : ''
+
+    const paperWidth: '50mm' | '210mm' = format === 'thermal' ? '50mm' : '210mm'
 
     const receiptHTML = generateReceiptHTML({
       sale: tempSale,
@@ -254,14 +270,37 @@ export const POSPage = () => {
       settingsTaxName: 'GST',
     })
 
-    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, () => {
-      setIsPrintModalOpen(false)
-      setCompletedSaleId('')
-      setCompletedInvoiceNumber('')
-      setMethod('cash')
-      setAmountPaid('')
-      navigate(ROUTES.SALES)
-    })
+    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow)
+  }
+
+  const handlePrintBluetooth = async () => {
+    const tempSale = buildTempSale()
+    if (!tempSale || !lastSaleData) return
+
+    setIsBlePrinting(true)
+    try {
+      if (blePrinter.status !== 'connected') {
+        await blePrinter.connect()
+      }
+      const receiptConfig = settings?.receiptConfig
+      const customerName = lastSaleData.selectedCustomer
+        ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
+        : ''
+      const bytes = generateReceiptEscPos({
+        sale: tempSale,
+        receiptConfig,
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        customerName,
+      })
+      await blePrinter.print(bytes)
+      finishPrintFlow()
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to print via Bluetooth'
+      toast.error(msg)
+    } finally {
+      setIsBlePrinting(false)
+    }
   }
 
   if (isLoading) {
@@ -771,6 +810,18 @@ export const POSPage = () => {
               </div>
             </button>
           </div>
+
+          {blePrinter.isSupported && (
+            <Button
+              variant="outline"
+              className="w-full"
+              loading={isBlePrinting}
+              leftIcon={<Bluetooth size={16} />}
+              onClick={handlePrintBluetooth}
+            >
+              {blePrinter.status === 'connected' ? `Print to ${blePrinter.deviceName}` : 'Print via Bluetooth'}
+            </Button>
+          )}
 
           <Button
             variant="ghost"

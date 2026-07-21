@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
+import { ArrowLeft, Printer, Download, FileText, Bluetooth } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
+import { useBlePrinter } from '@/hooks/useBlePrinter'
+import toast from 'react-hot-toast'
 
 export const SaleDetailPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +23,8 @@ export const SaleDetailPage = () => {
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [isBlePrinting, setIsBlePrinting] = useState(false)
+  const blePrinter = useBlePrinter()
 
   // Accept format directly to avoid React state update race condition
   const handlePrint = (format: 'a4' | 'thermal') => {
@@ -47,6 +51,34 @@ export const SaleDetailPage = () => {
     printReceipt(receiptHTML, paperWidth, sale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
     })
+  }
+
+  const handlePrintBluetooth = async () => {
+    if (!sale) return
+    setIsBlePrinting(true)
+    try {
+      if (blePrinter.status !== 'connected') {
+        await blePrinter.connect()
+      }
+      const receiptConfig = settings?.receiptConfig
+      const customerName = sale.customerId
+        ? customers?.find(c => c.id === sale.customerId)?.name
+        : ''
+      const bytes = generateReceiptEscPos({
+        sale,
+        receiptConfig,
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        customerName,
+      })
+      await blePrinter.print(bytes)
+      setIsPrintModalOpen(false)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to print via Bluetooth'
+      toast.error(msg)
+    } finally {
+      setIsBlePrinting(false)
+    }
   }
 
   if (isLoading) {
@@ -253,6 +285,18 @@ export const SaleDetailPage = () => {
               </div>
             </button>
           </div>
+
+          {blePrinter.isSupported && (
+            <Button
+              variant="outline"
+              className="w-full"
+              loading={isBlePrinting}
+              leftIcon={<Bluetooth size={16} />}
+              onClick={handlePrintBluetooth}
+            >
+              {blePrinter.status === 'connected' ? `Print to ${blePrinter.deviceName}` : 'Print via Bluetooth'}
+            </Button>
+          )}
 
           <Button
             variant="ghost"

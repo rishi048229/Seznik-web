@@ -53,3 +53,35 @@ export interface TopCustomer {
   invoiceCount: number
   lastPurchase: number
 }
+
+export interface PaymentModeBreakdown {
+  totalSales: number
+  modes: { method: string; amount: number; count: number; percent: number }[]
+}
+
+export interface ProfitBreakdownData {
+  revenue: number
+  tax: number
+  cost: number
+  profit: number
+  marginPercent: number
+}
+
+export interface TopProduct {
+  id: string
+  name: string
+  unitsSold: number
+  revenue: number
+}
+
+export interface TopCategory {
+  name: string
+  revenue: number
+}
+
+export interface ExpenseSummaryData {
+  today: number
+  thisMonth: number
+  collectionsNonCredit: number
+  net: number
+}

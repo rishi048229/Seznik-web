@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { LanguageProvider } from '@/contexts/LanguageContext'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
@@ -10,6 +11,7 @@ import { MobileNav } from '@/components/layout/MobileNav'
 import { Spinner } from '@/components/ui/Spinner'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
+import type { UserPermissions } from '@/types/auth.types'
 
 // Helper to lazy-load named exports as default components
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,21 +127,35 @@ const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
 // Route guard for authenticated users with role
 const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
-  
+
   if (loading) {
     return LoadingFallback
   }
-  
+
   // If no user, redirect to login
   if (!user) {
     return <Navigate to={ROUTES.LOGIN} replace />
   }
-  
+
   // If user doesn't have role, redirect to access selection
   if (!hasSelectedWorkspace || !userProfile?.role) {
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
   }
-  
+
+  return <>{children}</>
+}
+
+// Permission-gated route: admins bypass; agents need the specific flag, else
+// they're bounced to the dashboard (they also can't see the nav link).
+const PermissionRoute = ({ permission, children }: { permission: keyof UserPermissions; children: React.ReactNode }) => {
+  const { userProfile, permissions } = useAuth()
+
+  if (userProfile?.role === 'admin') {
+    return <>{children}</>
+  }
+  if (!permissions || !permissions[permission]) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />
+  }
   return <>{children}</>
 }
 
@@ -147,6 +163,7 @@ function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
+        <LanguageProvider>
         <AuthProvider>
           <Toaster position="top-right" />
           <Suspense fallback={LoadingFallback}>
@@ -175,21 +192,22 @@ function App() {
               <Route path={ROUTES.CATEGORIES} element={<AuthenticatedRoute><MainLayout><CategoriesPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CUSTOMERS} element={<AuthenticatedRoute><MainLayout><CustomersPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="/customers/:id" element={<AuthenticatedRoute><MainLayout><CustomerDetailPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.SUPPLIERS} element={<AuthenticatedRoute><MainLayout><SuppliersPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.SUPPLIERS} element={<AuthenticatedRoute><PermissionRoute permission="canAccessSuppliers"><MainLayout><SuppliersPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.SALES} element={<AuthenticatedRoute><MainLayout><SalesPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="/sales/:id" element={<AuthenticatedRoute><MainLayout><SaleDetailPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.PURCHASES} element={<AuthenticatedRoute><MainLayout><PurchasesPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.EXPENSES} element={<AuthenticatedRoute><MainLayout><ExpensesPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.PURCHASES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessPurchases"><MainLayout><PurchasesPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.EXPENSES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessExpenses"><MainLayout><ExpensesPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.CREDITS} element={<AuthenticatedRoute><MainLayout><CreditsPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS} element={<AuthenticatedRoute><MainLayout><ReportsPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS_SALES} element={<AuthenticatedRoute><MainLayout><SalesReportPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><MainLayout><ProfitLossPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><MainLayout><TaxReportPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.REPORTS} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ReportsPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.REPORTS_SALES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><SalesReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ProfitLossPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><TaxReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>
           </Suspense>
         </AuthProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </BrowserRouter>
   )

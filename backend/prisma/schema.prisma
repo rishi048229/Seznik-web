@@ -190,14 +190,16 @@ model Purchase {
 }
 
 model Expense {
-  id          String   @id @default(uuid())
-  amount      Float
-  category    String
-  description String?
-  date        DateTime
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  id              String   @id @default(uuid())
+  amount          Float
+  category        String
+  description     String?
+  paymentMethod   String   @default("cash")
+  receiptImageURL String?
+  expenseDate     DateTime
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
 }
 
 model CreditTransaction {
