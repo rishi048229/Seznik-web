@@ -19,18 +19,19 @@ export const AccessSelectionPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleRoleSelect = (role: UserRole) => {
+    if (role === 'admin' && user?.role === 'agent') {
+      toast.error(`Access Denied: ${user?.email || 'Your account'} does not have Admin privileges`)
+      return
+    }
     setSelectedRole(role)
+    setName(user?.displayName || user?.email || '')
+    setPassword('')
     setIsModalOpen(true)
   }
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      toast.error('Please enter your name')
-      return
-    }
-
-    if (!password.trim() || password.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    if (!password.trim()) {
+      toast.error('Please enter your password to confirm')
       return
     }
 
@@ -42,7 +43,7 @@ export const AccessSelectionPage = () => {
     setIsSubmitting(true)
 
     try {
-      await setUserRole(selectedRole, name.trim(), password)
+      await setUserRole(selectedRole, name.trim() || user.displayName || user.email, password)
       toast.success(`Logged in as ${selectedRole}`)
       navigate(ROUTES.DASHBOARD)
     } catch (error) {
@@ -189,27 +190,32 @@ export const AccessSelectionPage = () => {
             <Button
               onClick={handleSubmit}
               loading={isSubmitting}
-              disabled={!name.trim() || password.length < 6}
+              disabled={!password.trim()}
             >
-              Continue
+              Confirm Access
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold">Account Email</span>
+            <span className="text-sm font-bold text-slate-800">{user?.email}</span>
+          </div>
+
           <Input
-            label="Your Name"
+            label="Account Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your full name"
-            autoFocus
+            placeholder="Enter your name"
           />
           <Input
-            label="Password"
+            label="Account Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password (min 6 characters)"
+            placeholder="Enter password to confirm access"
+            autoFocus
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {selectedRole === 'admin'

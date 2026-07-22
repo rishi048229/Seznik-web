@@ -5,9 +5,10 @@ import * as settingsService from '@/services/settingsService'
 
 export const useSettings = () => {
   const { user } = useAuth()
+  const uid = user?.id || user?.uid
   return useQuery({
-    queryKey: [QUERY_KEYS.SETTINGS, user?.uid],
-    queryFn: () => settingsService.getSettings(user!.uid),
+    queryKey: [QUERY_KEYS.SETTINGS, uid],
+    queryFn: () => settingsService.getSettings(uid || ''),
     enabled: !!user,
   })
 }
@@ -17,7 +18,7 @@ export const useCreateSettings = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: Parameters<typeof settingsService.createSettings>[1]) =>
-      settingsService.createSettings(user!.uid, data),
+      settingsService.createSettings(user?.id || user?.uid || '', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.SETTINGS] })
     },
@@ -29,7 +30,7 @@ export const useUpdateSettings = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ settingsId, data }: { settingsId: string; data: Record<string, unknown> }) =>
-      settingsService.updateSettings(user!.uid, settingsId, data),
+      settingsService.updateSettings(user?.id || user?.uid || '', settingsId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.SETTINGS] })
     },

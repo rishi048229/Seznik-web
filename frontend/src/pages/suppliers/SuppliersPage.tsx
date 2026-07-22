@@ -99,7 +99,7 @@ export const SuppliersPage = () => {
   const openEdit = (row: Supplier) => {
     setForm({
       name: row.name,
-      phone: row.phone,
+      phone: row.phone ?? '',
       email: row.email ?? '',
       address: row.address ?? '',
       gstin: row.gstin ?? '',
@@ -154,19 +154,16 @@ export const SuppliersPage = () => {
         }
       />
 
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-      ) : (
-        <Card className="p-4">
-          <DataTable
-            data={suppliers ?? []}
-            columns={columns}
-            searchable
-            pagination
-            emptyMessage="No suppliers found. Add your first supplier!"
-          />
-        </Card>
-      )}
+      <Card className="p-4">
+        <DataTable
+          data={suppliers ?? []}
+          columns={columns}
+          loading={isLoading}
+          searchable
+          pagination
+          emptyMessage="No suppliers found. Add your first supplier!"
+        />
+      </Card>
 
       <Modal
         isOpen={isFormOpen}

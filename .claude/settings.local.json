@@ -53,7 +53,19 @@
       "Bash(curl -s -o /dev/null -w \"recharts \\(should no longer be requested\\): %{http_code}\\\\n\" \"http://localhost:5173/node_modules/.vite/deps/recharts.js?v=48139076\")",
       "Bash(node _verify_tmp.js)",
       "Bash(node _test_managed_tmp.js)",
-      "Bash(python)"
+      "Bash(python)",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx tsc --noEmit; if \\($?\\) { npx eslint src --max-warnings=200 --quiet; Write-Output \"lint-exit:$LASTEXITCODE\" })",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\backend; npx tsc --noEmit; Write-Output \"tsc-exit:$LASTEXITCODE\")",
+      "PowerShell($root = \"$env:TEMP\\\\claude\\\\labelsdk\\\\android_as\"; Expand-Archive -LiteralPath \"$root\\\\src\\\\autoreplyprint_androidsample\\\\aar\\\\autoreplyprint.aar\" -DestinationPath \"$root\\\\aar\" -Force; Get-ChildItem \"$root\\\\aar\" -Recurse -File | Select-Object FullName, Length | Format-Table -AutoSize -Wrap)",
+      "PowerShell(python \"C:\\\\Users\\\\rishi\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-rishi-OneDrive-Desktop-inventorymanager\\\\eb0d9684-2eec-471a-bb9c-61da0f19cd3a\\\\scratchpad\\\\find_uuids.py\")",
+      "PowerShell(Remove-Item \"$env:TEMP\\\\claude\\\\labelsdk\" -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue; Write-Output \"cleaned\")",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx tsc --noEmit; Write-Output \"tsc-exit:$LASTEXITCODE\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue)",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx eslint src/pages/printers/PrintersPage.tsx src/types/settings.types.ts --quiet; Write-Output \"lint-exit:$LASTEXITCODE\")",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx eslint src/pages/printers/PrintersPage.tsx --quiet; Write-Output \"lint-exit:$LASTEXITCODE\")",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx eslint src/pages/printers/PrintersPage.tsx src/utils/escpos.ts src/utils/labelPrint.ts src/components/ui/Switch.tsx src/types/settings.types.ts --quiet; Write-Output \"lint-exit:$LASTEXITCODE\")",
+      "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx eslint src/pages/printers/PrintersPage.tsx src/pages/products/ProductsPage.tsx src/services/settingsService.ts src/types/settings.types.ts src/utils/labelPrint.ts --quiet; Write-Output \"lint-exit:$LASTEXITCODE\")"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

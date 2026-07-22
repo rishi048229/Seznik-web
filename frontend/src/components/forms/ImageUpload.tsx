@@ -84,7 +84,7 @@ export const ImageUpload = ({
       <div className="flex items-start gap-4">
         <div
           className={cn(
-            'relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden flex items-center justify-center cursor-pointer hover:border-indigo-400 transition-colors bg-gray-50 dark:bg-gray-700',
+            'relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors bg-gray-50 dark:bg-gray-700',
             sizeClasses[previewSize],
             isUploading && 'opacity-50 cursor-wait'
           )}

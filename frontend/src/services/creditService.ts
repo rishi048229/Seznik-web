@@ -25,3 +25,7 @@ export const deleteCreditTransaction = async (uid: string, transactionId: string
     method: 'DELETE',
   })
 }
+
+export const getCustomersWithCredit = async (uid: string): Promise<any[]> => {
+  return await fetchApi('/credits/customers')
+}

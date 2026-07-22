@@ -1,5 +1,5 @@
 import { fetchApi } from './api'
-import type { UserSettings, InvoiceConfig, NotificationConfig } from '@/types/settings.types'
+import type { UserSettings, InvoiceConfig, NotificationConfig, PrinterConfig } from '@/types/settings.types'
 
 export const getSettings = async (uid: string): Promise<UserSettings | null> => {
   try {
@@ -18,8 +18,8 @@ export const createSettings = async (uid: string, data: Omit<UserSettings, 'id'>
   return settings.id
 }
 
-export const updateSettings = async (uid: string, settingsId: string, data: Partial<Omit<UserSettings, 'id'>>): Promise<void> => {
-  await fetchApi(`/settings/${settingsId}`, {
+export const updateSettings = async (uid: string, settingsId: string, data: Partial<Omit<UserSettings, 'id'>>): Promise<UserSettings> => {
+  return fetchApi(`/settings/${settingsId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
@@ -37,4 +37,12 @@ export const updateNotificationConfig = async (uid: string, settingsId: string, 
     method: 'PATCH',
     body: JSON.stringify({ notificationConfig }),
   })
+}
+
+export const updatePrinterConfig = async (uid: string, settingsId: string, printerConfig: PrinterConfig): Promise<UserSettings> => {
+  const settings = await fetchApi('/settings/printer', {
+    method: 'PATCH',
+    body: JSON.stringify({ printerConfig }),
+  })
+  return settings
 }

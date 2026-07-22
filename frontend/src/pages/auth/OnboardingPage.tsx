@@ -155,7 +155,7 @@ export const OnboardingPage = () => {
                 <button
                   type="submit"
                   disabled={!businessName.trim()}
-                  className="w-full bg-[#070235] hover:bg-[#3d3dcb] text-white py-4 rounded-full font-bold text-base shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#070235] hover:bg-[#3d3dcb] text-white py-4 rounded-full font-bold text-base shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Continue
                   <span className="text-lg">→</span>
@@ -231,7 +231,7 @@ export const OnboardingPage = () => {
                 <button
                   type="submit"
                   disabled={!categoryName.trim() || isPending}
-                  className="w-full bg-[#070235] hover:bg-[#3d3dcb] text-white py-4 rounded-full font-bold text-base shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#070235] hover:bg-[#3d3dcb] text-white py-4 rounded-full font-bold text-base shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPending ? <Spinner size="sm" className="text-white" /> : (
                     <>

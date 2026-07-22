@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean
   hasSelectedWorkspace: boolean
   loginWithEmail: (email: string, pass: string) => Promise<void>
-  registerWithEmail: (email: string, pass: string, fName: string, lName: string) => Promise<void>
+  registerWithEmail: (email: string, pass: string, fName: string, lName: string, phone: string) => Promise<void>
   signOut: () => Promise<void>
   setUserRole: (role: UserRole, name: string, password: string) => Promise<void>
   completeOnboarding: (businessName: string) => Promise<void>
@@ -23,7 +23,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<any | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [hasSelectedWorkspace, setHasSelectedWorkspace] = useState(false)
+  const [hasSelectedWorkspace, setHasSelectedWorkspace] = useState<boolean>(() => {
+    return localStorage.getItem('hasSelectedWorkspace') === 'true'
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,16 +34,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (token) {
         try {
           const profile = await getUserProfile()
-          setUser(profile)
-          setUserProfile(profile)
+          const isWorkspaceSelected = localStorage.getItem('hasSelectedWorkspace') === 'true'
+
+          if (!isWorkspaceSelected) {
+            setUser(profile)
+            setUserProfile(profile ? { ...profile, role: null } : null)
+            setHasSelectedWorkspace(false)
+          } else {
+            setUser(profile)
+            setUserProfile(profile)
+            setHasSelectedWorkspace(true)
+          }
         } catch (error) {
           console.error("Auth init failed", error)
           setUser(null)
           setUserProfile(null)
+          setHasSelectedWorkspace(false)
+          localStorage.removeItem('hasSelectedWorkspace')
         }
       } else {
         setUser(null)
         setUserProfile(null)
+        setHasSelectedWorkspace(false)
+        localStorage.removeItem('hasSelectedWorkspace')
       }
       setLoading(false)
     }
@@ -54,14 +69,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserProfile(data.user)
   }
   
-  const handleRegister = async (email: string, pass: string, fName: string, lName: string) => {
-    const data = await registerUser(email, pass, fName, lName)
+  const handleRegister = async (email: string, pass: string, fName: string, lName: string, phone: string) => {
+    const data = await registerUser(email, pass, fName, lName, phone)
     setUser(data.user)
     setUserProfile(data.user)
   }
 
   const handleSignOut = async () => {
     setHasSelectedWorkspace(false)
+    localStorage.removeItem('hasSelectedWorkspace')
     await signOutUser()
     setUser(null)
     setUserProfile(null)
@@ -71,8 +87,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) throw new Error('No user logged in')
     await setUserRoleAndProfile(user.id || user.uid, role, name, password)
     const updatedProfile = await getUserProfile()
-    setUserProfile(updatedProfile)
+    setUserProfile(updatedProfile ? { ...updatedProfile, role } : null)
     setHasSelectedWorkspace(true)
+    localStorage.setItem('hasSelectedWorkspace', 'true')
   }
 
   const handleCompleteOnboarding = async (businessName: string) => {
@@ -84,6 +101,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const handleClearWorkspaceSelection = () => {
     setHasSelectedWorkspace(false)
+    localStorage.removeItem('hasSelectedWorkspace')
+    setUserProfile(prev => prev ? { ...prev, role: null } : null)
   }
 
   const hasRole = (): boolean => {

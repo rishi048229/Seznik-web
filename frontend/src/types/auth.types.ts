@@ -44,12 +44,14 @@ export const AGENT_PERMISSIONS: UserPermissions = {
 export interface UserProfile {
   uid: string
   email: string | null
+  emailVerified?: boolean
+  phone?: string | null
   displayName: string | null
   photoURL: string | null
   businessName: string
   plan: 'free' | 'pro'
   createdAt: Date
   onboardingCompleted?: boolean
-  role?: UserRole
+  role?: UserRole | null
   permissions?: UserPermissions
 }

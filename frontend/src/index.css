@@ -50,3 +50,18 @@
 .animate-in {
   animation: fadeIn 0.2s ease-out, slideInFromTop 0.2s ease-out;
 }
+
+@keyframes printSlide {
+  0% {
+    transform: translateY(-85%);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-30%);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

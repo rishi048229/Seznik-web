@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -66,7 +67,7 @@ export const CustomersPage = () => {
     ? Object.values(customerSpending).reduce((s, v) => s + v, 0) / activeCustomers.length
     : 0
   const newThisWeek = activeCustomers.filter(c => {
-    const created = c.createdAt?.toDate ? new Date(c.createdAt.toDate()) : new Date()
+    const created = (c.createdAt as any)?.toDate ? (c.createdAt as any).toDate() : new Date(c.createdAt || Date.now())
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     return created >= weekAgo
   }).length
@@ -152,10 +153,10 @@ export const CustomersPage = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card className="p-6 md:col-span-2 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-900/20 dark:to-gray-800 border-indigo-100 dark:border-indigo-800 relative overflow-hidden">
+        <Card className="p-6 md:col-span-2 bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-800 border-blue-100 dark:border-blue-800 relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Total Active Customers</p>
-            <p className="text-4xl font-black text-indigo-600">{totalActive.toLocaleString()}</p>
+            <p className="text-4xl font-black text-blue-600">{totalActive.toLocaleString()}</p>
             <div className="mt-3 flex items-center gap-2 text-emerald-600 text-xs font-bold">
               <TrendingUp size={14} />
               12% Increase this month
@@ -187,7 +188,7 @@ export const CustomersPage = () => {
                   onClick={() => { setStatusFilter(status); setCurrentPage(1) }}
                   className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
                     statusFilter === status
-                      ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600'
+                      ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
@@ -220,7 +221,7 @@ export const CustomersPage = () => {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+          <div className="p-4"><TableSkeleton rows={6} columns={6} /></div>
         ) : (
           <>
             {/* Table */}
@@ -240,7 +241,7 @@ export const CustomersPage = () => {
                   {paginated.map(customer => {
                     const totalSpent = customerSpending[customer.id] ?? 0
                     const initials = customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                    const colors = ['bg-sky-500', 'bg-indigo-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500', 'bg-amber-500']
+                    const colors = ['bg-sky-500', 'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500', 'bg-amber-500']
                     const colorIndex = Math.abs(customer.id.charCodeAt(0)) % colors.length
                     const isVIP = totalSpent > 5000
                     const hasCredit = customer.creditBalance > 0
@@ -272,8 +273,8 @@ export const CustomersPage = () => {
                           <p className="text-xs text-gray-400">{customer.phone}</p>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
-                          {customer.createdAt?.toDate
-                            ? getTimeAgo(new Date(customer.createdAt.toDate()))
+                          {customer.createdAt
+                            ? getTimeAgo(new Date((customer.createdAt as any)?.toDate ? (customer.createdAt as any).toDate() : customer.createdAt))
                             : '—'}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -357,18 +358,18 @@ export const CustomersPage = () => {
         {/* Retention Insights */}
         <Card className="lg:col-span-2 p-8 flex flex-col items-center justify-center min-h-[250px] relative overflow-hidden">
           <div className="text-center relative z-10">
-            <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30">
-              <TrendingUp size={28} className="text-indigo-600" />
+            <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30">
+              <TrendingUp size={28} className="text-blue-600" />
             </div>
             <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Churn Risk Prediction</h4>
             <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
               Monitor customer activity patterns to identify at-risk customers before they leave.
             </p>
-            <button className="mt-4 text-indigo-600 font-bold text-sm hover:underline">
+            <button className="mt-4 text-blue-600 font-bold text-sm hover:underline">
               View insights
             </button>
           </div>
-          <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-indigo-50 dark:bg-indigo-900/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-blue-50 dark:bg-blue-900/10 rounded-full blur-3xl" />
         </Card>
 
         {/* Recent Activity */}
@@ -380,7 +381,7 @@ export const CustomersPage = () => {
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   tx.type === 'payment'
                     ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
-                    : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600'
+                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'
                 }`}>
                   {tx.type === 'payment' ? <CreditCard size={18} /> : <UserPlus size={18} />}
                 </div>
@@ -390,7 +391,7 @@ export const CustomersPage = () => {
                   </p>
                   <p className="text-xs text-gray-400">{formatINR(tx.amount)}</p>
                   <p className="text-[10px] mt-0.5 text-gray-400">
-                    {tx.createdAt?.toDate ? getTimeAgo(new Date(tx.createdAt.toDate())) : 'Recently'}
+                    {tx.createdAt ? getTimeAgo(new Date((tx.createdAt as any)?.toDate ? (tx.createdAt as any).toDate() : tx.createdAt)) : 'Recently'}
                   </p>
                 </div>
               </div>

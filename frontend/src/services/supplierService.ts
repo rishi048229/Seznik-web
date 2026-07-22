@@ -1,6 +1,8 @@
 import { fetchApi } from './api'
 import type { Supplier } from '@/types/supplier.types'
 
+export type { Supplier } from '@/types/supplier.types'
+
 export const getSuppliers = async (uid: string): Promise<Supplier[]> => {
   return await fetchApi('/suppliers')
 }

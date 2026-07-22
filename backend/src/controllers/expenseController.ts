@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import prisma from '../config/db';
 
 export const getExpenses = async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
   try {
-    const userId = (req as any).user.id;
     const expenses: any[] = await prisma.$queryRaw`
       SELECT * FROM "Expense" WHERE "userId" = ${userId} ORDER BY "expenseDate" DESC
     `;

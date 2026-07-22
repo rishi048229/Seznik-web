@@ -64,7 +64,7 @@ export const CreditsPage = () => {
     const allCustomers = customers as Customer[] ?? []
 
     allTx.forEach((tx) => {
-      const txDate = tx.createdAt?.toDate ? tx.createdAt.toDate().getTime() : Date.now()
+      const txDate = (tx.createdAt as any)?.toDate ? (tx.createdAt as any).toDate().getTime() : new Date(tx.createdAt || Date.now()).getTime()
       if (txDate >= selected.getTime() && txDate < endVal) {
         const customer = allCustomers.find(c => c.id === tx.customerId)
         entries.push({
@@ -82,7 +82,7 @@ export const CreditsPage = () => {
     })
 
     allSales.forEach((sale) => {
-      const saleDate = sale.createdAt?.toDate ? sale.createdAt.toDate().getTime() : Date.now()
+      const saleDate = (sale.createdAt as any)?.toDate ? (sale.createdAt as any).toDate().getTime() : new Date(sale.createdAt || Date.now()).getTime()
       if (saleDate >= selected.getTime() && saleDate < endVal && sale.paymentMethod === 'credit') {
         const customer = allCustomers.find(c => c.id === sale.customerId)
         entries.push({
@@ -98,7 +98,7 @@ export const CreditsPage = () => {
     })
 
     allExpenses.forEach((exp) => {
-      const expDate = exp.expenseDate?.toDate ? exp.expenseDate.toDate().getTime() : Date.now()
+      const expDate = (exp.expenseDate as any)?.toDate ? (exp.expenseDate as any).toDate().getTime() : new Date(exp.expenseDate || Date.now()).getTime()
       if (expDate >= selected.getTime() && expDate < endVal) {
         entries.push({
           id: exp.id,
@@ -317,7 +317,7 @@ export const CreditsPage = () => {
                       >
                         <div className="flex items-center justify-between p-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-semibold text-sm">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-sm">
                               {customer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                             </div>
                             <div>

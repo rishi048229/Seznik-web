@@ -9,10 +9,24 @@ import {
   getManagedUsers,
   createManagedUser,
   syncManagedUsers,
+  sendEmailOtp,
+  verifyEmailOtp,
+  sendForgotPasswordOtp,
+  verifyForgotPasswordOtp,
+  resetPasswordWithOtp,
 } from '../controllers/authController';
 import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
+
+// Pre-signup email verification (public)
+router.post('/send-otp', sendEmailOtp);
+router.post('/verify-otp', verifyEmailOtp);
+
+// Forgot password flow (public)
+router.post('/forgot-password/send-otp', sendForgotPasswordOtp);
+router.post('/forgot-password/verify-otp', verifyForgotPasswordOtp);
+router.post('/forgot-password/reset-password', resetPasswordWithOtp);
 
 router.post('/register', register);
 router.post('/login', login);

@@ -21,13 +21,14 @@ export const CustomerDetailPage = () => {
 
   const customer = (customers ?? []).find(c => c.id === id) as Customer | undefined
   const customerSales = sales?.filter(s => s.customerId === id) ?? []
-  const customerTransactions = transactions?.filter(t => t.customerId === id) ?? []
+  const customerTransactions = transactions?.filter((t: any) => t.customerId === id) ?? []
 
   const totalSpent = customerSales.reduce((sum, s) => sum + s.grandTotal, 0)
   const avgOrderValue = customerSales.length > 0 ? totalSpent / customerSales.length : 0
-  const accountAge = customer?.createdAt?.toDate
-    ? Math.round((Date.now() - customer.createdAt.toDate().getTime()) / (365.25 * 24 * 60 * 60 * 1000) * 10) / 10
-    : 0
+  const createdDate = (customer?.createdAt as any)?.toDate
+    ? (customer?.createdAt as any).toDate()
+    : new Date(customer?.createdAt || Date.now())
+  const accountAge = Math.round((Date.now() - createdDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000) * 10) / 10
 
   const initials = customer?.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? ''
 
@@ -74,16 +75,16 @@ export const CustomerDetailPage = () => {
         <div className="col-span-12 lg:col-span-4 space-y-6">
           {/* Customer Card */}
           <Card className="p-8 text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-900/20 rounded-full -mr-16 -mt-16 blur-3xl" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-full -mr-16 -mt-16 blur-3xl" />
             <div className="relative z-10">
               <div className="relative inline-block mb-4">
-                <div className="w-24 h-24 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 text-2xl font-bold mx-auto">
+                <div className="w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 text-2xl font-bold mx-auto">
                   {initials}
                 </div>
                 <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white dark:border-gray-800 rounded-full" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{customer.name}</h3>
-              <p className="text-sm font-medium text-indigo-600">
+              <p className="text-sm font-medium text-blue-600">
                 {customer.creditBalance > 1000 ? 'VIP Member' : 'Regular Customer'}
               </p>
             </div>
@@ -120,8 +121,8 @@ export const CustomerDetailPage = () => {
           </Card>
 
           {/* Credit Summary Card */}
-          <Card className="p-8 bg-gradient-to-br from-[#0a0a2e] to-indigo-900 text-white relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-800/20 to-transparent" />
+          <Card className="p-8 bg-gradient-to-br from-blue-800 to-sky-600 text-white relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-800/20 to-transparent" />
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-6">
                 <CreditCard size={28} />
@@ -153,7 +154,7 @@ export const CustomerDetailPage = () => {
               <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Recent Purchases</h3>
               <button
                 onClick={() => navigate(ROUTES.SALES)}
-                className="text-sm font-semibold text-indigo-600 hover:underline"
+                className="text-sm font-semibold text-blue-600 hover:underline"
               >
                 View All
               </button>
@@ -173,7 +174,7 @@ export const CustomerDetailPage = () => {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {customerSales.slice(0, 5).map(sale => (
                       <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <td className="px-8 py-4 font-mono font-medium text-indigo-600">
+                        <td className="px-8 py-4 font-mono font-medium text-blue-600">
                           #{sale.invoiceNumber}
                         </td>
                         <td className="px-8 py-4">
@@ -184,15 +185,15 @@ export const CustomerDetailPage = () => {
                               </div>
                             ))}
                             {sale.items && sale.items.length > 2 && (
-                              <div className="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white dark:border-gray-800 flex items-center justify-center text-[10px] font-bold text-white">
+                              <div className="w-8 h-8 rounded-full bg-blue-600 border-2 border-white dark:border-gray-800 flex items-center justify-center text-[10px] font-bold text-white">
                                 +{sale.items.length - 2}
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="px-8 py-4 text-gray-500">
-                          {sale.createdAt?.toDate
-                            ? new Date(sale.createdAt.toDate()).toLocaleDateString('en-US', {
+                          {sale.createdAt
+                            ? new Date((sale.createdAt as any)?.toDate ? (sale.createdAt as any).toDate() : sale.createdAt).toLocaleDateString('en-US', {
                                 month: 'short', day: 'numeric', year: 'numeric',
                               })
                             : '—'}
@@ -222,10 +223,10 @@ export const CustomerDetailPage = () => {
               <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Credit History</h3>
             </div>
             <div className="p-8 space-y-4">
-              {customerTransactions.length > 0 ? customerTransactions.map(tx => (
+              {customerTransactions.length > 0 ? customerTransactions.map((tx: any) => (
                 <div
                   key={tx.id}
-                  className={`flex items-center justify-between p-5 rounded-xl transition-all border-l-4 border-transparent hover:border-indigo-500 ${
+                  className={`flex items-center justify-between p-5 rounded-xl transition-all border-l-4 border-transparent hover:border-blue-500 ${
                     tx.type === 'payment'
                       ? 'bg-emerald-50 dark:bg-emerald-900/10'
                       : 'bg-red-50 dark:bg-red-900/10'
@@ -277,7 +278,7 @@ export const CustomerDetailPage = () => {
       {/* Bottom Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600">
+          <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
             <TrendingUp size={24} />
           </div>
           <div>

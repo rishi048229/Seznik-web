@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -12,9 +13,12 @@ import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLooku
 import { useCategories } from '@/hooks/useCategories'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSettings } from '@/hooks/useSettings'
 import { canManipulateStock } from '@/utils/permissions'
-import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
+import { getBlePrinterState, printEscPos, isBluetoothSupported } from '@/utils/blePrinter'
+import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '@/utils/labelPrint'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 
@@ -67,6 +71,7 @@ export const ProductsPage = () => {
   const { data: products, isLoading } = useProducts()
   const { data: categories } = useCategories()
   const { data: suppliers } = useSuppliers()
+  const { data: settings } = useSettings()
   const { mutate: createProduct, isPending: isCreating } = useCreateProduct()
   const { mutate: updateProduct, isPending: isUpdating } = useUpdateProduct()
   const { mutate: lookupBarcode, isPending: isLookingUp } = useBarcodeProductLookup()
@@ -141,6 +146,84 @@ export const ProductsPage = () => {
   const openCreate = () => {
     resetForm()
     setIsFormOpen(true)
+  }
+
+  // Prints a real ESC/POS label for this product on whatever Bluetooth
+  // printer is currently connected — reusing the exact same layout the user
+  // designed in Printers → Labels, so this button and that page always agree.
+  // Prints a real label for this product on the connected printer — using the
+  // user's chosen command protocol (TSPL mode for dual-mode label printers, or
+  // ESC/POS compact mode), falling back to browser print dialog if BLE is disconnected.
+  const handlePrintLabel = async (product: Product) => {
+    const template = settings?.printerConfig?.labelTemplate?.length
+      ? settings.printerConfig.labelTemplate
+      : defaultLabelTemplate
+    const barcodeType = settings?.printerConfig?.labelBarcodeType || 'CODE128'
+    const labelMode = settings?.printerConfig?.labelPrinterMode || 'tspl'
+    const labelWidth = settings?.printerConfig?.labelWidth || 50
+    const labelHeight = settings?.printerConfig?.labelHeight || 30
+
+    const labelData = {
+      businessName: settings?.receiptConfig?.companyName || settings?.businessName || 'Store',
+      productName: product.name,
+      price: formatINR(product.sellingPrice),
+      barcodeValue: product.barcode || product.sku,
+    }
+
+    if (isBluetoothSupported() && getBlePrinterState().status === 'connected') {
+      try {
+        const bytes = labelMode === 'tspl'
+          ? generateLabelTspl(template, barcodeType, labelData, labelWidth, labelHeight)
+          : generateLabelEscPos(template, barcodeType, labelData)
+
+        await printEscPos(bytes)
+        toast.success(`Label printed for ${product.name}`)
+        return
+      } catch (err) {
+        console.error('BLE label print error:', err)
+        toast.error(err instanceof Error ? err.message : 'Failed to print label via Bluetooth')
+        return
+      }
+    }
+
+    // Fallback to browser print window when Bluetooth is not connected
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      toast.error('Please allow popups or connect a Bluetooth printer to print labels')
+      return
+    }
+
+    const rows = template.map(el => {
+      const style = `text-align:${el.align};font-weight:${el.bold ? 700 : 400};font-size:${el.large ? '16px' : '11px'};margin:2px 0;`
+      if (el.type === 'barcode') {
+        return barcodeType === 'QR'
+          ? `<div style="text-align:${el.align};margin:4px 0;font-size:28px;">▦</div>`
+          : `<div style="text-align:${el.align};margin:4px 0;"><div style="font-weight:800;font-size:16px;letter-spacing:2px;">||||||||||||||||</div><div style="font-size:8px;font-family:monospace;">${labelData.barcodeValue}</div></div>`
+      }
+      const text = el.type === 'custom' ? (el.text ?? '') : el.type === 'businessName' ? labelData.businessName : el.type === 'productName' ? labelData.productName : labelData.price
+      return `<div style="${style}">${text}</div>`
+    }).join('')
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Print Label - ${product.name}</title>
+        <style>
+          body { font-family: sans-serif; width: ${labelWidth}mm; height: ${labelHeight}mm; margin: 0 auto; padding: 4px; box-sizing: border-box; text-align: center; color: #000; }
+        </style>
+      </head>
+      <body>${rows}</body>
+      </html>
+    `
+
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => {
+      printWindow.print()
+      printWindow.close()
+    }, 250)
   }
 
   const openEdit = (row: Product) => {
@@ -336,7 +419,7 @@ export const ProductsPage = () => {
               onClick={() => setViewMode('list')}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
@@ -347,7 +430,7 @@ export const ProductsPage = () => {
               onClick={() => setViewMode('grid')}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
                 viewMode === 'grid'
-                  ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
@@ -359,7 +442,7 @@ export const ProductsPage = () => {
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="px-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="px-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
               <option value="">Category</option>
               {categoryOptions.map(c => (
@@ -376,7 +459,7 @@ export const ProductsPage = () => {
             <select
               value={stockFilter}
               onChange={e => setStockFilter(e.target.value)}
-              className="px-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="px-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
               <option value="">Status</option>
               <option value="in-stock">In Stock</option>
@@ -412,7 +495,7 @@ export const ProductsPage = () => {
             </div>
 
             {isLoading ? (
-              <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+              <div className="p-4"><TableSkeleton rows={6} columns={7} /></div>
             ) : viewMode === 'list' ? (
               <>
                 <div className="overflow-x-auto">
@@ -422,7 +505,7 @@ export const ProductsPage = () => {
                         <th className="px-4 py-4 w-10">
                           <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                             {selectedIds.size === paginated.length && paginated.length > 0
-                              ? <CheckSquare size={16} className="text-indigo-600" />
+                              ? <CheckSquare size={16} className="text-blue-600" />
                               : <Square size={16} />}
                           </button>
                         </th>
@@ -440,11 +523,11 @@ export const ProductsPage = () => {
                         const isLowStock = product.currentStock > 0 && product.currentStock <= product.lowStockThreshold
                         const isOutOfStock = product.currentStock <= 0
                         return (
-                          <tr key={product.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedIds.has(product.id) ? 'bg-indigo-50 dark:bg-indigo-900/10' : ''}`}>
+                          <tr key={product.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}>
                             <td className="px-4 py-4 w-10">
                               <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                                 {selectedIds.has(product.id)
-                                  ? <CheckSquare size={16} className="text-indigo-600" />
+                                  ? <CheckSquare size={16} className="text-blue-600" />
                                   : <Square size={16} />}
                               </button>
                             </td>
@@ -487,7 +570,7 @@ export const ProductsPage = () => {
                                 <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
-                                      isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-indigo-500'
+                                      isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
                                     }`}
                                     style={{ width: `${stockPercent}%` }}
                                   />
@@ -495,15 +578,24 @@ export const ProductsPage = () => {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-base font-bold text-indigo-600">{formatINR(product.sellingPrice)}</span>
+                              <span className="text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <button
-                                onClick={() => openEdit(product)}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                              >
-                                <MoreHorizontal size={18} className="text-gray-400" />
-                              </button>
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => handlePrintLabel(product)}
+                                  title="Print label"
+                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                                >
+                                  <Tag size={16} className="text-gray-400" />
+                                </button>
+                                <button
+                                  onClick={() => openEdit(product)}
+                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                                >
+                                  <MoreHorizontal size={18} className="text-gray-400" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -532,7 +624,7 @@ export const ProductsPage = () => {
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold ${
                             currentPage === page
-                              ? 'bg-indigo-600 text-white'
+                              ? 'bg-blue-600 text-white'
                               : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
                           }`}
                         >
@@ -574,7 +666,7 @@ export const ProductsPage = () => {
                         }>
                           {product.currentStock <= 0 ? 'Out of Stock' : `${product.currentStock} left`}
                         </Badge>
-                        <span className="text-base font-bold text-indigo-600">{formatINR(product.sellingPrice)}</span>
+                        <span className="text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
                       </div>
                     </Card>
                   ))}
@@ -594,7 +686,7 @@ export const ProductsPage = () => {
         {/* Right Sidebar - Stats */}
         <div className="space-y-6">
           {/* Total Inventory Value */}
-          <Card className="p-6 bg-gradient-to-br from-indigo-900 to-indigo-700 text-white overflow-hidden relative">
+          <Card className="p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative">
             <div className="relative z-10">
               <p className="text-xs font-bold uppercase tracking-widest opacity-80">Total Inventory Value</p>
               <p className="text-3xl font-black mt-1">{formatINR(totalInventoryValue)}</p>
@@ -623,7 +715,7 @@ export const ProductsPage = () => {
                   </div>
                   <button
                     onClick={() => openEdit(product)}
-                    className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                    className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
                   >
                     Restock
                   </button>
@@ -637,7 +729,7 @@ export const ProductsPage = () => {
                   </div>
                   <button
                     onClick={() => openEdit(product)}
-                    className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                    className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
                   >
                     Restock
                   </button>
@@ -663,7 +755,7 @@ export const ProductsPage = () => {
                       <span className="text-gray-900 dark:text-gray-100">{percent}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
-                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${percent}%` }} />
+                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${percent}%` }} />
                     </div>
                   </div>
                 )

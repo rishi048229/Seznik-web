@@ -224,8 +224,8 @@ export const SettingsPage = () => {
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
                   />
                   {isLogoUploading && (
-                    <p className="text-xs text-indigo-500 mt-1 flex items-center gap-1">
-                      <span className="inline-block w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
+                      <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                       Uploading logo...
                     </p>
                   )}
@@ -360,7 +360,7 @@ export const SettingsPage = () => {
                     id="settings-receipt-footer"
                     defaultValue={current.receiptConfig?.footerMessage ?? 'Thank you for your purchase!'}
                     rows={3}
-                    className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:outline-none resize-none"
+                    className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
                     placeholder="Thank you for your purchase!"
                   />
                 </div>
@@ -407,12 +407,12 @@ export const SettingsPage = () => {
                         onClick={() => setLanguage(lang.code)}
                         className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
                           selected
-                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
                             : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                         }`}
                       >
                         <span>{lang.label}</span>
-                        {selected && <Check size={16} className="text-indigo-600 dark:text-indigo-400" />}
+                        {selected && <Check size={16} className="text-blue-600 dark:text-blue-400" />}
                       </button>
                     )
                   })}

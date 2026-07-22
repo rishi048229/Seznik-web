@@ -36,3 +36,15 @@ export const bulkDeletePurchases = async (uid: string, purchaseIds: string[]): P
     body: JSON.stringify({ purchaseIds }),
   })
 }
+
+export const getPurchasesBySupplier = async (uid: string, supplierId: string): Promise<Purchase[]> => {
+  const purchases = await getPurchases(uid)
+  return purchases.filter(p => p.supplierId === supplierId)
+}
+
+export const updatePurchase = async (uid: string, purchaseId: string, data: Partial<Purchase>): Promise<void> => {
+  await fetchApi(`/purchases/${purchaseId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}

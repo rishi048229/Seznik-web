@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -25,7 +26,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 }
 
 const ICON_COLORS = [
-  'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
+  'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
   'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
   'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
@@ -91,7 +92,7 @@ export const CategoriesPage = () => {
     })
   }
 
-  const handleStartEdit = (category: CategoryRow) => {
+  const handleStartEdit = (category: any) => {
     setEditName(category.name)
     setEditId(category.id)
   }
@@ -172,7 +173,7 @@ export const CategoriesPage = () => {
             </div>
 
             {isLoading ? (
-              <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+              <div className="p-4"><TableSkeleton rows={5} columns={5} /></div>
             ) : (
               <>
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -225,14 +226,14 @@ export const CategoriesPage = () => {
                               { onSuccess: () => toast.success(`Category ${category.isActive !== false ? 'deactivated' : 'activated'}`) }
                             )}
                             className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                              category.isActive !== false ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
+                              category.isActive !== false ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                             }`}
                           >
                             <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
                               category.isActive !== false ? 'translate-x-5' : 'translate-x-0'
                             }`} />
                           </button>
-                          <span className={`text-xs font-medium ${category.isActive !== false ? 'text-indigo-600' : 'text-gray-400'}`}>
+                          <span className={`text-xs font-medium ${category.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
                             {category.isActive !== false ? 'Active' : 'Inactive'}
                           </span>
                         </div>
@@ -243,7 +244,7 @@ export const CategoriesPage = () => {
                             <>
                               <button
                                 onClick={() => handleStartEdit(category)}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                               >
                                 <Pencil size={15} />
                               </button>
@@ -320,7 +321,7 @@ export const CategoriesPage = () => {
         {/* Right Sidebar */}
         <div className="lg:col-span-4 space-y-6">
           {/* Category Overview */}
-          <Card className="p-6 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white overflow-hidden relative">
+          <Card className="p-6 bg-gradient-to-br from-blue-600 to-sky-400 text-white overflow-hidden relative">
             <div className="relative z-10">
               <h3 className="font-bold text-lg mb-4">Category Overview</h3>
               <div className="space-y-3">
@@ -385,7 +386,7 @@ export const CategoriesPage = () => {
                     <span className="text-gray-900 dark:text-gray-100">{cat.percent}%</span>
                   </div>
                   <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
-                    <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${cat.percent}%` }} />
+                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${cat.percent}%` }} />
                   </div>
                 </div>
               ))}

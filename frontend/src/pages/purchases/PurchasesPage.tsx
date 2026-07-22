@@ -261,7 +261,7 @@ export const PurchasesPage = () => {
             <Filter size={16} />
             Filters
             {hasActiveFilters && (
-              <span className="w-2 h-2 rounded-full bg-indigo-500" />
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
             )}
           </button>
           {hasActiveFilters && (
@@ -289,19 +289,16 @@ export const PurchasesPage = () => {
         )}
       </Card>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-      ) : (
-        <Card className="p-4">
-          <DataTable
-            data={filteredPurchases}
-            columns={columns}
-            searchable
-            pagination
-            emptyMessage="No purchases recorded yet"
-          />
-        </Card>
-      )}
+      <Card className="p-4">
+        <DataTable
+          data={filteredPurchases}
+          columns={columns}
+          loading={isLoading}
+          searchable
+          pagination
+          emptyMessage="No purchases recorded yet"
+        />
+      </Card>
 
       {/* Purchase Form Modal */}
       <Modal
@@ -378,7 +375,7 @@ export const PurchasesPage = () => {
                         min="1"
                         value={item.quantity}
                         onChange={e => handleUpdateItemQty(item.productId, parseInt(e.target.value) || 1)}
-                        className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                     <button

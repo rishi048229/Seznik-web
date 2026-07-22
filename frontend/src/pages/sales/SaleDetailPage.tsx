@@ -98,7 +98,7 @@ export const SaleDetailPage = () => {
     )
   }
 
-  const saleDate = sale.createdAt?.toDate ? new Date(sale.createdAt.toDate()) : new Date()
+  const saleDate = (sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()) : new Date(sale.createdAt || Date.now())
   const uniqueTaxRates = Array.from(new Set(sale.items?.map(item => item.taxRate || 0).filter(rate => rate > 0) ?? []))
   const taxLabel = uniqueTaxRates.length === 0
     ? 'GST'

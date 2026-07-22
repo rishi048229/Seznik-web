@@ -31,6 +31,7 @@ const en = {
   'nav.credits': 'Credits',
   'nav.reports': 'Reports',
   'nav.settings': 'Settings',
+  'nav.printers': 'Printers',
 
   // Common actions
   'action.save': 'Save',

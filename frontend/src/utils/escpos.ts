@@ -77,6 +77,49 @@ export class EscPosBuilder {
     return this.push(GS, 0x56, 0x01)
   }
 
+  // 1D barcode via the standard GS k command. CODE128 uses the newer
+  // length-prefixed form (function 73) with a Code-Set-B prefix so any ASCII
+  // payload works; EAN13 uses the classic NUL-terminated form and needs
+  // exactly 12 or 13 digits (the 13th, the check digit, is computed by the
+  // printer itself if 12 are given).
+  barcode(type: 'CODE128' | 'EAN13', data: string, heightDots = 80): this {
+    this.push(GS, 0x68, heightDots) // GS h n — barcode height
+    this.push(GS, 0x77, 2) // GS w n — module width
+    this.push(GS, 0x48, 2) // GS H n — print human-readable text below the bars
+
+    if (type === 'EAN13') {
+      const digits = data.replace(/\D/g, '').slice(0, 13).padStart(12, '0')
+      this.push(GS, 0x6b, 2)
+      this.text(digits)
+      this.push(0x00)
+    } else {
+      const payload = `{B${data}`
+      this.push(GS, 0x6b, 73, payload.length)
+      this.text(payload)
+    }
+    return this
+  }
+
+  // 2D QR code via the standard Epson "GS ( k" symbol-storage sequence
+  // (select model → set module size → set error-correction level → store
+  // data → print). This exact byte sequence is the widely-replicated ESC/POS
+  // spec used by most Chinese-clone thermal printers, not vendor-specific.
+  qr(data: string, moduleSize = 6): this {
+    const cn = 0x31 // '1' — fixed value for 2D symbol commands
+
+    this.push(GS, 0x28, 0x6b, 0x04, 0x00, cn, 0x41, 0x32, 0x00) // select Model 2
+    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x43, moduleSize) // module size (1-16)
+    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x45, 0x31) // error correction level M (~15%)
+
+    const bytes = new TextEncoder().encode(data)
+    const storeLen = bytes.length + 3
+    this.push(GS, 0x28, 0x6b, storeLen & 0xff, (storeLen >> 8) & 0xff, cn, 0x50, 0x30)
+    for (const b of bytes) this.bytes.push(b)
+
+    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x51, 0x30) // print the stored symbol
+    return this
+  }
+
   toBytes(): Uint8Array {
     return new Uint8Array(this.bytes)
   }

@@ -50,7 +50,7 @@ const PRINTER_STATUS_LABEL: Record<string, string> = {
 }
 
 const PAYMENT_MODE_COLORS: Record<string, string> = {
-  cash: '#6366f1',
+  cash: '#2563eb',
   upi: '#10b981',
   card: '#f59e0b',
   credit: '#ef4444',
@@ -106,7 +106,7 @@ const WidgetHeader = ({ icon, title, onView }: { icon: React.ReactNode; title: s
     </h3>
     <button
       onClick={onView}
-      className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+      className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
     >
       <ExternalLink size={14} />
       View
@@ -125,7 +125,7 @@ const ProgressRow = ({ left, right, sub, percent, badge }: { left: string; right
     </div>
     {sub && <p className="text-xs text-gray-400 mb-1.5">{sub}</p>}
     <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mt-1.5">
-      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(percent, 100)}%` }} />
+      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(percent, 100)}%` }} />
     </div>
   </div>
 )
@@ -197,7 +197,7 @@ export const DashboardPage = () => {
     ? [
         { name: 'Profit', value: Math.max(profitBreakdown.profit, 0), color: '#10b981' },
         { name: 'Tax', value: Math.max(profitBreakdown.tax, 0), color: '#f59e0b' },
-        { name: 'Cost', value: Math.max(profitBreakdown.cost, 0), color: '#6366f1' },
+        { name: 'Cost', value: Math.max(profitBreakdown.cost, 0), color: '#2563eb' },
       ]
     : []
 
@@ -336,7 +336,7 @@ export const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* Payment Modes */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<Wallet size={18} className="text-indigo-500" />} title={t('dashboard.paymentModes')} onView={() => navigate(ROUTES.REPORTS_SALES)} />
+          <WidgetHeader icon={<Wallet size={18} className="text-blue-500" />} title={t('dashboard.paymentModes')} onView={() => navigate(ROUTES.REPORTS_SALES)} />
           {loadingPaymentModes ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !paymentModes || paymentModes.modes.length === 0 ? (
@@ -471,9 +471,9 @@ export const DashboardPage = () => {
                 <span className="text-sm text-gray-600 dark:text-gray-300">Collections (non-credit)</span>
                 <span className="font-bold text-emerald-600">{formatINR(expenseSummary.collectionsNonCredit)}</span>
               </div>
-              <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20">
+              <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Net (Rev − Exp)</span>
-                <span className="font-bold text-indigo-600">{formatINR(expenseSummary.net)}</span>
+                <span className="font-bold text-blue-600">{formatINR(expenseSummary.net)}</span>
               </div>
             </div>
           )}
@@ -526,8 +526,8 @@ export const DashboardPage = () => {
                 {/* Area fill */}
                 <defs>
                   <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.2" />
-                    <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2" />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
                   </linearGradient>
                 </defs>
                 <path
@@ -546,7 +546,7 @@ export const DashboardPage = () => {
                     return `${i === 0 ? 'M' : 'L'}${x},${y}`
                   }).join(' ')}
                   fill="none"
-                  stroke="#4f46e5"
+                  stroke="#2563eb"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -557,8 +557,8 @@ export const DashboardPage = () => {
                   const y = maxRevenue > 0 ? 200 - (v / maxRevenue) * 180 : 200
                   return (
                     <g key={i}>
-                      <circle cx={x} cy={y} r="3" fill="#4f46e5" />
-                      <circle cx={x} cy={y} r="5" fill="none" stroke="#4f46e5" strokeWidth="2" opacity="0.3" />
+                      <circle cx={x} cy={y} r="3" fill="#2563eb" />
+                      <circle cx={x} cy={y} r="5" fill="none" stroke="#2563eb" strokeWidth="2" opacity="0.3" />
                     </g>
                   )
                 })}
@@ -653,7 +653,7 @@ export const DashboardPage = () => {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.recentSales')}</h3>
             <button
               onClick={() => navigate(ROUTES.SALES)}
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
               View History
               <TrendingUp size={14} />
@@ -674,7 +674,7 @@ export const DashboardPage = () => {
                 {recentSales.length > 0 ? recentSales.map(sale => {
                   const customerName = sale.customerId ? 'Customer' : 'Walk-in Customer'
                   const initials = customerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-                  const colors = ['bg-sky-500', 'bg-indigo-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
+                  const colors = ['bg-sky-500', 'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
                   const colorIndex = Math.abs(sale.grandTotal * 100) % colors.length
                   return (
                     <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
@@ -691,7 +691,7 @@ export const DashboardPage = () => {
                       </td>
                       <td className="py-3 pr-4">
                         <p className="text-sm text-gray-600 dark:text-gray-300">
-                          {sale.createdAt?.toDate ? new Date(sale.createdAt.toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                          {(sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (sale.createdAt ? new Date(sale.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')}
                         </p>
                       </td>
                       <td className="py-3 pr-4">
@@ -721,7 +721,7 @@ export const DashboardPage = () => {
             </h3>
             <button
               onClick={() => navigate(ROUTES.CUSTOMERS)}
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
               <Users size={14} />
               View All
@@ -730,7 +730,7 @@ export const DashboardPage = () => {
 
           <div className="space-y-4">
             {topCustomers && topCustomers.length > 0 ? topCustomers.map((customer, index) => {
-              const avatarColors = ['bg-amber-500', 'bg-indigo-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
+              const avatarColors = ['bg-amber-500', 'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
               const initials = customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
               return (
                 <div key={customer.id} className="flex items-center gap-3">

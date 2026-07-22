@@ -125,7 +125,7 @@ export const SalesPage = () => {
 
   const filtered = sales?.filter(sale => {
     if (dateFilter === 'all') return true
-    const saleDate = sale.createdAt?.toDate?.() ?? new Date(0)
+    const saleDate = (sale.createdAt as any)?.toDate ? (sale.createdAt as any).toDate() : new Date(sale.createdAt || Date.now())
     const now = new Date()
     if (dateFilter === 'today') {
       return saleDate.toDateString() === now.toDateString()
@@ -168,9 +168,9 @@ export const SalesPage = () => {
       return
     }
 
-    const date = shareSale.createdAt?.toDate
-      ? new Date(shareSale.createdAt.toDate()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-      : ''
+    const dateStr = (shareSale.createdAt as any)?.toDate
+      ? new Date((shareSale.createdAt as any).toDate()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : (shareSale.createdAt ? new Date(shareSale.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
     const customerName = shareSale.customerId
       ? customers?.find(c => c.id === shareSale.customerId)?.name ?? 'Customer'
       : 'Walk-in Customer'
@@ -183,7 +183,7 @@ export const SalesPage = () => {
       `🧾 *Invoice from ${businessName}*`,
       ``,
       `Invoice No : *${shareSale.invoiceNumber}*`,
-      `Date       : ${date}`,
+      `Date       : ${dateStr}`,
       `Customer   : ${customerName}`,
       ``,
       `*Items:*`,
@@ -219,7 +219,7 @@ export const SalesPage = () => {
   const allSelected = filtered.length > 0 && selectedIds.size === filtered.length
   const someSelected = selectedIds.size > 0
 
-  const columns: ColumnDef<typeof filtered[0]>[] = [
+  const columns: ColumnDef<any>[] = [
     {
       key: 'select',
       header: () => (
@@ -235,7 +235,7 @@ export const SalesPage = () => {
           onClick={() => toggleSelect(row.id)}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
         >
-          {selectedIds.has(row.id) ? <CheckSquare size={16} className="text-indigo-600" /> : <Square size={16} />}
+          {selectedIds.has(row.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
         </button>
       ),
     },
@@ -262,8 +262,8 @@ export const SalesPage = () => {
       header: 'Date',
       render: (row) => (
         <span>
-          {row.createdAt?.toDate
-            ? new Date(row.createdAt.toDate()).toLocaleDateString('en-US', {
+          {row.createdAt
+            ? new Date((row.createdAt as any)?.toDate ? (row.createdAt as any).toDate() : row.createdAt).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', year: 'numeric',
               })
             : '—'}
@@ -350,19 +350,16 @@ export const SalesPage = () => {
         }
       />
 
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-      ) : (
-        <Card className="p-4">
-          <DataTable
-            data={filtered}
-            columns={columns}
-            searchable
-            pagination
-            emptyMessage="No sales found for this period"
-          />
-        </Card>
-      )}
+      <Card className="p-4">
+        <DataTable
+          data={filtered}
+          columns={columns}
+          loading={isLoading}
+          searchable
+          pagination
+          emptyMessage="No sales found for this period"
+        />
+      </Card>
 
       {/* WhatsApp Share Modal */}
       <Modal

@@ -11,11 +11,16 @@ import { formatINR } from '@/utils/currency'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
+import { ReportTabs } from './ReportTabs'
+
 export const TaxReportPage = () => {
   const today = new Date()
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0])
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const [sharePhone, setSharePhone] = useState('')
+
   const endOfDay = (d: string) => { const dt = new Date(d); dt.setHours(23, 59, 59, 999); return dt }
   const { data: report, isLoading } = useTaxReport(new Date(startDate), endOfDay(endDate))
 
@@ -40,7 +45,11 @@ export const TaxReportPage = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      <div>
+        <PageHeader title="Tax Report" breadcrumb={['Reports', 'Tax']} />
+        <ReportTabs />
+        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      </div>
     )
   }
 
@@ -48,6 +57,7 @@ export const TaxReportPage = () => {
     return (
       <div>
         <PageHeader title="Tax Report" breadcrumb={['Reports', 'Tax']} />
+        <ReportTabs />
         <Card className="p-8 text-center">
           <p className="text-gray-500">No data for this period</p>
         </Card>
@@ -56,9 +66,6 @@ export const TaxReportPage = () => {
   }
 
   const avgTaxPerSale = report.taxableSales > 0 ? report.totalOutputTax / report.taxableSales : 0
-
-  const [isShareOpen, setIsShareOpen] = useState(false)
-  const [sharePhone, setSharePhone] = useState('')
 
   const handleWhatsAppShare = () => {
     const raw = sharePhone.replace(/\D/g, '')
@@ -96,6 +103,7 @@ export const TaxReportPage = () => {
           </div>
         }
       />
+      <ReportTabs />
 
       {/* Date Range Filter */}
       <Card className="p-4 mb-6">
@@ -115,10 +123,10 @@ export const TaxReportPage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Receipt size={20} className="text-indigo-600" />
+            <Receipt size={20} className="text-blue-600" />
             <p className="text-sm text-gray-500 dark:text-gray-400">Total Output Tax</p>
           </div>
-          <p className="text-2xl font-bold text-indigo-600">{formatINR(report.totalOutputTax)}</p>
+          <p className="text-2xl font-bold text-blue-600">{formatINR(report.totalOutputTax)}</p>
         </Card>
         <Card className="p-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">Taxable Sales</p>
@@ -135,7 +143,7 @@ export const TaxReportPage = () => {
         <div className="space-y-3 max-w-md">
           <div className="flex justify-between py-3 border-b border-gray-100 dark:border-gray-700">
             <span className="text-gray-600 dark:text-gray-300">Total Output Tax Collected</span>
-            <span className="font-bold text-indigo-600">{formatINR(report.totalOutputTax)}</span>
+            <span className="font-bold text-blue-600">{formatINR(report.totalOutputTax)}</span>
           </div>
           <div className="flex justify-between py-3 border-b border-gray-100 dark:border-gray-700">
             <span className="text-gray-600 dark:text-gray-300">Number of Taxable Sales</span>

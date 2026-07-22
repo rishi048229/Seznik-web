@@ -31,5 +31,19 @@ export const updateCustomerCredit = async (uid: string, customerId: string, amou
 }
 
 export const addCreditTransaction = async (uid: string, data: Omit<CreditTransaction, 'id' | 'createdAt'>): Promise<void> => {
-  // Need backend support for credit transactions, will implement if required
+  // Add credit transaction implementation
+}
+
+export const getCreditTransactions = async (uid: string, customerId?: string): Promise<CreditTransaction[]> => {
+  return []
+}
+
+export const recordPayment = async (uid: string, data: { customerId: string; amount: number; paymentMethod?: string }): Promise<void> => {
+  await updateCustomerCredit(uid, data.customerId, -data.amount)
+}
+
+export const deleteCustomer = async (uid: string, customerId: string): Promise<void> => {
+  await fetchApi(`/customers/${customerId}`, {
+    method: 'DELETE',
+  })
 }

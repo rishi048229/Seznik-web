@@ -45,7 +45,7 @@ export const MobileNav = () => {
                 clsx(
                   'flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-[11px] font-medium transition-colors',
                   isActive
-                    ? 'text-indigo-600 dark:text-indigo-400'
+                    ? 'text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400'
                 )
               }
@@ -85,7 +85,7 @@ export const MobileNav = () => {
                     clsx(
                       'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-xs font-medium transition-colors',
                       isActive
-                        ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                     )
                   }

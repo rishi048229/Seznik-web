@@ -11,14 +11,51 @@ export const loginUser = async (email: string, pass: string): Promise<any> => {
   return data
 }
 
-export const registerUser = async (email: string, pass: string, firstName: string, lastName: string): Promise<any> => {
+export const registerUser = async (email: string, pass: string, firstName: string, lastName: string, phone: string): Promise<any> => {
   const displayName = `${firstName} ${lastName}`.trim();
   const data = await fetchApi('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password: pass, displayName }),
+    body: JSON.stringify({ email, password: pass, displayName, phone }),
   })
   setAuthToken(data.token)
   return data
+}
+
+// Pre-signup email verification
+export const sendEmailOtp = async (email: string): Promise<void> => {
+  await fetchApi('/auth/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export const verifyEmailOtp = async (email: string, otp: string): Promise<void> => {
+  await fetchApi('/auth/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  })
+}
+
+// Forgot Password Flow
+export const sendForgotPasswordOtp = async (email: string): Promise<void> => {
+  await fetchApi('/auth/forgot-password/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export const verifyForgotPasswordOtp = async (email: string, otp: string): Promise<void> => {
+  await fetchApi('/auth/forgot-password/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  })
+}
+
+export const resetPasswordWithOtp = async (email: string, newPassword: string): Promise<void> => {
+  await fetchApi('/auth/forgot-password/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, newPassword }),
+  })
 }
 
 export const signOutUser = async (): Promise<void> => {

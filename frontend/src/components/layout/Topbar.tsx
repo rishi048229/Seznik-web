@@ -33,8 +33,8 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
   const handleSignOut = async () => {
     try {
       clearWorkspaceSelection()
-      toast.success('Signed out from workspace')
-      navigate(ROUTES.ACCESS_SELECTION)
+      toast.success('Signed out to RBA workstation panel')
+      navigate(ROUTES.ACCESS_SELECTION, { replace: true })
     } catch (error) {
       console.error('Sign out error:', error)
       toast.error('Failed to sign out')
@@ -89,7 +89,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           variant="ghost"
           size="sm"
           onClick={() => navigate(ROUTES.POS)}
-          className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-indigo-500/20"
+          className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
         >
           <Plus size={16} className="sm:mr-1" />
           <span className="hidden sm:inline">New Sale</span>

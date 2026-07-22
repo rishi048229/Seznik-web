@@ -11,6 +11,8 @@ import { formatINR } from '@/utils/currency'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
+import { ReportTabs } from './ReportTabs'
+
 export const SalesReportPage = () => {
   const today = new Date()
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -87,6 +89,7 @@ export const SalesReportPage = () => {
           </div>
         }
       />
+      <ReportTabs />
 
       {/* Date Range Filter */}
       <Card className="p-4 mb-6">
@@ -146,7 +149,7 @@ export const SalesReportPage = () => {
                           {formatINR(rev)}
                         </span>
                         <div
-                          className="w-full bg-indigo-500 rounded-t hover:bg-indigo-600 transition-colors min-h-[2px]"
+                          className="w-full bg-blue-500 rounded-t hover:bg-blue-600 transition-colors min-h-[2px]"
                           style={{ height: `${Math.max(height, 2)}%` }}
                         />
                         <span className="text-[10px] text-gray-400 truncate w-full text-center">
@@ -186,7 +189,7 @@ export const SalesReportPage = () => {
                       ))}
                       <tr className="border-t-2 border-gray-200 dark:border-gray-700 font-semibold">
                         <td className="py-3 text-gray-900 dark:text-gray-100">Total</td>
-                        <td className="py-3 text-right text-indigo-600">{formatINR(totalRevenue)}</td>
+                        <td className="py-3 text-right text-blue-600">{formatINR(totalRevenue)}</td>
                         <td className="py-3 text-right text-gray-900 dark:text-gray-100">{totalInvoices}</td>
                       </tr>
                     </tbody>

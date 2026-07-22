@@ -11,11 +11,16 @@ import { formatINR } from '@/utils/currency'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
+import { ReportTabs } from './ReportTabs'
+
 export const ProfitLossPage = () => {
   const today = new Date()
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0])
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const [sharePhone, setSharePhone] = useState('')
+
   const endOfDay = (d: string) => { const dt = new Date(d); dt.setHours(23, 59, 59, 999); return dt }
   const { data: report, isLoading } = usePLReport(new Date(startDate), endOfDay(endDate))
 
@@ -43,7 +48,11 @@ export const ProfitLossPage = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      <div>
+        <PageHeader title="Profit & Loss" breadcrumb={['Reports', 'P&L']} />
+        <ReportTabs />
+        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      </div>
     )
   }
 
@@ -51,6 +60,7 @@ export const ProfitLossPage = () => {
     return (
       <div>
         <PageHeader title="Profit & Loss" breadcrumb={['Reports', 'P&L']} />
+        <ReportTabs />
         <Card className="p-8 text-center">
           <p className="text-gray-500">No data for this period</p>
         </Card>
@@ -61,9 +71,6 @@ export const ProfitLossPage = () => {
   const grossProfit = report.totalRevenue - report.totalCost
   const grossMargin = report.totalRevenue > 0 ? (grossProfit / report.totalRevenue) * 100 : 0
   const netMargin = report.totalRevenue > 0 ? (report.netProfit / report.totalRevenue) * 100 : 0
-
-  const [isShareOpen, setIsShareOpen] = useState(false)
-  const [sharePhone, setSharePhone] = useState('')
 
   const handleWhatsAppShare = () => {
     const raw = sharePhone.replace(/\D/g, '')
@@ -102,6 +109,7 @@ export const ProfitLossPage = () => {
           </div>
         }
       />
+      <ReportTabs />
 
       {/* Date Range Filter */}
       <Card className="p-4 mb-6">
@@ -165,9 +173,9 @@ export const ProfitLossPage = () => {
               <span className="text-gray-600 dark:text-gray-300">Operating Expenses</span>
               <span className="font-medium text-gray-900 dark:text-gray-100">- {formatINR(report.totalExpenses)}</span>
             </div>
-            <div className="flex justify-between py-3 bg-indigo-50 dark:bg-indigo-900/20 px-3 rounded-lg">
+            <div className="flex justify-between py-3 bg-blue-50 dark:bg-blue-900/20 px-3 rounded-lg">
               <span className="font-bold text-gray-900 dark:text-gray-100">Net Profit</span>
-              <span className={`font-bold text-lg ${report.netProfit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
+              <span className={`font-bold text-lg ${report.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                 {formatINR(report.netProfit)} ({netMargin.toFixed(1)}%)
               </span>
             </div>

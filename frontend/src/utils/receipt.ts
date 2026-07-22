@@ -57,7 +57,7 @@ export const generateReceiptHTML = ({
 
   const saleItems = sale.items ?? []
 
-  const dateObj = sale.createdAt?.toDate ? new Date(sale.createdAt.toDate()) : new Date()
+  const dateObj = (sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()) : new Date(sale.createdAt || Date.now())
   const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const dueDateStr = dateStr // same day unless terms differ
 
@@ -520,7 +520,7 @@ export const generateReceiptEscPos = ({
   const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
 
   const saleItems = sale.items ?? []
-  const dateObj = sale.createdAt?.toDate ? new Date(sale.createdAt.toDate()) : new Date()
+  const dateObj = (sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()) : new Date(sale.createdAt || Date.now())
   const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const methodLabel =

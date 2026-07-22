@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
 import { useNavigate } from 'react-router-dom'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
@@ -366,7 +367,7 @@ export const POSLitePage = () => {
           onClick={() => setMobileTab('products')}
           className={`flex-1 py-3 text-sm font-semibold transition-colors ${
             mobileTab === 'products'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
+              ? 'text-blue-600 border-b-2 border-blue-600'
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
@@ -376,13 +377,13 @@ export const POSLitePage = () => {
           onClick={() => setMobileTab('cart')}
           className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
             mobileTab === 'cart'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
+              ? 'text-blue-600 border-b-2 border-blue-600'
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
           Cart
           {items.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold">
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
               {items.length}
             </span>
           )}
@@ -399,7 +400,7 @@ export const POSLitePage = () => {
               onClick={toggleScanMode}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
                 isScanMode
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                   : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
               }`}
             >
@@ -413,8 +414,8 @@ export const POSLitePage = () => {
 
           {/* Barcode Scan Input Panel */}
           {isScanMode && (
-            <div className="mb-4 p-4 rounded-xl border-2 border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+            <div className="mb-4 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
                 Scan mode active — point your scanner or type a barcode below
               </div>
@@ -566,7 +567,7 @@ export const POSLitePage = () => {
             <select
               value={selectedCustomer}
               onChange={e => setSelectedCustomer(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
               <option value="">— Walk-in Customer —</option>
               {customers?.map(c => (
@@ -596,7 +597,7 @@ export const POSLitePage = () => {
                 <select
                   value={orderDiscountType}
                   onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
@@ -247,10 +248,14 @@ export const POSPage = () => {
     navigate(ROUTES.SALES)
   }
 
+  const [isPrintingAnimating, setIsPrintingAnimating] = useState(false)
+
   // Accept format directly to avoid React state race condition
   const handlePrint = (format: 'a4' | 'thermal') => {
     const tempSale = buildTempSale()
     if (!tempSale || !lastSaleData) return
+
+    setIsPrintingAnimating(true)
 
     const receiptConfig = settings?.receiptConfig
     const customerName = lastSaleData.selectedCustomer
@@ -277,6 +282,7 @@ export const POSPage = () => {
     const tempSale = buildTempSale()
     if (!tempSale || !lastSaleData) return
 
+    setIsPrintingAnimating(true)
     setIsBlePrinting(true)
     try {
       if (blePrinter.status !== 'connected') {
@@ -318,7 +324,7 @@ export const POSPage = () => {
           onClick={() => setMobileTab('products')}
           className={`flex-1 py-3 text-sm font-semibold transition-colors ${
             mobileTab === 'products'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
+              ? 'text-blue-600 border-b-2 border-blue-600'
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
@@ -328,13 +334,13 @@ export const POSPage = () => {
           onClick={() => setMobileTab('cart')}
           className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
             mobileTab === 'cart'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
+              ? 'text-blue-600 border-b-2 border-blue-600'
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
           Cart
           {items.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold">
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
               {items.length}
             </span>
           )}
@@ -363,7 +369,7 @@ export const POSPage = () => {
               onClick={toggleScanMode}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
                 isScanMode
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                   : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
               }`}
             >
@@ -374,8 +380,8 @@ export const POSPage = () => {
 
           {/* Barcode Scan Input Panel */}
           {isScanMode && (
-            <div className="mt-3 p-4 rounded-xl border-2 border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+            <div className="mt-3 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
                 Scan mode active — point your scanner or type a barcode below
               </div>
@@ -458,7 +464,7 @@ export const POSPage = () => {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-indigo-600 transition-colors">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
                       {product.name}
                     </p>
                     <p className="text-xs text-gray-400">
@@ -482,13 +488,13 @@ export const POSPage = () => {
 
                   {/* Price + add */}
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-indigo-600 font-bold text-sm w-20 text-right">
+                    <span className="text-blue-600 font-bold text-sm w-20 text-right">
                       {formatINR(product.sellingPrice)}
                     </span>
                     <button
                       disabled={isOutOfStock}
                       onClick={(e) => { e.stopPropagation(); !isOutOfStock && handleProductClick(product) }}
-                      className="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus size={16} />
                     </button>
@@ -536,7 +542,7 @@ export const POSPage = () => {
             <select
               value={selectedCustomer}
               onChange={e => setSelectedCustomer(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
               <option value="">— Walk-in Customer —</option>
               {customers?.map(c => (
@@ -601,14 +607,14 @@ export const POSPage = () => {
                     <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
                       <button
                         onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
-                        className="w-7 h-7 flex items-center justify-center hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
                       >
                         <Minus size={14} />
                       </button>
                       <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
                       <button
                         onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
-                        className="w-7 h-7 flex items-center justify-center hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         disabled={item.quantity >= available}
                       >
                         <Plus size={14} />
@@ -639,7 +645,7 @@ export const POSPage = () => {
                 <select
                   value={orderDiscountType}
                   onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>
@@ -832,6 +838,15 @@ export const POSPage = () => {
           </Button>
         </div>
       </Modal>
+
+      <PrinterAnimationModal
+        isOpen={isPrintingAnimating}
+        onClose={() => setIsPrintingAnimating(false)}
+        invoiceNumber="INV-RECENT"
+        grandTotal={lastSaleData?.finalTotal || lastSaleData?.totals?.grandTotal}
+        businessName={settings?.businessName}
+        itemCount={lastSaleData?.items?.length}
+      />
     </div>
   )
 }

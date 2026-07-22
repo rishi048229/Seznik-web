@@ -40,6 +40,7 @@ const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
 const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
+const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 
 const LoadingFallback = (
   <div className="flex justify-center py-12">
@@ -63,17 +64,20 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 
 // Route guard for login page
 const LoginRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, userProfile, loading } = useAuth()
+  const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
   const needsOnboarding = userProfile?.onboardingCompleted === false
 
   if (loading) {
     return LoadingFallback
   }
 
-  // If already authenticated, continue to access selection.
+  // If already authenticated, continue to dashboard if role selected, else access selection.
   if (user) {
     if (needsOnboarding) {
       return <Navigate to={ROUTES.ONBOARDING} replace />
+    }
+    if (hasSelectedWorkspace || userProfile?.role) {
+      return <Navigate to={ROUTES.DASHBOARD} replace />
     }
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
   }
@@ -83,7 +87,7 @@ const LoginRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Route guard for role selection
 const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, userProfile, loading } = useAuth()
+  const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
   const needsOnboarding = userProfile?.onboardingCompleted === false
   
   if (loading) {
@@ -100,7 +104,10 @@ const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to={ROUTES.ONBOARDING} replace />
   }
 
-  // Show access selection after Google auth, every session.
+  if (hasSelectedWorkspace || userProfile?.role) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />
+  }
+
   return <>{children}</>
 }
 
@@ -203,6 +210,7 @@ function App() {
               <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ProfitLossPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><TaxReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.PRINTERS} element={<AuthenticatedRoute><MainLayout><PrintersPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>
           </Suspense>

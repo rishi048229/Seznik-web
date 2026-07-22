@@ -157,7 +157,7 @@ export const ExpensesPage = () => {
         row.receiptImageURL ? (
           <button
             onClick={() => window.open(row.receiptImageURL, '_blank')}
-            className="text-indigo-500 hover:text-indigo-700"
+            className="text-blue-500 hover:text-blue-700"
           >
             <ImageIcon size={16} />
           </button>
@@ -300,7 +300,7 @@ export const ExpensesPage = () => {
             <Filter size={16} />
             Filters
             {hasActiveFilters && (
-              <span className="w-2 h-2 rounded-full bg-indigo-500" />
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
             )}
           </button>
           {hasActiveFilters && (
@@ -328,19 +328,16 @@ export const ExpensesPage = () => {
         )}
       </Card>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-      ) : (
-        <Card className="p-4">
-          <DataTable
-            data={filteredExpenses}
-            columns={columns}
-            searchable
-            pagination
-            emptyMessage="No expenses recorded yet"
-          />
-        </Card>
-      )}
+      <Card className="p-4">
+        <DataTable
+          data={filteredExpenses}
+          columns={columns}
+          loading={isLoading}
+          searchable
+          pagination
+          emptyMessage="No expenses recorded yet"
+        />
+      </Card>
 
       {/* Expense Form Modal */}
       <Modal

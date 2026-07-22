@@ -1,77 +1,121 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 
+const getOwnerUserId = async (rawUserId: string): Promise<string> => {
+  if (!rawUserId) return rawUserId;
+
+  const user = await prisma.user.findUnique({ where: { id: rawUserId } });
+  if (user) return user.id;
+
+  const managedUser = await prisma.managedUser.findUnique({ where: { id: rawUserId } });
+  if (managedUser && managedUser.adminId) return managedUser.adminId;
+
+  return rawUserId;
+};
+
 export const getSettings = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
+
     let settings = await prisma.settings.findUnique({
       where: { userId },
     });
     
-    // If no settings exist yet, we could return a default object or null
-    // The frontend expects null if it doesn't exist
     res.json(settings);
   } catch (error) {
+    console.error('Failed to fetch settings:', error);
     res.status(500).json({ error: 'Failed to fetch settings' });
   }
 };
 
 export const createSettings = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
     const data = req.body;
     
-    const settings = await prisma.settings.create({
-      data: { ...data, userId },
+    const settings = await prisma.settings.upsert({
+      where: { userId },
+      update: { ...data },
+      create: { ...data, userId },
     });
     res.status(201).json(settings);
   } catch (error) {
+    console.error('Failed to create settings:', error);
     res.status(500).json({ error: 'Failed to create settings' });
   }
 };
 
 export const updateSettings = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const { id } = req.params; // we can use id or just update based on userId
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
     const data = req.body;
     
-    const settings = await prisma.settings.update({
-      where: { userId }, // using userId as it's unique
-      data,
+    const settings = await prisma.settings.upsert({
+      where: { userId },
+      update: { ...data },
+      create: { ...data, userId },
     });
     res.json(settings);
   } catch (error) {
+    console.error('Failed to update settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });
   }
 };
 
 export const updateInvoiceConfig = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
     const { invoiceConfig } = req.body;
     
-    const settings = await prisma.settings.update({
+    const settings = await prisma.settings.upsert({
       where: { userId },
-      data: { invoiceConfig },
+      update: { invoiceConfig },
+      create: { userId, invoiceConfig },
     });
     res.json(settings);
   } catch (error) {
+    console.error('Failed to update invoice config:', error);
     res.status(500).json({ error: 'Failed to update invoice config' });
   }
 };
 
 export const updateNotificationConfig = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
     const { notificationConfig } = req.body;
     
-    const settings = await prisma.settings.update({
+    const settings = await prisma.settings.upsert({
       where: { userId },
-      data: { notificationConfig },
+      update: { notificationConfig },
+      create: { userId, notificationConfig },
     });
     res.json(settings);
   } catch (error) {
+    console.error('Failed to update notification config:', error);
     res.status(500).json({ error: 'Failed to update notification config' });
   }
 };
+
+export const updatePrinterConfig = async (req: Request, res: Response) => {
+  try {
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
+    const { printerConfig } = req.body;
+
+    const settings = await prisma.settings.upsert({
+      where: { userId },
+      update: { printerConfig },
+      create: { userId, printerConfig },
+    });
+    res.json(settings);
+  } catch (error) {
+    console.error('Failed to update printer config:', error);
+    res.status(500).json({ error: 'Failed to update printer config' });
+  }
+};
+
