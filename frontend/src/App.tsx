@@ -9,6 +9,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { Spinner } from '@/components/ui/Spinner'
+import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserPermissions } from '@/types/auth.types'
@@ -58,6 +59,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
     >
       {children}
       <MobileNav />
+      <HelpChatBot />
     </AppLayout>
   )
 }
