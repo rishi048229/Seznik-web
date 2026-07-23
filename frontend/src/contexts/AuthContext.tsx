@@ -66,13 +66,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogin = async (email: string, pass: string) => {
     const data = await loginUser(email, pass)
     setUser(data.user)
-    setUserProfile(data.user)
+    localStorage.removeItem('hasSelectedWorkspace')
+    setHasSelectedWorkspace(false)
+    setUserProfile(data.user ? { ...data.user, role: null } : null)
   }
   
   const handleRegister = async (email: string, pass: string, fName: string, lName: string, phone: string) => {
     const data = await registerUser(email, pass, fName, lName, phone)
     setUser(data.user)
-    setUserProfile(data.user)
+    localStorage.removeItem('hasSelectedWorkspace')
+    setHasSelectedWorkspace(false)
+    setUserProfile(data.user ? { ...data.user, role: null } : null)
   }
 
   const handleSignOut = async () => {

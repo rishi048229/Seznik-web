@@ -4,26 +4,24 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
-import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, useToggleCategoryActive } from '@/hooks/useCategories'
+import {
+  useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, useToggleCategoryActive,
+} from '@/hooks/useCategories'
 import { useProducts } from '@/hooks/useProducts'
-import { Plus, Pencil, Trash2, Search, Filter, Download, ChevronLeft, ChevronRight, Info, TrendingUp, Package, Tag, Watch, Headphones } from 'lucide-react'
+import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
+import type { Category } from '@/services/categoryService'
+import {
+  Plus, Pencil, Trash2, Search, Download, ChevronLeft, ChevronRight, ChevronDown,
+  Info, TrendingUp, Package, Tag, Watch, Headphones, FolderTree, CornerDownRight,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
-interface CategoryRow {
-  id: string
-  name: string
-  createdAt: Date
-}
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  apparel: <Tag size={20} />,
-  footwear: <Package size={20} />,
-  electronics: <Watch size={20} />,
-  accessories: <Headphones size={20} />,
-}
+const CATEGORY_ICONS: React.ReactNode[] = [
+  <Tag size={18} />, <Package size={18} />, <Watch size={18} />, <Headphones size={18} />,
+]
 
 const ICON_COLORS = [
   'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
@@ -40,66 +38,119 @@ export const CategoriesPage = () => {
   const { data: categories, isLoading } = useCategories()
   const { data: products } = useProducts()
   const { mutate: createCategory, isPending: isCreating } = useCreateCategory()
-  const { mutate: updateCategory } = useUpdateCategory()
+  const { mutate: updateCategory, isPending: isUpdating } = useUpdateCategory()
   const { mutate: deleteCategory } = useDeleteCategory()
   const { mutate: toggleActive } = useToggleCategoryActive()
-  const [search, setSearch] = useState('')
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [quickAddName, setQuickAddName] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
 
-  const activeCategories = categories ?? []
-  const filtered = activeCategories.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+  const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+
+  // Create/edit modal state — one modal handles both top-level categories and subcategories.
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [formName, setFormName] = useState('')
+  const [formParentId, setFormParentId] = useState<string>('')
+
+  const [quickAddName, setQuickAddName] = useState('')
+
+  const all = categories ?? []
+  const matchesSearch = (name: string) => name.toLowerCase().includes(search.toLowerCase())
+
+  const topLevel = getTopLevelCategories(all)
+  const childrenOf = (parentId: string) => getChildCategories(all, parentId)
+  const hasChildren = (id: string) => childrenOf(id).length > 0
+
+  const filteredTopLevel = topLevel.filter(parent =>
+    matchesSearch(parent.name) || childrenOf(parent.id).some(child => matchesSearch(child.name))
   )
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filteredTopLevel.length / PAGE_SIZE))
+  const paginated = filteredTopLevel.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  const isExpanded = (id: string) =>
+    expandedIds.has(id) || (search.trim() !== '' && childrenOf(id).some(child => matchesSearch(child.name)))
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Only top-level categories can be a parent — keeps the hierarchy at a single subcategory depth.
+  // The explicit "none" option lets an existing subcategory be promoted back to top-level.
+  const parentOptions = [
+    { value: '', label: '— None — top-level category —' },
+    ...topLevel.filter(c => c.id !== editId).map(c => ({ value: c.id, label: c.name })),
+  ]
+
+  const openCreateModal = (parentId?: string) => {
+    setEditId(null)
+    setFormName('')
+    setFormParentId(parentId ?? '')
+    setModalOpen(true)
+  }
+
+  const openEditModal = (category: Category) => {
+    setEditId(category.id)
+    setFormName(category.name)
+    setFormParentId(category.parentId ?? '')
+    setModalOpen(true)
+  }
+
+  const closeModal = () => {
+    setModalOpen(false)
+    setEditId(null)
+    setFormName('')
+    setFormParentId('')
+  }
+
+  const editingHasChildren = editId ? hasChildren(editId) : false
 
   const handleSave = () => {
-    if (!editName.trim()) return
+    if (!formName.trim()) return
     if (editId) {
-      updateCategory({ categoryId: editId, name: editName.trim() }, {
-        onSuccess: () => toast.success('Category updated'),
-        onError: () => toast.error('Failed to update category'),
-      })
+      updateCategory(
+        { categoryId: editId, name: formName.trim(), parentId: editingHasChildren ? null : (formParentId || null) },
+        {
+          onSuccess: () => { toast.success('Category updated'); closeModal() },
+          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update category'),
+        }
+      )
     } else {
-      createCategory(editName.trim(), {
-        onSuccess: () => toast.success('Category created'),
-        onError: () => toast.error('Failed to create category'),
-      })
+      createCategory(
+        { name: formName.trim(), parentId: formParentId || undefined },
+        {
+          onSuccess: () => { toast.success(formParentId ? 'Subcategory created' : 'Category created'); closeModal() },
+          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+        }
+      )
     }
-    setEditName('')
-    setEditId(null)
   }
 
   const handleQuickAdd = () => {
     if (!quickAddName.trim()) return
-    createCategory(quickAddName.trim(), {
+    createCategory({ name: quickAddName.trim() }, {
       onSuccess: () => {
         toast.success('Category created')
         setQuickAddName('')
       },
-      onError: () => toast.error('Failed to create category'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
     })
   }
 
-  const handleDelete = (id: string, name: string) => {
-    if (!confirm(`Delete category "${name}"?`)) return
-    deleteCategory(id, {
+  const handleDelete = (category: Category) => {
+    const childCount = childrenOf(category.id).length
+    const warning = childCount > 0
+      ? `Delete "${category.name}" and its ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}?`
+      : `Delete category "${category.name}"?`
+    if (!confirm(warning)) return
+    deleteCategory(category.id, {
       onSuccess: () => toast.success('Category deleted'),
-      onError: () => toast.error('Failed to delete category'),
+      onError: () => toast.error('Failed to delete — move or remove its products first'),
     })
-  }
-
-  const handleStartEdit = (category: any) => {
-    setEditName(category.name)
-    setEditId(category.id)
-  }
-
-  const handleCancelEdit = () => {
-    setEditName('')
-    setEditId(null)
   }
 
   // Stats
@@ -107,7 +158,7 @@ export const CategoriesPage = () => {
     products?.filter(p => p.categoryId === categoryId && p.isActive !== false).length ?? 0
 
   const totalProducts = products?.filter(p => p.isActive !== false).length ?? 0
-  const categoryDistribution = activeCategories.map(cat => ({
+  const categoryDistribution = all.map(cat => ({
     id: cat.id,
     name: cat.name,
     count: getCategoryProductCount(cat.id),
@@ -116,19 +167,36 @@ export const CategoriesPage = () => {
 
   const topCategory = categoryDistribution[0]
 
+  const renderToggle = (category: Category) => (
+    <button
+      type="button"
+      onClick={() => toggleActive(
+        { categoryId: category.id, isActive: !(category.isActive !== false) },
+        { onSuccess: () => toast.success(`Category ${category.isActive !== false ? 'deactivated' : 'activated'}`) }
+      )}
+      className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+        category.isActive !== false ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+      }`}
+    >
+      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+        category.isActive !== false ? 'translate-x-5' : 'translate-x-0'
+      }`} />
+    </button>
+  )
+
   return (
     <div>
       <PageHeader
         title="Product Categories"
         action={
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Badge variant="info" className="flex items-center gap-1">
               <Info size={12} />
-              {activeCategories.length} Active Categories
+              {topLevel.length} Categories · {all.length - topLevel.length} Subcategories
             </Badge>
-            {/* <Button leftIcon={<Plus size={16} />} onClick={() => { setEditName(''); setEditId(null); }}>
+            <Button leftIcon={<Plus size={16} />} onClick={() => openCreateModal()}>
               New Category
-            </Button> */}
+            </Button>
           </div>
         }
       />
@@ -138,9 +206,9 @@ export const CategoriesPage = () => {
         <div className="relative max-w-xs sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <Input
-            placeholder="Search categories..."
+            placeholder="Search categories & subcategories..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
             className="pl-10"
           />
         </div>
@@ -153,23 +221,18 @@ export const CategoriesPage = () => {
           <Card className="overflow-hidden">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Management</h3>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" leftIcon={<Filter size={14} />}>
-                  Filter
-                </Button>
-                <Button variant="outline" size="sm" leftIcon={<Download size={14} />}>
-                  Export
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" leftIcon={<Download size={14} />}>
+                Export
+              </Button>
             </div>
 
             {/* Table Header */}
             <div className="hidden sm:flex items-center px-4 py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400 bg-gray-50 dark:bg-gray-800 gap-3">
-              <div className="w-10 flex-shrink-0" />
+              <div className="w-14 flex-shrink-0" />
               <div className="flex-1 min-w-0">Category Name</div>
               <div className="w-20 text-center flex-shrink-0">Products</div>
               <div className="w-28 flex-shrink-0">Status</div>
-              <div className="w-16 text-right flex-shrink-0">Actions</div>
+              <div className="w-24 text-right flex-shrink-0">Actions</div>
             </div>
 
             {isLoading ? (
@@ -179,101 +242,126 @@ export const CategoriesPage = () => {
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {paginated.map((category, index) => {
                     const productCount = getCategoryProductCount(category.id)
+                    const children = childrenOf(category.id)
+                    const expanded = isExpanded(category.id)
                     const iconIndex = index % ICON_COLORS.length
-                    const iconKey = Object.keys(CATEGORY_ICONS)[index % Object.keys(CATEGORY_ICONS).length]
 
                     return (
-                      <div
-                        key={category.id}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all"
-                      >
-                        {/* Icon */}
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${ICON_COLORS[iconIndex]}`}>
-                          {CATEGORY_ICONS[iconKey] || <Tag size={20} />}
-                        </div>
-
-                        {/* Name */}
-                        <div className="flex-1 min-w-0">
-                          {editId === category.id ? (
-                            <Input
-                              value={editName}
-                              onChange={e => setEditName(e.target.value)}
-                              onBlur={() => handleSave()}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') handleSave()
-                                if (e.key === 'Escape') handleCancelEdit()
-                              }}
-                              autoFocus
-                              className="text-sm font-semibold"
-                            />
-                          ) : (
-                            <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate block">{category.name}</span>
-                          )}
-                          <span className="text-xs text-gray-400 sm:hidden">{productCount} items</span>
-                        </div>
-
-                        {/* Products count — desktop only */}
-                        <div className="hidden sm:block w-20 text-center text-sm text-gray-500 dark:text-gray-400 font-medium flex-shrink-0">
-                          {productCount} items
-                        </div>
-
-                        {/* Toggle */}
-                        <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => toggleActive(
-                              { categoryId: category.id, isActive: !(category.isActive !== false) },
-                              { onSuccess: () => toast.success(`Category ${category.isActive !== false ? 'deactivated' : 'activated'}`) }
-                            )}
-                            className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                              category.isActive !== false ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
-                          >
-                            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
-                              category.isActive !== false ? 'translate-x-5' : 'translate-x-0'
-                            }`} />
-                          </button>
-                          <span className={`text-xs font-medium ${category.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
-                            {category.isActive !== false ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-
-                        {/* Actions — always visible */}
-                        <div className="flex items-center gap-1 w-16 justify-end flex-shrink-0">
-                          {editId !== category.id ? (
-                            <>
-                              <button
-                                onClick={() => handleStartEdit(category)}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                              >
-                                <Pencil size={15} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(category.id, category.name)}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </>
-                          ) : (
+                      <div key={category.id}>
+                        {/* Parent row */}
+                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all">
+                          {/* Expand toggle + icon */}
+                          <div className="w-14 flex items-center gap-1 flex-shrink-0">
                             <button
-                              onClick={handleCancelEdit}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+                              type="button"
+                              onClick={() => children.length > 0 && toggleExpanded(category.id)}
+                              className={`w-5 h-5 flex items-center justify-center text-gray-400 ${children.length === 0 ? 'invisible' : 'hover:text-gray-600'}`}
                             >
-                              ✕
+                              <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`} />
                             </button>
-                          )}
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${ICON_COLORS[iconIndex]}`}>
+                              {CATEGORY_ICONS[iconIndex % CATEGORY_ICONS.length]}
+                            </div>
+                          </div>
+
+                          {/* Name */}
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate block">
+                              {category.name}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {productCount} items{children.length > 0 ? ` · ${children.length} subcategor${children.length === 1 ? 'y' : 'ies'}` : ''}
+                            </span>
+                          </div>
+
+                          {/* Products count — desktop only */}
+                          <div className="hidden sm:block w-20 text-center text-sm text-gray-500 dark:text-gray-400 font-medium flex-shrink-0">
+                            {productCount} items
+                          </div>
+
+                          {/* Toggle */}
+                          <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
+                            {renderToggle(category)}
+                            <span className={`text-xs font-medium ${category.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {category.isActive !== false ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 w-24 justify-end flex-shrink-0">
+                            <button
+                              onClick={() => openCreateModal(category.id)}
+                              title="Add subcategory"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                            >
+                              <FolderTree size={15} />
+                            </button>
+                            <button
+                              onClick={() => openEditModal(category)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(category)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Subcategory rows */}
+                        {expanded && children
+                          .filter(child => !search.trim() || matchesSearch(child.name))
+                          .map(child => {
+                            const childCount = getCategoryProductCount(child.id)
+                            return (
+                              <div
+                                key={child.id}
+                                className="flex items-center gap-3 pl-14 pr-4 py-2.5 bg-gray-50/70 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-all border-t border-gray-100/70 dark:border-gray-800"
+                              >
+                                <CornerDownRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm text-gray-700 dark:text-gray-300 truncate block">{child.name}</span>
+                                  <span className="text-xs text-gray-400 sm:hidden">{childCount} items</span>
+                                </div>
+                                <div className="hidden sm:block w-20 text-center text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                                  {childCount} items
+                                </div>
+                                <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
+                                  {renderToggle(child)}
+                                  <span className={`text-xs font-medium ${child.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
+                                    {child.isActive !== false ? 'Active' : 'Inactive'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 w-24 justify-end flex-shrink-0">
+                                  <button
+                                    onClick={() => openEditModal(child)}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(child)}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
                       </div>
                     )
                   })}
                 </div>
 
                 {/* Pagination */}
-                {filtered.length > 0 && (
+                {filteredTopLevel.length > 0 && (
                   <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <span className="text-xs text-gray-400">
-                      Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} categories
+                      Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filteredTopLevel.length)} of {filteredTopLevel.length} categories
                     </span>
                     <div className="flex gap-1">
                       <button
@@ -307,7 +395,7 @@ export const CategoriesPage = () => {
                   </div>
                 )}
 
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && filteredTopLevel.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                     <Tag size={48} className="mb-4 opacity-30" />
                     <p className="text-sm">No categories found</p>
@@ -363,6 +451,9 @@ export const CategoriesPage = () => {
                   placeholder="e.g. Home Decor"
                   onKeyDown={e => { if (e.key === 'Enter') handleQuickAdd() }}
                 />
+                <p className="text-[11px] text-gray-400 mt-1.5 ml-1">
+                  Creates a top-level category. Use the tree list to add subcategories.
+                </p>
               </div>
               <Button
                 onClick={handleQuickAdd}
@@ -396,35 +487,47 @@ export const CategoriesPage = () => {
       </div>
 
       {/* New/Edit Category Modal */}
-      {editId === null && editName === '' ? null : (
-        <Modal
-          isOpen={editId === null || editName !== ''}
-          onClose={() => { setEditName(''); setEditId(null) }}
-          title={editId ? 'Edit Category' : 'New Category'}
-          size="sm"
-          footer={
-            <div className="flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => { setEditName(''); setEditId(null) }}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} loading={isCreating} disabled={!editName.trim()}>
-                {editId ? 'Update' : 'Create'}
-              </Button>
-            </div>
-          }
-        >
+      <Modal
+        isOpen={modalOpen}
+        onClose={closeModal}
+        title={editId ? 'Edit Category' : formParentId ? 'New Subcategory' : 'New Category'}
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} loading={isCreating || isUpdating} disabled={!formName.trim()}>
+              {editId ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
           <Input
             label="Category Name"
-            value={editName}
-            onChange={e => setEditName(e.target.value)}
-            placeholder="Enter category name"
+            value={formName}
+            onChange={e => setFormName(e.target.value)}
+            placeholder="e.g. Shirts, or Checks for a subcategory"
             autoFocus
-            onKeyDown={e => {
-              if (e.key === 'Enter') handleSave()
-            }}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
           />
-        </Modal>
-      )}
+
+          {editingHasChildren ? (
+            <p className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+              This category has its own subcategories, so it can't be moved under another category.
+            </p>
+          ) : (
+            <Select
+              label="Parent Category (optional)"
+              options={parentOptions}
+              placeholder="— None — top-level category —"
+              value={formParentId}
+              onChange={e => setFormParentId(e.target.value)}
+            />
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

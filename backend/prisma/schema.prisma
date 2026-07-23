@@ -71,14 +71,22 @@ model ManagedUser {
   updatedAt   DateTime @updatedAt
 }
 model Category {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  isActive  Boolean  @default(true)
+  isActive  Boolean    @default(true)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   products  Product[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Self-relation for a single level of subcategories (e.g. "Shirts" -> "Checks", "Plain").
+  // parent is nullable: null means this is a top-level category. Deleting a parent cascades
+  // to its subcategories (a subcategory can't meaningfully outlive its parent).
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Category[] @relation("CategoryHierarchy")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([parentId])
 }
 
 model Settings {

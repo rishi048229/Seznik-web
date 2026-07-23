@@ -1,5 +1,9 @@
 import { LayoutDashboard, ShoppingCart, Printer, LineChart } from 'lucide-react'
+import dashboard1 from '@/assets/Dashboard1.png'
+import dashboard2 from '@/assets/Dashboard2.png'
+import printerPage from '@/assets/Pinter page.png'
 import { RevealOnScroll } from './RevealOnScroll'
+import { AutoRotateImage } from './AutoRotateImage'
 
 interface OverviewItem {
   icon: typeof LayoutDashboard
@@ -8,6 +12,8 @@ interface OverviewItem {
   description: string
   bullets: string[]
   accent: string
+  /** Real product screenshots, when we have them — falls back to the CSS mock otherwise. */
+  images?: string[]
 }
 
 const ITEMS: OverviewItem[] = [
@@ -19,6 +25,7 @@ const ITEMS: OverviewItem[] = [
       'Sales, stock levels, credits and expenses roll up into a single live dashboard — no more switching between spreadsheets.',
     bullets: ['Live revenue & profit widgets', 'Low-stock and credit alerts', 'Configurable per store'],
     accent: 'from-blue-600 to-sky-400',
+    images: [dashboard1, dashboard2],
   },
   {
     icon: ShoppingCart,
@@ -37,6 +44,7 @@ const ITEMS: OverviewItem[] = [
       'A built-in TSPL label designer talks directly to your Dev or Veer printer over Bluetooth — straight from the browser.',
     bullets: ['Drag-and-drop label builder', 'Web Bluetooth, zero drivers', 'Browser-print fallback'],
     accent: 'from-blue-600 to-sky-400',
+    images: [printerPage],
   },
   {
     icon: LineChart,
@@ -49,17 +57,32 @@ const ITEMS: OverviewItem[] = [
   },
 ]
 
-// Stylized "browser window" mock — stands in for real product screenshots.
+// Shared browser-chrome frame — wraps either a real screenshot or the CSS mock below it.
+const BrowserFrame = ({ children }: { children: React.ReactNode }) => (
+  <div className="relative rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+    <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50 relative z-10">
+      <span className="w-2.5 h-2.5 rounded-full bg-red-300" />
+      <span className="w-2.5 h-2.5 rounded-full bg-amber-300" />
+      <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" />
+      <div className="ml-3 h-5 flex-1 max-w-[220px] rounded-md bg-white border border-slate-200" />
+    </div>
+    {children}
+  </div>
+)
+
+// Real product screenshots, crossfading through them if more than one was supplied.
+// No fake browser chrome here — the screenshot already carries the app's real header.
+const ScreenshotView = ({ item }: { item: OverviewItem }) => (
+  <div className="rounded-2xl border border-slate-200 shadow-xl overflow-hidden bg-slate-50">
+    <AutoRotateImage images={item.images ?? []} alt={item.title} className="aspect-[1917/911]" fit="contain" />
+  </div>
+)
+
+// Stylized "browser window" mock — stands in for sections without a real screenshot yet.
 const MockScreen = ({ item }: { item: OverviewItem }) => {
   const Icon = item.icon
   return (
-    <div className="relative rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
-      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50">
-        <span className="w-2.5 h-2.5 rounded-full bg-red-300" />
-        <span className="w-2.5 h-2.5 rounded-full bg-amber-300" />
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" />
-        <div className="ml-3 h-5 flex-1 max-w-[220px] rounded-md bg-white border border-slate-200" />
-      </div>
+    <BrowserFrame>
       <div className="p-6">
         <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${item.accent} flex items-center justify-center text-white mb-4`}>
           <Icon size={18} />
@@ -87,7 +110,7 @@ const MockScreen = ({ item }: { item: OverviewItem }) => {
           ))}
         </div>
       </div>
-    </div>
+    </BrowserFrame>
   )
 }
 
@@ -113,7 +136,7 @@ export const WebsiteOverview = () => {
                 }`}
               >
                 <RevealOnScroll direction={reversed ? 'right' : 'left'}>
-                  <MockScreen item={item} />
+                  {item.images?.length ? <ScreenshotView item={item} /> : <MockScreen item={item} />}
                 </RevealOnScroll>
                 <RevealOnScroll direction={reversed ? 'left' : 'right'} delay={0.1}>
                   <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">

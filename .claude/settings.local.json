@@ -68,7 +68,16 @@
       "PowerShell(Set-Location c:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\frontend; npx eslint src/pages/printers/PrintersPage.tsx src/pages/products/ProductsPage.tsx src/services/settingsService.ts src/types/settings.types.ts src/utils/labelPrint.ts --quiet; Write-Output \"lint-exit:$LASTEXITCODE\")",
       "Bash(node -e \"const m = require\\('lucide-react'\\); console.log\\(Object.keys\\(m\\).filter\\(k => /facebook|instagram|twitter|linkedin|x$|share2|globe/i.test\\(k\\)\\)\\)\")",
       "Bash(nohup npm run dev)",
-      "Bash(disown)"
+      "Bash(disown)",
+      "Bash(npx prisma *)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist)",
+      "Bash(taskkill //PID 34628 //F)",
+      "Bash(git stash *)",
+      "Bash(curl -s -o /dev/null -w \"backend status: %{http_code}\\\\n\" http://localhost:5000)",
+      "Read(//tmp/**)",
+      "Bash(curl -s http://localhost:5000/api/categories -w \"\\\\nstatus:%{http_code}\\\\n\")",
+      "Bash(curl -s -o /dev/null -w \"frontend status: %{http_code}\\\\n\" http://localhost:5173)"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

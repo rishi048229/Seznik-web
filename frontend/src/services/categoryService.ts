@@ -4,6 +4,8 @@ export interface Category {
   id: string
   name: string
   isActive: boolean
+  /** null/undefined = top-level category. Otherwise the id of its parent category. */
+  parentId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -13,18 +15,18 @@ export const getCategories = async (uid: string): Promise<Category[]> => {
   return await fetchApi('/categories')
 }
 
-export const createCategory = async (uid: string, name: string): Promise<string> => {
+export const createCategory = async (uid: string, name: string, parentId?: string | null): Promise<string> => {
   const category = await fetchApi('/categories', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, parentId: parentId || undefined }),
   })
   return category.id
 }
 
-export const updateCategory = async (uid: string, categoryId: string, name: string): Promise<void> => {
+export const updateCategory = async (uid: string, categoryId: string, name: string, parentId?: string | null): Promise<void> => {
   await fetchApi(`/categories/${categoryId}`, {
     method: 'PUT',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, parentId }),
   })
 }
 

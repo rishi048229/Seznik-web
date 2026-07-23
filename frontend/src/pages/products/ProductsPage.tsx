@@ -19,6 +19,7 @@ import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, M
 import { formatINR } from '@/utils/currency'
 import { getBlePrinterState, printEscPos, isBluetoothSupported } from '@/utils/blePrinter'
 import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '@/utils/labelPrint'
+import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 
@@ -301,7 +302,7 @@ export const ProductsPage = () => {
     })
   }
 
-  const categoryOptions = (categories ?? []).map(c => ({ value: c.id, label: c.name }))
+  const categoryOptions = buildCategoryOptions(categories)
 
   return (
     <div className="p-6">

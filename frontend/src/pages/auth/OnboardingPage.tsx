@@ -24,7 +24,7 @@ export const OnboardingPage = () => {
   const handleCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (categoryName.trim()) {
-      createCategory(categoryName.trim(), {
+      createCategory({ name: categoryName.trim() }, {
         onSuccess: async () => {
           await completeOnboarding(businessName)
           navigate(ROUTES.ACCESS_SELECTION)

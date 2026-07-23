@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useSettings } from '@/hooks/useSettings'
 import { Avatar } from '@/components/ui/Avatar'
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu'
 import { Sun, Moon, LogOut, Menu, Bell, HelpCircle, Plus, Search, ArrowLeft } from 'lucide-react'
@@ -15,6 +16,7 @@ interface TopbarProps {
 export const Topbar = ({ onMenuClick }: TopbarProps) => {
   const { user, userProfile, clearWorkspaceSelection } = useAuth()
   const { isDark, toggleTheme } = useTheme()
+  const { data: settings } = useSettings()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -58,7 +60,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           </Button>
         )}
         <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-          {userProfile?.businessName || 'Dashboard'}
+          {settings?.businessName || userProfile?.businessName || 'Dashboard'}
         </h2>
         {/* Search Bar — desktop only */}
         <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-4 py-2 min-w-[16rem]">

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, Fragment } from 'react'
 import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '@/hooks/useProducts'
@@ -19,6 +19,7 @@ import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import toast from 'react-hot-toast'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
@@ -350,24 +351,24 @@ export const POSPage = () => {
       {/* Left: Product List */}
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Search & Category Bar */}
-        <div className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-          <div className="flex items-center gap-4">
+        <div className="px-4 sm:px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+          <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <Input
                 placeholder="Search by product name, SKU, or scan barcode..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-12 py-3 text-base"
+                className="pl-11 pr-4 h-11 text-sm"
               />
             </div>
-            <Button variant="outline" size="sm" className="p-3">
+            <Button variant="outline" size="sm" className="h-11 w-11 p-0 flex-shrink-0 flex items-center justify-center">
               <Filter size={18} />
             </Button>
             <button
               type="button"
               onClick={toggleScanMode}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
+              className={`h-11 flex items-center gap-2 px-4 rounded-xl border-2 text-sm font-medium whitespace-nowrap transition-all ${
                 isScanMode
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                   : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
@@ -416,25 +417,39 @@ export const POSPage = () => {
             >
               All Products
             </button>
-            {categories?.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
-                  selectedCategory === cat.id
-                    ? 'bg-[#0a0a2e] text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
-                }`}
-              >
-                {cat.name}
-              </button>
+            {getTopLevelCategories(categories).map(parent => (
+              <Fragment key={parent.id}>
+                <button
+                  onClick={() => setSelectedCategory(parent.id)}
+                  className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                    selectedCategory === parent.id
+                      ? 'bg-[#0a0a2e] text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
+                  }`}
+                >
+                  {parent.name}
+                </button>
+                {getChildCategories(categories, parent.id).map(child => (
+                  <button
+                    key={child.id}
+                    onClick={() => setSelectedCategory(child.id)}
+                    className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                      selectedCategory === child.id
+                        ? 'bg-[#0a0a2e] text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    › {child.name}
+                  </button>
+                ))}
+              </Fragment>
             ))}
           </div>
         </div>
 
-        {/* Product List */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
-          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {/* Product Grid */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-3 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filtered.map(product => {
               const reserved = cartReserved[product.id] || 0
               const available = product.currentStock - reserved
@@ -445,56 +460,49 @@ export const POSPage = () => {
                 <div
                   key={product.id}
                   onClick={() => !isOutOfStock && handleProductClick(product)}
-                  className={`flex items-center gap-3 sm:gap-4 py-3 sm:py-3 px-2 sm:px-0 transition-colors group ${
+                  className={`group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
                     isOutOfStock
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                      ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
+                      : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-300 dark:hover:border-blue-800'
                   }`}
                 >
                   {/* Thumbnail */}
-                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                     {product.imageURL ? (
                       <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-300">
-                        <ShoppingCart size={20} />
-                      </div>
+                      <ShoppingCart size={18} className="text-gray-300" />
                     )}
                   </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
+                  {/* Name + SKU */}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
                       {product.name}
                     </p>
-                    <p className="text-xs text-gray-400">
-                      <span className="hidden sm:inline">SKU: {product.sku} · </span>
-                      <span className={isOutOfStock ? 'text-red-500' : isLowStock ? 'text-amber-500' : ''}>
-                        {isOutOfStock ? 'Out of stock' : `Stock: ${available}`}
-                      </span>
-                    </p>
+                    <p className="text-xs text-gray-400 truncate">SKU: {product.sku}</p>
                   </div>
 
-                  {/* Stock badge */}
-                  <span className={`hidden sm:inline text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide flex-shrink-0 ${
-                    isOutOfStock
-                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                      : isLowStock
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                      : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-                  }`}>
-                    {isOutOfStock ? 'Out of Stock' : `Stock: ${available}`}
-                  </span>
-
-                  {/* Price + add */}
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-blue-600 font-bold text-sm w-20 text-right">
-                      {formatINR(product.sellingPrice)}
-                    </span>
+                  {/* Price + stock badge + add */}
+                  <div className="mt-auto pt-1 flex items-end justify-between gap-2">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-bold text-blue-600">
+                        {formatINR(product.sellingPrice)}
+                      </span>
+                      <span className={`inline-flex w-fit text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
+                        isOutOfStock
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : isLowStock
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                      }`}>
+                        {isOutOfStock ? 'Out of Stock' : `Stock: ${available}`}
+                      </span>
+                    </div>
                     <button
                       disabled={isOutOfStock}
                       onClick={(e) => { e.stopPropagation(); !isOutOfStock && handleProductClick(product) }}
-                      className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                     >
                       <Plus size={16} />
                     </button>
@@ -528,21 +536,21 @@ export const POSPage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col m-3 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
             <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
           </div>
 
           {/* Customer Selector (optional - walk-in by default) */}
           <div className="relative">
-            <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+            <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={16} />
             <select
               value={selectedCustomer}
               onChange={e => setSelectedCustomer(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="w-full h-9 pl-9 pr-9 rounded-lg appearance-none cursor-pointer bg-gray-50 dark:bg-gray-700/40 border-0 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/60"
             >
               <option value="">— Walk-in Customer —</option>
               {customers?.map(c => (
@@ -550,7 +558,7 @@ export const POSPage = () => {
               ))}
             </select>
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </div>
@@ -558,7 +566,7 @@ export const POSPage = () => {
         </div>
 
         {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {items.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <ShoppingCart size={48} className="mx-auto mb-4 opacity-30" />
@@ -572,15 +580,15 @@ export const POSPage = () => {
               const available = (product?.currentStock || 0) - reserved
 
               return (
-                <div key={item.productId} className="group bg-gray-50 dark:bg-gray-700/30 rounded-xl p-3 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                <div key={item.productId} className="group bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700/60 p-3 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                   <div className="flex items-center gap-3">
                     {/* Product Image */}
-                    <div className="w-14 h-14 rounded-lg bg-gray-200 dark:bg-gray-600 overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-600 overflow-hidden flex-shrink-0">
                       {item.imageURL ? (
                         <img src={item.imageURL} alt={item.productName} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          <ShoppingCart size={20} />
+                          <ShoppingCart size={18} />
                         </div>
                       )}
                     </div>
@@ -603,7 +611,7 @@ export const POSPage = () => {
                   </div>
 
                   {/* Quantity Controls + Line Total - Separate Row */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-600">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
                     <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
                       <button
                         onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
@@ -632,20 +640,20 @@ export const POSPage = () => {
 
         {/* Order Discount (Order-level only) */}
         {items.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <Input
                 type="number"
                 placeholder="Discount"
                 value={orderDiscount || ''}
                 onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                className="flex-1"
+                className="flex-1 h-10"
               />
               <div className="relative">
                 <select
                   value={orderDiscountType}
                   onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+                  className="h-10 px-3 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>
@@ -661,35 +669,35 @@ export const POSPage = () => {
         )}
 
         {/* Totals */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-2 bg-gray-50 dark:bg-gray-800">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Subtotal ({items.length} items)</span>
-            <span className="text-gray-900 dark:text-gray-100">{formatINR(totals.subtotal)}</span>
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-1.5 bg-gray-50 dark:bg-gray-800">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500 dark:text-gray-400">Subtotal ({items.length} items)</span>
+            <span className="text-gray-500 dark:text-gray-400">{formatINR(totals.subtotal)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500 dark:text-gray-400">
               {taxLabel}
             </span>
-            <span className="text-gray-900 dark:text-gray-100">{formatINR(taxAmount)}</span>
+            <span className="text-gray-500 dark:text-gray-400">{formatINR(taxAmount)}</span>
           </div>
           {orderDiscountAmount > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600">
+            <div className="flex justify-between text-xs text-emerald-600">
               <span>Discount</span>
               <span>-{formatINR(orderDiscountAmount)}</span>
             </div>
           )}
-          <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between text-lg font-bold mt-1.5 pt-3 border-t border-gray-200 dark:border-gray-700">
             <span className="text-gray-900 dark:text-gray-100">Total Amount</span>
-            <span className="text-[#0a0a2e]">{formatINR(finalTotal)}</span>
+            <span className="text-[#0a0a2e] dark:text-white">{formatINR(finalTotal)}</span>
           </div>
         </div>
 
         {/* Payment Button */}
-        <div className="p-6">
+        <div className="p-4">
           <Button
             onClick={() => setIsPaymentOpen(true)}
             disabled={items.length === 0 || isCreating}
-            className="w-full py-4 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
           >
             <Printer size={18} className="mr-2" />
             Complete & Print

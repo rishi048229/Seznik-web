@@ -18,7 +18,8 @@ export const useCreateCategory = () => {
   const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (name: string) => categoryService.createCategory(user!.uid, name),
+    mutationFn: ({ name, parentId }: { name: string; parentId?: string | null }) =>
+      categoryService.createCategory(user!.uid, name, parentId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
     },
@@ -29,8 +30,8 @@ export const useUpdateCategory = () => {
   const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ categoryId, name }: { categoryId: string; name: string }) =>
-      categoryService.updateCategory(user!.uid, categoryId, name),
+    mutationFn: ({ categoryId, name, parentId }: { categoryId: string; name: string; parentId?: string | null }) =>
+      categoryService.updateCategory(user!.uid, categoryId, name, parentId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
     },

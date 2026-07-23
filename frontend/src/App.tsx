@@ -79,7 +79,7 @@ const LoginRoute = ({ children }: { children: React.ReactNode }) => {
     if (needsOnboarding) {
       return <Navigate to={ROUTES.ONBOARDING} replace />
     }
-    if (hasSelectedWorkspace || userProfile?.role) {
+    if (hasSelectedWorkspace && userProfile?.role) {
       return <Navigate to={ROUTES.DASHBOARD} replace />
     }
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
@@ -107,7 +107,7 @@ const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to={ROUTES.ONBOARDING} replace />
   }
 
-  if (hasSelectedWorkspace || userProfile?.role) {
+  if (hasSelectedWorkspace && userProfile?.role) {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
 
