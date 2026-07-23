@@ -1,4 +1,5 @@
 export const ROUTES = {
+  LANDING: '/',
   LOGIN: '/login',
   ACCESS_SELECTION: '/access-selection',
   ONBOARDING: '/onboarding',

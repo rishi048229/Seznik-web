@@ -15,7 +15,7 @@ import { useSuppliers } from '@/hooks/useSuppliers'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/hooks/useSettings'
 import { canManipulateStock } from '@/utils/permissions'
-import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Lock, Sparkles } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import { getBlePrinterState, printEscPos, isBluetoothSupported } from '@/utils/blePrinter'
 import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '@/utils/labelPrint'
@@ -89,6 +89,8 @@ export const ProductsPage = () => {
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
+  const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
+  const [labelProduct, setLabelProduct] = useState<Product | null>(null)
 
   // F3 keyboard shortcut to open barcode stock update modal
   useEffect(() => {
@@ -148,82 +150,10 @@ export const ProductsPage = () => {
     setIsFormOpen(true)
   }
 
-  // Prints a real ESC/POS label for this product on whatever Bluetooth
-  // printer is currently connected — reusing the exact same layout the user
-  // designed in Printers → Labels, so this button and that page always agree.
-  // Prints a real label for this product on the connected printer — using the
-  // user's chosen command protocol (TSPL mode for dual-mode label printers, or
-  // ESC/POS compact mode), falling back to browser print dialog if BLE is disconnected.
-  const handlePrintLabel = async (product: Product) => {
-    const template = settings?.printerConfig?.labelTemplate?.length
-      ? settings.printerConfig.labelTemplate
-      : defaultLabelTemplate
-    const barcodeType = settings?.printerConfig?.labelBarcodeType || 'CODE128'
-    const labelMode = settings?.printerConfig?.labelPrinterMode || 'tspl'
-    const labelWidth = settings?.printerConfig?.labelWidth || 50
-    const labelHeight = settings?.printerConfig?.labelHeight || 30
-
-    const labelData = {
-      businessName: settings?.receiptConfig?.companyName || settings?.businessName || 'Store',
-      productName: product.name,
-      price: formatINR(product.sellingPrice),
-      barcodeValue: product.barcode || product.sku,
-    }
-
-    if (isBluetoothSupported() && getBlePrinterState().status === 'connected') {
-      try {
-        const bytes = labelMode === 'tspl'
-          ? generateLabelTspl(template, barcodeType, labelData, labelWidth, labelHeight)
-          : generateLabelEscPos(template, barcodeType, labelData)
-
-        await printEscPos(bytes)
-        toast.success(`Label printed for ${product.name}`)
-        return
-      } catch (err) {
-        console.error('BLE label print error:', err)
-        toast.error(err instanceof Error ? err.message : 'Failed to print label via Bluetooth')
-        return
-      }
-    }
-
-    // Fallback to browser print window when Bluetooth is not connected
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      toast.error('Please allow popups or connect a Bluetooth printer to print labels')
-      return
-    }
-
-    const rows = template.map(el => {
-      const style = `text-align:${el.align};font-weight:${el.bold ? 700 : 400};font-size:${el.large ? '16px' : '11px'};margin:2px 0;`
-      if (el.type === 'barcode') {
-        return barcodeType === 'QR'
-          ? `<div style="text-align:${el.align};margin:4px 0;font-size:28px;">▦</div>`
-          : `<div style="text-align:${el.align};margin:4px 0;"><div style="font-weight:800;font-size:16px;letter-spacing:2px;">||||||||||||||||</div><div style="font-size:8px;font-family:monospace;">${labelData.barcodeValue}</div></div>`
-      }
-      const text = el.type === 'custom' ? (el.text ?? '') : el.type === 'businessName' ? labelData.businessName : el.type === 'productName' ? labelData.productName : labelData.price
-      return `<div style="${style}">${text}</div>`
-    }).join('')
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Print Label - ${product.name}</title>
-        <style>
-          body { font-family: sans-serif; width: ${labelWidth}mm; height: ${labelHeight}mm; margin: 0 auto; padding: 4px; box-sizing: border-box; text-align: center; color: #000; }
-        </style>
-      </head>
-      <body>${rows}</body>
-      </html>
-    `
-
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
+  // Label printing stopped for this version — shows coming soon modal
+  const handlePrintLabel = (product: Product) => {
+    setLabelProduct(product)
+    setIsLabelModalOpen(true)
   }
 
   const openEdit = (row: Product) => {
@@ -966,6 +896,42 @@ export const ProductsPage = () => {
               Cancel
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Label Feature Disabled Popup Modal */}
+      <Modal
+        isOpen={isLabelModalOpen}
+        onClose={() => setIsLabelModalOpen(false)}
+        title="Print Label"
+        size="sm"
+        footer={
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={() => setIsLabelModalOpen(false)}>
+              Got it
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col items-center text-center py-4 space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-inner ring-4 ring-amber-50 dark:ring-amber-950/40">
+            <Lock size={28} className="animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-bold mb-1">
+              <Sparkles size={12} />
+              Feature Coming Soon
+            </div>
+            <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
+              Label Feature Disabled
+            </h4>
+            <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+              This feature will be live soon
+            </p>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed max-w-xs">
+            Label printing for {labelProduct ? <span className="font-semibold text-gray-700 dark:text-gray-200">{labelProduct.name}</span> : 'products'} is disabled in this version and will be live in an upcoming release.
+          </p>
         </div>
       </Modal>
     </div>
