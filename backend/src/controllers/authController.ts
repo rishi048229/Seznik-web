@@ -193,6 +193,25 @@ export const verifyForgotPasswordOtp = async (req: Request, res: Response) => {
   }
 };
 
+const validatePasswordComplexity = (password: string): string | null => {
+  if (!password || password.length < 8) {
+    return 'Password must be at least 8 characters long';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must contain at least one uppercase letter (A-Z)';
+  }
+  if (!/[a-z]/.test(password)) {
+    return 'Password must contain at least one lowercase letter (a-z)';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one number (0-9)';
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    return 'Password must contain at least one special character (!@#$%^&*)';
+  }
+  return null;
+};
+
 // Step 3 of Forgot Password: Reset password in DB
 export const resetPasswordWithOtp = async (req: Request, res: Response) => {
   try {
@@ -202,8 +221,9 @@ export const resetPasswordWithOtp = async (req: Request, res: Response) => {
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    const passwordError = validatePasswordComplexity(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
     }
 
     const otpRecord = await prisma.emailOtp.findUnique({ where: { email } });
@@ -255,8 +275,9 @@ export const register = async (req: Request, res: Response) => {
     if (!phone || !PHONE_RE.test(phone)) {
       return res.status(400).json({ error: 'A valid phone number is required' });
     }
-    if (!password || String(password).length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    const passwordError = validatePasswordComplexity(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });

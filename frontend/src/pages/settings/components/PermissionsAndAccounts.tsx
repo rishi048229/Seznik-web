@@ -12,6 +12,8 @@ import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
 import { ADMIN_PERMISSIONS, AGENT_PERMISSIONS } from '@/types/auth.types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAllUsers, saveManagedUser, saveManagedUsers } from '@/services/authService'
+import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
+import { validatePassword } from '@/utils/password'
 import toast from 'react-hot-toast'
 
 interface ManagedUser extends UserProfile {
@@ -67,6 +69,12 @@ export const PermissionsAndAccounts = () => {
       return
     }
 
+    const { isValid, failedRequirements } = validatePassword(form.password)
+    if (!isValid) {
+      toast.error(`Password requirement missing: ${failedRequirements[0]}`)
+      return
+    }
+
     const newUser: ManagedUser = {
       uid: `user_${Date.now()}`,
       displayName: form.name,
@@ -114,8 +122,9 @@ export const PermissionsAndAccounts = () => {
       return
     }
 
-    if (passwordForm.newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    const { isValid, failedRequirements } = validatePassword(passwordForm.newPassword)
+    if (!isValid) {
+      toast.error(`Password requirement missing: ${failedRequirements[0]}`)
       return
     }
 

@@ -11,6 +11,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { LANGUAGES } from '@/i18n/translations'
 import { Spinner } from '@/components/ui/Spinner'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
+import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
 import { Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -52,6 +53,7 @@ export const SettingsPage = () => {
     { key: 'invoice', label: t('settings.editInvoice') },
     { key: 'notifications', label: t('settings.notifications') },
     { key: 'permissions', label: t('settings.permissions') },
+    { key: 'security', label: 'Security & Password' },
     { key: 'language', label: t('settings.language') },
   ]
 
@@ -391,6 +393,9 @@ export const SettingsPage = () => {
             )}
             {activeTab === 'permissions' && (
               <PermissionsAndAccounts />
+            )}
+            {activeTab === 'security' && (
+              <SecurityPasswordSettings />
             )}
             {activeTab === 'language' && (
               <div className="space-y-4">

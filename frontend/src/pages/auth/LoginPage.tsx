@@ -14,6 +14,8 @@ import { CheckCircle2, KeyRound, ArrowRight } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
+import { validatePassword } from '@/utils/password'
 
 type EmailVerifyStep = 'idle' | 'sending' | 'sent' | 'verifying' | 'verified'
 type ForgotStep = 'email' | 'otp' | 'new_password' | 'success'
@@ -105,6 +107,15 @@ export const LoginPage = () => {
       setError('Please verify your email before signing up')
       return
     }
+
+    if (isRegistering) {
+      const { isValid, failedRequirements } = validatePassword(password)
+      if (!isValid) {
+        setError(`Password requirements missing: ${failedRequirements.join(', ')}`)
+        return
+      }
+    }
+
     setIsSigningIn(true)
     try {
       if (isRegistering) {
@@ -183,10 +194,12 @@ export const LoginPage = () => {
 
   // Reset Password
   const handleResetPassword = async () => {
-    if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      setForgotError('New password must be at least 6 characters')
+    const { isValid, failedRequirements } = validatePassword(forgotNewPassword)
+    if (!isValid) {
+      setForgotError(`Password requirement missing: ${failedRequirements[0]}`)
       return
     }
+
     if (forgotNewPassword !== forgotConfirmPassword) {
       setForgotError('Passwords do not match')
       return
@@ -381,6 +394,7 @@ export const LoginPage = () => {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                 placeholder="••••••••"
               />
+              {isRegistering && <PasswordRequirementsList password={password} showOnlyIfTyped />}
             </div>
 
             <button
@@ -510,11 +524,12 @@ export const LoginPage = () => {
               <Input
                 label="New Password"
                 type="password"
-                placeholder="Enter new password (min 6 chars)"
+                placeholder="Enter new password"
                 value={forgotNewPassword}
                 onChange={(e) => setForgotNewPassword(e.target.value)}
                 autoFocus
               />
+              <PasswordRequirementsList password={forgotNewPassword} />
               <Input
                 label="Confirm New Password"
                 type="password"
