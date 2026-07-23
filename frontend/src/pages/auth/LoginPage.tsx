@@ -216,7 +216,7 @@ export const LoginPage = () => {
 
         {/* Top / Left Panel — Branding */}
         <div className="sm:w-1/2 px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
-          style={{ background: 'linear-gradient(135deg, #0a0a2e 0%, #1e1b6e 40%, #3b3ba0 100%)', color: '#fff' }}>
+          style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)', color: '#fff' }}>
           <div>
             <div className="mb-8 sm:mb-12">
               <img src="/seznik_white_logo.png" alt="Seznik" className="w-32 sm:w-40 h-auto object-contain" />
