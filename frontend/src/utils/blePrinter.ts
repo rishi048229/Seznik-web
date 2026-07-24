@@ -112,7 +112,8 @@ async function resolveWriteCharacteristic(
 
     try {
       const char = await service.getCharacteristic(profile.characteristic)
-      if (char.properties.write || char.properties.writeWithoutResponse) {
+      const props = (char as any).properties
+      if (props?.write || props?.writeWithoutResponse) {
         return { char, profile }
       }
     } catch {
@@ -120,8 +121,8 @@ async function resolveWriteCharacteristic(
     }
 
     try {
-      const chars = await service.getCharacteristics()
-      const writable = chars.find(c => c.properties.write) ?? chars.find(c => c.properties.writeWithoutResponse)
+      const chars: any[] = await (service as any).getCharacteristics()
+      const writable = chars.find((c: any) => c.properties?.write) ?? chars.find((c: any) => c.properties?.writeWithoutResponse)
       if (writable) return { char: writable, profile }
     } catch {
       continue
@@ -141,7 +142,7 @@ async function connectToDevice(dev: BluetoothDevice): Promise<void> {
 
   device = dev
   characteristic = char
-  supportsWriteWithResponse = !!char.properties.write
+  supportsWriteWithResponse = !!((char as any).properties?.write)
   setState({ status: 'connected', deviceName: dev.name ?? 'Printer', profileName: profile.name })
 }
 
