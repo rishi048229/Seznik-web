@@ -179,6 +179,7 @@ function App() {
           <Toaster position="top-right" />
           <Suspense fallback={LoadingFallback}>
             <Routes>
+              <Route path="/" element={<Navigate to={ROUTES.LOGIN} replace />} />
               <Route
                 path={ROUTES.LOGIN}
                 element={
