@@ -407,11 +407,11 @@ export const LoginPage = () => {
             </button>
           </form>
 
-          {/* Trial Link */}
+          {/* Sign Up / Log In Link */}
           <p className="text-center mt-8 text-sm text-slate-500">
             {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
             <button onClick={switchMode} className="text-[#0a0a2e] font-semibold hover:underline">
-              {isRegistering ? 'Log in' : 'Start 14-day free trial'}
+              {isRegistering ? 'Log in' : 'Sign Up'}
             </button>
           </p>
 

@@ -69,16 +69,31 @@ export const PermissionsAndAccounts = () => {
       return
     }
 
+    const normalizedEmail = form.email.trim().toLowerCase()
+
+    // Fast client-side checks against what we already have loaded — the backend
+    // is still the source of truth (it also sees the admin's own login email).
+    if (userProfile?.email && userProfile.email.trim().toLowerCase() === normalizedEmail) {
+      toast.error('That email is already in use by your own account')
+      return
+    }
+    if (users.some(u => u.email && u.email.trim().toLowerCase() === normalizedEmail)) {
+      toast.error('A user with this email already exists')
+      return
+    }
+
     const { isValid, failedRequirements } = validatePassword(form.password)
     if (!isValid) {
       toast.error(`Password requirement missing: ${failedRequirements[0]}`)
       return
     }
 
+    if (!user) return
+
     const newUser: ManagedUser = {
       uid: `user_${Date.now()}`,
       displayName: form.name,
-      email: form.email,
+      email: normalizedEmail,
       role: form.role,
       permissions: form.role === 'admin' ? ADMIN_PERMISSIONS : { ...permissionsForm },
       password: form.password,
@@ -88,15 +103,15 @@ export const PermissionsAndAccounts = () => {
       createdAt: new Date() as any,
     }
 
-    const updatedUsers = [...users, newUser]
-    setUsers(updatedUsers)
-    if (user) {
+    try {
       await saveManagedUser(user.uid, newUser)
+      setUsers([...users, newUser])
+      toast.success('User added successfully')
+      setIsAddUserOpen(false)
+      setForm({ name: '', email: '', role: 'agent', password: '' })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add user')
     }
-    
-    toast.success('User added successfully')
-    setIsAddUserOpen(false)
-    setForm({ name: '', email: '', role: 'agent', password: '' })
   }
 
   const handleUpdatePermissions = async () => {

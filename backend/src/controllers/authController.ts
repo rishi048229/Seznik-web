@@ -19,6 +19,19 @@ const OTP_VERIFIED_WINDOW_MS = 30 * 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9][0-9\s-]{6,14}$/;
 
+const normalizeEmail = (email: unknown): string => String(email || '').trim().toLowerCase();
+
+// An email must resolve to at most one account across BOTH tables — a primary
+// User (owner/admin) and a ManagedUser (staff sub-account) share the same
+// login-by-email space, so every account-creation path needs to check both.
+const findAccountByEmail = async (email: string) => {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (user) return { type: 'user' as const, record: user };
+  const managedUser = await prisma.managedUser.findFirst({ where: { email } });
+  if (managedUser) return { type: 'managed' as const, record: managedUser };
+  return null;
+};
+
 // Step 1 of signup: email in → 6-digit code out (via SMTP).
 export const sendEmailOtp = async (req: Request, res: Response) => {
   try {
@@ -27,8 +40,8 @@ export const sendEmailOtp = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Please enter a valid email address' });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    const existingAccount = await findAccountByEmail(email);
+    if (existingAccount) {
       return res.status(400).json({ error: 'An account with this email already exists' });
     }
 
@@ -280,9 +293,9 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ error: passwordError });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+    const existingAccount = await findAccountByEmail(email);
+    if (existingAccount) {
+      return res.status(400).json({ error: 'An account with this email already exists' });
     }
 
     // Email must have completed the OTP flow recently.
@@ -380,11 +393,21 @@ export const login = async (req: Request, res: Response) => {
 
 export const socialLogin = async (req: Request, res: Response) => {
   try {
-    const { email, uid, displayName } = req.body;
-    
+    const email = normalizeEmail(req.body.email);
+    const { uid, displayName } = req.body;
+
     let user = await prisma.user.findFirst({ where: { email } });
-    
+
     if (!user) {
+      // Don't let a social sign-in silently create a second account for an
+      // email that's already a staff (ManagedUser) login.
+      const managedUser = await prisma.managedUser.findFirst({ where: { email } });
+      if (managedUser) {
+        return res.status(400).json({
+          error: 'This email is already registered as a staff account. Please log in with your email and password instead.',
+        });
+      }
+
       user = await prisma.user.create({
         data: {
           email,
@@ -533,13 +556,21 @@ export const createManagedUser = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Name and password are required' });
     }
 
+    const normalizedEmail = email ? normalizeEmail(email) : null;
+    if (normalizedEmail) {
+      const existingAccount = await findAccountByEmail(normalizedEmail);
+      if (existingAccount) {
+        return res.status(400).json({ error: 'An account with this email already exists' });
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
 
     const managed = await prisma.managedUser.create({
       data: {
         uid: uid || `user_${Date.now()}`,
         displayName,
-        email: email || null,
+        email: normalizedEmail,
         role: role || 'agent',
         permissions: permissions ?? undefined,
         password: hashedPassword,
@@ -568,6 +599,25 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
     const existing = await prisma.managedUser.findMany({ where: { adminId } });
     const incomingUids = new Set(incoming.map(u => u.uid));
 
+    // Validate every email before writing anything — no two accounts (managed
+    // or primary) may share one, and the incoming payload itself can't either.
+    const seenInPayload = new Set<string>();
+    for (const u of incoming) {
+      if (!u.email) continue;
+      const normalizedEmail = normalizeEmail(u.email);
+
+      if (seenInPayload.has(normalizedEmail)) {
+        return res.status(400).json({ error: `Duplicate email in request: ${normalizedEmail}` });
+      }
+      seenInPayload.add(normalizedEmail);
+
+      const existingUser = existing.find(e => e.uid === u.uid);
+      const account = await findAccountByEmail(normalizedEmail);
+      if (account && account.record.id !== existingUser?.id) {
+        return res.status(400).json({ error: `An account with this email already exists: ${normalizedEmail}` });
+      }
+    }
+
     // Delete users no longer in the list.
     const toDelete = existing.filter(e => !incomingUids.has(e.uid));
     if (toDelete.length > 0) {
@@ -581,7 +631,7 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
       const existingUser = existing.find(e => e.uid === u.uid);
       const data: any = {
         displayName: u.displayName,
-        email: u.email || null,
+        email: u.email ? normalizeEmail(u.email) : null,
         role: u.role || 'agent',
         permissions: u.permissions ?? undefined,
         photoURL: u.photoURL || null,

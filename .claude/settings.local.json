@@ -77,7 +77,10 @@
       "Bash(curl -s -o /dev/null -w \"backend status: %{http_code}\\\\n\" http://localhost:5000)",
       "Read(//tmp/**)",
       "Bash(curl -s http://localhost:5000/api/categories -w \"\\\\nstatus:%{http_code}\\\\n\")",
-      "Bash(curl -s -o /dev/null -w \"frontend status: %{http_code}\\\\n\" http://localhost:5173)"
+      "Bash(curl -s -o /dev/null -w \"frontend status: %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"email\":\"sanskar@ownairstore.com\"}' -w \"\\\\nstatus:%{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"email\":\"admin@seznik.com\"}' -w \"\\\\nstatus:%{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"email\":\"Admin@Seznik.com\"}' -w \"\\\\nstatus:%{http_code}\\\\n\")"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

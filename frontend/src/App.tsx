@@ -20,7 +20,8 @@ const lazyPage = <T extends Record<string, any>>(importFn: () => Promise<T>, nam
   lazy(() => importFn().then(module => ({ default: module[name] as React.ComponentType })))
 
 // Lazy-loaded pages (named exports → default for React.lazy)
-const LandingPage = lazyPage(() => import('@/pages/landing/LandingPage'), 'LandingPage')
+// NOTE: the marketing landing page (src/pages/landing/) is built but intentionally
+// disconnected from routing for this version — picking back up next version.
 const LoginPage = lazyPage(() => import('@/pages/auth/LoginPage'), 'LoginPage')
 const AccessSelectionPage = lazyPage(() => import('@/pages/auth/AccessSelectionPage'), 'AccessSelectionPage')
 const OnboardingPage = lazyPage(() => import('@/pages/auth/OnboardingPage'), 'OnboardingPage')
@@ -178,7 +179,6 @@ function App() {
           <Toaster position="top-right" />
           <Suspense fallback={LoadingFallback}>
             <Routes>
-              <Route path={ROUTES.LANDING} element={<LandingPage />} />
               <Route
                 path={ROUTES.LOGIN}
                 element={
