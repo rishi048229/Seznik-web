@@ -1,5 +1,11 @@
-const RAW_API_URL = (import.meta.env.VITE_API_URL as string || 'http://localhost:5000').replace(/\/$/, '');
-const API_URL = RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL}/api`;
+const getApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL as string;
+  if (!envUrl) return '/api';
+  const raw = envUrl.replace(/\/$/, '');
+  return raw.endsWith('/api') ? raw : `${raw}/api`;
+};
+
+const API_URL = getApiUrl();
 
 export const getAuthToken = () => localStorage.getItem('token');
 export const setAuthToken = (token: string) => localStorage.setItem('token', token);
