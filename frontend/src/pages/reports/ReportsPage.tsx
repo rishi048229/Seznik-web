@@ -18,8 +18,9 @@ export const ReportsPage = () => {
         <PageHeader title="Reports & Analytics Hub" onWatchTutorial={pageTutorial.openTutorial} />
       </div>
       <ReportTabs />
-      <div data-tour="reports-cards" className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card
+          data-tour="report-card-sales"
           className="p-6 cursor-pointer hover:shadow-lg transition-all hover:border-blue-200 dark:hover:border-blue-800"
           onClick={() => navigate(ROUTES.REPORTS_SALES)}
         >
@@ -36,6 +37,7 @@ export const ReportsPage = () => {
         </Card>
 
         <Card
+          data-tour="report-card-pl"
           className="p-6 cursor-pointer hover:shadow-lg transition-all hover:border-emerald-200 dark:hover:border-emerald-800"
           onClick={() => navigate(ROUTES.REPORTS_PL)}
         >
@@ -52,6 +54,7 @@ export const ReportsPage = () => {
         </Card>
 
         <Card
+          data-tour="report-card-tax"
           className="p-6 cursor-pointer hover:shadow-lg transition-all hover:border-purple-200 dark:hover:border-purple-800"
           onClick={() => navigate(ROUTES.REPORTS_TAX)}
         >

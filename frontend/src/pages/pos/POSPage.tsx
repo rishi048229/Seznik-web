@@ -357,7 +357,7 @@ export const POSPage = () => {
         {/* Search & Category Bar */}
         <div data-tour="pos-search-bar" className="px-4 sm:px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-xl">
+            <div data-tour="pos-search-input" className="relative flex-1 max-w-xl">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <Input
                 placeholder="Search by product name, SKU, or scan barcode..."
@@ -418,7 +418,7 @@ export const POSPage = () => {
           )}
 
           {/* Category Tabs */}
-          <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide">
+          <div data-tour="pos-category-tabs" className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide">
             <button
               onClick={() => setSelectedCategory('')}
               className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
@@ -557,7 +557,7 @@ export const POSPage = () => {
           </div>
 
           {/* Customer Selector (optional - walk-in by default) */}
-          <div className="relative">
+          <div data-tour="pos-customer-select" className="relative">
             <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={16} />
             <select
               value={selectedCustomer}

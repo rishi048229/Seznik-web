@@ -290,7 +290,7 @@ export const ExpensesPage = () => {
           title="Expenses"
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
+            <Button data-tour="add-expense-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
               Add Expense
             </Button>
           }
@@ -301,6 +301,7 @@ export const ExpensesPage = () => {
       <Card className="p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <button
+            data-tour="expense-filters-btn"
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900"
           >

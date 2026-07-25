@@ -200,7 +200,7 @@ export const CategoriesPage = () => {
                 <Info size={12} />
                 {topLevel.length} Categories · {all.length - topLevel.length} Subcategories
               </Badge>
-              <Button leftIcon={<Plus size={16} />} onClick={() => openCreateModal()}>
+              <Button data-tour="new-category-btn" leftIcon={<Plus size={16} />} onClick={() => openCreateModal()}>
                 New Category
               </Button>
             </div>
@@ -210,7 +210,7 @@ export const CategoriesPage = () => {
 
       {/* Search Bar */}
       <div className="mb-4">
-        <div className="relative max-w-xs sm:max-w-sm">
+        <div data-tour="category-search-input" className="relative max-w-xs sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <Input
             placeholder="Search categories & subcategories..."

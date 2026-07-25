@@ -38,10 +38,10 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Use the top POS button to quickly jump into high-speed retail checkout.',
     ],
     tourSteps: [
-      { title: 'Welcome to Dashboard', description: 'This is your central command hub showing live sales, stock alerts, and key metrics.', targetSelector: '[data-tour="dashboard-header"]' },
-      { title: 'KPI Metrics Cards', description: 'Check daily revenue, order counts, average sales, and low stock warnings right here.', targetSelector: '[data-tour="kpi-cards"]' },
-      { title: 'Printer Connection Status', description: 'Connect or disconnect your Bluetooth thermal receipt printer with one click.', targetSelector: '[data-tour="printer-card"]' },
-      { title: 'Sales & Payment Trends', description: 'Review payment method distributions and revenue charts to make data-driven decisions.', targetSelector: '[data-tour="charts-section"]' },
+      { title: 'Dashboard Header', description: 'Your business control center. Click Video Guide anytime for video tutorials.', targetSelector: '[data-tour="dashboard-title"]' },
+      { title: 'Quick POS Terminal', description: 'Click here to jump straight into high-speed billing and retail checkout.', targetSelector: '[data-tour="pos-shortcut"]' },
+      { title: 'Total Revenue KPI', description: 'Track your live store sales revenue and growth trends.', targetSelector: '[data-tour="kpi-revenue"]' },
+      { title: 'Bluetooth Printer Status', description: 'Scan, pair, or disconnect your thermal receipt printer.', targetSelector: '[data-tour="printer-card"]' },
     ],
   },
   pos: {
@@ -61,10 +61,10 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Select a customer before completing a credit sale so their account ledger updates automatically.',
     ],
     tourSteps: [
-      { title: 'Product Search & Scanner', description: 'Search items by name, SKU, or scan barcodes to add items instantly to cart.', targetSelector: '[data-tour="pos-search-bar"]' },
-      { title: 'Product Catalog Grid', description: 'Filter products by category or click item cards to add them to your cart.', targetSelector: '[data-tour="pos-product-grid"]' },
-      { title: 'Cart Summary & Discounts', description: 'Review cart items, apply discounts, select customer, and calculate totals.', targetSelector: '[data-tour="pos-cart-panel"]' },
-      { title: 'Checkout & Printing', description: 'Select Cash, UPI, Card, or Credit and print custom thermal receipts.', targetSelector: '[data-tour="pos-checkout-btn"]' },
+      { title: 'Barcode & Product Search', description: 'Search items by name, SKU, or scan barcodes to add items directly to cart.', targetSelector: '[data-tour="pos-search-input"]' },
+      { title: 'Category Filters', description: 'Filter your store catalog by category with one click.', targetSelector: '[data-tour="pos-category-tabs"]' },
+      { title: 'Customer Credit / Walk-in', description: 'Select a customer to bill on Store Credit (Udhar) or walk-in.', targetSelector: '[data-tour="pos-customer-select"]' },
+      { title: 'Complete & Print Bill', description: 'Choose payment method (Cash, Card, UPI, Credit) and print thermal receipt.', targetSelector: '[data-tour="pos-checkout-btn"]' },
     ],
   },
   'pos-lite': {
@@ -84,9 +84,10 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Scroll all the way down in the Cart tab to view full totals and checkout options.',
     ],
     tourSteps: [
-      { title: 'Welcome to POS Lite', description: 'Designed for fast touch billing and custom unlisted item checkout.', targetSelector: '[data-tour="pos-lite-header"]' },
-      { title: 'Manual Product Input', description: 'Enter custom product details and price on the fly.', targetSelector: '[data-tour="pos-lite-manual-form"]' },
-      { title: 'Cart & Checkout', description: 'Switch to the Cart tab to adjust quantities, select payment methods, and complete sale.', targetSelector: '[data-tour="pos-lite-cart"]' },
+      { title: 'Barcode Scanner Mode', description: 'Turn on camera scanning to add registered products instantly.', targetSelector: '[data-tour="pos-lite-scan-btn"]' },
+      { title: 'Custom Item Name', description: 'Enter any item name on the fly without pre-registering.', targetSelector: '[data-tour="pos-lite-name-input"]' },
+      { title: 'Add to Cart Button', description: 'Add custom or scanned items into your active cart bill.', targetSelector: '[data-tour="pos-lite-add-cart-btn"]' },
+      { title: 'Mobile Cart Tab', description: 'Switch to the Cart tab to view totals and complete printing.', targetSelector: '[data-tour="pos-lite-tab-cart"]' },
     ],
   },
   products: {
@@ -106,9 +107,11 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Use "Scan to Update Stock" to adjust inventory quantities by scanning barcodes in seconds.',
     ],
     tourSteps: [
-      { title: 'Inventory Actions', description: 'Add new products, update stock via barcode, or bulk delete items.', targetSelector: '[data-tour="products-header"]' },
-      { title: 'Category Filters & Search', description: 'Filter products by category or search instantly by name or barcode.', targetSelector: '[data-tour="products-search"]' },
-      { title: 'Inventory Table', description: 'View stock levels, prices, SKU/barcodes, and edit product details.', targetSelector: '[data-tour="products-table"]' },
+      { title: '+ Add Product Button', description: 'Click here to create a new product with price, barcode, tax rate, and images.', targetSelector: '[data-tour="add-product-btn"]' },
+      { title: 'Scan to Update Stock', description: 'Quickly restock or adjust product inventory by scanning barcodes.', targetSelector: '[data-tour="scan-stock-btn"]' },
+      { title: 'List & Grid Toggle', description: 'Switch between detailed table view and visual grid cards.', targetSelector: '[data-tour="view-mode-toggle"]' },
+      { title: 'Instant Search Input', description: 'Search inventory instantly by item name, SKU, or barcode number.', targetSelector: '[data-tour="search-input"]' },
+      { title: 'Total Inventory Value', description: 'View total monetary value of all stock currently in your store.', targetSelector: '[data-tour="inventory-value-widget"]' },
     ],
   },
   categories: {
@@ -126,8 +129,9 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Group related items under subcategories to keep your POS screen clean and easy to navigate.',
     ],
     tourSteps: [
-      { title: 'Categories Overview', description: 'Organize your store inventory into clean logical groupings.', targetSelector: '[data-tour="categories-header"]' },
-      { title: 'Category Hierarchy Table', description: 'Manage parent and child subcategories with product counts.', targetSelector: '[data-tour="categories-table"]' },
+      { title: '+ New Category Button', description: 'Create main categories or nested subcategories for your store.', targetSelector: '[data-tour="new-category-btn"]' },
+      { title: 'Category Search Bar', description: 'Filter categories and subcategories instantly by name.', targetSelector: '[data-tour="category-search-input"]' },
+      { title: 'Category Table Row', description: 'Edit, delete, or manage subcategories and product counts.', targetSelector: '[data-tour="category-first-row"]' },
     ],
   },
   customers: {
@@ -146,8 +150,9 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Record credit payments directly from the customer ledger to update balances instantly.',
     ],
     tourSteps: [
-      { title: 'Customer Directory', description: 'Search and manage all customer contact info and store accounts.', targetSelector: '[data-tour="customers-header"]' },
-      { title: 'Store Credit & Accounts Table', description: 'Monitor pending customer credit balances and view details.', targetSelector: '[data-tour="customers-table"]' },
+      { title: '+ Add Customer Button', description: 'Register a new customer profile with phone, email, and credit limit.', targetSelector: '[data-tour="add-customer-btn"]' },
+      { title: 'Search Customers', description: 'Find customers instantly by phone number or name.', targetSelector: '[data-tour="customer-search-input"]' },
+      { title: 'Customer Credit Ledger', description: 'View outstanding credit dues (Udhar) and log cash/UPI settlements.', targetSelector: '[data-tour="customer-first-row"]' },
     ],
   },
   suppliers: {
@@ -165,8 +170,8 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Assign suppliers to products so you know exactly who to reorder from when stock is low.',
     ],
     tourSteps: [
-      { title: 'Supplier Directory', description: 'Manage vendor info, contact details, and tax credentials.', targetSelector: '[data-tour="suppliers-header"]' },
-      { title: 'Vendor List Table', description: 'View supplier phone, email, and GSTIN information.', targetSelector: '[data-tour="suppliers-table"]' },
+      { title: '+ Add Supplier Button', description: 'Register wholesale vendors with phone, email, and GSTIN tax details.', targetSelector: '[data-tour="add-supplier-btn"]' },
+      { title: 'Supplier Record Row', description: 'View vendor contact details and edit supplier profiles.', targetSelector: '[data-tour="supplier-first-row"]' },
     ],
   },
   expenses: {
@@ -184,8 +189,8 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Categorize all expenses accurately so your Profit & Loss reports reflect your exact net profit.',
     ],
     tourSteps: [
-      { title: 'Store Expenses Log', description: 'Record daily operational costs to maintain accurate accounting.', targetSelector: '[data-tour="expenses-header"]' },
-      { title: 'Expense Records Table', description: 'View expenses, category tags, payment methods, and receipt photos.', targetSelector: '[data-tour="expenses-table"]' },
+      { title: '+ Add Expense Button', description: 'Record daily costs like rent, salaries, electricity, and attach receipts.', targetSelector: '[data-tour="add-expense-btn"]' },
+      { title: 'Filter Expenses', description: 'Filter expense logs by category or date range.', targetSelector: '[data-tour="expense-filters-btn"]' },
     ],
   },
   purchases: {
@@ -203,8 +208,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Log restock invoices promptly so your POS inventory counts stay 100% accurate.',
     ],
     tourSteps: [
-      { title: 'Purchases Overview', description: 'Track all stock procurement invoices from suppliers.', targetSelector: '[data-tour="purchases-header"]' },
-      { title: 'Purchase Orders Table', description: 'Log purchase items to automatically update store stock levels.', targetSelector: '[data-tour="purchases-table"]' },
+      { title: 'Record Purchase Button', description: 'Log wholesale stock bills to update product current stock automatically.', targetSelector: '[data-tour="record-purchase-btn"]' },
     ],
   },
   reports: {
@@ -223,8 +227,9 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Use the Date Range picker to generate monthly or quarterly tax totals for your accountant.',
     ],
     tourSteps: [
-      { title: 'Reports Hub', description: 'Access financial summaries, sales performance, and tax insights.', targetSelector: '[data-tour="reports-header"]' },
-      { title: 'Report Type Cards', description: 'Switch between Sales, Profit & Loss, and GST Tax reports.', targetSelector: '[data-tour="reports-cards"]' },
+      { title: 'Sales Report Card', description: 'View daily revenue, invoice registers, and export to Excel.', targetSelector: '[data-tour="report-card-sales"]' },
+      { title: 'Profit & Loss Card', description: 'Calculate net profit after deducting store expenses and stock costs.', targetSelector: '[data-tour="report-card-pl"]' },
+      { title: 'GST Tax Report Card', description: 'View taxable turnover and tax collected ready for monthly GST filing.', targetSelector: '[data-tour="report-card-tax"]' },
     ],
   },
   printers: {
@@ -243,8 +248,8 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'On mobile devices (iOS / Android), you can also use System Print or AirPrint to print to any printer.',
     ],
     tourSteps: [
-      { title: 'Printer Management', description: 'Connect thermal printers and customize your receipt branding.', targetSelector: '[data-tour="printers-header"]' },
-      { title: 'Bluetooth Printer Status', description: 'Scan and pair your ESC/POS thermal printer directly in your browser.', targetSelector: '[data-tour="printers-status"]' },
+      { title: 'Scan & Connect Printer', description: 'Pair your Bluetooth thermal ESC/POS receipt printer directly in browser.', targetSelector: '[data-tour="printer-connect-btn"]' },
+      { title: 'Test Print Button', description: 'Send a test print to verify thermal receipt paper alignment.', targetSelector: '[data-tour="printer-test-btn"]' },
     ],
   },
   settings: {
@@ -262,8 +267,8 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Keep your business GSTIN and address updated so they print correctly on all customer invoices.',
     ],
     tourSteps: [
-      { title: 'Store Settings', description: 'Manage business identity, tax credentials, and system preferences.', targetSelector: '[data-tour="settings-header"]' },
-      { title: 'Settings Category Tabs', description: 'Configure business details, cashier permissions, language, and passwords.', targetSelector: '[data-tour="settings-tabs"]' },
+      { title: 'Business Profile Tab', description: 'Configure business name, store logo, address, and GSTIN number.', targetSelector: '[data-tour="settings-tab-business"]' },
+      { title: 'Cashier & Sub-Users Tab', description: 'Create cashier logins and manage access permissions for staff.', targetSelector: '[data-tour="settings-tab-permissions"]' },
     ],
   },
 }

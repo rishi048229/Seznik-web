@@ -513,6 +513,7 @@ export const PrintersPage = () => {
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <Button
+            data-tour="printer-test-btn"
             variant="outline"
             onClick={handleTestPrint}
             className="flex items-center gap-2 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs sm:text-sm"
@@ -560,6 +561,7 @@ export const PrintersPage = () => {
               </button>
             ) : (
               <button
+                data-tour="printer-connect-btn"
                 onClick={handleConnectBluetooth}
                 disabled={connectingBle || !isBluetoothSupported()}
                 className="text-purple-600 hover:underline text-xs font-semibold flex items-center gap-1 disabled:opacity-50"

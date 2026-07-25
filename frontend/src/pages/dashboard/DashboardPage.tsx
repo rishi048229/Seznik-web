@@ -218,12 +218,12 @@ export const DashboardPage = () => {
 
   return (
     <div>
-      <div data-tour="dashboard-header">
+      <div data-tour="dashboard-title">
         <PageHeader
           title="Dashboard & Analytics"
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
+            <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
               Open POS Terminal
             </Button>
           }
@@ -231,9 +231,9 @@ export const DashboardPage = () => {
       </div>
 
       {/* Stats Cards */}
-      <div data-tour="kpi-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total Revenue */}
-        <Card className="p-5 bg-white border border-gray-100 shadow-sm">
+        <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
               <DollarSign size={22} className="text-gray-600 dark:text-gray-300" />

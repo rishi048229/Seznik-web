@@ -410,6 +410,7 @@ export const POSLitePage = () => {
               </button>
             </div>
             <button
+              data-tour="pos-lite-scan-btn"
               type="button"
               onClick={toggleScanMode}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
@@ -453,9 +454,9 @@ export const POSLitePage = () => {
           )}
 
           {/* Manual Product Entry Form */}
-          <Card data-tour="pos-lite-manual-form" className="p-4">
+          <Card className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2">
+              <div className="md:col-span-2" data-tour="pos-lite-name-input">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Product Name *
                 </label>
@@ -540,6 +541,7 @@ export const POSLitePage = () => {
                   : 'Price already includes GST — base price will be extracted'}
               </p>
               <Button
+                data-tour="pos-lite-add-cart-btn"
                 onClick={addItem}
                 leftIcon={<Plus size={16} />}
                 className="md:ml-auto w-full md:w-auto"
@@ -553,7 +555,7 @@ export const POSLitePage = () => {
 
         {/* Mobile: View Cart sticky bar */}
         {items.length > 0 && (
-          <div className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div data-tour="pos-lite-tab-cart" className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => setMobileTab('cart')}
               className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"

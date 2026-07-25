@@ -154,7 +154,7 @@ export const SuppliersPage = () => {
           title="Suppliers"
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
+            <Button data-tour="add-supplier-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
               Add Supplier
             </Button>
           }

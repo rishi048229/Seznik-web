@@ -328,6 +328,7 @@ export const ProductsPage = () => {
                 </Button>
               )}
               <Button
+                data-tour="scan-stock-btn"
                 variant="outline"
                 leftIcon={<Barcode size={16} />}
                 onClick={() => setShowBarcodeModal(true)}
@@ -341,7 +342,7 @@ export const ProductsPage = () => {
               >
                 Manual Stock Update
               </Button>
-              <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
+              <Button data-tour="add-product-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
                 Add Product
               </Button>
             </div>
@@ -352,7 +353,7 @@ export const ProductsPage = () => {
       {/* Toolbar */}
       <div data-tour="products-search" className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1">
+          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1">
             <button
               onClick={() => setViewMode('list')}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
@@ -412,7 +413,7 @@ export const ProductsPage = () => {
           </div>
         </div>
 
-        <div className="relative">
+        <div data-tour="search-input" className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <Input
             placeholder="Search by name, SKU, or barcode..."
@@ -624,7 +625,7 @@ export const ProductsPage = () => {
         {/* Right Sidebar - Stats */}
         <div className="space-y-6">
           {/* Total Inventory Value */}
-          <Card className="p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative">
+          <Card data-tour="inventory-value-widget" className="p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative">
             <div className="relative z-10">
               <p className="text-xs font-bold uppercase tracking-widest opacity-80">Total Inventory Value</p>
               <p className="text-3xl font-black mt-1">{formatINR(totalInventoryValue)}</p>

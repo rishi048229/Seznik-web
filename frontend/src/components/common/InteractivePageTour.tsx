@@ -26,6 +26,7 @@ export const InteractivePageTour = ({
 }: InteractivePageTourProps) => {
   const [currentStep, setCurrentStep] = useState(0)
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null)
+  const [arrowPosition, setArrowPosition] = useState<'top' | 'bottom'>('top')
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -63,8 +64,7 @@ export const InteractivePageTour = ({
       }
     }
 
-    // Small delay to allow scroll and rendering
-    const timer = setTimeout(updateRect, 150)
+    const timer = setTimeout(updateRect, 180)
     window.addEventListener('resize', updateRect)
     window.addEventListener('scroll', updateRect)
 
@@ -88,7 +88,7 @@ export const InteractivePageTour = ({
     onClose()
   }
 
-  // Calculate popover positioning relative to targetRect
+  // Calculate speech bubble popover positioning OUTSIDE target element
   const getPopoverStyle = () => {
     if (!targetRect) {
       return {
@@ -97,71 +97,92 @@ export const InteractivePageTour = ({
       }
     }
 
+    const popoverWidth = Math.min(340, window.innerWidth - 32)
+    const popoverHeight = 180
+
     const spaceBelow = window.innerHeight - (targetRect.top + targetRect.height)
     const spaceAbove = targetRect.top
 
     let top = 0
-    let left = Math.max(16, Math.min(targetRect.left, window.innerWidth - 380))
+    let left = targetRect.left + targetRect.width / 2 - popoverWidth / 2
 
-    if (spaceBelow > 260) {
-      // Place below target
+    // Bound horizontal position within viewport
+    left = Math.max(16, Math.min(left, window.innerWidth - popoverWidth - 16))
+
+    if (spaceBelow >= popoverHeight + 20) {
+      // Place BELOW target element
       top = targetRect.top + targetRect.height + 14
-    } else if (spaceAbove > 260) {
-      // Place above target
-      top = Math.max(16, targetRect.top - 240)
+      if (arrowPosition !== 'top') setArrowPosition('top')
+    } else if (spaceAbove >= popoverHeight + 20) {
+      // Place ABOVE target element
+      top = Math.max(16, targetRect.top - popoverHeight - 14)
+      if (arrowPosition !== 'bottom') setArrowPosition('bottom')
     } else {
-      // Fallback
-      top = Math.max(16, Math.min(targetRect.top, window.innerHeight - 260))
+      // Side fallback
+      top = Math.max(16, Math.min(targetRect.top, window.innerHeight - popoverHeight - 16))
+      if (arrowPosition !== 'top') setArrowPosition('top')
     }
 
     return {
       top: `${top}px`,
       left: `${left}px`,
+      width: `${popoverWidth}px`,
     }
   }
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none">
       {/* Background Dimmed Overlay */}
-      <div className="absolute inset-0 bg-black/50 pointer-events-auto transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-black/40 pointer-events-auto transition-opacity duration-300" />
 
       {/* Spotlight Ring Highlight Box */}
       {targetRect && (
         <div
-          className="absolute rounded-xl ring-4 ring-indigo-500 ring-offset-2 ring-offset-slate-900 shadow-2xl transition-all duration-300 pointer-events-none z-50 animate-pulse"
+          className="absolute rounded-xl ring-4 ring-indigo-500 ring-offset-2 ring-offset-slate-900 shadow-2xl transition-all duration-300 pointer-events-none z-50 animate-pulse bg-indigo-500/10"
           style={{
-            top: `${Math.max(0, targetRect.top - 6)}px`,
-            left: `${Math.max(0, targetRect.left - 6)}px`,
-            width: `${targetRect.width + 12}px`,
-            height: `${targetRect.height + 12}px`,
+            top: `${Math.max(0, targetRect.top - 4)}px`,
+            left: `${Math.max(0, targetRect.left - 4)}px`,
+            width: `${targetRect.width + 8}px`,
+            height: `${targetRect.height + 8}px`,
           }}
         />
       )}
 
-      {/* Tour Step Popover Card */}
+      {/* Speech Bubble Popover */}
       <div
         ref={popoverRef}
         style={getPopoverStyle()}
-        className="fixed z-50 max-w-sm w-[calc(100vw-32px)] sm:w-[380px] pointer-events-auto transition-all duration-300"
+        className="fixed z-50 pointer-events-auto transition-all duration-300 animate-in fade-in zoom-in-95"
       >
-        <div className="bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700 p-5 space-y-4">
+        <div className="relative bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700 p-4 space-y-3">
+          {/* Arrow Beak */}
+          {targetRect && (
+            <div
+              className={`absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 border-slate-700 rotate-45 ${
+                arrowPosition === 'top'
+                  ? '-top-2 border-t border-l'
+                  : '-bottom-2 border-b border-r'
+              }`}
+            />
+          )}
+
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2 relative z-10">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
-                <Compass size={18} />
+              <div className="p-1 rounded-md bg-indigo-500/20 text-indigo-400">
+                <Compass size={16} />
               </div>
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">
-                Guided Feature Tour
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300">
+                Guide
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="info">
-                {currentStep + 1} of {steps.length}
+              <Badge variant="info" className="text-[10px] px-2 py-0.5">
+                {currentStep + 1} / {steps.length}
               </Badge>
               <button
                 onClick={handleFinish}
-                className="text-slate-400 hover:text-white transition-colors p-1"
+                className="text-slate-400 hover:text-white transition-colors p-0.5"
                 aria-label="Skip tour"
                 title="Skip Tour"
               >
@@ -171,8 +192,8 @@ export const InteractivePageTour = ({
           </div>
 
           {/* Step Content */}
-          <div className="space-y-1.5">
-            <h4 className="text-base font-bold text-white flex items-center gap-2">
+          <div className="space-y-1 relative z-10">
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
               {step.title}
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
@@ -180,12 +201,12 @@ export const InteractivePageTour = ({
             </p>
           </div>
 
-          {/* Navigation & Skip Buttons */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-2">
+          {/* Controls Footer */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-2 relative z-10">
             <button
               type="button"
               onClick={handleFinish}
-              className="text-xs text-slate-400 hover:text-slate-200 underline font-medium px-1"
+              className="text-[11px] text-slate-400 hover:text-slate-200 underline font-medium"
             >
               Skip Tour
             </button>
@@ -196,7 +217,7 @@ export const InteractivePageTour = ({
                 variant="ghost"
                 onClick={() => setCurrentStep(prev => Math.max(0, prev - 1))}
                 disabled={isFirst}
-                className="text-slate-300 hover:text-white"
+                className="text-slate-300 hover:text-white text-xs px-2.5 py-1 h-8"
                 leftIcon={<ChevronLeft size={14} />}
               >
                 Back
@@ -206,7 +227,7 @@ export const InteractivePageTour = ({
                 <Button
                   size="sm"
                   onClick={() => setCurrentStep(prev => Math.min(steps.length - 1, prev + 1))}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1"
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1 text-xs px-3 py-1 h-8"
                 >
                   <span>Next</span>
                   <ChevronRight size={14} />
@@ -215,7 +236,7 @@ export const InteractivePageTour = ({
                 <Button
                   size="sm"
                   onClick={handleFinish}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1 h-8"
                   leftIcon={<CheckCircle2 size={14} />}
                 >
                   Got It!

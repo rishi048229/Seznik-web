@@ -251,7 +251,7 @@ export const PurchasesPage = () => {
           title="Purchases"
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
+            <Button data-tour="record-purchase-btn" leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
               Record Purchase
             </Button>
           }

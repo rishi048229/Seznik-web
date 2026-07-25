@@ -151,7 +151,7 @@ export const CustomersPage = () => {
           title="Customer Directory"
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button leftIcon={<UserPlus size={16} />} onClick={openCreate}>
+            <Button data-tour="add-customer-btn" leftIcon={<UserPlus size={16} />} onClick={openCreate}>
               Add Customer
             </Button>
           }
@@ -216,7 +216,7 @@ export const CustomersPage = () => {
 
         {/* Search */}
         <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-          <div className="relative max-w-sm">
+          <div data-tour="customer-search-input" className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <Input
               placeholder="Search customers, invoices..."
