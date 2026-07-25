@@ -63,6 +63,19 @@ export function isBluetoothSupported(): boolean {
   return typeof navigator !== 'undefined' && !!navigator.bluetooth
 }
 
+export function isIosDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+}
+
+export function getBluetoothUnsupportedReason(): string {
+  if (isBluetoothSupported()) return ''
+  if (isIosDevice()) {
+    return 'iOS limits Web Bluetooth in all browsers (Chrome/Safari). Use Android Chrome, Desktop Chrome, WebBLE browser, or use System Print.'
+  }
+  return 'Web Bluetooth is supported on Chrome, Edge, and Opera browsers.'
+}
+
 let device: BluetoothDevice | null = null
 let characteristic: BluetoothRemoteGATTCharacteristic | null = null
 let supportsWriteWithResponse = true

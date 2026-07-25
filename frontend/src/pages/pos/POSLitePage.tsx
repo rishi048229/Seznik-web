@@ -391,7 +391,7 @@ export const POSLitePage = () => {
       </div>
 
       {/* Left: Manual Entry Form + Product List */}
-      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
+      <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto pb-32 sm:pb-0 ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
         <div className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quick Sale - Manual Entry</h2>
@@ -553,7 +553,7 @@ export const POSLitePage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none pb-32 sm:pb-0 overflow-y-auto ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">

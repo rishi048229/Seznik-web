@@ -17,7 +17,7 @@ import {
 import { useProducts } from '@/hooks/useProducts'
 import { useSales } from '@/hooks/useSales'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { getBlePrinterState } from '@/utils/blePrinter'
+import { getBlePrinterState, getBluetoothUnsupportedReason } from '@/utils/blePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
@@ -327,7 +327,9 @@ export const DashboardPage = () => {
               </Button>
             )
           ) : (
-            <p className="text-xs text-gray-400 max-w-xs text-right">Open this app in Chrome or Edge to connect a Bluetooth printer</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs text-left sm:text-right mt-1 sm:mt-0 leading-relaxed">
+              {getBluetoothUnsupportedReason()}
+            </p>
           )}
         </div>
       </Card>

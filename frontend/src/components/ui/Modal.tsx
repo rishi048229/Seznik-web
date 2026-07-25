@@ -23,19 +23,19 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
   return (
     <Fragment>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto pb-24 sm:pb-4">
         <div
           className={clsx(
-            'bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full',
+            'bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col',
             sizeClasses[size]
           )}
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"
               aria-label="Close modal"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,9 +43,9 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
               </svg>
             </button>
           </div>
-          <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">{children}</div>
+          <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1 scrollbar-thin">{children}</div>
           {footer && (
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">{footer}</div>
+            <div className="px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">{footer}</div>
           )}
         </div>
       </div>

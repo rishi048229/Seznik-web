@@ -305,11 +305,11 @@ export const ProductsPage = () => {
   const categoryOptions = buildCategoryOptions(categories)
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
       <PageHeader
         title="Products"
         action={
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
             {selectedIds.size > 0 && (
               <Button
                 variant="danger"
