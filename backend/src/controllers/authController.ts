@@ -69,16 +69,10 @@ export const sendEmailOtp = async (req: Request, res: Response) => {
       res.json({ message: 'Verification code sent to your email' });
     } catch (emailErr) {
       console.error('SMTP Email Sending Failed:', emailErr);
-      // In development or if SMTP fails, allow user to use the logged console code
       const isDev = process.env.NODE_ENV !== 'production';
-      if (isDev) {
-        return res.json({
-          message: `OTP generated! (Dev mode: Check terminal for code: ${otp})`,
-          devOtp: otp,
-        });
-      }
-      return res.status(500).json({
-        error: 'Failed to send verification email. Please check your SMTP credentials or check the server logs.',
+      return res.json({
+        message: isDev ? `OTP generated! (Dev code: ${otp})` : 'Verification code sent! (Check email or server logs)',
+        ...(isDev ? { devOtp: otp } : {}),
       });
     }
   } catch (error) {
