@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Card } from '@/components/ui/Card'
 import { Tabs } from '@/components/ui/Tabs'
 import { Input } from '@/components/ui/Input'
@@ -38,6 +41,7 @@ const DEFAULT_SETTINGS = {
 }
 
 export const SettingsPage = () => {
+  const pageTutorial = usePageTutorial('settings')
   const [activeTab, setActiveTab] = useState('business')
   const [businessLogo, setBusinessLogo] = useState('')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
@@ -189,7 +193,7 @@ export const SettingsPage = () => {
 
   return (
     <div>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" onWatchTutorial={pageTutorial.openTutorial} />
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
@@ -427,6 +431,20 @@ export const SettingsPage = () => {
           </Card>
         </>
       )}
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="settings"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

@@ -8,7 +8,10 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth } from 'lucide-react'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -25,6 +28,7 @@ import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 
 export const POSPage = () => {
+  const pageTutorial = usePageTutorial('pos')
   const navigate = useNavigate()
   const { data: products, isLoading } = useProducts()
   const { data: categories } = useCategories()
@@ -362,6 +366,14 @@ export const POSPage = () => {
                 className="pl-11 pr-4 h-11 text-sm"
               />
             </div>
+            <button
+              onClick={pageTutorial.openTutorial}
+              type="button"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0 h-11"
+            >
+              <Video size={16} className="animate-pulse" />
+              <span className="hidden sm:inline">Video Guide</span>
+            </button>
             <Button variant="outline" size="sm" className="h-11 w-11 p-0 flex-shrink-0 flex items-center justify-center">
               <Filter size={18} />
             </Button>
@@ -854,6 +866,20 @@ export const POSPage = () => {
         grandTotal={lastSaleData?.finalTotal || lastSaleData?.totals?.grandTotal}
         businessName={settings?.businessName}
         itemCount={lastSaleData?.items?.length}
+      />
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="pos"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
       />
     </div>
   )

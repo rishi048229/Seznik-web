@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -26,6 +29,7 @@ interface PurchaseItemRow {
 }
 
 export const PurchasesPage = () => {
+  const pageTutorial = usePageTutorial('purchases')
   const { data: purchases, isLoading } = usePurchases()
   const { data: products } = useProducts()
   const { data: suppliers } = useSuppliers()
@@ -244,6 +248,7 @@ export const PurchasesPage = () => {
     <div>
       <PageHeader
         title="Purchases"
+        onWatchTutorial={pageTutorial.openTutorial}
         action={
           <Button leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
             Record Purchase
@@ -396,6 +401,20 @@ export const PurchasesPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="purchases"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

@@ -4,13 +4,17 @@ import { ROUTES } from '@/constants/routes'
 import { useNavigate } from 'react-router-dom'
 import { ReportTabs } from './ReportTabs'
 import { TrendingUp, FileText, Receipt } from 'lucide-react'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 
 export const ReportsPage = () => {
+  const pageTutorial = usePageTutorial('reports')
   const navigate = useNavigate()
 
   return (
     <div>
-      <PageHeader title="Reports" />
+      <PageHeader title="Reports & Analytics Hub" onWatchTutorial={pageTutorial.openTutorial} />
       <ReportTabs />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card
@@ -61,6 +65,20 @@ export const ReportsPage = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400">Summary of total output tax collected, taxable sales count, and average tax per sale.</p>
         </Card>
       </div>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="reports"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -37,6 +40,7 @@ const PAYMENT_OPTIONS = [
 ]
 
 export const ExpensesPage = () => {
+  const pageTutorial = usePageTutorial('expenses')
   const { user } = useAuth()
   const { data: expenses, isLoading } = useExpenses()
   const { mutate: createExpense, isPending: isCreating } = useCreateExpense()
@@ -283,6 +287,7 @@ export const ExpensesPage = () => {
     <div>
       <PageHeader
         title="Expenses"
+        onWatchTutorial={pageTutorial.openTutorial}
         action={
           <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
             Add Expense
@@ -403,6 +408,20 @@ export const ExpensesPage = () => {
           />
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="expenses"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

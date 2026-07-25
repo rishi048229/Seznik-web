@@ -6,7 +6,10 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { useProducts } from '@/hooks/useProducts'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
-import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth } from 'lucide-react'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -30,6 +33,7 @@ interface CartItem {
 }
 
 export const POSLitePage = () => {
+  const pageTutorial = usePageTutorial('pos-lite')
   const navigate = useNavigate()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
   const { data: customers } = useCustomers()
@@ -393,8 +397,18 @@ export const POSLitePage = () => {
       {/* Left: Manual Entry Form + Product List */}
       <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto pb-32 sm:pb-0 ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
         <div className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quick Sale - Manual Entry</h2>
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quick Sale - Manual Entry</h2>
+              <button
+                onClick={pageTutorial.openTutorial}
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
+              >
+                <Video size={14} className="animate-pulse" />
+                <span>Video Guide</span>
+              </button>
+            </div>
             <button
               type="button"
               onClick={toggleScanMode}
@@ -777,6 +791,20 @@ export const POSLitePage = () => {
           </Button>
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="pos-lite"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

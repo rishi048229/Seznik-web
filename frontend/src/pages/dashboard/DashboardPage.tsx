@@ -4,6 +4,10 @@ import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import {
   useDashboardStats,
   useRevenueTrend,
@@ -34,6 +38,7 @@ import {
   Users,
   Crown,
   Bluetooth,
+  Compass,
   BluetoothConnected,
   Wallet,
   PieChart as PieChartIcon,
@@ -131,6 +136,7 @@ const ProgressRow = ({ left, right, sub, percent, badge }: { left: string; right
 )
 
 export const DashboardPage = () => {
+  const pageTutorial = usePageTutorial('dashboard')
   const { data: stats, isLoading } = useDashboardStats()
   const { data: products } = useProducts()
   const { data: sales } = useSales()
@@ -212,6 +218,16 @@ export const DashboardPage = () => {
 
   return (
     <div>
+      <PageHeader
+        title="Dashboard & Analytics"
+        onWatchTutorial={pageTutorial.openTutorial}
+        action={
+          <Button size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
+            Open POS Terminal
+          </Button>
+        }
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total Revenue */}
@@ -757,6 +773,20 @@ export const DashboardPage = () => {
           </div>
         </Card>
       </div>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="dashboard"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

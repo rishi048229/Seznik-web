@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -302,12 +305,14 @@ export const ProductsPage = () => {
     })
   }
 
+  const pageTutorial = usePageTutorial('products')
   const categoryOptions = buildCategoryOptions(categories)
 
   return (
     <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
       <PageHeader
         title="Products"
+        onWatchTutorial={pageTutorial.openTutorial}
         action={
           <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
             {selectedIds.size > 0 && (
@@ -935,6 +940,20 @@ export const ProductsPage = () => {
           </p>
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="products"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

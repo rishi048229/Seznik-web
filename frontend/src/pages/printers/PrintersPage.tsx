@@ -18,11 +18,15 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
 import toast from 'react-hot-toast'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import {
   Printer,
   QrCode,
   FileText,
   Tag,
+  Video,
   Save,
   Bluetooth,
   Monitor,
@@ -95,6 +99,7 @@ const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string
 }
 
 export const PrintersPage = () => {
+  const pageTutorial = usePageTutorial('printers')
   const { user } = useAuth()
   const { data: products } = useProducts()
   const { data: settings, isLoading } = useSettings()
@@ -491,7 +496,17 @@ export const PrintersPage = () => {
             <Printer size={22} />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Printers</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Printers</h1>
+              <button
+                onClick={pageTutorial.openTutorial}
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
+              >
+                <Video size={14} className="animate-pulse" />
+                <span>Video Guide</span>
+              </button>
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">Receipts, labels, and invoices — all from one place.</p>
           </div>
         </div>
@@ -1195,6 +1210,20 @@ export const PrintersPage = () => {
           </div>
         </div>
       )}
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="printers"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

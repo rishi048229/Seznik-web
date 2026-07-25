@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -20,6 +23,7 @@ import type { Customer } from '@/types/customer.types'
 const PAGE_SIZE = 10
 
 export const CustomersPage = () => {
+  const pageTutorial = usePageTutorial('customers')
   const navigate = useNavigate()
   const { data: customers, isLoading } = useCustomers()
   const { data: sales } = useSales()
@@ -144,6 +148,7 @@ export const CustomersPage = () => {
     <div className="p-6">
       <PageHeader
         title="Customer Directory"
+        onWatchTutorial={pageTutorial.openTutorial}
         action={
           <Button leftIcon={<UserPlus size={16} />} onClick={openCreate}>
             Add Customer
@@ -452,6 +457,20 @@ export const CustomersPage = () => {
           />
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="customers"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -35,7 +38,8 @@ const ICON_COLORS = [
 const PAGE_SIZE = 6
 
 export const CategoriesPage = () => {
-  const { data: categories, isLoading } = useCategories()
+  const pageTutorial = usePageTutorial('categories')
+  const { data: categories = [], isLoading } = useCategories()
   const { data: products } = useProducts()
   const { mutate: createCategory, isPending: isCreating } = useCreateCategory()
   const { mutate: updateCategory, isPending: isUpdating } = useUpdateCategory()
@@ -188,6 +192,7 @@ export const CategoriesPage = () => {
     <div>
       <PageHeader
         title="Product Categories"
+        onWatchTutorial={pageTutorial.openTutorial}
         action={
           <div className="flex items-center gap-3">
             <Badge variant="info" className="flex items-center gap-1">
@@ -528,6 +533,20 @@ export const CategoriesPage = () => {
           )}
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="categories"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }

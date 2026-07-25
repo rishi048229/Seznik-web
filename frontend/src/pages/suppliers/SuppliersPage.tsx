@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
+import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -14,6 +17,7 @@ import toast from 'react-hot-toast'
 import type { Supplier } from '@/services/supplierService'
 
 export const SuppliersPage = () => {
+  const pageTutorial = usePageTutorial('suppliers')
   const { data: suppliers, isLoading } = useSuppliers()
   const { mutate: createSupplier, isPending: isCreating } = useCreateSupplier()
   const { mutate: updateSupplier, isPending: isUpdating } = useUpdateSupplier()
@@ -147,6 +151,7 @@ export const SuppliersPage = () => {
     <div>
       <PageHeader
         title="Suppliers"
+        onWatchTutorial={pageTutorial.openTutorial}
         action={
           <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
             Add Supplier
@@ -220,6 +225,20 @@ export const SuppliersPage = () => {
           />
         </div>
       </Modal>
+
+      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      <PageVideoTutorialModal
+        isOpen={pageTutorial.isTutorialOpen}
+        onClose={pageTutorial.closeTutorial}
+        tutorial={pageTutorial.tutorialData}
+        onStartTour={pageTutorial.startTour}
+      />
+      <InteractivePageTour
+        pageKey="suppliers"
+        steps={pageTutorial.tutorialData.tourSteps}
+        isOpen={pageTutorial.isTourOpen}
+        onClose={pageTutorial.closeTour}
+      />
     </div>
   )
 }
