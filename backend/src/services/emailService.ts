@@ -33,14 +33,19 @@ const getTransporter = () => {
 
 export const sendOtpEmail = async (to: string, otp: string): Promise<void> => {
   const transporter = getTransporter();
-  const user = process.env.SMTP_USER;
-  const from = process.env.SMTP_FROM || `Seznik POS <${user}>`;
+  const user = process.env.SMTP_USER || '';
+  const from = process.env.SMTP_FROM || `"Seznik POS" <${user}>`;
 
   await transporter.sendMail({
     from,
     to,
     subject: `${otp} is your Seznik POS verification code`,
     text: `Your Seznik POS email verification code is ${otp}. It expires in 10 minutes. If you didn't request this, you can ignore this email.`,
+    headers: {
+      'X-Priority': '1 (Highest)',
+      'X-MSMail-Priority': 'High',
+      'Importance': 'High',
+    },
     html: `
       <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111827;">
         <div style="text-align:center;padding:16px 0;">
