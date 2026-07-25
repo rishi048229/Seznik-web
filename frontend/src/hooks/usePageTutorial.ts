@@ -9,9 +9,14 @@ export const usePageTutorial = (pageKey: string) => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const completed = localStorage.getItem(`seznik_tour_completed_${pageKey}`)
+    const storageKey = `seznik_tour_completed_${pageKey}`
+    const completed = localStorage.getItem(storageKey)
     if (!completed) {
-      // Auto-trigger interactive tour for first-time onboarding
+      // Auto-trigger the tour once, for a first-time visitor. We mark it seen
+      // right here — not when the user finishes/skips it — so navigating away
+      // mid-tour (e.g. clicking a sidebar link) can't make it reappear on the
+      // next visit. Users can always replay it manually via the guide button.
+      localStorage.setItem(storageKey, 'true')
       const timer = setTimeout(() => {
         setIsTourOpen(true)
       }, 1000)

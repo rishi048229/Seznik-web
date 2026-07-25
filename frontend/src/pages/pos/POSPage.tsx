@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
 import { useNavigate } from 'react-router-dom'
 import { useProducts } from '@/hooks/useProducts'
@@ -11,7 +11,7 @@ import { useSettings } from '@/hooks/useSettings'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -47,6 +47,35 @@ export const POSPage = () => {
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
+
+  // Product filter panel — stock status, price range, sort.
+  type StockFilter = 'all' | 'in' | 'low' | 'out'
+  type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'stock-asc' | 'stock-desc'
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all')
+  const [priceMin, setPriceMin] = useState('')
+  const [priceMax, setPriceMax] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('name-asc')
+  const filterPanelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isFilterOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isFilterOpen])
+
+  const hasActiveFilters = stockFilter !== 'all' || priceMin !== '' || priceMax !== '' || sortBy !== 'name-asc'
+  const clearFilters = () => {
+    setStockFilter('all')
+    setPriceMin('')
+    setPriceMax('')
+    setSortBy('name-asc')
+  }
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
   const [orderDiscount, setOrderDiscount] = useState(0)
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
@@ -103,13 +132,41 @@ export const POSPage = () => {
   }
 
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
-  const filtered = activeProducts.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
-    const matchesCategory = !selectedCategory || p.categoryId === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  const priceMinNum = parseFloat(priceMin)
+  const priceMaxNum = parseFloat(priceMax)
+  const filtered = activeProducts
+    .filter(p => {
+      const q = search.trim().toLowerCase()
+      const matchesSearch = !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+        String(p.sellingPrice).includes(q)
+      const matchesCategory = !selectedCategory || p.categoryId === selectedCategory
+
+      const reserved = cartReserved[p.id] || 0
+      const available = p.currentStock - reserved
+      const matchesStock = stockFilter === 'all' ||
+        (stockFilter === 'out' && available <= 0) ||
+        (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
+        (stockFilter === 'in' && available > p.lowStockThreshold)
+
+      const matchesPriceMin = isNaN(priceMinNum) || p.sellingPrice >= priceMinNum
+      const matchesPriceMax = isNaN(priceMaxNum) || p.sellingPrice <= priceMaxNum
+
+      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name-asc': return a.name.localeCompare(b.name)
+        case 'name-desc': return b.name.localeCompare(a.name)
+        case 'price-asc': return a.sellingPrice - b.sellingPrice
+        case 'price-desc': return b.sellingPrice - a.sellingPrice
+        case 'stock-asc': return a.currentStock - b.currentStock
+        case 'stock-desc': return b.currentStock - a.currentStock
+        default: return 0
+      }
+    })
 
   const orderDiscountAmount = orderDiscountType === 'flat'
     ? orderDiscount
@@ -374,9 +431,107 @@ export const POSPage = () => {
               <Video size={16} className="animate-pulse" />
               <span className="hidden sm:inline">Video Guide</span>
             </button>
-            <Button variant="outline" size="sm" className="h-11 w-11 p-0 flex-shrink-0 flex items-center justify-center">
-              <Filter size={18} />
-            </Button>
+            <div ref={filterPanelRef} className="relative flex-shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFilterOpen(v => !v)}
+                className={`relative h-11 w-11 p-0 flex items-center justify-center ${hasActiveFilters ? 'border-blue-500 text-blue-600' : ''}`}
+              >
+                <Filter size={18} />
+                {hasActiveFilters && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-600 border-2 border-white dark:border-gray-900" />
+                )}
+              </Button>
+
+              {isFilterOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl z-30 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">Filters</h4>
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        <X size={12} /> Clear all
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Stock Status */}
+                  <div className="mb-4">
+                    <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                      Stock Status
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { value: 'all', label: 'All Stock' },
+                        { value: 'in', label: 'In Stock' },
+                        { value: 'low', label: 'Low Stock' },
+                        { value: 'out', label: 'Out of Stock' },
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setStockFilter(opt.value)}
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold text-center transition-colors ${
+                            stockFilter === opt.value
+                              ? 'bg-[#0a0a2e] text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Price Range */}
+                  <div className="mb-4">
+                    <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                      Price Range
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Min"
+                        value={priceMin}
+                        onChange={e => setPriceMin(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                      <span className="text-gray-400 text-xs">to</span>
+                      <Input
+                        type="number"
+                        placeholder="Max"
+                        value={priceMax}
+                        onChange={e => setPriceMax(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sort By */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                      <ArrowUpDown size={12} /> Sort By
+                    </label>
+                    <select
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value as SortOption)}
+                      className="w-full h-9 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    >
+                      <option value="name-asc">Name (A–Z)</option>
+                      <option value="name-desc">Name (Z–A)</option>
+                      <option value="price-asc">Price (Low to High)</option>
+                      <option value="price-desc">Price (High to Low)</option>
+                      <option value="stock-asc">Stock (Low to High)</option>
+                      <option value="stock-desc">Stock (High to Low)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={toggleScanMode}
