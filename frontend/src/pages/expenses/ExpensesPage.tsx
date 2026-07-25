@@ -285,15 +285,17 @@ export const ExpensesPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Expenses"
-        onWatchTutorial={pageTutorial.openTutorial}
-        action={
-          <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
-            Add Expense
-          </Button>
-        }
-      />
+      <div data-tour="expenses-header">
+        <PageHeader
+          title="Expenses"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
+              Add Expense
+            </Button>
+          }
+        />
+      </div>
 
       {/* Filters */}
       <Card className="p-4 mb-4">
@@ -333,7 +335,7 @@ export const ExpensesPage = () => {
         )}
       </Card>
 
-      <Card className="p-4">
+      <Card data-tour="expenses-table" className="p-4">
         <DataTable
           data={filteredExpenses}
           columns={columns}

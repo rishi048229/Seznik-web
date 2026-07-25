@@ -193,7 +193,9 @@ export const SettingsPage = () => {
 
   return (
     <div>
-      <PageHeader title="Settings" onWatchTutorial={pageTutorial.openTutorial} />
+      <div data-tour="settings-header">
+        <PageHeader title="Settings" onWatchTutorial={pageTutorial.openTutorial} />
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
@@ -207,7 +209,9 @@ export const SettingsPage = () => {
             </Card>
           )}
 
-          <Tabs tabs={settingsTabs} activeTab={activeTab} onChange={setActiveTab} className="mb-6" />
+          <div data-tour="settings-tabs">
+            <Tabs tabs={settingsTabs} activeTab={activeTab} onChange={setActiveTab} className="mb-6" />
+          </div>
 
           <Card className="p-6">
             {activeTab === 'business' && (

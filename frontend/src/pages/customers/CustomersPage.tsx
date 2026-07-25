@@ -146,15 +146,17 @@ export const CustomersPage = () => {
 
   return (
     <div className="p-6">
-      <PageHeader
-        title="Customer Directory"
-        onWatchTutorial={pageTutorial.openTutorial}
-        action={
-          <Button leftIcon={<UserPlus size={16} />} onClick={openCreate}>
-            Add Customer
-          </Button>
-        }
-      />
+      <div data-tour="customers-header">
+        <PageHeader
+          title="Customer Directory"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <Button leftIcon={<UserPlus size={16} />} onClick={openCreate}>
+              Add Customer
+            </Button>
+          }
+        />
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -182,7 +184,7 @@ export const CustomersPage = () => {
       </div>
 
       {/* Customer Table */}
-      <Card className="overflow-hidden">
+      <Card data-tour="customers-table" className="overflow-hidden">
         {/* Table Controls */}
         <div className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-4">

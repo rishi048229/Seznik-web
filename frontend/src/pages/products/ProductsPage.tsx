@@ -310,45 +310,47 @@ export const ProductsPage = () => {
 
   return (
     <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
-      <PageHeader
-        title="Products"
-        onWatchTutorial={pageTutorial.openTutorial}
-        action={
-          <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
-            {selectedIds.size > 0 && (
+      <div data-tour="products-header">
+        <PageHeader
+          title="Products"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  leftIcon={<Trash2 size={16} />}
+                  onClick={handleBulkDelete}
+                  loading={isBulkDeleting}
+                >
+                  Delete Selected ({selectedIds.size})
+                </Button>
+              )}
               <Button
-                variant="danger"
-                size="sm"
-                leftIcon={<Trash2 size={16} />}
-                onClick={handleBulkDelete}
-                loading={isBulkDeleting}
+                variant="outline"
+                leftIcon={<Barcode size={16} />}
+                onClick={() => setShowBarcodeModal(true)}
               >
-                Delete Selected ({selectedIds.size})
+                Scan to Update Stock
               </Button>
-            )}
-            <Button
-              variant="outline"
-              leftIcon={<Barcode size={16} />}
-              onClick={() => setShowBarcodeModal(true)}
-            >
-              Scan to Update Stock
-            </Button>
-            <Button
-              variant="outline"
-              leftIcon={<Barcode size={16} />}
-              onClick={() => setShowManualBarcodeModal(true)}
-            >
-              Manual Stock Update
-            </Button>
-            <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
-              Add Product
-            </Button>
-          </div>
-        }
-      />
+              <Button
+                variant="outline"
+                leftIcon={<Barcode size={16} />}
+                onClick={() => setShowManualBarcodeModal(true)}
+              >
+                Manual Stock Update
+              </Button>
+              <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
+                Add Product
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div data-tour="products-search" className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1">
             <button
@@ -424,7 +426,7 @@ export const ProductsPage = () => {
       {/* Main Content */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         {/* Product List - Left */}
-        <div className="xl:col-span-3">
+        <div data-tour="products-table" className="xl:col-span-3">
           <Card className="overflow-hidden">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Inventory Catalog</h3>

@@ -14,9 +14,11 @@ export const ReportsPage = () => {
 
   return (
     <div>
-      <PageHeader title="Reports & Analytics Hub" onWatchTutorial={pageTutorial.openTutorial} />
+      <div data-tour="reports-header">
+        <PageHeader title="Reports & Analytics Hub" onWatchTutorial={pageTutorial.openTutorial} />
+      </div>
       <ReportTabs />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div data-tour="reports-cards" className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card
           className="p-6 cursor-pointer hover:shadow-lg transition-all hover:border-blue-200 dark:hover:border-blue-800"
           onClick={() => navigate(ROUTES.REPORTS_SALES)}

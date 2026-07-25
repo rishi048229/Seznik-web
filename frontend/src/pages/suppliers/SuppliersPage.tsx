@@ -149,17 +149,19 @@ export const SuppliersPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Suppliers"
-        onWatchTutorial={pageTutorial.openTutorial}
-        action={
-          <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
-            Add Supplier
-          </Button>
-        }
-      />
+      <div data-tour="suppliers-header">
+        <PageHeader
+          title="Suppliers"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <Button leftIcon={<Plus size={16} />} onClick={openCreate}>
+              Add Supplier
+            </Button>
+          }
+        />
+      </div>
 
-      <Card className="p-4">
+      <Card data-tour="suppliers-table" className="p-4">
         <DataTable
           data={suppliers ?? []}
           columns={columns}

@@ -190,21 +190,23 @@ export const CategoriesPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Product Categories"
-        onWatchTutorial={pageTutorial.openTutorial}
-        action={
-          <div className="flex items-center gap-3">
-            <Badge variant="info" className="flex items-center gap-1">
-              <Info size={12} />
-              {topLevel.length} Categories · {all.length - topLevel.length} Subcategories
-            </Badge>
-            <Button leftIcon={<Plus size={16} />} onClick={() => openCreateModal()}>
-              New Category
-            </Button>
-          </div>
-        }
-      />
+      <div data-tour="categories-header">
+        <PageHeader
+          title="Product Categories"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <div className="flex items-center gap-3">
+              <Badge variant="info" className="flex items-center gap-1">
+                <Info size={12} />
+                {topLevel.length} Categories · {all.length - topLevel.length} Subcategories
+              </Badge>
+              <Button leftIcon={<Plus size={16} />} onClick={() => openCreateModal()}>
+                New Category
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       {/* Search Bar */}
       <div className="mb-4">
@@ -222,7 +224,7 @@ export const CategoriesPage = () => {
       {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Category Management Table - Left */}
-        <div className="lg:col-span-8">
+        <div data-tour="categories-table" className="lg:col-span-8">
           <Card className="overflow-hidden">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Management</h3>

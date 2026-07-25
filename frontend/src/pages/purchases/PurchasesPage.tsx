@@ -246,15 +246,17 @@ export const PurchasesPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Purchases"
-        onWatchTutorial={pageTutorial.openTutorial}
-        action={
-          <Button leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
-            Record Purchase
-          </Button>
-        }
-      />
+      <div data-tour="purchases-header">
+        <PageHeader
+          title="Purchases"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <Button leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
+              Record Purchase
+            </Button>
+          }
+        />
+      </div>
 
       {/* Filters */}
       <Card className="p-4 mb-4">
@@ -294,7 +296,7 @@ export const PurchasesPage = () => {
         )}
       </Card>
 
-      <Card className="p-4">
+      <Card data-tour="purchases-table" className="p-4">
         <DataTable
           data={filteredPurchases}
           columns={columns}

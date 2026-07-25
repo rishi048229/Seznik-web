@@ -355,7 +355,7 @@ export const POSPage = () => {
       {/* Left: Product List */}
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Search & Category Bar */}
-        <div className="px-4 sm:px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+        <div data-tour="pos-search-bar" className="px-4 sm:px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xl">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -460,7 +460,7 @@ export const POSPage = () => {
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-3 pb-4">
+        <div data-tour="pos-product-grid" className="flex-1 overflow-y-auto px-4 sm:px-6 pt-3 pb-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filtered.map(product => {
               const reserved = cartReserved[product.id] || 0
@@ -548,7 +548,7 @@ export const POSPage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col m-3 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card data-tour="pos-cart-panel" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col m-3 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
@@ -705,7 +705,7 @@ export const POSPage = () => {
         </div>
 
         {/* Payment Button */}
-        <div className="p-4">
+        <div data-tour="pos-checkout-btn" className="p-4">
           <Button
             onClick={() => setIsPaymentOpen(true)}
             disabled={items.length === 0 || isCreating}

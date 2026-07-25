@@ -490,7 +490,7 @@ export const PrintersPage = () => {
   return (
     <div className="space-y-5 pb-12 w-full max-w-full overflow-hidden">
       {/* Top Header & Quick Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-sky-400 text-white flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
             <Printer size={22} />
@@ -532,7 +532,7 @@ export const PrintersPage = () => {
       </div>
 
       {/* Printer connection status — two real, honest cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div data-tour="printers-status" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
           className={`p-4 rounded-2xl border transition-all ${
             bleState.status === 'connected'
