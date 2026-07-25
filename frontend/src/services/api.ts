@@ -1,5 +1,9 @@
 const getApiUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL as string;
+  const envUrl = (import.meta.env.VITE_API_URL as string || '').trim();
+  // If running on HTTPS (like Vercel) and VITE_API_URL is HTTP (EC2 IP), force /api proxy to bypass browser Mixed Content blocks
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && envUrl.startsWith('http://')) {
+    return '/api';
+  }
   if (!envUrl) return '/api';
   const raw = envUrl.replace(/\/$/, '');
   return raw.endsWith('/api') ? raw : `${raw}/api`;
