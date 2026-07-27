@@ -57,7 +57,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check Secrets & SSH Deploy to AWS EC2
+      - name: Verify AWS Secrets Configured
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.AWS_EC2_HOST }}" ]; then
+            echo "SECRETS_SET=false" >> $GITHUB_ENV
+            echo "⚠️ AWS_EC2_HOST secret is not configured yet."
+            echo "Please add AWS_EC2_HOST, AWS_EC2_USERNAME, and AWS_SSH_PRIVATE_KEY to GitHub Secrets to enable automatic AWS deployment."
+          else
+            echo "SECRETS_SET=true" >> $GITHUB_ENV
+            echo "✅ AWS secrets detected. Proceeding to SSH deployment."
+          fi
+
+      - name: SSH & Deploy to AWS EC2 Instance
+        if: env.SECRETS_SET == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
