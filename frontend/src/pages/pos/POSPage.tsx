@@ -10,6 +10,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { QuickAddCustomerModal } from '@/components/common/QuickAddCustomerModal'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -40,6 +41,7 @@ export const POSPage = () => {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
@@ -713,7 +715,15 @@ export const POSPage = () => {
 
           {/* Customer Selector (optional - walk-in by default) */}
           <div data-tour="pos-customer-select" className="relative">
-            <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={16} />
+            <button
+              type="button"
+              onClick={() => setIsAddCustomerOpen(true)}
+              title="Add new customer"
+              aria-label="Add new customer"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              <UserPlus size={16} />
+            </button>
             <select
               value={selectedCustomer}
               onChange={e => setSelectedCustomer(e.target.value)}
@@ -1021,6 +1031,15 @@ export const POSPage = () => {
         grandTotal={lastSaleData?.finalTotal || lastSaleData?.totals?.grandTotal}
         businessName={settings?.businessName}
         itemCount={lastSaleData?.items?.length}
+      />
+
+      <QuickAddCustomerModal
+        isOpen={isAddCustomerOpen}
+        onClose={() => setIsAddCustomerOpen(false)}
+        onCreated={(customerId) => {
+          setSelectedCustomer(customerId)
+          setIsAddCustomerOpen(false)
+        }}
       />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}

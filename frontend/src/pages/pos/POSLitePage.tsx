@@ -8,6 +8,7 @@ import { useProducts } from '@/hooks/useProducts'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { QuickAddCustomerModal } from '@/components/common/QuickAddCustomerModal'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -47,6 +48,7 @@ export const POSLitePage = () => {
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
   const [items, setItems] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
@@ -579,7 +581,15 @@ export const POSLitePage = () => {
 
           {/* Customer Selector */}
           <div className="relative">
-            <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={18} />
+            <button
+              type="button"
+              onClick={() => setIsAddCustomerOpen(true)}
+              title="Add new customer"
+              aria-label="Add new customer"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              <UserPlus size={18} />
+            </button>
             <select
               value={selectedCustomer}
               onChange={e => setSelectedCustomer(e.target.value)}
@@ -793,6 +803,15 @@ export const POSLitePage = () => {
           </Button>
         </div>
       </Modal>
+
+      <QuickAddCustomerModal
+        isOpen={isAddCustomerOpen}
+        onClose={() => setIsAddCustomerOpen(false)}
+        onCreated={(customerId) => {
+          setSelectedCustomer(customerId)
+          setIsAddCustomerOpen(false)
+        }}
+      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal
