@@ -1,0 +1,86 @@
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci-cd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  # ---------------------------------------------------
+  # 1. CI JOB: Test, Lint & Validate Build
+  # ---------------------------------------------------
+  ci-backend:
+    name: Backend CI Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'backend/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Generate Prisma Client
+        run: |
+          cd backend
+          npx prisma generate
+
+      - name: Verify TypeScript Build
+        run: |
+          cd backend
+          npm run build
+
+  # ---------------------------------------------------
+  # 2. CD JOB: Automatic AWS Server Deployment
+  # ---------------------------------------------------
+  cd-backend:
+    name: Deploy to AWS EC2
+    needs: ci-backend
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH & Deploy to AWS EC2 Instance
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USERNAME }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            echo "🚀 Connecting to AWS EC2 instance..."
+            cd ${{ secrets.AWS_APP_DIR || '/var/www/inventorymanager' }}
+            
+            echo "📥 Pulling latest backend changes from GitHub..."
+            git pull origin main
+            
+            echo "📦 Installing production dependencies..."
+            cd backend
+            npm ci --only=production
+            
+            echo "🔄 Generating Prisma Client & Running DB Migrations..."
+            npx prisma generate
+            npx prisma migrate deploy
+            
+            echo "🔨 Building TypeScript..."
+            npm run build
+            
+            echo "⚡ Reloading backend application with PM2..."
+            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+            
+            echo "✅ Live Backend Deployment Successful!"
