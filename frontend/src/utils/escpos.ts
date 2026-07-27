@@ -25,8 +25,16 @@ export class EscPosBuilder {
     return this
   }
 
-  init(): this {
-    return this.push(ESC, 0x40)
+  init(paperSize: '58mm' | '80mm' = '58mm'): this {
+    this.push(ESC, 0x40) // ESC @ — Reset printer to default state
+    this.push(ESC, 0x4d, 0x00) // ESC M 0 — Select Font A (12x24 dots: 48 cols on 80mm / 32 cols on 58mm)
+    this.push(GS, 0x4c, 0x00, 0x00) // GS L 0 0 — Set left margin to 0 dots
+    if (paperSize === '80mm') {
+      this.push(GS, 0x57, 0x40, 0x02) // GS W 576 (0x0240) — Set hardware printable area width to 576 dots (80mm)
+    } else {
+      this.push(GS, 0x57, 0x80, 0x01) // GS W 384 (0x0180) — Set hardware printable area width to 384 dots (58mm)
+    }
+    return this
   }
 
   align(align: EscPosAlign): this {

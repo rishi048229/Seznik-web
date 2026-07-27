@@ -13,6 +13,8 @@ import {
   type BlePrinterState,
 } from '@/utils/blePrinter'
 import { generateLabelEscPos, generateLabelTspl, generateGapCalibrationBytes, defaultLabelTemplate, type LabelData } from '@/utils/labelPrint'
+import { generateReceiptEscPos } from '@/utils/receipt'
+import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -342,31 +344,30 @@ export const PrintersPage = () => {
     if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
       try {
         if (activeTab === 'receipt') {
-          const encoder = new TextEncoder()
-          const init = new Uint8Array([0x1B, 0x40])
-          const alignCenter = new Uint8Array([0x1B, 0x61, 0x01])
-          const boldOn = new Uint8Array([0x1B, 0x45, 0x01])
-          const boldOff = new Uint8Array([0x1B, 0x45, 0x00])
-          const text = encoder.encode(
-            `\n${receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}\n` +
-            `--------------------------------\n` +
-            `TEST RECEIPT PRINT\n` +
-            `Date: ${new Date().toLocaleDateString()}\n` +
-            `Item: Test Wireless Mouse x1\n` +
-            `Price: Rs. 750.00\n` +
-            `--------------------------------\n` +
-            `${receiptConfig.footerMessage}\n\n\n`
-          )
-          const cut = new Uint8Array([0x1D, 0x56, 0x42, 0x00])
-          const payload = new Uint8Array(init.length + alignCenter.length + boldOn.length + text.length + boldOff.length + cut.length)
-          let offset = 0
-          payload.set(init, offset); offset += init.length
-          payload.set(alignCenter, offset); offset += alignCenter.length
-          payload.set(boldOn, offset); offset += boldOn.length
-          payload.set(text, offset); offset += text.length
-          payload.set(boldOff, offset); offset += boldOff.length
-          payload.set(cut, offset)
-          await printEscPos(payload)
+          const testSale: Sale = {
+            id: 'test_sale',
+            invoiceNumber: 'INV-TEST01',
+            items: [
+              { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, costPrice: 500.00, discount: 0, taxRate: 18, taxAmount: 135.00 }
+            ],
+            subtotal: 750.00,
+            totalDiscount: 0,
+            totalTax: 135.00,
+            grandTotal: 885.00,
+            paymentMethod: 'cash',
+            amountPaid: 1000.00,
+            changeReturned: 115.00,
+            isQuickBill: false,
+            createdAt: new Date() as any,
+          }
+          const bytes = generateReceiptEscPos({
+            sale: testSale,
+            receiptConfig,
+            paperSize: config.paperSize,
+            businessName: settings?.businessName,
+            businessAddress: settings?.businessAddress,
+          })
+          await printEscPos(bytes)
           toast.success('Test receipt sent to Bluetooth printer!')
           return
         }

@@ -552,7 +552,7 @@ export const generateReceiptEscPos = ({
   const money = (n: number) => `Rs.${n.toFixed(2)}`
 
   const b = new EscPosBuilder()
-  b.init()
+  b.init(paperSize)
 
   // ── Header ──
   b.align('center')
