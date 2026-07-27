@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'seznik-pos-backend',
+      name: 'seznik-backend',
       script: 'dist/server.js',
       instances: 1,
       autorestart: true,
