@@ -348,7 +348,7 @@ export const PrintersPage = () => {
             id: 'test_sale',
             invoiceNumber: 'INV-TEST01',
             items: [
-              { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, costPrice: 500.00, discount: 0, taxRate: 18, taxAmount: 135.00 }
+              { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, discount: 0, taxRate: 18, taxAmount: 135.00, total: 885.00 }
             ],
             subtotal: 750.00,
             totalDiscount: 0,
