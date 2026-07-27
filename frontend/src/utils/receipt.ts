@@ -8,7 +8,7 @@ interface GenerateReceiptHTMLParams {
   businessName?: string
   businessAddress?: string
   customerName?: string
-  width?: '50mm' | '210mm'
+  width?: '50mm' | '80mm' | '210mm'
   logoURL?: string
   settingsTaxRate?: number   // from settings.taxConfig.taxRate
   settingsTaxName?: string   // from settings.taxConfig.taxName
@@ -68,7 +68,8 @@ export const generateReceiptHTML = ({
           : 'Credit'
 
   const balanceAmount = sale.amountPaid - sale.grandTotal
-  const isThermal = width === '50mm'
+  const isThermal = width === '50mm' || width === '80mm'
+  const is80mm = width === '80mm'
 
   const totalTax = sale.totalTax || 0
   const taxableAmount = saleItems.reduce(
@@ -84,13 +85,12 @@ export const generateReceiptHTML = ({
   const effectiveTaxName = settingsTaxName || 'GST'
 
   // ─── Font sizes ──────────────────────────────────────────────────────────
-  // Thermal: compact sizes for 2-inch (50mm) POS roll paper
-  // A4: larger sizes to fill the 210×297mm page
-  const headerFS = isThermal ? '15px' : '20px'
-  const baseFS = isThermal ? '12px' : '14px'
-  const smallFS = isThermal ? '10px' : '13px'
-  const tinyFS = isThermal ? '9px' : '11px'
-  const totalFS = isThermal ? '12px' : '17px'
+  // Thermal: 58mm vs 80mm vs A4
+  const headerFS = is80mm ? '17px' : isThermal ? '15px' : '20px'
+  const baseFS = is80mm ? '13px' : isThermal ? '12px' : '14px'
+  const smallFS = is80mm ? '11px' : isThermal ? '10px' : '13px'
+  const tinyFS = is80mm ? '10px' : isThermal ? '9px' : '11px'
+  const totalFS = is80mm ? '14px' : isThermal ? '12px' : '17px'
 
   // ─── Separators ──────────────────────────────────────────────────────────
   const sep = `<div style="border-top:1px dashed #000;margin:${isThermal ? '2px' : '3px'} 0;"></div>`
@@ -424,15 +424,13 @@ export const generateReceiptHTML = ({
 // ─────────────────────────────────────────────────────────────────────────────
 export const printReceipt = (
   receiptHTML: string,
-  width: '50mm' | '210mm' = '50mm',
+  width: '50mm' | '80mm' | '210mm' = '50mm',
   title = 'Receipt',
   onDone?: () => void,
 ) => {
-  const isThermal = width === '50mm'
-  const paperWidth = isThermal ? '72mm' : 'A4'
-  // Thermal: 1.5mm each side — tight but not clipping, maximum printable width
-  // A4: professional invoice margins
-  const pageMargin = isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
+  const isThermal = width === '50mm' || width === '80mm'
+  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
+  const pageMargin = width === '80mm' ? '2mm 2mm 10mm 2mm' : isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
 
   const fullHTML = `<!DOCTYPE html>
 <html>
@@ -441,11 +439,11 @@ export const printReceipt = (
   <title>${title}</title>
   <style>
     @page {
-      size: ${isThermal ? '72mm auto' : paperWidth};
+      size: ${paperWidth} auto;
       margin: ${pageMargin};
     }
     @media print {
-      @page { size: ${isThermal ? '72mm auto' : paperWidth}; margin: ${pageMargin}; }
+      @page { size: ${paperWidth} auto; margin: ${pageMargin}; }
       html, body { width: 100%; margin: 0; padding: 0; }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -497,22 +495,26 @@ export const printReceipt = (
 interface GenerateReceiptEscPosParams {
   sale: Sale
   receiptConfig?: ReceiptConfig | null
+  paperSize?: '58mm' | '80mm'
   businessName?: string
   businessAddress?: string
   customerName?: string
   settingsTaxRate?: number
 }
 
-const LINE_WIDTH = 32 // 58mm printer, standard font: 384 dots / 12 dots per char
-
 export const generateReceiptEscPos = ({
   sale,
   receiptConfig,
+  paperSize = '58mm',
   businessName,
   businessAddress,
   customerName,
   settingsTaxRate,
 }: GenerateReceiptEscPosParams): Uint8Array => {
+  // 80mm printers (like Veer thermal receipt driver) use 48 characters/line (576 dots width).
+  // 58mm printers use 32 characters/line (384 dots width).
+  const lineWidth = paperSize === '80mm' ? 48 : 32
+
   const companyName = receiptConfig?.companyName || businessName || 'Your Company'
   const companyAddress = receiptConfig?.address || businessAddress || ''
   const companyPhone = receiptConfig?.phone || ''
@@ -560,7 +562,7 @@ export const generateReceiptEscPos = ({
   if (companyAddress) b.line(companyAddress)
   if (companyPhone) b.line(`Phone No: ${companyPhone}`)
   if (companyGSTIN) b.line(`GSTIN: ${companyGSTIN}`)
-  b.hr(LINE_WIDTH)
+  b.hr(lineWidth)
 
   // ── Meta ──
   b.align('left')
@@ -568,36 +570,36 @@ export const generateReceiptEscPos = ({
   b.line(`Date       : ${dateStr}`)
   b.line(`Bill To    : ${methodLabel}`)
   if (customerName) b.line(`Mobile     : ${customerName}`)
-  b.hr(LINE_WIDTH)
+  b.hr(lineWidth)
 
   // ── Items ──
   b.bold(true).line('SN ITEMS').bold(false)
-  b.hr(LINE_WIDTH)
+  b.hr(lineWidth)
   saleItems.forEach((item: SaleItem, index: number) => {
     const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
     b.bold(true)
-    b.twoCol(`${index + 1}. ${item.productName}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, LINE_WIDTH)
+    b.twoCol(`${index + 1}. ${item.productName}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
     b.bold(false)
     b.line(`  ${item.quantity} Pc  Rate:${item.sellingPrice.toFixed(2)}  Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'}  Amt:${lineTotal.toFixed(2)}`)
   })
-  b.hr(LINE_WIDTH)
+  b.hr(lineWidth)
 
   // ── Summary ──
-  b.twoCol('Sub Total', money(sale.subtotal), LINE_WIDTH)
-  if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, LINE_WIDTH)
-  b.twoCol('Taxable Amt', money(taxableAmt), LINE_WIDTH)
+  b.twoCol('Sub Total', money(sale.subtotal), lineWidth)
+  if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, lineWidth)
+  b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
   if (totalTax > 0) {
-    b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), LINE_WIDTH)
-    b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), LINE_WIDTH)
+    b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), lineWidth)
+    b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), lineWidth)
   }
-  b.hr(LINE_WIDTH, '=')
+  b.hr(lineWidth, '=')
 
   b.bold(true)
-  b.twoCol('Total Amount', money(sale.grandTotal), LINE_WIDTH)
+  b.twoCol('Total Amount', money(sale.grandTotal), lineWidth)
   b.bold(false)
-  b.twoCol('Paid Amount', money(paymentMade), LINE_WIDTH)
-  b.twoCol('Balance Amount', money(balanceDue), LINE_WIDTH)
-  b.hr(LINE_WIDTH)
+  b.twoCol('Paid Amount', money(paymentMade), lineWidth)
+  b.twoCol('Balance Amount', money(balanceDue), lineWidth)
+  b.hr(lineWidth)
 
   // ── Terms ──
   b.align('center')

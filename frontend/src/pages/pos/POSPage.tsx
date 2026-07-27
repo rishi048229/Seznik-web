@@ -326,7 +326,10 @@ export const POSPage = () => {
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
       : ''
 
-    const paperWidth: '50mm' | '210mm' = format === 'thermal' ? '50mm' : '210mm'
+    const paperSize = settings?.printerConfig?.paperSize || '58mm'
+    const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
+      ? (paperSize === '80mm' ? '80mm' : '50mm')
+      : '210mm'
 
     const receiptHTML = generateReceiptHTML({
       sale: tempSale,
@@ -359,6 +362,7 @@ export const POSPage = () => {
       const bytes = generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
+        paperSize: settings?.printerConfig?.paperSize || '58mm',
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
