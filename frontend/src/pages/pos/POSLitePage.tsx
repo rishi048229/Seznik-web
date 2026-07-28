@@ -234,7 +234,7 @@ export const POSLitePage = () => {
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
-      amountPaid: method === 'cash' ? amountPaidNum : finalTotal,
+      amountPaid: method === 'cash' ? amountPaidNum : method === 'credit' ? 0 : finalTotal,
       changeReturned: method === 'cash' ? change : 0,
       isQuickBill: false,
     }

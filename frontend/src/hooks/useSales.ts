@@ -34,6 +34,8 @@ export const useCreateSale = () => {
       await Promise.all([
         qc.refetchQueries({ queryKey: [QUERY_KEYS.SALES] }),
         qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] }),
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.CREDITS] }),
       ])
     },
     onError: (error) => {

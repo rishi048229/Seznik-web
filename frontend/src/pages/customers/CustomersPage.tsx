@@ -33,7 +33,7 @@ export const CustomersPage = () => {
   const { mutate: deleteCustomer } = useDeleteCustomer()
 
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'vip' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'vip' | 'credit' | 'inactive'>('all')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -57,7 +57,8 @@ export const CustomersPage = () => {
       c.phone.includes(search) ||
       (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
     const matchesStatus = statusFilter === 'all' ||
-      (statusFilter === 'vip' && c.creditBalance > 1000) ||
+      (statusFilter === 'vip' && (customerSpending[c.id] ?? 0) > 5000) ||
+      (statusFilter === 'credit' && c.creditBalance > 0) ||
       (statusFilter === 'inactive' && c.creditBalance === 0)
     return matchesSearch && matchesStatus
   })
@@ -189,7 +190,7 @@ export const CustomersPage = () => {
         <div className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-4">
             <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-              {(['all', 'vip', 'inactive'] as const).map(status => (
+              {(['all', 'vip', 'credit', 'inactive'] as const).map(status => (
                 <button
                   key={status}
                   onClick={() => { setStatusFilter(status); setCurrentPage(1) }}
@@ -199,7 +200,7 @@ export const CustomersPage = () => {
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status === 'credit' ? 'Credit Due' : status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>
               ))}
             </div>
@@ -238,6 +239,7 @@ export const CustomersPage = () => {
                   <tr className="text-xs font-bold uppercase tracking-wider text-gray-500">
                     <th className="px-6 py-4">Customer</th>
                     <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Outstanding Credit</th>
                     <th className="px-6 py-4">Contact</th>
                     <th className="px-6 py-4">Last Visit</th>
                     <th className="px-6 py-4 text-right">Total Spent</th>
@@ -268,12 +270,19 @@ export const CustomersPage = () => {
                         </td>
                         <td className="px-6 py-4">
                           <Badge variant={
-                            isVIP ? 'info' :
                             hasCredit ? 'danger' :
+                            isVIP ? 'info' :
                             'default'
                           }>
-                            {isVIP ? 'VIP MEMBER' : hasCredit ? 'LOW CREDIT' : 'REGULAR'}
+                            {hasCredit ? 'CREDIT DUE' : isVIP ? 'VIP MEMBER' : 'REGULAR'}
                           </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold">
+                          {hasCredit ? (
+                            <span className="text-red-600 dark:text-red-400 font-extrabold">{formatINR(customer.creditBalance)}</span>
+                          ) : (
+                            <span className="text-gray-400 text-xs font-medium">₹0.00</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{customer.email || '—'}</p>
