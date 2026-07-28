@@ -24,6 +24,8 @@
     "date-fns": "^4.4.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^9.0.3"
   },

@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import prisma from './config/db';
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
 import settingsRoutes from './routes/settingsRoutes';
@@ -17,10 +20,55 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+// 1. Security Headers via Helmet
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Allow inline styles/scripts if needed for frontend SPA
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// 2. CORS Configuration
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'https://67-rishi048229s-projects.vercel.app'];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow dev origins gracefully
+      }
+    },
+    credentials: true,
+  })
+);
+
+// 3. Global Rate Limiter (300 requests / 15 minutes per IP)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', globalLimiter);
+
+// 4. Auth Rate Limiter (20 requests / 15 minutes per IP for brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many login/register attempts. Please try again after 15 minutes.' },
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
 app.use(express.json());
 
-// Routes
+// 5. API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -33,8 +81,34 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/reports', reportRoutes);
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+// 6. Comprehensive Server & Database Health Check Endpoint
+app.get(['/health', '/api/health'], async (req, res) => {
+  try {
+    const startTime = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const dbLatencyMs = Date.now() - startTime;
+
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      database: {
+        status: 'connected',
+        latencyMs: dbLatencyMs,
+      },
+      environment: process.env.NODE_ENV || 'production',
+      memoryUsageMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 100) / 100,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'disconnected',
+        error: error instanceof Error ? error.message : 'Database ping failed',
+      },
+    });
+  }
 });
 
 export default app;
