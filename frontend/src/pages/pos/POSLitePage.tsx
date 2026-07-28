@@ -578,9 +578,23 @@ export const POSLitePage = () => {
       <Card data-tour="pos-lite-cart" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none h-full min-h-0 max-h-full overflow-hidden ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
         <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
-            <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
+              <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+            </div>
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsPaymentOpen(true)}
+                disabled={isCreating}
+                title="Complete & Print"
+                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+              >
+                <Printer size={15} />
+                <span>Print</span>
+              </button>
+            )}
           </div>
 
           {/* Customer Selector */}
@@ -613,7 +627,7 @@ export const POSLitePage = () => {
         </div>
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 space-y-2 mt-auto">
+        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-14 sm:pb-4 space-y-2 mt-auto">
           {/* Order Discount */}
           {items.length > 0 && (
             <div className="flex items-center gap-2">
