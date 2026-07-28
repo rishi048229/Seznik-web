@@ -351,77 +351,109 @@ export const ProductsPage = () => {
       </div>
 
       {/* Toolbar */}
-      <div data-tour="products-search" className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1">
+      <div data-tour="products-search" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 max-w-full overflow-hidden">
+        <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 shrink-0 no-scrollbar">
+          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1 shrink-0">
             <button
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                 viewMode === 'list'
                   ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
-              <Grid size={16} />
+              <Grid size={14} />
               List
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                 viewMode === 'grid'
                   ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
-              <List size={16} />
+              <List size={14} />
               Grid
             </button>
           </div>
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="px-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
-              <option value="">Category</option>
+              <option value="">All Categories</option>
               {categoryOptions.map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </div>
           </div>
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={stockFilter}
               onChange={e => setStockFilter(e.target.value)}
-              className="px-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
-              <option value="">Status</option>
+              <option value="">All Statuses</option>
               <option value="in-stock">In Stock</option>
               <option value="low-stock">Low Stock</option>
               <option value="out-of-stock">Out of Stock</option>
             </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </div>
           </div>
         </div>
 
-        <div data-tour="search-input" className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <div data-tour="search-input" className="relative w-full sm:w-72 shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <Input
-            placeholder="Search by name, SKU, or barcode..."
+            placeholder="Search name, SKU, or barcode..."
             value={search}
             onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
-            className="pl-10 w-72"
+            className="pl-9 w-full text-xs h-9"
           />
         </div>
+      </div>
+
+      {/* Category Quick Filter Pills (Horizontal Scrollable on Mobile) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-4 max-w-full no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setCategoryFilter('')}
+          className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+            !categoryFilter
+              ? 'bg-[#0a0a2e] text-white shadow-xs'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+          }`}
+        >
+          All Categories ({activeProducts.length})
+        </button>
+        {categoryOptions.map(c => {
+          const count = activeProducts.filter(p => p.categoryId === c.value).length
+          return (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
+              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                categoryFilter === c.value
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {c.label} ({count})
+            </button>
+          )
+        })}
       </div>
 
       {/* Main Content */}
