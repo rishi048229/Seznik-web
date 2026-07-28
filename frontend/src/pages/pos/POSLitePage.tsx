@@ -626,6 +626,57 @@ export const POSLitePage = () => {
           </div>
         </div>
 
+        {/* Cart Items List */}
+        <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-gray-100 dark:divide-gray-700">
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
+              <ShoppingCart size={48} className="mb-3 opacity-30" />
+              <p className="text-sm font-medium">Cart is empty</p>
+              <p className="text-xs text-gray-400 mt-1">Add items on the left to start billing</p>
+            </div>
+          ) : (
+            items.map(item => (
+              <div key={item.id} className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
+                    <p className="text-xs text-gray-400">
+                      {formatINR(item.sellingPrice)} {item.taxRate > 0 && `(+${item.taxRate}% GST)`}
+                    </p>
+                  </div>
+                  <p className="font-bold text-sm text-gray-900 dark:text-gray-100 flex-shrink-0">{formatINR(item.total)}</p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => updateQty(item.id, item.quantity - 1)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateQty(item.id, item.quantity + 1)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(item.id)}
+                    className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
         <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-14 sm:pb-4 space-y-2 mt-auto">
           {/* Order Discount */}
