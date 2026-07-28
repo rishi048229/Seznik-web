@@ -405,7 +405,7 @@ export const POSLitePage = () => {
         <div data-tour="pos-lite-header" className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quick Sale - Manual Entry</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">QUICK BILL - Manual Entry</h2>
               <button
                 onClick={pageTutorial.openTutorial}
                 type="button"

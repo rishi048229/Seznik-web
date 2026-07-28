@@ -224,7 +224,7 @@ export const DashboardPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
-              Open POS Terminal
+              Open Scan To Bill
             </Button>
           }
         />

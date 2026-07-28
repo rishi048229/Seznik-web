@@ -19,8 +19,8 @@ export type TranslationKey = keyof typeof en
 const en = {
   // Navigation
   'nav.dashboard': 'Dashboard',
-  'nav.pos': 'POS',
-  'nav.posLite': 'POS Lite',
+  'nav.pos': 'Scan To Bill',
+  'nav.posLite': 'QUICK BILL',
   'nav.products': 'Products',
   'nav.categories': 'Categories',
   'nav.customers': 'Customers',

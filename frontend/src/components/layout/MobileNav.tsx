@@ -8,7 +8,7 @@ import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessRep
 
 const primaryItems = [
   { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
-  { path: ROUTES.POS, label: 'POS', icon: <ShoppingCart size={20} /> },
+  { path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> },
   { path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> },
   { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
 ]
@@ -16,7 +16,7 @@ const primaryItems = [
 const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) => {
   const p = permissions ?? undefined
   return [
-    { path: ROUTES.POS_LITE, label: 'POS Lite', icon: <MoveLeft size={20} /> },
+    { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
     { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
     { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },
     ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),

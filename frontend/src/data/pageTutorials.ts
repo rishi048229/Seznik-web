@@ -46,10 +46,10 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
   },
   pos: {
     pageKey: 'pos',
-    title: 'Retail POS Terminal (Standard)',
+    title: 'Scan To Bill Terminal',
     subtitle: 'Learn how to process high-speed retail checkout, scan barcodes, and issue instant receipts',
     videoUrl: '/assets/videos/guide-pos.mp4',
-    summary: 'The Retail POS Terminal is optimized for desktop and tablet counter billing. It features instant barcode scanning, product search, cart discounts, customer credit billing, and instant thermal printing.',
+    summary: 'The Scan To Bill Terminal is optimized for desktop and tablet counter billing. It features instant barcode scanning, product search, cart discounts, customer credit billing, and instant thermal printing.',
     keyFeatures: [
       { title: 'Barcode Scanner Integration', description: 'Plug in any USB/Bluetooth barcode scanner or use camera scan to add items directly to cart.' },
       { title: 'Customer Credit & Ledger', description: 'Link existing customers to bill orders on Store Credit or record partial payments.' },
@@ -69,7 +69,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
   },
   'pos-lite': {
     pageKey: 'pos-lite',
-    title: 'POS Lite (Mobile & Quick Entry)',
+    title: 'QUICK BILL (Mobile & Fast Entry)',
     subtitle: 'Master fast touch-based billing and custom manual product sales on mobile devices',
     videoUrl: '/assets/videos/guide-pos-lite.mp4',
     summary: 'POS Lite is lightweight and mobile-optimized. Perfect for quick billing without pre-registering products or when operating on smartphone screens.',
