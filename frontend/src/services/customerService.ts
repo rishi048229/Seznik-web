@@ -5,6 +5,10 @@ export const getCustomers = async (uid: string): Promise<Customer[]> => {
   return await fetchApi('/customers')
 }
 
+export const getCustomerById = async (uid: string, customerId: string): Promise<Customer> => {
+  return await fetchApi(`/customers/${customerId}`)
+}
+
 export const createCustomer = async (uid: string, data: Omit<Customer, 'id' | 'createdAt'>): Promise<string> => {
   const customer = await fetchApi('/customers', {
     method: 'POST',
@@ -20,26 +24,40 @@ export const updateCustomer = async (uid: string, customerId: string, data: Part
   })
 }
 
-export const updateCustomerCredit = async (uid: string, customerId: string, amount: number): Promise<void> => {
-  // In a complete implementation, this should be a dedicated endpoint
-  // But for now we just use the generic update endpoint
-  const customer = await fetchApi(`/customers/${customerId}`)
-  await fetchApi(`/customers/${customerId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ creditBalance: customer.creditBalance + amount }),
+export const updateCustomerCredit = async (uid: string, customerId: string, amount: number, notes?: string): Promise<void> => {
+  await fetchApi('/credits', {
+    method: 'POST',
+    body: JSON.stringify({
+      customerId,
+      amount: Math.abs(amount),
+      type: amount > 0 ? 'credit' : 'payment',
+      notes: notes || (amount > 0 ? 'Credit issued' : 'Credit payment received'),
+    }),
   })
 }
 
 export const addCreditTransaction = async (uid: string, data: Omit<CreditTransaction, 'id' | 'createdAt'>): Promise<void> => {
-  // Add credit transaction implementation
+  await fetchApi('/credits', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }
 
 export const getCreditTransactions = async (uid: string, customerId?: string): Promise<CreditTransaction[]> => {
-  return []
+  const query = customerId ? `?customerId=${customerId}` : ''
+  return await fetchApi(`/credits${query}`)
 }
 
-export const recordPayment = async (uid: string, data: { customerId: string; amount: number; paymentMethod?: string }): Promise<void> => {
-  await updateCustomerCredit(uid, data.customerId, -data.amount)
+export const recordPayment = async (uid: string, data: { customerId: string; amount: number; notes?: string; paymentMethod?: string }): Promise<void> => {
+  await fetchApi('/credits', {
+    method: 'POST',
+    body: JSON.stringify({
+      customerId: data.customerId,
+      amount: Number(data.amount),
+      type: 'payment',
+      notes: data.notes || 'Credit payment received',
+    }),
+  })
 }
 
 export const deleteCustomer = async (uid: string, customerId: string): Promise<void> => {

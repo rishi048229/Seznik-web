@@ -50,10 +50,11 @@ export const useRecordPayment = () => {
   const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ customerId, amount }: { customerId: string; amount: number; notes?: string }) =>
-      customerService.recordPayment(user!.uid, { customerId, amount }),
+    mutationFn: ({ customerId, amount, notes }: { customerId: string; amount: number; notes?: string }) =>
+      customerService.recordPayment(user!.uid, { customerId, amount, notes }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS, QUERY_KEYS.CREDITS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.CREDITS] })
     },
   })
 }
