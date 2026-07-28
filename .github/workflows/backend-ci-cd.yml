@@ -67,6 +67,7 @@ jobs:
 
       - name: SSH & Deploy to AWS EC2 Instance
         if: steps.check_env.outputs.has_host == 'true'
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_EC2_HOST || '127.0.0.1' }}
