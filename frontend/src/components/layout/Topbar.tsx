@@ -62,15 +62,6 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
         <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
           {settings?.businessName || userProfile?.businessName || 'Dashboard'}
         </h2>
-        {/* Search Bar — desktop only */}
-        <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-4 py-2 min-w-[16rem]">
-          <Search size={16} className="text-gray-400 flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="Search transactions, products..."
-            className="bg-transparent text-sm text-gray-600 dark:text-gray-300 placeholder:text-gray-400 outline-none flex-1 min-w-0"
-          />
-        </div>
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
