@@ -451,91 +451,97 @@ export const POSPage = () => {
               </Button>
 
               {isFilterOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl z-30 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">Filters</h4>
-                    {hasActiveFilters && (
-                      <button
-                        type="button"
-                        onClick={clearFilters}
-                        className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
-                      >
-                        <X size={12} /> Clear all
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Stock Status */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                      Stock Status
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([
-                        { value: 'all', label: 'All Stock' },
-                        { value: 'in', label: 'In Stock' },
-                        { value: 'low', label: 'Low Stock' },
-                        { value: 'out', label: 'Out of Stock' },
-                      ] as const).map(opt => (
+                <>
+                  <div
+                    className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40 sm:hidden"
+                    onClick={() => setIsFilterOpen(false)}
+                  />
+                  <div className="fixed left-4 right-4 max-w-sm mx-auto top-28 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-none bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl z-50 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">Filters</h4>
+                      {hasActiveFilters && (
                         <button
-                          key={opt.value}
                           type="button"
-                          onClick={() => setStockFilter(opt.value)}
-                          className={`px-3 py-2 rounded-lg text-xs font-semibold text-center transition-colors ${
-                            stockFilter === opt.value
-                              ? 'bg-[#0a0a2e] text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
+                          onClick={clearFilters}
+                          className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
                         >
-                          {opt.label}
+                          <X size={12} /> Clear all
                         </button>
-                      ))}
+                      )}
+                    </div>
+
+                    {/* Stock Status */}
+                    <div className="mb-4">
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                        Stock Status
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { value: 'all', label: 'All Stock' },
+                          { value: 'in', label: 'In Stock' },
+                          { value: 'low', label: 'Low Stock' },
+                          { value: 'out', label: 'Out of Stock' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setStockFilter(opt.value)}
+                            className={`px-3 py-2 rounded-lg text-xs font-semibold text-center transition-colors ${
+                              stockFilter === opt.value
+                                ? 'bg-[#0a0a2e] text-white'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Price Range */}
+                    <div className="mb-4">
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                        Price Range
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Min"
+                          value={priceMin}
+                          onChange={e => setPriceMin(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                        <span className="text-gray-400 text-xs">to</span>
+                        <Input
+                          type="number"
+                          placeholder="Max"
+                          value={priceMax}
+                          onChange={e => setPriceMax(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sort By */}
+                    <div>
+                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                        <ArrowUpDown size={12} /> Sort By
+                      </label>
+                      <select
+                        value={sortBy}
+                        onChange={e => setSortBy(e.target.value as SortOption)}
+                        className="w-full h-9 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      >
+                        <option value="name-asc">Name (A–Z)</option>
+                        <option value="name-desc">Name (Z–A)</option>
+                        <option value="price-asc">Price (Low to High)</option>
+                        <option value="price-desc">Price (High to Low)</option>
+                        <option value="stock-asc">Stock (Low to High)</option>
+                        <option value="stock-desc">Stock (High to Low)</option>
+                      </select>
                     </div>
                   </div>
-
-                  {/* Price Range */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                      Price Range
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        placeholder="Min"
-                        value={priceMin}
-                        onChange={e => setPriceMin(e.target.value)}
-                        className="h-9 text-sm"
-                      />
-                      <span className="text-gray-400 text-xs">to</span>
-                      <Input
-                        type="number"
-                        placeholder="Max"
-                        value={priceMax}
-                        onChange={e => setPriceMax(e.target.value)}
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Sort By */}
-                  <div>
-                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                      <ArrowUpDown size={12} /> Sort By
-                    </label>
-                    <select
-                      value={sortBy}
-                      onChange={e => setSortBy(e.target.value as SortOption)}
-                      className="w-full h-9 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    >
-                      <option value="name-asc">Name (A–Z)</option>
-                      <option value="name-desc">Name (Z–A)</option>
-                      <option value="price-asc">Price (Low to High)</option>
-                      <option value="price-desc">Price (High to Low)</option>
-                      <option value="stock-asc">Stock (Low to High)</option>
-                      <option value="stock-desc">Stock (High to Low)</option>
-                    </select>
-                  </div>
-                </div>
+                </>
               )}
             </div>
             <button
