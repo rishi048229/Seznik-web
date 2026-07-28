@@ -372,44 +372,32 @@ export const POSLitePage = () => {
     <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
 
       {/* Mobile Tab Switcher */}
-      <div className="sm:hidden flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0 px-2">
-        <div className="flex-1 flex">
-          <button
-            onClick={() => setMobileTab('products')}
-            className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-              mobileTab === 'products'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}
-          >
-            Quick Sale
-          </button>
-          <button
-            onClick={() => setMobileTab('cart')}
-            className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
-              mobileTab === 'cart'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}
-          >
-            Cart
-            {items.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
-                {items.length}
-              </span>
-            )}
-          </button>
-        </div>
-        {items.length > 0 && (
-          <button
-            onClick={() => setIsPaymentOpen(true)}
-            disabled={isCreating}
-            className="sm:hidden ml-2 px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0 my-auto mr-1"
-          >
-            <Printer size={14} />
-            <span>Print</span>
-          </button>
-        )}
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+        <button
+          onClick={() => setMobileTab('products')}
+          className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+            mobileTab === 'products'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Quick Sale
+        </button>
+        <button
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
+            mobileTab === 'cart'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Cart
+          {items.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+              {items.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Left: Manual Entry Form + Product List */}
@@ -587,24 +575,12 @@ export const POSLitePage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card data-tour="pos-lite-cart" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none h-full min-h-0 max-h-full overflow-y-auto sm:overflow-hidden pb-16 sm:pb-0 ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card data-tour="pos-lite-cart" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none h-full min-h-0 max-h-full overflow-hidden ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <div className="flex items-center justify-between mb-4 gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
-              <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
-            </div>
-            {items.length > 0 && (
-              <button
-                onClick={() => setIsPaymentOpen(true)}
-                disabled={isCreating}
-                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
-              >
-                <Printer size={14} />
-                <span>Print ({formatINR(finalTotal)})</span>
-              </button>
-            )}
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
+            <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
           </div>
 
           {/* Customer Selector */}
@@ -636,70 +612,51 @@ export const POSLitePage = () => {
           </div>
         </div>
 
-        {/* Order Discount */}
-        {items.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0">
+        {/* Bottom Section: Discount + Totals + Complete & Print Button */}
+        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 space-y-2 mt-auto">
+          {/* Order Discount */}
+          {items.length > 0 && (
             <div className="flex items-center gap-2">
               <Input
                 type="number"
                 placeholder="Discount"
                 value={orderDiscount || ''}
                 onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                className="flex-1"
+                className="flex-1 h-9 text-xs"
               />
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={orderDiscountType}
                   onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="px-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>
                 </select>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Totals */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-2 bg-gray-50 dark:bg-gray-800 shrink-0 mt-auto">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Subtotal ({items.length} items)</span>
-            <span className="text-gray-900 dark:text-gray-100">{formatINR(subtotal)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">
-              {taxLabel}
-            </span>
-            <span className="text-gray-900 dark:text-gray-100">{formatINR(taxAmount)}</span>
-          </div>
-          {orderDiscountAmount > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600">
-              <span>Discount</span>
-              <span>-{formatINR(orderDiscountAmount)}</span>
+              <div className="text-right shrink-0">
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">Total ({items.length})</p>
+                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
+              </div>
             </div>
           )}
-          <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-gray-900 dark:text-gray-100">Total Amount</span>
-            <span className="text-[#0a0a2e]">{formatINR(finalTotal)}</span>
-          </div>
-        </div>
 
-        {/* Payment Button */}
-        <div className="p-6 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 shrink-0 sticky bottom-0 z-10">
-          <Button
-            onClick={() => setIsPaymentOpen(true)}
-            disabled={items.length === 0 || isCreating}
-            className="w-full py-4 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
-          >
-            <Printer size={18} className="mr-2" />
-            Complete & Print
-          </Button>
+          {/* Payment Button */}
+          <div data-tour="pos-lite-checkout-btn">
+            <Button
+              onClick={() => setIsPaymentOpen(true)}
+              disabled={items.length === 0 || isCreating}
+              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            >
+              <Printer size={18} className="mr-2" />
+              Complete & Print
+            </Button>
+          </div>
         </div>
       </Card>
 
