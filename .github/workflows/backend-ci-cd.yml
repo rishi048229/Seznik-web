@@ -25,17 +25,20 @@ jobs:
 
       - name: Install & Validate Backend
         env:
+          NODE_ENV: development
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/seznik_db"
         run: |
           cd backend
-          npm install
+          npm install --include=dev
           npx prisma generate
           npm run build
 
       - name: Install & Validate Frontend
+        env:
+          NODE_ENV: development
         run: |
           cd frontend
-          npm install
+          npm install --include=dev
           npm run build
 
   # ---------------------------------------------------
@@ -44,24 +47,11 @@ jobs:
   cd-backend:
     name: Deploy to AWS EC2
     needs: ci-backend
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.AWS_EC2_HOST != ''
     runs-on: ubuntu-latest
 
     steps:
-      - name: Verify AWS Secrets Configured
-        id: check_secrets
-        run: |
-          if [ -z "${{ secrets.AWS_EC2_HOST }}" ]; then
-            echo "has_secrets=false" >> $GITHUB_OUTPUT
-            echo "⚠️ AWS_EC2_HOST secret is not configured yet in GitHub Secrets."
-            echo "Add AWS_EC2_HOST, AWS_EC2_USERNAME, and AWS_SSH_PRIVATE_KEY to GitHub Repository Secrets to enable automatic deployment to EC2."
-          else
-            echo "has_secrets=true" >> $GITHUB_OUTPUT
-            echo "✅ AWS secrets detected. Proceeding to SSH deployment."
-          fi
-
       - name: SSH & Deploy to AWS EC2 Instance
-        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
@@ -72,18 +62,14 @@ jobs:
             echo "🚀 Connecting to AWS EC2 instance..."
             cd ${{ secrets.AWS_APP_DIR || '/var/www/inventorymanager' }}
             
-            echo "📥 Pulling latest backend changes from GitHub..."
+            echo "📥 Pulling latest changes from GitHub..."
             git pull origin main
             
-            echo "📦 Installing production dependencies..."
+            echo "📦 Installing dependencies & building backend..."
             cd backend
-            npm install --omit=dev
-            
-            echo "🔄 Generating Prisma Client & Running DB Migrations..."
+            npm install --include=dev
             npx prisma generate
             npx prisma migrate deploy || true
-            
-            echo "🔨 Building TypeScript..."
             npm run build
             
             echo "⚡ Reloading backend application with PM2..."
