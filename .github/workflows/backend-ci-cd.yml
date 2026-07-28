@@ -69,9 +69,9 @@ jobs:
         if: steps.check_env.outputs.has_host == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.AWS_EC2_HOST }}
-          username: ${{ secrets.AWS_EC2_USERNAME }}
-          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.AWS_EC2_HOST || '127.0.0.1' }}
+          username: ${{ secrets.AWS_EC2_USERNAME || 'ubuntu' }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY || 'dummy_key' }}
           port: 22
           script: |
             echo "🚀 Connecting to AWS EC2 instance..."
