@@ -23,10 +23,10 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
   return (
     <Fragment>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto pb-24 sm:pb-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto pb-20 lg:pb-4">
         <div
           className={clsx(
-            'bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col',
+            'bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-h-[calc(100dvh-5.5rem)] lg:max-h-[90vh] flex flex-col',
             sizeClasses[size]
           )}
           onClick={e => e.stopPropagation()}
@@ -43,7 +43,7 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
               </svg>
             </button>
           </div>
-          <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1 scrollbar-thin">{children}</div>
+          <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">{children}</div>
           {footer && (
             <div className="px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">{footer}</div>
           )}

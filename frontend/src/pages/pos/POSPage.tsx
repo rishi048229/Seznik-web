@@ -384,7 +384,7 @@ export const POSPage = () => {
   }
 
   return (
-    <div className="flex flex-col sm:flex-row h-[calc(100dvh-56px)] gap-0 -m-3 sm:-m-4 lg:-m-6">
+    <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
 
       {/* Mobile Tab Switcher */}
       <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
@@ -709,9 +709,9 @@ export const POSPage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card data-tour="pos-cart-panel" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col m-3 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card data-tour="pos-cart-panel" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col h-full min-h-0 max-h-full my-0 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
             <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
@@ -747,7 +747,7 @@ export const POSPage = () => {
         </div>
 
         {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
           {items.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <ShoppingCart size={48} className="mx-auto mb-4 opacity-30" />
@@ -821,7 +821,7 @@ export const POSPage = () => {
 
         {/* Order Discount (Order-level only) */}
         {items.length > 0 && (
-          <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0">
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -850,7 +850,7 @@ export const POSPage = () => {
         )}
 
         {/* Totals */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-1.5 bg-gray-50 dark:bg-gray-800">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-1.5 bg-gray-50 dark:bg-gray-800 shrink-0">
           <div className="flex justify-between text-xs">
             <span className="text-gray-500 dark:text-gray-400">Subtotal ({items.length} items)</span>
             <span className="text-gray-500 dark:text-gray-400">{formatINR(totals.subtotal)}</span>
@@ -874,7 +874,7 @@ export const POSPage = () => {
         </div>
 
         {/* Payment Button */}
-        <div data-tour="pos-checkout-btn" className="p-4">
+        <div data-tour="pos-checkout-btn" className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 shrink-0 sticky bottom-0 z-10">
           <Button
             onClick={() => setIsPaymentOpen(true)}
             disabled={items.length === 0 || isCreating}
@@ -887,7 +887,23 @@ export const POSPage = () => {
       </Card>
 
       {/* Payment Modal */}
-      <Modal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} title="Complete Payment" size="md">
+      <Modal
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
+        title="Complete Payment"
+        size="md"
+        footer={
+          <Button
+            onClick={handleCheckout}
+            disabled={!isComplete || isCreating}
+            loading={isCreating}
+            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+          >
+            <Printer size={18} className="mr-2" />
+            {isComplete ? 'Complete & Print' : 'Insufficient Amount'}
+          </Button>
+        }
+      >
         <div className="space-y-6">
           {/* Total Display */}
           <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
@@ -964,17 +980,6 @@ export const POSPage = () => {
               </div>
             </div>
           )}
-
-          {/* Complete & Print Button */}
-          <Button
-            onClick={handleCheckout}
-            disabled={!isComplete || isCreating}
-            loading={isCreating}
-            className="w-full py-4 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
-          >
-            <Printer size={18} className="mr-2" />
-            {isComplete ? 'Complete & Print' : 'Insufficient Amount'}
-          </Button>
         </div>
       </Modal>
 
