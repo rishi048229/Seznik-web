@@ -387,32 +387,44 @@ export const POSPage = () => {
     <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
 
       {/* Mobile Tab Switcher */}
-      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
-        <button
-          onClick={() => setMobileTab('products')}
-          className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-            mobileTab === 'products'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 dark:text-gray-400'
-          }`}
-        >
-          Products
-        </button>
-        <button
-          onClick={() => setMobileTab('cart')}
-          className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
-            mobileTab === 'cart'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 dark:text-gray-400'
-          }`}
-        >
-          Cart
-          {items.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
-              {items.length}
-            </span>
-          )}
-        </button>
+      <div className="sm:hidden flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0 px-2">
+        <div className="flex-1 flex">
+          <button
+            onClick={() => setMobileTab('products')}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+              mobileTab === 'products'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            Products
+          </button>
+          <button
+            onClick={() => setMobileTab('cart')}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
+              mobileTab === 'cart'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            Cart
+            {items.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+                {items.length}
+              </span>
+            )}
+          </button>
+        </div>
+        {items.length > 0 && (
+          <button
+            onClick={() => setIsPaymentOpen(true)}
+            disabled={isCreating}
+            className="sm:hidden ml-2 px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0 my-auto mr-1"
+          >
+            <Printer size={14} />
+            <span>Print</span>
+          </button>
+        )}
       </div>
 
       {/* Left: Product List */}
@@ -709,12 +721,24 @@ export const POSPage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card data-tour="pos-cart-panel" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col h-full min-h-0 max-h-full my-0 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card data-tour="pos-cart-panel" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col h-full min-h-0 max-h-full my-0 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-y-auto sm:overflow-hidden pb-16 sm:pb-0 ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Cart Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
-            <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
+              <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+            </div>
+            {items.length > 0 && (
+              <button
+                onClick={() => setIsPaymentOpen(true)}
+                disabled={isCreating}
+                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+              >
+                <Printer size={14} />
+                <span>Print ({formatINR(finalTotal)})</span>
+              </button>
+            )}
           </div>
 
           {/* Customer Selector (optional - walk-in by default) */}
