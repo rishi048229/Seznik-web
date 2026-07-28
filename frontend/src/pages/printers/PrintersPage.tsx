@@ -639,6 +639,10 @@ export const PrintersPage = () => {
                     </button>
                   ))}
                 </div>
+                <p className="mt-2 text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 rounded-lg p-2 flex items-start gap-1.5 leading-relaxed">
+                  <Sparkles size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                  <span><strong>Note:</strong> For best print quality, use <strong>58mm</strong> for 2-inch printers.</span>
+                </p>
               </div>
 
               <div>

@@ -28,14 +28,14 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/seznik_db"
         run: |
           cd backend
-          npm ci
+          npm install
           npx prisma generate
           npm run build
 
       - name: Install & Validate Frontend
         run: |
           cd frontend
-          npm ci
+          npm install
           npm run build
 
   # ---------------------------------------------------
@@ -52,16 +52,16 @@ jobs:
         id: check_secrets
         run: |
           if [ -z "${{ secrets.AWS_EC2_HOST }}" ]; then
-            echo "SECRETS_SET=false" >> $GITHUB_ENV
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
             echo "⚠️ AWS_EC2_HOST secret is not configured yet in GitHub Secrets."
             echo "Add AWS_EC2_HOST, AWS_EC2_USERNAME, and AWS_SSH_PRIVATE_KEY to GitHub Repository Secrets to enable automatic deployment to EC2."
           else
-            echo "SECRETS_SET=true" >> $GITHUB_ENV
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
             echo "✅ AWS secrets detected. Proceeding to SSH deployment."
           fi
 
       - name: SSH & Deploy to AWS EC2 Instance
-        if: env.SECRETS_SET == 'true'
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
@@ -77,7 +77,7 @@ jobs:
             
             echo "📦 Installing production dependencies..."
             cd backend
-            npm ci --omit=dev
+            npm install --omit=dev
             
             echo "🔄 Generating Prisma Client & Running DB Migrations..."
             npx prisma generate
