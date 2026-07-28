@@ -47,11 +47,26 @@ jobs:
   cd-backend:
     name: Deploy to AWS EC2
     needs: ci-backend
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.AWS_EC2_HOST != ''
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check AWS Secrets Configured
+        id: check_env
+        env:
+          EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
+        run: |
+          if [ -n "$EC2_HOST" ]; then
+            echo "has_host=true" >> $GITHUB_OUTPUT
+            echo "✅ AWS secrets detected. Proceeding to SSH deployment."
+          else
+            echo "has_host=false" >> $GITHUB_OUTPUT
+            echo "⚠️ AWS_EC2_HOST secret is not configured in GitHub Secrets."
+            echo "To enable automatic deployment, add AWS_EC2_HOST, AWS_EC2_USERNAME, and AWS_SSH_PRIVATE_KEY under Repository Settings -> Secrets and variables -> Actions."
+          fi
+
       - name: SSH & Deploy to AWS EC2 Instance
+        if: steps.check_env.outputs.has_host == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
@@ -67,7 +82,7 @@ jobs:
             
             echo "📦 Installing dependencies & building backend..."
             cd backend
-            npm install --include=dev
+            npm install
             npx prisma generate
             npx prisma migrate deploy || true
             npm run build
