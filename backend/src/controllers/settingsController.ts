@@ -29,11 +29,37 @@ export const getSettings = async (req: Request, res: Response) => {
   }
 };
 
+const ALLOWED_SETTINGS_FIELDS = [
+  'businessName',
+  'businessAddress',
+  'businessPhone',
+  'businessGSTIN',
+  'businessLogoURL',
+  'supportEmail',
+  'supportPhone',
+  'whatsappNumber',
+  'personalInfo',
+  'invoiceConfig',
+  'notificationConfig',
+  'receiptConfig',
+  'printerConfig',
+];
+
+const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {
+  const clean: Record<string, any> = {};
+  for (const key of ALLOWED_SETTINGS_FIELDS) {
+    if (key in raw && raw[key] !== undefined) {
+      clean[key] = raw[key];
+    }
+  }
+  return clean;
+};
+
 export const createSettings = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
-    const data = req.body;
+    const data = sanitizeSettingsData(req.body || {});
     
     const settings = await prisma.settings.upsert({
       where: { userId },
@@ -51,7 +77,7 @@ export const updateSettings = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
-    const data = req.body;
+    const data = sanitizeSettingsData(req.body || {});
     
     const settings = await prisma.settings.upsert({
       where: { userId },
