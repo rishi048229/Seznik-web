@@ -1,14 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { generateToken } from '../utils/jwt';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
-
-const generateToken = (id: string, role: string) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET || 'fallback_secret', {
-    expiresIn: '30d',
-  });
-};
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 request per email per minute

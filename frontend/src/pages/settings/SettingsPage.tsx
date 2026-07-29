@@ -94,7 +94,8 @@ export const SettingsPage = () => {
           onSuccess: () => toast.success(`${key} saved`),
           onError: (err) => {
             console.error('Settings save error:', err)
-            toast.error(`Failed to save ${key}`)
+            const msg = err instanceof Error ? err.message : `Failed to save ${key}`
+            toast.error(msg)
           },
         }
       )
@@ -104,7 +105,8 @@ export const SettingsPage = () => {
         onSuccess: () => toast.success(`${key} saved`),
         onError: (err) => {
           console.error('Settings create error:', err)
-          toast.error(`Failed to save ${key}`)
+          const msg = err instanceof Error ? err.message : `Failed to save ${key}`
+          toast.error(msg)
         },
       })
     }
