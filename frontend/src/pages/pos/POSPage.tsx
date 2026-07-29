@@ -10,7 +10,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
-import { QuickAddCustomerModal } from '@/components/common/QuickAddCustomerModal'
+import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -24,11 +24,13 @@ import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/util
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
+import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 
 export const POSPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('pos')
   const navigate = useNavigate()
   const { data: products, isLoading } = useProducts()
@@ -41,7 +43,6 @@ export const POSPage = () => {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
-  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
@@ -418,7 +419,7 @@ export const POSPage = () => {
             <div data-tour="pos-search-input" className="relative flex-1 max-w-xl">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <Input
-                placeholder="Search by product name, SKU, or scan barcode..."
+                placeholder={t('pos.searchPlaceholder')}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="pl-11 pr-4 h-11 text-sm"
@@ -473,9 +474,9 @@ export const POSPage = () => {
                       <div className="grid grid-cols-2 gap-2">
                         {([
                           { value: 'all', label: 'All Stock' },
-                          { value: 'in', label: 'In Stock' },
-                          { value: 'low', label: 'Low Stock' },
-                          { value: 'out', label: 'Out of Stock' },
+                          { value: 'in', label: t('pos.inStock') },
+                          { value: 'low', label: t('pos.lowStock') },
+                          { value: 'out', label: t('pos.outOfStock') },
                         ] as const).map(opt => (
                           <button
                             key={opt.value}
@@ -549,7 +550,7 @@ export const POSPage = () => {
               }`}
             >
               {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
-              {isScanMode ? 'Scanning...' : 'Scan Barcode'}
+              {isScanMode ? 'Scanning...' : t('pos.scanBarcode')}
             </button>
           </div>
 
@@ -589,7 +590,7 @@ export const POSPage = () => {
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
               }`}
             >
-              All Products
+              {t('pos.allProducts')}
             </button>
             {getTopLevelCategories(categories).map(parent => (
               <Fragment key={parent.id}>
@@ -670,7 +671,7 @@ export const POSPage = () => {
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
                       }`}>
-                        {isOutOfStock ? 'Out of Stock' : `Stock: ${available}`}
+                        {isOutOfStock ? t('pos.outOfStock') : `Stock: ${available}`}
                       </span>
                     </div>
                     <button
@@ -716,7 +717,7 @@ export const POSPage = () => {
         <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('pos.checkout')}</h2>
               <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
             </div>
             {items.length > 0 && (
@@ -724,7 +725,7 @@ export const POSPage = () => {
                 type="button"
                 onClick={() => setIsPaymentOpen(true)}
                 disabled={isCreating}
-                title="Complete & Print"
+                title={t('pos.completeAndPrint')}
                 className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
@@ -733,32 +734,9 @@ export const POSPage = () => {
             )}
           </div>
 
-          {/* Customer Selector (optional - walk-in by default) */}
-          <div data-tour="pos-customer-select" className="relative">
-            <button
-              type="button"
-              onClick={() => setIsAddCustomerOpen(true)}
-              title="Add new customer"
-              aria-label="Add new customer"
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-            >
-              <UserPlus size={16} />
-            </button>
-            <select
-              value={selectedCustomer}
-              onChange={e => setSelectedCustomer(e.target.value)}
-              className="w-full h-9 pl-9 pr-9 rounded-lg appearance-none cursor-pointer bg-gray-50 dark:bg-gray-700/40 border-0 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/60"
-            >
-              <option value="">— Walk-in Customer —</option>
-              {customers?.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </div>
+          {/* Customer Selector (optional - walk-in by default) — searchable by name/phone */}
+          <div data-tour="pos-customer-select">
+            <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="compact" />
           </div>
         </div>
 
@@ -767,8 +745,8 @@ export const POSPage = () => {
           {items.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <ShoppingCart size={48} className="mx-auto mb-4 opacity-30" />
-              <p className="text-sm font-medium">Cart is empty</p>
-              <p className="text-xs mt-1">Search or scan to add products</p>
+              <p className="text-sm font-medium">{t('pos.cartEmpty')}</p>
+              <p className="text-xs mt-1">{t('pos.cartEmptyHint')}</p>
             </div>
           ) : (
             items.map(item => {
@@ -842,7 +820,7 @@ export const POSPage = () => {
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                placeholder="Discount"
+                placeholder={t('pos.discount')}
                 value={orderDiscount || ''}
                 onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
                 className="flex-1 h-9 text-xs"
@@ -877,7 +855,7 @@ export const POSPage = () => {
               className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
             >
               <Printer size={18} className="mr-2" />
-              Complete & Print
+              {t('pos.completeAndPrint')}
             </Button>
           </div>
         </div>
@@ -897,14 +875,14 @@ export const POSPage = () => {
             className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
           >
             <Printer size={18} className="mr-2" />
-            {isComplete ? 'Complete & Print' : 'Insufficient Amount'}
+            {isComplete ? t('pos.completeAndPrint') : 'Insufficient Amount'}
           </Button>
         }
       >
         <div className="space-y-6">
           {/* Total Display */}
           <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Total Amount</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.totalAmount')}</p>
             <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
           </div>
 
@@ -1039,14 +1017,6 @@ export const POSPage = () => {
         itemCount={lastSaleData?.items?.length}
       />
 
-      <QuickAddCustomerModal
-        isOpen={isAddCustomerOpen}
-        onClose={() => setIsAddCustomerOpen(false)}
-        onCreated={(customerId) => {
-          setSelectedCustomer(customerId)
-          setIsAddCustomerOpen(false)
-        }}
-      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal

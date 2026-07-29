@@ -165,7 +165,7 @@ export const CustomersPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="add-customer-btn" leftIcon={<UserPlus size={16} />} onClick={openCreate}>
-              Add Customer
+              {t('customers.addCustomer')}
             </Button>
           }
         />
@@ -232,7 +232,7 @@ export const CustomersPage = () => {
           <div data-tour="customer-search-input" className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <Input
-              placeholder="Search customers, invoices..."
+              placeholder={t('customers.searchPlaceholder')}
               value={search}
               onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
               className="pl-10"
@@ -254,7 +254,7 @@ export const CustomersPage = () => {
                     <th className="px-6 py-4 text-right">Outstanding Credit</th>
                     <th className="px-6 py-4">Contact</th>
                     <th className="px-6 py-4">Last Visit</th>
-                    <th className="px-6 py-4 text-right">Total Spent</th>
+                    <th className="px-6 py-4 text-right">{t('customers.totalSpent')}</th>
                     <th className="px-6 py-4"></th>
                   </tr>
                 </thead>
@@ -436,7 +436,7 @@ export const CustomersPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Customer' : 'Add Customer'}
+        title={editId ? 'Edit Customer' : t('customers.addCustomer')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">

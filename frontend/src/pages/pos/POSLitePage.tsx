@@ -8,7 +8,7 @@ import { useProducts } from '@/hooks/useProducts'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
-import { QuickAddCustomerModal } from '@/components/common/QuickAddCustomerModal'
+import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -20,6 +20,7 @@ import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 import type { Sale } from '@/types/sale.types'
 
@@ -34,6 +35,7 @@ interface CartItem {
 }
 
 export const POSLitePage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('pos-lite')
   const navigate = useNavigate()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
@@ -48,7 +50,6 @@ export const POSLitePage = () => {
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
   const [items, setItems] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
-  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
@@ -421,7 +422,7 @@ export const POSLitePage = () => {
               }`}
             >
               {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
-              {isScanMode ? 'Scanning...' : 'Scan Barcode'}
+              {isScanMode ? 'Scanning...' : t('pos.scanBarcode')}
             </button>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -575,7 +576,7 @@ export const POSLitePage = () => {
         <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Checkout</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('pos.checkout')}</h2>
               <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
             </div>
             {items.length > 0 && (
@@ -583,7 +584,7 @@ export const POSLitePage = () => {
                 type="button"
                 onClick={() => setIsPaymentOpen(true)}
                 disabled={isCreating}
-                title="Complete & Print"
+                title={t('pos.completeAndPrint')}
                 className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
@@ -592,33 +593,8 @@ export const POSLitePage = () => {
             )}
           </div>
 
-          {/* Customer Selector */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsAddCustomerOpen(true)}
-              title="Add new customer"
-              aria-label="Add new customer"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-            >
-              <UserPlus size={18} />
-            </button>
-            <select
-              value={selectedCustomer}
-              onChange={e => setSelectedCustomer(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
-            >
-              <option value="">— Walk-in Customer —</option>
-              {customers?.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </div>
-          </div>
+          {/* Customer Selector — searchable by name/phone */}
+          <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="default" />
         </div>
 
         {/* Cart Items List */}
@@ -626,7 +602,7 @@ export const POSLitePage = () => {
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
               <ShoppingCart size={48} className="mb-3 opacity-30" />
-              <p className="text-sm font-medium">Cart is empty</p>
+              <p className="text-sm font-medium">{t('pos.cartEmpty')}</p>
               <p className="text-xs text-gray-400 mt-1">Add items on the left to start billing</p>
             </div>
           ) : (
@@ -679,7 +655,7 @@ export const POSLitePage = () => {
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                placeholder="Discount"
+                placeholder={t('pos.discount')}
                 value={orderDiscount || ''}
                 onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
                 className="flex-1 h-9 text-xs"
@@ -714,7 +690,7 @@ export const POSLitePage = () => {
               className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
             >
               <Printer size={18} className="mr-2" />
-              Complete & Print
+              {t('pos.completeAndPrint')}
             </Button>
           </div>
         </div>
@@ -734,14 +710,14 @@ export const POSLitePage = () => {
             className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
           >
             <Printer size={18} className="mr-2" />
-            Complete & Print
+            {t('pos.completeAndPrint')}
           </Button>
         }
       >
         <div className="space-y-6">
           {/* Total Display */}
           <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Total Amount</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.totalAmount')}</p>
             <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
           </div>
 
@@ -854,15 +830,6 @@ export const POSLitePage = () => {
           </Button>
         </div>
       </Modal>
-
-      <QuickAddCustomerModal
-        isOpen={isAddCustomerOpen}
-        onClose={() => setIsAddCustomerOpen(false)}
-        onCreated={(customerId) => {
-          setSelectedCustomer(customerId)
-          setIsAddCustomerOpen(false)
-        }}
-      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal

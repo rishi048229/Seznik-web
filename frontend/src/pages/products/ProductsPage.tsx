@@ -421,7 +421,7 @@ export const ProductsPage = () => {
                 Manual Stock Update
               </Button>
               <Button data-tour="add-product-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
-                Add Product
+                {t('products.addProduct')}
               </Button>
             </div>
           }
@@ -479,9 +479,9 @@ export const ProductsPage = () => {
               className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
               <option value="">All Statuses</option>
-              <option value="in-stock">In Stock</option>
-              <option value="low-stock">Low Stock</option>
-              <option value="out-of-stock">Out of Stock</option>
+              <option value="in-stock">{t('pos.inStock')}</option>
+              <option value="low-stock">{t('pos.lowStock')}</option>
+              <option value="out-of-stock">{t('pos.outOfStock')}</option>
             </select>
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -494,7 +494,7 @@ export const ProductsPage = () => {
         <div data-tour="search-input" className="relative w-full sm:w-72 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <Input
-            placeholder="Search name, SKU, or barcode..."
+            placeholder={t('products.searchPlaceholder')}
             value={search}
             onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
             className="pl-9 w-full text-xs h-9"
@@ -560,8 +560,8 @@ export const ProductsPage = () => {
                         </th>
                         <th className="px-6 py-4">Product Detail</th>
                         <th className="px-6 py-4">SKU / Barcode</th>
-                        <th className="px-6 py-4">Category</th>
-                        <th className="px-6 py-4">Stock Level</th>
+                        <th className="px-6 py-4">{t('common.category')}</th>
+                        <th className="px-6 py-4">{t('products.stockLevel')}</th>
                         <th className="px-6 py-4">Price</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
@@ -737,7 +737,7 @@ export const ProductsPage = () => {
           {/* Total Inventory Value */}
           <Card data-tour="inventory-value-widget" className="p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative">
             <div className="relative z-10">
-              <p className="text-xs font-bold uppercase tracking-widest opacity-80">Total Inventory Value</p>
+              <p className="text-xs font-bold uppercase tracking-widest opacity-80">{t('products.totalInventoryValue')}</p>
               <p className="text-3xl font-black mt-1">{formatINR(totalInventoryValue)}</p>
               <div className="mt-4 flex items-center gap-2 text-[10px] bg-white/20 w-fit px-2 py-1 rounded-full font-bold">
                 <TrendingUp size={12} />
@@ -753,7 +753,7 @@ export const ProductsPage = () => {
           <Card className="p-6">
             <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
               <AlertTriangle size={18} className="text-red-500" />
-              Stock Alerts
+              {t('products.stockAlerts')}
             </h4>
             <div className="space-y-3">
               {lowStockProducts.slice(0, 3).map(product => (
@@ -818,7 +818,7 @@ export const ProductsPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Product' : 'Add Product'}
+        title={editId ? 'Edit Product' : t('products.addProduct')}
         size="lg"
         footer={
           <div className="flex justify-end gap-3">

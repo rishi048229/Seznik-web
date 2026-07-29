@@ -157,7 +157,7 @@ export const SuppliersPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="add-supplier-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
-              Add Supplier
+              {t('suppliers.addSupplier')}
             </Button>
           }
         />
@@ -177,7 +177,7 @@ export const SuppliersPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Supplier' : 'Add Supplier'}
+        title={editId ? 'Edit Supplier' : t('suppliers.addSupplier')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -10,15 +10,21 @@ interface QuickAddCustomerModalProps {
   onClose: () => void
   /** Fired with the new customer's id once created, so the checkout screen can auto-select them. */
   onCreated: (customerId: string) => void
+  /** Pre-fills the name field — e.g. when opened from a search that found no match. */
+  initialName?: string
 }
 
 // Trimmed-down version of the Customers page's "Add Customer" form (name, phone,
 // email — no address) so staff can add a walk-in customer without leaving checkout.
-export const QuickAddCustomerModal = ({ isOpen, onClose, onCreated }: QuickAddCustomerModalProps) => {
+export const QuickAddCustomerModal = ({ isOpen, onClose, onCreated, initialName }: QuickAddCustomerModalProps) => {
   const { mutate: createCustomer, isPending } = useCreateCustomer()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+
+  useEffect(() => {
+    if (isOpen && initialName) setName(initialName)
+  }, [isOpen, initialName])
 
   const reset = () => {
     setName('')
