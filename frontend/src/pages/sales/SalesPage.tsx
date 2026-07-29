@@ -10,15 +10,18 @@ import { Modal } from '@/components/ui/Modal'
 import { useSales, useBulkDeleteSales } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
-import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Share2, Bluetooth } from 'lucide-react'
+import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth } from 'lucide-react'
+import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import type { Sale } from '@/types/sale.types'
 import toast from 'react-hot-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const SalesPage = () => {
+  const { t } = useLanguage()
   const { data: sales, isLoading } = useSales()
   const { mutate: bulkDeleteSales, isPending: isBulkDeleting } = useBulkDeleteSales()
 
@@ -314,7 +317,7 @@ export const SalesPage = () => {
             <Download size={16} />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone('') }} title="Share on WhatsApp">
-            <Share2 size={16} className="text-green-600" />
+            <WhatsAppIcon size={16} className="text-green-600" />
           </Button>
         </div>
       ),
@@ -328,7 +331,7 @@ export const SalesPage = () => {
 
     <div>
       <PageHeader
-        title="Sales History"
+        title={t('page.salesHistory')}
         action={
           <div className="flex items-center gap-2">
             {someSelected && (
@@ -398,7 +401,7 @@ export const SalesPage = () => {
             <Button
               className="flex-1 bg-green-600 hover:bg-green-700 text-white"
               onClick={handleWhatsAppShare}
-              leftIcon={<Share2 size={16} />}
+              leftIcon={<WhatsAppIcon size={16} />}
             >
               Open WhatsApp
             </Button>

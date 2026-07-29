@@ -17,6 +17,7 @@ import { Plus, PlusCircle, Trash2, Truck, Filter } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import toast from 'react-hot-toast'
 import type { Purchase } from '@/types/purchase.types'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 
 
@@ -28,6 +29,7 @@ interface PurchaseItemRow {
 }
 
 export const PurchasesPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('purchases')
   const { data: purchases, isLoading } = usePurchases()
   const { data: products } = useProducts()
@@ -247,7 +249,7 @@ export const PurchasesPage = () => {
     <div>
       <div data-tour="purchases-header">
         <PageHeader
-          title="Purchases"
+          title={t('page.purchases')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="record-purchase-btn" leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>

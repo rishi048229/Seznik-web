@@ -20,6 +20,7 @@ import { formatINR } from '@/utils/currency'
 import { uploadExpenseReceipt } from '@/utils/storage'
 import toast from 'react-hot-toast'
 import type { Expense } from '@/types/expense.types'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 
 const CATEGORY_OPTIONS = [
@@ -40,6 +41,7 @@ const PAYMENT_OPTIONS = [
 ]
 
 export const ExpensesPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('expenses')
   const { user } = useAuth()
   const { data: expenses, isLoading } = useExpenses()
@@ -293,7 +295,7 @@ export const ExpensesPage = () => {
     <div>
       <div data-tour="expenses-header">
         <PageHeader
-          title="Expenses"
+          title={t('page.expenses')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="add-expense-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>

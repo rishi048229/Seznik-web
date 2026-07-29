@@ -221,7 +221,7 @@ export const DashboardPage = () => {
     <div>
       <div data-tour="dashboard-title">
         <PageHeader
-          title="Dashboard & Analytics"
+          title={t('page.dashboard')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>

@@ -35,7 +35,8 @@ model User {
   purchases           Purchase[]
   expenses            Expense[]
   creditTransactions  CreditTransaction[]
-  
+  feedbacks           Feedback[]
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -143,6 +144,9 @@ model Product {
   name              String
   sku               String
   barcode           String?
+  // Which symbology the barcode uses (CODE128 / EAN13 / QR) so label printing
+  // renders it correctly for this specific product.
+  barcodeType       String   @default("CODE128")
   categoryId        String
   category          Category @relation(fields: [categoryId], references: [id])
   supplierId        String?
@@ -236,4 +240,16 @@ model CreditTransaction {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  // What part of the app the feedback is about (e.g. "pos", "products", "general").
+  area      String   @default("general")
+  // 1-5 star rating; optional so pure text feedback is also valid.
+  rating    Int?
+  message   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }

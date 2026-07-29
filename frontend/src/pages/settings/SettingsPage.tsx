@@ -4,7 +4,6 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Card } from '@/components/ui/Card'
-import { Tabs } from '@/components/ui/Tabs'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
@@ -15,7 +14,7 @@ import { LANGUAGES } from '@/i18n/translations'
 import { Spinner } from '@/components/ui/Spinner'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check } from 'lucide-react'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const DEFAULT_SETTINGS = {
@@ -59,14 +58,16 @@ export const SettingsPage = () => {
   }
 
   const settingsTabs = [
-    { key: 'business', label: t('settings.businessProfile') },
-    { key: 'personal', label: t('settings.personalInfo') },
-    { key: 'invoice', label: t('settings.editInvoice') },
-    { key: 'notifications', label: t('settings.notifications') },
-    { key: 'permissions', label: t('settings.permissions') },
-    { key: 'security', label: 'Security & Password' },
-    { key: 'language', label: t('settings.language') },
+    { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: 'Logo, name, address & GSTIN shown on invoices' },
+    { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: 'Owner contact details for internal reference' },
+    { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: 'Header, terms & footer of printed receipts' },
+    { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: 'Low-stock and overdue thresholds' },
+    { key: 'permissions', label: t('settings.permissions'), icon: Users, description: 'Staff accounts, roles & permissions' },
+    { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: 'Reset your account password via email OTP' },
+    { key: 'language', label: t('settings.language'), icon: Globe, description: 'Display language for the whole app' },
   ]
+
+  const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
 
   const isPending = isUpdating || isCreating
   const hasSettings = !!settings
@@ -214,15 +215,73 @@ export const SettingsPage = () => {
             </Card>
           )}
 
-          <div data-tour="settings-tabs">
-            <Tabs tabs={settingsTabs} activeTab={activeTab} onChange={setActiveTab} className="mb-6" />
-          </div>
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
+            {/* Section navigation — vertical rail on desktop, horizontal scroll pills on mobile/tablet */}
+            <div data-tour="settings-tabs" className="w-full lg:w-64 lg:flex-shrink-0 lg:sticky lg:top-6">
+              {/* Mobile / tablet: horizontally scrollable pills */}
+              <div className="lg:hidden flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+                {settingsTabs.map(tab => {
+                  const Icon = tab.icon
+                  const active = activeTab === tab.key
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                        active
+                          ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-md shadow-sky-400/30'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <Icon size={15} />
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
 
-          <Card className="p-6">
+              {/* Desktop: vertical nav card */}
+              <Card className="hidden lg:block p-2">
+                {settingsTabs.map(tab => {
+                  const Icon = tab.icon
+                  const active = activeTab === tab.key
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all mb-0.5 ${
+                        active
+                          ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-md shadow-sky-400/30'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <Icon size={17} className={`mt-0.5 flex-shrink-0 ${active ? 'text-white' : 'text-gray-400'}`} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">{tab.label}</span>
+                        <span className={`block text-[11px] leading-snug mt-0.5 ${active ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}`}>
+                          {tab.description}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </Card>
+            </div>
+
+            {/* Content panel */}
+            <Card className="flex-1 w-full min-w-0 p-4 sm:p-6">
+              {/* Section heading — consistent across every tab */}
+              <div className="flex items-center gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-gray-700">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-sky-400 text-white flex items-center justify-center flex-shrink-0">
+                  <activeTabMeta.icon size={19} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{activeTabMeta.label}</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{activeTabMeta.description}</p>
+                </div>
+              </div>
             {activeTab === 'business' && (
-              <div className="space-y-4 max-w-md">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Business Profile</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">These details appear on your invoices and receipts.</p>
+              <div className="space-y-4 max-w-2xl">
                 <div>
                   <ImageUpload
                     label="Business Logo (shown on invoices)"
@@ -251,12 +310,20 @@ export const SettingsPage = () => {
                     Recommended: PNG or JPG with transparent background, min 300×100 px
                   </p>
                 </div>
-                <Input
-                  label="Company Name"
-                  defaultValue={current.businessName ?? ''}
-                  id="settings-business-name"
-                  placeholder="e.g. Acme Retail Pvt. Ltd."
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Company Name"
+                    defaultValue={current.businessName ?? ''}
+                    id="settings-business-name"
+                    placeholder="e.g. Acme Retail Pvt. Ltd."
+                  />
+                  <Input
+                    label="Business Phone Number"
+                    defaultValue={(current as unknown as Record<string, string>).businessPhone ?? ''}
+                    id="settings-business-phone"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
                 <Input
                   label="Business Address"
                   defaultValue={current.businessAddress ?? ''}
@@ -264,38 +331,34 @@ export const SettingsPage = () => {
                   placeholder="123 Main Street, City, State - 000000"
                 />
                 <Input
-                  label="Business Phone Number"
-                  defaultValue={(current as unknown as Record<string, string>).businessPhone ?? ''}
-                  id="settings-business-phone"
-                  placeholder="+91 98765 43210"
-                />
-                <Input
                   label="GSTIN"
                   defaultValue={(current as unknown as Record<string, string>).businessGSTIN ?? ''}
                   id="settings-business-gstin"
                   placeholder="e.g. 27AAPFU0939F1ZV"
                 />
-                <Button onClick={() => handleTabSave('business')} loading={isPending}>
-                  {hasSettings ? 'Update Business Profile' : 'Save Business Profile'}
-                </Button>
+                <div className="pt-2">
+                  <Button onClick={() => handleTabSave('business')} loading={isPending} className="w-full sm:w-auto">
+                    {hasSettings ? 'Update Business Profile' : 'Save Business Profile'}
+                  </Button>
+                </div>
               </div>
             )}
             {activeTab === 'personal' && (
-              <div className="space-y-4 max-w-md">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Personal Info</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Owner / account holder details for internal reference.</p>
-                <Input
-                  label="Owner Name"
-                  defaultValue={(current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ?? ''}
-                  id="settings-owner-name"
-                  placeholder="e.g. Rajesh Kumar"
-                />
-                <Input
-                  label="Phone Number"
-                  defaultValue={(current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ?? ''}
-                  id="settings-owner-phone"
-                  placeholder="+91 98765 43210"
-                />
+              <div className="space-y-4 max-w-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Owner Name"
+                    defaultValue={(current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ?? ''}
+                    id="settings-owner-name"
+                    placeholder="e.g. Rajesh Kumar"
+                  />
+                  <Input
+                    label="Phone Number"
+                    defaultValue={(current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ?? ''}
+                    id="settings-owner-phone"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
                 <Input
                   label="Address"
                   defaultValue={(current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ?? ''}
@@ -303,35 +366,35 @@ export const SettingsPage = () => {
                   placeholder="Residential address"
                 />
 
-                <Button onClick={() => handleTabSave('personal')} loading={isPending}>
-                  {hasSettings ? 'Update Personal Info' : 'Save Personal Info'}
-                </Button>
+                <div className="pt-2">
+                  <Button onClick={() => handleTabSave('personal')} loading={isPending} className="w-full sm:w-auto">
+                    {hasSettings ? 'Update Personal Info' : 'Save Personal Info'}
+                  </Button>
+                </div>
               </div>
             )}
             {activeTab === 'invoice' && (
-              <div className="space-y-5 max-w-lg">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Invoice / Receipt Configuration</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Customize the header, terms, and footer of your printed invoices.</p>
-
-                <Input
-                  label="Company Name"
-                  defaultValue={current.receiptConfig?.companyName ?? current.businessName ?? ''}
-                  id="settings-receipt-company"
-                  placeholder="Seznik POS"
-                />
+              <div className="space-y-5 max-w-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Company Name"
+                    defaultValue={current.receiptConfig?.companyName ?? current.businessName ?? ''}
+                    id="settings-receipt-company"
+                    placeholder="Seznik POS"
+                  />
+                  <Input
+                    label="Phone Number"
+                    defaultValue={current.receiptConfig?.phone ?? ''}
+                    id="settings-receipt-phone"
+                    placeholder="PHONE : 044 258636222"
+                  />
+                </div>
 
                 <Input
                   label="Address"
                   defaultValue={current.receiptConfig?.address ?? current.businessAddress ?? ''}
                   id="settings-receipt-address"
                   placeholder="123 Main Street, City, State - 000000"
-                />
-
-                <Input
-                  label="Phone Number"
-                  defaultValue={current.receiptConfig?.phone ?? ''}
-                  id="settings-receipt-phone"
-                  placeholder="PHONE : 044 258636222"
                 />
 
                 <Input
@@ -381,28 +444,37 @@ export const SettingsPage = () => {
                   />
                 </div>
 
-                <Button onClick={() => handleTabSave('invoice')} loading={isPending}>
-                  {hasSettings ? 'Update Invoice Settings' : 'Save Invoice Settings'}
-                </Button>
+                <div className="pt-2">
+                  <Button onClick={() => handleTabSave('invoice')} loading={isPending} className="w-full sm:w-auto">
+                    {hasSettings ? 'Update Invoice Settings' : 'Save Invoice Settings'}
+                  </Button>
+                </div>
               </div>
             )}
             {activeTab === 'notifications' && (
-              <div className="space-y-4 max-w-md">
-                <Input
-                  label="Low Stock Threshold"
-                  type="number"
-                  defaultValue={current.notificationConfig?.lowStockThreshold ?? 10}
-                  id="settings-low-stock"
-                />
-                <Input
-                  label="Overdue Days"
-                  type="number"
-                  defaultValue={current.notificationConfig?.overdueDays ?? 30}
-                  id="settings-overdue"
-                />
-                <Button onClick={() => handleTabSave('notifications')} loading={isPending}>
-                  {hasSettings ? 'Update Notifications' : 'Save Notification Settings'}
-                </Button>
+              <div className="space-y-4 max-w-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Low Stock Threshold"
+                    type="number"
+                    defaultValue={current.notificationConfig?.lowStockThreshold ?? 10}
+                    id="settings-low-stock"
+                  />
+                  <Input
+                    label="Overdue Days"
+                    type="number"
+                    defaultValue={current.notificationConfig?.overdueDays ?? 30}
+                    id="settings-overdue"
+                  />
+                </div>
+                <p className="text-xs text-gray-400">
+                  Products at or below the threshold appear in Low Stock alerts; credits older than the overdue days are flagged.
+                </p>
+                <div className="pt-2">
+                  <Button onClick={() => handleTabSave('notifications')} loading={isPending} className="w-full sm:w-auto">
+                    {hasSettings ? 'Update Notifications' : 'Save Notification Settings'}
+                  </Button>
+                </div>
               </div>
             )}
             {activeTab === 'permissions' && (
@@ -438,7 +510,8 @@ export const SettingsPage = () => {
                 </div>
               </div>
             )}
-          </Card>
+            </Card>
+          </div>
         </>
       )}
 

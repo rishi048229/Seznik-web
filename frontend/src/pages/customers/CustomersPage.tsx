@@ -18,10 +18,12 @@ import { formatINR } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
 import type { Customer } from '@/types/customer.types'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 const PAGE_SIZE = 10
 
 export const CustomersPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('customers')
   const navigate = useNavigate()
   const { data: customers, isLoading } = useCustomers()
@@ -159,7 +161,7 @@ export const CustomersPage = () => {
     <div className="p-6">
       <div data-tour="customers-header">
         <PageHeader
-          title="Customer Directory"
+          title={t('page.customers')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="add-customer-btn" leftIcon={<UserPlus size={16} />} onClick={openCreate}>

@@ -20,7 +20,9 @@ import {
   Tag,
   MoveLeft,
   ChevronsLeft,
+  MessageSquareHeart,
 } from 'lucide-react'
+import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
 import { useLanguage } from '@/contexts/LanguageContext'
 import type { TranslationKey } from '@/i18n/translations'
@@ -69,6 +71,8 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   // Desktop-only collapse to an icon rail; the mobile drawer always shows labels.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true')
+
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
 
   const toggleCollapsed = () => {
     setCollapsed(current => {
@@ -211,6 +215,25 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             })}
           </nav>
 
+          {/* Feedback — "Help us be better" */}
+          <div className={clsx('pb-2', collapsed ? 'px-3 lg:px-2' : 'px-3')}>
+            <button
+              type="button"
+              onClick={() => { setIsFeedbackOpen(true); onClose() }}
+              title={collapsed ? 'Help us be better' : undefined}
+              className={clsx(
+                'w-full flex items-center gap-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100/80 dark:hover:bg-blue-900/40 transition-colors active:scale-[0.98]',
+                collapsed ? 'p-3 lg:p-2 lg:justify-center' : 'px-3 py-2.5'
+              )}
+            >
+              <MessageSquareHeart size={18} className="flex-shrink-0" />
+              <span className={clsx('text-left min-w-0', collapsed && 'lg:hidden')}>
+                <span className="block text-xs font-bold truncate">Help us be better</span>
+                <span className="block text-[10px] text-blue-500/80 dark:text-blue-400/70 truncate">Share feedback & ideas</span>
+              </span>
+            </button>
+          </div>
+
           {/* User Card */}
           <div className={clsx('pb-4', collapsed ? 'px-3 lg:px-2' : 'px-3')}>
             <div
@@ -238,6 +261,8 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           </div>
         </div>
       </aside>
+
+      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </>
   )
 }

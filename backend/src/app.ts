@@ -15,6 +15,7 @@ import purchaseRoutes from './routes/purchaseRoutes';
 import expenseRoutes from './routes/expenseRoutes';
 import creditRoutes from './routes/creditRoutes';
 import reportRoutes from './routes/reportRoutes';
+import feedbackRoutes from './routes/feedbackRoutes';
 
 dotenv.config();
 
@@ -80,6 +81,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // 6. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {

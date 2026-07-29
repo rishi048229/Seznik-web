@@ -7,15 +7,17 @@ import { TrendingUp, FileText, Receipt } from 'lucide-react'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const ReportsPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('reports')
   const navigate = useNavigate()
 
   return (
     <div>
       <div data-tour="reports-header">
-        <PageHeader title="Reports & Analytics Hub" onWatchTutorial={pageTutorial.openTutorial} />
+        <PageHeader title={t('page.reports')} onWatchTutorial={pageTutorial.openTutorial} />
       </div>
       <ReportTabs />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

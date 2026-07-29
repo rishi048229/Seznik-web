@@ -12,23 +12,27 @@ import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
-import { useCategories } from '@/hooks/useCategories'
-import { useSuppliers } from '@/hooks/useSuppliers'
-import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Lock, Sparkles } from 'lucide-react'
+import { useCategories, useCreateCategory } from '@/hooks/useCategories'
+import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
+import { FieldInfo } from '@/components/ui/FieldInfo'
+import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Lock, Sparkles, Wand2, X } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 
 type UnitType = 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
+type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
 
 interface ProductFormState {
   name: string
   categoryId: string
   supplierId: string
   barcode: string
+  barcodeType: BarcodeType
   costPrice: string
   sellingPrice: string
   taxRate: string
@@ -37,6 +41,39 @@ interface ProductFormState {
   lowStockThreshold: string
   unit: UnitType
   imageURL: string
+}
+
+const BARCODE_TYPE_OPTIONS = [
+  { value: 'CODE128', label: 'Code 128' },
+  { value: 'EAN13', label: 'EAN-13' },
+  { value: 'QR', label: 'QR Code' },
+]
+
+// Standard Indian GST slabs, plus a custom escape hatch for anything unusual.
+const GST_SLAB_OPTIONS = [
+  { value: '0', label: '0% — Exempt' },
+  { value: '3', label: '3% — Gold, precious stones' },
+  { value: '5', label: '5% — Essentials' },
+  { value: '12', label: '12% — Standard' },
+  { value: '18', label: '18% — Standard' },
+  { value: '28', label: '28% — Luxury' },
+  { value: 'custom', label: 'Custom rate…' },
+]
+
+// Generates a barcode value matching the chosen symbology so the label
+// printer can render it without complaints.
+const generateBarcodeValue = (type: BarcodeType): string => {
+  if (type === 'EAN13') {
+    // 12 random digits + EAN-13 check digit
+    let digits = ''
+    for (let i = 0; i < 12; i++) digits += Math.floor(Math.random() * 10)
+    const sum = digits.split('').reduce((acc, d, i) => acc + Number(d) * (i % 2 === 0 ? 1 : 3), 0)
+    const check = (10 - (sum % 10)) % 10
+    return digits + check
+  }
+  // CODE128 / QR accept any string — SZ prefix + timestamp + random suffix keeps it unique & scannable.
+  const rand = Math.floor(1000 + Math.random() * 9000)
+  return `SZ${Date.now().toString().slice(-8)}${rand}`
 }
 
 const UNIT_OPTIONS = [
@@ -54,6 +91,7 @@ const defaultForm: ProductFormState = {
   categoryId: '',
   supplierId: '',
   barcode: '',
+  barcodeType: 'CODE128',
   costPrice: '',
   sellingPrice: '',
   taxRate: '0',
@@ -67,6 +105,7 @@ const defaultForm: ProductFormState = {
 const PAGE_SIZE = 8
 
 export const ProductsPage = () => {
+  const { t } = useLanguage()
   const { data: products, isLoading } = useProducts()
 
   const { data: categories } = useCategories()
@@ -91,6 +130,46 @@ export const ProductsPage = () => {
   const [manualQty, setManualQty] = useState('1')
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
+
+  // Inline "add new" mini-forms inside the product modal, so a missing
+  // category/supplier doesn't force the user to abandon the form.
+  const { mutate: createCategory, isPending: isCreatingCategory } = useCreateCategory()
+  const { mutate: createSupplier, isPending: isCreatingSupplier } = useCreateSupplier()
+  const [showInlineCategory, setShowInlineCategory] = useState(false)
+  const [inlineCategoryName, setInlineCategoryName] = useState('')
+  const [showInlineSupplier, setShowInlineSupplier] = useState(false)
+  const [inlineSupplierName, setInlineSupplierName] = useState('')
+  const [inlineSupplierPhone, setInlineSupplierPhone] = useState('')
+
+  // Custom GST rate entry when none of the standard slabs fit.
+  const [gstIsCustom, setGstIsCustom] = useState(false)
+
+  const handleInlineCreateCategory = () => {
+    if (!inlineCategoryName.trim()) return
+    createCategory({ name: inlineCategoryName.trim() }, {
+      onSuccess: (categoryId) => {
+        toast.success('Category created')
+        setForm(prev => ({ ...prev, categoryId }))
+        setInlineCategoryName('')
+        setShowInlineCategory(false)
+      },
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+    })
+  }
+
+  const handleInlineCreateSupplier = () => {
+    if (!inlineSupplierName.trim() || !inlineSupplierPhone.trim()) return
+    createSupplier({ name: inlineSupplierName.trim(), phone: inlineSupplierPhone.trim() }, {
+      onSuccess: (supplierId) => {
+        toast.success('Supplier created')
+        setForm(prev => ({ ...prev, supplierId }))
+        setInlineSupplierName('')
+        setInlineSupplierPhone('')
+        setShowInlineSupplier(false)
+      },
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create supplier'),
+    })
+  }
 
   // F3 keyboard shortcut to open barcode stock update modal
   useEffect(() => {
@@ -159,6 +238,12 @@ export const ProductsPage = () => {
   const resetForm = () => {
     setForm(defaultForm)
     setEditId(null)
+    setShowInlineCategory(false)
+    setInlineCategoryName('')
+    setShowInlineSupplier(false)
+    setInlineSupplierName('')
+    setInlineSupplierPhone('')
+    setGstIsCustom(false)
   }
 
   const openCreate = () => {
@@ -178,6 +263,7 @@ export const ProductsPage = () => {
       categoryId: row.categoryId,
       supplierId: row.supplierId ?? '',
       barcode: row.barcode ?? '',
+      barcodeType: row.barcodeType ?? 'CODE128',
       costPrice: String(row.costPrice),
       sellingPrice: String(row.sellingPrice),
       taxRate: String(row.taxRate ?? 0),
@@ -196,6 +282,10 @@ export const ProductsPage = () => {
       toast.error('Please fill in product name and category')
       return
     }
+    if (!form.barcode.trim()) {
+      toast.error('Please enter a barcode or use Auto-Generate')
+      return
+    }
 
     const taxRate = parseFloat(form.taxRate) || 0
     const enteredPrice = parseFloat(form.sellingPrice) || 0
@@ -207,7 +297,8 @@ export const ProductsPage = () => {
       name: form.name.trim(),
       categoryId: form.categoryId,
       supplierId: form.supplierId || undefined,
-      barcode: form.barcode.trim() || undefined,
+      barcode: form.barcode.trim(),
+      barcodeType: form.barcodeType,
       costPrice: parseFloat(form.costPrice) || 0,
       sellingPrice: baseSellingPrice,
       taxRate,
@@ -299,7 +390,7 @@ export const ProductsPage = () => {
     <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
       <div data-tour="products-header">
         <PageHeader
-          title="Products"
+          title={t('page.products')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
@@ -745,53 +836,172 @@ export const ProductsPage = () => {
         }
       >
         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-          <Input
-            label="Product Name *"
-            value={form.name}
-            onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g. Basmati Rice 1kg"
-            autoFocus
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Category *"
-              options={categoryOptions}
-              placeholder="Select category"
-              value={form.categoryId}
-              onChange={e => setForm(prev => ({ ...prev, categoryId: e.target.value }))}
-            />
-            <Select
-              label="Supplier"
-              options={[
-                { value: '', label: 'None' },
-                ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
-              ]}
-              placeholder="Select supplier"
-              value={form.supplierId}
-              onChange={e => setForm(prev => ({ ...prev, supplierId: e.target.value }))}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Product Name *
+              <FieldInfo text="The name shown on receipts, the POS product grid, and reports. Use the exact name customers know, e.g. 'Basmati Rice 1kg'." />
+            </label>
+            <Input
+              value={form.name}
+              onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Basmati Rice 1kg"
+              autoFocus
             />
           </div>
 
-          <Input
-            label="Barcode"
-            value={form.barcode}
-            onChange={e => setForm(prev => ({ ...prev, barcode: e.target.value }))}
-            placeholder="Scan or enter barcode"
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Cost Price (₹)"
-              type="number"
-              step="0.01"
-              value={form.costPrice}
-              onChange={e => setForm(prev => ({ ...prev, costPrice: e.target.value }))}
-              placeholder="0.00"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price (₹) *</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Category *
+                  <FieldInfo text="Which group this product belongs to (e.g. Shirts, Groceries). Used to filter products in the POS and to organize reports." />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowInlineCategory(v => !v)}
+                  className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
+                >
+                  {showInlineCategory ? <X size={11} /> : <Plus size={11} />}
+                  {showInlineCategory ? 'Close' : 'New'}
+                </button>
+              </div>
+              <Select
+                options={categoryOptions}
+                placeholder="Select category"
+                value={form.categoryId}
+                onChange={e => setForm(prev => ({ ...prev, categoryId: e.target.value }))}
+              />
+              {showInlineCategory && (
+                <div className="mt-2 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex gap-2">
+                  <Input
+                    value={inlineCategoryName}
+                    onChange={e => setInlineCategoryName(e.target.value)}
+                    placeholder="New category name"
+                    className="h-9 text-sm"
+                    onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateCategory() }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleInlineCreateCategory}
+                    loading={isCreatingCategory}
+                    disabled={!inlineCategoryName.trim()}
+                    className="flex-shrink-0"
+                  >
+                    Add
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Supplier
+                  <FieldInfo text="Who you buy this product from. Optional — but linking a supplier makes recording purchases and restocking faster." />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowInlineSupplier(v => !v)}
+                  className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
+                >
+                  {showInlineSupplier ? <X size={11} /> : <Plus size={11} />}
+                  {showInlineSupplier ? 'Close' : 'New'}
+                </button>
+              </div>
+              <Select
+                options={[
+                  { value: '', label: 'None' },
+                  ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
+                ]}
+                placeholder="Select supplier"
+                value={form.supplierId}
+                onChange={e => setForm(prev => ({ ...prev, supplierId: e.target.value }))}
+              />
+              {showInlineSupplier && (
+                <div className="mt-2 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 space-y-2">
+                  <Input
+                    value={inlineSupplierName}
+                    onChange={e => setInlineSupplierName(e.target.value)}
+                    placeholder="Supplier name"
+                    className="h-9 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={inlineSupplierPhone}
+                      onChange={e => setInlineSupplierPhone(e.target.value)}
+                      placeholder="Phone number"
+                      className="h-9 text-sm"
+                      onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateSupplier() }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleInlineCreateSupplier}
+                      loading={isCreatingSupplier}
+                      disabled={!inlineSupplierName.trim() || !inlineSupplierPhone.trim()}
+                      className="flex-shrink-0"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Barcode *
+              <FieldInfo text="The code scanned at the counter and printed on label stickers. Scan an existing barcode, type one, or click Auto-Generate to create a unique one in the selected format." />
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={form.barcode}
+                onChange={e => setForm(prev => ({ ...prev, barcode: e.target.value }))}
+                placeholder="Scan, type, or auto-generate"
+                className="flex-1"
+              />
+              <div className="flex gap-2">
+                <Select
+                  options={BARCODE_TYPE_OPTIONS}
+                  value={form.barcodeType}
+                  onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
+                  className="w-32"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForm(prev => ({ ...prev, barcode: generateBarcodeValue(prev.barcodeType) }))}
+                  leftIcon={<Wand2 size={14} />}
+                  className="flex-shrink-0 whitespace-nowrap"
+                >
+                  Auto-Generate
+                </Button>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">
+              The barcode type controls how label printers render it — Code 128 suits most retail stickers.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cost Price (₹)
+                <FieldInfo text="What YOU pay to buy one unit from your supplier. Used to compute profit — customers never see this." />
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                value={form.costPrice}
+                onChange={e => setForm(prev => ({ ...prev, costPrice: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Selling Price (₹) *
+                  <FieldInfo text="What the customer pays for one unit. Use the Incl./Excl. toggle to say whether the number you type already includes GST." />
+                </label>
                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
                   <button
                     type="button"
@@ -832,40 +1042,78 @@ export const ProductsPage = () => {
             </div>
           </div>
 
-          <Input
-            label="GST Rate (%)"
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            value={form.taxRate}
-            onChange={e => setForm(prev => ({ ...prev, taxRate: e.target.value }))}
-            placeholder="e.g. 5, 12, 18"
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Current Stock"
-              type="number"
-              value={form.currentStock}
-              onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
-              placeholder="0"
-            />
-            <Input
-              label="Low Stock Threshold"
-              type="number"
-              value={form.lowStockThreshold}
-              onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
-              placeholder="10"
-            />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              GST Rate
+              <FieldInfo text="The GST slab this product falls under. Pick the standard slab (0/3/5/12/18/28%) or choose Custom for a non-standard rate. This drives tax on receipts and the Tax Report." />
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Select
+                options={GST_SLAB_OPTIONS}
+                value={gstIsCustom ? 'custom' : (GST_SLAB_OPTIONS.some(o => o.value === form.taxRate) ? form.taxRate : 'custom')}
+                onChange={e => {
+                  if (e.target.value === 'custom') {
+                    setGstIsCustom(true)
+                  } else {
+                    setGstIsCustom(false)
+                    setForm(prev => ({ ...prev, taxRate: e.target.value }))
+                  }
+                }}
+                className="flex-1"
+              />
+              {(gstIsCustom || !GST_SLAB_OPTIONS.some(o => o.value === form.taxRate)) && (
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={form.taxRate}
+                  onChange={e => setForm(prev => ({ ...prev, taxRate: e.target.value }))}
+                  placeholder="Custom %"
+                  className="sm:w-32"
+                />
+              )}
+            </div>
           </div>
 
-          <Select
-            label="Unit"
-            options={UNIT_OPTIONS}
-            value={form.unit}
-            onChange={e => setForm(prev => ({ ...prev, unit: e.target.value as UnitType }))}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Current Stock
+                <FieldInfo text="How many units you have on hand right now. Sales reduce it automatically; purchases and stock scans increase it." />
+              </label>
+              <Input
+                type="number"
+                value={form.currentStock}
+                onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Low Stock Threshold
+                <FieldInfo text="When stock falls to this number or below, the product appears in Low Stock alerts on the Dashboard and Products page so you know to reorder." />
+              </label>
+              <Input
+                type="number"
+                value={form.lowStockThreshold}
+                onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
+                placeholder="10"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Unit
+              <FieldInfo text="How this product is measured and sold — per piece, by weight (kg/gram), volume (liter), length (meter), dozen, or box." />
+            </label>
+            <Select
+              options={UNIT_OPTIONS}
+              value={form.unit}
+              onChange={e => setForm(prev => ({ ...prev, unit: e.target.value as UnitType }))}
+            />
+          </div>
         </div>
       </Modal>
 

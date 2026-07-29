@@ -34,17 +34,26 @@ export const CustomerDetailPage = () => {
   const customerSales = sales?.filter(s => s.customerId === id) ?? []
   const customerTransactions = transactions?.filter((t: CreditTransaction) => t.customerId === id) ?? []
 
-  // Calculate unpaid credit sales total
+  // The DB creditBalance is the source of truth: the backend increments it on
+  // every credit sale and decrements it on every recorded payment (both inside
+  // DB transactions). The old sales-derived fallback ignored payments, so a
+  // fully settled customer still showed as owing — only fall back to it when
+  // the customer record is missing a balance entirely, and even then subtract
+  // the payments that have been recorded against this customer.
   const creditSales = customerSales.filter(s => s.paymentMethod === 'credit')
   const unpaidCreditSalesSum = creditSales.reduce((sum, s) => {
     const unpaid = s.grandTotal - (s.amountPaid ?? 0)
     return sum + Math.max(0, unpaid)
   }, 0)
+  const paymentsReceived = customerTransactions
+    .filter((tx: CreditTransaction) => tx.type === 'payment')
+    .reduce((sum: number, tx: CreditTransaction) => sum + tx.amount, 0)
+  const salesDerivedBalance = Math.max(0, unpaidCreditSalesSum - paymentsReceived)
 
-  // Combined credit balance (database record or calculated from credit sales)
-  const customerCreditBalance = customer?.creditBalance || 0
-  const totalCreditBalance = Math.max(customerCreditBalance, unpaidCreditSalesSum)
-  const hasUnpaidCredit = totalCreditBalance > 0
+  const totalCreditBalance = typeof customer?.creditBalance === 'number'
+    ? Math.max(0, customer.creditBalance)
+    : salesDerivedBalance
+  const hasUnpaidCredit = totalCreditBalance > 0.009
 
   const totalSpent = customerSales.reduce((sum, s) => sum + s.grandTotal, 0)
   const avgOrderValue = customerSales.length > 0 ? totalSpent / customerSales.length : 0

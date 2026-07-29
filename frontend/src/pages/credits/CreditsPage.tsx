@@ -13,6 +13,7 @@ import { useSales } from '@/hooks/useSales'
 import { useExpenses } from '@/hooks/useExpenses'
 import { CreditCard, Receipt, Wallet, ChevronDown, ChevronUp, BookOpen, ArrowLeft } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
+import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 
 import type { Customer } from '@/types/customer.types'
@@ -29,6 +30,7 @@ interface DaybookEntry {
 }
 
 export const CreditsPage = () => {
+  const { t } = useLanguage()
   const { data: customers, isLoading: customersLoading } = useCredits()
   const { data: transactions, isLoading: txLoading } = useCreditTransactions()
   const { mutate: recordPayment, isPending } = useRecordPayment()
@@ -166,7 +168,7 @@ export const CreditsPage = () => {
   return (
     <div>
       <PageHeader
-        title={showDaybook ? 'Daybook' : 'Credit Management'}
+        title={showDaybook ? t('page.daybook') : t('page.credits')}
         action={
           <div className="flex gap-2">
             {showDaybook ? (

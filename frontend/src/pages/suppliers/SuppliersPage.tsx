@@ -15,8 +15,10 @@ import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier }
 import toast from 'react-hot-toast'
 
 import type { Supplier } from '@/services/supplierService'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const SuppliersPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('suppliers')
   const { data: suppliers, isLoading } = useSuppliers()
   const { mutate: createSupplier, isPending: isCreating } = useCreateSupplier()
@@ -151,7 +153,7 @@ export const SuppliersPage = () => {
     <div>
       <div data-tour="suppliers-header">
         <PageHeader
-          title="Suppliers"
+          title={t('page.suppliers')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="add-supplier-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>

@@ -21,6 +21,7 @@ import {
   Info, TrendingUp, Package, Tag, Watch, Headphones, FolderTree, CornerDownRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 const CATEGORY_ICONS: React.ReactNode[] = [
   <Tag size={18} />, <Package size={18} />, <Watch size={18} />, <Headphones size={18} />,
@@ -38,6 +39,7 @@ const ICON_COLORS = [
 const PAGE_SIZE = 6
 
 export const CategoriesPage = () => {
+  const { t } = useLanguage()
   const pageTutorial = usePageTutorial('categories')
   const { data: categories = [], isLoading } = useCategories()
   const { data: products } = useProducts()
@@ -192,7 +194,7 @@ export const CategoriesPage = () => {
     <div>
       <div data-tour="categories-header">
         <PageHeader
-          title="Product Categories"
+          title={t('page.categories')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <div className="flex items-center gap-3">
