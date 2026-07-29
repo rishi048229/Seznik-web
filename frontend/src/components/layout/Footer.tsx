@@ -1,29 +1,34 @@
-import { Mail, Phone, MessageCircle, ShieldCheck, Headphones } from 'lucide-react'
+import { Mail, Phone, MessageCircle, ShieldCheck, Headphones, MapPin } from 'lucide-react'
 
 export const Footer = () => {
   const seznikEmail = 'support@seznik.com'
-  const seznikPhone = '+91 9327482009'
-  const seznikWhatsappNumber = '919327482009'
+  const seznikPhone = '+91 8237869618'
+  const seznikAddress = 'Office No 201, Connaught Place, Pune - 411001'
+  const seznikWhatsappUrl = 'https://wa.me/8237869618?text=Hello,%20I%20have%20questions%20regarding%20Seznik%20Billing%20App'
   const currentYear = new Date().getFullYear()
 
   return (
     <footer className="mt-8 pt-6 border-t border-gray-200/80 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4">
         {/* Seznik App Info & Support Tagline */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-2 text-center sm:text-left">
-          <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-gray-100">
+        <div className="flex flex-col items-center md:items-start gap-1 text-center md:text-left">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 font-bold text-gray-900 dark:text-gray-100">
             <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center text-white text-xs">
               S
             </div>
             <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Seznik POS
             </span>
+            <span className="hidden sm:inline text-gray-300 dark:text-gray-700">•</span>
+            <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1 font-normal text-xs">
+              <Headphones className="w-3.5 h-3.5 text-blue-500" />
+              Official Technical & Help Desk Support
+            </span>
           </div>
-          <span className="hidden sm:inline text-gray-300 dark:text-gray-700">•</span>
-          <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
-            <Headphones className="w-3.5 h-3.5 text-blue-500" />
-            Official Technical & Help Desk Support
-          </span>
+          <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500 text-[11px] mt-0.5">
+            <MapPin className="w-3 h-3 text-red-400 shrink-0" />
+            <span>{seznikAddress}</span>
+          </div>
         </div>
 
         {/* Official Seznik Contact Action Buttons */}
@@ -47,7 +52,7 @@ export const Footer = () => {
           </a>
 
           <a
-            href={`https://wa.me/${seznikWhatsappNumber}?text=Hi%20Seznik%20Support,%20I%20need%20assistance`}
+            href={seznikWhatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-all shadow-sm font-semibold"
