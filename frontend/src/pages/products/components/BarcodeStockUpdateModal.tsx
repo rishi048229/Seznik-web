@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { ScanReadyIndicator } from '@/components/ui/ScanReadyIndicator'
+
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useBarcodeProductLookup, useBatchBarcodeStockUpdate } from '@/hooks/useProducts'
 import type { BarcodeStockEntry } from '@/types/barcode.types'
@@ -17,6 +17,16 @@ interface BarcodeStockUpdateModalProps {
 export const BarcodeStockUpdateModal = ({ isOpen, onClose }: BarcodeStockUpdateModalProps) => {
   const [entries, setEntries] = useState<BarcodeStockEntry[]>([])
   const [unknownBarcodes, setUnknownBarcodes] = useState<string[]>([])
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
+    if (isOpen) {
+      setEntries([])
+      setUnknownBarcodes([])
+    }
+  }
+
   const [scanning, setScanning] = useState(false)
 
   const { mutate: lookupProduct, isPending: isLookingUp } = useBarcodeProductLookup()
@@ -120,13 +130,8 @@ export const BarcodeStockUpdateModal = ({ isOpen, onClose }: BarcodeStockUpdateM
     setUnknownBarcodes([])
   }
 
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setEntries([])
-      setUnknownBarcodes([])
-    }
-  }, [isOpen])
+
+
 
   const totalItems = entries.length
   const totalQty = entries.reduce((sum, e) => sum + e.qtyToAdd, 0)

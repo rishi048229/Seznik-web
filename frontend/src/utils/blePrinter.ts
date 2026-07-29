@@ -125,18 +125,18 @@ async function resolveWriteCharacteristic(
 
     try {
       const char = await service.getCharacteristic(profile.characteristic)
-      const props = (char as any).properties
+      const props = (char as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
       if (props?.write || props?.writeWithoutResponse) {
-        return { char, profile }
+        return { char: char as unknown as BluetoothRemoteGATTCharacteristic, profile }
       }
     } catch {
       // fall through to scanning the service's characteristics
     }
 
     try {
-      const chars: any[] = await (service as any).getCharacteristics()
-      const writable = chars.find((c: any) => c.properties?.write) ?? chars.find((c: any) => c.properties?.writeWithoutResponse)
-      if (writable) return { char: writable, profile }
+      const chars = await (service as unknown as { getCharacteristics: () => Promise<Array<{ properties?: { write?: boolean; writeWithoutResponse?: boolean } }>> }).getCharacteristics()
+      const writable = chars.find(c => c.properties?.write) ?? chars.find(c => c.properties?.writeWithoutResponse)
+      if (writable) return { char: writable as unknown as BluetoothRemoteGATTCharacteristic, profile }
     } catch {
       continue
     }
@@ -155,9 +155,10 @@ async function connectToDevice(dev: BluetoothDevice): Promise<void> {
 
   device = dev
   characteristic = char
-  supportsWriteWithResponse = !!((char as any).properties?.write)
+  supportsWriteWithResponse = !!((char as unknown as { properties?: { write?: boolean } })?.properties?.write)
   setState({ status: 'connected', deviceName: dev.name ?? 'Printer', profileName: profile.name })
 }
+
 
 // Must be called directly from a user gesture (button click) — the browser
 // blocks navigator.bluetooth.requestDevice() otherwise.

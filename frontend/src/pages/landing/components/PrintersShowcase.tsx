@@ -1,4 +1,5 @@
-import { type MouseEvent, useRef } from 'react'
+import { type MouseEvent } from 'react'
+
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { Bluetooth, BatteryFull, Zap, Ruler } from 'lucide-react'
 import devPrinter from '@/assets/Dev.png'

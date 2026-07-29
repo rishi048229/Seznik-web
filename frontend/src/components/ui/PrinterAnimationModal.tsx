@@ -22,14 +22,19 @@ export const PrinterAnimationModal = ({
   autoCloseMs = 3500,
 }: PrinterAnimationModalProps) => {
   const [phase, setPhase] = useState<'printing' | 'cutting' | 'done'>('printing')
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
+    if (isOpen) {
+      setPhase('printing')
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
-      setPhase('printing')
       return
     }
-
-    setPhase('printing')
 
     const timer1 = setTimeout(() => {
       setPhase('cutting')
@@ -50,7 +55,9 @@ export const PrinterAnimationModal = ({
     }
   }, [isOpen, autoCloseMs, onClose])
 
+
   if (!isOpen) return null
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md transition-all duration-300">

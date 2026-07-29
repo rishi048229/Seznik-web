@@ -1,16 +1,16 @@
 import { fetchApi } from './api'
-import type { Product, StockHistory } from '@/types/product.types'
+import type { Product } from '@/types/product.types'
 import type { BarcodeStockEntry } from '@/types/barcode.types'
 
-export const getProducts = async (uid: string): Promise<Product[]> => {
+export const getProducts = async (_uid: string): Promise<Product[]> => {
   return await fetchApi('/products')
 }
 
 export const createProduct = async (
-  uid: string,
+  _uid: string,
   data: Omit<Product, 'id' | 'sku' | 'createdAt' | 'updatedAt'>
 ): Promise<string> => {
-  const sku = await generateSKU(uid, data.categoryId)
+  const sku = await generateSKU(_uid, data.categoryId)
   const product = await fetchApi('/products', {
     method: 'POST',
     body: JSON.stringify({ ...data, sku }),
@@ -19,7 +19,7 @@ export const createProduct = async (
 }
 
 export const updateProduct = async (
-  uid: string,
+  _uid: string,
   productId: string,
   data: Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> => {
@@ -29,13 +29,13 @@ export const updateProduct = async (
   })
 }
 
-export const softDeleteProduct = async (uid: string, productId: string): Promise<void> => {
+export const softDeleteProduct = async (_uid: string, productId: string): Promise<void> => {
   await fetchApi(`/products/${productId}`, {
     method: 'DELETE',
   })
 }
 
-export const bulkSoftDeleteProducts = async (uid: string, productIds: string[]): Promise<void> => {
+export const bulkSoftDeleteProducts = async (_uid: string, productIds: string[]): Promise<void> => {
   await fetchApi('/products/bulk-delete', {
     method: 'POST',
     body: JSON.stringify({ productIds }),
@@ -43,7 +43,7 @@ export const bulkSoftDeleteProducts = async (uid: string, productIds: string[]):
 }
 
 export const adjustStock = async (
-  uid: string,
+  _uid: string,
   productId: string,
   qty: number,
   reason: string
@@ -54,7 +54,7 @@ export const adjustStock = async (
   })
 }
 
-export const getProductByBarcode = async (uid: string, barcode: string): Promise<Product | null> => {
+export const getProductByBarcode = async (_uid: string, barcode: string): Promise<Product | null> => {
   try {
     return await fetchApi(`/products/barcode/${barcode}`)
   } catch {
@@ -63,7 +63,7 @@ export const getProductByBarcode = async (uid: string, barcode: string): Promise
 }
 
 export const batchBarcodeStockUpdate = async (
-  uid: string,
+  _uid: string,
   entries: BarcodeStockEntry[]
 ): Promise<void> => {
   await fetchApi('/products/batch-stock-update', {
@@ -72,7 +72,7 @@ export const batchBarcodeStockUpdate = async (
   })
 }
 
-export const getLowStockProducts = async (uid: string, threshold: number): Promise<Product[]> => {
+export const getLowStockProducts = async (_uid: string, threshold: number): Promise<Product[]> => {
   return await fetchApi(`/products/low-stock?threshold=${threshold}`)
 }
 
@@ -81,7 +81,7 @@ export const getLowStockProducts = async (uid: string, threshold: number): Promi
 // The previous firebase logic generated it before adding the document.
 let _skuCounter = 0
 
-const generateSKU = async (uid: string, categoryId: string): Promise<string> => {
+const generateSKU = async (_uid: string, categoryId: string): Promise<string> => {
   // In a real DB we would fetch the count of products in this category.
   // For simplicity, we just use a counter or random here.
   _skuCounter++
@@ -90,3 +90,4 @@ const generateSKU = async (uid: string, categoryId: string): Promise<string> => 
 }
 
 export { generateSKU as formatSKU }
+

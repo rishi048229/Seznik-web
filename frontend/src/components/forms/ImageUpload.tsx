@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
+import { X, Image as ImageIcon } from 'lucide-react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function cn(...inputs: any[]): string {
+function cn(...inputs: unknown[]): string {
   return twMerge(clsx(inputs))
 }
+
 
 interface ImageUploadProps {
   label?: string

@@ -261,9 +261,10 @@ export const PrintersPage = () => {
         const bytes = generateGapCalibrationBytes()
         await printEscPos(bytes)
         toast.success('Sent Gap Auto-Calibration command to printer!')
-      } catch (err) {
+      } catch {
         toast.error('Failed to send gap calibration command')
       }
+
     } else {
       toast.error('Please connect your Bluetooth printer first to calibrate gap')
     }
@@ -358,7 +359,8 @@ export const PrintersPage = () => {
             amountPaid: 1000.00,
             changeReturned: 115.00,
             isQuickBill: false,
-            createdAt: new Date() as any,
+            createdAt: new Date().toISOString(),
+
           }
           const bytes = generateReceiptEscPos({
             sale: testSale,

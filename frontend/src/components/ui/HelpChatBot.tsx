@@ -93,7 +93,12 @@ export const HelpChatBot = () => {
   const [lang, setLang] = useState<ChatLang>('en')
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [showCategories, setShowCategories] = useState(true)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [{
+    id: msgId(),
+    role: 'bot',
+    text: GREETINGS['en'],
+    timestamp: new Date(),
+  }])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -106,17 +111,6 @@ export const HelpChatBot = () => {
     }
   }, [messages, isTyping])
 
-  // Initialize greeting on first open
-  useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      setMessages([{
-        id: msgId(),
-        role: 'bot',
-        text: GREETINGS[lang],
-        timestamp: new Date(),
-      }])
-    }
-  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus input when chat opens
   useEffect(() => {

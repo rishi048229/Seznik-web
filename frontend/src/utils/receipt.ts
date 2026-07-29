@@ -56,8 +56,10 @@ export const generateReceiptHTML = ({
   const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
 
   const saleItems = sale.items ?? []
+  const dateRaw = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
+  const dateObj = typeof dateRaw === 'object' && dateRaw?.toDate ? dateRaw.toDate() : (typeof dateRaw === 'string' || typeof dateRaw === 'number') ? new Date(dateRaw) : new Date()
 
-  const dateObj = (sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()) : new Date(sale.createdAt || Date.now())
+
   const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const dueDateStr = dateStr // same day unless terms differ
 
@@ -67,8 +69,8 @@ export const generateReceiptHTML = ({
         : sale.paymentMethod === 'upi' ? 'UPI'
           : 'Credit'
 
-  const balanceAmount = sale.amountPaid - sale.grandTotal
   const isThermal = width === '50mm' || width === '80mm'
+
   const is80mm = width === '80mm'
 
   const totalTax = sale.totalTax || 0
@@ -522,7 +524,10 @@ export const generateReceiptEscPos = ({
   const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
 
   const saleItems = sale.items ?? []
-  const dateObj = (sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()) : new Date(sale.createdAt || Date.now())
+  const dateRaw2 = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
+  const dateObj = typeof dateRaw2 === 'object' && dateRaw2?.toDate ? dateRaw2.toDate() : (typeof dateRaw2 === 'string' || typeof dateRaw2 === 'number') ? new Date(dateRaw2) : new Date()
+
+
   const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const methodLabel =

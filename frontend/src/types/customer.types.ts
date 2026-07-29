@@ -8,7 +8,7 @@ export interface Customer {
   address?: string
   creditBalance: number
   creditLimit: number
-  createdAt: Date
+  createdAt: Date | string
 }
 
 export interface CreditTransaction {
@@ -18,5 +18,6 @@ export interface CreditTransaction {
   type: 'credit' | 'payment'
   referenceId?: string
   notes?: string
-  createdAt: Date
+  createdAt: Date | string
 }
+

@@ -6,9 +6,8 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
-import { Spinner } from '@/components/ui/Spinner'
 import { Modal } from '@/components/ui/Modal'
-import { useSales, useDeleteSale, useBulkDeleteSales } from '@/hooks/useSales'
+import { useSales, useBulkDeleteSales } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
 import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Share2, Bluetooth } from 'lucide-react'
@@ -16,12 +15,13 @@ import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import type { Sale } from '@/types/sale.types'
 import toast from 'react-hot-toast'
 
 export const SalesPage = () => {
   const { data: sales, isLoading } = useSales()
-  const { mutate: deleteSale } = useDeleteSale()
   const { mutate: bulkDeleteSales, isPending: isBulkDeleting } = useBulkDeleteSales()
+
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all')
@@ -125,7 +125,8 @@ export const SalesPage = () => {
 
   const filtered = sales?.filter(sale => {
     if (dateFilter === 'all') return true
-    const saleDate = (sale.createdAt as any)?.toDate ? (sale.createdAt as any).toDate() : new Date(sale.createdAt || Date.now())
+    const rawDate = sale.createdAt as unknown as { toDate?: () => Date }
+    const saleDate = rawDate?.toDate ? rawDate.toDate() : new Date(sale.createdAt || Date.now())
     const now = new Date()
     if (dateFilter === 'today') {
       return saleDate.toDateString() === now.toDateString()
@@ -135,7 +136,8 @@ export const SalesPage = () => {
       return saleDate >= weekAgo
     }
     if (dateFilter === 'month') {
-      return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear()
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      return saleDate >= monthAgo
     }
     return true
   }) ?? []
@@ -157,19 +159,21 @@ export const SalesPage = () => {
     }
   }
 
-  const shareSale = sales?.find(s => s.id === shareSaleId) ?? null
-
   const handleWhatsAppShare = () => {
+    if (!shareSaleId) return
+    const shareSale = sales?.find(s => s.id === shareSaleId)
     if (!shareSale) return
-    const raw = sharePhone.replace(/\D/g, '')
+
+    const raw = sharePhone.trim().replace(/\D/g, '')
     const phone = raw.startsWith('0') ? '91' + raw.slice(1) : raw.length === 10 ? '91' + raw : raw
     if (phone.length < 10) {
       toast.error('Enter a valid phone number')
       return
     }
 
-    const dateStr = (shareSale.createdAt as any)?.toDate
-      ? new Date((shareSale.createdAt as any).toDate()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    const rawCreated = shareSale.createdAt as unknown as { toDate?: () => Date }
+    const dateStr = rawCreated?.toDate
+      ? rawCreated.toDate().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
       : (shareSale.createdAt ? new Date(shareSale.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
     const customerName = shareSale.customerId
       ? customers?.find(c => c.id === shareSale.customerId)?.name ?? 'Customer'
@@ -216,10 +220,10 @@ export const SalesPage = () => {
     })
   }
 
-  const allSelected = filtered.length > 0 && selectedIds.size === filtered.length
+  const allSelected = (filtered?.length ?? 0) > 0 && selectedIds.size === filtered?.length
   const someSelected = selectedIds.size > 0
 
-  const columns: ColumnDef<any>[] = [
+  const columns: ColumnDef<Sale>[] = [
     {
       key: 'select',
       header: () => (
@@ -260,15 +264,18 @@ export const SalesPage = () => {
     {
       key: 'createdAt',
       header: 'Date',
-      render: (row) => (
-        <span>
-          {row.createdAt
-            ? new Date((row.createdAt as any)?.toDate ? (row.createdAt as any).toDate() : row.createdAt).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric',
-              })
-            : '—'}
-        </span>
-      ),
+      render: (row) => {
+        const raw = row.createdAt as unknown as { toDate?: () => Date }
+        const d = raw?.toDate ? raw.toDate() : new Date(row.createdAt)
+
+        return (
+          <span>
+            {row.createdAt
+              ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : '—'}
+          </span>
+        )
+      },
       sortable: true,
     },
     {
@@ -314,7 +321,11 @@ export const SalesPage = () => {
     },
   ]
 
+  const shareSale = sales?.find(s => s.id === shareSaleId)
+
   return (
+
+
     <div>
       <PageHeader
         title="Sales History"

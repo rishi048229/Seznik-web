@@ -1,8 +1,10 @@
 import { fetchApi } from './api'
-import type { CreditTransaction } from '@/types/customer.types'
+import type { CreditTransaction, Customer } from '@/types/customer.types'
+
+export type CustomerCreditSummary = Customer & { totalCredit: number }
 
 export const getCreditTransactions = async (
-  uid: string,
+  _uid: string,
   customerId?: string
 ): Promise<CreditTransaction[]> => {
   const query = customerId ? `?customerId=${customerId}` : ''
@@ -10,7 +12,7 @@ export const getCreditTransactions = async (
 }
 
 export const createCreditTransaction = async (
-  uid: string,
+  _uid: string,
   data: Omit<CreditTransaction, 'id' | 'createdAt'>
 ): Promise<string> => {
   const transaction = await fetchApi('/credits', {
@@ -20,12 +22,13 @@ export const createCreditTransaction = async (
   return transaction.id
 }
 
-export const deleteCreditTransaction = async (uid: string, transactionId: string): Promise<void> => {
+export const deleteCreditTransaction = async (_uid: string, transactionId: string): Promise<void> => {
   await fetchApi(`/credits/${transactionId}`, {
     method: 'DELETE',
   })
 }
 
-export const getCustomersWithCredit = async (uid: string): Promise<any[]> => {
+export const getCustomersWithCredit = async (_uid: string): Promise<CustomerCreditSummary[]> => {
   return await fetchApi('/credits/customers')
 }
+

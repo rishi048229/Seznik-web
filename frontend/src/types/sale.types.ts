@@ -13,7 +13,8 @@ export interface Sale {
   amountPaid: number
   changeReturned: number
   isQuickBill: boolean
-  createdAt: Date
+  createdAt: Date | string
+
 }
 
 export interface SaleItem {

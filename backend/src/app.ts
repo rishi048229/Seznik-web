@@ -111,4 +111,17 @@ app.get(['/health', '/api/health'], async (req, res) => {
   }
 });
 
+// 7. 404 Route Handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// 8. Global Central Error Handler Middleware
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Server Error:', err);
+  const message = err instanceof Error ? err.message : 'Internal Server Error';
+  res.status(500).json({ error: message });
+});
+
 export default app;
+

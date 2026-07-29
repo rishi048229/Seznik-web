@@ -43,7 +43,8 @@ export const AccessSelectionPage = () => {
     setIsSubmitting(true)
 
     try {
-      await setUserRole(selectedRole, name.trim() || user.displayName || user.email, password)
+      await setUserRole(selectedRole, name.trim() || user.displayName || user.email || '', password)
+
       toast.success(`Logged in as ${selectedRole}`)
       navigate(ROUTES.DASHBOARD)
     } catch (error) {

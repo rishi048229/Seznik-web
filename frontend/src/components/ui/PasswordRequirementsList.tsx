@@ -1,4 +1,5 @@
-import { Check, X } from 'lucide-react'
+import { Check } from 'lucide-react'
+
 import { PASSWORD_REQUIREMENTS } from '@/utils/password'
 
 interface Props {

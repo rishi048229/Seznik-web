@@ -9,7 +9,8 @@ export const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
   { id: 'uppercase', label: 'One uppercase letter (A-Z)', test: p => /[A-Z]/.test(p) },
   { id: 'lowercase', label: 'One lowercase letter (a-z)', test: p => /[a-z]/.test(p) },
   { id: 'number', label: 'One number (0-9)', test: p => /[0-9]/.test(p) },
-  { id: 'special', label: 'One special character (!@#$%^&*)', test: p => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
+  { id: 'special', label: 'One special character (!@#$%^&*)', test: p => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/]/.test(p) },
+
 ]
 
 export function validatePassword(password: string): { isValid: boolean; failedRequirements: string[] } {

@@ -1,12 +1,12 @@
 import { fetchApi } from './api'
 import type { Expense } from '@/types/expense.types'
 
-export const getExpenses = async (uid: string): Promise<Expense[]> => {
+export const getExpenses = async (_uid: string): Promise<Expense[]> => {
   return await fetchApi('/expenses')
 }
 
 export const createExpense = async (
-  uid: string,
+  _uid: string,
   data: Omit<Expense, 'id' | 'createdAt'>
 ): Promise<string> => {
   const expense = await fetchApi('/expenses', {
@@ -17,7 +17,7 @@ export const createExpense = async (
 }
 
 export const updateExpense = async (
-  uid: string,
+  _uid: string,
   expenseId: string,
   data: Partial<Omit<Expense, 'id' | 'createdAt'>>
 ): Promise<void> => {
@@ -27,8 +27,9 @@ export const updateExpense = async (
   })
 }
 
-export const deleteExpense = async (uid: string, expenseId: string): Promise<void> => {
+export const deleteExpense = async (_uid: string, expenseId: string): Promise<void> => {
   await fetchApi(`/expenses/${expenseId}`, {
     method: 'DELETE',
   })
 }
+

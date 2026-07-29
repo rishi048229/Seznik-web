@@ -1,11 +1,11 @@
 import { fetchApi } from './api'
 import type { Purchase } from '@/types/purchase.types'
 
-export const getPurchases = async (uid: string): Promise<Purchase[]> => {
+export const getPurchases = async (_uid: string): Promise<Purchase[]> => {
   return await fetchApi('/purchases')
 }
 
-export const getPurchaseById = async (uid: string, purchaseId: string): Promise<Purchase | null> => {
+export const getPurchaseById = async (_uid: string, purchaseId: string): Promise<Purchase | null> => {
   try {
     return await fetchApi(`/purchases/${purchaseId}`)
   } catch {
@@ -14,7 +14,7 @@ export const getPurchaseById = async (uid: string, purchaseId: string): Promise<
 }
 
 export const createPurchase = async (
-  uid: string,
+  _uid: string,
   purchaseData: Omit<Purchase, 'id' | 'invoiceNumber' | 'createdAt'>
 ): Promise<{ id: string; invoiceNumber: string }> => {
   const purchase = await fetchApi('/purchases', {
@@ -24,27 +24,28 @@ export const createPurchase = async (
   return { id: purchase.id, invoiceNumber: purchase.invoiceNumber }
 }
 
-export const deletePurchase = async (uid: string, purchaseId: string): Promise<void> => {
+export const deletePurchase = async (_uid: string, purchaseId: string): Promise<void> => {
   await fetchApi(`/purchases/${purchaseId}`, {
     method: 'DELETE',
   })
 }
 
-export const bulkDeletePurchases = async (uid: string, purchaseIds: string[]): Promise<void> => {
+export const bulkDeletePurchases = async (_uid: string, purchaseIds: string[]): Promise<void> => {
   await fetchApi('/purchases/bulk-delete', {
     method: 'POST',
     body: JSON.stringify({ purchaseIds }),
   })
 }
 
-export const getPurchasesBySupplier = async (uid: string, supplierId: string): Promise<Purchase[]> => {
-  const purchases = await getPurchases(uid)
+export const getPurchasesBySupplier = async (_uid: string, supplierId: string): Promise<Purchase[]> => {
+  const purchases = await getPurchases(_uid)
   return purchases.filter(p => p.supplierId === supplierId)
 }
 
-export const updatePurchase = async (uid: string, purchaseId: string, data: Partial<Purchase>): Promise<void> => {
+export const updatePurchase = async (_uid: string, purchaseId: string, data: Partial<Purchase>): Promise<void> => {
   await fetchApi(`/purchases/${purchaseId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
 }
+

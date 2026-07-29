@@ -39,10 +39,11 @@ export const useCreateSale = () => {
       ])
     },
     onError: (error) => {
-      console.error('createSale error:', error)
       const msg = error instanceof Error ? error.message : 'Unknown error'
+      console.error('createSale error:', msg)
       throw error // Re-throw so the caller can handle it
     },
+
   })
 }
 

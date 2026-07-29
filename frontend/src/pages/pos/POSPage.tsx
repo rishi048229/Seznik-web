@@ -176,12 +176,6 @@ export const POSPage = () => {
 
   const taxAmount = totals.tax
   const finalTotal = totals.subtotal + taxAmount - orderDiscountAmount
-  const uniqueTaxRates = Array.from(new Set(items.map(item => item.taxRate || 0).filter(rate => rate > 0)))
-  const taxLabel = uniqueTaxRates.length === 0
-    ? 'GST'
-    : uniqueTaxRates.length === 1
-      ? `GST (${uniqueTaxRates[0]}%)`
-      : 'GST (Item-wise)'
 
   const handleProductClick = (product: Product) => {
     const reserved = cartReserved[product.id] || 0
@@ -299,7 +293,8 @@ export const POSPage = () => {
       amountPaid: lastSaleData.amountPaidNum,
       changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
       isQuickBill: false,
-      createdAt: new Date() as any,
+      createdAt: new Date().toISOString(),
+
     }
   }
 
@@ -680,7 +675,8 @@ export const POSPage = () => {
                     </div>
                     <button
                       disabled={isOutOfStock}
-                      onClick={(e) => { e.stopPropagation(); !isOutOfStock && handleProductClick(product) }}
+                      onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) handleProductClick(product) }}
+
                       className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                     >
                       <Plus size={16} />

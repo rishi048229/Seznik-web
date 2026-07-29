@@ -1,4 +1,5 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
+
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useScroll } from 'framer-motion'
@@ -10,13 +11,23 @@ const ParticleField = () => {
 
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3)
+    let seed = 42
     for (let i = 0; i < count; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 22
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 12
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 10 - 4
+      // Deterministic PRNG to ensure hook purity
+      seed = (seed * 1664525 + 1013904223) % 4294967296
+      const rnd1 = seed / 4294967296
+      seed = (seed * 1664525 + 1013904223) % 4294967296
+      const rnd2 = seed / 4294967296
+      seed = (seed * 1664525 + 1013904223) % 4294967296
+      const rnd3 = seed / 4294967296
+
+      arr[i * 3] = (rnd1 - 0.5) * 22
+      arr[i * 3 + 1] = (rnd2 - 0.5) * 12
+      arr[i * 3 + 2] = (rnd3 - 0.5) * 10 - 4
     }
     return arr
   }, [])
+
 
   useFrame((state) => {
     if (!pointsRef.current) return
@@ -94,9 +105,12 @@ export const HeroScene3D = ({ className }: HeroScene3DProps) => {
   const scrollRef = useRef(0)
   const { scrollYProgress } = useScroll()
 
-  scrollYProgress.on('change', (v) => {
-    scrollRef.current = v
-  })
+  useEffect(() => {
+    return scrollYProgress.on('change', (v) => {
+      scrollRef.current = v
+    })
+  }, [scrollYProgress])
+
 
   return (
     <div className={className} aria-hidden="true">

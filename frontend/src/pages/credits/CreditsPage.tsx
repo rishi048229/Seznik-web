@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -14,13 +13,10 @@ import { useSales } from '@/hooks/useSales'
 import { useExpenses } from '@/hooks/useExpenses'
 import { CreditCard, Receipt, Wallet, ChevronDown, ChevronUp, BookOpen, ArrowLeft } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
-import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
 
 import type { Customer } from '@/types/customer.types'
 import type { CreditTransaction } from '@/types/customer.types'
-import type { Sale } from '@/types/sale.types'
-import type { Expense } from '@/types/expense.types'
 
 interface DaybookEntry {
   id: string
@@ -33,7 +29,6 @@ interface DaybookEntry {
 }
 
 export const CreditsPage = () => {
-  const navigate = useNavigate()
   const { data: customers, isLoading: customersLoading } = useCredits()
   const { data: transactions, isLoading: txLoading } = useCreditTransactions()
   const { mutate: recordPayment, isPending } = useRecordPayment()
@@ -57,6 +52,17 @@ export const CreditsPage = () => {
     const selected = new Date(daybookDate)
     selected.setHours(0, 0, 0, 0)
     const endVal = selected.getTime() + 86400000
+    const fallbackTs = selected.getTime()
+
+    const parseTs = (val: unknown): number => {
+      const raw = val as { toDate?: () => Date } | string | number | undefined
+      if (typeof raw === 'object' && raw?.toDate) return raw.toDate().getTime()
+      if (typeof raw === 'string' || typeof raw === 'number') return new Date(raw).getTime()
+
+
+      return fallbackTs
+    }
+
 
     const allTx = transactions ?? []
     const allSales = sales ?? []
@@ -64,7 +70,7 @@ export const CreditsPage = () => {
     const allCustomers = customers as Customer[] ?? []
 
     allTx.forEach((tx) => {
-      const txDate = (tx.createdAt as any)?.toDate ? (tx.createdAt as any).toDate().getTime() : new Date(tx.createdAt || Date.now()).getTime()
+      const txDate = parseTs(tx.createdAt)
       if (txDate >= selected.getTime() && txDate < endVal) {
         const customer = allCustomers.find(c => c.id === tx.customerId)
         entries.push({
@@ -82,7 +88,7 @@ export const CreditsPage = () => {
     })
 
     allSales.forEach((sale) => {
-      const saleDate = (sale.createdAt as any)?.toDate ? (sale.createdAt as any).toDate().getTime() : new Date(sale.createdAt || Date.now()).getTime()
+      const saleDate = parseTs(sale.createdAt)
       if (saleDate >= selected.getTime() && saleDate < endVal && sale.paymentMethod === 'credit') {
         const customer = allCustomers.find(c => c.id === sale.customerId)
         entries.push({
@@ -98,7 +104,7 @@ export const CreditsPage = () => {
     })
 
     allExpenses.forEach((exp) => {
-      const expDate = (exp.expenseDate as any)?.toDate ? (exp.expenseDate as any).toDate().getTime() : new Date(exp.expenseDate || Date.now()).getTime()
+      const expDate = parseTs(exp.expenseDate)
       if (expDate >= selected.getTime() && expDate < endVal) {
         entries.push({
           id: exp.id,
@@ -112,7 +118,7 @@ export const CreditsPage = () => {
 
     entries.sort((a, b) => b.entryDate - a.entryDate)
     return entries
-  }, [transactions, sales, expenses, customers, daybookDate])
+  }, [daybookDate, transactions, sales, expenses, customers])
 
   const daybookTotalIn = daybookEntries
     .filter(e => e.entryType === 'sale' || e.entryType === 'credit-payment')
@@ -156,9 +162,6 @@ export const CreditsPage = () => {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
-  const formatEntryDate = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
 
   return (
     <div>

@@ -81,7 +81,22 @@
       "Bash(curl -s -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"email\":\"sanskar@ownairstore.com\"}' -w \"\\\\nstatus:%{http_code}\\\\n\")",
       "Bash(curl -s -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"email\":\"admin@seznik.com\"}' -w \"\\\\nstatus:%{http_code}\\\\n\")",
       "Bash(curl -s -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"email\":\"Admin@Seznik.com\"}' -w \"\\\\nstatus:%{http_code}\\\\n\")",
-      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}\\\\n\" http://localhost:5173)"
+      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(pwd -W)",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=\"Seznik-POS-Project-Documentation.pdf\" --print-to-pdf-no-header \"$\\(pwd -W 2>/dev/null || pwd\\)/PROJECT_DOCUMENTATION.html\")",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --print-to-pdf-no-header --print-to-pdf=\"C:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\docs\\\\Seznik-POS-Project-Documentation.pdf\" \"C:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\docs\\\\PROJECT_DOCUMENTATION.html\")",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --window-size=900,1272 --screenshot=\"cover-preview.png\" \"C:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\docs\\\\PROJECT_DOCUMENTATION.html\")",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --window-size=900,1272 --screenshot=\"C:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\docs\\\\cover-preview.png\" \"C:\\\\Users\\\\rishi\\\\OneDrive\\\\Desktop\\\\inventorymanager\\\\docs\\\\PROJECT_DOCUMENTATION.html\")",
+      "Bash(curl -s -o /dev/null -w \"backend: %{http_code}\\\\n\" http://localhost:5000/health)",
+      "Bash(mkdir -p \"/c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-OneDrive-Desktop-inventorymanager/9b7111b6-965b-45af-8e3c-ea2772b24780/scratchpad/xlsxgen\")",
+      "Read(//c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-OneDrive-Desktop-inventorymanager/9b7111b6-965b-45af-8e3c-ea2772b24780/scratchpad/**)",
+      "Bash(npm init *)",
+      "Read(//c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-OneDrive-Desktop-inventorymanager/9b7111b6-965b-45af-8e3c-ea2772b24780/scratchpad/xlsxgen/**)",
+      "Bash(node generate.js)",
+      "Bash(where soffice.exe)",
+      "Bash(where excel.exe)",
+      "Bash(ls \"/c/Program Files/LibreOffice/program/soffice.exe\" 2>/dev/null && echo \"found libreoffice\" || echo \"not found\")",
+      "Read(//c/Program Files/LibreOffice/program/**)"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

@@ -137,8 +137,9 @@ const ProgressRow = ({ left, right, sub, percent, badge }: { left: string; right
 
 export const DashboardPage = () => {
   const pageTutorial = usePageTutorial('dashboard')
-  const { data: stats, isLoading } = useDashboardStats()
+  const { isLoading } = useDashboardStats()
   const { data: products } = useProducts()
+
   const { data: sales } = useSales()
   const navigate = useNavigate()
   const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly')
@@ -711,8 +712,9 @@ export const DashboardPage = () => {
                       </td>
                       <td className="py-3 pr-4">
                         <p className="text-sm text-gray-600 dark:text-gray-300">
-                          {(sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (sale.createdAt ? new Date(sale.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')}
+                          {(sale.createdAt as unknown as { toDate?: () => Date })?.toDate ? new Date((sale.createdAt as unknown as { toDate?: () => Date }).toDate!()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (sale.createdAt ? new Date(sale.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')}
                         </p>
+
                       </td>
                       <td className="py-3 pr-4">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{formatINR(sale.grandTotal)}</p>

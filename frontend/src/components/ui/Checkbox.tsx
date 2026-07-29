@@ -1,11 +1,11 @@
-import { type ReactNode, forwardRef, type InputHTMLAttributes } from 'react'
+import { forwardRef, type InputHTMLAttributes } from 'react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function cn(...inputs: any[]): string {
+function cn(...inputs: unknown[]): string {
   return twMerge(clsx(inputs))
 }
+
 
 interface CheckboxProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string

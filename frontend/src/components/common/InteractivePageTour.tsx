@@ -29,27 +29,27 @@ export const InteractivePageTour = ({
   const [arrowPosition, setArrowPosition] = useState<'top' | 'bottom'>('top')
   const popoverRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       setCurrentStep(0)
     }
-  }, [isOpen])
+  }
 
-  // Update target element bounds and scroll target into view when step changes
   useEffect(() => {
     if (!isOpen || !steps || steps.length === 0) {
-      setTargetRect(null)
-      return
-    }
-
-    const step = steps[currentStep]
-    if (!step?.targetSelector) {
-      setTargetRect(null)
       return
     }
 
     const updateRect = () => {
-      const el = document.querySelector(step.targetSelector!)
+      const step = steps[currentStep]
+      if (!step?.targetSelector) {
+        setTargetRect(null)
+        return
+      }
+
+      const el = document.querySelector(step.targetSelector)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
         const rect = el.getBoundingClientRect()
@@ -74,6 +74,7 @@ export const InteractivePageTour = ({
       window.removeEventListener('scroll', updateRect)
     }
   }, [isOpen, currentStep, steps])
+
 
   if (!isOpen || !steps || steps.length === 0) return null
 

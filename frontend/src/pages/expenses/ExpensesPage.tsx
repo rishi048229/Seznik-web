@@ -9,14 +9,14 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
-import { Spinner } from '@/components/ui/Spinner'
 import { Badge } from '@/components/ui/Badge'
 import { DateRangePicker } from '@/components/forms/DateRangePicker'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useExpenses, useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/useExpenses'
 import { useAuth } from '@/contexts/AuthContext'
-import { Plus, Pencil, Trash2, Receipt, Filter, Image as ImageIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Filter, Image as ImageIcon } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
+
 import { uploadExpenseReceipt } from '@/utils/storage'
 import toast from 'react-hot-toast'
 import type { Expense } from '@/types/expense.types'
@@ -77,6 +77,15 @@ export const ExpensesPage = () => {
   const filteredExpenses = useMemo(() => {
     let result = expenses ?? []
 
+    const parseExpenseDate = (val: unknown): Date => {
+      const raw = val as { toDate?: () => Date } | string | number | undefined
+      if (typeof raw === 'object' && raw?.toDate) return raw.toDate()
+      if (typeof raw === 'string' || typeof raw === 'number') return new Date(raw)
+
+
+      return new Date()
+    }
+
     if (filterCategory) {
       result = result.filter(e => e.category === filterCategory)
     }
@@ -84,23 +93,18 @@ export const ExpensesPage = () => {
     if (filterStartDate) {
       const start = new Date(filterStartDate)
       start.setHours(0, 0, 0, 0)
-      result = result.filter(e => {
-        const eDate = e.expenseDate ? (typeof e.expenseDate === 'string' ? new Date(e.expenseDate) : (e.expenseDate as any).toDate ? (e.expenseDate as any).toDate() : new Date(e.expenseDate)) : new Date()
-        return eDate >= start
-      })
+      result = result.filter(e => parseExpenseDate(e.expenseDate) >= start)
     }
 
     if (filterEndDate) {
       const end = new Date(filterEndDate)
       end.setHours(23, 59, 59, 999)
-      result = result.filter(e => {
-        const eDate = e.expenseDate ? (typeof e.expenseDate === 'string' ? new Date(e.expenseDate) : (e.expenseDate as any).toDate ? (e.expenseDate as any).toDate() : new Date(e.expenseDate)) : new Date()
-        return eDate <= end
-      })
+      result = result.filter(e => parseExpenseDate(e.expenseDate) <= end)
     }
 
     return result
   }, [expenses, filterCategory, filterStartDate, filterEndDate])
+
 
   const columns: ColumnDef<Expense>[] = [
     {
@@ -125,7 +129,7 @@ export const ExpensesPage = () => {
       render: (row) => (
         <span>
           {row.expenseDate
-            ? new Date((row.expenseDate as any)?.toDate ? (row.expenseDate as any).toDate() : row.expenseDate).toLocaleDateString('en-US', {
+            ? new Date((row.expenseDate as unknown as { toDate?: () => Date })?.toDate ? (row.expenseDate as unknown as { toDate?: () => Date }).toDate!() : row.expenseDate).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', year: 'numeric',
               })
             : '—'}
@@ -133,6 +137,7 @@ export const ExpensesPage = () => {
       ),
       sortable: true,
     },
+
     {
       key: 'paymentMethod',
       header: 'Payment',
@@ -203,7 +208,8 @@ export const ExpensesPage = () => {
       amount: String(row.amount),
       description: row.description,
       paymentMethod: row.paymentMethod,
-      expenseDate: row.expenseDate ? new Date((row.expenseDate as any)?.toDate ? (row.expenseDate as any).toDate() : row.expenseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      expenseDate: row.expenseDate ? new Date((row.expenseDate as unknown as { toDate?: () => Date })?.toDate ? (row.expenseDate as unknown as { toDate?: () => Date }).toDate!() : row.expenseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+
     })
     setReceiptImageURL(row.receiptImageURL || '')
     setEditId(row.id)

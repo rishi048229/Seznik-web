@@ -67,7 +67,8 @@ export const CapsuleButton = ({
   if (props.as === 'a') {
     // Native anchor props (onDrag et al.) collide in shape with framer-motion's drag-gesture
     // props of the same name — safe to widen here since we don't use motion's drag API.
-    const { as: _as, ...rest } = props as ButtonAsAnchor
+    const { as: _unusedAs, ...rest } = props as ButtonAsAnchor
+    void _unusedAs
     return (
       <motion.a className={classes} {...motionProps} {...(rest as Record<string, unknown>)}>
         {leftIcon}
@@ -77,7 +78,8 @@ export const CapsuleButton = ({
     )
   }
 
-  const { as: _as, ...rest } = props as ButtonAsButton
+  const { as: _unusedAs2, ...rest } = props as ButtonAsButton
+  void _unusedAs2
   return (
     <motion.button className={classes} {...motionProps} {...(rest as Record<string, unknown>)}>
       {leftIcon}
@@ -85,4 +87,5 @@ export const CapsuleButton = ({
       {rightIcon}
     </motion.button>
   )
+
 }

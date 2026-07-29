@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Video, Play, Sparkles, CheckCircle2, Lightbulb, Compass, AlertCircle } from 'lucide-react'
+import { Video, Sparkles, CheckCircle2, Lightbulb, Compass } from 'lucide-react'
 import type { PageTutorialData } from '@/data/pageTutorials'
 
 interface PageVideoTutorialModalProps {
@@ -19,7 +19,8 @@ export const PageVideoTutorialModal = ({
   onStartTour,
 }: PageVideoTutorialModalProps) => {
   const [videoError, setVideoError] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [_isPlaying, setIsPlaying] = useState(false)
+
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={tutorial.title} size="lg">

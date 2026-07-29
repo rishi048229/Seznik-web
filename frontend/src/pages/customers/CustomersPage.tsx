@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -10,11 +10,10 @@ import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
 import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '@/hooks/useCustomers'
 import { useSales } from '@/hooks/useSales'
 import { useCreditTransactions } from '@/hooks/useCustomers'
-import { Plus, Pencil, Trash2, Search, UserPlus, Filter, ChevronLeft, ChevronRight, TrendingUp, Users, DollarSign, Calendar, MoreVertical, Eye, FileText, CreditCard } from 'lucide-react'
+import { Pencil, Trash2, Search, UserPlus, Filter, ChevronLeft, ChevronRight, TrendingUp, Users, Eye, FileText, CreditCard } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
@@ -44,7 +43,7 @@ export const CustomersPage = () => {
     address: '',
   })
 
-  const activeCustomers = (customers ?? []) as Customer[]
+  const activeCustomers = useMemo(() => (customers ?? []) as Customer[], [customers])
 
   // Calculate total spent per customer from sales
   const customerSpending = activeCustomers.reduce<Record<string, number>>((acc, c) => {
@@ -71,11 +70,22 @@ export const CustomersPage = () => {
   const avgCLV = activeCustomers.length > 0
     ? Object.values(customerSpending).reduce((s, v) => s + v, 0) / activeCustomers.length
     : 0
-  const newThisWeek = activeCustomers.filter(c => {
-    const created = (c.createdAt as any)?.toDate ? (c.createdAt as any).toDate() : new Date(c.createdAt || Date.now())
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    return created >= weekAgo
-  }).length
+
+  const newThisWeek = useMemo(() => {
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    return activeCustomers.filter(c => {
+      const raw = c.createdAt as { toDate?: () => Date } | string | number | undefined
+      const created = typeof raw === 'object' && raw?.toDate ? raw.toDate() : (typeof raw === 'string' || typeof raw === 'number') ? new Date(raw) : new Date(0)
+
+
+      return created >= weekAgo
+    }).length
+  }, [activeCustomers])
+
+
+
+
 
   const resetForm = () => {
     setForm({ name: '', phone: '', email: '', address: '' })
@@ -290,9 +300,10 @@ export const CustomersPage = () => {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
                           {customer.createdAt
-                            ? getTimeAgo(new Date((customer.createdAt as any)?.toDate ? (customer.createdAt as any).toDate() : customer.createdAt))
+                            ? getTimeAgo(new Date((customer.createdAt as unknown as { toDate?: () => Date })?.toDate ? (customer.createdAt as unknown as { toDate?: () => Date }).toDate!() : customer.createdAt))
                             : '—'}
                         </td>
+
                         <td className="px-6 py-4 text-right">
                           <p className="font-bold text-gray-900 dark:text-gray-100">{formatINR(totalSpent)}</p>
                         </td>
@@ -407,8 +418,9 @@ export const CustomersPage = () => {
                   </p>
                   <p className="text-xs text-gray-400">{formatINR(tx.amount)}</p>
                   <p className="text-[10px] mt-0.5 text-gray-400">
-                    {tx.createdAt ? getTimeAgo(new Date((tx.createdAt as any)?.toDate ? (tx.createdAt as any).toDate() : tx.createdAt)) : 'Recently'}
+                    {tx.createdAt ? getTimeAgo(new Date((tx.createdAt as unknown as { toDate?: () => Date })?.toDate ? (tx.createdAt as unknown as { toDate?: () => Date }).toDate!() : tx.createdAt)) : 'Recently'}
                   </p>
+
                 </div>
               </div>
             )) : (

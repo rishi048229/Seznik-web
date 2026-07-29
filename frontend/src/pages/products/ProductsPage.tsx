@@ -10,21 +10,17 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useSuppliers } from '@/hooks/useSuppliers'
-import { useAuth } from '@/contexts/AuthContext'
-import { useSettings } from '@/hooks/useSettings'
-import { canManipulateStock } from '@/utils/permissions'
 import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Lock, Sparkles } from 'lucide-react'
+
 import { formatINR } from '@/utils/currency'
-import { getBlePrinterState, printEscPos, isBluetoothSupported } from '@/utils/blePrinter'
-import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '@/utils/labelPrint'
 import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
+
 
 type UnitType = 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
 
@@ -71,12 +67,12 @@ const defaultForm: ProductFormState = {
 const PAGE_SIZE = 8
 
 export const ProductsPage = () => {
-  const { user } = useAuth()
   const { data: products, isLoading } = useProducts()
+
   const { data: categories } = useCategories()
   const { data: suppliers } = useSuppliers()
-  const { data: settings } = useSettings()
   const { mutate: createProduct, isPending: isCreating } = useCreateProduct()
+
   const { mutate: updateProduct, isPending: isUpdating } = useUpdateProduct()
   const { mutate: lookupBarcode, isPending: isLookingUp } = useBarcodeProductLookup()
   const { mutate: bulkDeleteProducts, isPending: isBulkDeleting } = useBulkDeleteProducts()
@@ -126,9 +122,25 @@ export const ProductsPage = () => {
 
   const getCategoryName = (categoryId: string) =>
     categories?.find(c => c.id === categoryId)?.name ?? '—'
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
-  const getSupplierName = (supplierId?: string) =>
-    supplierId ? (suppliers?.find(s => s.id === supplierId)?.name ?? '—') : '—'
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginated.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(paginated.map(p => p.id)))
+    }
+  }
 
   // Stats
   const totalInventoryValue = activeProducts.reduce((sum, p) => sum + (p.costPrice * p.currentStock), 0)
@@ -231,31 +243,6 @@ export const ProductsPage = () => {
     }
   }
 
-  const handleDelete = (id: string, name: string) => {
-    if (!confirm(`Delete product "${name}"?`)) return
-    if (!user) return
-    import('@/services/productService').then(({ softDeleteProduct }) => {
-      softDeleteProduct(user!.uid, id)
-        .then(() => toast.success('Product deleted'))
-        .catch(() => toast.error('Failed to delete product'))
-    })
-  }
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === paginated.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(paginated.map(p => p.id)))
-    }
-  }
 
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return

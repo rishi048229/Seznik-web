@@ -6,7 +6,7 @@ import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsLi
 import { validatePassword } from '@/utils/password'
 import { useAuth } from '@/contexts/AuthContext'
 import { sendForgotPasswordOtp, verifyForgotPasswordOtp, resetPasswordWithOtp } from '@/services/authService'
-import { Shield, KeyRound, Mail, CheckCircle2, Lock, Eye, EyeOff, RefreshCw, Sparkles } from 'lucide-react'
+import { Shield, KeyRound, Mail, CheckCircle2, Lock, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 type Step = 'initial' | 'otp' | 'password' | 'success'
@@ -41,9 +41,9 @@ export const SecurityPasswordSettings = () => {
       setStep('otp')
       setResendTimer(60)
       toast.success(`Verification code sent to ${userEmail}`)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error sending reset code:', err)
-      toast.error(err.message || 'Failed to send verification code')
+      toast.error(err instanceof Error ? err.message : 'Failed to send verification code')
     } finally {
       setLoading(false)
     }
@@ -60,9 +60,9 @@ export const SecurityPasswordSettings = () => {
       await verifyForgotPasswordOtp(userEmail, otp.trim())
       setStep('password')
       toast.success('Code verified successfully! Please enter your new password.')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error verifying code:', err)
-      toast.error(err.message || 'Incorrect verification code')
+      toast.error(err instanceof Error ? err.message : 'Incorrect verification code')
     } finally {
       setLoading(false)
     }
@@ -86,13 +86,14 @@ export const SecurityPasswordSettings = () => {
       await resetPasswordWithOtp(userEmail, newPassword)
       setStep('success')
       toast.success('Password updated successfully in database!')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error resetting password:', err)
-      toast.error(err.message || 'Failed to update password in database')
+      toast.error(err instanceof Error ? err.message : 'Failed to update password in database')
     } finally {
       setLoading(false)
     }
   }
+
 
   const handleResetForm = () => {
     setStep('initial')

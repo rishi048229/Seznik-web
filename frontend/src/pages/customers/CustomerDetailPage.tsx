@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCustomers, useRecordPayment, useCreditTransactions } from '@/hooks/useCustomers'
 import { useSales } from '@/hooks/useSales'
@@ -15,7 +15,8 @@ import {
 import { formatINR } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
-import type { Customer } from '@/types/customer.types'
+import type { Customer, CreditTransaction } from '@/types/customer.types'
+
 
 export const CustomerDetailPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -31,7 +32,7 @@ export const CustomerDetailPage = () => {
 
   const customer = (customers ?? []).find(c => c.id === id) as Customer | undefined
   const customerSales = sales?.filter(s => s.customerId === id) ?? []
-  const customerTransactions = transactions?.filter((t: any) => t.customerId === id) ?? []
+  const customerTransactions = transactions?.filter((t: CreditTransaction) => t.customerId === id) ?? []
 
   // Calculate unpaid credit sales total
   const creditSales = customerSales.filter(s => s.paymentMethod === 'credit')
@@ -47,10 +48,18 @@ export const CustomerDetailPage = () => {
 
   const totalSpent = customerSales.reduce((sum, s) => sum + s.grandTotal, 0)
   const avgOrderValue = customerSales.length > 0 ? totalSpent / customerSales.length : 0
-  const createdDate = (customer?.createdAt as any)?.toDate
-    ? (customer?.createdAt as any).toDate()
-    : new Date(customer?.createdAt || Date.now())
-  const accountAge = Math.round((Date.now() - createdDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000) * 10) / 10
+
+  const accountAge = useMemo(() => {
+    if (!customer?.createdAt) return 0
+    const raw = customer.createdAt as { toDate?: () => Date } | string | number
+    const d = typeof raw === 'object' && raw?.toDate ? raw.toDate() : (typeof raw === 'string' || typeof raw === 'number') ? new Date(raw) : new Date(0)
+
+    const dTime = d.getTime()
+    if (isNaN(dTime)) return 0
+    return Math.round((new Date().getFullYear() - d.getFullYear()) * 10) / 10
+  }, [customer])
+
+
 
   const initials = customer?.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? ''
 
@@ -76,12 +85,13 @@ export const CustomerDetailPage = () => {
           setPaymentAmount('')
           setPaymentNotes('')
         },
-        onError: (err: any) => {
-          toast.error(err?.message || 'Failed to record payment')
+        onError: (err: unknown) => {
+          toast.error(err instanceof Error ? err.message : 'Failed to record payment')
         }
       }
     )
   }
+
 
   const handleSendWhatsAppReminder = () => {
     if (!customer) return
@@ -326,11 +336,12 @@ export const CustomerDetailPage = () => {
                           </td>
                           <td className="px-6 py-4 text-gray-500 text-xs">
                             {sale.createdAt
-                              ? new Date((sale.createdAt as any)?.toDate ? (sale.createdAt as any).toDate() : sale.createdAt).toLocaleDateString('en-US', {
+                              ? new Date((sale.createdAt as unknown as { toDate?: () => Date })?.toDate ? (sale.createdAt as unknown as { toDate?: () => Date }).toDate!() : sale.createdAt).toLocaleDateString('en-US', {
                                   month: 'short', day: 'numeric', year: 'numeric',
                                 })
                               : '—'}
                           </td>
+
                           <td className="px-6 py-4 font-bold text-right text-gray-900 dark:text-gray-100">
                             {formatINR(sale.grandTotal)}
                           </td>
@@ -379,7 +390,8 @@ export const CustomerDetailPage = () => {
               )}
             </div>
             <div className="p-6 sm:p-8 space-y-3">
-              {customerTransactions.length > 0 ? customerTransactions.map((tx: any) => (
+              {customerTransactions.length > 0 ? customerTransactions.map((tx: CreditTransaction) => (
+
                 <div
                   key={tx.id}
                   className={`flex items-center justify-between p-4 rounded-xl transition-all border-l-4 ${
@@ -412,12 +424,13 @@ export const CustomerDetailPage = () => {
                       {tx.type === 'payment' ? '-' : '+'}{formatINR(tx.amount)}
                     </p>
                     <p className="text-[10px] font-bold text-gray-400 uppercase">
-                      {tx.createdAt?.toDate
-                        ? new Date(tx.createdAt.toDate()).toLocaleDateString('en-US', {
-                            month: 'short', day: 'numeric', year: 'numeric',
-                          })
-                        : '—'}
+                      {(() => {
+                        const rawTx = tx.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
+                        const d = typeof rawTx === 'object' && rawTx?.toDate ? rawTx.toDate() : (typeof rawTx === 'string' || typeof rawTx === 'number') ? new Date(rawTx) : null
+                        return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+                      })()}
                     </p>
+
                   </div>
                 </div>
               )) : (

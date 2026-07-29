@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
-import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
 import { useNavigate } from 'react-router-dom'
 import { useCreateSale } from '@/hooks/useSales'
+
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { useProducts } from '@/hooks/useProducts'
@@ -206,12 +206,6 @@ export const POSLitePage = () => {
     0
   )
   const finalTotal = subtotal + taxAmount - orderDiscountAmount
-  const uniqueTaxRates = Array.from(new Set(items.map(item => item.taxRate || 0).filter(rate => rate > 0)))
-  const taxLabel = uniqueTaxRates.length === 0
-    ? 'GST'
-    : uniqueTaxRates.length === 1
-      ? `GST (${uniqueTaxRates[0]}%)`
-      : 'GST (Item-wise)'
 
   const amountPaidNum = parseFloat(amountPaid) || 0
   const change = amountPaidNum - finalTotal
@@ -295,7 +289,8 @@ export const POSLitePage = () => {
       amountPaid: lastSaleData.amountPaidNum,
       changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
       isQuickBill: false,
-      createdAt: new Date() as any,
+      createdAt: new Date().toISOString(),
+
     }
   }
 

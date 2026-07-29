@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, Download, FileText, Bluetooth } from 'lucide-react'
+import { ArrowLeft, Printer, FileText, Bluetooth } from 'lucide-react'
+
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
@@ -102,7 +103,8 @@ export const SaleDetailPage = () => {
     )
   }
 
-  const saleDate = (sale.createdAt as any)?.toDate ? new Date((sale.createdAt as any).toDate()) : new Date(sale.createdAt || Date.now())
+  const saleDate = (sale.createdAt as unknown as { toDate?: () => Date })?.toDate ? new Date((sale.createdAt as unknown as { toDate?: () => Date }).toDate!()) : new Date(sale.createdAt || Date.now())
+
   const uniqueTaxRates = Array.from(new Set(sale.items?.map(item => item.taxRate || 0).filter(rate => rate > 0) ?? []))
   const taxLabel = uniqueTaxRates.length === 0
     ? 'GST'

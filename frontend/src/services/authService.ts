@@ -1,8 +1,13 @@
 import { fetchApi, setAuthToken, removeAuthToken } from './api'
 import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
-import { ADMIN_PERMISSIONS, AGENT_PERMISSIONS } from '@/types/auth.types'
 
-export const loginUser = async (email: string, pass: string): Promise<any> => {
+export interface AuthResponse {
+  token: string
+  user: UserProfile
+  [key: string]: unknown
+}
+
+export const loginUser = async (email: string, pass: string): Promise<AuthResponse> => {
   const data = await fetchApi('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password: pass }),
@@ -11,7 +16,7 @@ export const loginUser = async (email: string, pass: string): Promise<any> => {
   return data
 }
 
-export const registerUser = async (email: string, pass: string, firstName: string, lastName: string, phone: string): Promise<any> => {
+export const registerUser = async (email: string, pass: string, firstName: string, lastName: string, phone: string): Promise<AuthResponse> => {
   const displayName = `${firstName} ${lastName}`.trim();
   const data = await fetchApi('/auth/register', {
     method: 'POST',
@@ -69,10 +74,11 @@ export const getUserProfile = async (): Promise<UserProfile | null> => {
       uid: user.id,
       ...user,
     } as UserProfile
-  } catch (error) {
+  } catch {
     return null
   }
 }
+
 
 export const setUserRoleAndProfile = async (
   uid: string,

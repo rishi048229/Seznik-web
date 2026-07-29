@@ -12,9 +12,9 @@ import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
 import { ADMIN_PERMISSIONS, AGENT_PERMISSIONS } from '@/types/auth.types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAllUsers, saveManagedUser, saveManagedUsers } from '@/services/authService'
-import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
 import { validatePassword } from '@/utils/password'
 import toast from 'react-hot-toast'
+
 
 interface ManagedUser extends UserProfile {
   password?: string
@@ -100,7 +100,8 @@ export const PermissionsAndAccounts = () => {
       photoURL: null,
       businessName: '',
       plan: 'free',
-      createdAt: new Date() as any,
+      createdAt: new Date().toISOString(),
+
     }
 
     try {

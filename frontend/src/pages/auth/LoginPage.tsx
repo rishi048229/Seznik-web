@@ -10,7 +10,8 @@ import {
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
 } from '@/services/authService'
-import { CheckCircle2, KeyRound, ArrowRight } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
+
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -124,9 +125,10 @@ export const LoginPage = () => {
         await loginWithEmail(email, password)
       }
       navigate(ROUTES.ACCESS_SELECTION)
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to sign in')
     } finally {
+
       setIsSigningIn(false)
     }
   }

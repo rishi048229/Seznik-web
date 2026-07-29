@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
-import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
+
 import { LANGUAGES } from '@/i18n/translations'
 import { Spinner } from '@/components/ui/Spinner'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
@@ -24,6 +24,9 @@ const DEFAULT_SETTINGS = {
   businessPhone: '',
   businessGSTIN: '',
   businessLogoURL: '',
+  supportEmail: '',
+  supportPhone: '',
+  whatsappNumber: '',
   personalInfo: { ownerName: '', ownerPhone: '', ownerAddress: '' },
   invoiceConfig: { prefix: 'INV', footerText: '' },
   notificationConfig: { lowStockThreshold: 10, overdueDays: 30 },
@@ -43,13 +46,20 @@ const DEFAULT_SETTINGS = {
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
   const [activeTab, setActiveTab] = useState('business')
-  const [businessLogo, setBusinessLogo] = useState('')
-  const [isLogoUploading, setIsLogoUploading] = useState(false)
   const { data: settings, isLoading } = useSettings()
+  const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
+  const [prevLogo, setPrevLogo] = useState(settings?.businessLogoURL ?? '')
+  const [isLogoUploading, setIsLogoUploading] = useState(false)
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
-  const { user } = useAuth()
   const { t, language, setLanguage } = useLanguage()
+
+  const current = settings ?? DEFAULT_SETTINGS
+
+  if (current.businessLogoURL !== prevLogo) {
+    setPrevLogo(current.businessLogoURL ?? '')
+    setBusinessLogo(current.businessLogoURL ?? '')
+  }
 
   const settingsTabs = [
     { key: 'business', label: t('settings.businessProfile') },
@@ -63,12 +73,6 @@ export const SettingsPage = () => {
 
   const isPending = isUpdating || isCreating
   const hasSettings = !!settings
-
-  const current = settings ?? DEFAULT_SETTINGS
-
-  useEffect(() => {
-    setBusinessLogo(current.businessLogoURL ?? '')
-  }, [current.businessLogoURL])
 
   // Strip undefined values — Firestore rejects them
   const clean = (obj: Record<string, unknown>): Record<string, unknown> =>
@@ -111,9 +115,14 @@ export const SettingsPage = () => {
     const val = (id: string) => el(id)?.value ?? ''
 
     // Safe reads from current — fall back to empty string so Firestore never gets undefined
-    const curPhone    = (current as any).businessPhone    ?? ''
-    const curGSTIN    = (current as any).businessGSTIN    ?? ''
-    const curPersonal = (current as any).personalInfo     ?? { ownerName: '', ownerPhone: '', ownerAddress: '' }
+    const curObj          = current as unknown as Record<string, unknown>
+    const curPhone        = (curObj.businessPhone as string) ?? ''
+    const curGSTIN        = (curObj.businessGSTIN as string) ?? ''
+    const curSupportEmail = (curObj.supportEmail as string) ?? ''
+    const curSupportPhone = (curObj.supportPhone as string) ?? ''
+    const curWhatsapp      = (curObj.whatsappNumber as string) ?? ''
+    const curPersonal     = (curObj.personalInfo as Record<string, string>) ?? { ownerName: '', ownerPhone: '', ownerAddress: '' }
+
     const curReceipt  = current.receiptConfig             ?? DEFAULT_SETTINGS.receiptConfig
     const curInvoice  = current.invoiceConfig             ?? DEFAULT_SETTINGS.invoiceConfig
     const curNotif    = current.notificationConfig        ?? DEFAULT_SETTINGS.notificationConfig
@@ -126,6 +135,9 @@ export const SettingsPage = () => {
           businessPhone:   val('settings-business-phone'),
           businessGSTIN:   val('settings-business-gstin'),
           businessLogoURL: businessLogo,
+          supportEmail:    val('settings-support-email'),
+          supportPhone:    val('settings-support-phone'),
+          whatsappNumber:  val('settings-whatsapp-number'),
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
@@ -139,6 +151,9 @@ export const SettingsPage = () => {
           businessPhone:   curPhone,
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
+          supportEmail:    curSupportEmail,
+          supportPhone:    curSupportPhone,
+          whatsappNumber:  curWhatsapp,
           personalInfo: {
             ownerName:    val('settings-owner-name'),
             ownerPhone:   val('settings-owner-phone'),
@@ -167,6 +182,9 @@ export const SettingsPage = () => {
           businessPhone:   curPhone,
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
+          supportEmail:    curSupportEmail,
+          supportPhone:    curSupportPhone,
+          whatsappNumber:  curWhatsapp,
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
@@ -183,6 +201,9 @@ export const SettingsPage = () => {
           businessPhone:   curPhone,
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
+          supportEmail:    curSupportEmail,
+          supportPhone:    curSupportPhone,
+          whatsappNumber:  curWhatsapp,
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           receiptConfig:   curReceipt,
@@ -217,7 +238,7 @@ export const SettingsPage = () => {
             {activeTab === 'business' && (
               <div className="space-y-4 max-w-md">
                 <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Business Profile</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">These details appear on your invoices and receipts.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">These details appear on your app footer, invoices, and receipts.</p>
                 <div>
                   <ImageUpload
                     label="Business Logo (shown on invoices)"
@@ -226,7 +247,7 @@ export const SettingsPage = () => {
                       setBusinessLogo(url)
                       setIsLogoUploading(false)
                     }}
-                    onFileSelect={async (file) => {
+                    onFileSelect={async (_file) => {
                       toast.error('Image upload will be available in the next version')
                       throw new Error('Upload deferred to next version')
                     }}
@@ -260,16 +281,41 @@ export const SettingsPage = () => {
                 />
                 <Input
                   label="Business Phone Number"
-                  defaultValue={(current as any).businessPhone ?? ''}
+                  defaultValue={(current as unknown as Record<string, string>).businessPhone ?? ''}
                   id="settings-business-phone"
                   placeholder="+91 98765 43210"
                 />
                 <Input
                   label="GSTIN"
-                  defaultValue={(current as any).businessGSTIN ?? ''}
+                  defaultValue={(current as unknown as Record<string, string>).businessGSTIN ?? ''}
                   id="settings-business-gstin"
                   placeholder="e.g. 27AAPFU0939F1ZV"
                 />
+
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Support & Contact Channels</h4>
+                  <div className="space-y-4">
+                    <Input
+                      label="Support Email"
+                      defaultValue={(current as unknown as Record<string, string>).supportEmail ?? ''}
+                      id="settings-support-email"
+                      placeholder="support@yourcompany.com"
+                    />
+                    <Input
+                      label="Support Phone Number"
+                      defaultValue={(current as unknown as Record<string, string>).supportPhone ?? ''}
+                      id="settings-support-phone"
+                      placeholder="+91 98765 43210"
+                    />
+                    <Input
+                      label="WhatsApp Support Number"
+                      defaultValue={(current as unknown as Record<string, string>).whatsappNumber ?? ''}
+                      id="settings-whatsapp-number"
+                      placeholder="+919876543210 (include country code without + for best compatibility)"
+                    />
+                  </div>
+                </div>
+
                 <Button onClick={() => handleTabSave('business')} loading={isPending}>
                   {hasSettings ? 'Update Business Profile' : 'Save Business Profile'}
                 </Button>
@@ -281,22 +327,23 @@ export const SettingsPage = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Owner / account holder details for internal reference.</p>
                 <Input
                   label="Owner Name"
-                  defaultValue={(current as any).personalInfo?.ownerName ?? ''}
+                  defaultValue={(current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ?? ''}
                   id="settings-owner-name"
                   placeholder="e.g. Rajesh Kumar"
                 />
                 <Input
                   label="Phone Number"
-                  defaultValue={(current as any).personalInfo?.ownerPhone ?? ''}
+                  defaultValue={(current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ?? ''}
                   id="settings-owner-phone"
                   placeholder="+91 98765 43210"
                 />
                 <Input
                   label="Address"
-                  defaultValue={(current as any).personalInfo?.ownerAddress ?? ''}
+                  defaultValue={(current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ?? ''}
                   id="settings-owner-address"
                   placeholder="Residential address"
                 />
+
                 <Button onClick={() => handleTabSave('personal')} loading={isPending}>
                   {hasSettings ? 'Update Personal Info' : 'Save Personal Info'}
                 </Button>

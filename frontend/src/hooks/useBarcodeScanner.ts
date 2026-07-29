@@ -7,7 +7,8 @@ interface UseBarcodeScannerProps {
   enabled?: boolean
 }
 
-export const useBarcodeScanner = ({ mode, onScan, enabled = true }: UseBarcodeScannerProps): void => {
+export const useBarcodeScanner = ({ mode: _mode, onScan, enabled = true }: UseBarcodeScannerProps): void => {
+
   const buffer = useRef<string>('')
   const lastKeyTime = useRef<number>(0)
   const SCAN_THRESHOLD_MS = 100

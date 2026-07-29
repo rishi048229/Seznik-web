@@ -1,15 +1,15 @@
 import { fetchApi } from './api'
 import type { Customer, CreditTransaction } from '@/types/customer.types'
 
-export const getCustomers = async (uid: string): Promise<Customer[]> => {
+export const getCustomers = async (_uid: string): Promise<Customer[]> => {
   return await fetchApi('/customers')
 }
 
-export const getCustomerById = async (uid: string, customerId: string): Promise<Customer> => {
+export const getCustomerById = async (_uid: string, customerId: string): Promise<Customer> => {
   return await fetchApi(`/customers/${customerId}`)
 }
 
-export const createCustomer = async (uid: string, data: Omit<Customer, 'id' | 'createdAt'>): Promise<string> => {
+export const createCustomer = async (_uid: string, data: Omit<Customer, 'id' | 'createdAt'>): Promise<string> => {
   const customer = await fetchApi('/customers', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -17,14 +17,14 @@ export const createCustomer = async (uid: string, data: Omit<Customer, 'id' | 'c
   return customer.id
 }
 
-export const updateCustomer = async (uid: string, customerId: string, data: Partial<Omit<Customer, 'id' | 'createdAt'>>): Promise<void> => {
+export const updateCustomer = async (_uid: string, customerId: string, data: Partial<Omit<Customer, 'id' | 'createdAt'>>): Promise<void> => {
   await fetchApi(`/customers/${customerId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
 }
 
-export const updateCustomerCredit = async (uid: string, customerId: string, amount: number, notes?: string): Promise<void> => {
+export const updateCustomerCredit = async (_uid: string, customerId: string, amount: number, notes?: string): Promise<void> => {
   await fetchApi('/credits', {
     method: 'POST',
     body: JSON.stringify({
@@ -36,19 +36,19 @@ export const updateCustomerCredit = async (uid: string, customerId: string, amou
   })
 }
 
-export const addCreditTransaction = async (uid: string, data: Omit<CreditTransaction, 'id' | 'createdAt'>): Promise<void> => {
+export const addCreditTransaction = async (_uid: string, data: Omit<CreditTransaction, 'id' | 'createdAt'>): Promise<void> => {
   await fetchApi('/credits', {
     method: 'POST',
     body: JSON.stringify(data),
   })
 }
 
-export const getCreditTransactions = async (uid: string, customerId?: string): Promise<CreditTransaction[]> => {
+export const getCreditTransactions = async (_uid: string, customerId?: string): Promise<CreditTransaction[]> => {
   const query = customerId ? `?customerId=${customerId}` : ''
   return await fetchApi(`/credits${query}`)
 }
 
-export const recordPayment = async (uid: string, data: { customerId: string; amount: number; notes?: string; paymentMethod?: string }): Promise<void> => {
+export const recordPayment = async (_uid: string, data: { customerId: string; amount: number; notes?: string; paymentMethod?: string }): Promise<void> => {
   await fetchApi('/credits', {
     method: 'POST',
     body: JSON.stringify({
@@ -60,8 +60,9 @@ export const recordPayment = async (uid: string, data: { customerId: string; amo
   })
 }
 
-export const deleteCustomer = async (uid: string, customerId: string): Promise<void> => {
+export const deleteCustomer = async (_uid: string, customerId: string): Promise<void> => {
   await fetchApi(`/customers/${customerId}`, {
     method: 'DELETE',
   })
 }
+

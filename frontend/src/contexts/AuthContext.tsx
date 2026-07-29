@@ -1,10 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding } from '@/services/authService'
 import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
 import { getAuthToken } from '@/services/api'
 
 interface AuthContextType {
-  user: any | null
+  user: UserProfile | null
   userProfile: UserProfile | null
   loading: boolean
   hasSelectedWorkspace: boolean
@@ -21,7 +22,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<any | null>(null)
+  const [user, setUser] = useState<UserProfile | null>(null)
+
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hasSelectedWorkspace, setHasSelectedWorkspace] = useState<boolean>(() => {
     return localStorage.getItem('hasSelectedWorkspace') === 'true'
