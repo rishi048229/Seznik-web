@@ -24,9 +24,6 @@ const DEFAULT_SETTINGS = {
   businessPhone: '',
   businessGSTIN: '',
   businessLogoURL: '',
-  supportEmail: '',
-  supportPhone: '',
-  whatsappNumber: '',
   personalInfo: { ownerName: '', ownerPhone: '', ownerAddress: '' },
   invoiceConfig: { prefix: 'INV', footerText: '' },
   notificationConfig: { lowStockThreshold: 10, overdueDays: 30 },
@@ -117,13 +114,10 @@ export const SettingsPage = () => {
     const val = (id: string) => el(id)?.value ?? ''
 
     // Safe reads from current — fall back to empty string so Firestore never gets undefined
-    const curObj          = current as unknown as Record<string, unknown>
-    const curPhone        = (curObj.businessPhone as string) ?? ''
-    const curGSTIN        = (curObj.businessGSTIN as string) ?? ''
-    const curSupportEmail = (curObj.supportEmail as string) ?? ''
-    const curSupportPhone = (curObj.supportPhone as string) ?? ''
-    const curWhatsapp      = (curObj.whatsappNumber as string) ?? ''
-    const curPersonal     = (curObj.personalInfo as Record<string, string>) ?? { ownerName: '', ownerPhone: '', ownerAddress: '' }
+    const curObj      = current as unknown as Record<string, unknown>
+    const curPhone    = (curObj.businessPhone as string) ?? ''
+    const curGSTIN    = (curObj.businessGSTIN as string) ?? ''
+    const curPersonal = (curObj.personalInfo as Record<string, string>) ?? { ownerName: '', ownerPhone: '', ownerAddress: '' }
 
     const curReceipt  = current.receiptConfig             ?? DEFAULT_SETTINGS.receiptConfig
     const curInvoice  = current.invoiceConfig             ?? DEFAULT_SETTINGS.invoiceConfig
@@ -137,9 +131,6 @@ export const SettingsPage = () => {
           businessPhone:   val('settings-business-phone'),
           businessGSTIN:   val('settings-business-gstin'),
           businessLogoURL: businessLogo,
-          supportEmail:    val('settings-support-email'),
-          supportPhone:    val('settings-support-phone'),
-          whatsappNumber:  val('settings-whatsapp-number'),
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
@@ -153,9 +144,6 @@ export const SettingsPage = () => {
           businessPhone:   curPhone,
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
-          supportEmail:    curSupportEmail,
-          supportPhone:    curSupportPhone,
-          whatsappNumber:  curWhatsapp,
           personalInfo: {
             ownerName:    val('settings-owner-name'),
             ownerPhone:   val('settings-owner-phone'),
@@ -184,9 +172,6 @@ export const SettingsPage = () => {
           businessPhone:   curPhone,
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
-          supportEmail:    curSupportEmail,
-          supportPhone:    curSupportPhone,
-          whatsappNumber:  curWhatsapp,
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
@@ -203,9 +188,6 @@ export const SettingsPage = () => {
           businessPhone:   curPhone,
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
-          supportEmail:    curSupportEmail,
-          supportPhone:    curSupportPhone,
-          whatsappNumber:  curWhatsapp,
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           receiptConfig:   curReceipt,
@@ -240,7 +222,7 @@ export const SettingsPage = () => {
             {activeTab === 'business' && (
               <div className="space-y-4 max-w-md">
                 <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Business Profile</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">These details appear on your app footer, invoices, and receipts.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">These details appear on your invoices and receipts.</p>
                 <div>
                   <ImageUpload
                     label="Business Logo (shown on invoices)"
@@ -293,31 +275,6 @@ export const SettingsPage = () => {
                   id="settings-business-gstin"
                   placeholder="e.g. 27AAPFU0939F1ZV"
                 />
-
-                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Support & Contact Channels</h4>
-                  <div className="space-y-4">
-                    <Input
-                      label="Support Email"
-                      defaultValue={(current as unknown as Record<string, string>).supportEmail ?? ''}
-                      id="settings-support-email"
-                      placeholder="support@yourcompany.com"
-                    />
-                    <Input
-                      label="Support Phone Number"
-                      defaultValue={(current as unknown as Record<string, string>).supportPhone ?? ''}
-                      id="settings-support-phone"
-                      placeholder="+91 98765 43210"
-                    />
-                    <Input
-                      label="WhatsApp Support Number"
-                      defaultValue={(current as unknown as Record<string, string>).whatsappNumber ?? ''}
-                      id="settings-whatsapp-number"
-                      placeholder="+919876543210 (include country code without + for best compatibility)"
-                    />
-                  </div>
-                </div>
-
                 <Button onClick={() => handleTabSave('business')} loading={isPending}>
                   {hasSettings ? 'Update Business Profile' : 'Save Business Profile'}
                 </Button>

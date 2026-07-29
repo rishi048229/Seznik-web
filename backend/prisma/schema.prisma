@@ -96,9 +96,6 @@ model Settings {
   businessPhone      String?
   businessGSTIN      String?
   businessLogoURL    String?
-  supportEmail       String?
-  supportPhone       String?
-  whatsappNumber     String?
   personalInfo       Json?
   invoiceConfig      Json?
   notificationConfig Json?

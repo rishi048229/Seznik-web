@@ -84,9 +84,6 @@ export interface UserSettings {
   businessPhone: string
   businessGSTIN: string
   businessLogoURL: string
-  supportEmail?: string
-  supportPhone?: string
-  whatsappNumber?: string
   personalInfo: PersonalInfo
   invoiceConfig: InvoiceConfig
   notificationConfig: NotificationConfig
