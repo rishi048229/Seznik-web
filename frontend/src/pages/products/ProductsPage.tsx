@@ -306,7 +306,7 @@ export const ProductsPage = () => {
       currentStock: parseInt(form.currentStock) || 0,
       lowStockThreshold: parseInt(form.lowStockThreshold) || 10,
       unit: form.unit,
-      ...(form.imageURL ? { imageURL: form.imageURL } : {}),
+      imageURL: form.imageURL || '',
       isActive: true,
     }
 

@@ -51,19 +51,26 @@ export const ImageUpload = ({
 
     setIsUploading(true)
 
-    // Show local preview immediately
-    const localUrl = URL.createObjectURL(file)
-    setPreview(localUrl)
-
     try {
       if (onFileSelect) {
         const url = await onFileSelect(file)
         setPreview(url)
         onChange(url)
+        setIsUploading(false)
+      } else {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64Url = reader.result as string
+          setPreview(base64Url)
+          onChange(base64Url)
+          setIsUploading(false)
+        }
+        reader.onerror = () => {
+          setIsUploading(false)
+        }
+        reader.readAsDataURL(file)
       }
     } catch {
-      // Upload failed, keep local preview or clear
-    } finally {
       setIsUploading(false)
     }
   }
