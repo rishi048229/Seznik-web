@@ -15,6 +15,7 @@ import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLooku
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
+import { ImageUpload } from '@/components/forms/ImageUpload'
 import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Lock, Sparkles, Wand2, X } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
@@ -836,6 +837,16 @@ export const ProductsPage = () => {
         }
       >
         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+          {/* Product Image Upload */}
+          <div>
+            <ImageUpload
+              label="Product Image"
+              value={form.imageURL}
+              onChange={url => setForm(prev => ({ ...prev, imageURL: url }))}
+              previewSize="md"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Product Name *
