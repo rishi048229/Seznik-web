@@ -16,6 +16,7 @@ export const ROUTES = {
   PURCHASES: '/purchases',
   EXPENSES: '/expenses',
   CREDITS: '/credits',
+  DAYBOOK: '/daybook',
   REPORTS: '/reports',
   REPORTS_SALES: '/reports/sales',
   REPORTS_PL: '/reports/profit-loss',

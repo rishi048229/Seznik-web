@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
+import { FieldInfo } from '@/components/ui/FieldInfo'
 import {
   useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, useToggleCategoryActive,
 } from '@/hooks/useCategories'
@@ -513,27 +514,37 @@ export const CategoriesPage = () => {
         }
       >
         <div className="space-y-4">
-          <Input
-            label="Category Name"
-            value={formName}
-            onChange={e => setFormName(e.target.value)}
-            placeholder="e.g. Shirts, or Checks for a subcategory"
-            autoFocus
-            onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Category Name
+              <FieldInfo textKey="tip.category.name" />
+            </label>
+            <Input
+              value={formName}
+              onChange={e => setFormName(e.target.value)}
+              placeholder="e.g. Shirts, or Checks for a subcategory"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+            />
+          </div>
 
           {editingHasChildren ? (
             <p className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
               This category has its own subcategories, so it can't be moved under another category.
             </p>
           ) : (
-            <Select
-              label="Parent Category (optional)"
-              options={parentOptions}
-              placeholder="— None — top-level category —"
-              value={formParentId}
-              onChange={e => setFormParentId(e.target.value)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Parent Category (optional)
+                <FieldInfo textKey="tip.category.parent" />
+              </label>
+              <Select
+                options={parentOptions}
+                placeholder="— None — top-level category —"
+                value={formParentId}
+                onChange={e => setFormParentId(e.target.value)}
+              />
+            </div>
           )}
         </div>
       </Modal>

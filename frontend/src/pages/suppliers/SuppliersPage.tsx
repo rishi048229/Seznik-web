@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
+import { FieldInfo } from '@/components/ui/FieldInfo'
 import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { Pencil, Trash2, Plus, Phone, Mail, MapPin } from 'lucide-react'
@@ -195,38 +196,63 @@ export const SuppliersPage = () => {
         }
       >
         <div className="space-y-4">
-          <Input
-            label="Supplier Name *"
-            value={form.name}
-            onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g. ABC Distributors"
-            autoFocus
-          />
-          <Input
-            label="Phone *"
-            value={form.phone}
-            onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
-            placeholder="e.g. +91 98765 43210"
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={form.email}
-            onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-            placeholder="e.g. contact@abc.com"
-          />
-          <Input
-            label="Address"
-            value={form.address}
-            onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
-            placeholder="Full address"
-          />
-          <Input
-            label="GSTIN"
-            value={form.gstin}
-            onChange={e => setForm(prev => ({ ...prev, gstin: e.target.value }))}
-            placeholder="e.g. 22AAAAA0000A1Z5"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Supplier Name *
+              <FieldInfo textKey="tip.supplier.name" />
+            </label>
+            <Input
+              value={form.name}
+              onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. ABC Distributors"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Phone *
+              <FieldInfo textKey="tip.supplier.phone" />
+            </label>
+            <Input
+              value={form.phone}
+              onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
+              placeholder="e.g. +91 98765 43210"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Email
+              <FieldInfo textKey="tip.supplier.email" />
+            </label>
+            <Input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+              placeholder="e.g. contact@abc.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Address
+              <FieldInfo textKey="tip.supplier.address" />
+            </label>
+            <Input
+              value={form.address}
+              onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
+              placeholder="Full address"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              GSTIN
+              <FieldInfo textKey="tip.supplier.gstin" />
+            </label>
+            <Input
+              value={form.gstin}
+              onChange={e => setForm(prev => ({ ...prev, gstin: e.target.value }))}
+              placeholder="e.g. 22AAAAA0000A1Z5"
+            />
+          </div>
         </div>
       </Modal>
 

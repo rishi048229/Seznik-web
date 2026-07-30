@@ -839,7 +839,7 @@ export const ProductsPage = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Product Name *
-              <FieldInfo text="The name shown on receipts, the POS product grid, and reports. Use the exact name customers know, e.g. 'Basmati Rice 1kg'." />
+              <FieldInfo textKey="tip.product.name" />
             </label>
             <Input
               value={form.name}
@@ -854,7 +854,7 @@ export const ProductsPage = () => {
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Category *
-                  <FieldInfo text="Which group this product belongs to (e.g. Shirts, Groceries). Used to filter products in the POS and to organize reports." />
+                  <FieldInfo textKey="tip.product.category" />
                 </label>
                 <button
                   type="button"
@@ -896,7 +896,7 @@ export const ProductsPage = () => {
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Supplier
-                  <FieldInfo text="Who you buy this product from. Optional — but linking a supplier makes recording purchases and restocking faster." />
+                  <FieldInfo textKey="tip.product.supplier" />
                 </label>
                 <button
                   type="button"
@@ -950,7 +950,7 @@ export const ProductsPage = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Barcode *
-              <FieldInfo text="The code scanned at the counter and printed on label stickers. Scan an existing barcode, type one, or click Auto-Generate to create a unique one in the selected format." />
+              <FieldInfo textKey="tip.product.barcode" />
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <Input
@@ -986,7 +986,7 @@ export const ProductsPage = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Cost Price (₹)
-                <FieldInfo text="What YOU pay to buy one unit from your supplier. Used to compute profit — customers never see this." />
+                <FieldInfo textKey="tip.product.costPrice" />
               </label>
               <Input
                 type="number"
@@ -1000,7 +1000,7 @@ export const ProductsPage = () => {
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Selling Price (₹) *
-                  <FieldInfo text="What the customer pays for one unit. Use the Incl./Excl. toggle to say whether the number you type already includes GST." />
+                  <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
                   <button
@@ -1045,7 +1045,7 @@ export const ProductsPage = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               GST Rate
-              <FieldInfo text="The GST slab this product falls under. Pick the standard slab (0/3/5/12/18/28%) or choose Custom for a non-standard rate. This drives tax on receipts and the Tax Report." />
+              <FieldInfo textKey="tip.product.gstRate" />
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <Select
@@ -1080,7 +1080,7 @@ export const ProductsPage = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Current Stock
-                <FieldInfo text="How many units you have on hand right now. Sales reduce it automatically; purchases and stock scans increase it." />
+                <FieldInfo textKey="tip.product.currentStock" />
               </label>
               <Input
                 type="number"
@@ -1092,7 +1092,7 @@ export const ProductsPage = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Low Stock Threshold
-                <FieldInfo text="When stock falls to this number or below, the product appears in Low Stock alerts on the Dashboard and Products page so you know to reorder." />
+                <FieldInfo textKey="tip.product.lowStockThreshold" />
               </label>
               <Input
                 type="number"
@@ -1106,7 +1106,7 @@ export const ProductsPage = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Unit
-              <FieldInfo text="How this product is measured and sold — per piece, by weight (kg/gram), volume (liter), length (meter), dozen, or box." />
+              <FieldInfo textKey="tip.product.unit" />
             </label>
             <Select
               options={UNIT_OPTIONS}

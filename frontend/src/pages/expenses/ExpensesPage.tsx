@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { FieldInfo } from '@/components/ui/FieldInfo'
 import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { DateRangePicker } from '@/components/forms/DateRangePicker'
@@ -377,46 +378,76 @@ export const ExpensesPage = () => {
         }
       >
         <div className="space-y-4">
-          <Select
-            label="Category *"
-            options={CATEGORY_OPTIONS}
-            value={form.category}
-            onChange={e => setForm(prev => ({ ...prev, category: e.target.value as Expense['category'] }))}
-          />
-          <Input
-            label="Amount (₹) *"
-            type="number"
-            step="0.01"
-            value={form.amount}
-            onChange={e => setForm(prev => ({ ...prev, amount: e.target.value }))}
-            placeholder="0.00"
-            autoFocus
-          />
-          <Input
-            label="Date *"
-            type="date"
-            value={form.expenseDate}
-            onChange={e => setForm(prev => ({ ...prev, expenseDate: e.target.value }))}
-          />
-          <Input
-            label="Description"
-            value={form.description}
-            onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="e.g. Monthly electricity bill"
-          />
-          <Select
-            label="Payment Method"
-            options={PAYMENT_OPTIONS}
-            value={form.paymentMethod}
-            onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value as Expense['paymentMethod'] }))}
-          />
-          <ImageUpload
-            label="Receipt Image (optional)"
-            value={receiptImageURL}
-            onChange={setReceiptImageURL}
-            onFileSelect={handleReceiptUpload}
-            previewSize="sm"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Category *
+              <FieldInfo textKey="tip.expense.category" />
+            </label>
+            <Select
+              options={CATEGORY_OPTIONS}
+              value={form.category}
+              onChange={e => setForm(prev => ({ ...prev, category: e.target.value as Expense['category'] }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Amount (₹) *
+              <FieldInfo textKey="tip.expense.amount" />
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              value={form.amount}
+              onChange={e => setForm(prev => ({ ...prev, amount: e.target.value }))}
+              placeholder="0.00"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Date *
+              <FieldInfo textKey="tip.expense.date" />
+            </label>
+            <Input
+              type="date"
+              value={form.expenseDate}
+              onChange={e => setForm(prev => ({ ...prev, expenseDate: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Description
+              <FieldInfo textKey="tip.expense.description" />
+            </label>
+            <Input
+              value={form.description}
+              onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="e.g. Monthly electricity bill"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Payment Method
+              <FieldInfo textKey="tip.expense.paymentMethod" />
+            </label>
+            <Select
+              options={PAYMENT_OPTIONS}
+              value={form.paymentMethod}
+              onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value as Expense['paymentMethod'] }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Receipt Image (optional)
+              <FieldInfo textKey="tip.expense.receipt" />
+            </label>
+            <ImageUpload
+              value={receiptImageURL}
+              onChange={setReceiptImageURL}
+              onFileSelect={handleReceiptUpload}
+              previewSize="sm"
+            />
+          </div>
         </div>
       </Modal>
 

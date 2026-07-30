@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { FieldInfo } from '@/components/ui/FieldInfo'
 import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
 import { DateRangePicker } from '@/components/forms/DateRangePicker'
 import { usePurchases, useCreatePurchase, useDeletePurchase } from '@/hooks/usePurchases'
@@ -332,17 +333,23 @@ export const PurchasesPage = () => {
         }
       >
         <div className="space-y-4">
-          <Select
-            label="Supplier *"
-            options={formSupplierOptions}
-            value={supplierId}
-            onChange={e => setSupplierId(e.target.value)}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Supplier *
+              <FieldInfo textKey="tip.purchase.supplier" />
+            </label>
+            <Select
+              options={formSupplierOptions}
+              value={supplierId}
+              onChange={e => setSupplierId(e.target.value)}
+            />
+          </div>
 
           {/* Add Items Section */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Products
+              <FieldInfo textKey="tip.purchase.products" />
             </label>
             <div className="flex gap-2 mb-3">
               <Select

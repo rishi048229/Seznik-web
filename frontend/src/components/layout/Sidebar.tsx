@@ -21,6 +21,7 @@ import {
   MoveLeft,
   ChevronsLeft,
   MessageSquareHeart,
+  BookOpen,
 } from 'lucide-react'
 import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
@@ -44,6 +45,7 @@ const getAllNavItems = (): NavItem[] => [
   { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart, animClass: 'animate-nav-drive', clip: true },
   { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft, animClass: 'animate-nav-drive-back', clip: true },
   { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package, animClass: 'animate-nav-bounce' },
+  { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, animClass: 'animate-nav-swing origin-top' },
   { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag, animClass: 'animate-nav-swing origin-top' },
   { path: ROUTES.CUSTOMERS, labelKey: 'nav.customers', icon: Users, animClass: 'animate-nav-pulse' },
   { path: ROUTES.SUPPLIERS, labelKey: 'nav.suppliers', icon: Truck, permission: 'canAccessSuppliers', animClass: 'animate-nav-drive', clip: true },

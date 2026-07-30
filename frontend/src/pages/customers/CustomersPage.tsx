@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
+import { FieldInfo } from '@/components/ui/FieldInfo'
 import { Badge } from '@/components/ui/Badge'
 import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '@/hooks/useCustomers'
 import { useSales } from '@/hooks/useSales'
@@ -454,32 +455,52 @@ export const CustomersPage = () => {
         }
       >
         <div className="space-y-4">
-          <Input
-            label="Customer Name *"
-            value={form.name}
-            onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g. John Doe"
-            autoFocus
-          />
-          <Input
-            label="Phone *"
-            value={form.phone}
-            onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
-            placeholder="e.g. +91 98765 43210"
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={form.email}
-            onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-            placeholder="e.g. john@example.com"
-          />
-          <Input
-            label="Address"
-            value={form.address}
-            onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
-            placeholder="Full address"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Customer Name *
+              <FieldInfo textKey="tip.customer.name" />
+            </label>
+            <Input
+              value={form.name}
+              onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. John Doe"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Phone *
+              <FieldInfo textKey="tip.customer.phone" />
+            </label>
+            <Input
+              value={form.phone}
+              onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
+              placeholder="e.g. +91 98765 43210"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Email
+              <FieldInfo textKey="tip.customer.email" />
+            </label>
+            <Input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+              placeholder="e.g. john@example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Address
+              <FieldInfo textKey="tip.customer.address" />
+            </label>
+            <Input
+              value={form.address}
+              onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
+              placeholder="Full address"
+            />
+          </div>
         </div>
       </Modal>
 

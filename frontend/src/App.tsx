@@ -38,6 +38,7 @@ const SaleDetailPage = lazyPage(() => import('@/pages/sales/SaleDetailPage'), 'S
 const PurchasesPage = lazyPage(() => import('@/pages/purchases/PurchasesPage'), 'PurchasesPage')
 const ExpensesPage = lazyPage(() => import('@/pages/expenses/ExpensesPage'), 'ExpensesPage')
 const CreditsPage = lazyPage(() => import('@/pages/credits/CreditsPage'), 'CreditsPage')
+const DaybookPage = lazyPage(() => import('@/pages/credits/DaybookPage'), 'DaybookPage')
 const ReportsPage = lazyPage(() => import('@/pages/reports/ReportsPage'), 'ReportsPage')
 const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage'), 'SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
@@ -210,6 +211,7 @@ function App() {
               <Route path={ROUTES.PURCHASES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessPurchases"><MainLayout><PurchasesPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.EXPENSES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessExpenses"><MainLayout><ExpensesPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.CREDITS} element={<AuthenticatedRoute><MainLayout><CreditsPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.DAYBOOK} element={<AuthenticatedRoute><MainLayout><DaybookPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.REPORTS} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ReportsPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.REPORTS_SALES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><SalesReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ProfitLossPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
