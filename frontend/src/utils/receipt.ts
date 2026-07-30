@@ -400,18 +400,20 @@ export const generateReceiptHTML = ({
     ${sepS}
 
     <!-- ── THERMAL T&C ── -->
-    <div style="margin:3px 0 2px;">
-      <div style="font-size:${smallFS};font-weight:800;text-align:center;margin-bottom:2px;">Terms and Conditions</div>
-      ${receiptConfig?.termsLine1
-      ? `<div style="font-size:${tinyFS};font-weight:600;">1. ${receiptConfig.termsLine1.replace(/^\d+\.\s*/, '')}</div>`
-      : `<div style="font-size:${tinyFS};font-weight:600;">1. Goods once sold will not be taken back or exchanged</div>`}
-      ${receiptConfig?.termsLine2
-      ? `<div style="font-size:${tinyFS};font-weight:600;">2. ${receiptConfig.termsLine2.replace(/^\d+\.\s*/, '')}</div>`
-      : `<div style="font-size:${tinyFS};font-weight:600;">2. All disputes are subject to local jurisdiction only</div>`}
-      ${receiptConfig?.termsLine3
-      ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine3}</div>`
+    ${(receiptConfig?.termsLine1?.trim() || receiptConfig?.termsLine2?.trim() || receiptConfig?.termsLine3?.trim() || (!receiptConfig && 'Goods once sold will not be taken back or exchanged'))
+      ? `<div style="margin:3px 0 2px;">
+          <div style="font-size:${smallFS};font-weight:800;text-align:center;margin-bottom:2px;">Terms and Conditions</div>
+          ${receiptConfig?.termsLine1?.trim()
+            ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine1}</div>`
+            : (!receiptConfig ? `<div style="font-size:${tinyFS};font-weight:600;">1. Goods once sold will not be taken back or exchanged</div>` : '')}
+          ${receiptConfig?.termsLine2?.trim()
+            ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine2}</div>`
+            : ''}
+          ${receiptConfig?.termsLine3?.trim()
+            ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine3}</div>`
+            : ''}
+        </div>`
       : ''}
-    </div>
 
     <!-- ── FOOTER ── -->
     <div style="text-align:center;font-size:${smallFS};font-weight:800;margin-top:16px;border-top:1.5px dashed #000;padding-top:8px;padding-bottom:20px;">
@@ -607,12 +609,16 @@ export const generateReceiptEscPos = ({
   b.hr(lineWidth)
 
   // ── Terms ──
-  b.align('center')
-  b.bold(true).line('Terms and Conditions').bold(false)
-  b.align('left')
-  b.line(`1. ${(receiptConfig?.termsLine1 || 'Goods once sold will not be taken back or exchanged').replace(/^\d+\.\s*/, '')}`)
-  b.line(`2. ${(receiptConfig?.termsLine2 || 'All disputes are subject to local jurisdiction only').replace(/^\d+\.\s*/, '')}`)
-  if (receiptConfig?.termsLine3) b.line(receiptConfig.termsLine3)
+  const t1 = receiptConfig?.termsLine1?.trim()
+  const t2 = receiptConfig?.termsLine2?.trim()
+  const t3 = receiptConfig?.termsLine3?.trim()
+  if (t1 || t2 || t3 || !receiptConfig) {
+    b.align('center').bold(true).line('Terms and Conditions').bold(false).align('left')
+    if (t1) b.line(t1)
+    else if (!receiptConfig) b.line('1. Goods once sold will not be taken back or exchanged')
+    if (t2) b.line(t2)
+    if (t3) b.line(t3)
+  }
 
   // ── Footer ──
   b.align('center')

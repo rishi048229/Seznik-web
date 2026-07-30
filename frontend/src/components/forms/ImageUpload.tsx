@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { X, Image as ImageIcon } from 'lucide-react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import toast from 'react-hot-toast'
 
 function cn(...inputs: unknown[]): string {
   return twMerge(clsx(inputs))
@@ -25,6 +26,7 @@ export const ImageUpload = ({
   onChange,
   onFileSelect,
   accept = 'image/*',
+  maxSizeMB = 5,
   className,
   previewSize = 'md',
 }: ImageUploadProps) => {
@@ -48,6 +50,13 @@ export const ImageUpload = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    const maxBytes = maxSizeMB * 1024 * 1024
+    if (file.size > maxBytes) {
+      toast.error(`File size exceeds ${maxSizeMB}MB limit. Only images up to ${maxSizeMB}MB are allowed.`)
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
 
     setIsUploading(true)
 

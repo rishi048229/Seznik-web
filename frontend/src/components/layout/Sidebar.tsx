@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useProducts } from '@/hooks/useProducts'
+import { useSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   LayoutDashboard,
@@ -64,16 +65,16 @@ interface SidebarProps {
 
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { data: products } = useProducts()
+  const { data: settings } = useSettings()
   const { user, userProfile, permissions } = useAuth()
   const { t } = useLanguage()
   const lowStockCount = products?.filter(p => p.currentStock <= p.lowStockThreshold).length ?? 0
 
-  // Drives the one-shot "pop" animation on the icon of the item just clicked.
+  const displayName = settings?.businessName || userProfile?.businessName || userProfile?.displayName || user?.displayName || 'User'
+  const logoUrl = settings?.businessLogoURL || user?.photoURL
+
   const [poppedPath, setPoppedPath] = useState<string | null>(null)
-
-  // Desktop-only collapse to an icon rail; the mobile drawer always shows labels.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true')
-
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
 
   const toggleCollapsed = () => {
@@ -85,12 +86,10 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   const handleNavClick = (path: string) => {
     setPoppedPath(path)
-    // Longest per-icon animation is 600ms; clear a touch later so it can replay next click.
     window.setTimeout(() => setPoppedPath(current => (current === path ? null : current)), 650)
     onClose()
   }
 
-  // Filter nav items based on permissions
   const navItems = getAllNavItems().filter(item => {
     if (!item.permission) return true
     if (userProfile?.role === 'admin') return true
@@ -101,8 +100,6 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     if (item.permission === 'canAccessReports') return canAccessReports(permissions ?? undefined)
     return true
   })
-
-  const displayName = userProfile?.displayName || user?.displayName || 'User'
 
   return (
     <>
@@ -246,10 +243,10 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             >
               <div className={clsx('flex items-center gap-3', collapsed && 'lg:justify-center lg:gap-0')}>
                 <img
-                  src={user?.photoURL || `https://ui-avatars.com/api/?name=${displayName}&background=2563eb&color=fff`}
+                  src={logoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=2563eb&color=fff`}
                   alt={displayName}
                   title={collapsed ? `${displayName} (${userProfile?.role?.toUpperCase() || 'USER'})` : undefined}
-                  className="w-9 h-9 rounded-full object-cover"
+                  className="w-9 h-9 rounded-full object-cover border border-gray-200 dark:border-gray-700 bg-white"
                 />
                 <div className={clsx('flex-1 min-w-0', collapsed && 'lg:hidden')}>
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
