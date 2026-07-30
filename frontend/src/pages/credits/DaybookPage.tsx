@@ -9,6 +9,7 @@ import { useCreditTransactions } from '@/hooks/useCredits'
 import { useSales } from '@/hooks/useSales'
 import { useExpenses } from '@/hooks/useExpenses'
 import { useCustomers } from '@/hooks/useCustomers'
+import { useTokens } from '@/hooks/useTokens'
 import {
   BookOpen, Receipt, Wallet, ChevronLeft, ChevronRight,
   Search, Download, Share2, Banknote, CreditCard as CardIcon, Smartphone,
@@ -53,6 +54,7 @@ export const DaybookPage = () => {
   const { data: customers } = useCustomers()
 
   const [date, setDate] = useState(toDateInputValue(new Date()))
+  const { data: tokens } = useTokens(date)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<EntryFilter>('all')
   const [isShareOpen, setIsShareOpen] = useState(false)
@@ -73,6 +75,7 @@ export const DaybookPage = () => {
     const endVal = startVal + 86400000
 
     const allCustomers = (customers as Customer[] | undefined) ?? []
+    const allTokens = tokens ?? []
     const list: DaybookEntry[] = []
 
     ;(sales ?? []).forEach(sale => {
@@ -82,11 +85,15 @@ export const DaybookPage = () => {
       const isCredit = sale.paymentMethod === 'credit'
       const paidNow = isCredit ? sale.amountPaid : sale.grandTotal
       const creditPortion = isCredit ? Math.max(0, sale.grandTotal - sale.amountPaid) : 0
+      const token = allTokens.find(tok => tok.saleId === sale.id)
+      const description = token
+        ? `Token #${token.tokenNumber} · ${token.tokenType?.name ?? sale.items?.[0]?.productName ?? t('daybook.invoice')}`
+        : `${t('daybook.invoice')} ${sale.invoiceNumber}`
       list.push({
         id: sale.id,
         entryType: 'sale',
         entryDate: ts,
-        description: `${t('daybook.invoice')} ${sale.invoiceNumber}`,
+        description,
         amount: paidNow,
         customerName: customer?.name,
         referenceId: sale.invoiceNumber,
@@ -139,7 +146,7 @@ export const DaybookPage = () => {
     const creditCollected = list.filter(e => e.entryType === 'credit-payment').reduce((s, e) => s + e.amount, 0)
 
     return { entries: list, moneyIn, moneyOut, creditGiven, cashTotal, cardTotal, upiTotal, creditCollected }
-  }, [date, sales, expenses, transactions, customers, t])
+  }, [date, sales, expenses, transactions, customers, tokens, t])
 
   const visibleEntries = useMemo(() => {
     const q = search.trim().toLowerCase()

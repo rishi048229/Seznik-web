@@ -36,6 +36,8 @@ model User {
   expenses            Expense[]
   creditTransactions  CreditTransaction[]
   feedbacks           Feedback[]
+  tokenTypes          TokenType[]
+  tokens              Token[]
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -197,6 +199,7 @@ model Sale {
   isQuickBill     Boolean  @default(false)
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           Token?
   createdAt       DateTime @default(now())
 }
 
@@ -252,4 +255,36 @@ model Feedback {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+}
+
+// A user-defined quick-bill item (e.g. "Chai Token", "Samosa Token", "Parking").
+// price is nullable — a fixed-price type issues instantly, a null-price type
+// (parking, QR bill) prompts for the amount at issue time.
+model TokenType {
+  id        String   @id @default(uuid())
+  name      String
+  price     Float?
+  taxRate   Float    @default(0)
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens    Token[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Wraps an issued token's Sale record with a per-day sequential ticket number
+// (resets daily) so the printed slip reads "Token #14" instead of an invoice number.
+model Token {
+  id          String     @id @default(uuid())
+  tokenNumber Int
+  note        String?
+  tokenTypeId String?
+  tokenType   TokenType? @relation(fields: [tokenTypeId], references: [id], onDelete: SetNull)
+  saleId      String     @unique
+  sale        Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
 }

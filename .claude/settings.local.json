@@ -96,7 +96,14 @@
       "Bash(where soffice.exe)",
       "Bash(where excel.exe)",
       "Bash(ls \"/c/Program Files/LibreOffice/program/soffice.exe\" 2>/dev/null && echo \"found libreoffice\" || echo \"not found\")",
-      "Read(//c/Program Files/LibreOffice/program/**)"
+      "Read(//c/Program Files/LibreOffice/program/**)",
+      "Bash(node -e \"const m = require\\('lucide-react'\\); console.log\\('MessageSquareHeart' in m\\)\")",
+      "Bash(node)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"CommandLine LIKE '%tsx watch%' OR CommandLine LIKE '%nodemon%'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
+      "Bash(powershell -Command \"Stop-Process -Id 28240 -Force\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
+      "Bash(npm run *)"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

@@ -6,6 +6,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   POS: '/pos',
   POS_LITE: '/pos-lite',
+  TOKENS: '/tokens',
   PRODUCTS: '/products',
   CATEGORIES: '/categories',
   CUSTOMERS: '/customers',

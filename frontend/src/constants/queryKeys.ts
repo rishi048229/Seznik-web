@@ -17,4 +17,6 @@ export const QUERY_KEYS = {
   REPORTS_TOP_CATEGORIES: 'reports-top-categories',
   REPORTS_EXPENSE_SUMMARY: 'reports-expense-summary',
   SETTINGS: 'settings',
+  TOKEN_TYPES: 'token-types',
+  TOKENS: 'tokens',
 } as const
