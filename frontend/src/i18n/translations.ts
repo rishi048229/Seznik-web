@@ -226,6 +226,12 @@ const en = {
   'token.taxRate': 'Tax Rate (%)',
   'tip.tokenType.name': "The name printed on the ticket and shown on the issue button, e.g. 'Chai Token' or 'Parking'.",
   'tip.tokenType.price': "Leave blank for a variable amount you type in each time (e.g. parking, QR bill). Set a price for one-tap issuing (e.g. chai, samosa).",
+  'token.issuedCount': 'Tokens Issued',
+  'token.revenue': 'Revenue',
+  'token.topType': 'Top Token',
+  'token.searchPlaceholder': 'Search by token number or type…',
+  'token.icon': 'Icon',
+  'token.color': 'Color',
 } as const
 
 // ── Hindi ───────────────────────────────────────────────────────────────────
@@ -425,6 +431,12 @@ const hi: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'कर दर (%)',
   'tip.tokenType.name': "टिकट पर छपने वाला और जारी करने वाले बटन पर दिखने वाला नाम, जैसे 'चाय टोकन' या 'पार्किंग'.",
   'tip.tokenType.price': 'हर बार खुद टाइप की जाने वाली परिवर्तनशील राशि के लिए खाली छोड़ें (जैसे पार्किंग, QR बिल)। एक-टैप जारी करने के लिए कीमत सेट करें (जैसे चाय, समोसा)।',
+  'token.issuedCount': 'जारी किए गए टोकन',
+  'token.revenue': 'राजस्व',
+  'token.topType': 'सबसे लोकप्रिय टोकन',
+  'token.searchPlaceholder': 'टोकन नंबर या प्रकार से खोजें…',
+  'token.icon': 'आइकन',
+  'token.color': 'रंग',
 }
 
 // ── Marathi ─────────────────────────────────────────────────────────────────
@@ -624,6 +636,12 @@ const mr: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'कर दर (%)',
   'tip.tokenType.name': "तिकिटावर छापले जाणारे आणि इश्यू बटणावर दिसणारे नाव, उदा. 'चहा टोकन' किंवा 'पार्किंग'.",
   'tip.tokenType.price': 'दर वेळी स्वतः टाइप करायच्या बदलत्या रकमेसाठी रिकामे ठेवा (उदा. पार्किंग, QR बिल). एक-टॅप जारी करण्यासाठी किंमत सेट करा (उदा. चहा, समोसा).',
+  'token.issuedCount': 'जारी केलेले टोकन',
+  'token.revenue': 'महसूल',
+  'token.topType': 'सर्वाधिक लोकप्रिय टोकन',
+  'token.searchPlaceholder': 'टोकन क्रमांक किंवा प्रकाराने शोधा…',
+  'token.icon': 'आयकॉन',
+  'token.color': 'रंग',
 }
 
 // ── Tamil ───────────────────────────────────────────────────────────────────
@@ -823,6 +841,12 @@ const ta: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'வரி விகிதம் (%)',
   'tip.tokenType.name': "டிக்கெட்டில் அச்சிடப்பட்டு வழங்கு பொத்தானில் காட்டப்படும் பெயர், எ.கா. 'தேநீர் டோக்கன்' அல்லது 'பார்க்கிங்'.",
   'tip.tokenType.price': 'ஒவ்வொரு முறையும் நீங்களே தட்டச்சு செய்யும் மாறுபடும் தொகைக்கு காலியாக விடவும் (எ.கா. பார்க்கிங், QR பில்). ஒரு-தட்டு வழங்குதலுக்கு விலையை அமைக்கவும் (எ.கா. தேநீர், சமோசா).',
+  'token.issuedCount': 'வழங்கப்பட்ட டோக்கன்கள்',
+  'token.revenue': 'வருவாய்',
+  'token.topType': 'முதன்மை டோக்கன்',
+  'token.searchPlaceholder': 'டோக்கன் எண் அல்லது வகை மூலம் தேடவும்…',
+  'token.icon': 'ஐகான்',
+  'token.color': 'நிறம்',
 }
 
 // ── Telugu ──────────────────────────────────────────────────────────────────
@@ -1022,6 +1046,12 @@ const te: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'పన్ను రేటు (%)',
   'tip.tokenType.name': "టిక్కెట్‌పై ముద్రించబడి, జారీ బటన్‌పై కనిపించే పేరు, ఉదా. 'చాయ్ టోకెన్' లేదా 'పార్కింగ్'.",
   'tip.tokenType.price': 'ప్రతిసారీ మీరే టైప్ చేసే మారుతున్న మొత్తానికి ఖాళీగా ఉంచండి (ఉదా. పార్కింగ్, QR బిల్లు). వన్-టాప్ జారీ చేయడానికి ధరను సెట్ చేయండి (ఉదా. చాయ్, సమోసా).',
+  'token.issuedCount': 'జారీ చేసిన టోకెన్లు',
+  'token.revenue': 'ఆదాయం',
+  'token.topType': 'అత్యధిక టోకెన్',
+  'token.searchPlaceholder': 'టోకెన్ నంబర్ లేదా రకం ద్వారా వెతకండి…',
+  'token.icon': 'ఐకాన్',
+  'token.color': 'రంగు',
 }
 
 // ── Gujarati ────────────────────────────────────────────────────────────────
@@ -1221,6 +1251,12 @@ const gu: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'ટેક્સ દર (%)',
   'tip.tokenType.name': "ટિકિટ પર છપાયેલું અને ઇશ્યૂ બટન પર દેખાતું નામ, દા.ત. 'ચા ટોકન' અથવા 'પાર્કિંગ'.",
   'tip.tokenType.price': 'દર વખતે તમે જાતે ટાઇપ કરો તેવી બદલાતી રકમ માટે ખાલી રાખો (દા.ત. પાર્કિંગ, QR બિલ). વન-ટેપ ઇશ્યૂ કરવા માટે કિંમત સેટ કરો (દા.ત. ચા, સમોસા).',
+  'token.issuedCount': 'જારી કરેલા ટોકન',
+  'token.revenue': 'આવક',
+  'token.topType': 'ટોચનું ટોકન',
+  'token.searchPlaceholder': 'ટોકન નંબર અથવા પ્રકાર દ્વારા શોધો…',
+  'token.icon': 'આઇકન',
+  'token.color': 'રંગ',
 }
 
 // ── Bengali ─────────────────────────────────────────────────────────────────
@@ -1420,6 +1456,12 @@ const bn: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'কর হার (%)',
   'tip.tokenType.name': "টিকিটে মুদ্রিত এবং ইস্যু বোতামে দেখানো নাম, যেমন 'চা টোকেন' বা 'পার্কিং'.",
   'tip.tokenType.price': 'প্রতিবার নিজে টাইপ করা পরিবর্তনশীল পরিমাণের জন্য ফাঁকা রাখুন (যেমন পার্কিং, QR বিল)। এক-ট্যাপ ইস্যুর জন্য মূল্য নির্ধারণ করুন (যেমন চা, সামোসা)।',
+  'token.issuedCount': 'ইস্যু করা টোকেন',
+  'token.revenue': 'রাজস্ব',
+  'token.topType': 'শীর্ষ টোকেন',
+  'token.searchPlaceholder': 'টোকেন নম্বর বা প্রকার দ্বারা খুঁজুন…',
+  'token.icon': 'আইকন',
+  'token.color': 'রঙ',
 }
 
 // ── Malayalam ───────────────────────────────────────────────────────────────
@@ -1619,6 +1661,12 @@ const ml: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'നികുതി നിരക്ക് (%)',
   'tip.tokenType.name': "ടിക്കറ്റിൽ പ്രിന്റ് ചെയ്യുന്നതും ഇഷ്യൂ ബട്ടണിൽ കാണിക്കുന്നതുമായ പേര്, ഉദാ. 'ചായ ടോക്കൺ' അല്ലെങ്കിൽ 'പാർക്കിംഗ്'.",
   'tip.tokenType.price': 'ഓരോ തവണയും നിങ്ങൾ സ്വയം ടൈപ്പ് ചെയ്യുന്ന വേരിയബിൾ തുകയ്ക്ക് ശൂന്യമായി വിടുക (ഉദാ. പാർക്കിംഗ്, QR ബിൽ). ഒറ്റ-ടാപ്പ് ഇഷ്യൂവിന് വില സജ്ജമാക്കുക (ഉദാ. ചായ, സമോസ).',
+  'token.issuedCount': 'നൽകിയ ടോക്കണുകൾ',
+  'token.revenue': 'വരുമാനം',
+  'token.topType': 'മുൻനിര ടോക്കൺ',
+  'token.searchPlaceholder': 'ടോക്കൺ നമ്പർ അല്ലെങ്കിൽ തരം പ്രകാരം തിരയുക…',
+  'token.icon': 'ഐക്കൺ',
+  'token.color': 'നിറം',
 }
 
 // ── Odia ────────────────────────────────────────────────────────────────────
@@ -1818,6 +1866,12 @@ const or: Partial<Record<TranslationKey, string>> = {
   'token.taxRate': 'କର ହାର (%)',
   'tip.tokenType.name': "ଟିକେଟ୍‌ରେ ମୁଦ୍ରିତ ହେଉଥିବା ଏବଂ ଜାରି ବଟନ୍‌ରେ ଦେଖାଯାଉଥିବା ନାମ, ଯଥା 'ଚା ଟୋକନ୍' କିମ୍ବା 'ପାର୍କିଂ'.",
   'tip.tokenType.price': 'ପ୍ରତିଥର ନିଜେ ଟାଇପ୍ କରାଯିବାକୁ ଥିବା ପରିବର୍ତ୍ତନଶୀଳ ପରିମାଣ ପାଇଁ ଖାଲି ରଖନ୍ତୁ (ଯଥା ପାର୍କିଂ, QR ବିଲ୍)। ଏକ-ଟ୍ୟାପ୍ ଜାରି ପାଇଁ ମୂଲ୍ୟ ସେଟ୍ କରନ୍ତୁ (ଯଥା ଚା, ସମୋସା)।',
+  'token.issuedCount': 'ଜାରି ହୋଇଥିବା ଟୋକନ୍',
+  'token.revenue': 'ରାଜସ୍ୱ',
+  'token.topType': 'ଶ୍ରେଷ୍ଠ ଟୋକନ୍',
+  'token.searchPlaceholder': 'ଟୋକନ୍ ନମ୍ବର କିମ୍ବା ପ୍ରକାର ଦ୍ୱାରା ଖୋଜନ୍ତୁ…',
+  'token.icon': 'ଆଇକନ୍',
+  'token.color': 'ରଙ୍ଗ',
 }
 
 export const translations: Record<LanguageCode, Partial<Record<TranslationKey, string>>> = {

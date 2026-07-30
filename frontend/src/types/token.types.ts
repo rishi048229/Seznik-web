@@ -6,6 +6,10 @@ export interface TokenType {
   /** null = variable amount, entered at issue time (e.g. parking, QR bill). */
   price: number | null
   taxRate: number
+  /** Key into the frontend TOKEN_ICONS palette (see QuickTokensPage.tsx). */
+  icon: string
+  /** Key into the frontend TOKEN_COLORS palette. */
+  color: string
   sortOrder: number
   isActive: boolean
   createdAt: string

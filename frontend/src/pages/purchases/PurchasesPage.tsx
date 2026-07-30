@@ -29,6 +29,13 @@ interface PurchaseItemRow {
   costPrice: number
 }
 
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'bank', label: 'Bank Transfer' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'credit', label: 'Credit (pay later)' },
+]
+
 export const PurchasesPage = () => {
   const { t } = useLanguage()
   const pageTutorial = usePageTutorial('purchases')
@@ -43,6 +50,7 @@ export const PurchasesPage = () => {
   const [items, setItems] = useState<PurchaseItemRow[]>([])
   const [selectedProduct, setSelectedProduct] = useState('')
   const [quantityInput, setQuantityInput] = useState('1')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank' | 'upi' | 'credit'>('cash')
 
   // Filters
   const [filterSupplier, setFilterSupplier] = useState('')
@@ -78,19 +86,13 @@ export const PurchasesPage = () => {
     if (filterStartDate) {
       const start = new Date(filterStartDate)
       start.setHours(0, 0, 0, 0)
-      result = result.filter(p => {
-        const pDate = p.purchaseDate instanceof Date ? p.purchaseDate : (p.purchaseDate as { toDate: () => Date }).toDate()
-        return pDate >= start
-      })
+      result = result.filter(p => new Date(p.createdAt) >= start)
     }
 
     if (filterEndDate) {
       const end = new Date(filterEndDate)
       end.setHours(23, 59, 59, 999)
-      result = result.filter(p => {
-        const pDate = p.purchaseDate instanceof Date ? p.purchaseDate : (p.purchaseDate as { toDate: () => Date }).toDate()
-        return pDate <= end
-      })
+      result = result.filter(p => new Date(p.createdAt) <= end)
     }
 
     return result
@@ -113,18 +115,15 @@ export const PurchasesPage = () => {
       },
     },
     {
-      key: 'purchaseDate',
+      key: 'createdAt',
       header: 'Date',
-      render: (row) => {
-        const d = row.purchaseDate instanceof Date ? row.purchaseDate : (row.purchaseDate as { toDate: () => Date }).toDate()
-        return (
-          <span>
-            {d.toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric',
-              })}
-          </span>
-        )
-      },
+      render: (row) => (
+        <span>
+          {new Date(row.createdAt).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+          })}
+        </span>
+      ),
       sortable: true,
     },
     {
@@ -135,10 +134,17 @@ export const PurchasesPage = () => {
       ),
     },
     {
-      key: 'totalAmount',
+      key: 'paymentMethod',
+      header: 'Payment',
+      render: (row) => (
+        <span className="text-sm text-gray-500 uppercase">{row.paymentMethod}</span>
+      ),
+    },
+    {
+      key: 'grandTotal',
       header: 'Total',
       render: (row) => (
-        <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINR(row.totalAmount)}</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINR(row.grandTotal)}</span>
       ),
       sortable: true,
     },
@@ -215,8 +221,11 @@ export const PurchasesPage = () => {
           costPrice: item.costPrice,
           total: item.costPrice * item.quantity,
         })),
-        totalAmount,
-        purchaseDate: new Date(),
+        subtotal: totalAmount,
+        totalTax: 0,
+        grandTotal: totalAmount,
+        paymentMethod,
+        amountPaid: paymentMethod === 'credit' ? 0 : totalAmount,
       },
       {
         onSuccess: () => {
@@ -224,8 +233,9 @@ export const PurchasesPage = () => {
           setIsFormOpen(false)
           setItems([])
           setSupplierId('')
+          setPaymentMethod('cash')
         },
-        onError: () => toast.error('Failed to record purchase'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to record purchase'),
       }
     )
   }
@@ -342,6 +352,17 @@ export const PurchasesPage = () => {
               options={formSupplierOptions}
               value={supplierId}
               onChange={e => setSupplierId(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Payment Method
+            </label>
+            <Select
+              options={PAYMENT_METHOD_OPTIONS}
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value as 'cash' | 'bank' | 'upi' | 'credit')}
             />
           </div>
 

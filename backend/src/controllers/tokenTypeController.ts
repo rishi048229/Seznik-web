@@ -17,7 +17,7 @@ export const getTokenTypes = async (req: Request, res: Response) => {
 export const createTokenType = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { name, price, taxRate, sortOrder } = req.body;
+    const { name, price, taxRate, icon, color, sortOrder } = req.body;
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Token type name is required' });
@@ -28,6 +28,8 @@ export const createTokenType = async (req: Request, res: Response) => {
         name: String(name).trim(),
         price: price === undefined || price === null || price === '' ? null : parseFloat(price),
         taxRate: taxRate ? parseFloat(taxRate) : 0,
+        icon: icon || 'ticket',
+        color: color || 'blue',
         sortOrder: sortOrder ? parseInt(sortOrder, 10) : 0,
         userId,
       },
@@ -42,7 +44,7 @@ export const updateTokenType = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const { name, price, taxRate, sortOrder, isActive } = req.body;
+    const { name, price, taxRate, icon, color, sortOrder, isActive } = req.body;
 
     const existing = await prisma.tokenType.findFirst({ where: { id: String(id), userId } });
     if (!existing) {
@@ -50,7 +52,7 @@ export const updateTokenType = async (req: Request, res: Response) => {
     }
 
     const data: {
-      name?: string; price?: number | null; taxRate?: number; sortOrder?: number; isActive?: boolean;
+      name?: string; price?: number | null; taxRate?: number; icon?: string; color?: string; sortOrder?: number; isActive?: boolean;
     } = {};
 
     if (name !== undefined) {
@@ -61,6 +63,8 @@ export const updateTokenType = async (req: Request, res: Response) => {
     }
     if (price !== undefined) data.price = price === null || price === '' ? null : parseFloat(price);
     if (taxRate !== undefined) data.taxRate = parseFloat(taxRate);
+    if (icon !== undefined) data.icon = icon;
+    if (color !== undefined) data.color = color;
     if (sortOrder !== undefined) data.sortOrder = parseInt(sortOrder, 10);
     if (isActive !== undefined) data.isActive = isActive;
 

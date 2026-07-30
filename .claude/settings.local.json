@@ -103,7 +103,9 @@
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"CommandLine LIKE '%tsx watch%' OR CommandLine LIKE '%nodemon%'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
       "Bash(powershell -Command \"Stop-Process -Id 28240 -Force\")",
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(echo \"FRONTEND_EXIT:$?\")",
+      "Bash(echo \"BACKEND_EXIT:$?\")"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

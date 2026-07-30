@@ -2,11 +2,15 @@
 
 export interface Purchase {
   id: string
+  invoiceNumber: string
   supplierId: string
   items: PurchaseItem[]
-  totalAmount: number
-  purchaseDate: Date | Date
-  createdAt: Date
+  subtotal: number
+  totalTax: number
+  grandTotal: number
+  paymentMethod: 'cash' | 'bank' | 'upi' | 'credit'
+  amountPaid: number
+  createdAt: Date | string
 }
 
 export interface PurchaseItem {

@@ -265,6 +265,9 @@ model TokenType {
   name      String
   price     Float?
   taxRate   Float    @default(0)
+  // Keys into a fixed frontend icon/color palette (e.g. "coffee" / "amber") — not free text.
+  icon      String   @default("ticket")
+  color     String   @default("blue")
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   userId    String
