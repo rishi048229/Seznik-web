@@ -223,31 +223,35 @@ export function generateLabelTspl(
       if (el.type === 'qrCode' || barcodeType === 'QR') {
         const qrSizeDots = 84 // ~10.5mm QR size
         const x = align === 'left'
-          ? Math.max(5, 15 + offsetXDots)
+          ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
-          ? Math.max(5, widthDots - qrSizeDots - 15 + offsetXDots)
-          : Math.max(5, Math.floor((widthDots - qrSizeDots) / 2) + offsetXDots)
+          ? Math.max(16, widthDots - qrSizeDots - 16 + offsetXDots)
+          : Math.max(16, Math.floor((widthDots - qrSizeDots) / 2) + offsetXDots)
 
         y += 6
         tspl += `QRCODE ${x},${y},L,4,A,0,"${barcodeStr}"\r\n`
         y += 94
       } else {
-        const h = barcodeHeight || 42 // 42 dots = 5.25mm bar height (perfectly proportioned)
-        const moduleWidth = 2
-        // Calculate exact TSPL 128M barcode width in dots
-        const barcodeWidthDots = Math.min(estimateTsplCode128Dots(barcodeStr, moduleWidth), widthDots - 20)
+        const h = barcodeHeight || 42 // 42 dots = 5.25mm bar height
+        // Calculate max printable width with 18-dot safety margins on left & right
+        const maxPrintableWidth = Math.max(100, widthDots - 36)
+        const rawWidthAt2 = estimateTsplCode128Dots(barcodeStr, 2)
+        // If barcode at moduleWidth 2 exceeds printable width, use moduleWidth 1 so it never clips or skips lines
+        const moduleWidth = rawWidthAt2 > maxPrintableWidth ? 1 : 2
+        const barcodeWidthDots = estimateTsplCode128Dots(barcodeStr, moduleWidth)
+        const wideRatio = moduleWidth * 2
 
         const x = align === 'left'
-          ? Math.max(10, 15 + offsetXDots)
+          ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
-          ? Math.max(10, widthDots - barcodeWidthDots - 15 + offsetXDots)
-          : Math.max(10, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
+          ? Math.max(16, widthDots - barcodeWidthDots - 16 + offsetXDots)
+          : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
 
         // Top margin gap before barcode so preceding text (e.g. "Burger") never overlaps top edge of bars
         y += 8
 
-        // TSPL BARCODE x, y, "128M", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
-        tspl += `BARCODE ${x},${y},"128M",${h},2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
+        // TSPL BARCODE x, y, "128", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
+        tspl += `BARCODE ${x},${y},"128",${h},2,0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
         y += h + 30
       }
       continue
