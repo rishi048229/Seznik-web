@@ -129,6 +129,28 @@ export function generateLabelEscPos(
   return builder.toBytes()
 }
 
+function estimateTsplCode128Dots(text: string, moduleWidth: number): number {
+  let charCount = 0
+  let i = 0
+  while (i < text.length) {
+    let digitLen = 0
+    while (i + digitLen < text.length && text.charCodeAt(i + digitLen) >= 48 && text.charCodeAt(i + digitLen) <= 57) {
+      digitLen++
+    }
+    if (digitLen >= 4) {
+      const pairs = Math.floor(digitLen / 2)
+      charCount += pairs + 1
+      i += pairs * 2
+    } else {
+      charCount++
+      i++
+    }
+  }
+  // Start (11) + Check (11) + Stop (13) + Quiet zones (20) = 55 modules
+  const totalModules = charCount * 11 + 55
+  return totalModules * moduleWidth
+}
+
 /**
  * Builds TSPL / TSPL2 command bytes for dedicated dual-mode label printers.
  * Emits exact SIZE, GAP, and coordinate placement so the printer hardware
@@ -182,17 +204,17 @@ export function generateLabelTspl(
       const rightHalfDots = widthDots - leftHalfDots
 
       const moduleWidth = 2
-      const barWidthDots = (barcodeStr.length * 11 + 35) * moduleWidth
+      const barWidthDots = estimateTsplCode128Dots(barcodeStr, moduleWidth)
       const xBar = Math.max(5, Math.floor((leftHalfDots - barWidthDots) / 2) + offsetXDots)
 
       const qrSizeDots = 70 // ~8.7mm QR size
       const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrSizeDots) / 2) + offsetXDots)
 
       y += 6
-      tspl += `BARCODE ${xBar},${y},"128M",36,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
+      tspl += `BARCODE ${xBar},${y},"128M",34,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
       tspl += `QRCODE ${xQr},${y},L,3,A,0,"${barcodeStr}"\r\n`
 
-      y += 68
+      y += 64
       continue
     }
 
@@ -210,25 +232,23 @@ export function generateLabelTspl(
         tspl += `QRCODE ${x},${y},L,4,A,0,"${barcodeStr}"\r\n`
         y += 94
       } else {
-        const h = barcodeHeight || 48 // 48 dots = 6mm bar height
-        // Lock narrow bar width to 2 dots minimum (0.25mm) so thermal printheads don't bleed or clutter bars
+        const h = barcodeHeight || 42 // 42 dots = 5.25mm bar height (perfectly proportioned)
         const moduleWidth = 2
-        // Code128 total width including start, check, stop, and quiet zones in TSPL 128M auto mode
-        const totalModules = Math.min(barcodeStr.length * 11 + 45, Math.floor((widthDots - 30) / moduleWidth))
-        const barcodeWidthDots = totalModules * moduleWidth
+        // Calculate exact TSPL 128M barcode width in dots
+        const barcodeWidthDots = Math.min(estimateTsplCode128Dots(barcodeStr, moduleWidth), widthDots - 20)
 
         const x = align === 'left'
-          ? Math.max(5, 15 + offsetXDots)
+          ? Math.max(10, 15 + offsetXDots)
           : align === 'right'
-          ? Math.max(5, widthDots - barcodeWidthDots - 15 + offsetXDots)
-          : Math.max(5, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
+          ? Math.max(10, widthDots - barcodeWidthDots - 15 + offsetXDots)
+          : Math.max(10, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
 
         // Top margin gap before barcode so preceding text (e.g. "Burger") never overlaps top edge of bars
         y += 8
 
         // TSPL BARCODE x, y, "128M", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
         tspl += `BARCODE ${x},${y},"128M",${h},2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
-        y += h + 34
+        y += h + 30
       }
       continue
     }
