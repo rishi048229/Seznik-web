@@ -16,7 +16,7 @@ import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
-import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X, Bluetooth } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { buildCategoryOptions } from '@/utils/categoryTree'
