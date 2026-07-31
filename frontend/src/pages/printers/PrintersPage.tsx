@@ -846,11 +846,9 @@ export const PrintersPage = () => {
         </div>
       )}
 
-      {/* Tab 2: Label Designer (Locked / Coming Soon Overlay) */}
+      {/* Tab 2: Label Designer */}
       {activeTab === 'label' && (
-        <div className="relative w-full overflow-hidden rounded-2xl min-h-[460px]">
-          {/* Blurred background preview of the label designer */}
-          <div className="flex flex-col lg:flex-row gap-6 items-start w-full filter blur-[5px] pointer-events-none select-none opacity-40">
+        <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
             {/* Controls */}
             <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
               {/* Hardware Alignment & Gap Calibration Box */}
@@ -1083,29 +1081,6 @@ export const PrintersPage = () => {
               {!selectedProduct && (
                 <p className="text-[11px] text-gray-400 mt-3 text-center">Pick a product above to preview with real data.</p>
               )}
-            </div>
-          </div>
-
-          {/* Centered Lock Overlay */}
-          <div className="absolute inset-0 z-20 backdrop-blur-md bg-white/70 dark:bg-gray-900/80 flex flex-col items-center justify-center p-6 text-center">
-            <div className="max-w-md w-full bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700/90 rounded-3xl p-8 shadow-2xl flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4 ring-8 ring-amber-50 dark:ring-amber-950/40 shadow-inner">
-                <Lock size={32} className="animate-pulse" />
-              </div>
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-bold mb-3">
-                <Sparkles size={14} />
-                Feature Coming Soon
-              </div>
-              <h3 className="text-xl font-black text-gray-900 dark:text-gray-100 mb-2">
-                Label Printing Locked
-              </h3>
-              <p className="text-base font-bold text-amber-600 dark:text-amber-400 mb-2">
-                This feature will be live soon
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs leading-relaxed">
-                Label designing and barcode sticker printing are disabled for this version and will be live in an upcoming release.
-              </p>
-            </div>
           </div>
         </div>
       )}
