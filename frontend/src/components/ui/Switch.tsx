@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { clsx } from 'clsx'
 
 interface SwitchProps {
@@ -5,13 +6,18 @@ interface SwitchProps {
   onChange: (checked: boolean) => void
   label: string
   description?: string
+  /** Optional info/tooltip element (e.g. a FieldInfo "i" button) rendered right after the label text. */
+  info?: ReactNode
 }
 
-export const Switch = ({ checked, onChange, label, description }: SwitchProps) => {
+export const Switch = ({ checked, onChange, label, description, info }: SwitchProps) => {
   return (
     <label className="flex items-center justify-between gap-3 py-2.5 cursor-pointer group">
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-gray-800 dark:text-gray-200">{label}</span>
+        <span className="flex items-center text-sm font-medium text-gray-800 dark:text-gray-200">
+          {label}
+          {info}
+        </span>
         {description && <span className="block text-xs text-gray-400 dark:text-gray-500 truncate">{description}</span>}
       </span>
       <button

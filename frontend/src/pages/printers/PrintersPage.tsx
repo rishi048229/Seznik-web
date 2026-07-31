@@ -29,6 +29,7 @@ import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
+import { FieldInfo } from '@/components/ui/FieldInfo'
 import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -78,6 +79,7 @@ const defaultPrinterConfig: PrinterConfig = {
   labelHeight: 30,
   labelOffsetX: 0,
   labelOffsetY: 0,
+  labelDirection: 0,
   labelBarcodeType: 'CODE128',
   labelDensity: 10,
   labelTemplate: defaultLabelTemplate,
@@ -401,7 +403,9 @@ export const PrintersPage = () => {
                 config.labelWidth,
                 config.labelHeight,
                 config.labelOffsetX ?? 0,
-                config.labelOffsetY ?? 0
+                config.labelOffsetY ?? 0,
+                undefined,
+                config.labelDirection ?? 0
               )
             : generateLabelEscPos(config.labelTemplate, config.labelBarcodeType, labelData)
           await printEscPos(bytes)
@@ -650,7 +654,10 @@ export const PrintersPage = () => {
           <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Paper Width</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Paper Width
+                  <FieldInfo textKey="tip.printer.paperWidth" />
+                </label>
                 <div className="flex gap-2">
                   {(['58mm', '80mm'] as const).map(size => (
                     <button
@@ -674,7 +681,10 @@ export const PrintersPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Print Destination</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Print Destination
+                  <FieldInfo textKey="tip.printer.printDestination" />
+                </label>
                 <select
                   value={config.connectionType}
                   onChange={(e) => setConfig(prev => ({ ...prev, connectionType: e.target.value as 'bluetooth' | 'system_driver' }))}
@@ -689,7 +699,10 @@ export const PrintersPage = () => {
 
             <div className="pt-1">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Invoice & Receipt Details</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  Invoice & Receipt Details
+                  <FieldInfo textKey="tip.printer.receiptDetails" />
+                </label>
                 <span className="text-[10px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
                   Synced with Settings → Invoice
                 </span>
@@ -759,13 +772,13 @@ export const PrintersPage = () => {
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo" />
-              <Switch checked={config.showGSTIN} onChange={v => setConfig(prev => ({ ...prev, showGSTIN: v }))} label="GSTIN / Tax number" />
-              <Switch checked={config.showCustomerDetails} onChange={v => setConfig(prev => ({ ...prev, showCustomerDetails: v }))} label="Customer details" />
-              <Switch checked={config.showBarcode} onChange={v => setConfig(prev => ({ ...prev, showBarcode: v }))} label="Invoice barcode" />
-              <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" />
-              <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" />
-              <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" />
+              <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo" info={<FieldInfo textKey="tip.printer.showLogo" />} />
+              <Switch checked={config.showGSTIN} onChange={v => setConfig(prev => ({ ...prev, showGSTIN: v }))} label="GSTIN / Tax number" info={<FieldInfo textKey="tip.printer.showGSTIN" />} />
+              <Switch checked={config.showCustomerDetails} onChange={v => setConfig(prev => ({ ...prev, showCustomerDetails: v }))} label="Customer details" info={<FieldInfo textKey="tip.printer.showCustomerDetails" />} />
+              <Switch checked={config.showBarcode} onChange={v => setConfig(prev => ({ ...prev, showBarcode: v }))} label="Invoice barcode" info={<FieldInfo textKey="tip.printer.showBarcode" />} />
+              <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
+              <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
+              <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
             </div>
           </div>
 
@@ -879,8 +892,9 @@ export const PrintersPage = () => {
             <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
               {/* Preset Templates */}
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                <label className="flex items-center text-xs font-bold text-slate-800 dark:text-slate-200">
                   Quick Layout Presets
+                  <FieldInfo textKey="tip.printer.labelPresets" />
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -911,7 +925,10 @@ export const PrintersPage = () => {
               <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Label Command Protocol & Calibration</h4>
+                    <h4 className="flex items-center text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                      Label Command Protocol & Calibration
+                      <FieldInfo textKey="tip.printer.labelMode" />
+                    </h4>
                     <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
                       Select <strong>TSPL Mode</strong> for label printers (Xprinter/TSC/Gprinter) to lock print inside 1 sticker gap.
                     </p>
@@ -919,6 +936,7 @@ export const PrintersPage = () => {
                   <button
                     type="button"
                     onClick={handleCalibrateGap}
+                    title="Sends a command that makes the printer auto-detect the gap between stickers"
                     className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex-shrink-0"
                   >
                     Calibrate Paper Gap
@@ -953,8 +971,9 @@ export const PrintersPage = () => {
                 {/* Printer Calibration Offsets */}
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-indigo-200/60 dark:border-indigo-800/40">
                   <div>
-                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                    <label className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
                       Printer Offset X (mm)
+                      <FieldInfo textKey="tip.printer.labelOffset" />
                     </label>
                     <input
                       type="number"
@@ -981,11 +1000,36 @@ export const PrintersPage = () => {
                     <span className="text-[10px] text-gray-500">Shift up/down on paper</span>
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
+                  <span className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200">
+                    Label Upside Down? Flip 180°
+                    <FieldInfo textKey="tip.printer.labelDirection" />
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={(config.labelDirection ?? 0) === 1}
+                    onClick={() => setConfig(prev => ({ ...prev, labelDirection: (prev.labelDirection ?? 0) === 1 ? 0 : 1 }))}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 ${
+                      (config.labelDirection ?? 0) === 1 ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                        (config.labelDirection ?? 0) === 1 ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Width (mm)</label>
+                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                    Width (mm)
+                    <FieldInfo textKey="tip.printer.labelSize" />
+                  </label>
                   <input
                     type="number"
                     value={config.labelWidth}
@@ -1005,7 +1049,10 @@ export const PrintersPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Default Barcode Type</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Default Barcode Type
+                  <FieldInfo textKey="tip.printer.labelBarcodeType" />
+                </label>
                 <div className="flex gap-2">
                   {(['CODE128', 'EAN13', 'QR'] as const).map(type => (
                     <button
@@ -1025,7 +1072,10 @@ export const PrintersPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Preview With Product</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Preview With Product
+                  <FieldInfo textKey="tip.printer.previewProduct" />
+                </label>
                 <select
                   value={previewProductId}
                   onChange={(e) => setPreviewProductId(e.target.value)}
@@ -1040,7 +1090,10 @@ export const PrintersPage = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Label Contents & Formatting</label>
+                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
+                    Label Contents & Formatting
+                    <FieldInfo textKey="tip.printer.addElement" />
+                  </label>
                   <select
                     value=""
                     onChange={(e) => { if (e.target.value) addLabelElement(e.target.value as LabelElementType) }}
@@ -1238,7 +1291,10 @@ export const PrintersPage = () => {
           <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Document Size</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Document Size
+                  <FieldInfo textKey="tip.printer.invoiceSize" />
+                </label>
                 <select
                   value={config.invoicePaperSize}
                   onChange={(e) => setConfig(prev => ({ ...prev, invoicePaperSize: e.target.value as PrinterConfig['invoicePaperSize'] }))}
@@ -1250,7 +1306,10 @@ export const PrintersPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Color Theme</label>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Color Theme
+                  <FieldInfo textKey="tip.printer.invoiceTheme" />
+                </label>
                 <select
                   value={config.invoiceColorTheme}
                   onChange={(e) => setConfig(prev => ({ ...prev, invoiceColorTheme: e.target.value as PrinterConfig['invoiceColorTheme'] }))}
@@ -1265,7 +1324,10 @@ export const PrintersPage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Terms & Conditions</label>
+              <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                Terms & Conditions
+                <FieldInfo textKey="tip.printer.invoiceTerms" />
+              </label>
               <textarea
                 rows={3}
                 value={config.invoiceTermsText}
@@ -1275,9 +1337,9 @@ export const PrintersPage = () => {
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.invoiceShowHeader} onChange={v => setConfig(prev => ({ ...prev, invoiceShowHeader: v }))} label="Header banner" />
-              <Switch checked={config.invoiceShowTerms} onChange={v => setConfig(prev => ({ ...prev, invoiceShowTerms: v }))} label="Print terms & conditions" />
-              <Switch checked={config.invoiceShowPaymentQR} onChange={v => setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))} label="UPI payment QR code" />
+              <Switch checked={config.invoiceShowHeader} onChange={v => setConfig(prev => ({ ...prev, invoiceShowHeader: v }))} label="Header banner" info={<FieldInfo textKey="tip.printer.invoiceShowHeader" />} />
+              <Switch checked={config.invoiceShowTerms} onChange={v => setConfig(prev => ({ ...prev, invoiceShowTerms: v }))} label="Print terms & conditions" info={<FieldInfo textKey="tip.printer.invoiceShowTerms" />} />
+              <Switch checked={config.invoiceShowPaymentQR} onChange={v => setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))} label="UPI payment QR code" info={<FieldInfo textKey="tip.printer.invoiceShowPaymentQR" />} />
             </div>
           </div>
 

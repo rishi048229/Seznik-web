@@ -308,7 +308,9 @@ export const ProductsPage = () => {
             settings?.printerConfig?.labelWidth || 50,
             settings?.printerConfig?.labelHeight || 30,
             settings?.printerConfig?.labelOffsetX || 0,
-            settings?.printerConfig?.labelOffsetY || 0
+            settings?.printerConfig?.labelOffsetY || 0,
+            undefined,
+            settings?.printerConfig?.labelDirection ?? 0
           )
         : generateLabelEscPos(template, labelFormat, data)
 

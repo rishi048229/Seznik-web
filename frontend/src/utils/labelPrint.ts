@@ -164,7 +164,11 @@ export function generateLabelTspl(
   labelHeight = 30,
   offsetX = 0,
   offsetY = 0,
-  barcodeHeight = 38
+  barcodeHeight = 38,
+  // 0 = normal, 1 = rotated 180°. Which one is "right side up" depends on how
+  // the sticker roll is loaded into the printer, so this is caller-configurable
+  // instead of a fixed constant (see PrinterConfig.labelDirection).
+  direction: 0 | 1 = 0
 ): Uint8Array {
   const encoder = new TextEncoder()
   const widthDots = Math.max(100, Math.round(labelWidth * 8)) // 8 dots/mm at 203 DPI
@@ -182,7 +186,7 @@ export function generateLabelTspl(
 
   let tspl = `SIZE ${labelWidth} mm, ${labelHeight} mm\r\n`
   tspl += `GAP 2 mm, 0 mm\r\n`
-  tspl += `DIRECTION 1\r\n`
+  tspl += `DIRECTION ${direction}\r\n`
   tspl += `CLS\r\n`
 
   let y = Math.max(10, 16 + offsetYDots)

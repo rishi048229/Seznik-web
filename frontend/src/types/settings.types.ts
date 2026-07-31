@@ -79,6 +79,10 @@ export interface PrinterConfig {
   labelHeight: number
   labelOffsetX?: number // Printer horizontal calibration offset in mm (e.g. -10 to +10)
   labelOffsetY?: number // Printer vertical calibration offset in mm (e.g. -10 to +10)
+  // TSPL DIRECTION command (0 = normal, 1 = rotated 180°). Whether a roll needs
+  // 0 or 1 depends on which way the sticker is loaded in the printer, so this
+  // is a user-facing toggle rather than a fixed value.
+  labelDirection?: 0 | 1
   labelBarcodeType: 'CODE128' | 'EAN13' | 'QR'
   labelBarcodeHeight?: number
   labelPrinterMode?: 'tspl' | 'escpos'
