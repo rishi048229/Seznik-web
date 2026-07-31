@@ -290,17 +290,26 @@ export const ProductsPage = () => {
 
     const mode = settings?.printerConfig?.labelPrinterMode || 'tspl'
     const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
-    const data = {
+    const data: LabelData = {
       businessName: settings?.businessName || 'SEZNIK RETAIL',
       productName: labelProduct.name,
       price: formatINR(labelProduct.sellingPrice),
       barcodeValue: barcodeVal,
+      sku: labelProduct.sku,
     }
 
     try {
       const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
       const singleBytes = mode === 'tspl'
-        ? generateLabelTspl(template, labelFormat, data, settings?.printerConfig?.labelWidth || 50, settings?.printerConfig?.labelHeight || 30)
+        ? generateLabelTspl(
+            template,
+            labelFormat,
+            data,
+            settings?.printerConfig?.labelWidth || 50,
+            settings?.printerConfig?.labelHeight || 30,
+            settings?.printerConfig?.labelOffsetX || 0,
+            settings?.printerConfig?.labelOffsetY || 0
+          )
         : generateLabelEscPos(template, labelFormat, data)
 
       for (let i = 0; i < labelQty; i++) {
@@ -329,22 +338,55 @@ export const ProductsPage = () => {
       productName: labelProduct.name,
       price: formatINR(labelProduct.sellingPrice),
       barcodeValue: barcodeVal,
+      sku: labelProduct.sku,
     }
+
+    const widthMm = settings?.printerConfig?.labelWidth || 50
+    const heightMm = settings?.printerConfig?.labelHeight || 30
+    const offX = settings?.printerConfig?.labelOffsetX || 0
+    const offY = settings?.printerConfig?.labelOffsetY || 0
 
     const renderElementsHtml = template.map(el => {
       const align = el.align || 'center'
       const weight = el.bold ? 'font-weight:700;' : 'font-weight:400;'
-      const size = el.large ? 'font-size:13px;' : 'font-size:10px;'
-      if (el.type === 'barcode') {
-        return `<div style="text-align:${align};margin:2px 0;"><canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}"></canvas></div>`
+      const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
+      const fontSizePx = fontKey === 'small' ? '9px' : fontKey === 'large' ? '13px' : fontKey === 'xlarge' ? '16px' : '11px'
+
+      if (el.type === 'divider') {
+        return `<hr style="border:none;border-top:1px solid #000;margin:2px 0;width:100%;" />`
       }
+
+      if (el.type === 'sideBySideBarcodeQr') {
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin:2px 0;">
+            <div style="flex:1;text-align:center;">
+              <canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}" style="width:28mm;height:10mm;"></canvas>
+            </div>
+            <div style="width:12mm;text-align:center;">
+              <canvas class="qr" data-text="${barcodeVal}" data-type="QR" style="width:10mm;height:10mm;"></canvas>
+            </div>
+          </div>
+        `
+      }
+
+      if (el.type === 'barcode' || el.type === 'qrCode') {
+        const isQr = el.type === 'qrCode' || labelFormat === 'QR'
+        if (isQr) {
+          return `<div style="width:100%;text-align:${align};margin:2px 0;"><canvas class="qr" data-text="${barcodeVal}" data-type="QR" style="width:12mm;height:12mm;"></canvas></div>`
+        }
+        return `<div style="width:100%;text-align:${align};margin:2px 0;"><canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}" style="width:38mm;height:14mm;"></canvas></div>`
+      }
+
       const txt = resolveElementText(el, labelData)
-      return `<div style="text-align:${align};${weight}${size}margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>`
+      if (!txt) return ''
+      return `<div style="width:100%;text-align:${align};${weight}font-size:${fontSizePx};margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>`
     }).join('')
 
     const stickers = Array.from({ length: labelQty }).map(() => `
       <div class="sticker">
-        ${renderElementsHtml}
+        <div class="sticker-content">
+          ${renderElementsHtml}
+        </div>
       </div>
     `).join('')
 
@@ -357,8 +399,8 @@ export const ProductsPage = () => {
           @page { size: auto; margin: 0; }
           body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; text-align: center; }
           .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-          .sticker { width: ${settings?.printerConfig?.labelWidth || 50}mm; height: ${settings?.printerConfig?.labelHeight || 30}mm; border: 1px dashed #ccc; padding: 4px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; align-items: center; page-break-inside: avoid; }
-          .bc { width: 44mm; height: 16mm; }
+          .sticker { width: ${widthMm}mm; height: ${heightMm}mm; border: 1px dashed #ccc; box-sizing: border-box; page-break-inside: avoid; overflow: hidden; position: relative; }
+          .sticker-content { width: 100%; height: 100%; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; transform: translate(${offX}mm, ${offY}mm); }
         </style>
       </head>
       <body>
@@ -366,14 +408,16 @@ export const ProductsPage = () => {
         <script>
           ${drawBarcodeToCanvas.toString()}
           ${encodeCode128B.toString()}
-          const CODE128_PATTERNS = ["212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213", "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132", "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211", "212123", "212321", "202121", "311123", "311321", "331121", "312113", "312311", "332111", "314111", "221411", "411212", "411122", "411221", "421112", "421211", "212141", "214121", "412112", "421211", "411123", "411321", "421121", "412121", "211142", "211241", "211421", "214112", "214211", "241112", "241211", "412112", "421112", "412211", "211133", "211331", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111", "314111", "221411", "411212", "411122", "411221", "421112", "421211", "212141", "214121", "412112", "421112"];
-          const START_B = "211214";
-          const STOP = "2331112";
 
           document.querySelectorAll('.bc').forEach(canvas => {
             const text = canvas.getAttribute('data-text');
             const type = canvas.getAttribute('data-type');
             drawBarcodeToCanvas(canvas, text, type, { width: 240, height: 75, showText: true });
+          });
+
+          document.querySelectorAll('.qr').forEach(canvas => {
+            const text = canvas.getAttribute('data-text');
+            drawBarcodeToCanvas(canvas, text, 'QR', { width: 120, height: 120, showText: false });
           });
 
           setTimeout(() => {
@@ -1440,23 +1484,62 @@ export const ProductsPage = () => {
             {/* Live Canvas Sticker Preview */}
             <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({settings?.printerConfig?.labelWidth || 50}mm × {settings?.printerConfig?.labelHeight || 30}mm)</span>
-              <div className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md text-center flex flex-col items-center justify-center gap-1 min-h-[140px]">
+              <div
+                className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
+                style={{
+                  transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
+                }}
+              >
                 {(settings?.printerConfig?.labelTemplate || defaultLabelTemplate).map(el => {
                   const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
-                  if (el.type === 'barcode') {
-                    return <canvas key={el.id} ref={canvasRef} className="my-1 max-w-full h-auto" />
+                  const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
+                  const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-blue-400' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
+
+                  if (el.type === 'divider') {
+                    return <hr key={el.id} className="border-t border-gray-300 dark:border-gray-600 my-1 w-full" />
                   }
+
+                  if (el.type === 'sideBySideBarcodeQr') {
+                    return (
+                      <div key={el.id} className="flex items-center justify-between w-full my-1 gap-1">
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                          <canvas ref={canvasRef} className="my-0.5 max-w-full h-auto" />
+                        </div>
+                        <div className="w-9 flex items-center justify-center flex-shrink-0">
+                          <QrCode size={24} className="text-slate-900 dark:text-white" />
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  if (el.type === 'barcode' || el.type === 'qrCode') {
+                    if (el.type === 'qrCode' || labelFormat === 'QR') {
+                      return (
+                        <div key={el.id} className={`${alignClass} my-1`}>
+                          <QrCode size={30} className="inline-block text-slate-900 dark:text-white" />
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={el.id} className={`${alignClass} my-1`}>
+                        <canvas ref={canvasRef} className="max-w-full h-auto inline-block" />
+                      </div>
+                    )
+                  }
+
                   const labelData: LabelData = {
                     businessName: settings?.businessName || 'SEZNIK RETAIL',
                     productName: labelProduct.name,
                     price: formatINR(labelProduct.sellingPrice),
                     barcodeValue: labelProduct.barcode || labelProduct.sku || '000000',
+                    sku: labelProduct.sku,
                   }
                   const text = resolveElementText(el, labelData)
+                  if (!text) return null
                   return (
                     <div
                       key={el.id}
-                      className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${el.large ? 'text-sm text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'}`}
+                      className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass}`}
                     >
                       {text}
                     </div>

@@ -1,23 +1,47 @@
 import { EscPosBuilder } from './escpos'
 import type { LabelElement } from '@/types/settings.types'
 
-// Shared default layout — used both as the Label Designer's starting point
-// and as the fallback template anywhere else in the app that prints a label
-// (e.g. Products page) before the user has customized one.
-export const defaultLabelTemplate: LabelElement[] = [
-  { id: 'el-business', type: 'businessName', align: 'center', bold: false, large: false },
-  { id: 'el-product', type: 'productName', align: 'center', bold: true, large: false },
-  { id: 'el-barcode', type: 'barcode', align: 'center', bold: false, large: false },
-  { id: 'el-price', type: 'price', align: 'center', bold: true, large: true },
-]
-
 export interface LabelData {
   businessName: string
   productName: string
   price: string
   /** Barcode/QR payload — a product's barcode, falling back to its SKU. */
   barcodeValue: string
+  sku?: string
+  category?: string
 }
+
+// Shared default layout — used both as the Label Designer's starting point
+// and as the fallback template anywhere else in the app that prints a label
+export const defaultLabelTemplate: LabelElement[] = [
+  { id: 'el-business', type: 'businessName', align: 'center', bold: true, fontSize: 'medium' },
+  { id: 'el-product', type: 'productName', align: 'center', bold: false, fontSize: 'small' },
+  { id: 'el-barcode', type: 'barcode', align: 'center', bold: false },
+  { id: 'el-mrp-hdr', type: 'mrpHeader', align: 'center', bold: false, fontSize: 'small', prefix: 'MRP (Incl. of all taxes)' },
+  { id: 'el-price', type: 'price', align: 'center', bold: true, fontSize: 'large', prefix: 'Rs. ' },
+]
+
+export const PRESET_RETAIL_DUAL_CODE: LabelElement[] = [
+  { id: 'el-1', type: 'businessName', align: 'center', bold: true, fontSize: 'medium' },
+  { id: 'el-2', type: 'productName', align: 'left', bold: true, fontSize: 'small' },
+  { id: 'el-3', type: 'sideBySideBarcodeQr', align: 'center', bold: false },
+  { id: 'el-4', type: 'mrpHeader', align: 'left', bold: false, fontSize: 'small', prefix: 'MRP (Incl. of all taxes)' },
+  { id: 'el-5', type: 'price', align: 'left', bold: true, fontSize: 'medium', prefix: 'Rs. ' },
+]
+
+export const PRESET_CENTERED_STANDARD: LabelElement[] = [
+  { id: 'el-1', type: 'businessName', align: 'center', bold: true, fontSize: 'medium' },
+  { id: 'el-2', type: 'productName', align: 'center', bold: true, fontSize: 'medium' },
+  { id: 'el-3', type: 'barcode', align: 'center', bold: false },
+  { id: 'el-4', type: 'divider', align: 'center', bold: false },
+  { id: 'el-5', type: 'price', align: 'center', bold: true, fontSize: 'large', prefix: 'Rs. ' },
+]
+
+export const PRESET_MINIMAL_TAG: LabelElement[] = [
+  { id: 'el-1', type: 'productName', align: 'left', bold: true, fontSize: 'small' },
+  { id: 'el-2', type: 'barcode', align: 'center', bold: false },
+  { id: 'el-3', type: 'price', align: 'right', bold: true, fontSize: 'medium', prefix: 'Rs. ' },
+]
 
 /** Sanitizes text to remove non-ASCII characters (e.g. ₹ -> Rs.) that cause Chinese mojibake on printers */
 export function cleanTextForPrinter(str: string): string {
@@ -26,15 +50,27 @@ export function cleanTextForPrinter(str: string): string {
 }
 
 export const resolveElementText = (el: LabelElement, data: LabelData): string => {
-  let text = ''
+  const pfx = el.prefix ?? ''
+  const sfx = el.suffix ?? ''
+  let val = ''
+
   switch (el.type) {
-    case 'businessName': text = data.businessName; break
-    case 'productName': text = data.productName; break
-    case 'price': text = data.price; break
-    case 'custom': text = el.text ?? ''; break
-    case 'barcode': return '' // rendered as a real barcode/QR, not text
+    case 'businessName': val = data.businessName; break
+    case 'productName': val = data.productName; break
+    case 'price': val = data.price; break
+    case 'mrpHeader': val = el.text || 'MRP (Incl. of all taxes)'; break
+    case 'sku': val = data.sku || data.barcodeValue; break
+    case 'category': val = data.category || ''; break
+    case 'custom': val = el.text ?? ''; break
+    case 'barcode':
+    case 'qrCode':
+    case 'sideBySideBarcodeQr':
+    case 'divider':
+      return ''
   }
-  return cleanTextForPrinter(text)
+
+  const raw = `${pfx}${val}${sfx}`
+  return cleanTextForPrinter(raw)
 }
 
 /**
@@ -54,13 +90,20 @@ export function generateLabelEscPos(
     productName: cleanTextForPrinter(data.productName),
     price: cleanTextForPrinter(data.price),
     barcodeValue: cleanTextForPrinter(data.barcodeValue || '0000000000'),
+    sku: cleanTextForPrinter(data.sku || ''),
+    category: cleanTextForPrinter(data.category || ''),
   }
 
   for (const el of template) {
-    builder.align(el.align)
+    builder.align(el.align || 'center')
 
-    if (el.type === 'barcode') {
-      if (barcodeType === 'QR') {
+    if (el.type === 'divider') {
+      builder.line('--------------------------------')
+      continue
+    }
+
+    if (el.type === 'barcode' || el.type === 'qrCode' || el.type === 'sideBySideBarcodeQr') {
+      if (el.type === 'qrCode' || barcodeType === 'QR') {
         builder.qr(safeData.barcodeValue, 3)
       } else {
         builder.barcode(barcodeType, safeData.barcodeValue, 40)
@@ -72,8 +115,11 @@ export function generateLabelEscPos(
     const text = resolveElementText(el, safeData)
     if (!text) continue
 
-    builder.bold(el.bold)
-    builder.doubleSize(el.large)
+    const isLarge = el.large || el.fontSize === 'large' || el.fontSize === 'xlarge'
+    const isBold = el.bold ?? false
+
+    builder.bold(isBold)
+    builder.doubleSize(isLarge)
     builder.line(text)
     builder.bold(false)
     builder.doubleSize(false)
@@ -93,16 +139,23 @@ export function generateLabelTspl(
   barcodeType: 'CODE128' | 'EAN13' | 'QR',
   data: LabelData,
   labelWidth = 50,
-  labelHeight = 30
+  labelHeight = 30,
+  offsetX = 0,
+  offsetY = 0,
+  barcodeHeight = 38
 ): Uint8Array {
   const encoder = new TextEncoder()
-  const widthDots = labelWidth * 8 // 8 dots/mm at 203 DPI
+  const widthDots = Math.max(100, Math.round(labelWidth * 8)) // 8 dots/mm at 203 DPI
+  const offsetXDots = Math.round((offsetX || 0) * 8)
+  const offsetYDots = Math.round((offsetY || 0) * 8)
 
   const safeData: LabelData = {
     businessName: cleanTextForPrinter(data.businessName),
     productName: cleanTextForPrinter(data.productName),
     price: cleanTextForPrinter(data.price),
     barcodeValue: cleanTextForPrinter(data.barcodeValue || '0000000000'),
+    sku: cleanTextForPrinter(data.sku || ''),
+    category: cleanTextForPrinter(data.category || ''),
   }
 
   let tspl = `SIZE ${labelWidth} mm, ${labelHeight} mm\r\n`
@@ -110,37 +163,64 @@ export function generateLabelTspl(
   tspl += `DIRECTION 1\r\n`
   tspl += `CLS\r\n`
 
-  let y = 16
+  let y = Math.max(10, 16 + offsetYDots)
 
   for (const el of template) {
-    if (el.type === 'barcode') {
+    const align = el.align || 'center'
+
+    if (el.type === 'divider') {
+      const startX = Math.max(5, 15 + offsetXDots)
+      const lineLen = Math.max(20, widthDots - 30)
+      tspl += `BAR ${startX},${y},${lineLen},2\r\n`
+      y += 10
+      continue
+    }
+
+    if (el.type === 'sideBySideBarcodeQr') {
       const barcodeStr = safeData.barcodeValue || '0000000000'
-      if (barcodeType === 'QR') {
+      const leftHalfDots = Math.floor(widthDots * 0.62)
+      const rightHalfDots = widthDots - leftHalfDots
+
+      const moduleWidth = (barcodeStr.length * 11 + 35) * 2 > (leftHalfDots - 10) ? 1 : 2
+      const barWidthDots = (barcodeStr.length * 11 + 35) * moduleWidth
+      const xBar = Math.max(5, Math.floor((leftHalfDots - barWidthDots) / 2) + offsetXDots)
+
+      const qrSizeDots = 70 // ~8.7mm QR size
+      const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrSizeDots) / 2) + offsetXDots)
+
+      tspl += `BARCODE ${xBar},${y},"128",34,2,0,${moduleWidth},${moduleWidth},"${barcodeStr}"\r\n`
+      tspl += `QRCODE ${xQr},${y},L,3,A,0,"${barcodeStr}"\r\n`
+
+      y += 62
+      continue
+    }
+
+    if (el.type === 'barcode' || el.type === 'qrCode') {
+      const barcodeStr = safeData.barcodeValue || '0000000000'
+      if (el.type === 'qrCode' || barcodeType === 'QR') {
         const qrSizeDots = 80 // ~10mm QR size
-        const x = el.align === 'left'
-          ? 15
-          : el.align === 'right'
-          ? Math.max(10, widthDots - qrSizeDots - 15)
-          : Math.max(10, Math.floor((widthDots - qrSizeDots) / 2))
+        const x = align === 'left'
+          ? Math.max(5, 15 + offsetXDots)
+          : align === 'right'
+          ? Math.max(5, widthDots - qrSizeDots - 15 + offsetXDots)
+          : Math.max(5, Math.floor((widthDots - qrSizeDots) / 2) + offsetXDots)
 
         tspl += `QRCODE ${x},${y},L,4,A,0,"${barcodeStr}"\r\n`
         y += 88
       } else {
-        // Calculate barcode width in dots
-        // Module width 2 for short barcodes, 1 for long barcodes (>10 chars)
+        const h = barcodeHeight || 38
         const moduleWidth = (barcodeStr.length * 11 + 35) * 2 > (widthDots - 20) ? 1 : 2
         const barcodeWidthDots = (barcodeStr.length * 11 + 35) * moduleWidth
 
-        const x = el.align === 'left'
-          ? 15
-          : el.align === 'right'
-          ? Math.max(10, widthDots - barcodeWidthDots - 15)
-          : Math.max(10, Math.floor((widthDots - barcodeWidthDots) / 2))
+        const x = align === 'left'
+          ? Math.max(5, 15 + offsetXDots)
+          : align === 'right'
+          ? Math.max(5, widthDots - barcodeWidthDots - 15 + offsetXDots)
+          : Math.max(5, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
 
         // TSPL BARCODE x, y, "code", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
-        tspl += `BARCODE ${x},${y},"128",38,2,0,${moduleWidth},${moduleWidth},"${barcodeStr}"\r\n`
-        // 38 dots bar height + 22 dots human-readable text + 8 dots gap = 68 dots advance
-        y += 68
+        tspl += `BARCODE ${x},${y},"128",${h},2,0,${moduleWidth},${moduleWidth},"${barcodeStr}"\r\n`
+        y += h + 26
       }
       continue
     }
@@ -148,21 +228,41 @@ export function generateLabelTspl(
     const text = resolveElementText(el, safeData)
     if (!text) continue
 
-    const font = el.large ? '"3"' : '"2"'
-    const charWidth = el.large ? 14 : 10
-    const mulX = 1
-    const mulY = 1
-    const textWidthDots = text.length * charWidth * mulX
+    const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
+    let font = '"2"'
+    let charWidth = 12
+    let advanceY = 24
+    let mulX = 1
+    let mulY = 1
 
-    const x = el.align === 'left'
-      ? 15
-      : el.align === 'right'
-      ? Math.max(10, widthDots - textWidthDots - 15)
-      : Math.max(10, Math.floor((widthDots - textWidthDots) / 2))
+    if (sizeKey === 'small') {
+      font = '"1"'
+      charWidth = 8
+      advanceY = 18
+    } else if (sizeKey === 'medium') {
+      font = '"2"'
+      charWidth = 12
+      advanceY = 24
+    } else if (sizeKey === 'large') {
+      font = '"3"'
+      charWidth = 16
+      advanceY = 30
+    } else if (sizeKey === 'xlarge') {
+      font = '"4"'
+      charWidth = 24
+      advanceY = 38
+    }
+
+    const textWidthDots = text.length * charWidth * mulX
+    const x = align === 'left'
+      ? Math.max(5, 15 + offsetXDots)
+      : align === 'right'
+      ? Math.max(5, widthDots - textWidthDots - 15 + offsetXDots)
+      : Math.max(5, Math.floor((widthDots - textWidthDots) / 2) + offsetXDots)
 
     const safeText = text.replace(/"/g, '').replace(/[\r\n]+/g, ' ')
     tspl += `TEXT ${x},${y},${font},0,${mulX},${mulY},"${safeText}"\r\n`
-    y += el.large ? 30 : 24
+    y += advanceY
   }
 
   tspl += `PRINT 1,1\r\n`
@@ -177,3 +277,4 @@ export function generateGapCalibrationBytes(): Uint8Array {
   const encoder = new TextEncoder()
   return encoder.encode('GAPDETECT\r\nAUTO GAP\r\n')
 }
+

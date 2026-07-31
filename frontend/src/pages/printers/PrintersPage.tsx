@@ -12,7 +12,17 @@ import {
   printEscPos,
   type BlePrinterState,
 } from '@/utils/blePrinter'
-import { generateLabelEscPos, generateLabelTspl, generateGapCalibrationBytes, defaultLabelTemplate, type LabelData } from '@/utils/labelPrint'
+import {
+  generateLabelEscPos,
+  generateLabelTspl,
+  generateGapCalibrationBytes,
+  defaultLabelTemplate,
+  PRESET_RETAIL_DUAL_CODE,
+  PRESET_CENTERED_STANDARD,
+  PRESET_MINIMAL_TAG,
+  resolveElementText,
+  type LabelData,
+} from '@/utils/labelPrint'
 import { generateReceiptEscPos } from '@/utils/receipt'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
@@ -66,6 +76,8 @@ const defaultPrinterConfig: PrinterConfig = {
 
   labelWidth: 50,
   labelHeight: 30,
+  labelOffsetX: 0,
+  labelOffsetY: 0,
   labelBarcodeType: 'CODE128',
   labelDensity: 10,
   labelTemplate: defaultLabelTemplate,
@@ -95,9 +107,15 @@ const defaultReceiptConfig: ReceiptConfig = {
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
   businessName: { label: 'Business Name', icon: '🏬' },
   productName: { label: 'Product Name', icon: '📦' },
-  price: { label: 'Price', icon: '💰' },
-  barcode: { label: 'Barcode / QR', icon: '▥' },
+  price: { label: 'Selling Price', icon: '💰' },
+  mrpHeader: { label: 'MRP Header Text', icon: '🏷️' },
+  barcode: { label: 'Barcode', icon: '▥' },
+  qrCode: { label: 'QR Code', icon: '🔳' },
+  sideBySideBarcodeQr: { label: 'Barcode + QR (Image 1)', icon: '📐' },
+  sku: { label: 'SKU / Code', icon: '🔢' },
+  category: { label: 'Category', icon: '📁' },
   custom: { label: 'Custom Text', icon: '✎' },
+  divider: { label: 'Divider Line', icon: '➖' },
 }
 
 export const PrintersPage = () => {
@@ -376,7 +394,15 @@ export const PrintersPage = () => {
         if (activeTab === 'label') {
           const mode = config.labelPrinterMode || 'tspl'
           const bytes = mode === 'tspl'
-            ? generateLabelTspl(config.labelTemplate, config.labelBarcodeType, labelData, config.labelWidth, config.labelHeight)
+            ? generateLabelTspl(
+                config.labelTemplate,
+                config.labelBarcodeType,
+                labelData,
+                config.labelWidth,
+                config.labelHeight,
+                config.labelOffsetX ?? 0,
+                config.labelOffsetY ?? 0
+              )
             : generateLabelEscPos(config.labelTemplate, config.labelBarcodeType, labelData)
           await printEscPos(bytes)
           toast.success(`Label sent to printer in ${mode.toUpperCase()} mode!`)
@@ -851,13 +877,43 @@ export const PrintersPage = () => {
         <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
             {/* Controls */}
             <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+              {/* Preset Templates */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Quick Layout Presets
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_RETAIL_DUAL_CODE }))}
+                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-semibold transition-all"
+                  >
+                    Image 1 Dual-Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_CENTERED_STANDARD }))}
+                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all"
+                  >
+                    Centered Standard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_MINIMAL_TAG }))}
+                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all"
+                  >
+                    Minimal Tag
+                  </button>
+                </div>
+              </div>
+
               {/* Hardware Alignment & Gap Calibration Box */}
               <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Label Command Protocol</h4>
+                    <h4 className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Label Command Protocol & Calibration</h4>
                     <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
-                      Select <strong>TSPL Mode</strong> for sticker rolls to lock output inside 1 sticker gap.
+                      Select <strong>TSPL Mode</strong> for label printers (Xprinter/TSC/Gprinter) to lock print inside 1 sticker gap.
                     </p>
                   </div>
                   <button
@@ -893,6 +949,38 @@ export const PrintersPage = () => {
                     ESC/POS Compact Mode
                   </button>
                 </div>
+
+                {/* Printer Calibration Offsets */}
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-indigo-200/60 dark:border-indigo-800/40">
+                  <div>
+                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                      Printer Offset X (mm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={config.labelOffsetX ?? 0}
+                      onChange={(e) => setConfig(prev => ({ ...prev, labelOffsetX: Number(e.target.value) || 0 }))}
+                      placeholder="0"
+                      className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
+                    />
+                    <span className="text-[10px] text-gray-500">Shift left/right on paper</span>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                      Printer Offset Y (mm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={config.labelOffsetY ?? 0}
+                      onChange={(e) => setConfig(prev => ({ ...prev, labelOffsetY: Number(e.target.value) || 0 }))}
+                      placeholder="0"
+                      className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
+                    />
+                    <span className="text-[10px] text-gray-500">Shift up/down on paper</span>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -917,7 +1005,7 @@ export const PrintersPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Barcode Type</label>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Default Barcode Type</label>
                 <div className="flex gap-2">
                   {(['CODE128', 'EAN13', 'QR'] as const).map(type => (
                     <button
@@ -952,7 +1040,7 @@ export const PrintersPage = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Label Contents</label>
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Label Contents & Formatting</label>
                   <select
                     value=""
                     onChange={(e) => { if (e.target.value) addLabelElement(e.target.value as LabelElementType) }}
@@ -971,66 +1059,102 @@ export const PrintersPage = () => {
                   </p>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {labelTemplate.map((el, idx) => (
-                    <div key={el.id} className="p-2.5 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center gap-2">
-                      <span className="text-sm w-5 text-center flex-shrink-0">{LABEL_ELEMENT_META[el.type].icon}</span>
+                    <div key={el.id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-xl space-y-2 bg-gray-50/50 dark:bg-gray-800/40">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm w-5 text-center flex-shrink-0">{LABEL_ELEMENT_META[el.type]?.icon || '📄'}</span>
 
-                      {el.type === 'custom' ? (
-                        <input
-                          type="text"
-                          value={el.text ?? ''}
-                          onChange={(e) => updateLabelElement(el.id, { text: e.target.value })}
-                          className="flex-1 min-w-0 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs"
-                        />
-                      ) : (
-                        <span className="flex-1 min-w-0 text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">
-                          {LABEL_ELEMENT_META[el.type].label}
-                        </span>
-                      )}
-
-                      <div className="flex items-center gap-0.5 flex-shrink-0">
-                        {(['left', 'center', 'right'] as const).map(a => {
-                          const Icon = a === 'left' ? AlignLeft : a === 'center' ? AlignCenter : AlignRight
-                          return (
-                            <button
-                              key={a}
-                              type="button"
-                              onClick={() => updateLabelElement(el.id, { align: a })}
-                              className={`p-1 rounded ${el.align === a ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                            >
-                              <Icon size={13} />
-                            </button>
-                          )
-                        })}
-                        {el.type !== 'barcode' && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => updateLabelElement(el.id, { bold: !el.bold })}
-                              className={`p-1 rounded ${el.bold ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                            >
-                              <Bold size={13} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateLabelElement(el.id, { large: !el.large })}
-                              className={`px-1.5 py-1 rounded text-[10px] font-black ${el.large ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                            >
-                              2×
-                            </button>
-                          </>
+                        {el.type === 'custom' ? (
+                          <input
+                            type="text"
+                            value={el.text ?? ''}
+                            onChange={(e) => updateLabelElement(el.id, { text: e.target.value })}
+                            placeholder="Enter text..."
+                            className="flex-1 min-w-0 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs"
+                          />
+                        ) : el.type === 'mrpHeader' ? (
+                          <input
+                            type="text"
+                            value={el.prefix ?? 'MRP (Incl. of all taxes)'}
+                            onChange={(e) => updateLabelElement(el.id, { prefix: e.target.value })}
+                            placeholder="MRP Label text..."
+                            className="flex-1 min-w-0 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs font-semibold"
+                          />
+                        ) : (
+                          <span className="flex-1 min-w-0 text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {LABEL_ELEMENT_META[el.type]?.label || el.type}
+                          </span>
                         )}
-                        <button type="button" onClick={() => moveLabelElement(el.id, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
-                          <ArrowUp size={13} />
-                        </button>
-                        <button type="button" onClick={() => moveLabelElement(el.id, 1)} disabled={idx === labelTemplate.length - 1} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
-                          <ArrowDown size={13} />
-                        </button>
-                        <button type="button" onClick={() => removeLabelElement(el.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
-                          <Trash2 size={13} />
-                        </button>
+
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          {(['left', 'center', 'right'] as const).map(a => {
+                            const Icon = a === 'left' ? AlignLeft : a === 'center' ? AlignCenter : AlignRight
+                            return (
+                              <button
+                                key={a}
+                                type="button"
+                                title={`Align ${a}`}
+                                onClick={() => updateLabelElement(el.id, { align: a })}
+                                className={`p-1 rounded ${el.align === a ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                              >
+                                <Icon size={13} />
+                              </button>
+                            )
+                          })}
+                          {el.type !== 'barcode' && el.type !== 'qrCode' && el.type !== 'sideBySideBarcodeQr' && el.type !== 'divider' && (
+                            <>
+                              <button
+                                type="button"
+                                title="Toggle Bold"
+                                onClick={() => updateLabelElement(el.id, { bold: !el.bold })}
+                                className={`p-1 rounded ${el.bold ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                              >
+                                <Bold size={13} />
+                              </button>
+                              <select
+                                value={el.fontSize || (el.large ? 'large' : 'medium')}
+                                onChange={(e) => updateLabelElement(el.id, { fontSize: e.target.value as any })}
+                                className="text-[10px] font-bold px-1 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                              >
+                                <option value="small">Small</option>
+                                <option value="medium">Medium</option>
+                                <option value="large">Large</option>
+                                <option value="xlarge">X-Large</option>
+                              </select>
+                            </>
+                          )}
+                          <button type="button" onClick={() => moveLabelElement(el.id, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                            <ArrowUp size={13} />
+                          </button>
+                          <button type="button" onClick={() => moveLabelElement(el.id, 1)} disabled={idx === labelTemplate.length - 1} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                            <ArrowDown size={13} />
+                          </button>
+                          <button type="button" onClick={() => removeLabelElement(el.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Optional Prefix/Suffix for price, business, product, custom */}
+                      {(el.type === 'price' || el.type === 'businessName' || el.type === 'productName' || el.type === 'sku' || el.type === 'custom') && (
+                        <div className="flex gap-2 text-[10px] pt-1">
+                          <input
+                            type="text"
+                            placeholder="Prefix (e.g. Rs. )"
+                            value={el.prefix ?? ''}
+                            onChange={(e) => updateLabelElement(el.id, { prefix: e.target.value })}
+                            className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Suffix (e.g. /-)"
+                            value={el.suffix ?? ''}
+                            onChange={(e) => updateLabelElement(el.id, { suffix: e.target.value })}
+                            className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1042,21 +1166,42 @@ export const PrintersPage = () => {
               <span className="text-xs font-semibold text-gray-400 mb-3">
                 Live Preview — {config.labelWidth}mm × {config.labelHeight}mm
               </span>
-              <div className="p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[220px]">
+              <div className="p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px]">
                 <div
-                  className="bg-white text-gray-900 p-3 rounded-lg shadow-xl flex flex-col justify-center gap-1 border border-gray-300 transition-all duration-300"
+                  className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
                   style={{
-                    width: `${Math.min(config.labelWidth * 4.5, 270)}px`,
-                    minHeight: `${Math.min(config.labelHeight * 4.5, 170)}px`,
+                    width: `${Math.min(config.labelWidth * 4.5, 280)}px`,
+                    minHeight: `${Math.min(config.labelHeight * 4.5, 180)}px`,
+                    transform: `translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
                   }}
                 >
                   {labelTemplate.map(el => {
-                    const alignClass = el.align === 'left' ? 'text-left' : el.align === 'right' ? 'text-right' : 'text-center'
-                    if (el.type === 'barcode') {
+                    const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
+                    const fontClass = el.fontSize === 'small' ? 'text-[9px]' : el.fontSize === 'large' ? 'text-sm' : el.fontSize === 'xlarge' ? 'text-base' : 'text-[11px]'
+                    
+                    if (el.type === 'divider') {
+                      return <hr key={el.id} className="border-t border-gray-400 my-1 w-full" />
+                    }
+
+                    if (el.type === 'sideBySideBarcodeQr') {
                       return (
-                        <div key={el.id} className={alignClass}>
-                          {config.labelBarcodeType === 'QR' ? (
-                            <QrCode size={32} className="inline-block text-slate-900" />
+                        <div key={el.id} className="flex items-center justify-between w-full my-1 gap-1">
+                          <div className="flex-1 flex flex-col items-center justify-center">
+                            <div className="font-extrabold text-[10px] tracking-widest leading-none">|||||| ||||| ||||</div>
+                            <span className="text-[8px] font-mono text-gray-600">{labelData.barcodeValue}</span>
+                          </div>
+                          <div className="w-10 flex items-center justify-center flex-shrink-0">
+                            <QrCode size={26} className="text-slate-900" />
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (el.type === 'barcode' || el.type === 'qrCode') {
+                      return (
+                        <div key={el.id} className={`${alignClass} my-0.5`}>
+                          {el.type === 'qrCode' || config.labelBarcodeType === 'QR' ? (
+                            <QrCode size={30} className="inline-block text-slate-900" />
                           ) : (
                             <>
                               <div className="font-extrabold text-xs tracking-widest leading-none">|||||| ||||| |||||||</div>
@@ -1066,11 +1211,12 @@ export const PrintersPage = () => {
                         </div>
                       )
                     }
-                    const text = el.type === 'custom' ? el.text : el.type === 'businessName' ? labelData.businessName : el.type === 'productName' ? labelData.productName : labelData.price
+
+                    const text = resolveElementText(el, labelData)
                     return (
                       <div
                         key={el.id}
-                        className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${el.large ? 'text-sm' : 'text-[11px]'}`}
+                        className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass}`}
                       >
                         {text}
                       </div>

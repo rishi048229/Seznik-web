@@ -26,15 +26,29 @@ export interface PersonalInfo {
   ownerAddress: string
 }
 
-export type LabelElementType = 'businessName' | 'productName' | 'price' | 'barcode' | 'custom'
+export type LabelElementType =
+  | 'businessName'
+  | 'productName'
+  | 'price'
+  | 'mrpHeader'
+  | 'barcode'
+  | 'qrCode'
+  | 'sideBySideBarcodeQr'
+  | 'sku'
+  | 'category'
+  | 'custom'
+  | 'divider'
 
 export interface LabelElement {
   id: string
   type: LabelElementType
   align: 'left' | 'center' | 'right'
-  bold: boolean
-  large: boolean
-  /** Only used when type === 'custom' — user-entered static text. */
+  bold?: boolean
+  large?: boolean
+  fontSize?: 'small' | 'medium' | 'large' | 'xlarge'
+  prefix?: string
+  suffix?: string
+  /** Used when type === 'custom' — user-entered static text. */
   text?: string
 }
 
@@ -63,7 +77,10 @@ export interface PrinterConfig {
   // regardless of which elements are on it.
   labelWidth: number
   labelHeight: number
+  labelOffsetX?: number // Printer horizontal calibration offset in mm (e.g. -10 to +10)
+  labelOffsetY?: number // Printer vertical calibration offset in mm (e.g. -10 to +10)
   labelBarcodeType: 'CODE128' | 'EAN13' | 'QR'
+  labelBarcodeHeight?: number
   labelPrinterMode?: 'tspl' | 'escpos'
   labelDensity: number
   labelTemplate: LabelElement[]
