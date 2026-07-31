@@ -244,12 +244,16 @@ export function generateLabelTspl(
         const moduleWidth = rawWidthAt2 > maxPrintableWidth ? 1 : 2
         const barcodeWidthDots = estimateTsplCode128Dots(barcodeStr, moduleWidth)
         const wideRatio = moduleWidth * 2
+        // Small empirical rightward correction — the printer renders the bars
+        // slightly left of the dead-center math above, so nudge centered
+        // barcodes right to visually land in the middle of the label.
+        const centerBiasDots = 10
 
         const x = align === 'left'
           ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
           ? Math.max(16, widthDots - barcodeWidthDots - 16 + offsetXDots)
-          : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
+          : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + centerBiasDots + offsetXDots)
 
         // Top margin gap before barcode so preceding text (e.g. "Burger") never overlaps top edge of bars
         y += 8
