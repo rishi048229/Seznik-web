@@ -15,7 +15,7 @@ model User {
   phone               String?  // nullable for pre-existing rows; required at registration
   password            String?
   displayName         String?
-  photoURL            String?
+  photoURL            String?  @db.Text
   businessName        String?
   plan                String   @default("free")
   onboardingCompleted Boolean  @default(false)
@@ -98,7 +98,7 @@ model Settings {
   businessAddress    String?
   businessPhone      String?
   businessGSTIN      String?
-  businessLogoURL    String?
+  businessLogoURL    String?  @db.Text
   personalInfo       Json?
   invoiceConfig      Json?
   notificationConfig Json?
@@ -153,7 +153,7 @@ model Product {
   category          Category @relation(fields: [categoryId], references: [id])
   supplierId        String?
   supplier          Supplier? @relation(fields: [supplierId], references: [id])
-  imageURL          String?
+  imageURL          String?  @db.Text
   costPrice         Float    @default(0)
   sellingPrice      Float    @default(0)
   taxRate           Float    @default(0)
@@ -225,7 +225,7 @@ model Expense {
   category        String
   description     String?
   paymentMethod   String   @default("cash")
-  receiptImageURL String?
+  receiptImageURL String?  @db.Text
   expenseDate     DateTime
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)

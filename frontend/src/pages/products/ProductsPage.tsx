@@ -694,29 +694,31 @@ export const ProductsPage = () => {
               </>
             ) : (
               /* Grid View */
-              <div className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="p-3 sm:p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                   {paginated.map(product => (
-                    <Card key={product.id} className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => openEdit(product)}>
-                      <div className="w-full aspect-square rounded-lg bg-gray-100 dark:bg-gray-700 mb-3 overflow-hidden">
-                        {product.imageURL ? (
-                          <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package size={32} className="text-gray-300" />
-                          </div>
-                        )}
+                    <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openEdit(product)}>
+                      <div>
+                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden">
+                          {product.imageURL ? (
+                            <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package size={28} className="text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">{product.sku}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">{product.name}</p>
                       </div>
-                      <p className="text-xs text-gray-400 font-mono">{product.sku}</p>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mt-1">{product.name}</p>
-                      <div className="flex items-center justify-between mt-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
                         <Badge variant={
                           product.currentStock <= 0 ? 'danger' :
                           product.currentStock <= product.lowStockThreshold ? 'warning' : 'success'
                         }>
                           {product.currentStock <= 0 ? 'Out of Stock' : `${product.currentStock} left`}
                         </Badge>
-                        <span className="text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
+                        <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
                       </div>
                     </Card>
                   ))}

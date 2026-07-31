@@ -232,11 +232,21 @@ const en = {
   'token.searchPlaceholder': 'Search by token number or type…',
   'token.icon': 'Icon',
   'token.color': 'Color',
+
+  // Image Upload
+  'image.exceedsLimitTitle': 'File Size Too Large',
+  'image.exceedsLimitMsg': 'Only images up to 5MB are allowed. Please upload a smaller image.',
+  'image.changePhoto': 'Change Photo',
+  'image.deletePhoto': 'Delete Photo',
 } as const
 
 // ── Hindi ───────────────────────────────────────────────────────────────────
 const hi: Partial<Record<TranslationKey, string>> = {
   'nav.dashboard': 'डैशबोर्ड',
+  'image.exceedsLimitTitle': 'फ़ाइल का आकार बहुत बड़ा है',
+  'image.exceedsLimitMsg': 'केवल 5MB तक की छवियां ही अपलोड की जा सकती हैं। कृपया 5MB से छोटी छवि अपलोड करें।',
+  'image.changePhoto': 'छवि बदलें',
+  'image.deletePhoto': 'छवि हटाएं',
   'nav.pos': 'पीओएस',
   'nav.posLite': 'पीओएस लाइट',
   'nav.products': 'उत्पाद',

@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Image as ImageIcon } from 'lucide-react'
+import { X, Image as ImageIcon, AlertTriangle, Trash2, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import toast from 'react-hot-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 function cn(...inputs: unknown[]): string {
   return twMerge(clsx(inputs))
 }
-
 
 interface ImageUploadProps {
   label?: string
@@ -30,8 +30,10 @@ export const ImageUpload = ({
   className,
   previewSize = 'md',
 }: ImageUploadProps) => {
+  const { t } = useLanguage()
   const [preview, setPreview] = useState<string>(value || '')
   const [isUploading, setIsUploading] = useState(false)
+  const [showLimitModal, setShowLimitModal] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sync with value prop changes
@@ -53,7 +55,8 @@ export const ImageUpload = ({
 
     const maxBytes = maxSizeMB * 1024 * 1024
     if (file.size > maxBytes) {
-      toast.error(`File size exceeds ${maxSizeMB}MB limit. Only images up to ${maxSizeMB}MB are allowed.`)
+      setShowLimitModal(true)
+      toast.error(t('image.exceedsLimitMsg'))
       if (inputRef.current) inputRef.current.value = ''
       return
     }
@@ -100,7 +103,7 @@ export const ImageUpload = ({
       <div className="flex items-start gap-4">
         <div
           className={cn(
-            'relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors bg-gray-50 dark:bg-gray-700',
+            'relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors bg-gray-50 dark:bg-gray-700 flex-shrink-0',
             sizeClasses[previewSize],
             isUploading && 'opacity-50 cursor-wait'
           )}
@@ -113,7 +116,7 @@ export const ImageUpload = ({
                 type="button"
                 onClick={e => { e.stopPropagation(); handleRemove() }}
                 className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow-md transition-colors"
-                title="Remove image"
+                title={t('image.deletePhoto')}
               >
                 <X size={14} />
               </button>
@@ -138,21 +141,66 @@ export const ImageUpload = ({
           className="hidden"
           disabled={isUploading}
         />
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col justify-center">
           <p className="text-xs text-gray-400">
-            Click to upload. Recommended: JPG, PNG
+            Click to upload. Recommended: JPG, PNG (Max {maxSizeMB}MB)
           </p>
-          {preview && (
+          {preview ? (
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md transition-colors"
+              >
+                <RefreshCw size={12} />
+                {t('image.changePhoto')}
+              </button>
+              <button
+                type="button"
+                onClick={handleRemove}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 bg-red-50 dark:bg-red-900/30 px-2.5 py-1 rounded-md transition-colors"
+              >
+                <Trash2 size={12} />
+                {t('image.deletePhoto')}
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={handleRemove}
-              className="mt-2 text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+              onClick={() => inputRef.current?.click()}
+              className="mt-2 w-fit inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
             >
-              Remove image
+              + Upload Image
             </button>
           )}
         </div>
       </div>
+
+      {/* 5MB Exceeded Popup Modal */}
+      {showLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-700 text-center transform transition-all animate-scale-up">
+            <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={30} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {t('image.exceedsLimitTitle')}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">
+              {t('image.exceedsLimitMsg')}
+            </p>
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowLimitModal(false)}
+                className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow-md shadow-red-500/20 transition-all active:scale-95"
+              >
+                OK / ठीक है
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -290,10 +290,6 @@ export const SettingsPage = () => {
                       setBusinessLogo(url)
                       setIsLogoUploading(false)
                     }}
-                    onFileSelect={async (_file) => {
-                      toast.error('Image upload will be available in the next version')
-                      throw new Error('Upload deferred to next version')
-                    }}
                     previewSize="lg"
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
                   />
