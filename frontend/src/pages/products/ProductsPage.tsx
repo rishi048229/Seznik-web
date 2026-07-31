@@ -16,7 +16,7 @@ import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
-import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { buildCategoryOptions } from '@/utils/categoryTree'
@@ -134,7 +134,7 @@ export const ProductsPage = () => {
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
-  const { status: bleStatus, print: sendBleData } = useBlePrinter()
+  const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
@@ -278,6 +278,16 @@ export const ProductsPage = () => {
 
   const handlePrintToBlePrinter = async () => {
     if (!labelProduct) return
+
+    if (bleStatus !== 'connected') {
+      toast.error('Printer not connected. Opening Bluetooth pairing...')
+      try {
+        await connectBlePrinter()
+      } catch {
+        return
+      }
+    }
+
     const mode = settings?.printerConfig?.labelPrinterMode || 'tspl'
     const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
     const data = {
@@ -296,7 +306,7 @@ export const ProductsPage = () => {
       for (let i = 0; i < labelQty; i++) {
         await sendBleData(singleBytes)
       }
-      toast.success(`${labelQty} label(s) sent to Seznik Dev Printer!`)
+      toast.success(`${labelQty} label(s) sent to ${bleDeviceName || 'Seznik Dev Printer'}!`)
     } catch (err) {
       console.error('BLE Print error:', err)
       toast.error('BLE print error. Falling back to browser print.')
@@ -1321,6 +1331,57 @@ export const ProductsPage = () => {
       >
         {labelProduct && (
           <div className="space-y-6">
+            {/* Printer Connection Status Banner */}
+            <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-3 ${
+              bleStatus === 'connected'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200'
+                : bleStatus === 'connecting'
+                ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/60 text-blue-900 dark:text-blue-200'
+                : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  bleStatus === 'connected'
+                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                    : bleStatus === 'connecting'
+                    ? 'bg-blue-500 text-white animate-spin'
+                    : 'bg-amber-500 text-white'
+                }`}>
+                  <Bluetooth size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      {bleStatus === 'connected' ? 'Connected Printer' : bleStatus === 'connecting' ? 'Connecting Printer...' : 'No Printer Connected'}
+                    </span>
+                    {bleStatus === 'connected' && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-100 text-[10px] font-bold">
+                        READY
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-medium opacity-90 mt-0.5">
+                    {bleStatus === 'connected'
+                      ? (bleDeviceName || 'Seznik Dev 2-in-1 Dual Printer')
+                      : 'Connect your Seznik Dev Printer via Bluetooth to print labels directly.'}
+                  </p>
+                </div>
+              </div>
+
+              {bleStatus !== 'connected' && isBleSupported && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<Bluetooth size={14} />}
+                  onClick={() => connectBlePrinter()}
+                  loading={bleStatus === 'connecting'}
+                  className="bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-sm"
+                >
+                  Connect Printer
+                </Button>
+              )}
+            </div>
+
             {/* Product Summary Header */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/60">
               <div>
