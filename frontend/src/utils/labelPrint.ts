@@ -168,12 +168,19 @@ export function generateLabelTspl(
   // 0 = normal, 1 = rotated 180°. Which one is "right side up" depends on how
   // the sticker roll is loaded into the printer, so this is caller-configurable
   // instead of a fixed constant (see PrinterConfig.labelDirection).
-  direction: 0 | 1 = 0
+  direction: 0 | 1 = 0,
+  // mm — extra rightward nudge applied only to centered barcodes. The estimated
+  // module width above doesn't always match how a given printer firmware
+  // actually renders CODE128, so different hardware needs different amounts of
+  // correction; exposed as a live-tunable setting (PrinterConfig.labelBarcodeOffsetX)
+  // instead of a fixed guess.
+  barcodeCenterOffsetMm = 4
 ): Uint8Array {
   const encoder = new TextEncoder()
   const widthDots = Math.max(100, Math.round(labelWidth * 8)) // 8 dots/mm at 203 DPI
   const offsetXDots = Math.round((offsetX || 0) * 8)
   const offsetYDots = Math.round((offsetY || 0) * 8)
+  const barcodeCenterOffsetDots = Math.round((barcodeCenterOffsetMm || 0) * 8)
 
   const safeData: LabelData = {
     businessName: cleanTextForPrinter(data.businessName),
@@ -244,16 +251,12 @@ export function generateLabelTspl(
         const moduleWidth = rawWidthAt2 > maxPrintableWidth ? 1 : 2
         const barcodeWidthDots = estimateTsplCode128Dots(barcodeStr, moduleWidth)
         const wideRatio = moduleWidth * 2
-        // Small empirical rightward correction — the printer renders the bars
-        // slightly left of the dead-center math above, so nudge centered
-        // barcodes right to visually land in the middle of the label.
-        const centerBiasDots = 10
 
         const x = align === 'left'
           ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
           ? Math.max(16, widthDots - barcodeWidthDots - 16 + offsetXDots)
-          : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + centerBiasDots + offsetXDots)
+          : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + barcodeCenterOffsetDots + offsetXDots)
 
         // Top margin gap before barcode so preceding text (e.g. "Burger") never overlaps top edge of bars
         y += 8

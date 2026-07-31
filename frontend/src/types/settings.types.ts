@@ -83,6 +83,10 @@ export interface PrinterConfig {
   // 0 or 1 depends on which way the sticker is loaded in the printer, so this
   // is a user-facing toggle rather than a fixed value.
   labelDirection?: 0 | 1
+  // mm — extra rightward nudge applied only to centered barcodes, to correct
+  // for printer firmware rendering CODE128 slightly off from the calculated
+  // dead-center position. Independent of labelOffsetX (which shifts everything).
+  labelBarcodeOffsetX?: number
   labelBarcodeType: 'CODE128' | 'EAN13' | 'QR'
   labelBarcodeHeight?: number
   labelPrinterMode?: 'tspl' | 'escpos'

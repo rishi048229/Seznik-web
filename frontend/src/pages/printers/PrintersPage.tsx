@@ -80,6 +80,7 @@ const defaultPrinterConfig: PrinterConfig = {
   labelOffsetX: 0,
   labelOffsetY: 0,
   labelDirection: 0,
+  labelBarcodeOffsetX: 4,
   labelBarcodeType: 'CODE128',
   labelDensity: 10,
   labelTemplate: defaultLabelTemplate,
@@ -405,7 +406,8 @@ export const PrintersPage = () => {
                 config.labelOffsetX ?? 0,
                 config.labelOffsetY ?? 0,
                 undefined,
-                config.labelDirection ?? 0
+                config.labelDirection ?? 0,
+                config.labelBarcodeOffsetX ?? 4
               )
             : generateLabelEscPos(config.labelTemplate, config.labelBarcodeType, labelData)
           await printEscPos(bytes)
@@ -999,6 +1001,22 @@ export const PrintersPage = () => {
                     />
                     <span className="text-[10px] text-gray-500">Shift up/down on paper</span>
                   </div>
+                </div>
+
+                <div className="pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
+                  <label className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                    Barcode Center Nudge (mm)
+                    <FieldInfo textKey="tip.printer.labelBarcodeOffset" />
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={config.labelBarcodeOffsetX ?? 4}
+                    onChange={(e) => setConfig(prev => ({ ...prev, labelBarcodeOffsetX: Number(e.target.value) || 0 }))}
+                    placeholder="4"
+                    className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
+                  />
+                  <span className="text-[10px] text-gray-500">If the barcode prints off-center, increase (shift right) or decrease/go negative (shift left) until it's centered</span>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
