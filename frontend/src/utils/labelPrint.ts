@@ -33,8 +33,7 @@ export const PRESET_CENTERED_STANDARD: LabelElement[] = [
   { id: 'el-1', type: 'businessName', align: 'center', bold: true, fontSize: 'medium' },
   { id: 'el-2', type: 'productName', align: 'center', bold: true, fontSize: 'medium' },
   { id: 'el-3', type: 'barcode', align: 'center', bold: false },
-  { id: 'el-4', type: 'divider', align: 'center', bold: false },
-  { id: 'el-5', type: 'price', align: 'center', bold: true, fontSize: 'large', prefix: 'Rs. ' },
+  { id: 'el-4', type: 'price', align: 'center', bold: true, fontSize: 'large', prefix: 'Rs. ' },
 ]
 
 export const PRESET_MINIMAL_TAG: LabelElement[] = [
