@@ -372,14 +372,16 @@ export const ProductsPage = () => {
       if (el.type === 'barcode' || el.type === 'qrCode') {
         const isQr = el.type === 'qrCode' || labelFormat === 'QR'
         if (isQr) {
-          return `<div style="width:100%;text-align:${align};margin:2px 0;"><canvas class="qr" data-text="${barcodeVal}" data-type="QR" style="width:12mm;height:12mm;"></canvas></div>`
+          return `<div style="width:100%;display:flex;justify-content:${align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'};margin:3px 0;"><canvas class="qr" data-text="${barcodeVal}" data-type="QR" style="width:14mm;height:14mm;display:block;"></canvas></div>`
         }
-        return `<div style="width:100%;text-align:${align};margin:2px 0;"><canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}" style="width:38mm;height:14mm;"></canvas></div>`
+        const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
+        return `<div style="width:100%;display:flex;justify-content:${justify};align-items:center;margin:3px 0;"><canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}" style="width:44mm;height:17mm;display:block;margin:0 auto;"></canvas></div>`
       }
 
       const txt = resolveElementText(el, labelData)
       if (!txt) return ''
-      return `<div style="width:100%;text-align:${align};${weight}font-size:${fontSizePx};margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>`
+      const extraStyle = el.type === 'price' ? 'margin-top:5px;' : ''
+      return `<div style="width:100%;text-align:${align};${weight}font-size:${fontSizePx};margin:1px 0;${extraStyle}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>`
     }).join('')
 
     const stickers = Array.from({ length: labelQty }).map(() => `
@@ -1515,14 +1517,14 @@ export const ProductsPage = () => {
                   if (el.type === 'barcode' || el.type === 'qrCode') {
                     if (el.type === 'qrCode' || labelFormat === 'QR') {
                       return (
-                        <div key={el.id} className={`${alignClass} my-1`}>
-                          <QrCode size={30} className="inline-block text-slate-900 dark:text-white" />
+                        <div key={el.id} className="w-full flex justify-center items-center my-1">
+                          <QrCode size={34} className="text-slate-900 dark:text-white" />
                         </div>
                       )
                     }
                     return (
-                      <div key={el.id} className={`${alignClass} my-1`}>
-                        <canvas ref={canvasRef} className="max-w-full h-auto inline-block" />
+                      <div key={el.id} className="w-full flex justify-center items-center my-1">
+                        <canvas ref={canvasRef} className="max-w-[95%] h-auto inline-block" />
                       </div>
                     )
                   }
@@ -1536,10 +1538,11 @@ export const ProductsPage = () => {
                   }
                   const text = resolveElementText(el, labelData)
                   if (!text) return null
+                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1' : ''
                   return (
                     <div
                       key={el.id}
-                      className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass}`}
+                      className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass} ${priceExtra}`}
                     >
                       {text}
                     </div>

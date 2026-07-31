@@ -1199,13 +1199,13 @@ export const PrintersPage = () => {
 
                     if (el.type === 'barcode' || el.type === 'qrCode') {
                       return (
-                        <div key={el.id} className={`${alignClass} my-0.5`}>
+                        <div key={el.id} className="w-full flex flex-col items-center justify-center my-1">
                           {el.type === 'qrCode' || config.labelBarcodeType === 'QR' ? (
-                            <QrCode size={30} className="inline-block text-slate-900" />
+                            <QrCode size={32} className="inline-block text-slate-900" />
                           ) : (
                             <>
-                              <div className="font-extrabold text-xs tracking-widest leading-none">|||||| ||||| |||||||</div>
-                              <span className="text-[9px] font-mono text-gray-600">{labelData.barcodeValue}</span>
+                              <div className="font-extrabold text-sm tracking-widest leading-none">|||||| ||||| |||||||</div>
+                              <span className="text-[9px] font-mono text-gray-600 mt-0.5">{labelData.barcodeValue}</span>
                             </>
                           )}
                         </div>
@@ -1213,10 +1213,11 @@ export const PrintersPage = () => {
                     }
 
                     const text = resolveElementText(el, labelData)
+                    const priceExtra = el.type === 'price' ? 'mt-auto pt-1' : ''
                     return (
                       <div
                         key={el.id}
-                        className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass}`}
+                        className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass} ${priceExtra}`}
                       >
                         {text}
                       </div>

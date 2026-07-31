@@ -107,8 +107,9 @@ export function drawBarcodeToCanvas(
 
   // Draw 1D Barcode (Code128)
   const pattern = encodeCode128B(text)
-  const barMargin = 20
-  const barHeight = options.showText !== false ? height - 35 : height - 15
+  const barMargin = 16
+  const startY = 4
+  const barHeight = options.showText !== false ? height - 24 : height - 8
   const barWidth = (width - barMargin * 2) / pattern.length
 
   let currentX = barMargin
@@ -118,16 +119,16 @@ export function drawBarcodeToCanvas(
     const widthUnits = parseInt(pattern[i], 10)
     const isBar = i % 2 === 0
     if (isBar) {
-      ctx.fillRect(currentX, 10, barWidth * widthUnits, barHeight)
+      ctx.fillRect(currentX, startY, barWidth * widthUnits, barHeight)
     }
     currentX += barWidth * widthUnits
   }
 
   if (options.showText !== false) {
     ctx.fillStyle = '#000000'
-    ctx.font = 'bold 12px monospace'
+    ctx.font = 'bold 13px monospace'
     ctx.textAlign = 'center'
-    ctx.fillText(text, width / 2, height - 8)
+    ctx.fillText(text, width / 2, height - 4)
   }
 }
 
