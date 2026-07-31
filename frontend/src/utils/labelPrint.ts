@@ -181,17 +181,18 @@ export function generateLabelTspl(
       const leftHalfDots = Math.floor(widthDots * 0.62)
       const rightHalfDots = widthDots - leftHalfDots
 
-      const moduleWidth = (barcodeStr.length * 11 + 35) * 2 > (leftHalfDots - 10) ? 1 : 2
+      const moduleWidth = 2
       const barWidthDots = (barcodeStr.length * 11 + 35) * moduleWidth
       const xBar = Math.max(5, Math.floor((leftHalfDots - barWidthDots) / 2) + offsetXDots)
 
       const qrSizeDots = 70 // ~8.7mm QR size
       const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrSizeDots) / 2) + offsetXDots)
 
-      tspl += `BARCODE ${xBar},${y},"128",34,2,0,${moduleWidth},${moduleWidth},"${barcodeStr}"\r\n`
+      y += 6
+      tspl += `BARCODE ${xBar},${y},"128M",36,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
       tspl += `QRCODE ${xQr},${y},L,3,A,0,"${barcodeStr}"\r\n`
 
-      y += 62
+      y += 68
       continue
     }
 
@@ -205,13 +206,16 @@ export function generateLabelTspl(
           ? Math.max(5, widthDots - qrSizeDots - 15 + offsetXDots)
           : Math.max(5, Math.floor((widthDots - qrSizeDots) / 2) + offsetXDots)
 
+        y += 6
         tspl += `QRCODE ${x},${y},L,4,A,0,"${barcodeStr}"\r\n`
-        y += 92
+        y += 94
       } else {
-        const h = barcodeHeight || 52 // 52 dots = ~6.5mm height (larger & clearer barcode)
-        const moduleWidth = (barcodeStr.length * 11 + 55) * 2 > (widthDots - 20) ? 1 : 2
-        // Code128 total width including start (11), check (11), stop (13), and quiet zones (20) = N*11 + 55
-        const barcodeWidthDots = (barcodeStr.length * 11 + 55) * moduleWidth
+        const h = barcodeHeight || 48 // 48 dots = 6mm bar height
+        // Lock narrow bar width to 2 dots minimum (0.25mm) so thermal printheads don't bleed or clutter bars
+        const moduleWidth = 2
+        // Code128 total width including start, check, stop, and quiet zones in TSPL 128M auto mode
+        const totalModules = Math.min(barcodeStr.length * 11 + 45, Math.floor((widthDots - 30) / moduleWidth))
+        const barcodeWidthDots = totalModules * moduleWidth
 
         const x = align === 'left'
           ? Math.max(5, 15 + offsetXDots)
@@ -219,9 +223,12 @@ export function generateLabelTspl(
           ? Math.max(5, widthDots - barcodeWidthDots - 15 + offsetXDots)
           : Math.max(5, Math.floor((widthDots - barcodeWidthDots) / 2) + offsetXDots)
 
-        // TSPL BARCODE x, y, "code", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
-        tspl += `BARCODE ${x},${y},"128",${h},2,0,${moduleWidth},${moduleWidth},"${barcodeStr}"\r\n`
-        y += h + 28
+        // Top margin gap before barcode so preceding text (e.g. "Burger") never overlaps top edge of bars
+        y += 8
+
+        // TSPL BARCODE x, y, "128M", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
+        tspl += `BARCODE ${x},${y},"128M",${h},2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
+        y += h + 34
       }
       continue
     }
@@ -237,26 +244,26 @@ export function generateLabelTspl(
     const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
     let font = '"2"'
     let charWidth = 12
-    let advanceY = 24
+    let advanceY = 26
     let mulX = 1
     let mulY = 1
 
     if (sizeKey === 'small') {
       font = '"1"'
       charWidth = 8
-      advanceY = 18
+      advanceY = 20
     } else if (sizeKey === 'medium') {
       font = '"2"'
       charWidth = 12
-      advanceY = 24
+      advanceY = 26
     } else if (sizeKey === 'large') {
       font = '"3"'
       charWidth = 16
-      advanceY = 30
+      advanceY = 32
     } else if (sizeKey === 'xlarge') {
       font = '"4"'
       charWidth = 24
-      advanceY = 38
+      advanceY = 40
     }
 
     const textWidthDots = text.length * charWidth * mulX
