@@ -25,7 +25,7 @@ import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '@/utils/labelPrint'
+import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate, resolveElementText, type LabelData } from '@/utils/labelPrint'
 import { drawBarcodeToCanvas, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 
 
@@ -322,16 +322,29 @@ export const ProductsPage = () => {
       return
     }
 
+    const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
     const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
-    const priceStr = formatINR(labelProduct.sellingPrice)
-    const storeName = settings?.businessName || 'SEZNIK RETAIL'
+    const labelData: LabelData = {
+      businessName: settings?.businessName || 'SEZNIK RETAIL',
+      productName: labelProduct.name,
+      price: formatINR(labelProduct.sellingPrice),
+      barcodeValue: barcodeVal,
+    }
+
+    const renderElementsHtml = template.map(el => {
+      const align = el.align || 'center'
+      const weight = el.bold ? 'font-weight:700;' : 'font-weight:400;'
+      const size = el.large ? 'font-size:13px;' : 'font-size:10px;'
+      if (el.type === 'barcode') {
+        return `<div style="text-align:${align};margin:2px 0;"><canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}"></canvas></div>`
+      }
+      const txt = resolveElementText(el, labelData)
+      return `<div style="text-align:${align};${weight}${size}margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>`
+    }).join('')
 
     const stickers = Array.from({ length: labelQty }).map(() => `
       <div class="sticker">
-        <div class="store">${storeName}</div>
-        <div class="name">${labelProduct.name}</div>
-        <canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}"></canvas>
-        <div class="price">${priceStr}</div>
+        ${renderElementsHtml}
       </div>
     `).join('')
 
@@ -344,10 +357,7 @@ export const ProductsPage = () => {
           @page { size: auto; margin: 0; }
           body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; text-align: center; }
           .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-          .sticker { width: 50mm; height: 30mm; border: 1px dashed #ccc; padding: 4px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; align-items: center; page-break-inside: avoid; }
-          .store { font-size: 8px; font-weight: bold; text-transform: uppercase; color: #555; }
-          .name { font-size: 10px; font-weight: bold; margin: 1px 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 45mm; }
-          .price { font-size: 12px; font-weight: 800; color: #2563eb; }
+          .sticker { width: ${settings?.printerConfig?.labelWidth || 50}mm; height: ${settings?.printerConfig?.labelHeight || 30}mm; border: 1px dashed #ccc; padding: 4px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; align-items: center; page-break-inside: avoid; }
           .bc { width: 44mm; height: 16mm; }
         </style>
       </head>
@@ -1429,14 +1439,29 @@ export const ProductsPage = () => {
 
             {/* Live Canvas Sticker Preview */}
             <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview (50mm × 30mm)</span>
-              <div className="w-[260px] p-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md text-center flex flex-col items-center justify-between min-h-[140px]">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide truncate w-full">{settings?.businessName || 'SEZNIK RETAIL'}</p>
-                <p className="text-xs font-bold text-gray-900 dark:text-gray-100 my-0.5 truncate w-full">{labelProduct.name}</p>
-                
-                <canvas ref={canvasRef} className="my-1 max-w-full h-auto" />
-
-                <p className="text-sm font-black text-blue-600 dark:text-blue-400 mt-1">{formatINR(labelProduct.sellingPrice)}</p>
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({settings?.printerConfig?.labelWidth || 50}mm × {settings?.printerConfig?.labelHeight || 30}mm)</span>
+              <div className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md text-center flex flex-col items-center justify-center gap-1 min-h-[140px]">
+                {(settings?.printerConfig?.labelTemplate || defaultLabelTemplate).map(el => {
+                  const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
+                  if (el.type === 'barcode') {
+                    return <canvas key={el.id} ref={canvasRef} className="my-1 max-w-full h-auto" />
+                  }
+                  const labelData: LabelData = {
+                    businessName: settings?.businessName || 'SEZNIK RETAIL',
+                    productName: labelProduct.name,
+                    price: formatINR(labelProduct.sellingPrice),
+                    barcodeValue: labelProduct.barcode || labelProduct.sku || '000000',
+                  }
+                  const text = resolveElementText(el, labelData)
+                  return (
+                    <div
+                      key={el.id}
+                      className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${el.large ? 'text-sm text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'}`}
+                    >
+                      {text}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
