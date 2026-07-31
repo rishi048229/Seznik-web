@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -16,13 +16,17 @@ import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
-import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Lock, Sparkles, Wand2, X } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useSettings } from '@/hooks/useSettings'
+import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '@/utils/labelPrint'
+import { drawBarcodeToCanvas, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 
 
 type UnitType = 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
@@ -129,8 +133,21 @@ export const ProductsPage = () => {
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
+  const { data: settings } = useSettings()
+  const { status: bleStatus, print: sendBleData } = useBlePrinter()
+  const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
+  const [labelQty, setLabelQty] = useState<number>(1)
+  const [labelFormat, setLabelFormat] = useState<'CODE128' | 'EAN13' | 'QR'>('CODE128')
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    if (isLabelModalOpen && labelProduct && canvasRef.current) {
+      const payload = labelProduct.barcode || labelProduct.sku || '000000'
+      drawBarcodeToCanvas(canvasRef.current, payload, labelFormat, { width: 240, height: 75, showText: true })
+    }
+  }, [isLabelModalOpen, labelProduct, labelFormat])
 
   // Inline "add new" mini-forms inside the product modal, so a missing
   // category/supplier doesn't force the user to abandon the form.
@@ -252,10 +269,109 @@ export const ProductsPage = () => {
     setIsFormOpen(true)
   }
 
-  // Label printing stopped for this version — shows coming soon modal
   const handlePrintLabel = (product: Product) => {
     setLabelProduct(product)
+    setLabelFormat((product.barcodeType as 'CODE128' | 'EAN13' | 'QR') || 'CODE128')
+    setLabelQty(1)
     setIsLabelModalOpen(true)
+  }
+
+  const handlePrintToBlePrinter = async () => {
+    if (!labelProduct) return
+    const mode = settings?.printerConfig?.labelPrinterMode || 'tspl'
+    const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
+    const data = {
+      businessName: settings?.businessName || 'SEZNIK RETAIL',
+      productName: labelProduct.name,
+      price: formatINR(labelProduct.sellingPrice),
+      barcodeValue: barcodeVal,
+    }
+
+    try {
+      const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
+      const singleBytes = mode === 'tspl'
+        ? generateLabelTspl(template, labelFormat, data, settings?.printerConfig?.labelWidth || 50, settings?.printerConfig?.labelHeight || 30)
+        : generateLabelEscPos(template, labelFormat, data)
+
+      for (let i = 0; i < labelQty; i++) {
+        await sendBleData(singleBytes)
+      }
+      toast.success(`${labelQty} label(s) sent to Seznik Dev Printer!`)
+    } catch (err) {
+      console.error('BLE Print error:', err)
+      toast.error('BLE print error. Falling back to browser print.')
+      handleBrowserPrintLabels()
+    }
+  }
+
+  const handleBrowserPrintLabels = () => {
+    if (!labelProduct) return
+    const printWin = window.open('', '_blank')
+    if (!printWin) {
+      toast.error('Please allow popups to print labels')
+      return
+    }
+
+    const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
+    const priceStr = formatINR(labelProduct.sellingPrice)
+    const storeName = settings?.businessName || 'SEZNIK RETAIL'
+
+    const stickers = Array.from({ length: labelQty }).map(() => `
+      <div class="sticker">
+        <div class="store">${storeName}</div>
+        <div class="name">${labelProduct.name}</div>
+        <canvas class="bc" data-text="${barcodeVal}" data-type="${labelFormat}"></canvas>
+        <div class="price">${priceStr}</div>
+      </div>
+    `).join('')
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Print Product Labels - ${labelProduct.name}</title>
+        <style>
+          @page { size: auto; margin: 0; }
+          body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; text-align: center; }
+          .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+          .sticker { width: 50mm; height: 30mm; border: 1px dashed #ccc; padding: 4px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; align-items: center; page-break-inside: avoid; }
+          .store { font-size: 8px; font-weight: bold; text-transform: uppercase; color: #555; }
+          .name { font-size: 10px; font-weight: bold; margin: 1px 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 45mm; }
+          .price { font-size: 12px; font-weight: 800; color: #2563eb; }
+          .bc { width: 44mm; height: 16mm; }
+        </style>
+      </head>
+      <body>
+        <div class="grid">${stickers}</div>
+        <script>
+          ${drawBarcodeToCanvas.toString()}
+          ${encodeCode128B.toString()}
+          const CODE128_PATTERNS = ["212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213", "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132", "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211", "212123", "212321", "202121", "311123", "311321", "331121", "312113", "312311", "332111", "314111", "221411", "411212", "411122", "411221", "421112", "421211", "212141", "214121", "412112", "421211", "411123", "411321", "421121", "412121", "211142", "211241", "211421", "214112", "214211", "241112", "241211", "412112", "421112", "412211", "211133", "211331", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111", "314111", "221411", "411212", "411122", "411221", "421112", "421211", "212141", "214121", "412112", "421112"];
+          const START_B = "211214";
+          const STOP = "2331112";
+
+          document.querySelectorAll('.bc').forEach(canvas => {
+            const text = canvas.getAttribute('data-text');
+            const type = canvas.getAttribute('data-type');
+            drawBarcodeToCanvas(canvas, text, type, { width: 240, height: 75, showText: true });
+          });
+
+          setTimeout(() => {
+            window.print();
+            window.close();
+          }, 400);
+        </script>
+      </body>
+      </html>
+    `)
+    printWin.document.close()
+  }
+
+  const handleDownloadBarcodeImage = () => {
+    if (!labelProduct) return
+    const val = labelProduct.barcode || labelProduct.sku || 'barcode'
+    downloadBarcodePng(labelProduct.name, val, labelFormat)
+    toast.success('Barcode image downloaded!')
   }
 
   const openEdit = (row: Product) => {
@@ -699,7 +815,7 @@ export const ProductsPage = () => {
                   {paginated.map(product => (
                     <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openEdit(product)}>
                       <div>
-                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden">
+                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
                           {product.imageURL ? (
                             <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
@@ -707,6 +823,14 @@ export const ProductsPage = () => {
                               <Package size={28} className="text-gray-300" />
                             </div>
                           )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
+                            title="Print Label"
+                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                          >
+                            <Tag size={14} />
+                          </button>
                         </div>
                         <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">{product.sku}</p>
                         <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">{product.name}</p>
@@ -1188,40 +1312,103 @@ export const ProductsPage = () => {
         </div>
       </Modal>
 
-      {/* Label Feature Disabled Popup Modal */}
+      {/* Product Barcode & Label Printer Modal */}
       <Modal
         isOpen={isLabelModalOpen}
         onClose={() => setIsLabelModalOpen(false)}
-        title="Print Label"
-        size="sm"
-        footer={
-          <div className="flex justify-end">
-            <Button variant="primary" onClick={() => setIsLabelModalOpen(false)}>
-              Got it
-            </Button>
-          </div>
-        }
+        title={`Print Label: ${labelProduct?.name || ''}`}
+        size="lg"
       >
-        <div className="flex flex-col items-center text-center py-4 space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-inner ring-4 ring-amber-50 dark:ring-amber-950/40">
-            <Lock size={28} className="animate-pulse" />
-          </div>
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-bold mb-1">
-              <Sparkles size={12} />
-              Feature Coming Soon
+        {labelProduct && (
+          <div className="space-y-6">
+            {/* Product Summary Header */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/60">
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">Product</p>
+                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mt-0.5">{labelProduct.name}</h3>
+                <p className="text-xs text-gray-500 font-mono mt-0.5">SKU: {labelProduct.sku} | Price: {formatINR(labelProduct.sellingPrice)}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-gray-400 block font-mono">Barcode Value</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-gray-200 font-mono">{labelProduct.barcode || labelProduct.sku}</span>
+              </div>
             </div>
-            <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
-              Label Feature Disabled
-            </h4>
-            <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
-              This feature will be live soon
-            </p>
+
+            {/* Interactive Settings Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Label Format (Barcode / QR)
+                </label>
+                <Select
+                  options={[
+                    { value: 'CODE128', label: 'CODE128 (Standard Barcode)' },
+                    { value: 'EAN13', label: 'EAN13 (Retail Barcode)' },
+                    { value: 'QR', label: 'QR Code (2D Code)' },
+                  ]}
+                  value={labelFormat}
+                  onChange={e => setLabelFormat(e.target.value as 'CODE128' | 'EAN13' | 'QR')}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Print Quantity (Number of Labels)
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={String(labelQty)}
+                  onChange={e => setLabelQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  placeholder="1"
+                />
+              </div>
+            </div>
+
+            {/* Live Canvas Sticker Preview */}
+            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview (50mm × 30mm)</span>
+              <div className="w-[260px] p-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md text-center flex flex-col items-center justify-between min-h-[140px]">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide truncate w-full">{settings?.businessName || 'SEZNIK RETAIL'}</p>
+                <p className="text-xs font-bold text-gray-900 dark:text-gray-100 my-0.5 truncate w-full">{labelProduct.name}</p>
+                
+                <canvas ref={canvasRef} className="my-1 max-w-full h-auto" />
+
+                <p className="text-sm font-black text-blue-600 dark:text-blue-400 mt-1">{formatINR(labelProduct.sellingPrice)}</p>
+              </div>
+            </div>
+
+            {/* Print Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button
+                variant="primary"
+                leftIcon={<Printer size={16} />}
+                onClick={handlePrintToBlePrinter}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white shadow-md shadow-sky-500/20 py-2.5"
+              >
+                Print to Seznik Dev Printer ({labelQty})
+              </Button>
+              <Button
+                variant="outline"
+                leftIcon={<Printer size={16} />}
+                onClick={handleBrowserPrintLabels}
+                className="flex-1 py-2.5"
+              >
+                Print / PDF ({labelQty} Stickers)
+              </Button>
+              <Button
+                variant="ghost"
+                leftIcon={<Download size={16} />}
+                onClick={handleDownloadBarcodeImage}
+                className="py-2.5"
+                title="Download Barcode / QR Image"
+              >
+                Download PNG
+              </Button>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed max-w-xs">
-            Label printing for {labelProduct ? <span className="font-semibold text-gray-700 dark:text-gray-200">{labelProduct.name}</span> : 'products'} is disabled in this version and will be live in an upcoming release.
-          </p>
-        </div>
+        )}
       </Modal>
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
