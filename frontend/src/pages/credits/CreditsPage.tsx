@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { Badge } from '@/components/ui/Badge'
 import { useCredits, useCreditTransactions } from '@/hooks/useCredits'
-import { useRecordPayment } from '@/hooks/useCustomers'
+import { useCustomers, useRecordPayment } from '@/hooks/useCustomers'
 import { CreditCard, Receipt, Wallet, ChevronDown, ChevronUp, BookOpen } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -21,7 +21,8 @@ import type { CreditTransaction } from '@/types/customer.types'
 
 export const CreditsPage = () => {
   const { t } = useLanguage()
-  const { data: customers, isLoading: customersLoading } = useCredits()
+  const { data: allCustomers } = useCustomers()
+  const { data: creditCustomers, isLoading: customersLoading } = useCredits()
   const { data: transactions, isLoading: txLoading } = useCreditTransactions()
   const { mutate: recordPayment, isPending } = useRecordPayment()
 
@@ -31,8 +32,9 @@ export const CreditsPage = () => {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null)
 
-  const totalOutstanding = (customers as Customer[] ?? []).reduce((sum, c) => sum + (c.creditBalance ?? 0), 0)
-  const customersWithBalance = (customers as Customer[] ?? []).filter(c => c.creditBalance > 0)
+  const customerList = (allCustomers ?? creditCustomers ?? []) as Customer[]
+  const totalOutstanding = customerList.reduce((sum, c) => sum + (c.creditBalance ?? 0), 0)
+  const customersWithBalance = customerList.filter(c => (c.creditBalance ?? 0) > 0)
 
   const handlePayment = () => {
     const amount = parseFloat(paymentAmount)
@@ -90,7 +92,7 @@ export const CreditsPage = () => {
                 <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                   <CreditCard size={20} className="text-red-600 dark:text-red-400" />
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Total Outstanding</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{t('credits.totalOutstanding')}</p>
               </div>
               <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatINR(totalOutstanding)}</p>
             </Card>
@@ -100,7 +102,7 @@ export const CreditsPage = () => {
                 <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                   <Wallet size={20} className="text-gray-600 dark:text-gray-300" />
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Customers with Dues</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('credits.customersWithDues')}</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{customersWithBalance.length}</p>
             </Card>
@@ -110,7 +112,7 @@ export const CreditsPage = () => {
                 <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                   <Receipt size={20} className="text-gray-600 dark:text-gray-300" />
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total Transactions</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('credits.totalTransactions')}</p>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{transactions?.length ?? 0}</p>
             </Card>
@@ -119,14 +121,14 @@ export const CreditsPage = () => {
           {/* Customers with Outstanding Balance */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Outstanding Balances</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('credits.outstandingBalances')}</h3>
 
               {customersLoading ? (
                 <TableSkeleton rows={4} columns={3} />
               ) : customersWithBalance.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <CreditCard size={48} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No outstanding credits</p>
+                  <p className="text-sm">{t('credits.noOutstandingCredits')}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -162,7 +164,7 @@ export const CreditsPage = () => {
                               }}
                               className="bg-[#0a0a2e] hover:bg-[#1a1555] text-white"
                             >
-                              Pay
+                              {t('action.pay')}
                             </Button>
                             {custTxs.length > 0 && (
                               <button
@@ -183,7 +185,7 @@ export const CreditsPage = () => {
                               <div key={tx.id} className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2">
                                   <Badge variant={tx.type === 'payment' ? 'success' : 'warning'}>
-                                    {tx.type === 'payment' ? 'Payment' : 'Credit'}
+                                    {tx.type === 'payment' ? t('credits.paymentReceived') : t('credits.creditAdded')}
                                   </Badge>
                                   <span className="text-gray-600 dark:text-gray-300">
                                     {tx.notes || ''}
@@ -212,19 +214,20 @@ export const CreditsPage = () => {
 
             {/* Recent Credit Transactions */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Transactions</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('credits.recentTransactions')}</h3>
 
               {txLoading ? (
                 <TableSkeleton rows={4} columns={3} />
               ) : (transactions ?? []).length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <Receipt size={48} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No credit transactions yet</p>
+                  <p className="text-sm">{t('credits.noCreditTransactionsYet')}</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {(transactions ?? []).slice(0, 10).map(tx => {
-                    const customer = (customers as Customer[] ?? []).find(c => c.id === tx.customerId)
+                    const customerObj = customerList.find(c => c.id === tx.customerId) || (tx as any).customer
+                    const customerName = customerObj?.name || (tx as any).customerName || (tx as any).customer?.name || 'Customer'
                     return (
                       <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                         <div className="flex items-center gap-3">
@@ -237,10 +240,10 @@ export const CreditsPage = () => {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {customer?.name ?? 'Unknown'}
+                              {customerName}
                             </p>
                             <p className="text-xs text-gray-400">
-                              {tx.type === 'payment' ? 'Payment received' : 'Credit added'}
+                              {tx.type === 'payment' ? t('credits.paymentReceived') : t('credits.creditAdded')}
                               {tx.notes ? ` — ${tx.notes}` : ''}
                             </p>
                           </div>
