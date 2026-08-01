@@ -31,11 +31,11 @@ export const ReportsPage = () => {
               <FileText size={24} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sales Report</h3>
-              <p className="text-xs text-blue-600 font-medium">View Revenue & Invoices →</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('reports.salesReportTitle')}</h3>
+              <p className="text-xs text-blue-600 font-medium">{t('reports.viewRevenueInvoices')}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">View daily revenue trends, invoice counts, order averages, and export to Excel.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.salesReportDesc')}</p>
         </Card>
 
         <Card
@@ -48,11 +48,11 @@ export const ReportsPage = () => {
               <TrendingUp size={24} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Profit & Loss</h3>
-              <p className="text-xs text-emerald-600 font-medium">View Net Profit Statement →</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('reports.profitLossTitle')}</h3>
+              <p className="text-xs text-emerald-600 font-medium">{t('reports.viewNetProfitStatement')}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Detailed breakdown of total revenue, estimated costs, operating expenses, and net profit.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.profitLossDesc')}</p>
         </Card>
 
         <Card
@@ -65,11 +65,11 @@ export const ReportsPage = () => {
               <Receipt size={24} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Tax Report</h3>
-              <p className="text-xs text-purple-600 font-medium">View Output Tax Collected →</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('reports.taxReportTitle')}</h3>
+              <p className="text-xs text-purple-600 font-medium">{t('reports.viewOutputTaxCollected')}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Summary of total output tax collected, taxable sales count, and average tax per sale.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.taxReportDesc')}</p>
         </Card>
       </div>
 

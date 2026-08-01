@@ -8,10 +8,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { sendForgotPasswordOtp, verifyForgotPasswordOtp, resetPasswordWithOtp } from '@/services/authService'
 import { Shield, KeyRound, Mail, CheckCircle2, Lock, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 type Step = 'initial' | 'otp' | 'password' | 'success'
 
 export const SecurityPasswordSettings = () => {
+  const { t } = useLanguage()
   const { user } = useAuth()
   const [step, setStep] = useState<Step>('initial')
   const [otp, setOtp] = useState('')
@@ -32,7 +34,7 @@ export const SecurityPasswordSettings = () => {
   // Step 1: Send OTP to user's email
   const handleSendCode = async () => {
     if (!userEmail) {
-      toast.error('User email not found')
+      toast.error(t('security.errEmailNotFound'))
       return
     }
     setLoading(true)
@@ -40,10 +42,10 @@ export const SecurityPasswordSettings = () => {
       await sendForgotPasswordOtp(userEmail)
       setStep('otp')
       setResendTimer(60)
-      toast.success(`Verification code sent to ${userEmail}`)
+      toast.success(`${t('security.codeSentPrefix')} ${userEmail}`)
     } catch (err: unknown) {
       console.error('Error sending reset code:', err)
-      toast.error(err instanceof Error ? err.message : 'Failed to send verification code')
+      toast.error(err instanceof Error ? err.message : t('security.errSendCodeFailed'))
     } finally {
       setLoading(false)
     }
@@ -52,17 +54,17 @@ export const SecurityPasswordSettings = () => {
   // Step 2: Verify 6-digit OTP code
   const handleVerifyCode = async () => {
     if (otp.trim().length !== 6) {
-      toast.error('Please enter the full 6-digit verification code')
+      toast.error(t('security.errEnterFullCode'))
       return
     }
     setLoading(true)
     try {
       await verifyForgotPasswordOtp(userEmail, otp.trim())
       setStep('password')
-      toast.success('Code verified successfully! Please enter your new password.')
+      toast.success(t('security.codeVerifiedSuccess'))
     } catch (err: unknown) {
       console.error('Error verifying code:', err)
-      toast.error(err instanceof Error ? err.message : 'Incorrect verification code')
+      toast.error(err instanceof Error ? err.message : t('security.errIncorrectCode'))
     } finally {
       setLoading(false)
     }
@@ -72,12 +74,12 @@ export const SecurityPasswordSettings = () => {
   const handleUpdatePassword = async () => {
     const { isValid, failedRequirements } = validatePassword(newPassword)
     if (!isValid) {
-      toast.error(`Password requirement missing: ${failedRequirements[0]}`)
+      toast.error(`${t('security.errPasswordRequirementPrefix')} ${failedRequirements[0]}`)
       return
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match')
+      toast.error(t('security.errPasswordsNoMatch'))
       return
     }
 
@@ -85,10 +87,10 @@ export const SecurityPasswordSettings = () => {
     try {
       await resetPasswordWithOtp(userEmail, newPassword)
       setStep('success')
-      toast.success('Password updated successfully in database!')
+      toast.success(t('security.passwordUpdatedSuccess'))
     } catch (err: unknown) {
       console.error('Error resetting password:', err)
-      toast.error(err instanceof Error ? err.message : 'Failed to update password in database')
+      toast.error(err instanceof Error ? err.message : t('security.errUpdatePasswordFailed'))
     } finally {
       setLoading(false)
     }
@@ -109,10 +111,10 @@ export const SecurityPasswordSettings = () => {
         <div>
           <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Shield className="text-blue-600 dark:text-blue-400" size={20} />
-            Security & Password Reset
+            {t('security.title')}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Verify your identity via email OTP code to update your account password securely in the database.
+            {t('security.subtitle')}
           </p>
         </div>
       </div>
@@ -125,12 +127,12 @@ export const SecurityPasswordSettings = () => {
               <Mail size={18} />
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Logged In Account</p>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t('security.loggedInAccount')}</p>
               <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{userEmail}</p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 size={12} /> Verified
+            <CheckCircle2 size={12} /> {t('security.verified')}
           </span>
         </div>
 
@@ -140,9 +142,9 @@ export const SecurityPasswordSettings = () => {
             <div className="flex items-center gap-3 p-4 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60 rounded-xl">
               <KeyRound className="text-blue-600 dark:text-blue-400 flex-shrink-0" size={22} />
               <div>
-                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-200">Reset Account Password</h4>
+                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-200">{t('security.resetAccountPassword')}</h4>
                 <p className="text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">
-                  Click below to receive a 6-digit security code on <strong>{userEmail}</strong>.
+                  {t('security.clickToReceiveCodePrefix')} <strong>{userEmail}</strong>.
                 </p>
               </div>
             </div>
@@ -152,7 +154,7 @@ export const SecurityPasswordSettings = () => {
               loading={loading}
               className="w-full sm:w-auto"
             >
-              Send Verification Code to Email
+              {t('security.sendVerificationCode')}
             </Button>
           </div>
         )}
@@ -162,16 +164,16 @@ export const SecurityPasswordSettings = () => {
           <div className="space-y-4 pt-2 animate-fadeIn">
             <div className="p-4 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl space-y-1">
               <h4 className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
-                <Lock size={14} /> Enter Verification Code
+                <Lock size={14} /> {t('security.enterVerificationCode')}
               </h4>
               <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                A 6-digit code has been sent to <strong>{userEmail}</strong>. Please enter it below.
+                {t('security.codeSentToPrefix')} <strong>{userEmail}</strong>{t('security.codeSentToSuffix')}
               </p>
             </div>
 
             <div className="space-y-2">
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
-                6-Digit Security Code
+                {t('security.sixDigitCode')}
               </label>
               <input
                 type="text"
@@ -189,7 +191,7 @@ export const SecurityPasswordSettings = () => {
                 loading={loading}
                 disabled={otp.length !== 6 || loading}
               >
-                Verify Code
+                {t('security.verifyCode')}
               </Button>
               <button
                 type="button"
@@ -198,7 +200,7 @@ export const SecurityPasswordSettings = () => {
                 className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 flex items-center gap-1"
               >
                 <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-                {resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend Code'}
+                {resendTimer > 0 ? `${t('security.resendCodeInPrefix')} ${resendTimer}s` : t('security.resendCode')}
               </button>
             </div>
           </div>
@@ -209,21 +211,21 @@ export const SecurityPasswordSettings = () => {
           <div className="space-y-4 pt-2 animate-fadeIn">
             <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl">
               <h4 className="text-xs font-bold text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
-                <CheckCircle2 size={14} /> Identity Verified
+                <CheckCircle2 size={14} /> {t('security.identityVerified')}
               </h4>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
-                Create a strong password for your account.
+                {t('security.createStrongPassword')}
               </p>
             </div>
 
             <div className="space-y-4">
               <div className="relative">
                 <Input
-                  label="New Password"
+                  label={t('security.newPassword')}
                   type={showPassword ? 'text' : 'password'}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Enter new secure password"
+                  placeholder={t('security.newPasswordPlaceholder')}
                 />
                 <button
                   type="button"
@@ -238,14 +240,14 @@ export const SecurityPasswordSettings = () => {
               <PasswordRequirementsList password={newPassword} />
 
               <Input
-                label="Confirm New Password"
+                label={t('security.confirmNewPassword')}
                 type={showPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
+                placeholder={t('security.confirmNewPasswordPlaceholder')}
               />
               {confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-xs font-medium text-red-500">Passwords do not match</p>
+                <p className="text-xs font-medium text-red-500">{t('security.errPasswordsNoMatch')}</p>
               )}
             </div>
 
@@ -255,10 +257,10 @@ export const SecurityPasswordSettings = () => {
                 loading={loading}
                 disabled={!newPassword || !confirmPassword || newPassword !== confirmPassword || loading}
               >
-                Update Password in Database
+                {t('security.updatePasswordInDb')}
               </Button>
               <Button variant="ghost" onClick={handleResetForm}>
-                Cancel
+                {t('action.cancel')}
               </Button>
             </div>
           </div>
@@ -271,14 +273,14 @@ export const SecurityPasswordSettings = () => {
               <CheckCircle2 size={28} />
             </div>
             <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
-              Password Updated Successfully!
+              {t('security.passwordUpdatedTitle')}
             </h4>
             <p className="text-xs text-gray-600 dark:text-gray-300 max-w-sm mx-auto">
-              Your new password has been securely updated in the database. Use your new password the next time you log in.
+              {t('security.passwordUpdatedDesc')}
             </p>
             <div className="pt-2">
               <Button variant="outline" onClick={handleResetForm}>
-                Done
+                {t('security.done')}
               </Button>
             </div>
           </div>

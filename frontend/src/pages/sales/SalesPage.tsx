@@ -86,7 +86,7 @@ export const SalesPage = () => {
       setIsPrintModalOpen(false)
       setPrintSaleId(null)
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to print via Bluetooth'
+      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
       toast.error(msg)
     } finally {
       setIsBlePrinting(false)
@@ -123,7 +123,7 @@ export const SalesPage = () => {
     a.download = `${sale.invoiceNumber}.html`
     a.click()
     URL.revokeObjectURL(url)
-    toast.success(`Invoice ${sale.invoiceNumber} downloaded`)
+    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} ${t('sales.invoiceDownloadedSuffix')}`)
   }
 
   const filtered = sales?.filter(sale => {
@@ -170,7 +170,7 @@ export const SalesPage = () => {
     const raw = sharePhone.trim().replace(/\D/g, '')
     const phone = raw.startsWith('0') ? '91' + raw.slice(1) : raw.length === 10 ? '91' + raw : raw
     if (phone.length < 10) {
-      toast.error('Enter a valid phone number')
+      toast.error(t('sales.errValidPhone'))
       return
     }
 
@@ -213,13 +213,13 @@ export const SalesPage = () => {
 
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return
-    if (!confirm(`Delete ${selectedIds.size} selected invoice(s)? This cannot be undone.`)) return
+    if (!confirm(`${t('sales.deleteConfirmPrefix')} ${selectedIds.size} ${t('sales.deleteConfirmSuffix')}`)) return
     bulkDeleteSales(Array.from(selectedIds), {
       onSuccess: () => {
-        toast.success(`Deleted ${selectedIds.size} invoice(s)`)
+        toast.success(`${t('sales.deletedPrefix')} ${selectedIds.size} ${t('sales.invoicesSuffix')}`)
         setSelectedIds(new Set())
       },
-      onError: () => toast.error('Failed to delete invoices'),
+      onError: () => toast.error(t('sales.errDeleteFailed')),
     })
   }
 
@@ -248,25 +248,25 @@ export const SalesPage = () => {
     },
     {
       key: 'invoiceNumber',
-      header: 'Invoice',
+      header: t('sales.invoiceHeader'),
       render: (row) => (
         <div>
           <span className="font-medium">{row.invoiceNumber}</span>
-          <p className="text-xs text-gray-400">{row.items?.length ?? 0} item(s)</p>
+          <p className="text-xs text-gray-400">{row.items?.length ?? 0} {t('sales.itemsSuffix')}</p>
         </div>
       ),
       sortable: true,
     },
     {
       key: 'customer',
-      header: 'Customer',
+      header: t('sales.customerHeader'),
       render: (row) => (
-        <span>{row.customerId ? 'Registered' : 'Walk-in'}</span>
+        <span>{row.customerId ? t('sales.registered') : t('sales.walkin')}</span>
       ),
     },
     {
       key: 'createdAt',
-      header: 'Date',
+      header: t('common.date'),
       render: (row) => {
         const raw = row.createdAt as unknown as { toDate?: () => Date }
         const d = raw?.toDate ? raw.toDate() : new Date(row.createdAt)
@@ -283,7 +283,7 @@ export const SalesPage = () => {
     },
     {
       key: 'grandTotal',
-      header: 'Total',
+      header: t('common.total'),
       render: (row) => (
         <span className="font-semibold">{formatINR(row.grandTotal)}</span>
       ),
@@ -291,7 +291,7 @@ export const SalesPage = () => {
     },
     {
       key: 'paymentMethod',
-      header: 'Method',
+      header: t('sales.methodHeader'),
       render: (row) => (
         <Badge variant={
           row.paymentMethod === 'cash' ? 'success' :
@@ -304,19 +304,19 @@ export const SalesPage = () => {
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: t('common.actions'),
       render: (row) => (
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`${ROUTES.SALES}/${row.id}`)} title="View receipt">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`${ROUTES.SALES}/${row.id}`)} title={t('sales.viewReceiptTitle')}>
             <Eye size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => openPrintModal(row.id)} title="Print receipt">
+          <Button variant="ghost" size="sm" onClick={() => openPrintModal(row.id)} title={t('pos.printReceiptTitle')}>
             <Printer size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleDownload(row.id)} title="Download invoice">
+          <Button variant="ghost" size="sm" onClick={() => handleDownload(row.id)} title={t('sales.downloadInvoiceTitle')}>
             <Download size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone('') }} title="Share on WhatsApp">
+          <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone('') }} title={t('daybook.shareWhatsApp')}>
             <WhatsAppIcon size={16} className="text-green-600" />
           </Button>
         </div>
@@ -342,7 +342,7 @@ export const SalesPage = () => {
                 loading={isBulkDeleting}
                 leftIcon={<Trash2 size={16} />}
               >
-                Delete Selected ({selectedIds.size})
+                {t('sales.deleteSelected')} ({selectedIds.size})
               </Button>
             )}
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
@@ -356,7 +356,7 @@ export const SalesPage = () => {
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                  {period === 'all' ? t('sales.periodAll') : period === 'today' ? t('daybook.today') : period === 'week' ? t('sales.periodWeek') : t('sales.periodMonth')}
                 </button>
               ))}
             </div>
@@ -371,7 +371,7 @@ export const SalesPage = () => {
           loading={isLoading}
           searchable
           pagination
-          emptyMessage="No sales found for this period"
+          emptyMessage={t('sales.noSalesForPeriod')}
         />
       </Card>
 
@@ -379,46 +379,46 @@ export const SalesPage = () => {
       <Modal
         isOpen={!!shareSaleId}
         onClose={() => { setShareSaleId(null); setSharePhone('') }}
-        title="Share Invoice on WhatsApp"
+        title={t('sales.shareInvoiceTitle')}
         size="sm"
       >
         <div className="space-y-5">
           {shareSale && (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Invoice: <span className="font-semibold text-gray-800 dark:text-gray-200">{shareSale.invoiceNumber}</span>
+              {t('sales.invoiceHeader')}: <span className="font-semibold text-gray-800 dark:text-gray-200">{shareSale.invoiceNumber}</span>
               {' · '}{formatINR(shareSale.grandTotal)}
             </p>
           )}
           <Input
-            label="WhatsApp Number"
+            label={t('daybook.whatsappNumber')}
             placeholder="e.g. 9876543210"
             value={sharePhone}
             onChange={(e) => setSharePhone(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleWhatsAppShare()}
           />
-          <p className="text-xs text-gray-400">Enter 10-digit mobile number. Country code +91 is added automatically.</p>
+          <p className="text-xs text-gray-400">{t('sales.phoneHint')}</p>
           <div className="flex gap-3">
             <Button
               className="flex-1 bg-green-600 hover:bg-green-700 text-white"
               onClick={handleWhatsAppShare}
               leftIcon={<WhatsAppIcon size={16} />}
             >
-              Open WhatsApp
+              {t('daybook.openWhatsApp')}
             </Button>
             <Button variant="ghost" className="flex-1" onClick={() => { setShareSaleId(null); setSharePhone('') }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         </div>
       </Modal>
 
       {/* Print Format Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); setPrintSaleId(null) }} title="Print Invoice" size="sm">
+      <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); setPrintSaleId(null) }} title={t('sales.printInvoiceTitle')} size="sm">
         <div className="space-y-6">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {printSale && `Invoice: ${printSale.invoiceNumber}`}
+            {printSale && `${t('sales.invoiceHeader')}: ${printSale.invoiceNumber}`}
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Select print format:</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
 
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -427,8 +427,8 @@ export const SalesPage = () => {
             >
               <FileText size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">A4 Paper</p>
-                <p className="text-xs text-gray-400">Standard format</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
+                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
               </div>
             </button>
             <button
@@ -437,8 +437,8 @@ export const SalesPage = () => {
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">50mm Thermal</p>
-                <p className="text-xs text-gray-400">POS printer</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
+                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
               </div>
             </button>
           </div>
@@ -451,7 +451,7 @@ export const SalesPage = () => {
               leftIcon={<Bluetooth size={16} />}
               onClick={handlePrintBluetooth}
             >
-              {blePrinter.status === 'connected' ? `Print to ${blePrinter.deviceName}` : 'Print via Bluetooth'}
+              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
             </Button>
           )}
 
@@ -460,7 +460,7 @@ export const SalesPage = () => {
             onClick={() => { setIsPrintModalOpen(false); setPrintSaleId(null) }}
             className="w-full"
           >
-            Cancel
+            {t('action.cancel')}
           </Button>
         </div>
       </Modal>

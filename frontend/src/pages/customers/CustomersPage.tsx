@@ -20,6 +20,7 @@ import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
 import type { Customer } from '@/types/customer.types'
 import { useLanguage } from '@/contexts/LanguageContext'
+import type { TranslationKey } from '@/i18n/translations'
 
 const PAGE_SIZE = 10
 
@@ -113,7 +114,7 @@ export const CustomersPage = () => {
 
   const handleSave = () => {
     if (!form.name.trim() || !form.phone.trim()) {
-      toast.error('Please fill in name and phone')
+      toast.error(t('customers.errFillNamePhone'))
       return
     }
 
@@ -122,21 +123,21 @@ export const CustomersPage = () => {
         { customerId: editId, data: form },
         {
           onSuccess: () => {
-            toast.success('Customer updated')
+            toast.success(t('customers.updatedSuccess'))
             setIsFormOpen(false)
             resetForm()
           },
-          onError: () => toast.error('Failed to update customer'),
+          onError: () => toast.error(t('customers.errUpdateFailed')),
         }
       )
     } else {
       createCustomer(form, {
         onSuccess: () => {
-          toast.success('Customer created')
+          toast.success(t('customers.createdSuccess'))
           setIsFormOpen(false)
           resetForm()
         },
-        onError: () => toast.error('Failed to create customer'),
+        onError: () => toast.error(t('customers.errCreateFailed')),
       })
     }
   }
@@ -144,8 +145,8 @@ export const CustomersPage = () => {
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Delete customer "${name}"?`)) return
     deleteCustomer(id, {
-      onSuccess: () => toast.success('Customer deleted'),
-      onError: () => toast.error('Failed to delete customer'),
+      onSuccess: () => toast.success(t('customers.deletedSuccess')),
+      onError: () => toast.error(t('customers.errDeleteFailed')),
     })
   }
 
@@ -176,11 +177,11 @@ export const CustomersPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-6 md:col-span-2 bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-800 border-blue-100 dark:border-blue-800 relative overflow-hidden">
           <div className="relative z-10">
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Total Active Customers</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">{t('customers.totalActiveCustomers')}</p>
             <p className="text-4xl font-black text-blue-600">{totalActive.toLocaleString()}</p>
             <div className="mt-3 flex items-center gap-2 text-emerald-600 text-xs font-bold">
               <TrendingUp size={14} />
-              12% Increase this month
+              {t('customers.increaseThisMonth')}
             </div>
           </div>
           <div className="absolute -right-4 -bottom-4 opacity-10">
@@ -188,11 +189,11 @@ export const CustomersPage = () => {
           </div>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Average CLV</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">{t('customers.avgCLV')}</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatINR(avgCLV)}</p>
         </Card>
         <Card className="p-6">
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">New this Week</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">{t('customers.newThisWeek')}</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{newThisWeek}</p>
         </Card>
       </div>
@@ -213,16 +214,16 @@ export const CustomersPage = () => {
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
-                  {status === 'credit' ? 'Credit Due' : status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status === 'credit' ? t('customers.creditDue') : status === 'all' ? t('common.all') : status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>
               ))}
             </div>
             <Button variant="ghost" size="sm" leftIcon={<Filter size={14} />}>
-              Filters
+              {t('pos.filters')}
             </Button>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 font-medium">Export:</span>
+            <span className="text-xs text-gray-500 font-medium">{t('customers.exportLabel')}</span>
             <Button variant="ghost" size="sm"><FileText size={16} /></Button>
             <Button variant="ghost" size="sm"><Eye size={16} /></Button>
           </div>
@@ -250,11 +251,11 @@ export const CustomersPage = () => {
               <table className="w-full text-left">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                    <th className="px-6 py-4">Customer</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Outstanding Credit</th>
-                    <th className="px-6 py-4">Contact</th>
-                    <th className="px-6 py-4">Last Visit</th>
+                    <th className="px-6 py-4">{t('dashboard.customerLabel')}</th>
+                    <th className="px-6 py-4">{t('common.status')}</th>
+                    <th className="px-6 py-4 text-right">{t('customers.outstandingCredit')}</th>
+                    <th className="px-6 py-4">{t('customers.contact')}</th>
+                    <th className="px-6 py-4">{t('customers.lastVisit')}</th>
                     <th className="px-6 py-4 text-right">{t('customers.totalSpent')}</th>
                     <th className="px-6 py-4"></th>
                   </tr>
@@ -277,7 +278,7 @@ export const CustomersPage = () => {
                             </div>
                             <div>
                               <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{customer.name}</p>
-                              <p className="text-xs text-gray-400">ID: {customer.id.slice(0, 8).toUpperCase()}</p>
+                              <p className="text-xs text-gray-400">{t('customers.idPrefix')} {customer.id.slice(0, 8).toUpperCase()}</p>
                             </div>
                           </div>
                         </td>
@@ -287,7 +288,7 @@ export const CustomersPage = () => {
                             isVIP ? 'info' :
                             'default'
                           }>
-                            {hasCredit ? 'CREDIT DUE' : isVIP ? 'VIP MEMBER' : 'REGULAR'}
+                            {hasCredit ? t('customers.creditDueBadge') : isVIP ? t('customers.vipMember') : t('customers.regular')}
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-right font-bold">
@@ -303,7 +304,7 @@ export const CustomersPage = () => {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
                           {customer.createdAt
-                            ? getTimeAgo(new Date((customer.createdAt as unknown as { toDate?: () => Date })?.toDate ? (customer.createdAt as unknown as { toDate?: () => Date }).toDate!() : customer.createdAt))
+                            ? getTimeAgo(new Date((customer.createdAt as unknown as { toDate?: () => Date })?.toDate ? (customer.createdAt as unknown as { toDate?: () => Date }).toDate!() : customer.createdAt), t)
                             : '—'}
                         </td>
 
@@ -339,7 +340,7 @@ export const CustomersPage = () => {
             {filtered.length > 0 && (
               <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                 <p className="text-xs font-medium text-gray-500">
-                  Showing <span className="text-gray-900 dark:text-gray-100">{paginated.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, filtered.length)}</span> of <span className="text-gray-900 dark:text-gray-100">{filtered.length}</span> customers
+                  {t('customers.showingPrefix')} <span className="text-gray-900 dark:text-gray-100">{paginated.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, filtered.length)}</span> {t('customers.ofSeparator')} <span className="text-gray-900 dark:text-gray-100">{filtered.length}</span> {t('customers.customersSuffix')}
                 </p>
                 <div className="flex items-center gap-1">
                   <button
@@ -376,7 +377,7 @@ export const CustomersPage = () => {
             {!isLoading && filtered.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <Users size={48} className="mb-4 opacity-30" />
-                <p className="text-sm">{search ? 'No customers match your search' : 'No customers yet. Add your first customer!'}</p>
+                <p className="text-sm">{search ? t('customers.noMatchSearch') : t('customers.noCustomersYet')}</p>
               </div>
             )}
           </>
@@ -391,12 +392,12 @@ export const CustomersPage = () => {
             <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30">
               <TrendingUp size={28} className="text-blue-600" />
             </div>
-            <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Churn Risk Prediction</h4>
+            <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">{t('customers.churnRiskTitle')}</h4>
             <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-              Monitor customer activity patterns to identify at-risk customers before they leave.
+              {t('customers.churnRiskDesc')}
             </p>
             <button className="mt-4 text-blue-600 font-bold text-sm hover:underline">
-              View insights
+              {t('customers.viewInsights')}
             </button>
           </div>
           <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-blue-50 dark:bg-blue-900/10 rounded-full blur-3xl" />
@@ -404,7 +405,7 @@ export const CustomersPage = () => {
 
         {/* Recent Activity */}
         <Card className="p-6">
-          <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Recent Activity</h4>
+          <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">{t('customers.recentActivity')}</h4>
           <div className="space-y-3">
             {recentActivity.length > 0 ? recentActivity.map((tx, i) => (
               <div key={tx.id || i} className="flex gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -417,17 +418,17 @@ export const CustomersPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                    {tx.type === 'payment' ? 'Payment from' : 'Credit for'} {tx.customerName}
+                    {tx.type === 'payment' ? t('customers.paymentFrom') : t('customers.creditFor')} {tx.customerName}
                   </p>
                   <p className="text-xs text-gray-400">{formatINR(tx.amount)}</p>
                   <p className="text-[10px] mt-0.5 text-gray-400">
-                    {tx.createdAt ? getTimeAgo(new Date((tx.createdAt as unknown as { toDate?: () => Date })?.toDate ? (tx.createdAt as unknown as { toDate?: () => Date }).toDate!() : tx.createdAt)) : 'Recently'}
+                    {tx.createdAt ? getTimeAgo(new Date((tx.createdAt as unknown as { toDate?: () => Date })?.toDate ? (tx.createdAt as unknown as { toDate?: () => Date }).toDate!() : tx.createdAt), t) : t('common.date')}
                   </p>
 
                 </div>
               </div>
             )) : (
-              <p className="text-sm text-gray-400 text-center py-8">No recent activity</p>
+              <p className="text-sm text-gray-400 text-center py-8">{t('customers.noRecentActivity')}</p>
             )}
           </div>
         </Card>
@@ -437,19 +438,19 @@ export const CustomersPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Customer' : t('customers.addCustomer')}
+        title={editId ? t('customers.editCustomer') : t('customers.addCustomer')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => { setIsFormOpen(false); resetForm() }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
               disabled={!form.name.trim() || !form.phone.trim()}
             >
-              {editId ? 'Update' : 'Create'}
+              {editId ? t('action.update') : t('action.create')}
             </Button>
           </div>
         }
@@ -457,7 +458,7 @@ export const CustomersPage = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Customer Name *
+              {t('common.name')} *
               <FieldInfo textKey="tip.customer.name" />
             </label>
             <Input
@@ -469,7 +470,7 @@ export const CustomersPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Phone *
+              {t('common.phone')} *
               <FieldInfo textKey="tip.customer.phone" />
             </label>
             <Input
@@ -480,7 +481,7 @@ export const CustomersPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email
+              {t('common.email')}
               <FieldInfo textKey="tip.customer.email" />
             </label>
             <Input
@@ -492,7 +493,7 @@ export const CustomersPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Address
+              {t('common.address')}
               <FieldInfo textKey="tip.customer.address" />
             </label>
             <Input
@@ -521,15 +522,15 @@ export const CustomersPage = () => {
   )
 }
 
-function getTimeAgo(date: Date): string {
+function getTimeAgo(date: Date, t: (key: TranslationKey) => string): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffMins < 60) return `${diffMins} mins ago`
-  if (diffHours < 24) return `${diffHours} hours ago`
-  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffMins < 60) return `${diffMins} ${t('customers.minsAgo')}`
+  if (diffHours < 24) return `${diffHours} ${t('customers.hoursAgo')}`
+  if (diffDays < 7) return `${diffDays} ${t('customers.daysAgo')}`
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

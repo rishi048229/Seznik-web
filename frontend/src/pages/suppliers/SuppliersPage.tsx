@@ -38,7 +38,7 @@ export const SuppliersPage = () => {
   const columns: ColumnDef<Supplier>[] = [
     {
       key: 'name',
-      header: 'Supplier',
+      header: t('common.supplier'),
       render: (row) => (
         <div>
           <span className="font-medium">{row.name}</span>
@@ -49,7 +49,7 @@ export const SuppliersPage = () => {
     },
     {
       key: 'phone',
-      header: 'Phone',
+      header: t('common.phone'),
       render: (row) => (
         <div className="flex items-center gap-1.5">
           <Phone size={14} className="text-gray-400" />
@@ -59,7 +59,7 @@ export const SuppliersPage = () => {
     },
     {
       key: 'email',
-      header: 'Email',
+      header: t('common.email'),
       render: (row) => row.email ? (
         <div className="flex items-center gap-1.5">
           <Mail size={14} className="text-gray-400" />
@@ -69,7 +69,7 @@ export const SuppliersPage = () => {
     },
     {
       key: 'address',
-      header: 'Address',
+      header: t('common.address'),
       render: (row) => row.address ? (
         <div className="flex items-center gap-1.5 max-w-xs">
           <MapPin size={14} className="text-gray-400 flex-shrink-0" />
@@ -79,7 +79,7 @@ export const SuppliersPage = () => {
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: t('common.actions'),
       render: (row) => (
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
@@ -123,30 +123,30 @@ export const SuppliersPage = () => {
         { supplierId: editId, data: form },
         {
           onSuccess: () => {
-            toast.success('Supplier updated')
+            toast.success(t('suppliers.updatedSuccess'))
             setIsFormOpen(false)
             resetForm()
           },
-          onError: () => toast.error('Failed to update supplier'),
+          onError: () => toast.error(t('suppliers.errUpdateFailed')),
         }
       )
     } else {
       createSupplier(form, {
         onSuccess: () => {
-          toast.success('Supplier created')
+          toast.success(t('suppliers.createdSuccess'))
           setIsFormOpen(false)
           resetForm()
         },
-        onError: () => toast.error('Failed to create supplier'),
+        onError: () => toast.error(t('suppliers.errCreateFailed')),
       })
     }
   }
 
   const handleDelete = (id: string, name: string) => {
-    if (!confirm(`Delete supplier "${name}"?`)) return
+    if (!confirm(`${t('suppliers.deleteConfirmPrefix')}${name}${t('suppliers.deleteConfirmSuffix')}`)) return
     deleteSupplier(id, {
-      onSuccess: () => toast.success('Supplier deleted'),
-      onError: () => toast.error('Failed to delete supplier'),
+      onSuccess: () => toast.success(t('suppliers.deletedSuccess')),
+      onError: () => toast.error(t('suppliers.errDeleteFailed')),
     })
   }
 
@@ -171,26 +171,26 @@ export const SuppliersPage = () => {
           loading={isLoading}
           searchable
           pagination
-          emptyMessage="No suppliers found. Add your first supplier!"
+          emptyMessage={t('suppliers.noSuppliersYet')}
         />
       </Card>
 
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Supplier' : t('suppliers.addSupplier')}
+        title={editId ? t('suppliers.editSupplier') : t('suppliers.addSupplier')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => { setIsFormOpen(false); resetForm() }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
               disabled={!form.name.trim() || !form.phone.trim()}
             >
-              {editId ? 'Update' : 'Create'}
+              {editId ? t('action.update') : t('action.create')}
             </Button>
           </div>
         }
@@ -198,59 +198,59 @@ export const SuppliersPage = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Supplier Name *
+              {t('common.supplier')} {t('common.name')} *
               <FieldInfo textKey="tip.supplier.name" />
             </label>
             <Input
               value={form.name}
               onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="e.g. ABC Distributors"
+              placeholder={t('suppliers.namePlaceholder')}
               autoFocus
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Phone *
+              {t('common.phone')} *
               <FieldInfo textKey="tip.supplier.phone" />
             </label>
             <Input
               value={form.phone}
               onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
-              placeholder="e.g. +91 98765 43210"
+              placeholder={t('suppliers.phonePlaceholder')}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email
+              {t('common.email')}
               <FieldInfo textKey="tip.supplier.email" />
             </label>
             <Input
               type="email"
               value={form.email}
               onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-              placeholder="e.g. contact@abc.com"
+              placeholder={t('suppliers.emailPlaceholder')}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Address
+              {t('common.address')}
               <FieldInfo textKey="tip.supplier.address" />
             </label>
             <Input
               value={form.address}
               onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
-              placeholder="Full address"
+              placeholder={t('suppliers.addressPlaceholder')}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              GSTIN
+              {t('suppliers.gstin')}
               <FieldInfo textKey="tip.supplier.gstin" />
             </label>
             <Input
               value={form.gstin}
               onChange={e => setForm(prev => ({ ...prev, gstin: e.target.value }))}
-              placeholder="e.g. 22AAAAA0000A1Z5"
+              placeholder={t('suppliers.gstinPlaceholder')}
             />
           </div>
         </div>

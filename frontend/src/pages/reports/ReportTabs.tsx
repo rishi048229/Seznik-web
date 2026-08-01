@@ -1,17 +1,19 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Tabs } from '@/components/ui/Tabs'
 import { ROUTES } from '@/constants/routes'
-
-const reportTabs = [
-  { key: 'overview', label: 'Reports Overview' },
-  { key: 'sales', label: 'Sales Report' },
-  { key: 'pl', label: 'Profit & Loss' },
-  { key: 'tax', label: 'Tax Report' },
-]
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const ReportTabs = () => {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const reportTabs = [
+    { key: 'overview', label: t('reports.tabOverview') },
+    { key: 'sales', label: t('reports.salesReportTitle') },
+    { key: 'pl', label: t('reports.profitLossTitle') },
+    { key: 'tax', label: t('reports.taxReportTitle') },
+  ]
 
   let activeTab = 'overview'
   if (location.pathname === ROUTES.REPORTS_SALES) activeTab = 'sales'

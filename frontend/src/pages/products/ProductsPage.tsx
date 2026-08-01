@@ -16,6 +16,7 @@ import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
+import { AutoTranslatedText } from '@/components/common/AutoTranslatedText'
 import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
@@ -781,7 +782,9 @@ export const ProductsPage = () => {
                                   )}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">{product.name}</p>
+                                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                                    <AutoTranslatedText text={product.name} />
+                                  </p>
                                   <p className="text-[11px] text-gray-400">{product.unit}</p>
                                 </div>
                               </div>
@@ -796,7 +799,9 @@ export const ProductsPage = () => {
                               )}
                             </td>
                             <td className="px-6 py-4">
-                              <Badge variant="info">{getCategoryName(product.categoryId)}</Badge>
+                              <Badge variant="info">
+                                <AutoTranslatedText text={getCategoryName(product.categoryId)} />
+                              </Badge>
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-col gap-1">
@@ -905,7 +910,9 @@ export const ProductsPage = () => {
                           </button>
                         </div>
                         <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">{product.sku}</p>
-                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">{product.name}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">
+                          <AutoTranslatedText text={product.name} />
+                        </p>
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
                         <Badge variant={
@@ -1017,19 +1024,19 @@ export const ProductsPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Product' : t('products.addProduct')}
+        title={editId ? t('products.editProduct') : t('products.addProduct')}
         size="lg"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => { setIsFormOpen(false); resetForm() }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
               disabled={!form.name.trim() || !form.categoryId}
             >
-              {editId ? 'Update' : 'Create'}
+              {editId ? t('action.update') : t('action.create')}
             </Button>
           </div>
         }
@@ -1038,7 +1045,7 @@ export const ProductsPage = () => {
           {/* Product Image Upload */}
           <div>
             <ImageUpload
-              label="Product Image"
+              label={t('products.productImage')}
               value={form.imageURL}
               onChange={url => setForm(prev => ({ ...prev, imageURL: url }))}
               previewSize="md"
@@ -1047,7 +1054,7 @@ export const ProductsPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Product Name *
+              {t('products.productName')} *
               <FieldInfo textKey="tip.product.name" />
             </label>
             <Input
@@ -1062,7 +1069,7 @@ export const ProductsPage = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Category *
+                  {t('products.category')} *
                   <FieldInfo textKey="tip.product.category" />
                 </label>
                 <button
@@ -1071,12 +1078,12 @@ export const ProductsPage = () => {
                   className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
                 >
                   {showInlineCategory ? <X size={11} /> : <Plus size={11} />}
-                  {showInlineCategory ? 'Close' : 'New'}
+                  {showInlineCategory ? t('action.close') : t('products.newCategory')}
                 </button>
               </div>
               <Select
                 options={categoryOptions}
-                placeholder="Select category"
+                placeholder={t('products.selectCategory')}
                 value={form.categoryId}
                 onChange={e => setForm(prev => ({ ...prev, categoryId: e.target.value }))}
               />
@@ -1104,7 +1111,7 @@ export const ProductsPage = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Supplier
+                  {t('products.supplier')}
                   <FieldInfo textKey="tip.product.supplier" />
                 </label>
                 <button
@@ -1113,7 +1120,7 @@ export const ProductsPage = () => {
                   className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
                 >
                   {showInlineSupplier ? <X size={11} /> : <Plus size={11} />}
-                  {showInlineSupplier ? 'Close' : 'New'}
+                  {showInlineSupplier ? t('action.close') : t('products.newSupplier')}
                 </button>
               </div>
               <Select
@@ -1121,7 +1128,7 @@ export const ProductsPage = () => {
                   { value: '', label: 'None' },
                   ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
                 ]}
-                placeholder="Select supplier"
+                placeholder={t('products.selectSupplier')}
                 value={form.supplierId}
                 onChange={e => setForm(prev => ({ ...prev, supplierId: e.target.value }))}
               />
@@ -1148,7 +1155,7 @@ export const ProductsPage = () => {
                       disabled={!inlineSupplierName.trim() || !inlineSupplierPhone.trim()}
                       className="flex-shrink-0"
                     >
-                      Add
+                      {t('action.add')}
                     </Button>
                   </div>
                 </div>
@@ -1158,7 +1165,7 @@ export const ProductsPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Barcode *
+              {t('products.barcode')} *
               <FieldInfo textKey="tip.product.barcode" />
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -1182,19 +1189,19 @@ export const ProductsPage = () => {
                   leftIcon={<Wand2 size={14} />}
                   className="flex-shrink-0 whitespace-nowrap"
                 >
-                  Auto-Generate
+                  {t('products.autoGenerate')}
                 </Button>
               </div>
             </div>
             <p className="text-[11px] text-gray-400 mt-1">
-              The barcode type controls how label printers render it — Code 128 suits most retail stickers.
+              {t('products.barcodeHelp')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Cost Price (₹)
+                {t('products.costPrice')}
                 <FieldInfo textKey="tip.product.costPrice" />
               </label>
               <Input
@@ -1208,7 +1215,7 @@ export const ProductsPage = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Selling Price (₹) *
+                  {t('products.sellingPrice')} *
                   <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
@@ -1217,14 +1224,14 @@ export const ProductsPage = () => {
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: false }))}
                     className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
-                    Excl. GST
+                    {t('products.exclGst')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: true }))}
                     className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
-                    Incl. GST
+                    {t('products.inclGst')}
                   </button>
                 </div>
               </div>
@@ -1253,7 +1260,7 @@ export const ProductsPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              GST Rate
+              {t('products.taxRate')}
               <FieldInfo textKey="tip.product.gstRate" />
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -1288,7 +1295,7 @@ export const ProductsPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Current Stock
+                {t('products.currentStock')}
                 <FieldInfo textKey="tip.product.currentStock" />
               </label>
               <Input
@@ -1300,7 +1307,7 @@ export const ProductsPage = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Low Stock Threshold
+                {t('products.lowStockThreshold')}
                 <FieldInfo textKey="tip.product.lowStockThreshold" />
               </label>
               <Input
@@ -1314,7 +1321,7 @@ export const ProductsPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Unit
+              {t('products.unit')}
               <FieldInfo textKey="tip.product.unit" />
             </label>
             <Select

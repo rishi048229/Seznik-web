@@ -15,9 +15,11 @@ import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/util
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 
 export const SaleDetailPage = () => {
+  const { t } = useLanguage()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: sale, isLoading } = useSaleById(id ?? '')
@@ -79,7 +81,7 @@ export const SaleDetailPage = () => {
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to print via Bluetooth'
+      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
       toast.error(msg)
     } finally {
       setIsBlePrinting(false)
@@ -95,9 +97,9 @@ export const SaleDetailPage = () => {
   if (!sale) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-gray-500 dark:text-gray-400 mb-4">Sale not found</p>
+        <p className="text-gray-500 dark:text-gray-400 mb-4">{t('sales.saleNotFound')}</p>
         <Button onClick={() => navigate(ROUTES.SALES)} leftIcon={<ArrowLeft size={16} />}>
-          Back to Sales
+          {t('sales.backToSales')}
         </Button>
       </div>
     )
@@ -110,20 +112,20 @@ export const SaleDetailPage = () => {
     ? 'GST'
     : uniqueTaxRates.length === 1
       ? `GST (${uniqueTaxRates[0]}%)`
-      : 'GST (Item-wise)'
+      : t('sales.gstItemWise')
 
   return (
     <div>
       <PageHeader
-        title="Sale Details"
-        breadcrumb={['Sales', sale.invoiceNumber]}
+        title={t('sales.saleDetailsTitle')}
+        breadcrumb={[t('page.salesHistory'), sale.invoiceNumber]}
         action={
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => setIsPrintModalOpen(true)} leftIcon={<Printer size={16} />}>
-              Print
+              {t('pos.print')}
             </Button>
             <Button variant="ghost" onClick={() => navigate(ROUTES.SALES)} leftIcon={<ArrowLeft size={16} />}>
-              Back
+              {t('common.back')}
             </Button>
           </div>
         }
@@ -137,18 +139,18 @@ export const SaleDetailPage = () => {
             <div className="flex items-center justify-center gap-2 mb-2">
               <img src="/seznik_logo.png" alt="Seznik" className="w-10 h-10 object-contain" />
             </div>
-            <p className="text-sm text-white/70">Premium Retail Management</p>
+            <p className="text-sm text-white/70">{t('sales.premiumRetailMgmt')}</p>
           </div>
 
           <div className="p-6 space-y-4">
             {/* Invoice Info */}
             <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Invoice</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('sales.invoiceHeader')}</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{sale.invoiceNumber}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Date</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.date')}</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   {saleDate.toLocaleDateString('en-US', {
                     month: 'long', day: 'numeric', year: 'numeric',
@@ -164,15 +166,15 @@ export const SaleDetailPage = () => {
 
             {/* Customer */}
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Customer</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.customerLabel')}</p>
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {sale.customerId ? 'Registered Customer' : 'Walk-in Customer'}
+                {sale.customerId ? t('sales.registeredCustomer') : t('dashboard.walkInCustomer')}
               </p>
             </div>
 
             {/* Payment Method */}
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Payment Method</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.paymentMethod')}</p>
               <Badge variant={
                 sale.paymentMethod === 'cash' ? 'success' :
                 sale.paymentMethod === 'card' ? 'info' :
@@ -187,10 +189,10 @@ export const SaleDetailPage = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Item</th>
-                    <th className="text-center py-2 text-gray-500 dark:text-gray-400 font-medium">Qty</th>
-                    <th className="text-right py-2 text-gray-500 dark:text-gray-400 font-medium">Price</th>
-                    <th className="text-right py-2 text-gray-500 dark:text-gray-400 font-medium">Total</th>
+                    <th className="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">{t('sales.itemHeader')}</th>
+                    <th className="text-center py-2 text-gray-500 dark:text-gray-400 font-medium">{t('sales.qtyHeader')}</th>
+                    <th className="text-right py-2 text-gray-500 dark:text-gray-400 font-medium">{t('common.price')}</th>
+                    <th className="text-right py-2 text-gray-500 dark:text-gray-400 font-medium">{t('common.total')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -199,7 +201,7 @@ export const SaleDetailPage = () => {
                       <td className="py-3">
                         <p className="font-medium text-gray-900 dark:text-gray-100">{item.productName}</p>
                         {item.discount > 0 && (
-                          <p className="text-xs text-emerald-600">Disc: {formatINR(item.discount)}</p>
+                          <p className="text-xs text-emerald-600">{t('sales.discPrefix')} {formatINR(item.discount)}</p>
                         )}
                       </td>
                       <td className="py-3 text-center text-gray-600 dark:text-gray-300">{item.quantity}</td>
@@ -218,12 +220,12 @@ export const SaleDetailPage = () => {
             {/* Totals */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
+                <span className="text-gray-500 dark:text-gray-400">{t('pos.subtotal')}</span>
                 <span className="text-gray-900 dark:text-gray-100">{formatINR(sale.subtotal)}</span>
               </div>
               {sale.totalDiscount > 0 && (
                 <div className="flex justify-between text-sm text-emerald-600">
-                  <span>Discount</span>
+                  <span>{t('pos.discount')}</span>
                   <span>-{formatINR(sale.totalDiscount)}</span>
                 </div>
               )}
@@ -234,17 +236,17 @@ export const SaleDetailPage = () => {
                 <span className="text-gray-900 dark:text-gray-100">{formatINR(sale.totalTax)}</span>
               </div>
               <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
-                <span className="text-gray-900 dark:text-gray-100">Grand Total</span>
+                <span className="text-gray-900 dark:text-gray-100">{t('sales.grandTotal')}</span>
                 <span className="text-[#0a0a2e]">{formatINR(sale.grandTotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Amount Paid</span>
+                <span className="text-gray-500 dark:text-gray-400">{t('sales.amountPaid')}</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{formatINR(sale.amountPaid)}</span>
               </div>
               {sale.amountPaid !== sale.grandTotal && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">
-                    {sale.amountPaid > sale.grandTotal ? 'Change' : 'Due'}
+                    {sale.amountPaid > sale.grandTotal ? t('pos.change') : t('sales.due')}
                   </span>
                   <span className={`font-medium ${
                     sale.amountPaid >= sale.grandTotal ? 'text-emerald-600' : 'text-red-600'
@@ -257,17 +259,17 @@ export const SaleDetailPage = () => {
 
             {/* Footer */}
             <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Thank you for shopping with us!</p>
-              <p className="text-xs text-gray-400 mt-1">Powered by Seznik POS</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('sales.thankYouShopping')}</p>
+              <p className="text-xs text-gray-400 mt-1">{t('sales.poweredBy')}</p>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Print Format Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Receipt" size="sm">
+      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">
         <div className="space-y-6">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Select print format for the receipt:</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
 
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -276,8 +278,8 @@ export const SaleDetailPage = () => {
             >
               <FileText size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">A4 Paper</p>
-                <p className="text-xs text-gray-400">Standard format</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
+                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
               </div>
             </button>
             <button
@@ -286,8 +288,8 @@ export const SaleDetailPage = () => {
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">50mm Thermal</p>
-                <p className="text-xs text-gray-400">POS printer</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
+                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
               </div>
             </button>
           </div>
@@ -300,7 +302,7 @@ export const SaleDetailPage = () => {
               leftIcon={<Bluetooth size={16} />}
               onClick={handlePrintBluetooth}
             >
-              {blePrinter.status === 'connected' ? `Print to ${blePrinter.deviceName}` : 'Print via Bluetooth'}
+              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
             </Button>
           )}
 
@@ -309,7 +311,7 @@ export const SaleDetailPage = () => {
             onClick={() => { setIsPrintModalOpen(false); }}
             className="w-full"
           >
-            Cancel
+            {t('action.cancel')}
           </Button>
         </div>
       </Modal>

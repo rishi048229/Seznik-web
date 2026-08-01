@@ -13,8 +13,10 @@ import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
 import { ReportTabs } from './ReportTabs'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const SalesReportPage = () => {
+  const { t } = useLanguage()
   const today = new Date()
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0])
@@ -32,7 +34,7 @@ export const SalesReportPage = () => {
   const handleWhatsAppShare = () => {
     const raw = sharePhone.replace(/\D/g, '')
     const phone = raw.startsWith('0') ? '91' + raw.slice(1) : raw.length === 10 ? '91' + raw : raw
-    if (phone.length < 10) { toast.error('Enter a valid phone number'); return }
+    if (phone.length < 10) { toast.error(t('sales.errValidPhone')); return }
 
     const rows = report?.labels.map((label, i) =>
       `  ${label}: ${formatINR(report.revenue[i])} (${report.invoiceCount[i]} invoices)`
@@ -58,7 +60,7 @@ export const SalesReportPage = () => {
 
   const handleExport = () => {
     if (!report || report.labels.length === 0) {
-      toast.error('No data to export')
+      toast.error(t('reports.noDataToExport'))
       return
     }
     const ws = XLSX.utils.aoa_to_sheet([
@@ -71,21 +73,21 @@ export const SalesReportPage = () => {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Sales Report')
     XLSX.writeFile(wb, `sales-report-${startDate}-${endDate}.xlsx`)
-    toast.success('Report exported')
+    toast.success(t('reports.exportedSuccess'))
   }
 
   return (
     <div>
       <PageHeader
-        title="Sales Report"
-        breadcrumb={['Reports', 'Sales']}
+        title={t('reports.salesReportTitle')}
+        breadcrumb={[t('reports.breadcrumbReports'), t('reports.breadcrumbSales')]}
         action={
           <div className="flex gap-2">
             <Button leftIcon={<Share2 size={16} />} onClick={() => setIsShareOpen(true)} variant="outline" className="text-green-600 border-green-300 hover:bg-green-50">
-              Share on WhatsApp
+              {t('daybook.shareWhatsApp')}
             </Button>
             <Button leftIcon={<Download size={16} />} onClick={handleExport} variant="outline">
-              Export Excel
+              {t('common.exportExcel')}
             </Button>
           </div>
         }
@@ -96,7 +98,7 @@ export const SalesReportPage = () => {
       <Card className="p-4 mb-6">
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.startDate')}</label>
             <Input
               type="date"
               value={startDate}
@@ -104,7 +106,7 @@ export const SalesReportPage = () => {
             />
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.endDate')}</label>
             <Input
               type="date"
               value={endDate}
@@ -121,15 +123,15 @@ export const SalesReportPage = () => {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <Card className="p-5">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Revenue</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.totalRevenue')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatINR(totalRevenue)}</p>
             </Card>
             <Card className="p-5">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Invoices</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.totalInvoices')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{totalInvoices}</p>
             </Card>
             <Card className="p-5">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Avg Order Value</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('customers.avgOrderValue')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatINR(avgOrderValue)}</p>
             </Card>
           </div>
@@ -138,7 +140,7 @@ export const SalesReportPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Bar Chart */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Daily Revenue</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('reports.dailyRevenue')}</h3>
               {report && report.labels.length > 0 ? (
                 <div className="flex items-end gap-1 h-48">
                   {report.revenue.map((rev, i) => {
@@ -161,21 +163,21 @@ export const SalesReportPage = () => {
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400 text-center py-12">No sales data for this period</p>
+                <p className="text-sm text-gray-400 text-center py-12">{t('reports.noSalesDataPeriod')}</p>
               )}
             </Card>
 
             {/* Data Table */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Daily Breakdown</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('reports.dailyBreakdown')}</h3>
               {report && report.labels.length > 0 ? (
                 <div className="overflow-y-auto max-h-64">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-white dark:bg-gray-800">
                       <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left py-2 text-gray-500 font-medium">Date</th>
-                        <th className="text-right py-2 text-gray-500 font-medium">Revenue</th>
-                        <th className="text-right py-2 text-gray-500 font-medium">Invoices</th>
+                        <th className="text-left py-2 text-gray-500 font-medium">{t('common.date')}</th>
+                        <th className="text-right py-2 text-gray-500 font-medium">{t('reports.revenueLabel')}</th>
+                        <th className="text-right py-2 text-gray-500 font-medium">{t('reports.invoicesLabel')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -189,7 +191,7 @@ export const SalesReportPage = () => {
                         </tr>
                       ))}
                       <tr className="border-t-2 border-gray-200 dark:border-gray-700 font-semibold">
-                        <td className="py-3 text-gray-900 dark:text-gray-100">Total</td>
+                        <td className="py-3 text-gray-900 dark:text-gray-100">{t('common.total')}</td>
                         <td className="py-3 text-right text-blue-600">{formatINR(totalRevenue)}</td>
                         <td className="py-3 text-right text-gray-900 dark:text-gray-100">{totalInvoices}</td>
                       </tr>
@@ -197,30 +199,30 @@ export const SalesReportPage = () => {
                   </table>
                 </div>
               ) : (
-                <p className="text-sm text-gray-400 text-center py-12">No data available</p>
+                <p className="text-sm text-gray-400 text-center py-12">{t('reports.noDataAvailable')}</p>
               )}
             </Card>
           </div>
         </>
       )}
 
-      <Modal isOpen={isShareOpen} onClose={() => { setIsShareOpen(false); setSharePhone('') }} title="Share Sales Report on WhatsApp" size="sm">
+      <Modal isOpen={isShareOpen} onClose={() => { setIsShareOpen(false); setSharePhone('') }} title={t('reports.shareSalesReportTitle')} size="sm">
         <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Period: <span className="font-medium">{startDate} to {endDate}</span></p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.period')}: <span className="font-medium">{startDate} to {endDate}</span></p>
           <Input
-            label="WhatsApp Number"
-            placeholder="e.g. 9876543210"
+            label={t('daybook.whatsappNumber')}
+            placeholder={t('reports.phoneExamplePlaceholder')}
             value={sharePhone}
             onChange={e => setSharePhone(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleWhatsAppShare()}
           />
-          <p className="text-xs text-gray-400">10-digit mobile number — +91 added automatically.</p>
+          <p className="text-xs text-gray-400">{t('sales.phoneHint')}</p>
           <div className="flex gap-3">
             <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" leftIcon={<Share2 size={16} />} onClick={handleWhatsAppShare}>
-              Open WhatsApp
+              {t('daybook.openWhatsApp')}
             </Button>
             <Button variant="ghost" className="flex-1" onClick={() => { setIsShareOpen(false); setSharePhone('') }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         </div>

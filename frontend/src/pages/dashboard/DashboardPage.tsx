@@ -24,6 +24,7 @@ import { useSales } from '@/hooks/useSales'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getBlePrinterState, getBluetoothUnsupportedReason } from '@/utils/blePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
+import type { TranslationKey } from '@/i18n/translations'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
@@ -47,12 +48,12 @@ import {
   ExternalLink,
 } from 'lucide-react'
 
-const PRINTER_STATUS_LABEL: Record<string, string> = {
-  unsupported: 'Not supported in this browser',
-  disconnected: 'Not connected',
-  connecting: 'Connecting…',
-  connected: 'Connected',
-  printing: 'Printing…',
+const PRINTER_STATUS_KEY: Record<string, TranslationKey> = {
+  unsupported: 'dashboard.printerNotSupported',
+  disconnected: 'dashboard.printerNotConnected',
+  connecting: 'dashboard.printerConnecting',
+  connected: 'dashboard.printerConnected',
+  printing: 'dashboard.printerPrinting',
 }
 
 const PAYMENT_MODE_COLORS: Record<string, string> = {
@@ -152,9 +153,9 @@ export const DashboardPage = () => {
     setIsConnectingPrinter(true)
     try {
       await printer.connect()
-      toast.success(`Connected to ${getBlePrinterState().deviceName ?? 'printer'}`)
+      toast.success(`${t('dashboard.connectedToPrinter')} ${getBlePrinterState().deviceName ?? 'printer'}`)
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to connect to printer'
+      const msg = error instanceof Error ? error.message : t('dashboard.failedToConnectPrinter')
       toast.error(msg)
     } finally {
       setIsConnectingPrinter(false)
@@ -222,7 +223,7 @@ export const DashboardPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
-              Open Scan To Bill
+              {t('dashboard.openScanToBill')}
             </Button>
           }
         />
@@ -291,7 +292,7 @@ export const DashboardPage = () => {
               onClick={() => navigate(ROUTES.PRODUCTS)}
               className="text-xs font-medium text-red-600 hover:underline"
             >
-              View Items
+              {t('dashboard.viewItems')}
             </button>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-300">{t('dashboard.lowStockAlerts')}</p>
@@ -320,7 +321,7 @@ export const DashboardPage = () => {
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.receiptPrinter')}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge variant={printer.status === 'connected' || printer.status === 'printing' ? 'success' : 'default'}>
-                  {PRINTER_STATUS_LABEL[printer.status]}
+                  {t(PRINTER_STATUS_KEY[printer.status])}
                 </Badge>
                 {printer.deviceName && <span className="text-xs text-gray-400">{printer.deviceName}</span>}
               </div>
@@ -358,14 +359,14 @@ export const DashboardPage = () => {
           {loadingPaymentModes ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !paymentModes || paymentModes.modes.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-10">No sales yet</p>
+            <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
             <>
               <div className="relative flex justify-center items-center mb-4" style={{ height: 180 }}>
                 <DonutChart data={paymentPieData} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatINRCompact(paymentModes.totalSales)}</p>
-                  <p className="text-xs text-gray-400">Total Sales</p>
+                  <p className="text-xs text-gray-400">{t('dashboard.totalSales')}</p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -392,14 +393,14 @@ export const DashboardPage = () => {
           {loadingProfitBreakdown ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !profitBreakdown || profitBreakdown.revenue === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-10">No sales yet</p>
+            <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
             <>
               <div className="relative flex justify-center items-center mb-4" style={{ height: 180 }}>
                 <DonutChart data={profitPieData} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <p className="text-lg font-bold text-emerald-600">{profitBreakdown.marginPercent}%</p>
-                  <p className="text-xs text-gray-400">Margin</p>
+                  <p className="text-xs text-gray-400">{t('dashboard.margin')}</p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -426,7 +427,7 @@ export const DashboardPage = () => {
           {loadingTopProducts ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topProducts || topProducts.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No sales yet</p>
+            <p className="text-sm text-gray-400 text-center py-8">{t('common.noSalesYet')}</p>
           ) : (
             <div className="space-y-4">
               {topProducts.map((product, index) => (
@@ -439,7 +440,7 @@ export const DashboardPage = () => {
                   }
                   left={product.name}
                   right={formatINR(product.revenue)}
-                  sub={`${product.unitsSold} sold`}
+                  sub={`${product.unitsSold} ${t('dashboard.unitsSoldSuffix')}`}
                   percent={(product.revenue / maxProductRevenue) * 100}
                 />
               ))}
@@ -453,7 +454,7 @@ export const DashboardPage = () => {
           {loadingTopCategories ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topCategories || topCategories.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No sales yet</p>
+            <p className="text-sm text-gray-400 text-center py-8">{t('common.noSalesYet')}</p>
           ) : (
             <div className="space-y-4">
               {topCategories.map(category => (
@@ -474,23 +475,23 @@ export const DashboardPage = () => {
           {loadingExpenseSummary ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !expenseSummary ? (
-            <p className="text-sm text-gray-400 text-center py-8">No data yet</p>
+            <p className="text-sm text-gray-400 text-center py-8">{t('dashboard.noData')}</p>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Today</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">{t('daybook.today')}</span>
                 <span className="font-bold text-red-600">{formatINR(expenseSummary.today)}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-orange-50 dark:bg-orange-900/20">
-                <span className="text-sm text-gray-600 dark:text-gray-300">This Month</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">{t('dashboard.thisMonth')}</span>
                 <span className="font-bold text-orange-600">{formatINR(expenseSummary.thisMonth)}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Collections (non-credit)</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">{t('dashboard.collectionsNonCredit')}</span>
                 <span className="font-bold text-emerald-600">{formatINR(expenseSummary.collectionsNonCredit)}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Net (Rev − Exp)</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('dashboard.netRevExp')}</span>
                 <span className="font-bold text-blue-600">{formatINR(expenseSummary.net)}</span>
               </div>
             </div>
@@ -505,7 +506,7 @@ export const DashboardPage = () => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.revenueTrends')}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Monthly overview of store performance</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.revenueTrendsDesc')}</p>
             </div>
             <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               {(['daily', 'weekly', 'monthly'] as const).map(period => (
@@ -518,7 +519,7 @@ export const DashboardPage = () => {
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                  {t(`dashboard.${period}` as TranslationKey)}
                 </button>
               ))}
             </div>
@@ -585,8 +586,8 @@ export const DashboardPage = () => {
               <div className="flex items-center justify-center h-full text-gray-400">
                 <div className="text-center">
                   <TrendingUp size={32} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No revenue data yet</p>
-                  <p className="text-xs mt-1">Complete some sales to see trends</p>
+                  <p className="text-sm">{t('dashboard.noRevenueData')}</p>
+                  <p className="text-xs mt-1">{t('dashboard.completeSalesToSeeTrends')}</p>
                 </div>
               </div>
             )}
@@ -604,7 +605,7 @@ export const DashboardPage = () => {
                   </span>
                 ))
               })() : (
-                <span className="text-[10px] text-gray-400 w-full text-center">No data</span>
+                <span className="text-[10px] text-gray-400 w-full text-center">{t('dashboard.noData')}</span>
               )}
             </div>
           </div>
@@ -614,7 +615,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.lowStock')}</h3>
-            <Badge variant="danger">{lowStockAlerts} ALERTS</Badge>
+            <Badge variant="danger">{lowStockAlerts} {t('dashboard.alerts')}</Badge>
           </div>
 
           <div className="space-y-4">
@@ -629,13 +630,13 @@ export const DashboardPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{product.name}</p>
-                  <p className="text-xs text-gray-400">SKU: {product.sku}</p>
+                  <p className="text-xs text-gray-400">{t('common.sku')}: {product.sku}</p>
                 </div>
                 <div className="text-right">
                   <p className={`text-sm font-semibold ${
                     product.currentStock <= 0 ? 'text-red-600' : product.currentStock <= product.lowStockThreshold ? 'text-amber-600' : 'text-emerald-600'
                   }`}>
-                    {product.currentStock} Left
+                    {product.currentStock} {t('dashboard.left')}
                   </p>
                   <div className="w-20 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mt-1">
                     <div
@@ -648,7 +649,7 @@ export const DashboardPage = () => {
                 </div>
               </div>
             )) : (
-              <p className="text-sm text-gray-400 text-center py-8">All stock levels are healthy</p>
+              <p className="text-sm text-gray-400 text-center py-8">{t('dashboard.stockHealthy')}</p>
             )}
           </div>
 
@@ -657,7 +658,7 @@ export const DashboardPage = () => {
               onClick={() => navigate(ROUTES.PRODUCTS)}
               className="w-full mt-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
-              Restock All
+              {t('dashboard.restockAll')}
             </button>
           )}
         </Card>
@@ -673,7 +674,7 @@ export const DashboardPage = () => {
               onClick={() => navigate(ROUTES.SALES)}
               className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
-              View History
+              {t('dashboard.viewHistory')}
               <TrendingUp size={14} />
             </button>
           </div>
@@ -682,15 +683,15 @@ export const DashboardPage = () => {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  <th className="pb-3">Customer / Transaction</th>
-                  <th className="pb-3">Date</th>
-                  <th className="pb-3">Total</th>
-                  <th className="pb-3">Status</th>
+                  <th className="pb-3">{t('dashboard.customerTransaction')}</th>
+                  <th className="pb-3">{t('common.date')}</th>
+                  <th className="pb-3">{t('common.total')}</th>
+                  <th className="pb-3">{t('common.status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                 {recentSales.length > 0 ? recentSales.map(sale => {
-                  const customerName = sale.customerId ? 'Customer' : 'Walk-in Customer'
+                  const customerName = sale.customerId ? t('dashboard.customerLabel') : t('dashboard.walkInCustomer')
                   const initials = customerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                   const colors = ['bg-sky-500', 'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
                   const colorIndex = Math.abs(sale.grandTotal * 100) % colors.length
@@ -717,13 +718,13 @@ export const DashboardPage = () => {
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{formatINR(sale.grandTotal)}</p>
                       </td>
                       <td className="py-3">
-                        <Badge variant="success">PAID</Badge>
+                        <Badge variant="success">{t('dashboard.paid')}</Badge>
                       </td>
                     </tr>
                   )
                 }) : (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-sm text-gray-400">No sales yet</td>
+                    <td colSpan={4} className="py-8 text-center text-sm text-gray-400">{t('common.noSalesYet')}</td>
                   </tr>
                 )}
               </tbody>
@@ -743,7 +744,7 @@ export const DashboardPage = () => {
               className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
               <Users size={14} />
-              View All
+              {t('common.viewAll')}
             </button>
           </div>
 
@@ -758,7 +759,7 @@ export const DashboardPage = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{customer.name}</p>
-                    <p className="text-xs text-gray-400">{customer.invoiceCount} invoices</p>
+                    <p className="text-xs text-gray-400">{customer.invoiceCount} {t('dashboard.invoicesSuffix')}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{formatINR(customer.totalSpent)}</p>
@@ -769,7 +770,7 @@ export const DashboardPage = () => {
                 </div>
               )
             }) : (
-              <p className="text-sm text-gray-400 text-center py-8">No customer data yet</p>
+              <p className="text-sm text-gray-400 text-center py-8">{t('dashboard.noCustomerData')}</p>
             )}
           </div>
         </Card>

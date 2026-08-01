@@ -84,7 +84,7 @@ export const POSLitePage = () => {
   const handleBarcodeScan = (barcode: string) => {
     const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
     if (!product) {
-      toast.error(`No product found for barcode: ${barcode}`)
+      toast.error(`${t('pos.noProductFoundBarcodePrefix')} ${barcode}`)
       return
     }
     const existing = items.find(i => i.id === product.id)
@@ -105,7 +105,7 @@ export const POSLitePage = () => {
         total: product.sellingPrice,
       }])
     }
-    toast.success(`${product.name} added via scan`)
+    toast.success(`${product.name} ${t('pos.addedViaScanSuffix')}`)
   }
 
   // Physical USB/Bluetooth barcode scanner — fires when no input is focused
@@ -133,22 +133,22 @@ export const POSLitePage = () => {
 
   const addItem = () => {
     if (!productName.trim()) {
-      toast.error('Please enter product name')
+      toast.error(t('pos.errEnterProductName'))
       return
     }
     const price = parseFloat(productPrice)
     if (isNaN(price) || price <= 0) {
-      toast.error('Please enter valid price')
+      toast.error(t('pos.errValidPrice'))
       return
     }
     const qty = parseInt(productQty)
     if (isNaN(qty) || qty <= 0) {
-      toast.error('Please enter valid quantity')
+      toast.error(t('pos.errValidQuantity'))
       return
     }
     const taxRate = parseFloat(productTaxRate) || 0
     if (taxRate < 0 || taxRate > 100) {
-      toast.error('GST rate must be between 0 and 100')
+      toast.error(t('pos.errGstRange'))
       return
     }
 
@@ -172,7 +172,7 @@ export const POSLitePage = () => {
     setProductPrice('')
     setProductQty('1')
     setProductTaxRate('0')
-    toast.success(`${newItem.productName} added`)
+    toast.success(`${newItem.productName} ${t('pos.addedSuffix')}`)
   }
 
   const removeItem = (id: string) => {
@@ -257,10 +257,10 @@ export const POSLitePage = () => {
         clearCart()
         setIsPaymentOpen(false)
         setIsPrintModalOpen(true)
-        toast.success('Sale completed!')
+        toast.success(t('pos.saleCompleted'))
       },
       onError: (error) => {
-        const msg = error instanceof Error ? error.message : 'Failed to create sale'
+        const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')
         console.error('Sale creation failed:', error)
         toast.error(msg)
       },
@@ -357,7 +357,7 @@ export const POSLitePage = () => {
       await blePrinter.print(bytes)
       finishPrintFlow()
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to print via Bluetooth'
+      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
       toast.error(msg)
     } finally {
       setIsBlePrinting(false)
@@ -377,7 +377,7 @@ export const POSLitePage = () => {
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
-          Quick Sale
+          {t('pos.quickSaleTab')}
         </button>
         <button
           onClick={() => setMobileTab('cart')}
@@ -387,7 +387,7 @@ export const POSLitePage = () => {
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
-          Cart
+          {t('pos.cartTab')}
           {items.length > 0 && (
             <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
               {items.length}
@@ -401,14 +401,14 @@ export const POSLitePage = () => {
         <div data-tour="pos-lite-header" className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">QUICK BILL - Manual Entry</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('pos.quickBillManualEntry')}</h2>
               <button
                 onClick={pageTutorial.openTutorial}
                 type="button"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
               >
                 <Video size={14} className="animate-pulse" />
-                <span>Video Guide</span>
+                <span>{t('pos.videoGuide')}</span>
               </button>
             </div>
             <button
@@ -422,11 +422,11 @@ export const POSLitePage = () => {
               }`}
             >
               {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
-              {isScanMode ? 'Scanning...' : t('pos.scanBarcode')}
+              {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
             </button>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Add any product manually — or scan a barcode to add registered products instantly
+            {t('pos.addProductManualHint')}
           </p>
 
           {/* Barcode Scan Input Panel */}
@@ -434,22 +434,22 @@ export const POSLitePage = () => {
             <div className="mb-4 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
               <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
-                Scan mode active — point your scanner or type a barcode below
+                {t('pos.scanModeActive')}
               </div>
               <form onSubmit={handleScanSubmit} className="flex gap-2">
                 <Input
                   ref={scanInputRef}
                   value={scanInput}
                   onChange={e => setScanInput(e.target.value)}
-                  placeholder="Scan or type barcode, then press Enter..."
+                  placeholder={t('pos.scanPlaceholder')}
                   className="flex-1"
                   autoComplete="off"
                 />
                 <Button type="submit" disabled={scanInput.trim().length < 4}>
-                  Add
+                  {t('pos.add')}
                 </Button>
                 <Button type="button" variant="ghost" onClick={toggleScanMode}>
-                  Done
+                  {t('pos.done')}
                 </Button>
               </form>
             </div>
@@ -460,18 +460,18 @@ export const POSLitePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-2" data-tour="pos-lite-name-input">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Product Name *
+                  {t('pos.productNameLabel')}
                 </label>
                 <Input
                   value={productName}
                   onChange={e => setProductName(e.target.value)}
-                  placeholder="Enter product name"
+                  placeholder={t('pos.enterProductName')}
                   className="w-full"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Price (₹) *
+                  {t('pos.priceLabel')}
                 </label>
                 <Input
                   type="number"
@@ -484,7 +484,7 @@ export const POSLitePage = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Quantity *
+                  {t('pos.quantityLabel')}
                 </label>
                 <Input
                   type="number"
@@ -497,7 +497,7 @@ export const POSLitePage = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  GST (%)
+                  {t('pos.gstLabel')}
                 </label>
                 <Input
                   type="number"
@@ -523,7 +523,7 @@ export const POSLitePage = () => {
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
-                  + GST (Excl.)
+                  {t('pos.gstExclusive')}
                 </button>
                 <button
                   type="button"
@@ -534,13 +534,13 @@ export const POSLitePage = () => {
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
-                  Incl. GST
+                  {t('pos.gstInclusive')}
                 </button>
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500">
                 {gstMode === 'exclusive'
-                  ? 'Price is base price — GST will be added on top'
-                  : 'Price already includes GST — base price will be extracted'}
+                  ? t('pos.gstExclusiveHint')
+                  : t('pos.gstInclusiveHint')}
               </p>
               <Button
                 data-tour="pos-lite-add-cart-btn"
@@ -548,7 +548,7 @@ export const POSLitePage = () => {
                 leftIcon={<Plus size={16} />}
                 className="md:ml-auto w-full md:w-auto"
               >
-                Add to Cart
+                {t('pos.addToCart')}
               </Button>
             </div>
           </Card>
@@ -563,7 +563,7 @@ export const POSLitePage = () => {
               className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"
             >
               <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length} items</span>
-              <span>View Cart</span>
+              <span>{t('pos.viewCart')}</span>
               <span className="font-bold">{formatINR(finalTotal)}</span>
             </button>
           </div>
@@ -577,7 +577,7 @@ export const POSLitePage = () => {
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('pos.checkout')}</h2>
-              <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+              <Badge variant="info">{t('pos.orderPrefix')}{String(Date.now()).slice(-4)}</Badge>
             </div>
             {items.length > 0 && (
               <button
@@ -588,7 +588,7 @@ export const POSLitePage = () => {
                 className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
-                <span>Print</span>
+                <span>{t('pos.print')}</span>
               </button>
             )}
           </div>
@@ -603,7 +603,7 @@ export const POSLitePage = () => {
             <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
               <ShoppingCart size={48} className="mb-3 opacity-30" />
               <p className="text-sm font-medium">{t('pos.cartEmpty')}</p>
-              <p className="text-xs text-gray-400 mt-1">Add items on the left to start billing</p>
+              <p className="text-xs text-gray-400 mt-1">{t('pos.addItemsHint')}</p>
             </div>
           ) : (
             items.map(item => (
@@ -676,7 +676,7 @@ export const POSLitePage = () => {
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">Total ({items.length})</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
                 <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
               </div>
             </div>
@@ -700,7 +700,7 @@ export const POSLitePage = () => {
       <Modal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
-        title="Complete Payment"
+        title={t('pos.completePayment')}
         size="md"
         footer={
           <Button
@@ -723,13 +723,13 @@ export const POSLitePage = () => {
 
           {/* Payment Methods */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Payment Method</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
             <div className="grid grid-cols-4 gap-3">
               {([
-                { id: 'cash' as const, label: 'Cash', icon: Wallet },
-                { id: 'card' as const, label: 'Card', icon: CreditCard },
-                { id: 'upi' as const, label: 'UPI', icon: Smartphone },
-                { id: 'credit' as const, label: 'Credit', icon: UserPlus },
+                { id: 'cash' as const, label: t('pos.cash'), icon: Wallet },
+                { id: 'card' as const, label: t('pos.card'), icon: CreditCard },
+                { id: 'upi' as const, label: t('pos.upi'), icon: Smartphone },
+                { id: 'credit' as const, label: t('pos.credit'), icon: UserPlus },
               ]).map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
@@ -753,7 +753,7 @@ export const POSLitePage = () => {
           {method === 'cash' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Amount Received
+                {t('pos.amountReceived')}
               </label>
               <Input
                 type="number"
@@ -766,7 +766,7 @@ export const POSLitePage = () => {
               {amountPaidNum > 0 && (
                 <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
                   <div className="flex justify-between text-sm">
-                    <span className="text-emerald-700 dark:text-emerald-300">Change</span>
+                    <span className="text-emerald-700 dark:text-emerald-300">{t('pos.change')}</span>
                     <span className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
                       {formatINR(Math.max(0, change))}
                     </span>
@@ -779,12 +779,12 @@ export const POSLitePage = () => {
       </Modal>
 
       {/* Print Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Receipt" size="sm">
+      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">
         <div className="space-y-6">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {completedInvoiceNumber && `Invoice: ${completedInvoiceNumber}`}
+            {completedInvoiceNumber && `${t('pos.invoicePrefix')} ${completedInvoiceNumber}`}
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Select print format:</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
 
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -793,8 +793,8 @@ export const POSLitePage = () => {
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">A4 Paper</p>
-                <p className="text-xs text-gray-400">Standard format</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
+                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
               </div>
             </button>
             <button
@@ -803,8 +803,8 @@ export const POSLitePage = () => {
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">50mm Thermal</p>
-                <p className="text-xs text-gray-400">POS printer</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
+                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
               </div>
             </button>
           </div>
@@ -817,7 +817,7 @@ export const POSLitePage = () => {
               leftIcon={<Bluetooth size={16} />}
               onClick={handlePrintBluetooth}
             >
-              {blePrinter.status === 'connected' ? `Print to ${blePrinter.deviceName}` : 'Print via Bluetooth'}
+              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
             </Button>
           )}
 
@@ -826,7 +826,7 @@ export const POSLitePage = () => {
             onClick={() => { setIsPrintModalOpen(false); setCompletedSaleId(''); setCompletedInvoiceNumber('') }}
             className="w-full"
           >
-            Skip Print
+            {t('pos.skipPrinting')}
           </Button>
         </div>
       </Modal>

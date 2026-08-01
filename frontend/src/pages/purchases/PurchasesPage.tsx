@@ -29,15 +29,14 @@ interface PurchaseItemRow {
   costPrice: number
 }
 
-const PAYMENT_METHOD_OPTIONS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank Transfer' },
-  { value: 'upi', label: 'UPI' },
-  { value: 'credit', label: 'Credit (pay later)' },
-]
-
 export const PurchasesPage = () => {
   const { t } = useLanguage()
+  const PAYMENT_METHOD_OPTIONS = [
+    { value: 'cash', label: t('pos.cash') },
+    { value: 'bank', label: t('common.bankTransfer') },
+    { value: 'upi', label: t('pos.upi') },
+    { value: 'credit', label: t('purchases.creditPayLater') },
+  ]
   const pageTutorial = usePageTutorial('purchases')
   const { data: purchases, isLoading } = usePurchases()
   const { data: products } = useProducts()
@@ -59,17 +58,17 @@ export const PurchasesPage = () => {
   const [showFilters, setShowFilters] = useState(false)
 
   const supplierOptions = [
-    { value: '', label: 'All Suppliers' },
+    { value: '', label: t('purchases.allSuppliers') },
     ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
   ]
 
   const formSupplierOptions = [
-    { value: '', label: 'Select Supplier' },
+    { value: '', label: t('purchases.selectSupplier') },
     ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
   ]
 
   const productOptions = [
-    { value: '', label: 'Select Product' },
+    { value: '', label: t('purchases.selectProductPlaceholder') },
     ...(products ?? [])
       .filter(p => p.isActive)
       .map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })),
@@ -103,20 +102,20 @@ export const PurchasesPage = () => {
   const columns: ColumnDef<Purchase>[] = [
     {
       key: 'supplierId',
-      header: 'Supplier',
+      header: t('common.supplier'),
       render: (row) => {
         const supplier = suppliers?.find(s => s.id === row.supplierId)
         return (
           <div className="flex items-center gap-2">
             <Truck size={16} className="text-gray-400" />
-            <span className="font-medium">{supplier?.name ?? 'Unknown'}</span>
+            <span className="font-medium">{supplier?.name ?? t('purchases.unknownSupplier')}</span>
           </div>
         )
       },
     },
     {
       key: 'createdAt',
-      header: 'Date',
+      header: t('common.date'),
       render: (row) => (
         <span>
           {new Date(row.createdAt).toLocaleDateString('en-US', {
@@ -128,21 +127,21 @@ export const PurchasesPage = () => {
     },
     {
       key: 'items',
-      header: 'Items',
+      header: t('common.items'),
       render: (row) => (
-        <span className="text-sm text-gray-500">{row.items?.length ?? 0} item(s)</span>
+        <span className="text-sm text-gray-500">{row.items?.length ?? 0} {t('purchases.itemCountSuffix')}</span>
       ),
     },
     {
       key: 'paymentMethod',
-      header: 'Payment',
+      header: t('purchases.paymentHeader'),
       render: (row) => (
         <span className="text-sm text-gray-500 uppercase">{row.paymentMethod}</span>
       ),
     },
     {
       key: 'grandTotal',
-      header: 'Total',
+      header: t('common.total'),
       render: (row) => (
         <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINR(row.grandTotal)}</span>
       ),
@@ -150,7 +149,7 @@ export const PurchasesPage = () => {
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: t('common.actions'),
       render: (row) => (
         <Button
           variant="ghost"
@@ -207,7 +206,7 @@ export const PurchasesPage = () => {
 
   const handleSave = () => {
     if (!supplierId || items.length === 0) {
-      toast.error('Please select a supplier and add items')
+      toast.error(t('purchases.errSelectSupplierItems'))
       return
     }
 
@@ -229,22 +228,22 @@ export const PurchasesPage = () => {
       },
       {
         onSuccess: () => {
-          toast.success('Purchase recorded & stock updated')
+          toast.success(t('purchases.recordedSuccess'))
           setIsFormOpen(false)
           setItems([])
           setSupplierId('')
           setPaymentMethod('cash')
         },
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to record purchase'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : t('purchases.errRecordFailed')),
       }
     )
   }
 
   const handleDelete = (id: string) => {
-    if (!confirm('Delete this purchase? Stock will NOT be reverted.')) return
+    if (!confirm(t('purchases.deleteConfirm'))) return
     deletePurchase(id, {
-      onSuccess: () => toast.success('Purchase deleted'),
-      onError: () => toast.error('Failed to delete purchase'),
+      onSuccess: () => toast.success(t('purchases.deletedSuccess')),
+      onError: () => toast.error(t('purchases.errDeleteFailed')),
     })
   }
 
@@ -264,7 +263,7 @@ export const PurchasesPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="record-purchase-btn" leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
-              Record Purchase
+              {t('purchases.recordPurchase')}
             </Button>
           }
         />
@@ -278,14 +277,14 @@ export const PurchasesPage = () => {
             className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900"
           >
             <Filter size={16} />
-            Filters
+            {t('action.filters')}
             {hasActiveFilters && (
               <span className="w-2 h-2 rounded-full bg-blue-500" />
             )}
           </button>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Clear All
+              {t('action.clearAll')}
             </Button>
           )}
         </div>
@@ -293,7 +292,7 @@ export const PurchasesPage = () => {
         {showFilters && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
-              label="Supplier"
+              label={t('common.supplier')}
               options={supplierOptions}
               value={filterSupplier}
               onChange={e => setFilterSupplier(e.target.value)}
@@ -315,7 +314,7 @@ export const PurchasesPage = () => {
           loading={isLoading}
           searchable
           pagination
-          emptyMessage="No purchases recorded yet"
+          emptyMessage={t('purchases.noPurchasesYet')}
         />
       </Card>
 
@@ -323,20 +322,20 @@ export const PurchasesPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); setItems([]); setSupplierId('') }}
-        title="Record Purchase"
+        title={t('purchases.recordPurchase')}
         size="lg"
         footer={
           <div className="flex justify-between items-center w-full">
             <div>
-              <span className="text-sm text-gray-500">Total</span>
+              <span className="text-sm text-gray-500">{t('common.total')}</span>
               <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{formatINR(totalAmount)}</p>
             </div>
             <div className="flex gap-3">
               <Button variant="ghost" onClick={() => { setIsFormOpen(false); setItems([]); setSupplierId('') }}>
-                Cancel
+                {t('action.cancel')}
               </Button>
               <Button onClick={handleSave} loading={isPending} disabled={!supplierId || items.length === 0}>
-                Record Purchase
+                {t('purchases.recordPurchase')}
               </Button>
             </div>
           </div>
@@ -345,7 +344,7 @@ export const PurchasesPage = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Supplier *
+              {t('common.supplier')} *
               <FieldInfo textKey="tip.purchase.supplier" />
             </label>
             <Select
@@ -357,7 +356,7 @@ export const PurchasesPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Payment Method
+              {t('common.paymentMethod')}
             </label>
             <Select
               options={PAYMENT_METHOD_OPTIONS}
@@ -369,7 +368,7 @@ export const PurchasesPage = () => {
           {/* Add Items Section */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Products
+              {t('purchases.productsLabel')}
               <FieldInfo textKey="tip.purchase.products" />
             </label>
             <div className="flex gap-2 mb-3">
@@ -377,7 +376,7 @@ export const PurchasesPage = () => {
                 options={productOptions}
                 value={selectedProduct}
                 onChange={e => setSelectedProduct(e.target.value)}
-                placeholder="Select product"
+                placeholder={t('purchases.selectProductPlaceholder')}
                 className="flex-1"
               />
               <Input
@@ -385,13 +384,13 @@ export const PurchasesPage = () => {
                 min="1"
                 value={quantityInput}
                 onChange={e => setQuantityInput(e.target.value)}
-                placeholder="Qty"
+                placeholder={t('purchases.qtyPlaceholder')}
                 className="w-24"
                 onKeyDown={e => { if (e.key === 'Enter') handleAddItem() }}
               />
               <Button onClick={handleAddItem} disabled={!selectedProduct} className="flex-shrink-0">
                 <PlusCircle size={16} className="mr-1" />
-                Add
+                {t('action.add')}
               </Button>
             </div>
 
@@ -402,10 +401,10 @@ export const PurchasesPage = () => {
                   <div key={item.productId} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
-                      <p className="text-xs text-gray-400">{formatINR(item.costPrice)} each</p>
+                      <p className="text-xs text-gray-400">{formatINR(item.costPrice)} {t('purchases.eachSuffix')}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500">Qty:</label>
+                      <label className="text-xs text-gray-500">{t('purchases.qtyColon')}</label>
                       <input
                         type="number"
                         min="1"
@@ -427,7 +426,7 @@ export const PurchasesPage = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-4">Add products to this purchase</p>
+              <p className="text-sm text-gray-400 text-center py-4">{t('purchases.addProductsPrompt')}</p>
             )}
           </div>
         </div>

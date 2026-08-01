@@ -14,13 +14,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getAllUsers, saveManagedUser, saveManagedUsers } from '@/services/authService'
 import { validatePassword } from '@/utils/password'
 import toast from 'react-hot-toast'
-
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface ManagedUser extends UserProfile {
   password?: string
 }
 
 export const PermissionsAndAccounts = () => {
+  const { t } = useLanguage()
   const { user, userProfile } = useAuth()
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [isAddUserOpen, setIsAddUserOpen] = useState(false)
@@ -56,7 +57,7 @@ export const PermissionsAndAccounts = () => {
         setUsers(managedUsers as ManagedUser[])
       } catch (error) {
         console.error('Error loading managed users:', error)
-        toast.error('Failed to load managed users')
+        toast.error(t('permissions.errLoadFailed'))
       }
     }
 
@@ -65,7 +66,7 @@ export const PermissionsAndAccounts = () => {
 
   const handleAddUser = async () => {
     if (!form.name || !form.email || !form.password) {
-      toast.error('Please fill all required fields')
+      toast.error(t('permissions.errFillRequired'))
       return
     }
 
@@ -74,17 +75,17 @@ export const PermissionsAndAccounts = () => {
     // Fast client-side checks against what we already have loaded — the backend
     // is still the source of truth (it also sees the admin's own login email).
     if (userProfile?.email && userProfile.email.trim().toLowerCase() === normalizedEmail) {
-      toast.error('That email is already in use by your own account')
+      toast.error(t('permissions.errEmailInUseOwn'))
       return
     }
     if (users.some(u => u.email && u.email.trim().toLowerCase() === normalizedEmail)) {
-      toast.error('A user with this email already exists')
+      toast.error(t('permissions.errEmailInUse'))
       return
     }
 
     const { isValid, failedRequirements } = validatePassword(form.password)
     if (!isValid) {
-      toast.error(`Password requirement missing: ${failedRequirements[0]}`)
+      toast.error(`${t('security.errPasswordRequirementPrefix')} ${failedRequirements[0]}`)
       return
     }
 
@@ -107,11 +108,11 @@ export const PermissionsAndAccounts = () => {
     try {
       await saveManagedUser(user.uid, newUser)
       setUsers([...users, newUser])
-      toast.success('User added successfully')
+      toast.success(t('permissions.userAddedSuccess'))
       setIsAddUserOpen(false)
       setForm({ name: '', email: '', role: 'agent', password: '' })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to add user')
+      toast.error(error instanceof Error ? error.message : t('permissions.errAddUserFailed'))
     }
   }
 
@@ -122,25 +123,25 @@ export const PermissionsAndAccounts = () => {
     const updatedUsers = users.map(u => u.uid === selectedUser.uid ? updatedUser : u)
     setUsers(updatedUsers)
     await saveManagedUsers(user.uid, updatedUsers)
-    
-    toast.success('Permissions updated')
+
+    toast.success(t('permissions.permissionsUpdated'))
     setIsEditUserOpen(false)
   }
 
   const handleUpdatePassword = async () => {
     if (!selectedUser || !passwordForm.newPassword || !user) {
-      toast.error('Please enter a password')
+      toast.error(t('permissions.errEnterPassword'))
       return
     }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('Passwords do not match')
+      toast.error(t('security.errPasswordsNoMatch'))
       return
     }
 
     const { isValid, failedRequirements } = validatePassword(passwordForm.newPassword)
     if (!isValid) {
-      toast.error(`Password requirement missing: ${failedRequirements[0]}`)
+      toast.error(`${t('security.errPasswordRequirementPrefix')} ${failedRequirements[0]}`)
       return
     }
 
@@ -151,7 +152,7 @@ export const PermissionsAndAccounts = () => {
     )
     setUsers(updatedUsers)
     await saveManagedUsers(user.uid, updatedUsers)
-    toast.success('Password updated')
+    toast.success(t('permissions.passwordUpdated'))
     setIsPasswordOpen(false)
     setPasswordForm({ newPassword: '', confirmPassword: '' })
   }
@@ -168,18 +169,18 @@ export const PermissionsAndAccounts = () => {
     )
     setUsers(updatedUsers)
     await saveManagedUsers(user.uid, updatedUsers)
-    toast.success('Password reset to default: password123')
+    toast.success(t('permissions.passwordResetDefault'))
   }
 
   const handleDeleteUser = async (uid: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return
+    if (!confirm(t('permissions.deleteUserConfirm'))) return
 
     const updatedUsers = users.filter(u => u.uid !== uid)
     setUsers(updatedUsers)
     if (user) {
       await saveManagedUsers(user.uid, updatedUsers)
     }
-    toast.success('User deleted')
+    toast.success(t('permissions.userDeleted'))
   }
 
   const openEditUser = (user: ManagedUser) => {
@@ -196,7 +197,7 @@ export const PermissionsAndAccounts = () => {
   const columns: ColumnDef<ManagedUser>[] = [
     {
       key: 'displayName',
-      header: 'Name',
+      header: t('common.name'),
       render: (row) => (
         <div>
           <p className="font-medium text-sm">{row.displayName}</p>
@@ -206,27 +207,27 @@ export const PermissionsAndAccounts = () => {
     },
     {
       key: 'role',
-      header: 'Role',
+      header: t('permissions.roleHeader'),
       render: (row) => (
         <Badge variant={row.role === 'admin' ? 'warning' : 'info'}>
-          {row.role?.toUpperCase() || 'AGENT'}
+          {row.role?.toUpperCase() || t('permissions.agentLabel')}
         </Badge>
       ),
     },
     {
       key: 'permissions',
-      header: 'Stock Access',
+      header: t('permissions.stockAccess'),
       render: (row) => (
         row.permissions?.canManipulateStock ? (
-          <Badge variant="success">Yes</Badge>
+          <Badge variant="success">{t('permissions.yes')}</Badge>
         ) : (
-          <Badge variant="default">No</Badge>
+          <Badge variant="default">{t('permissions.no')}</Badge>
         )
       ),
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: t('common.actions'),
       render: (row) => (
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEditUser(row)}>
@@ -256,10 +257,10 @@ export const PermissionsAndAccounts = () => {
       <div className="text-center py-12">
         <Shield size={48} className="mx-auto text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-          Admin Access Required
+          {t('permissions.adminAccessRequiredTitle')}
         </h3>
         <p className="text-gray-500 dark:text-gray-400">
-          Only administrators can manage users and permissions.
+          {t('permissions.adminAccessRequiredDesc')}
         </p>
       </div>
     )
@@ -270,14 +271,14 @@ export const PermissionsAndAccounts = () => {
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Permissions & Accounts
+            {t('permissions.title')}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Manage user accounts, roles, and permissions
+            {t('permissions.subtitle')}
           </p>
         </div>
         <Button leftIcon={<Plus size={16} />} onClick={() => setIsAddUserOpen(true)}>
-          Add User
+          {t('permissions.addUser')}
         </Button>
       </div>
 
@@ -286,7 +287,7 @@ export const PermissionsAndAccounts = () => {
           data={users}
           columns={columns}
           searchable
-          emptyMessage="No users added yet"
+          emptyMessage={t('permissions.noUsersYet')}
         />
       </Card>
 
@@ -297,85 +298,85 @@ export const PermissionsAndAccounts = () => {
           setIsAddUserOpen(false)
           setForm({ name: '', email: '', role: 'agent', password: '' })
         }}
-        title="Add New User"
+        title={t('permissions.addNewUserTitle')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setIsAddUserOpen(false)}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button onClick={handleAddUser}>
-              Add User
+              {t('permissions.addUser')}
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <Input
-            label="Full Name *"
+            label={t('permissions.fullNameRequired')}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Enter user's full name"
+            placeholder={t('permissions.fullNamePlaceholder')}
             autoFocus
           />
           <Input
-            label="Email *"
+            label={t('permissions.emailRequired')}
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="user@example.com"
           />
           <Input
-            label="Password *"
+            label={t('permissions.passwordRequired')}
             type="password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder="Min 6 characters"
+            placeholder={t('permissions.minChars')}
           />
           <Select
-            label="Role *"
+            label={t('permissions.roleRequired')}
             options={[
-              { value: 'admin', label: 'Administrator' },
-              { value: 'agent', label: 'Agent' },
+              { value: 'admin', label: t('permissions.administrator') },
+              { value: 'agent', label: t('permissions.agent') },
             ]}
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
           />
-          
+
           {form.role === 'agent' && (
             <div className="space-y-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Permissions
+                {t('permissions.permissionsLabel')}
               </label>
               <Checkbox
                 checked={permissionsForm.canManipulateStock}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManipulateStock: e.target.checked })}
-                label="Can manipulate stock"
+                label={t('permissions.canManipulateStock')}
               />
               <Checkbox
                 checked={permissionsForm.canAccessSuppliers}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessSuppliers: e.target.checked })}
-                label="Can access suppliers"
+                label={t('permissions.canAccessSuppliers')}
               />
               <Checkbox
                 checked={permissionsForm.canAccessPurchases}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessPurchases: e.target.checked })}
-                label="Can access purchases"
+                label={t('permissions.canAccessPurchases')}
               />
               <Checkbox
                 checked={permissionsForm.canAccessExpenses}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessExpenses: e.target.checked })}
-                label="Can access expenses"
+                label={t('permissions.canAccessExpenses')}
               />
               <Checkbox
                 checked={permissionsForm.canAccessReports}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessReports: e.target.checked })}
-                label="Can access reports"
+                label={t('permissions.canAccessReports')}
               />
               <Checkbox
                 checked={permissionsForm.canManageUsers}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManageUsers: e.target.checked })}
-                label="Can manage users"
+                label={t('permissions.canManageUsers')}
               />
             </div>
           )}
@@ -386,52 +387,52 @@ export const PermissionsAndAccounts = () => {
       <Modal
         isOpen={isEditUserOpen}
         onClose={() => setIsEditUserOpen(false)}
-        title="Edit User Permissions"
+        title={t('permissions.editUserPermissionsTitle')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setIsEditUserOpen(false)}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button onClick={handleUpdatePermissions}>
-              Update Permissions
+              {t('permissions.updatePermissions')}
             </Button>
           </div>
         }
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Editing permissions for: <strong>{selectedUser?.displayName}</strong>
+            {t('permissions.editingPermissionsForPrefix')} <strong>{selectedUser?.displayName}</strong>
           </p>
           <Checkbox
             checked={permissionsForm.canManipulateStock}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManipulateStock: e.target.checked })}
-            label="Can manipulate stock"
+            label={t('permissions.canManipulateStock')}
           />
           <Checkbox
             checked={permissionsForm.canAccessSuppliers}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessSuppliers: e.target.checked })}
-            label="Can access suppliers"
+            label={t('permissions.canAccessSuppliers')}
           />
           <Checkbox
             checked={permissionsForm.canAccessPurchases}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessPurchases: e.target.checked })}
-            label="Can access purchases"
+            label={t('permissions.canAccessPurchases')}
           />
           <Checkbox
             checked={permissionsForm.canAccessExpenses}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessExpenses: e.target.checked })}
-            label="Can access expenses"
+            label={t('permissions.canAccessExpenses')}
           />
           <Checkbox
             checked={permissionsForm.canAccessReports}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessReports: e.target.checked })}
-            label="Can access reports"
+            label={t('permissions.canAccessReports')}
           />
           <Checkbox
             checked={permissionsForm.canManageUsers}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManageUsers: e.target.checked })}
-            label="Can manage users"
+            label={t('permissions.canManageUsers')}
           />
         </div>
       </Modal>
@@ -443,37 +444,37 @@ export const PermissionsAndAccounts = () => {
           setIsPasswordOpen(false)
           setPasswordForm({ newPassword: '', confirmPassword: '' })
         }}
-        title="Change Password"
+        title={t('permissions.changePasswordTitle')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setIsPasswordOpen(false)}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button onClick={handleUpdatePassword}>
-              Update Password
+              {t('permissions.updatePasswordBtn')}
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Changing password for: <strong>{selectedUser?.displayName}</strong>
+            {t('permissions.changingPasswordForPrefix')} <strong>{selectedUser?.displayName}</strong>
           </p>
           <Input
-            label="New Password *"
+            label={t('permissions.newPasswordRequired')}
             type="password"
             value={passwordForm.newPassword}
             onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-            placeholder="Min 6 characters"
+            placeholder={t('permissions.minChars')}
             autoFocus
           />
           <Input
-            label="Confirm Password *"
+            label={t('permissions.confirmPasswordRequired')}
             type="password"
             value={passwordForm.confirmPassword}
             onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-            placeholder="Re-enter password"
+            placeholder={t('permissions.reEnterPassword')}
           />
         </div>
       </Modal>

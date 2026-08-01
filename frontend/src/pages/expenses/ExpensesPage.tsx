@@ -24,25 +24,24 @@ import type { Expense } from '@/types/expense.types'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 
-const CATEGORY_OPTIONS = [
-  { value: 'rent', label: 'Rent' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'salaries', label: 'Salaries' },
-  { value: 'inventory', label: 'Inventory' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'maintenance', label: 'Maintenance' },
-  { value: 'other', label: 'Other' },
-]
-
-const PAYMENT_OPTIONS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank Transfer' },
-  { value: 'upi', label: 'UPI' },
-  { value: 'card', label: 'Card' },
-]
-
 export const ExpensesPage = () => {
   const { t } = useLanguage()
+  const CATEGORY_OPTIONS = [
+    { value: 'rent', label: t('expenses.catRent') },
+    { value: 'utilities', label: t('expenses.catUtilities') },
+    { value: 'salaries', label: t('expenses.catSalaries') },
+    { value: 'inventory', label: t('expenses.catInventory') },
+    { value: 'marketing', label: t('expenses.catMarketing') },
+    { value: 'maintenance', label: t('expenses.catMaintenance') },
+    { value: 'other', label: t('expenses.catOther') },
+  ]
+
+  const PAYMENT_OPTIONS = [
+    { value: 'cash', label: t('pos.cash') },
+    { value: 'bank', label: t('common.bankTransfer') },
+    { value: 'upi', label: t('pos.upi') },
+    { value: 'card', label: t('pos.card') },
+  ]
   const pageTutorial = usePageTutorial('expenses')
   const { user } = useAuth()
   const { data: expenses, isLoading } = useExpenses()
@@ -67,7 +66,7 @@ export const ExpensesPage = () => {
   const [showFilters, setShowFilters] = useState(false)
 
   const categoryFilterOptions = [
-    { value: '', label: 'All Categories' },
+    { value: '', label: t('expenses.allCategories') },
     ...CATEGORY_OPTIONS,
   ]
 
@@ -112,7 +111,7 @@ export const ExpensesPage = () => {
   const columns: ColumnDef<Expense>[] = [
     {
       key: 'category',
-      header: 'Category',
+      header: t('common.category'),
       render: (row) => {
         const cat = CATEGORY_OPTIONS.find(c => c.value === row.category)
         return <Badge variant="info">{cat?.label ?? row.category}</Badge>
@@ -121,14 +120,14 @@ export const ExpensesPage = () => {
     },
     {
       key: 'description',
-      header: 'Description',
+      header: t('common.description'),
       render: (row) => (
         <span className="text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate block">{row.description}</span>
       ),
     },
     {
       key: 'expenseDate',
-      header: 'Date',
+      header: t('common.date'),
       render: (row) => (
         <span>
           {row.expenseDate
@@ -143,7 +142,7 @@ export const ExpensesPage = () => {
 
     {
       key: 'paymentMethod',
-      header: 'Payment',
+      header: t('purchases.paymentHeader'),
       render: (row) => (
         <Badge variant={
           row.paymentMethod === 'cash' ? 'success' :
@@ -156,7 +155,7 @@ export const ExpensesPage = () => {
     },
     {
       key: 'amount',
-      header: 'Amount',
+      header: t('common.amount'),
       render: (row) => (
         <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINR(row.amount)}</span>
       ),
@@ -164,7 +163,7 @@ export const ExpensesPage = () => {
     },
     {
       key: 'receipt',
-      header: 'Receipt',
+      header: t('expenses.receiptHeader'),
       render: (row) => (
         row.receiptImageURL ? (
           <button
@@ -180,7 +179,7 @@ export const ExpensesPage = () => {
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: t('common.actions'),
       render: (row) => (
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
@@ -221,12 +220,12 @@ export const ExpensesPage = () => {
 
   const handleSave = () => {
     if (!form.amount || parseFloat(form.amount) <= 0) {
-      toast.error('Please enter a valid amount')
+      toast.error(t('expenses.errValidAmount'))
       return
     }
 
     if (!form.expenseDate) {
-      toast.error('Please select a date')
+      toast.error(t('expenses.errSelectDate'))
       return
     }
 
@@ -251,36 +250,36 @@ export const ExpensesPage = () => {
         { expenseId: editId, data: payload },
         {
           onSuccess: () => {
-            toast.success('Expense updated')
+            toast.success(t('expenses.updatedSuccess'))
             setIsFormOpen(false)
             resetForm()
           },
           onError: (error) => {
             console.error('Failed to update expense:', error)
-            toast.error(`Failed to update expense: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            toast.error(`${t('expenses.errUpdateFailedPrefix')} ${error instanceof Error ? error.message : 'Unknown error'}`)
           },
         }
       )
     } else {
       createExpense(payload, {
         onSuccess: () => {
-          toast.success('Expense recorded')
+          toast.success(t('expenses.createdSuccess'))
           setIsFormOpen(false)
           resetForm()
         },
         onError: (error) => {
           console.error('Failed to create expense:', error)
-          toast.error(`Failed to record expense: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          toast.error(`${t('expenses.errCreateFailedPrefix')} ${error instanceof Error ? error.message : 'Unknown error'}`)
         },
       })
     }
   }
 
   const handleDelete = (id: string) => {
-    if (!confirm('Delete this expense?')) return
+    if (!confirm(t('expenses.deleteConfirm'))) return
     deleteExpense(id, {
-      onSuccess: () => toast.success('Expense deleted'),
-      onError: () => toast.error('Failed to delete expense'),
+      onSuccess: () => toast.success(t('expenses.deletedSuccess')),
+      onError: () => toast.error(t('expenses.errDeleteFailed')),
     })
   }
 
@@ -300,7 +299,7 @@ export const ExpensesPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="add-expense-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
-              Add Expense
+              {t('expenses.addExpense')}
             </Button>
           }
         />
@@ -315,14 +314,14 @@ export const ExpensesPage = () => {
             className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900"
           >
             <Filter size={16} />
-            Filters
+            {t('action.filters')}
             {hasActiveFilters && (
               <span className="w-2 h-2 rounded-full bg-blue-500" />
             )}
           </button>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Clear All
+              {t('action.clearAll')}
             </Button>
           )}
         </div>
@@ -330,7 +329,7 @@ export const ExpensesPage = () => {
         {showFilters && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
-              label="Category"
+              label={t('common.category')}
               options={categoryFilterOptions}
               value={filterCategory}
               onChange={e => setFilterCategory(e.target.value)}
@@ -352,7 +351,7 @@ export const ExpensesPage = () => {
           loading={isLoading}
           searchable
           pagination
-          emptyMessage="No expenses recorded yet"
+          emptyMessage={t('expenses.noExpensesYet')}
         />
       </Card>
 
@@ -360,19 +359,19 @@ export const ExpensesPage = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); resetForm() }}
-        title={editId ? 'Edit Expense' : 'Add Expense'}
+        title={editId ? t('expenses.editExpense') : t('expenses.addExpense')}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => { setIsFormOpen(false); resetForm() }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
               disabled={!form.amount || parseFloat(form.amount) <= 0}
             >
-              {editId ? 'Update' : 'Record'}
+              {editId ? t('action.update') : t('expenses.record')}
             </Button>
           </div>
         }
@@ -380,7 +379,7 @@ export const ExpensesPage = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Category *
+              {t('common.category')} *
               <FieldInfo textKey="tip.expense.category" />
             </label>
             <Select
@@ -391,7 +390,7 @@ export const ExpensesPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Amount (₹) *
+              {t('common.amount')} (₹) *
               <FieldInfo textKey="tip.expense.amount" />
             </label>
             <Input
@@ -405,7 +404,7 @@ export const ExpensesPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Date *
+              {t('common.date')} *
               <FieldInfo textKey="tip.expense.date" />
             </label>
             <Input
@@ -416,18 +415,18 @@ export const ExpensesPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description
+              {t('common.description')}
               <FieldInfo textKey="tip.expense.description" />
             </label>
             <Input
               value={form.description}
               onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="e.g. Monthly electricity bill"
+              placeholder={t('expenses.descriptionPlaceholder')}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Payment Method
+              {t('common.paymentMethod')}
               <FieldInfo textKey="tip.expense.paymentMethod" />
             </label>
             <Select
@@ -438,7 +437,7 @@ export const ExpensesPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Receipt Image (optional)
+              {t('expenses.receiptImageOptional')}
               <FieldInfo textKey="tip.expense.receipt" />
             </label>
             <ImageUpload

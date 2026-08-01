@@ -109,9 +109,9 @@ export const POSPage = () => {
     const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
     if (product) {
       addItem(product)
-      toast.success(`${product.name} added`)
+      toast.success(`${product.name} ${t('pos.addedSuffix')}`)
     } else {
-      toast.error(`Product not found: ${barcode}`)
+      toast.error(`${t('pos.productNotFoundPrefix')} ${barcode}`)
     }
   }
 
@@ -184,7 +184,7 @@ export const POSPage = () => {
     const reserved = cartReserved[product.id] || 0
     const available = product.currentStock - reserved
     if (available <= 0) {
-      toast.error('Out of stock')
+      toast.error(t('pos.errOutOfStock'))
     } else {
       addItem(product)
     }
@@ -263,10 +263,10 @@ export const POSPage = () => {
         setSelectedCustomer('')
         setIsPaymentOpen(false)
         setIsPrintModalOpen(true)
-        toast.success('Sale completed!')
+        toast.success(t('pos.saleCompleted'))
       },
       onError: (error) => {
-        const msg = error instanceof Error ? error.message : 'Failed to create sale'
+        const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')
         console.error('Sale creation failed:', error)
         toast.error(msg)
       },
@@ -369,7 +369,7 @@ export const POSPage = () => {
       await blePrinter.print(bytes)
       finishPrintFlow()
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to print via Bluetooth'
+      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
       toast.error(msg)
     } finally {
       setIsBlePrinting(false)
@@ -393,7 +393,7 @@ export const POSPage = () => {
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
-          Products
+          {t('pos.productsTab')}
         </button>
         <button
           onClick={() => setMobileTab('cart')}
@@ -403,7 +403,7 @@ export const POSPage = () => {
               : 'text-gray-500 dark:text-gray-400'
           }`}
         >
-          Cart
+          {t('pos.cartTab')}
           {items.length > 0 && (
             <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
               {items.length}
@@ -432,7 +432,7 @@ export const POSPage = () => {
               className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0 h-11"
             >
               <Video size={16} className="animate-pulse" />
-              <span className="hidden sm:inline">Video Guide</span>
+              <span className="hidden sm:inline">{t('pos.videoGuide')}</span>
             </button>
             <div ref={filterPanelRef} className="relative flex-shrink-0">
               <Button
@@ -455,14 +455,14 @@ export const POSPage = () => {
                   />
                   <div className="fixed left-4 right-4 max-w-sm mx-auto top-28 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-none bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl z-50 p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">Filters</h4>
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">{t('pos.filters')}</h4>
                       {hasActiveFilters && (
                         <button
                           type="button"
                           onClick={clearFilters}
                           className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
                         >
-                          <X size={12} /> Clear all
+                          <X size={12} /> {t('pos.clearAll')}
                         </button>
                       )}
                     </div>
@@ -470,11 +470,11 @@ export const POSPage = () => {
                     {/* Stock Status */}
                     <div className="mb-4">
                       <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        Stock Status
+                        {t('pos.stockStatus')}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         {([
-                          { value: 'all', label: 'All Stock' },
+                          { value: 'all', label: t('pos.allStock') },
                           { value: 'in', label: t('pos.inStock') },
                           { value: 'low', label: t('pos.lowStock') },
                           { value: 'out', label: t('pos.outOfStock') },
@@ -498,20 +498,20 @@ export const POSPage = () => {
                     {/* Price Range */}
                     <div className="mb-4">
                       <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        Price Range
+                        {t('pos.priceRange')}
                       </label>
                       <div className="flex items-center gap-2">
                         <Input
                           type="number"
-                          placeholder="Min"
+                          placeholder={t('pos.min')}
                           value={priceMin}
                           onChange={e => setPriceMin(e.target.value)}
                           className="h-9 text-sm"
                         />
-                        <span className="text-gray-400 text-xs">to</span>
+                        <span className="text-gray-400 text-xs">{t('pos.to')}</span>
                         <Input
                           type="number"
-                          placeholder="Max"
+                          placeholder={t('pos.max')}
                           value={priceMax}
                           onChange={e => setPriceMax(e.target.value)}
                           className="h-9 text-sm"
@@ -522,19 +522,19 @@ export const POSPage = () => {
                     {/* Sort By */}
                     <div>
                       <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        <ArrowUpDown size={12} /> Sort By
+                        <ArrowUpDown size={12} /> {t('pos.sortBy')}
                       </label>
                       <select
                         value={sortBy}
                         onChange={e => setSortBy(e.target.value as SortOption)}
                         className="w-full h-9 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       >
-                        <option value="name-asc">Name (A–Z)</option>
-                        <option value="name-desc">Name (Z–A)</option>
-                        <option value="price-asc">Price (Low to High)</option>
-                        <option value="price-desc">Price (High to Low)</option>
-                        <option value="stock-asc">Stock (Low to High)</option>
-                        <option value="stock-desc">Stock (High to Low)</option>
+                        <option value="name-asc">{t('pos.sortNameAsc')}</option>
+                        <option value="name-desc">{t('pos.sortNameDesc')}</option>
+                        <option value="price-asc">{t('pos.sortPriceAsc')}</option>
+                        <option value="price-desc">{t('pos.sortPriceDesc')}</option>
+                        <option value="stock-asc">{t('pos.sortStockAsc')}</option>
+                        <option value="stock-desc">{t('pos.sortStockDesc')}</option>
                       </select>
                     </div>
                   </div>
@@ -551,7 +551,7 @@ export const POSPage = () => {
               }`}
             >
               {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
-              {isScanMode ? 'Scanning...' : t('pos.scanBarcode')}
+              {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
             </button>
           </div>
 
@@ -560,22 +560,22 @@ export const POSPage = () => {
             <div className="mt-3 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
               <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
-                Scan mode active — point your scanner or type a barcode below
+                {t('pos.scanModeActive')}
               </div>
               <form onSubmit={handleScanSubmit} className="flex gap-2">
                 <Input
                   ref={scanInputRef}
                   value={scanInput}
                   onChange={e => setScanInput(e.target.value)}
-                  placeholder="Scan or type barcode, then press Enter..."
+                  placeholder={t('pos.scanPlaceholder')}
                   className="flex-1"
                   autoComplete="off"
                 />
                 <Button type="submit" disabled={scanInput.trim().length < 4}>
-                  Add
+                  {t('pos.add')}
                 </Button>
                 <Button type="button" variant="ghost" onClick={toggleScanMode}>
-                  Done
+                  {t('pos.done')}
                 </Button>
               </form>
             </div>
@@ -656,7 +656,7 @@ export const POSPage = () => {
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
                       {product.name}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">SKU: {product.sku}</p>
+                    <p className="text-xs text-gray-400 truncate">{t('common.sku')}: {product.sku}</p>
                   </div>
 
                   {/* Price + stock badge + add */}
@@ -672,7 +672,7 @@ export const POSPage = () => {
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
                       }`}>
-                        {isOutOfStock ? t('pos.outOfStock') : `Stock: ${available}`}
+                        {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
                       </span>
                     </div>
                     <button
@@ -692,7 +692,7 @@ export const POSPage = () => {
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
               <Search size={48} className="mb-4 opacity-30" />
-              <p className="text-sm">{search ? 'No products match your search' : 'No products available'}</p>
+              <p className="text-sm">{search ? t('pos.noProductsMatchSearch') : t('pos.noProductsAvailable')}</p>
             </div>
           )}
         </div>
@@ -705,7 +705,7 @@ export const POSPage = () => {
               className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"
             >
               <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length} items</span>
-              <span>View Cart</span>
+              <span>{t('pos.viewCart')}</span>
               <span className="font-bold">{formatINR(finalTotal)}</span>
             </button>
           </div>
@@ -719,7 +719,7 @@ export const POSPage = () => {
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('pos.checkout')}</h2>
-              <Badge variant="info">Order #{String(Date.now()).slice(-4)}</Badge>
+              <Badge variant="info">{t('pos.orderPrefix')}{String(Date.now()).slice(-4)}</Badge>
             </div>
             {items.length > 0 && (
               <button
@@ -730,7 +730,7 @@ export const POSPage = () => {
                 className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
-                <span>Print</span>
+                <span>{t('pos.print')}</span>
               </button>
             )}
           </div>
@@ -774,7 +774,7 @@ export const POSPage = () => {
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                         {item.productName}
                       </h4>
-                      <p className="text-xs text-gray-400">{formatINR(item.sellingPrice)} each</p>
+                      <p className="text-xs text-gray-400">{formatINR(item.sellingPrice)} {t('pos.each')}</p>
                     </div>
 
                     {/* Delete Button - Right */}
@@ -842,7 +842,7 @@ export const POSPage = () => {
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">Total ({items.length})</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
                 <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
               </div>
             </div>
@@ -866,7 +866,7 @@ export const POSPage = () => {
       <Modal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
-        title="Complete Payment"
+        title={t('pos.completePayment')}
         size="md"
         footer={
           <Button
@@ -876,7 +876,7 @@ export const POSPage = () => {
             className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
           >
             <Printer size={18} className="mr-2" />
-            {isComplete ? t('pos.completeAndPrint') : 'Insufficient Amount'}
+            {isComplete ? t('pos.completeAndPrint') : t('pos.insufficientAmount')}
           </Button>
         }
       >
@@ -889,13 +889,13 @@ export const POSPage = () => {
 
           {/* Payment Methods */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Payment Method</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
             <div className="grid grid-cols-4 gap-3">
               {([
-                { id: 'cash' as const, label: 'Cash', icon: Wallet },
-                { id: 'card' as const, label: 'Card', icon: CreditCard },
-                { id: 'upi' as const, label: 'UPI', icon: Smartphone },
-                { id: 'credit' as const, label: 'Credit', icon: UserPlus },
+                { id: 'cash' as const, label: t('pos.cash'), icon: Wallet },
+                { id: 'card' as const, label: t('pos.card'), icon: CreditCard },
+                { id: 'upi' as const, label: t('pos.upi'), icon: Smartphone },
+                { id: 'credit' as const, label: t('pos.credit'), icon: UserPlus },
               ]).map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
@@ -919,26 +919,26 @@ export const POSPage = () => {
           {method === 'cash' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Amount Received
+                {t('pos.amountReceived')}
               </label>
               <Input
                 type="number"
                 value={amountPaid}
                 onChange={e => setAmountPaid(e.target.value)}
-                placeholder="Enter amount"
+                placeholder={t('pos.enterAmount')}
                 className="text-lg"
                 autoFocus
               />
               {amountPaidNum > 0 && (
                 <div className="mt-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-700/50 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Received</span>
+                    <span className="text-gray-500">{t('pos.received')}</span>
                     <span className="font-medium">{formatINR(amountPaidNum)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Change</span>
+                    <span className="text-gray-500">{t('pos.change')}</span>
                     <span className={`font-medium ${change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {formatINR(Math.abs(change))} {change >= 0 ? '(return)' : '(due)'}
+                      {formatINR(Math.abs(change))} {change >= 0 ? t('pos.returnSuffix') : t('pos.dueSuffix')}
                     </span>
                   </div>
                 </div>
@@ -960,9 +960,9 @@ export const POSPage = () => {
       </Modal>
 
       {/* Print Format Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); }} title="Print Receipt" size="sm">
+      <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); }} title={t('pos.printReceiptTitle')} size="sm">
         <div className="space-y-6">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Select print format for the receipt:</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
 
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -971,8 +971,8 @@ export const POSPage = () => {
             >
               <FileText size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">A4 Paper</p>
-                <p className="text-xs text-gray-400">Standard format</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
+                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
               </div>
             </button>
             <button
@@ -981,8 +981,8 @@ export const POSPage = () => {
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">50mm Thermal</p>
-                <p className="text-xs text-gray-400">POS printer</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
+                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
               </div>
             </button>
           </div>
@@ -995,7 +995,7 @@ export const POSPage = () => {
               leftIcon={<Bluetooth size={16} />}
               onClick={handlePrintBluetooth}
             >
-              {blePrinter.status === 'connected' ? `Print to ${blePrinter.deviceName}` : 'Print via Bluetooth'}
+              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
             </Button>
           )}
 
@@ -1004,7 +1004,7 @@ export const POSPage = () => {
             onClick={() => { setIsPrintModalOpen(false); }}
             className="w-full"
           >
-            Skip Printing
+            {t('pos.skipPrinting')}
           </Button>
         </div>
       </Modal>

@@ -59,13 +59,13 @@ export const SettingsPage = () => {
   }
 
   const settingsTabs = [
-    { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: 'Logo, name, address & GSTIN shown on invoices' },
-    { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: 'Owner contact details for internal reference' },
-    { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: 'Header, terms & footer of printed receipts' },
-    { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: 'Low-stock and overdue thresholds' },
-    { key: 'permissions', label: t('settings.permissions'), icon: Users, description: 'Staff accounts, roles & permissions' },
-    { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: 'Reset your account password via email OTP' },
-    { key: 'language', label: t('settings.language'), icon: Globe, description: 'Display language for the whole app' },
+    { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: t('settings.descBusiness') },
+    { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: t('settings.descPersonal') },
+    { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: t('settings.descInvoice') },
+    { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: t('settings.descNotifications') },
+    { key: 'permissions', label: t('settings.permissions'), icon: Users, description: t('settings.descPermissions') },
+    { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
+    { key: 'language', label: t('settings.language'), icon: Globe, description: t('settings.descLanguage') },
   ]
 
   const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
@@ -90,10 +90,10 @@ export const SettingsPage = () => {
       updateSettings(
         { settingsId: settings.id, data: safeData },
         {
-          onSuccess: () => toast.success(`${key} saved`),
+          onSuccess: () => toast.success(`${key} ${t('settings.savedSuffix')}`),
           onError: (err) => {
             console.error('Settings save error:', err)
-            const msg = err instanceof Error ? err.message : `Failed to save ${key}`
+            const msg = err instanceof Error ? err.message : `${t('settings.failedToSavePrefix')} ${key}`
             toast.error(msg)
           },
         }
@@ -101,10 +101,10 @@ export const SettingsPage = () => {
     } else {
       const merged = clean({ ...DEFAULT_SETTINGS, ...data })
       createSettings(merged as Parameters<typeof createSettings>[0], {
-        onSuccess: () => toast.success(`${key} saved`),
+        onSuccess: () => toast.success(`${key} ${t('settings.savedSuffix')}`),
         onError: (err) => {
           console.error('Settings create error:', err)
-          const msg = err instanceof Error ? err.message : `Failed to save ${key}`
+          const msg = err instanceof Error ? err.message : `${t('settings.failedToSavePrefix')} ${key}`
           toast.error(msg)
         },
       })
@@ -127,7 +127,7 @@ export const SettingsPage = () => {
 
     switch (tab) {
       case 'business':
-        handleSave('Business Profile', {
+        handleSave(t('settings.businessProfile'), {
           businessName:    val('settings-business-name'),
           businessAddress: val('settings-business-address'),
           businessPhone:   val('settings-business-phone'),
@@ -140,7 +140,7 @@ export const SettingsPage = () => {
         })
         break
       case 'personal':
-        handleSave('Personal Info', {
+        handleSave(t('settings.personalInfo'), {
           businessName:    current.businessName    ?? '',
           businessAddress: current.businessAddress ?? '',
           businessPhone:   curPhone,
@@ -157,7 +157,7 @@ export const SettingsPage = () => {
         })
         break
       case 'invoice':
-        handleSave('Invoice Settings', {
+        handleSave(t('settings.invoiceSettingsLabel'), {
           receiptConfig: {
             companyName:   val('settings-receipt-company'),
             address:       val('settings-receipt-address'),
@@ -180,7 +180,7 @@ export const SettingsPage = () => {
         })
         break
       case 'notifications':
-        handleSave('Notifications', {
+        handleSave(t('settings.notifications'), {
           notificationConfig: {
             lowStockThreshold: parseInt(val('settings-low-stock')) || 10,
             overdueDays:       parseInt(val('settings-overdue'))   || 30,
@@ -201,7 +201,7 @@ export const SettingsPage = () => {
   return (
     <div>
       <div data-tour="settings-header">
-        <PageHeader title="Settings" onWatchTutorial={pageTutorial.openTutorial} />
+        <PageHeader title={t('settings.title')} onWatchTutorial={pageTutorial.openTutorial} />
       </div>
 
       {isLoading ? (
@@ -211,7 +211,7 @@ export const SettingsPage = () => {
           {!hasSettings && (
             <Card className="p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                No settings saved yet. Fill in the forms below and click Save — your settings document will be created automatically.
+                {t('settings.noSettingsYet')}
               </p>
             </Card>
           )}
@@ -285,7 +285,7 @@ export const SettingsPage = () => {
               <div className="space-y-4 max-w-2xl">
                 <div>
                   <ImageUpload
-                    label="Business Logo (shown on invoices)"
+                    label={t('settings.businessLogoLabel')}
                     value={businessLogo}
                     onChange={(url) => {
                       setBusinessLogo(url)
@@ -297,45 +297,45 @@ export const SettingsPage = () => {
                   {isLogoUploading && (
                     <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
                       <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      Uploading logo...
+                      {t('settings.uploadingLogo')}
                     </p>
                   )}
                   {businessLogo && !isLogoUploading && (
-                    <p className="text-xs text-emerald-600 mt-1">✓ Logo uploaded — click Save below to apply to invoices</p>
+                    <p className="text-xs text-emerald-600 mt-1">✓ {t('settings.logoUploadedNote')}</p>
                   )}
                   <p className="text-xs text-gray-400 mt-1">
-                    Recommended: PNG or JPG with transparent background, min 300×100 px
+                    {t('settings.logoRecommendation')}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="Company Name"
+                    label={t('common.companyName')}
                     defaultValue={current.businessName ?? ''}
                     id="settings-business-name"
                     placeholder="e.g. Acme Retail Pvt. Ltd."
                   />
                   <Input
-                    label="Business Phone Number"
+                    label={t('settings.businessPhoneLabel')}
                     defaultValue={(current as unknown as Record<string, string>).businessPhone ?? ''}
                     id="settings-business-phone"
                     placeholder="+91 98765 43210"
                   />
                 </div>
                 <Input
-                  label="Business Address"
+                  label={t('settings.businessAddressLabel')}
                   defaultValue={current.businessAddress ?? ''}
                   id="settings-business-address"
                   placeholder="123 Main Street, City, State - 000000"
                 />
                 <Input
-                  label="GSTIN"
+                  label={t('suppliers.gstin')}
                   defaultValue={(current as unknown as Record<string, string>).businessGSTIN ?? ''}
                   id="settings-business-gstin"
                   placeholder="e.g. 27AAPFU0939F1ZV"
                 />
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('business')} loading={isPending} className="w-full sm:w-auto">
-                    {hasSettings ? 'Update Business Profile' : 'Save Business Profile'}
+                    {hasSettings ? t('settings.updateBusinessProfile') : t('settings.saveBusinessProfile')}
                   </Button>
                 </div>
               </div>
@@ -344,28 +344,28 @@ export const SettingsPage = () => {
               <div className="space-y-4 max-w-2xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="Owner Name"
+                    label={t('common.ownerName')}
                     defaultValue={(current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ?? ''}
                     id="settings-owner-name"
                     placeholder="e.g. Rajesh Kumar"
                   />
                   <Input
-                    label="Phone Number"
+                    label={t('customers.phoneNumber')}
                     defaultValue={(current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ?? ''}
                     id="settings-owner-phone"
                     placeholder="+91 98765 43210"
                   />
                 </div>
                 <Input
-                  label="Address"
+                  label={t('common.address')}
                   defaultValue={(current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ?? ''}
                   id="settings-owner-address"
-                  placeholder="Residential address"
+                  placeholder={t('settings.residentialAddressPlaceholder')}
                 />
 
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('personal')} loading={isPending} className="w-full sm:w-auto">
-                    {hasSettings ? 'Update Personal Info' : 'Save Personal Info'}
+                    {hasSettings ? t('settings.updatePersonalInfo') : t('settings.savePersonalInfo')}
                   </Button>
                 </div>
               </div>
@@ -374,13 +374,13 @@ export const SettingsPage = () => {
               <div className="space-y-5 max-w-2xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="Company Name"
+                    label={t('common.companyName')}
                     defaultValue={current.receiptConfig?.companyName ?? current.businessName ?? ''}
                     id="settings-receipt-company"
                     placeholder="Seznik POS"
                   />
                   <Input
-                    label="Phone Number"
+                    label={t('customers.phoneNumber')}
                     defaultValue={current.receiptConfig?.phone ?? ''}
                     id="settings-receipt-phone"
                     placeholder="PHONE : 044 258636222"
@@ -388,14 +388,14 @@ export const SettingsPage = () => {
                 </div>
 
                 <Input
-                  label="Address"
+                  label={t('common.address')}
                   defaultValue={current.receiptConfig?.address ?? current.businessAddress ?? ''}
                   id="settings-receipt-address"
                   placeholder="123 Main Street, City, State - 000000"
                 />
 
                 <Input
-                  label="GSTIN"
+                  label={t('suppliers.gstin')}
                   defaultValue={current.receiptConfig?.gstin ?? ''}
                   id="settings-receipt-gstin"
                   placeholder="GSTIN : 33AAAGP0685F1ZH"
@@ -404,46 +404,46 @@ export const SettingsPage = () => {
                 {/* Terms & Conditions */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Terms & Conditions
+                    {t('settings.termsConditions')}
                   </label>
                   <div className="space-y-2">
                     <input
                       id="settings-receipt-terms1"
                       defaultValue={current.receiptConfig?.termsLine1 !== undefined ? current.receiptConfig.termsLine1 : '1. Goods once sold will not be taken back or exchanged'}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      placeholder="Terms line 1"
+                      placeholder={t('settings.termsLine1Placeholder')}
                     />
                     <input
                       id="settings-receipt-terms2"
                       defaultValue={current.receiptConfig?.termsLine2 !== undefined ? current.receiptConfig.termsLine2 : ''}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      placeholder="Terms line 2 (optional)"
+                      placeholder={t('settings.termsLine2Placeholder')}
                     />
                     <input
                       id="settings-receipt-terms3"
                       defaultValue={current.receiptConfig?.termsLine3 !== undefined ? current.receiptConfig.termsLine3 : ''}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      placeholder="Terms line 3 (optional)"
+                      placeholder={t('settings.termsLine3Placeholder')}
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Footer Message
+                    {t('settings.footerMessageLabel')}
                   </label>
                   <textarea
                     id="settings-receipt-footer"
                     defaultValue={current.receiptConfig?.footerMessage ?? 'Thank you for your purchase!'}
                     rows={3}
                     className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
-                    placeholder="Thank you for your purchase!"
+                    placeholder={t('settings.footerMessagePlaceholder')}
                   />
                 </div>
 
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('invoice')} loading={isPending} className="w-full sm:w-auto">
-                    {hasSettings ? 'Update Invoice Settings' : 'Save Invoice Settings'}
+                    {hasSettings ? t('settings.updateInvoiceSettings') : t('settings.saveInvoiceSettings')}
                   </Button>
                 </div>
               </div>
@@ -452,24 +452,24 @@ export const SettingsPage = () => {
               <div className="space-y-4 max-w-2xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="Low Stock Threshold"
+                    label={t('settings.lowStockThreshold')}
                     type="number"
                     defaultValue={current.notificationConfig?.lowStockThreshold ?? 10}
                     id="settings-low-stock"
                   />
                   <Input
-                    label="Overdue Days"
+                    label={t('settings.overdueDays')}
                     type="number"
                     defaultValue={current.notificationConfig?.overdueDays ?? 30}
                     id="settings-overdue"
                   />
                 </div>
                 <p className="text-xs text-gray-400">
-                  Products at or below the threshold appear in Low Stock alerts; credits older than the overdue days are flagged.
+                  {t('settings.notifThresholdNote')}
                 </p>
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('notifications')} loading={isPending} className="w-full sm:w-auto">
-                    {hasSettings ? 'Update Notifications' : 'Save Notification Settings'}
+                    {hasSettings ? t('settings.updateNotifications') : t('settings.saveNotificationSettings')}
                   </Button>
                 </div>
               </div>

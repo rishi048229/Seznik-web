@@ -13,8 +13,10 @@ import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 
 import { ReportTabs } from './ReportTabs'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const TaxReportPage = () => {
+  const { t } = useLanguage()
   const today = new Date()
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0])
@@ -27,7 +29,7 @@ export const TaxReportPage = () => {
 
   const handleExport = () => {
     if (!report) {
-      toast.error('No data to export')
+      toast.error(t('reports.noDataToExport'))
       return
     }
     const ws = XLSX.utils.aoa_to_sheet([
@@ -41,13 +43,13 @@ export const TaxReportPage = () => {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Tax Report')
     XLSX.writeFile(wb, `tax-report-${startDate}-${endDate}.xlsx`)
-    toast.success('Report exported')
+    toast.success(t('reports.exportedSuccess'))
   }
 
   if (isLoading) {
     return (
       <div>
-        <PageHeader title="Tax Report" breadcrumb={['Reports', 'Tax']} />
+        <PageHeader title={t('reports.taxReportTitle')} breadcrumb={[t('reports.breadcrumbReports'), t('reports.breadcrumbTax')]} />
         <ReportTabs />
         <TablePageSkeleton cards={3} rows={6} columns={4} />
       </div>
@@ -57,10 +59,10 @@ export const TaxReportPage = () => {
   if (!report) {
     return (
       <div>
-        <PageHeader title="Tax Report" breadcrumb={['Reports', 'Tax']} />
+        <PageHeader title={t('reports.taxReportTitle')} breadcrumb={[t('reports.breadcrumbReports'), t('reports.breadcrumbTax')]} />
         <ReportTabs />
         <Card className="p-8 text-center">
-          <p className="text-gray-500">No data for this period</p>
+          <p className="text-gray-500">{t('reports.noDataPeriod')}</p>
         </Card>
       </div>
     )
@@ -71,7 +73,7 @@ export const TaxReportPage = () => {
   const handleWhatsAppShare = () => {
     const raw = sharePhone.replace(/\D/g, '')
     const phone = raw.startsWith('0') ? '91' + raw.slice(1) : raw.length === 10 ? '91' + raw : raw
-    if (phone.length < 10) { toast.error('Enter a valid phone number'); return }
+    if (phone.length < 10) { toast.error(t('sales.errValidPhone')); return }
 
     const msg = [
       `🧾 *Tax Report*`,
@@ -91,15 +93,15 @@ export const TaxReportPage = () => {
   return (
     <div>
       <PageHeader
-        title="Tax Report"
-        breadcrumb={['Reports', 'Tax']}
+        title={t('reports.taxReportTitle')}
+        breadcrumb={[t('reports.breadcrumbReports'), t('reports.breadcrumbTax')]}
         action={
           <div className="flex gap-2">
             <Button leftIcon={<Share2 size={16} />} onClick={() => setIsShareOpen(true)} variant="outline" className="text-green-600 border-green-300 hover:bg-green-50">
-              Share on WhatsApp
+              {t('daybook.shareWhatsApp')}
             </Button>
             <Button leftIcon={<Download size={16} />} onClick={handleExport} variant="outline">
-              Export Excel
+              {t('common.exportExcel')}
             </Button>
           </div>
         }
@@ -110,11 +112,11 @@ export const TaxReportPage = () => {
       <Card className="p-4 mb-6">
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.startDate')}</label>
             <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.endDate')}</label>
             <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
           </div>
         </div>
@@ -125,55 +127,55 @@ export const TaxReportPage = () => {
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-2">
             <Receipt size={20} className="text-blue-600" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">Total Output Tax</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.totalOutputTax')}</p>
           </div>
           <p className="text-2xl font-bold text-blue-600">{formatINR(report.totalOutputTax)}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Taxable Sales</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.taxableSales')}</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{report.taxableSales}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Avg Tax per Sale</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.avgTaxPerSale')}</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatINR(avgTaxPerSale)}</p>
         </Card>
       </div>
 
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Tax Summary</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('reports.taxSummary')}</h3>
         <div className="space-y-3 max-w-md">
           <div className="flex justify-between py-3 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-gray-600 dark:text-gray-300">Total Output Tax Collected</span>
+            <span className="text-gray-600 dark:text-gray-300">{t('reports.totalOutputTaxCollected')}</span>
             <span className="font-bold text-blue-600">{formatINR(report.totalOutputTax)}</span>
           </div>
           <div className="flex justify-between py-3 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-gray-600 dark:text-gray-300">Number of Taxable Sales</span>
+            <span className="text-gray-600 dark:text-gray-300">{t('reports.numberOfTaxableSales')}</span>
             <span className="font-medium text-gray-900 dark:text-gray-100">{report.taxableSales}</span>
           </div>
           <div className="flex justify-between py-3">
-            <span className="text-gray-600 dark:text-gray-300">Reporting Period</span>
+            <span className="text-gray-600 dark:text-gray-300">{t('reports.reportingPeriod')}</span>
             <span className="font-medium text-gray-900 dark:text-gray-100">{report.period}</span>
           </div>
         </div>
       </Card>
 
-      <Modal isOpen={isShareOpen} onClose={() => { setIsShareOpen(false); setSharePhone('') }} title="Share Tax Report on WhatsApp" size="sm">
+      <Modal isOpen={isShareOpen} onClose={() => { setIsShareOpen(false); setSharePhone('') }} title={t('reports.shareTaxReportTitle')} size="sm">
         <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Period: <span className="font-medium">{startDate} to {endDate}</span></p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.period')}: <span className="font-medium">{startDate} to {endDate}</span></p>
           <Input
-            label="WhatsApp Number"
-            placeholder="e.g. 9876543210"
+            label={t('daybook.whatsappNumber')}
+            placeholder={t('reports.phoneExamplePlaceholder')}
             value={sharePhone}
             onChange={e => setSharePhone(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleWhatsAppShare()}
           />
-          <p className="text-xs text-gray-400">10-digit mobile number — +91 added automatically.</p>
+          <p className="text-xs text-gray-400">{t('sales.phoneHint')}</p>
           <div className="flex gap-3">
             <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" leftIcon={<Share2 size={16} />} onClick={handleWhatsAppShare}>
-              Open WhatsApp
+              {t('daybook.openWhatsApp')}
             </Button>
             <Button variant="ghost" className="flex-1" onClick={() => { setIsShareOpen(false); setSharePhone('') }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         </div>

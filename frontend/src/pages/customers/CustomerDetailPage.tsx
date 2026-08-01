@@ -14,11 +14,13 @@ import {
 } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
+import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 import type { Customer, CreditTransaction } from '@/types/customer.types'
 
 
 export const CustomerDetailPage = () => {
+  const { t } = useLanguage()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: customers } = useCustomers()
@@ -81,7 +83,7 @@ export const CustomerDetailPage = () => {
   const handleRecordPaymentSubmit = () => {
     const amount = parseFloat(paymentAmount)
     if (!amount || amount <= 0 || !customer) {
-      toast.error('Please enter a valid payment amount')
+      toast.error(t('customers.errValidPaymentAmount'))
       return
     }
 
@@ -89,13 +91,13 @@ export const CustomerDetailPage = () => {
       { customerId: customer.id, amount, notes: paymentNotes || 'Credit settlement' },
       {
         onSuccess: () => {
-          toast.success(`Recorded payment of ${formatINR(amount)} for ${customer.name}`)
+          toast.success(`${t('customers.recordedPaymentPrefix')} ${formatINR(amount)} ${t('customers.forWord')} ${customer.name}`)
           setIsPaymentOpen(false)
           setPaymentAmount('')
           setPaymentNotes('')
         },
         onError: (err: unknown) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to record payment')
+          toast.error(err instanceof Error ? err.message : t('customers.errFailedRecordPayment'))
         }
       }
     )
@@ -120,7 +122,7 @@ export const CustomerDetailPage = () => {
             <ArrowLeft size={20} />
           </Button>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Customer Not Found</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('customers.notFoundTitle')}</h2>
           </div>
         </div>
       </div>
@@ -140,15 +142,15 @@ export const CustomerDetailPage = () => {
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{customer.name}</h2>
               {hasUnpaidCredit ? (
                 <Badge variant="danger" className="text-xs px-2.5 py-1 font-bold animate-pulse">
-                  UNPAID CREDIT DUE
+                  {t('customers.unpaidCreditDue')}
                 </Badge>
               ) : (
                 <Badge variant="success" className="text-xs px-2.5 py-1 font-bold">
-                  CREDITS PAID
+                  {t('customers.creditsPaid')}
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">ID: #{customer.id.slice(0, 8).toUpperCase()}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('customers.idPrefix')} #{customer.id.slice(0, 8).toUpperCase()}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -158,7 +160,7 @@ export const CustomerDetailPage = () => {
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5"
             >
               <MessageCircle size={16} />
-              <span>Reminder</span>
+              <span>{t('customers.reminder')}</span>
             </Button>
           )}
           <Button
@@ -166,14 +168,14 @@ export const CustomerDetailPage = () => {
             className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5"
           >
             <DollarSign size={16} />
-            <span>Settle Credit</span>
+            <span>{t('customers.settleCredit')}</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => navigate(ROUTES.POS)}
             className="text-xs sm:text-sm"
           >
-            New Sale
+            {t('customers.newSale')}
           </Button>
         </div>
       </div>
@@ -188,11 +190,11 @@ export const CustomerDetailPage = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Outstanding Credit Balance</h3>
-                  <Badge variant="danger" className="font-extrabold text-xs">PAYMENT PENDING</Badge>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t('customers.outstandingCreditBalance')}</h3>
+                  <Badge variant="danger" className="font-extrabold text-xs">{t('customers.paymentPending')}</Badge>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  This customer took credit purchases and currently owes <span className="font-bold text-red-600 dark:text-red-400">{formatINR(totalCreditBalance)}</span>.
+                  {t('customers.owesSentence')} <span className="font-bold text-red-600 dark:text-red-400">{formatINR(totalCreditBalance)}</span>.
                 </p>
               </div>
             </div>
@@ -203,14 +205,14 @@ export const CustomerDetailPage = () => {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-4 py-2 flex items-center gap-2 rounded-xl shadow-md"
               >
                 <Send size={15} />
-                <span>Send WhatsApp Reminder</span>
+                <span>{t('customers.sendWhatsAppReminder')}</span>
               </Button>
               <Button
                 onClick={handleOpenPaymentModal}
                 className="bg-[#0a0a2e] hover:bg-[#1a1555] text-white font-bold text-xs sm:text-sm px-4 py-2 flex items-center gap-2 rounded-xl shadow-md"
               >
                 <PlusCircle size={15} />
-                <span>Record Payment</span>
+                <span>{t('customers.recordPayment')}</span>
               </Button>
             </div>
           </div>
@@ -222,8 +224,8 @@ export const CustomerDetailPage = () => {
               <CheckCircle2 size={24} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300">All Credits Paid & Settled</h3>
-              <p className="text-xs text-emerald-700 dark:text-emerald-400">This customer has no outstanding dues or unpaid credit balances.</p>
+              <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300">{t('customers.allCreditsPaidTitle')}</h3>
+              <p className="text-xs text-emerald-700 dark:text-emerald-400">{t('customers.allCreditsPaidDesc')}</p>
             </div>
           </div>
         </Card>
@@ -244,7 +246,7 @@ export const CustomerDetailPage = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{customer.name}</h3>
               <p className="text-sm font-medium text-blue-600">
-                {totalSpent > 5000 ? 'VIP Member' : 'Regular Customer'}
+                {totalSpent > 5000 ? t('customers.vipMemberLabel') : t('customers.regularCustomer')}
               </p>
             </div>
 
@@ -254,7 +256,7 @@ export const CustomerDetailPage = () => {
                   <Mail size={18} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 font-medium">Email Address</p>
+                  <p className="text-xs text-gray-400 font-medium">{t('customers.emailAddress')}</p>
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{customer.email || '—'}</p>
                 </div>
               </div>
@@ -263,7 +265,7 @@ export const CustomerDetailPage = () => {
                   <Phone size={18} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 font-medium">Phone Number</p>
+                  <p className="text-xs text-gray-400 font-medium">{t('customers.phoneNumber')}</p>
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{customer.phone}</p>
                 </div>
               </div>
@@ -272,7 +274,7 @@ export const CustomerDetailPage = () => {
                   <MapPin size={18} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 font-medium">Address</p>
+                  <p className="text-xs text-gray-400 font-medium">{t('common.address')}</p>
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{customer.address || '—'}</p>
                 </div>
               </div>
@@ -286,10 +288,10 @@ export const CustomerDetailPage = () => {
               <div className="flex justify-between items-start mb-6">
                 <CreditCard size={28} />
                 <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-bold backdrop-blur-md">
-                  {hasUnpaidCredit ? 'CREDIT DUE' : 'NO DUES'}
+                  {hasUnpaidCredit ? t('customers.creditDueBadge') : t('customers.noDues')}
                 </span>
               </div>
-              <p className="text-sm opacity-80 font-medium">Outstanding Credit Balance</p>
+              <p className="text-sm opacity-80 font-medium">{t('customers.outstandingCreditBalance')}</p>
               <h4 className="text-3xl font-extrabold mt-1">{formatINR(totalCreditBalance)}</h4>
               <div className="mt-6 w-full bg-white/20 h-2 rounded-full overflow-hidden">
                 <div
@@ -298,8 +300,8 @@ export const CustomerDetailPage = () => {
                 />
               </div>
               <div className="flex justify-between mt-3 text-xs font-medium">
-                <span>Credit Taken: {formatINR(totalCreditBalance)}</span>
-                <span>Limit: {formatINR(customer.creditLimit || 10000)}</span>
+                <span>{t('customers.creditTaken')} {formatINR(totalCreditBalance)}</span>
+                <span>{t('customers.limitLabel')} {formatINR(customer.creditLimit || 10000)}</span>
               </div>
             </div>
           </Card>
@@ -311,14 +313,14 @@ export const CustomerDetailPage = () => {
           <Card className="overflow-hidden">
             <div className="px-6 py-4 sm:px-8 sm:py-6 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Recent Purchases</h3>
-                <p className="text-xs text-gray-400">All transactions & payment statuses for this customer</p>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t('customers.recentPurchases')}</h3>
+                <p className="text-xs text-gray-400">{t('customers.allTransactionsDesc')}</p>
               </div>
               <button
                 onClick={() => navigate(ROUTES.SALES)}
                 className="text-sm font-semibold text-blue-600 hover:underline"
               >
-                View All
+                {t('common.viewAll')}
               </button>
             </div>
             {customerSales.length > 0 ? (
@@ -326,11 +328,11 @@ export const CustomerDetailPage = () => {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800">
                     <tr className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      <th className="px-6 py-4">Invoice #</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4 text-right">Amount</th>
-                      <th className="px-6 py-4 text-center">Payment Method</th>
-                      <th className="px-6 py-4 text-center">Credit Status</th>
+                      <th className="px-6 py-4">{t('customers.invoiceNumHeader')}</th>
+                      <th className="px-6 py-4">{t('common.date')}</th>
+                      <th className="px-6 py-4 text-right">{t('customers.amountHeader')}</th>
+                      <th className="px-6 py-4 text-center">{t('pos.paymentMethod')}</th>
+                      <th className="px-6 py-4 text-center">{t('customers.creditStatusHeader')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -366,12 +368,12 @@ export const CustomerDetailPage = () => {
                           <td className="px-6 py-4 text-center">
                             {isCreditSale ? (
                               isUnpaid ? (
-                                <Badge variant="danger" className="font-extrabold text-[10px] uppercase">UNPAID CREDIT</Badge>
+                                <Badge variant="danger" className="font-extrabold text-[10px] uppercase">{t('customers.unpaidCredit')}</Badge>
                               ) : (
-                                <Badge variant="success" className="font-extrabold text-[10px] uppercase">CREDIT PAID</Badge>
+                                <Badge variant="success" className="font-extrabold text-[10px] uppercase">{t('customers.creditPaid')}</Badge>
                               )
                             ) : (
-                              <Badge variant="success" className="font-extrabold text-[10px] uppercase">PAID</Badge>
+                              <Badge variant="success" className="font-extrabold text-[10px] uppercase">{t('dashboard.paid')}</Badge>
                             )}
                           </td>
                         </tr>
@@ -383,7 +385,7 @@ export const CustomerDetailPage = () => {
             ) : (
               <div className="px-8 py-12 text-center text-gray-400">
                 <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No purchases recorded yet</p>
+                <p className="text-sm">{t('customers.noPurchasesYet')}</p>
               </div>
             )}
           </Card>
@@ -391,10 +393,10 @@ export const CustomerDetailPage = () => {
           {/* Credit History */}
           <Card className="overflow-hidden">
             <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Credit Transactions Ledger</h3>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t('customers.creditLedgerTitle')}</h3>
               {hasUnpaidCredit && (
                 <Button size="sm" onClick={handleOpenPaymentModal} className="bg-blue-600 hover:bg-blue-700 text-xs font-bold">
-                  Settle Credit
+                  {t('customers.settleCredit')}
                 </Button>
               )}
             </div>
@@ -419,10 +421,10 @@ export const CustomerDetailPage = () => {
                     </div>
                     <div>
                       <p className="font-bold text-sm text-gray-900 dark:text-gray-100">
-                        {tx.type === 'payment' ? 'Credit Payment Received' : 'Credit Purchase'}
+                        {tx.type === 'payment' ? t('customers.creditPaymentReceived') : t('customers.creditPurchase')}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {tx.notes || `Transaction #${tx.id?.slice(0, 8)}`}
+                        {tx.notes || `${t('customers.transactionPrefix')}${tx.id?.slice(0, 8)}`}
                       </p>
                     </div>
                   </div>
@@ -445,7 +447,7 @@ export const CustomerDetailPage = () => {
               )) : (
                 <div className="text-center py-8 text-gray-400">
                   <CreditCard size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No credit transactions ledger found</p>
+                  <p className="text-sm">{t('customers.noCreditLedger')}</p>
                 </div>
               )}
             </div>
@@ -460,7 +462,7 @@ export const CustomerDetailPage = () => {
             <TrendingUp size={24} />
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Avg. Order Value</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{t('customers.avgOrderValue')}</p>
             <h5 className="text-xl font-bold text-gray-900 dark:text-gray-100">{formatINR(avgOrderValue)}</h5>
           </div>
         </Card>
@@ -469,7 +471,7 @@ export const CustomerDetailPage = () => {
             <Wallet size={24} />
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Total Orders</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{t('customers.totalOrders')}</p>
             <h5 className="text-xl font-bold text-gray-900 dark:text-gray-100">{customerSales.length}</h5>
           </div>
         </Card>
@@ -478,8 +480,8 @@ export const CustomerDetailPage = () => {
             <Calendar size={24} />
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Account Age</p>
-            <h5 className="text-xl font-bold text-gray-900 dark:text-gray-100">{accountAge} Years</h5>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{t('customers.accountAge')}</p>
+            <h5 className="text-xl font-bold text-gray-900 dark:text-gray-100">{accountAge} {t('customers.yearsSuffix')}</h5>
           </div>
         </Card>
       </div>
@@ -488,7 +490,7 @@ export const CustomerDetailPage = () => {
       <Modal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
-        title={`Record Payment for ${customer.name}`}
+        title={`${t('customers.recordPaymentForPrefix')} ${customer.name}`}
         size="md"
         footer={
           <div className="flex gap-3 w-full">
@@ -497,31 +499,31 @@ export const CustomerDetailPage = () => {
               onClick={() => setIsPaymentOpen(false)}
               className="flex-1"
             >
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               onClick={handleRecordPaymentSubmit}
               loading={isRecordingPayment}
               className="flex-1 bg-[#0a0a2e] hover:bg-[#1a1555] text-white font-bold"
             >
-              Confirm Payment
+              {t('customers.confirmPayment')}
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Current Outstanding Credit</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{t('customers.currentOutstandingCredit')}</p>
             <p className="text-2xl font-extrabold text-blue-900 dark:text-blue-100">{formatINR(totalCreditBalance)}</p>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-              Payment Amount (₹)
+              {t('customers.paymentAmountLabel')}
             </label>
             <Input
               type="number"
-              placeholder="Enter amount paid by customer"
+              placeholder={t('customers.enterAmountPaidPlaceholder')}
               value={paymentAmount}
               onChange={e => setPaymentAmount(e.target.value)}
               className="h-11 text-lg font-bold"
@@ -530,11 +532,11 @@ export const CustomerDetailPage = () => {
 
           <div>
             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-              Payment Notes / Reference (Optional)
+              {t('customers.paymentNotesLabel')}
             </label>
             <Input
               type="text"
-              placeholder="e.g. Cash payment, GPay / PhonePe reference"
+              placeholder={t('customers.paymentNotesPlaceholder')}
               value={paymentNotes}
               onChange={e => setPaymentNotes(e.target.value)}
               className="h-10"
