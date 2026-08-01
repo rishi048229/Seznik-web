@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
 import { FieldInfo } from '@/components/ui/FieldInfo'
+import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -220,7 +221,10 @@ export const PrintersPage = () => {
       updateSettingsMutation(
         { settingsId: settings.id, data: fullPayload },
         {
-          onSuccess: () => toast.success('Printer settings saved!'),
+          onSuccess: () => {
+            trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
+            toast.success('Printer settings saved!')
+          },
           onError: (err) => {
             console.error('Save printer config error:', err)
             toast.error('Failed to save printer settings')
@@ -229,7 +233,10 @@ export const PrintersPage = () => {
       )
     } else {
       createSettingsMutation(fullPayload as Omit<UserSettings, 'id'>, {
-        onSuccess: () => toast.success('Printer settings saved!'),
+        onSuccess: () => {
+          trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
+          toast.success('Printer settings saved!')
+        },
         onError: (err) => {
           console.error('Create settings error:', err)
           toast.error('Failed to save printer settings')
@@ -363,6 +370,7 @@ export const PrintersPage = () => {
   // printer can't render an A4 invoice, and each tab's bytes are shaped
   // specifically for that output, so cross-firing them would print garbage.
   const handleTestPrint = async () => {
+    trackUserAction('feature_test_print', { tab: activeTab, mode: config.labelPrinterMode })
     if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
       try {
         if (activeTab === 'receipt') {

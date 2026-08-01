@@ -27,6 +27,7 @@ import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate, resolveElementText, type LabelData } from '@/utils/labelPrint'
 import { drawBarcodeToCanvas, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
+import { trackUserAction } from '@/utils/analytics'
 
 
 type UnitType = 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
@@ -318,6 +319,7 @@ export const ProductsPage = () => {
       for (let i = 0; i < labelQty; i++) {
         await sendBleData(singleBytes)
       }
+      trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'ble' })
       toast.success(`${labelQty} label(s) sent to ${bleDeviceName || 'Seznik Dev Printer'}!`)
     } catch (err) {
       console.error('BLE Print error:', err)
@@ -328,6 +330,7 @@ export const ProductsPage = () => {
 
   const handleBrowserPrintLabels = () => {
     if (!labelProduct) return
+    trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'browser' })
     const printWin = window.open('', '_blank')
     if (!printWin) {
       toast.error('Please allow popups to print labels')

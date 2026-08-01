@@ -25,6 +25,7 @@ import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
@@ -242,6 +243,7 @@ export const POSPage = () => {
 
     createSale(saleData, {
       onSuccess: (result) => {
+        trackUserAction('pos_checkout_completed', { grandTotal: finalTotal, itemCount: items.length, paymentMethod: method })
         const saleId = result.id
         const invoiceNumber = result.invoiceNumber
         setLastSaleData({

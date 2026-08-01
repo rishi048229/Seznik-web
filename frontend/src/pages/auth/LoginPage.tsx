@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
 import { validatePassword } from '@/utils/password'
+import { trackUserAction } from '@/utils/analytics'
 
 type EmailVerifyStep = 'idle' | 'sending' | 'sent' | 'verifying' | 'verified'
 type ForgotStep = 'email' | 'otp' | 'new_password' | 'success'
@@ -121,8 +122,10 @@ export const LoginPage = () => {
     try {
       if (isRegistering) {
         await registerWithEmail(email.trim(), password, firstName, lastName, phone.trim())
+        trackUserAction('user_register_success', { email: email.trim() })
       } else {
         await loginWithEmail(email, password)
+        trackUserAction('user_login_success', { email: email.trim() })
       }
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err: unknown) {
