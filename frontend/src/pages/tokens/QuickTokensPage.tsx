@@ -9,14 +9,15 @@ import { FieldInfo } from '@/components/ui/FieldInfo'
 import { useTokenTypes, useCreateTokenType, useUpdateTokenType, useDeleteTokenType } from '@/hooks/useTokenTypes'
 import { useTokens, useIssueToken, useDeleteToken } from '@/hooks/useTokens'
 import { useSettings } from '@/hooks/useSettings'
-import { generateReceiptHTML, printReceipt } from '@/utils/receipt'
+import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { clsx } from 'clsx'
 import {
   Ticket, Coffee, UtensilsCrossed, Cookie, ParkingCircle, QrCode, Bike, Wallet,
   Plus, Pencil, Trash2, Settings2, Printer, X, Minus, ChevronLeft, ChevronRight,
-  Search, Download, ArrowUp, ArrowDown, Receipt as ReceiptIcon, TrendingUp, Award,
+  Search, Download, ArrowUp, ArrowDown, Receipt as ReceiptIcon, TrendingUp, Award, Bluetooth,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
@@ -169,16 +170,23 @@ export const QuickTokensPage = () => {
   const [issueAmount, setIssueAmount] = useState('')
   const [issuePayment, setIssuePayment] = useState<'cash' | 'upi' | 'card'>('cash')
 
+  const blePrinter = useBlePrinter()
+  const [isBlePrinting, setIsBlePrinting] = useState(false)
+  const [printMode, setPrintMode] = useState<'bluetooth' | 'browser'>(
+    settings?.printerConfig?.connectionType === 'bluetooth' ? 'bluetooth' : 'browser'
+  )
+
   const openIssue = (tt: TokenType) => {
     setIssuingType(tt)
     setIssueQty(1)
     setIssueAmount(tt.price !== null ? String(tt.price) : '')
     setIssuePayment('cash')
+    setPrintMode(settings?.printerConfig?.connectionType === 'bluetooth' ? 'bluetooth' : 'browser')
   }
 
   const closeIssue = () => setIssuingType(null)
 
-  const printToken = (token: Token) => {
+  const printTokenBrowser = (token: Token) => {
     if (!token.sale) return
     const receiptConfig = settings?.receiptConfig
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
@@ -195,6 +203,44 @@ export const QuickTokensPage = () => {
       settingsTaxName: 'GST',
     })
     printReceipt(receiptHTML, width, `Token #${token.tokenNumber}`)
+  }
+
+  const printTokenBluetooth = async (token: Token) => {
+    if (!token.sale) return
+    setIsBlePrinting(true)
+    try {
+      if (blePrinter.status !== 'connected') {
+        await blePrinter.connect()
+      }
+      const receiptConfig = settings?.receiptConfig
+      const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
+      const bytes = generateReceiptEscPos({
+        sale: token.sale as Sale,
+        receiptConfig,
+        paperSize: settings?.printerConfig?.paperSize || '58mm',
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        customerName: `Token #${token.tokenNumber} · ${label}`,
+      })
+      await blePrinter.print(bytes)
+      toast.success(`Token #${token.tokenNumber} printed via Bluetooth!`)
+    } catch (err) {
+      console.error('BLE Print error:', err)
+      toast.error((err as Error).message || 'Failed to print via Bluetooth. Falling back to browser print...')
+      printTokenBrowser(token)
+    } finally {
+      setIsBlePrinting(false)
+    }
+  }
+
+  const printToken = (token: Token, mode?: 'bluetooth' | 'browser') => {
+    if (!token.sale) return
+    const targetMode = mode || printMode
+    if (targetMode === 'bluetooth') {
+      printTokenBluetooth(token)
+    } else {
+      printTokenBrowser(token)
+    }
   }
 
   const handleIssue = () => {
@@ -214,7 +260,7 @@ export const QuickTokensPage = () => {
       {
         onSuccess: (token) => {
           toast.success(`Token #${token.tokenNumber} issued`)
-          printToken(token)
+          printToken(token, printMode)
           closeIssue()
         },
         onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to issue token'),
@@ -402,13 +448,22 @@ export const QuickTokensPage = () => {
                     <span className="text-sm font-semibold text-emerald-600">
                       {formatINR(token.sale?.grandTotal ?? 0)}
                     </span>
-                    <button
-                      onClick={() => printToken(token)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      title={t('token.reprint')}
-                    >
-                      <Printer size={15} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => printToken(token, 'bluetooth')}
+                        className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-1 text-xs font-semibold"
+                        title="Print via Bluetooth Printer"
+                      >
+                        <Bluetooth size={15} />
+                      </button>
+                      <button
+                        onClick={() => printToken(token, 'browser')}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        title="Print via System Browser"
+                      >
+                        <Printer size={15} />
+                      </button>
+                    </div>
                     <button
                       onClick={() => handleCancelToken(token)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -483,14 +538,54 @@ export const QuickTokensPage = () => {
                 ))}
               </div>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Print Destination
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPrintMode('bluetooth')}
+                  className={clsx(
+                    'flex-1 py-2 px-2.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors',
+                    printMode === 'bluetooth'
+                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  )}
+                >
+                  <Bluetooth size={14} />
+                  Bluetooth Printer
+                  {blePrinter.status === 'connected' && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintMode('browser')}
+                  className={clsx(
+                    'flex-1 py-2 px-2.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors',
+                    printMode === 'browser'
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  )}
+                >
+                  <Printer size={14} />
+                  System Printer
+                </button>
+              </div>
+            </div>
+
             <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
               <span className="text-sm text-gray-500">{t('daybook.net')}</span>
               <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
                 {formatINR((parseFloat(issueAmount) || 0) * issueQty)}
               </span>
             </div>
-            <Button className="w-full" leftIcon={<Printer size={16} />} loading={isIssuing} onClick={handleIssue}>
-              {t('token.issueAndPrint')}
+            <Button
+              className="w-full"
+              leftIcon={printMode === 'bluetooth' ? <Bluetooth size={16} /> : <Printer size={16} />}
+              loading={isIssuing || isBlePrinting}
+              onClick={handleIssue}
+            >
+              {printMode === 'bluetooth' ? 'Issue & Print (Bluetooth)' : t('token.issueAndPrint')}
             </Button>
           </div>
         )}
