@@ -270,9 +270,10 @@ export function generateLabelTspl(
     const text = resolveElementText(el, safeData)
     if (!text) continue
 
-    // Shift price element down slightly towards bottom of sticker
+    // Shift price element down towards the bottom of the sticker, with a
+    // clear gap from whatever's above it (usually the barcode).
     if (el.type === 'price') {
-      y += 8
+      y += 20
     }
 
     const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
