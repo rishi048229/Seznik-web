@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
+import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { useTokenTypes, useCreateTokenType, useUpdateTokenType, useDeleteTokenType } from '@/hooks/useTokenTypes'
 import { useTokens, useIssueToken, useDeleteToken } from '@/hooks/useTokens'
@@ -419,7 +420,7 @@ export const QuickTokensPage = () => {
       <Card className="p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('token.todaysTokens')}</h3>
         {tokensLoading ? (
-          <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+          <TableSkeleton rows={5} columns={4} />
         ) : visibleTokens.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Ticket size={48} className="mx-auto mb-3 opacity-30" />

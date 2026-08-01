@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
+import { TablePageSkeleton } from '@/components/ui/PageSkeleton'
 import { useCreditTransactions } from '@/hooks/useCredits'
 import { useSales } from '@/hooks/useSales'
 import { useExpenses } from '@/hooks/useExpenses'
@@ -362,7 +363,7 @@ export const DaybookPage = () => {
       {/* Entries */}
       <Card className="p-4">
         {isLoading ? (
-          <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+          <TablePageSkeleton cards={4} rows={6} columns={5} showCards={false} />
         ) : visibleEntries.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <BookOpen size={48} className="mx-auto mb-3 opacity-30" />

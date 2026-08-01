@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
 import { FieldInfo } from '@/components/ui/FieldInfo'
+import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
@@ -523,11 +524,7 @@ export const PrintersPage = () => {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <SettingsPageSkeleton />
   }
 
   return (

@@ -12,6 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 
 import { LANGUAGES } from '@/i18n/translations'
 import { Spinner } from '@/components/ui/Spinner'
+import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
 import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
@@ -204,7 +205,7 @@ export const SettingsPage = () => {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <SettingsPageSkeleton />
       ) : (
         <>
           {!hasSettings && (

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
+import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { Badge } from '@/components/ui/Badge'
 import { useCredits, useCreditTransactions } from '@/hooks/useCredits'
 import { useRecordPayment } from '@/hooks/useCustomers'
@@ -121,7 +122,7 @@ export const CreditsPage = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Outstanding Balances</h3>
 
               {customersLoading ? (
-                <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                <TableSkeleton rows={4} columns={3} />
               ) : customersWithBalance.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <CreditCard size={48} className="mx-auto mb-3 opacity-30" />
@@ -214,7 +215,7 @@ export const CreditsPage = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Transactions</h3>
 
               {txLoading ? (
-                <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                <TableSkeleton rows={4} columns={3} />
               ) : (transactions ?? []).length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <Receipt size={48} className="mx-auto mb-3 opacity-30" />

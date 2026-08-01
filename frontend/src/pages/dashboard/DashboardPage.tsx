@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
+import { DashboardSkeleton } from '@/components/ui/PageSkeleton'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -181,11 +182,7 @@ export const DashboardPage = () => {
   }, [sales])
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   const lowStockProducts = products?.filter(p => p.currentStock <= p.lowStockThreshold).slice(0, 5) ?? []

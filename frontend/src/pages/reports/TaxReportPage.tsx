@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
+import { TablePageSkeleton } from '@/components/ui/PageSkeleton'
 import { useTaxReport } from '@/hooks/useReports'
 import { Download, Receipt, Share2 } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
@@ -48,7 +49,7 @@ export const TaxReportPage = () => {
       <div>
         <PageHeader title="Tax Report" breadcrumb={['Reports', 'Tax']} />
         <ReportTabs />
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <TablePageSkeleton cards={3} rows={6} columns={4} />
       </div>
     )
   }

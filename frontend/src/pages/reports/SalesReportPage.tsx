@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
+import { TablePageSkeleton } from '@/components/ui/PageSkeleton'
 import { useSalesReport } from '@/hooks/useReports'
 import { Download, Share2 } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
@@ -114,7 +115,7 @@ export const SalesReportPage = () => {
       </Card>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <TablePageSkeleton cards={3} rows={6} columns={4} />
       ) : (
         <>
           {/* Summary Cards */}

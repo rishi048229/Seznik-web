@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
+import { TablePageSkeleton } from '@/components/ui/PageSkeleton'
 import { usePLReport } from '@/hooks/useReports'
 import { Download, TrendingUp, TrendingDown, Share2 } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
@@ -51,7 +52,7 @@ export const ProfitLossPage = () => {
       <div>
         <PageHeader title="Profit & Loss" breadcrumb={['Reports', 'P&L']} />
         <ReportTabs />
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <TablePageSkeleton cards={4} rows={6} columns={4} />
       </div>
     )
   }

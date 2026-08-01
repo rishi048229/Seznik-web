@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
@@ -376,9 +377,7 @@ export const POSPage = () => {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-    )
+    return <POSPageSkeleton />
   }
 
   return (
