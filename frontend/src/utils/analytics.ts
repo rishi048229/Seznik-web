@@ -1,12 +1,13 @@
 declare global {
   interface Window {
     dataLayer?: Record<string, any>[]
+    gtag?: (...args: any[]) => void
     clarity?: (...args: any[]) => void
   }
 }
 
 /**
- * Pushes a custom event to Google Tag Manager dataLayer
+ * Pushes a custom event to Google Tag Manager dataLayer and GA4
  */
 export function trackGtmEvent(eventName: string, params: Record<string, any> = {}) {
   if (typeof window !== 'undefined') {
@@ -16,6 +17,10 @@ export function trackGtmEvent(eventName: string, params: Record<string, any> = {
       timestamp: new Date().toISOString(),
       ...params,
     })
+
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', eventName, params)
+    }
   }
 }
 
@@ -32,7 +37,7 @@ export function setClarityUser(userId: string, customProperties: Record<string, 
 }
 
 /**
- * Sends a custom action/event to both GTM dataLayer and Microsoft Clarity
+ * Sends a custom action/event to GTM dataLayer, GA4, and Microsoft Clarity
  */
 export function trackUserAction(actionName: string, details: Record<string, any> = {}) {
   trackGtmEvent(actionName, details)
