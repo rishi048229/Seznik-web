@@ -157,6 +157,7 @@ model Product {
   costPrice         Float    @default(0)
   sellingPrice      Float    @default(0)
   taxRate           Float    @default(0)
+  priceIncludesGst  Boolean  @default(false)
   currentStock      Float    @default(0)
   lowStockThreshold Float    @default(0)
   unit              String   @default("piece")
