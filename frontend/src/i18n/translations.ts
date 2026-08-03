@@ -303,6 +303,16 @@ const en = {
   'credits.creditAdded': 'Credit added',
   'credits.noCreditTransactionsYet': 'No credit transactions yet',
 
+  // Category Field Info Tooltips
+  'tip.category.name': 'Unique name for grouping products (e.g., Electronics, Beverages, Shirts).',
+  'tip.category.parent': 'Select a parent category if this is a subcategory under an existing category.',
+  'tip.category.quickAdd': 'Quickly create a top-level category without opening the modal.',
+  'tip.category.overview': 'Real-time overview of your product distribution across categories.',
+  'tip.category.distribution': 'Percentage breakdown of products assigned to each category.',
+  'tip.category.products': 'Total active products currently assigned to this category.',
+  'tip.category.status': 'Active categories appear in POS billing and product creation forms.',
+  'tip.category.actions': 'Edit category details, create subcategories, or delete empty categories.',
+
   // Customers
   'customers.addCustomer': 'Add Customer',
   'customers.searchPlaceholder': 'Search customers…',
@@ -322,9 +332,6 @@ const en = {
   'tip.product.currentStock': 'How many units you have on hand right now. Sales reduce it automatically; purchases and stock scans increase it.',
   'tip.product.lowStockThreshold': 'When stock falls to this number or below, the product appears in Low Stock alerts so you know to reorder.',
   'tip.product.unit': 'How this product is measured and sold — per piece, by weight, volume, length, dozen, or box.',
-
-  'tip.category.name': "The category name shown in POS filters, the Products page, and reports. Keep it short, e.g. 'Shirts'.",
-  'tip.category.parent': "Optional — pick an existing category to make this a subcategory (e.g. 'Checks' under 'Shirts'). Leave as None for top-level.",
 
   'tip.supplier.name': 'The vendor or company you purchase stock from. Shown when recording purchases and on purchase history.',
   'tip.supplier.phone': "A contact number for this supplier — used to reach them about orders or deliveries.",
@@ -807,8 +814,8 @@ const hi: Partial<Record<TranslationKey, string>> = {
   'image.exceedsLimitMsg': 'केवल 5MB तक की छवियां ही अपलोड की जा सकती हैं। कृपया 5MB से छोटी छवि अपलोड करें।',
   'image.changePhoto': 'छवि बदलें',
   'image.deletePhoto': 'छवि हटाएं',
-  'nav.pos': 'पीओएस',
-  'nav.posLite': 'पीओएस लाइट',
+  'nav.pos': 'Scan To Bill',
+  'nav.posLite': 'Quick Bill',
   'nav.products': 'उत्पाद',
   'nav.categories': 'श्रेणियाँ',
   'nav.customers': 'ग्राहक',

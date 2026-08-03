@@ -239,10 +239,22 @@ export const CategoriesPage = () => {
             {/* Table Header */}
             <div className="hidden sm:flex items-center px-4 py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400 bg-gray-50 dark:bg-gray-800 gap-3">
               <div className="w-14 flex-shrink-0" />
-              <div className="flex-1 min-w-0">Category Name</div>
-              <div className="w-20 text-center flex-shrink-0">Products</div>
-              <div className="w-28 flex-shrink-0">Status</div>
-              <div className="w-24 text-right flex-shrink-0">Actions</div>
+              <div className="flex-1 min-w-0 flex items-center">
+                Category Name
+                <FieldInfo textKey="tip.category.name" />
+              </div>
+              <div className="w-20 text-center flex-shrink-0 flex items-center justify-center">
+                Products
+                <FieldInfo textKey="tip.category.products" />
+              </div>
+              <div className="w-28 flex-shrink-0 flex items-center">
+                Status
+                <FieldInfo textKey="tip.category.status" />
+              </div>
+              <div className="w-24 text-right flex-shrink-0 flex items-center justify-end">
+                Actions
+                <FieldInfo textKey="tip.category.actions" />
+              </div>
             </div>
 
             {isLoading ? (
@@ -421,7 +433,10 @@ export const CategoriesPage = () => {
           {/* Category Overview */}
           <Card className="p-6 bg-gradient-to-br from-blue-600 to-sky-400 text-white overflow-hidden relative">
             <div className="relative z-10">
-              <h3 className="font-bold text-lg mb-4">Category Overview</h3>
+              <h3 className="font-bold text-lg mb-4 flex items-center">
+                Category Overview
+                <FieldInfo textKey="tip.category.overview" />
+              </h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-white/70 text-sm">Most Products</span>
@@ -452,8 +467,9 @@ export const CategoriesPage = () => {
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Quick Add</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
+                <label className="flex items-center text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                   Category Name
+                  <FieldInfo textKey="tip.category.quickAdd" />
                 </label>
                 <Input
                   value={quickAddName}
@@ -478,7 +494,10 @@ export const CategoriesPage = () => {
 
           {/* Category Distribution */}
           <Card className="p-6">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-4">Category Distribution</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-4 flex items-center">
+              Category Distribution
+              <FieldInfo textKey="tip.category.distribution" />
+            </h3>
             <div className="space-y-4">
               {categoryDistribution.slice(0, 5).map(cat => (
                 <div key={cat.id}>

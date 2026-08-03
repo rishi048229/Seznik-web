@@ -1,7 +1,7 @@
 import { Mail, Phone, MessageCircle, ShieldCheck, Headphones, MapPin } from 'lucide-react'
 
 export const Footer = () => {
-  const seznikEmail = 'support@seznik.com'
+  const seznikEmail = 'tech_support@seznik.in'
   const seznikPhone = '+91 8237869618'
   const seznikAddress = 'Office No 201, Connaught Place, Pune - 411001'
   const seznikWhatsappUrl = 'https://wa.me/8237869618?text=Hello,%20I%20have%20questions%20regarding%20Seznik%20Billing%20App'

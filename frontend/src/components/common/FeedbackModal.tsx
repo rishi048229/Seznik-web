@@ -69,7 +69,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Help Us Be Better"
+      title="Review and suggest"
       size="md"
       footer={
         <div className="flex justify-end gap-3">

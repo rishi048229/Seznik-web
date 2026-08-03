@@ -783,7 +783,7 @@ export const ProductsPage = () => {
                                 </div>
                                 <div>
                                   <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                                    <AutoTranslatedText text={product.name} />
+                                    {product.name}
                                   </p>
                                   <p className="text-[11px] text-gray-400">{product.unit}</p>
                                 </div>
@@ -911,7 +911,7 @@ export const ProductsPage = () => {
                         </div>
                         <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">{product.sku}</p>
                         <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">
-                          <AutoTranslatedText text={product.name} />
+                          {product.name}
                         </p>
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
