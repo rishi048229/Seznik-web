@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
+import { ProductDetailModal } from './components/ProductDetailModal'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
@@ -27,7 +28,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate, resolveElementText, type LabelData } from '@/utils/labelPrint'
-import { drawBarcodeToCanvas, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
+import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
 
 
@@ -142,12 +143,23 @@ export const ProductsPage = () => {
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
   const [labelQty, setLabelQty] = useState<number>(1)
   const [labelFormat, setLabelFormat] = useState<'CODE128' | 'EAN13' | 'QR'>('CODE128')
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  const openDetail = (product: Product) => {
+    setDetailProduct(product)
+    setIsDetailOpen(true)
+  }
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (isLabelModalOpen && labelProduct && canvasRef.current) {
       const payload = labelProduct.barcode || labelProduct.sku || '000000'
-      drawBarcodeToCanvas(canvasRef.current, payload, labelFormat, { width: 240, height: 75, showText: true })
+      if (labelFormat === 'QR') {
+        drawQrCodeToCanvas(canvasRef.current, payload, 160)
+      } else {
+        drawBarcodeToCanvas(canvasRef.current, payload, { height: 75 })
+      }
     }
   }, [isLabelModalOpen, labelProduct, labelFormat])
 
@@ -762,8 +774,12 @@ export const ProductsPage = () => {
                         const isLowStock = product.currentStock > 0 && product.currentStock <= product.lowStockThreshold
                         const isOutOfStock = product.currentStock <= 0
                         return (
-                          <tr key={product.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}>
-                            <td className="px-4 py-4 w-10">
+                          <tr
+                            key={product.id}
+                            onClick={() => openDetail(product)}
+                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-gray-800/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                          >
+                            <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                                 {selectedIds.has(product.id)
                                   ? <CheckSquare size={16} className="text-blue-600" />
@@ -823,17 +839,17 @@ export const ProductsPage = () => {
                             <td className="px-6 py-4">
                               <span className="text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
                             </td>
-                            <td className="px-6 py-4 text-right">
+                            <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
                                 <button
-                                  onClick={() => handlePrintLabel(product)}
+                                  onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
                                   title="Print label"
                                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                                 >
                                   <Tag size={16} className="text-gray-400" />
                                 </button>
                                 <button
-                                  onClick={() => openEdit(product)}
+                                  onClick={(e) => { e.stopPropagation(); openEdit(product) }}
                                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                                 >
                                   <MoreHorizontal size={18} className="text-gray-400" />
@@ -890,7 +906,7 @@ export const ProductsPage = () => {
               <div className="p-3 sm:p-6">
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                   {paginated.map(product => (
-                    <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openEdit(product)}>
+                    <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openDetail(product)}>
                       <div>
                         <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
                           {product.imageURL ? (
@@ -1595,6 +1611,25 @@ export const ProductsPage = () => {
           </div>
         )}
       </Modal>
+
+      {/* Comprehensive Product Details Drawer / Modal */}
+      <ProductDetailModal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        product={detailProduct}
+        categoryName={detailProduct ? getCategoryName(detailProduct.categoryId) : undefined}
+        supplierName={detailProduct ? (suppliers?.find(s => s.id === detailProduct.supplierId)?.name || 'None') : undefined}
+        onEdit={openEdit}
+        onDelete={(p) => {
+          if (confirm(`Delete product "${p.name}"?`)) {
+            bulkDeleteProducts([p.id], {
+              onSuccess: () => toast.success('Product deleted'),
+              onError: () => toast.error('Failed to delete product'),
+            })
+          }
+        }}
+        onPrintLabel={handlePrintLabel}
+      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal

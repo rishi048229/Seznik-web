@@ -13,6 +13,7 @@ export interface Product {
   costPrice: number
   sellingPrice: number
   taxRate: number
+  priceIncludesGst?: boolean
   currentStock: number
   lowStockThreshold: number
   unit: 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
