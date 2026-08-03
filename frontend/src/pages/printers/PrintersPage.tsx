@@ -631,9 +631,9 @@ export const PrintersPage = () => {
       {/* Main Tabs Navigation Header */}
       <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
         {([
-          { key: 'receipt', label: 'Receipt', icon: FileText, isLocked: false },
-          { key: 'label', label: 'Labels', icon: Tag, isLocked: true },
-          { key: 'invoice', label: 'A4 Invoice', icon: Layers, isLocked: false },
+          { key: 'receipt', label: 'Receipt', icon: FileText },
+          { key: 'label', label: 'Labels', icon: Tag },
+          { key: 'invoice', label: 'A4 Invoice', icon: Layers },
         ] as const).map(t => (
           <button
             key={t.key}
@@ -646,11 +646,6 @@ export const PrintersPage = () => {
           >
             <t.icon size={16} />
             {t.label}
-            {t.isLocked && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-extrabold flex items-center gap-0.5">
-                <Lock size={10} /> Soon
-              </span>
-            )}
           </button>
         ))}
       </div>
