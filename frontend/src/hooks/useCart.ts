@@ -28,6 +28,7 @@ export const useCart = () => {
         quantity: 1,
         sellingPrice: product.sellingPrice,
         taxRate: product.taxRate ?? 0,
+        priceIncludesGst: product.priceIncludesGst ?? false,
         discount: 0,
       }]
     })
@@ -62,14 +63,23 @@ export const useCart = () => {
   }, [])
 
   const totals = useMemo(() => {
-    const subtotal = items.reduce(
-      (s, i) => s + (i.sellingPrice * i.quantity) - i.discount,
-      0
-    )
-    const tax = items.reduce(
-      (s, i) => s + ((i.sellingPrice * i.quantity - i.discount) * (i.taxRate || 0) / 100),
-      0
-    )
+    const subtotal = items.reduce((s, i) => {
+      const lineTotal = (i.sellingPrice * i.quantity) - i.discount
+      if (i.priceIncludesGst && i.taxRate > 0) {
+        return s + (lineTotal / (1 + i.taxRate / 100))
+      }
+      return s + lineTotal
+    }, 0)
+
+    const tax = items.reduce((s, i) => {
+      const lineTotal = (i.sellingPrice * i.quantity) - i.discount
+      if (i.priceIncludesGst && i.taxRate > 0) {
+        const baseAmt = lineTotal / (1 + i.taxRate / 100)
+        return s + (lineTotal - baseAmt)
+      }
+      return s + (lineTotal * (i.taxRate || 0) / 100)
+    }, 0)
+
     return {
       subtotal,
       tax,

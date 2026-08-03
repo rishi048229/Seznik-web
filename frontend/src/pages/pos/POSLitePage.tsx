@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateSale } from '@/hooks/useSales'
 
@@ -31,6 +31,7 @@ interface CartItem {
   sellingPrice: number
   discount: number
   taxRate: number
+  priceIncludesGst?: boolean
   total: number
 }
 
@@ -48,7 +49,25 @@ export const POSLitePage = () => {
   const [scanInput, setScanInput] = useState('')
 
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
-  const [items, setItems] = useState<CartItem[]>([])
+
+  // Persist Quick Bill cart state in localStorage so navigating away preserves cart items
+  const [items, setItems] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('pos_lite_cart')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pos_lite_cart', JSON.stringify(items))
+    } catch (e) {
+      console.error('Failed to persist POS Lite cart', e)
+    }
+  }, [items])
+
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
@@ -102,6 +121,7 @@ export const POSLitePage = () => {
         sellingPrice: product.sellingPrice,
         discount: 0,
         taxRate: product.taxRate,
+        priceIncludesGst: product.priceIncludesGst ?? false,
         total: product.sellingPrice,
       }])
     }
@@ -152,19 +172,15 @@ export const POSLitePage = () => {
       return
     }
 
-    // If GST inclusive, back-calculate the base price: basePrice = price / (1 + rate/100)
-    const basePrice = gstMode === 'inclusive' && taxRate > 0
-      ? price / (1 + taxRate / 100)
-      : price
-
     const newItem: CartItem = {
       id: `temp-${Date.now()}-${Math.random()}`,
       productName: productName.trim(),
       quantity: qty,
-      sellingPrice: basePrice,
+      sellingPrice: price,
       discount: 0,
       taxRate,
-      total: basePrice * qty,
+      priceIncludesGst: gstMode === 'inclusive',
+      total: price * qty,
     }
 
     setItems(prev => [...prev, newItem])
@@ -193,19 +209,32 @@ export const POSLitePage = () => {
 
   const clearCart = () => {
     setItems([])
+    localStorage.removeItem('pos_lite_cart')
     setOrderDiscount(0)
     setSelectedCustomer('')
   }
 
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0)
+  const subtotal = items.reduce((sum, item) => {
+    const lineTotal = item.sellingPrice * item.quantity - item.discount
+    if (item.priceIncludesGst && item.taxRate > 0) {
+      return sum + (lineTotal / (1 + item.taxRate / 100))
+    }
+    return sum + lineTotal
+  }, 0)
+
+  const taxAmount = items.reduce((sum, item) => {
+    const lineTotal = item.sellingPrice * item.quantity - item.discount
+    if (item.priceIncludesGst && item.taxRate > 0) {
+      const baseAmt = lineTotal / (1 + item.taxRate / 100)
+      return sum + (lineTotal - baseAmt)
+    }
+    return sum + (lineTotal * (item.taxRate || 0) / 100)
+  }, 0)
+
   const orderDiscountAmount = orderDiscountType === 'flat'
     ? orderDiscount
     : subtotal * (orderDiscount / 100)
 
-  const taxAmount = items.reduce(
-    (sum, item) => sum + ((item.sellingPrice * item.quantity - item.discount) * (item.taxRate || 0) / 100),
-    0
-  )
   const finalTotal = subtotal + taxAmount - orderDiscountAmount
 
   const amountPaidNum = parseFloat(amountPaid) || 0

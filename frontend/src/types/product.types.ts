@@ -37,5 +37,6 @@ export interface CartItem {
   quantity: number
   sellingPrice: number
   taxRate: number
+  priceIncludesGst?: boolean
   discount: number
 }

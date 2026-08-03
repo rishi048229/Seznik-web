@@ -469,7 +469,7 @@ export const ProductsPage = () => {
       costPrice: String(row.costPrice),
       sellingPrice: String(row.sellingPrice),
       taxRate: String(row.taxRate ?? 0),
-      priceIncludesGst: false,
+      priceIncludesGst: row.priceIncludesGst ?? false,
       currentStock: String(row.currentStock),
       lowStockThreshold: String(row.lowStockThreshold),
       unit: row.unit,
@@ -491,9 +491,6 @@ export const ProductsPage = () => {
 
     const taxRate = parseFloat(form.taxRate) || 0
     const enteredPrice = parseFloat(form.sellingPrice) || 0
-    const baseSellingPrice = form.priceIncludesGst && taxRate > 0
-      ? enteredPrice / (1 + taxRate / 100)
-      : enteredPrice
 
     const payload = {
       name: form.name.trim(),
@@ -502,8 +499,9 @@ export const ProductsPage = () => {
       barcode: form.barcode.trim(),
       barcodeType: form.barcodeType,
       costPrice: parseFloat(form.costPrice) || 0,
-      sellingPrice: baseSellingPrice,
+      sellingPrice: enteredPrice,
       taxRate,
+      priceIncludesGst: form.priceIncludesGst,
       currentStock: parseInt(form.currentStock) || 0,
       lowStockThreshold: parseInt(form.lowStockThreshold) || 10,
       unit: form.unit,
