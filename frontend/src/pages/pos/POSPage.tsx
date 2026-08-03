@@ -223,6 +223,7 @@ export const POSPage = () => {
           sellingPrice: item.sellingPrice,
           discount: item.discount,
           taxRate: itemTaxRate,
+          priceIncludesGst: item.priceIncludesGst ?? false,
           taxAmount: ((item.sellingPrice * item.quantity - item.discount) * itemTaxRate / 100),
           total: item.sellingPrice * item.quantity - item.discount,
         }

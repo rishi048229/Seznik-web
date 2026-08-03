@@ -250,6 +250,7 @@ export const POSLitePage = () => {
         sellingPrice: item.sellingPrice,
         discount: item.discount,
         taxRate: item.taxRate,
+        priceIncludesGst: item.priceIncludesGst ?? false,
         taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
         total: item.sellingPrice * item.quantity - item.discount,
       })),

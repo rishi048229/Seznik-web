@@ -119,7 +119,10 @@ export const generateReceiptHTML = ({
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
           <td style="padding:10px 12px;font-size:14px;">
-            <div style="font-weight:700;">${item.productName}</div>
+            <div style="font-weight:700;">
+              ${item.productName}
+              ${item.priceIncludesGst ? '<span style="font-size:11px;color:#1e3a8a;font-weight:bold;margin-left:6px;">[Incl. GST]</span>' : (item.taxRate && item.taxRate > 0) ? '<span style="font-size:11px;color:#d97706;font-weight:bold;margin-left:6px;">[+GST Excl.]</span>' : ''}
+            </div>
           </td>
           <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
           <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
@@ -138,64 +141,25 @@ export const generateReceiptHTML = ({
 <div style="font-family:Arial,sans-serif;color:#000;width:100%;min-height:267mm;box-sizing:border-box;border:1px solid #374151;padding:0;">
 
   <!-- ── HEADER ── -->
-  <div style="display:flex;align-items:flex-start;padding:20px 24px 16px;border-bottom:2px solid #374151;">
-    <!-- Logo + company info -->
-    <div style="display:flex;align-items:flex-start;gap:16px;flex:1;">
-      ${effectiveLogo
-        ? `<img src="${effectiveLogo}" alt="Logo" style="max-width:100px;max-height:70px;object-fit:contain;flex-shrink:0;" />`
-        : ''}
-      <div>
-        <div style="font-size:22px;font-weight:900;letter-spacing:0.5px;">${companyName}</div>
-        ${companyAddress ? `<div style="font-size:13px;margin-top:4px;line-height:1.6;max-width:320px;">${companyAddress.replace(/,\s*/g, '<br/>')}</div>` : ''}
-        ${companyPhone ? `<div style="font-size:13px;">${companyPhone}</div>` : ''}
-        ${companyGSTIN ? `<div style="font-size:13px;">GSTIN ${companyGSTIN}</div>` : ''}
-      </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 24px;background:#f8fafc;border-bottom:2px solid #374151;">
+    <div>
+      ${effectiveLogo ? `<img src="${effectiveLogo}" alt="Logo" style="max-height:55px;max-width:180px;object-fit:contain;margin-bottom:6px;display:block;" />` : ''}
+      <div style="font-size:22px;font-weight:900;color:#1e3a8a;">${companyName}</div>
+      ${companyAddress ? `<div style="font-size:12px;color:#4b5563;margin-top:2px;">${companyAddress}</div>` : ''}
+      ${companyPhone ? `<div style="font-size:12px;color:#4b5563;">Phone: ${companyPhone}</div>` : ''}
+      ${companyGSTIN ? `<div style="font-size:12px;font-weight:700;color:#1e3a8a;">GSTIN: ${companyGSTIN}</div>` : ''}
     </div>
-    <!-- TAX INVOICE title -->
-    <div style="text-align:right;flex-shrink:0;padding-top:4px;">
-      <div style="font-size:32px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">TAX INVOICE</div>
+    <div style="text-align:right;">
+      <div style="font-size:26px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">TAX INVOICE</div>
+      <div style="font-size:14px;font-weight:700;margin-top:4px;"># ${sale.invoiceNumber || '---'}</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:2px;">Date: ${dateStr}</div>
+      <div style="font-size:12px;color:#6b7280;">Due Date: ${dueDateStr}</div>
     </div>
   </div>
 
-  <!-- ── META ROW ── -->
-  <div style="display:flex;border-bottom:1px solid #374151;">
-    <div style="flex:1;padding:12px 18px;border-right:1px solid #374151;">
-      <table style="width:100%;font-size:14px;border-collapse:collapse;">
-        <tr>
-          <td style="padding:3px 0;color:#374151;">#</td>
-          <td style="padding:3px 0;font-weight:700;">: ${sale.invoiceNumber || '---'}</td>
-        </tr>
-        <tr>
-          <td style="padding:3px 0;color:#374151;">Invoice Date</td>
-          <td style="padding:3px 0;font-weight:700;">: ${dateStr}</td>
-        </tr>
-        <tr>
-          <td style="padding:3px 0;color:#374151;">Terms</td>
-          <td style="padding:3px 0;font-weight:700;">: Due on Receipt</td>
-        </tr>
-        <tr>
-          <td style="padding:3px 0;color:#374151;">Due Date</td>
-          <td style="padding:3px 0;font-weight:700;">: ${dueDateStr}</td>
-        </tr>
-      </table>
-    </div>
-    <div style="flex:1;padding:12px 18px;">
-      <table style="width:100%;font-size:14px;border-collapse:collapse;">
-        <tr>
-          <td style="padding:3px 0;color:#374151;">Place Of Supply</td>
-          <td style="padding:3px 0;font-weight:700;">: ${companyAddress ? companyAddress.split(',').pop()?.trim() || '---' : '---'}</td>
-        </tr>
-        <tr>
-          <td style="padding:3px 0;color:#374151;">Payment</td>
-          <td style="padding:3px 0;font-weight:700;">: ${methodLabel}</td>
-        </tr>
-      </table>
-    </div>
-  </div>
-
-  <!-- ── BILL TO / SHIP TO ── -->
-  <div style="display:flex;border-bottom:1px solid #374151;">
-    <div style="flex:1;padding:14px 18px;border-right:1px solid #374151;">
+  <!-- ── BILL TO & SHIP TO ── -->
+  <div style="display:flex;border-bottom:1px solid #e5e7eb;background:#fff;">
+    <div style="flex:1;padding:14px 18px;border-right:1px solid #e5e7eb;">
       <div style="font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:5px;color:#374151;">Bill To</div>
       <div style="font-size:15px;font-weight:700;">${customerName || 'Walk-in Customer'}</div>
     </div>
@@ -278,14 +242,13 @@ export const generateReceiptHTML = ({
       <div style="height:55px;"></div>
       <div style="font-size:12px;font-weight:700;color:#1e3a8a;">PARTNER</div>
       <div style="height:30px;"></div>
-      <div style="font-size:11px;color:#374151;border-top:1px solid #374151;padding-top:4px;">Authorized Signature</div>
     </div>
   </div>
 
-  <!-- ── TERMS & CONDITIONS ── -->
+  <!-- ── TERMS AND CONDITIONS ── -->
   ${(receiptConfig?.termsLine1 || receiptConfig?.termsLine2 || receiptConfig?.termsLine3) ? `
-  <div style="padding:10px 14px;">
-    <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:5px;">Terms &amp; Conditions</div>
+  <div style="padding:10px 14px;background:#f9fafb;">
+    <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Terms &amp; Conditions</div>
     ${receiptConfig?.termsLine1 ? `<div style="font-size:11px;color:#374151;margin-bottom:3px;">${receiptConfig.termsLine1}</div>` : ''}
     ${receiptConfig?.termsLine2 ? `<div style="font-size:11px;color:#374151;margin-bottom:3px;">${receiptConfig.termsLine2}</div>` : ''}
     ${receiptConfig?.termsLine3 ? `<div style="font-size:11px;color:#374151;">${receiptConfig.termsLine3}</div>` : ''}
@@ -310,10 +273,15 @@ export const generateReceiptHTML = ({
   const thermalItemRows = saleItems
     .map((item: SaleItem, index: number) => {
       const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
+      const gstTagHtml = item.priceIncludesGst
+        ? '<span style="font-size:10px;font-weight:900;color:#1e3a8a;margin-left:4px;">(Incl. GST)</span>'
+        : (item.taxRate && item.taxRate > 0)
+          ? '<span style="font-size:10px;font-weight:900;color:#d97706;margin-left:4px;">(+GST Excl.)</span>'
+          : ''
       return `
       <div style="margin:2px 0 4px 0;">
         <div style="display:flex;justify-content:space-between;font-size:${baseFS};font-weight:700;">
-          <span>${index + 1}. ${item.productName}</span>
+          <span>${index + 1}. ${item.productName}${gstTagHtml}</span>
           <span>${(item.taxRate || effectiveTaxRate).toFixed(2)}%</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:${smallFS};font-weight:600;">
@@ -326,6 +294,7 @@ export const generateReceiptHTML = ({
     })
     .join('')
 
+  const money = (n: number) => `\u20B9${n.toFixed(2)}`
   const summaryRow = (label: string, value: string, bold = false, fs = smallFS) => `
     <div style="display:flex;justify-content:space-between;font-size:${fs};font-weight:${bold ? 900 : 800};margin:2px 0;">
       <span>${label}</span>
@@ -384,42 +353,23 @@ export const generateReceiptHTML = ({
 
     ${sep}
 
-    <!-- ── THERMAL SUMMARY ── -->
-    ${summaryRow('Sub Total', `\u20B9${sale.subtotal.toFixed(2)}`, false, smallFS)}
-    ${(sale.totalDiscount || 0) > 0 ? summaryRow('Discount', `(-) \u20B9${(sale.totalDiscount || 0).toFixed(2)}`, false, smallFS) : ''}
-    ${summaryRow('Taxable Amt', `\u20B9${taxableAmt.toFixed(2)}`, false, smallFS)}
-    ${totalTax > 0 ? summaryRow(`SGST ${halfTaxRate.toFixed(2)}%`, `\u20B9${sgstAmt.toFixed(2)}`, false, smallFS) : ''}
-    ${totalTax > 0 ? summaryRow(`CGST ${halfTaxRate.toFixed(2)}%`, `\u20B9${cgstAmt.toFixed(2)}`, false, smallFS) : ''}
-
-    ${sep}
-
-    ${summaryRow('Total Amount', `\u20B9${sale.grandTotal.toFixed(2)}`, true, totalFS)}
-    ${summaryRow('Paid Amount', `\u20B9${paymentMade.toFixed(2)}`, false, smallFS)}
-    ${summaryRow('Balance Amount', `\u20B9${balanceDue.toFixed(2)}`, false, smallFS)}
+    <!-- ── THERMAL TOTALS ── -->
+    ${summaryRow('Sub Total', money(sale.subtotal))}
+    ${(sale.totalDiscount || 0) > 0 ? summaryRow('Discount', `(-) ${money(sale.totalDiscount || 0)}`) : ''}
+    ${summaryRow('Taxable Amt', money(taxableAmt))}
+    ${totalTax > 0 ? summaryRow(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt)) : ''}
+    ${totalTax > 0 ? summaryRow(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt)) : ''}
 
     ${sepS}
 
-    <!-- ── THERMAL T&C ── -->
-    ${(receiptConfig?.termsLine1?.trim() || receiptConfig?.termsLine2?.trim() || receiptConfig?.termsLine3?.trim() || (!receiptConfig && 'Goods once sold will not be taken back or exchanged'))
-      ? `<div style="margin:3px 0 2px;">
-          <div style="font-size:${smallFS};font-weight:800;text-align:center;margin-bottom:2px;">Terms and Conditions</div>
-          ${receiptConfig?.termsLine1?.trim()
-            ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine1}</div>`
-            : (!receiptConfig ? `<div style="font-size:${tinyFS};font-weight:600;">1. Goods once sold will not be taken back or exchanged</div>` : '')}
-          ${receiptConfig?.termsLine2?.trim()
-            ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine2}</div>`
-            : ''}
-          ${receiptConfig?.termsLine3?.trim()
-            ? `<div style="font-size:${tinyFS};font-weight:600;">${receiptConfig.termsLine3}</div>`
-            : ''}
-        </div>`
-      : ''}
+    ${summaryRow('Total Amount', money(sale.grandTotal), true, totalFS)}
+    ${summaryRow('Paid Amount', money(paymentMade), true)}
+    ${summaryRow('Balance Amount', money(balanceDue), true)}
 
-    <!-- ── FOOTER ── -->
-    <div style="text-align:center;font-size:${smallFS};font-weight:800;margin-top:16px;border-top:1.5px dashed #000;padding-top:8px;padding-bottom:20px;">
-      ${footerMessage}
-    </div>
+    ${sep}
 
+    <!-- ── THERMAL FOOTER ── -->
+    ${footerMessage ? `<div style="font-size:${smallFS};margin-top:4px;font-weight:800;">${footerMessage}</div>` : ''}
   </div>`
 }
 
@@ -584,8 +534,13 @@ export const generateReceiptEscPos = ({
   b.hr(lineWidth)
   saleItems.forEach((item: SaleItem, index: number) => {
     const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
+    const gstTagEsc = item.priceIncludesGst
+      ? ' (Incl)'
+      : (item.taxRate && item.taxRate > 0)
+        ? ' (+GST)'
+        : ''
     b.bold(true)
-    b.twoCol(`${index + 1}. ${item.productName}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
+    b.twoCol(`${index + 1}. ${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
     b.bold(false)
     b.line(`  ${item.quantity} Pc  Rate:${item.sellingPrice.toFixed(2)}  Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'}  Amt:${lineTotal.toFixed(2)}`)
   })

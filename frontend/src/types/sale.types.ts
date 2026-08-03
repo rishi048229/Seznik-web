@@ -24,6 +24,7 @@ export interface SaleItem {
   sellingPrice: number
   discount: number
   taxRate: number
+  priceIncludesGst?: boolean
   taxAmount: number
   total: number
 }
