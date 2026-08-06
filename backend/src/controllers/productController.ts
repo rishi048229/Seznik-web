@@ -17,13 +17,37 @@ export const getProducts = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const data = req.body;
-    
+    const { imageUrl, sku, categoryId, ...rest } = req.body;
+
+    // Map frontend `imageUrl` → Prisma column `imageURL`
+    const imageURL = imageUrl ?? rest.imageURL ?? null;
+
+    // Auto-generate SKU if not provided
+    const finalSku = sku || `SKU-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+    // Ensure categoryId exists — use first user category as fallback
+    let finalCategoryId = categoryId;
+    if (!finalCategoryId) {
+      const firstCat = await prisma.category.findFirst({ where: { userId }, orderBy: { createdAt: 'asc' } });
+      if (firstCat) {
+        finalCategoryId = firstCat.id;
+      } else {
+        // Auto-create a "General" category for the user
+        const newCat = await prisma.category.create({ data: { name: 'General', userId, isActive: true } });
+        finalCategoryId = newCat.id;
+      }
+    }
+
+    // Strip unknown fields that Prisma doesn't recognize
+    delete rest.imageURL;
+    delete rest.category;
+
     const product = await prisma.product.create({
-      data: { ...data, userId },
+      data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
     });
     res.status(201).json(product);
   } catch (error) {
+    console.error('createProduct error:', error);
     res.status(500).json({ error: 'Failed to create product' });
   }
 };
@@ -32,14 +56,26 @@ export const updateProduct = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const data = req.body;
-    
+    const { imageUrl, ...rest } = req.body;
+
+    // Map frontend `imageUrl` → Prisma column `imageURL`
+    if (imageUrl !== undefined) {
+      rest.imageURL = imageUrl;
+    }
+    // Strip unknown fields
+    delete rest.category;
+    delete rest.id;
+    delete rest.createdAt;
+    delete rest.updatedAt;
+    delete rest.userId;
+
     const product = await prisma.product.updateMany({
       where: { id: String(id), userId },
-      data,
+      data: rest,
     });
     res.json({ success: true, count: product.count });
   } catch (error) {
+    console.error('updateProduct error:', error);
     res.status(500).json({ error: 'Failed to update product' });
   }
 };
@@ -78,7 +114,13 @@ export const adjustStock = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const { qty, reason } = req.body;
+    // Accept BOTH `qty` (legacy) and `change` (frontend) — `change` takes priority
+    const { qty, change, reason } = req.body;
+    const amount = change ?? qty;
+
+    if (amount === undefined || amount === null || isNaN(Number(amount))) {
+      return res.status(400).json({ error: 'Stock adjustment quantity is required (send `change` or `qty`)' });
+    }
 
     const product = await prisma.product.findFirst({
       where: { id: String(id), userId },
@@ -91,12 +133,12 @@ export const adjustStock = async (req: Request, res: Response) => {
     await prisma.$transaction([
       prisma.product.update({
         where: { id: String(id) },
-        data: { currentStock: { increment: qty } },
+        data: { currentStock: { increment: Number(amount) } },
       }),
       prisma.stockHistory.create({
         data: {
-          change: qty,
-          reason,
+          change: Number(amount),
+          reason: reason || 'manual-adjustment',
           productId: String(id),
           userId,
         },
@@ -105,6 +147,7 @@ export const adjustStock = async (req: Request, res: Response) => {
     
     res.json({ success: true });
   } catch (error) {
+    console.error('adjustStock error:', error);
     res.status(500).json({ error: 'Failed to adjust stock' });
   }
 };
