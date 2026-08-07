@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input'
 import {
   ArrowLeft, Mail, Phone, MapPin, CreditCard, TrendingUp, ShoppingCart,
   Calendar, Wallet, ShoppingBag, PlusCircle, AlertCircle, CheckCircle2,
-  Send, MessageCircle, DollarSign
+  Send, MessageCircle, IndianRupee
 } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
@@ -167,7 +167,7 @@ export const CustomerDetailPage = () => {
             onClick={handleOpenPaymentModal}
             className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5"
           >
-            <DollarSign size={16} />
+            <IndianRupee size={16} />
             <span>{t('customers.settleCredit')}</span>
           </Button>
           <Button

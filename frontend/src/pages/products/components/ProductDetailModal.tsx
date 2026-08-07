@@ -6,7 +6,7 @@ import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import {
   Package, Pencil, Trash2, Tag, Download, QrCode, Barcode as BarcodeIcon,
-  Layers, Truck, DollarSign, TrendingUp, AlertTriangle, ShieldCheck, Box, CheckCircle2
+  Layers, Truck, IndianRupee, TrendingUp, AlertTriangle, ShieldCheck, Box, CheckCircle2
 } from 'lucide-react'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng } from '@/utils/barcodeGenerator'
 import type { Product } from '@/types/product.types'
@@ -208,7 +208,7 @@ export const ProductDetailModal = ({
           {/* Pricing & Financial Details Card */}
           <div className="p-4 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-              <DollarSign size={14} /> Pricing & Tax Details
+              <IndianRupee size={14} /> Pricing & Tax Details
             </h4>
             <div className="divide-y divide-gray-100 dark:divide-gray-700/60 text-xs">
               <div className="py-2 flex justify-between">
