@@ -83,9 +83,8 @@ export const DaybookPage = () => {
       const ts = toTs(sale.createdAt, startVal)
       if (ts < startVal || ts >= endVal) return
       const customer = allCustomers.find(c => c.id === sale.customerId)
-      const isCredit = sale.paymentMethod === 'credit'
-      const paidNow = isCredit ? sale.amountPaid : sale.grandTotal
-      const creditPortion = isCredit ? Math.max(0, sale.grandTotal - sale.amountPaid) : 0
+      const paidNow = Math.min(sale.grandTotal, Math.max(0, sale.amountPaid ?? (sale.paymentMethod === 'credit' ? 0 : sale.grandTotal)))
+      const creditPortion = Math.max(0, sale.grandTotal - paidNow)
       const token = allTokens.find(tok => tok.saleId === sale.id)
       const description = token
         ? `Token #${token.tokenNumber} · ${token.tokenType?.name ?? sale.items?.[0]?.productName ?? t('daybook.invoice')}`

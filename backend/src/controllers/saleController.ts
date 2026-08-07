@@ -39,6 +39,9 @@ export const createSale = async (req: Request, res: Response) => {
     const count = await prisma.sale.count({ where: { userId } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
     
+    // Parse custom bill date if provided, otherwise default to now
+    const saleDate = data.createdAt ? new Date(data.createdAt) : new Date();
+
     // Use a transaction for creating sale, updating stock, and updating customer credit
     const result = await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
@@ -46,6 +49,7 @@ export const createSale = async (req: Request, res: Response) => {
           ...data,
           invoiceNumber,
           userId,
+          createdAt: saleDate,
         },
       });
 
@@ -62,33 +66,33 @@ export const createSale = async (req: Request, res: Response) => {
                 change: -item.quantity,
                 reason: 'sale',
                 productId: item.productId,
-                userId
+                userId,
+                createdAt: saleDate,
               }
             });
           }
         }
       }
 
-      // Update customer credit if credit sale
-      if (data.paymentMethod === 'credit' && data.customerId) {
-        const unpaid = data.grandTotal - data.amountPaid;
-        if (unpaid > 0) {
-          await tx.customer.update({
-            where: { id: data.customerId },
-            data: { creditBalance: { increment: unpaid } }
-          });
-          
-          await tx.creditTransaction.create({
-            data: {
-              customerId: data.customerId,
-              amount: unpaid,
-              type: 'credit',
-              referenceId: sale.id,
-              notes: `Credit for Sale ${invoiceNumber}`,
-              userId
-            }
-          });
-        }
+      // Update customer credit whenever there is an unpaid balance for a registered customer
+      const unpaid = data.grandTotal - (data.amountPaid || 0);
+      if (unpaid > 0.01 && data.customerId) {
+        await tx.customer.update({
+          where: { id: data.customerId },
+          data: { creditBalance: { increment: unpaid } }
+        });
+        
+        await tx.creditTransaction.create({
+          data: {
+            customerId: data.customerId,
+            amount: unpaid,
+            type: 'credit',
+            referenceId: sale.id,
+            notes: `Credit for Sale ${invoiceNumber}`,
+            userId,
+            createdAt: saleDate,
+          }
+        });
       }
 
       return sale;

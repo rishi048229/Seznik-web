@@ -33,7 +33,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   AlertTriangle,
-  DollarSign,
+  IndianRupee,
   ShoppingBag,
   Package,
   CreditCard,
@@ -235,7 +235,7 @@ export const DashboardPage = () => {
         <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-              <DollarSign size={22} className="text-gray-600 dark:text-gray-300" />
+              <IndianRupee size={22} className="text-gray-600 dark:text-gray-300" />
             </div>
             <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
               <ArrowUpRight size={14} />
@@ -471,7 +471,7 @@ export const DashboardPage = () => {
 
         {/* Expense Summary */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<DollarSign size={18} className="text-red-500" />} title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
+          <WidgetHeader icon={<IndianRupee size={18} className="text-red-500" />} title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
           {loadingExpenseSummary ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !expenseSummary ? (

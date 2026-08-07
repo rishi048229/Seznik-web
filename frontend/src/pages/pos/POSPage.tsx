@@ -12,7 +12,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -86,6 +86,7 @@ export const POSPage = () => {
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [amountPaid, setAmountPaid] = useState('')
+  const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [completedSaleId, setCompletedSaleId] = useState<string>('')
   const [completedInvoiceNumber, setCompletedInvoiceNumber] = useState<string>('')
   const [lastSaleData, setLastSaleData] = useState<{
@@ -209,8 +210,9 @@ export const POSPage = () => {
   }
 
   const amountPaidNum = parseFloat(amountPaid) || 0
-  const change = amountPaidNum - finalTotal
-  const isComplete = method === 'cash' ? amountPaidNum >= finalTotal : true
+  const unpaidAmount = Math.max(0, finalTotal - amountPaidNum)
+  const change = Math.max(0, amountPaidNum - finalTotal)
+  const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
 
   const handleCheckout = () => {
     const saleData: Parameters<typeof createSale>[0] = {
@@ -233,9 +235,10 @@ export const POSPage = () => {
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
-      amountPaid: method === 'cash' ? amountPaidNum : method === 'credit' ? 0 : finalTotal,
-      changeReturned: method === 'cash' ? change : 0,
+      amountPaid: amountPaidNum,
+      changeReturned: change,
       isQuickBill: false,
+      createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
     }
 
     // Only set customerId if a customer is selected (Firestore rejects undefined)
@@ -254,7 +257,7 @@ export const POSPage = () => {
           orderDiscountAmount,
           finalTotal,
           method,
-          amountPaidNum: method === 'cash' ? amountPaidNum : finalTotal,
+          amountPaidNum,
           selectedCustomer,
         })
         setCompletedSaleId(saleId)
@@ -888,6 +891,21 @@ export const POSPage = () => {
             <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
           </div>
 
+          {/* Bill Date Selector (Custom / Backdated Invoice) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+              <Calendar size={14} className="text-blue-600 dark:text-blue-400" />
+              Bill Date (Select for Backdated / Custom Date Invoice)
+            </label>
+            <Input
+              type="date"
+              max={new Date().toISOString().split('T')[0]}
+              value={billDate}
+              onChange={e => setBillDate(e.target.value)}
+              className="text-sm font-medium"
+            />
+          </div>
+
           {/* Payment Methods */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
@@ -900,6 +918,7 @@ export const POSPage = () => {
               ]).map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
+                  type="button"
                   onClick={() => setMethod(id)}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
@@ -916,47 +935,65 @@ export const POSPage = () => {
             </div>
           </div>
 
-          {/* Cash Input */}
-          {method === 'cash' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('pos.amountReceived')}
-              </label>
-              <Input
-                type="number"
-                value={amountPaid}
-                onChange={e => setAmountPaid(e.target.value)}
-                placeholder={t('pos.enterAmount')}
-                className="text-lg"
-                autoFocus
-              />
-              {amountPaidNum > 0 && (
-                <div className="mt-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-700/50 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">{t('pos.received')}</span>
-                    <span className="font-medium">{formatINR(amountPaidNum)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">{t('pos.change')}</span>
-                    <span className={`font-medium ${change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {formatINR(Math.abs(change))} {change >= 0 ? t('pos.returnSuffix') : t('pos.dueSuffix')}
-                    </span>
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-2 mt-3">
+          {/* Amount Paid / Received Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('pos.amountReceived')} ({method.toUpperCase()})
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              value={amountPaid}
+              onChange={e => setAmountPaid(e.target.value)}
+              placeholder="0.00"
+              className="text-lg py-3 font-semibold"
+            />
+
+            {method === 'cash' && (
+              <div className="flex gap-2 mt-2">
                 {[100, 500, 1000, 2000].map(amt => (
                   <button
                     key={amt}
+                    type="button"
                     onClick={() => setAmountPaid(String(amt))}
-                    className="flex-1 py-2.5 text-sm font-medium border rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
+                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
                   >
                     {formatINR(amt)}
                   </button>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Partial Credit Allocation & Change Badges */}
+          {unpaidAmount > 0.01 ? (
+            selectedCustomer ? (
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <UserPlus size={15} className="text-amber-600 dark:text-amber-400" />
+                  Partial Credit Allocation
+                </div>
+                <p>
+                  {formatINR(amountPaidNum)} paid via {method.toUpperCase()}. Remaining <strong className="text-amber-900 dark:text-amber-100">{formatINR(unpaidAmount)}</strong> will be added to <strong>{customers?.find(c => c.id === selectedCustomer)?.name}</strong>'s Credit Balance.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />
+                  Customer Selection Required for Credit
+                </div>
+                <p>
+                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please select a registered customer to record credit, or collect full payment.
+                </p>
+              </div>
+            )
+          ) : change > 0 ? (
+            <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex justify-between items-center">
+              <span className="font-medium">{t('pos.change')}</span>
+              <span className="font-extrabold text-sm">{formatINR(change)}</span>
             </div>
-          )}
+          ) : null}
         </div>
       </Modal>
 
