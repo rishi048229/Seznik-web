@@ -316,57 +316,83 @@ RULES:
       }
     }
 
-    let rawContent = '';
-    let lastError = '';
-
-    for (const modelName of modelsToTry) {
-      try {
-        const contentsPayload = isSpreadsheetOrText
-          ? [`${promptText}\n\nSPREADSHEET / TEXT DOCUMENT DATA TO EXTRACT:\n${textContent}`]
-          : [
-              {
-                inlineData: {
-                  mimeType: mimeType || 'image/jpeg',
-                  data: cleanBase64,
-                },
-              },
-              promptText,
-            ];
-
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: contentsPayload,
-        });
-        rawContent = response.text || '';
-        if (rawContent) {
-          console.log(`Gemini extraction succeeded using model: ${modelName}`);
-          break;
+    const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
+      let lastErr = '';
+      for (const modelName of modelsToTry) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: contentsPayload,
+            config: {
+              responseMimeType: 'application/json',
+              maxOutputTokens: 65536,
+            }
+          });
+          const text = response.text || '';
+          if (text) {
+            const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleaned);
+            return Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+          }
+        } catch (err: any) {
+          lastErr = err?.message || String(err);
+          console.warn(`Gemini GenAI model ${modelName} failed:`, lastErr);
         }
-      } catch (err: any) {
-        lastError = err?.message || String(err);
-        console.warn(`Gemini GenAI model ${modelName} failed:`, lastError);
+      }
+      if (lastErr) console.error('Gemini extraction error:', lastErr);
+      return [];
+    };
+
+    let rawList: any[] = [];
+
+    // Optimization: If spreadsheet has more than 150 rows, process in parallel chunks!
+    if (isSpreadsheetOrText && textContent) {
+      const lines = textContent.split(/\r?\n/).filter(line => line.trim().length > 0);
+      
+      if (lines.length > 150) {
+        const header = lines[0];
+        const dataLines = lines.slice(1);
+        const chunkSize = 150;
+        const chunks: string[] = [];
+
+        for (let i = 0; i < dataLines.length; i += chunkSize) {
+          const chunkLines = dataLines.slice(i, i + chunkSize);
+          chunks.push([header, ...chunkLines].join('\n'));
+        }
+
+        console.log(`Processing ${lines.length} spreadsheet rows in ${chunks.length} parallel Gemini AI chunks...`);
+
+        const chunkPromises = chunks.map(chunkText => 
+          extractFromPromptPayload([`${promptText}\n\nSPREADSHEET CHUNK DATA TO EXTRACT:\n${chunkText}`])
+        );
+
+        const results = await Promise.all(chunkPromises);
+        rawList = results.flat();
       }
     }
 
-    if (!rawContent) {
-      console.error('All Gemini SDK models failed. Last error:', lastError);
-      return res.status(500).json({
-        error: `Gemini AI Error: ${lastError}`
-      });
-    }
-    
-    // Clean rawContent of any markdown fences
-    const jsonStr = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
-    
-    let parsed: { products?: any[] } = {};
-    try {
-      parsed = JSON.parse(jsonStr);
-    } catch (e) {
-      console.error('Failed to parse Gemini AI JSON output:', rawContent);
-      return res.status(500).json({ error: 'AI analyzed the document but failed to produce a structured product list. Please try a clearer document image.' });
+    // Fallback to single-call extraction if not chunked or image/PDF
+    if (rawList.length === 0) {
+      const contentsPayload = isSpreadsheetOrText
+        ? [`${promptText}\n\nSPREADSHEET / TEXT DOCUMENT DATA TO EXTRACT:\n${textContent}`]
+        : [
+            {
+              inlineData: {
+                mimeType: mimeType || 'image/jpeg',
+                data: cleanBase64,
+              },
+            },
+            promptText,
+          ];
+
+      rawList = await extractFromPromptPayload(contentsPayload);
     }
 
-    const rawList = Array.isArray(parsed.products) ? parsed.products : [];
+    if (rawList.length === 0) {
+      return res.status(500).json({
+        error: 'AI document analysis returned no items or failed. Please check file format or split document.'
+      });
+    }
     
     // Fetch existing barcodes for this user to avoid duplicates
     const existingProducts = await prisma.product.findMany({
@@ -473,14 +499,15 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
       };
     });
 
-    const result = await prisma.$transaction(
-      createData.map(data => prisma.product.create({ data }))
-    );
+    const result = await prisma.product.createMany({
+      data: createData,
+      skipDuplicates: true
+    });
 
     res.json({
       success: true,
-      count: result.length,
-      products: result
+      count: result.count,
+      products: createData
     });
   } catch (error) {
     console.error('bulkImportProducts error:', error);
