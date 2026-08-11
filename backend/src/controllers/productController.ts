@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import prisma from '../config/db';
 
 export const getProducts = async (req: Request, res: Response) => {
@@ -270,13 +270,11 @@ RULES:
 4. "unit": Infer appropriate unit (e.g. piece, kg, liter, plate, box, bottle, pack).
 5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     const modelsToTry = [
+      'gemini-2.5-flash',
       'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
       'gemini-1.5-pro',
-      'gemini-1.5-pro-latest',
-      'gemini-2.0-flash-exp'
     ];
     
     let rawContent = '';
@@ -284,24 +282,26 @@ RULES:
 
     for (const modelName of modelsToTry) {
       try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent([
-          promptText,
-          {
-            inlineData: {
-              data: cleanBase64,
-              mimeType: mimeType || 'image/jpeg',
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              inlineData: {
+                mimeType: mimeType || 'image/jpeg',
+                data: cleanBase64,
+              },
             },
-          },
-        ]);
-        rawContent = result.response.text() || '';
+            promptText,
+          ],
+        });
+        rawContent = response.text || '';
         if (rawContent) {
           console.log(`Gemini extraction succeeded using model: ${modelName}`);
           break;
         }
       } catch (err: any) {
         lastError = err?.message || String(err);
-        console.warn(`Gemini SDK model ${modelName} failed:`, lastError);
+        console.warn(`Gemini GenAI model ${modelName} failed:`, lastError);
       }
     }
 
