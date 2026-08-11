@@ -79,11 +79,48 @@ export const getLowStockProducts = async (_uid: string, threshold: number): Prom
 // Internal SKU generation is now handled on frontend or backend.
 // We should preferably generate it on frontend before create, or let backend do it.
 // The previous firebase logic generated it before adding the document.
+export interface AiExtractedProduct {
+  id: string
+  name: string
+  sellingPrice: number
+  costPrice: number
+  categoryName: string
+  barcode: string
+  isExistingBarcode: boolean
+  barcodeType: string
+  taxRate: number
+  currentStock: number
+  lowStockThreshold: number
+  unit: string
+  priceIncludesGst: boolean
+  selected: boolean
+}
+
+export const extractProductsFromAiDocument = async (
+  _uid: string,
+  documentData: string,
+  mimeType: string = 'image/jpeg',
+  customApiKey?: string
+): Promise<{ count: number; products: AiExtractedProduct[] }> => {
+  return await fetchApi('/products/ai-extract-document', {
+    method: 'POST',
+    body: JSON.stringify({ documentData, mimeType, customApiKey }),
+  })
+}
+
+export const bulkImportProducts = async (
+  _uid: string,
+  products: Partial<AiExtractedProduct>[]
+): Promise<{ count: number }> => {
+  return await fetchApi('/products/bulk-import', {
+    method: 'POST',
+    body: JSON.stringify({ products }),
+  })
+}
+
 let _skuCounter = 0
 
 const generateSKU = async (_uid: string, categoryId: string): Promise<string> => {
-  // In a real DB we would fetch the count of products in this category.
-  // For simplicity, we just use a counter or random here.
   _skuCounter++
   const prefix = categoryId.substring(0, 3).toUpperCase()
   return `${prefix}-${String(_skuCounter).padStart(4, '0')}`

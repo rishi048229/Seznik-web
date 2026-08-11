@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal } from './components/ProductDetailModal'
+import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
@@ -134,6 +135,7 @@ export const ProductsPage = () => {
   const [stockFilter, setStockFilter] = useState('')
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
+  const [showAiModal, setShowAiModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
@@ -605,6 +607,14 @@ export const ProductsPage = () => {
                   Delete Selected ({selectedIds.size})
                 </Button>
               )}
+              <Button
+                variant="outline"
+                className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold"
+                leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400" />}
+                onClick={() => setShowAiModal(true)}
+              >
+                AI Upload Bill / Menu
+              </Button>
               <Button
                 data-tour="scan-stock-btn"
                 variant="outline"
@@ -1627,6 +1637,11 @@ export const ProductsPage = () => {
           }
         }}
         onPrintLabel={handlePrintLabel}
+      />
+
+      <AiDocumentUploadModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
       />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}

@@ -15,7 +15,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const DEFAULT_SETTINGS = {
@@ -150,6 +150,7 @@ export const SettingsPage = () => {
             ownerName:    val('settings-owner-name'),
             ownerPhone:   val('settings-owner-phone'),
             ownerAddress: val('settings-owner-address'),
+            geminiApiKey: val('settings-gemini-api-key'),
           },
           invoiceConfig:      curInvoice,
           notificationConfig: curNotif,
@@ -362,6 +363,23 @@ export const SettingsPage = () => {
                   id="settings-owner-address"
                   placeholder={t('settings.residentialAddressPlaceholder')}
                 />
+
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-700/60 space-y-2">
+                  <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
+                    <Sparkles size={15} />
+                    <span>Gemini AI Integration Configuration</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Paste your Google Gemini API Key below to enable AI Document Analysis for products, menus, and supplier bills.
+                  </p>
+                  <Input
+                    label="Gemini API Key"
+                    type="password"
+                    defaultValue={(current as unknown as { personalInfo?: { geminiApiKey?: string } }).personalInfo?.geminiApiKey ?? ''}
+                    id="settings-gemini-api-key"
+                    placeholder="AIzaSy..."
+                  />
+                </div>
 
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('personal')} loading={isPending} className="w-full sm:w-auto">

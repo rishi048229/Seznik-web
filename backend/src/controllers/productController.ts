@@ -222,3 +222,217 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch low stock products' });
   }
 };
+
+export const aiExtractFromDocument = async (req: Request, res: Response) => {
+  try {
+    const rawUserId = (req as any).user.id;
+    const { documentData, mimeType = 'image/jpeg', customApiKey } = req.body;
+
+    if (!documentData) {
+      return res.status(400).json({ error: 'No document data provided. Please upload an image or PDF file.' });
+    }
+
+    // Determine Gemini API key
+    let apiKey = customApiKey || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      const userSettings = await prisma.settings.findUnique({ where: { userId: rawUserId } });
+      const personalInfo: any = userSettings?.personalInfo;
+      if (personalInfo?.geminiApiKey) {
+        apiKey = personalInfo.geminiApiKey;
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(400).json({
+        error: 'Gemini API Key missing. Please set GEMINI_API_KEY in backend .env or enter it in Settings -> AI Configuration.'
+      });
+    }
+
+    // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
+    const cleanBase64 = documentData.includes(',') ? documentData.split(',')[1] : documentData;
+
+    const promptText = `You are an expert AI inventory assistant. Analyze the uploaded document (supplier invoice, purchase bill, hotel/restaurant menu, price catalog, handwritten bill/receipt, or price list).
+Extract ALL individual items/products with their details and return ONLY a valid JSON object matching this exact structure:
+{
+  "products": [
+    {
+      "name": "Item Name",
+      "sellingPrice": 120,
+      "costPrice": 80,
+      "categoryName": "Beverages",
+      "barcode": "8901234567890",
+      "taxRate": 5,
+      "currentStock": 50,
+      "unit": "piece"
+    }
+  ]
+}
+RULES:
+1. "barcode": If an existing barcode (numeric or alphanumeric) is visible in the document for the item, extract it EXACTLY. If NO barcode is printed or visible, set "barcode": null.
+2. "categoryName": Infer an appropriate category name if not explicitly written (e.g. Starter, Main Course, Grocery, Snacks, Electronics).
+3. "sellingPrice" and "costPrice": Extract prices as numeric values. If cost price is not mentioned, estimate or set equal to sellingPrice.
+4. "unit": Infer appropriate unit (e.g. piece, kg, liter, plate, box, bottle, pack).
+5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: mimeType || 'image/jpeg',
+                  data: cleanBase64
+                }
+              },
+              { text: promptText }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Gemini API Error:', errText);
+      return res.status(500).json({ error: `Gemini AI service error: ${response.statusText}` });
+    }
+
+    const aiResult = await response.json();
+    const rawContent = aiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Clean rawContent of any markdown fences
+    const jsonStr = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    let parsed: { products?: any[] } = {};
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('Failed to parse Gemini AI JSON output:', rawContent);
+      return res.status(500).json({ error: 'AI analyzed the document but failed to produce a structured product list. Please try a clearer document image.' });
+    }
+
+    const rawList = Array.isArray(parsed.products) ? parsed.products : [];
+    
+    // Fetch existing barcodes for this user to avoid duplicates
+    const existingProducts = await prisma.product.findMany({
+      where: { userId: rawUserId },
+      select: { barcode: true }
+    });
+    const existingBarcodes = new Set(existingProducts.map(p => p.barcode).filter(Boolean));
+
+    // Process extracted products
+    const processedProducts = rawList.map((item, idx) => {
+      let barcode = item.barcode ? String(item.barcode).trim() : '';
+      let isExistingBarcode = false;
+
+      if (barcode && barcode !== 'null' && barcode !== 'undefined') {
+        isExistingBarcode = true;
+      } else {
+        // Auto-generate unique 12-digit barcode if no barcode existed in document
+        do {
+          const rand = Math.floor(1000000000 + Math.random() * 9000000000);
+          barcode = `SZ${rand}`;
+        } while (existingBarcodes.has(barcode));
+      }
+
+      existingBarcodes.add(barcode);
+
+      return {
+        id: `temp-${Date.now()}-${idx}`,
+        name: String(item.name || `Extracted Item ${idx + 1}`).trim(),
+        sellingPrice: Math.max(0, Number(item.sellingPrice) || 0),
+        costPrice: Math.max(0, Number(item.costPrice) || 0),
+        categoryName: String(item.categoryName || 'General').trim(),
+        barcode,
+        isExistingBarcode,
+        barcodeType: 'CODE128',
+        taxRate: Math.max(0, Number(item.taxRate) || 0),
+        currentStock: Math.max(0, Number(item.currentStock) || 10),
+        lowStockThreshold: 5,
+        unit: String(item.unit || 'piece').toLowerCase().trim(),
+        priceIncludesGst: false,
+        selected: true
+      };
+    });
+
+    res.json({
+      success: true,
+      count: processedProducts.length,
+      products: processedProducts
+    });
+  } catch (error) {
+    console.error('aiExtractFromDocument error:', error);
+    res.status(500).json({ error: 'Failed to process document with Gemini AI' });
+  }
+};
+
+export const bulkImportProducts = async (req: Request, res: Response) => {
+  try {
+    const rawUserId = (req as any).user.id;
+    const { products: items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'No items provided for bulk import.' });
+    }
+
+    // 1. Get or create categories
+    const categoryNames = Array.from(new Set(items.map((i: any) => String(i.categoryName || 'General').trim())));
+    const existingCategories = await prisma.category.findMany({
+      where: { userId: rawUserId }
+    });
+    
+    const categoryMap = new Map<string, string>();
+    existingCategories.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
+
+    for (const catName of categoryNames) {
+      const lower = catName.toLowerCase();
+      if (!categoryMap.has(lower)) {
+        const newCat = await prisma.category.create({
+          data: { name: catName, userId: rawUserId, isActive: true }
+        });
+        categoryMap.set(lower, newCat.id);
+      }
+    }
+
+    // 2. Prepare product rows
+    const createData = items.map((item: any, idx: number) => {
+      const catId = categoryMap.get(String(item.categoryName || 'General').toLowerCase().trim())!;
+      const sku = item.sku || `SKU-AI-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
+      const barcode = item.barcode || `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+
+      return {
+        name: String(item.name).trim(),
+        sku,
+        barcode,
+        barcodeType: item.barcodeType || 'CODE128',
+        categoryId: catId,
+        costPrice: Number(item.costPrice) || 0,
+        sellingPrice: Number(item.sellingPrice) || 0,
+        taxRate: Number(item.taxRate) || 0,
+        priceIncludesGst: Boolean(item.priceIncludesGst),
+        currentStock: Number(item.currentStock) || 0,
+        lowStockThreshold: Number(item.lowStockThreshold) || 5,
+        unit: String(item.unit || 'piece').toLowerCase().trim(),
+        isActive: true,
+        userId: rawUserId
+      };
+    });
+
+    const result = await prisma.$transaction(
+      createData.map(data => prisma.product.create({ data }))
+    );
+
+    res.json({
+      success: true,
+      count: result.length,
+      products: result
+    });
+  } catch (error) {
+    console.error('bulkImportProducts error:', error);
+    res.status(500).json({ error: 'Failed to bulk import products' });
+  }
+};
+

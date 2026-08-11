@@ -82,3 +82,24 @@ export const useBatchBarcodeStockUpdate = () => {
     },
   })
 }
+
+export const useAiExtractDocument = () => {
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: ({ documentData, mimeType, customApiKey }: { documentData: string; mimeType?: string; customApiKey?: string }) =>
+      productService.extractProductsFromAiDocument(user!.uid, documentData, mimeType, customApiKey),
+  })
+}
+
+export const useBulkImportProducts = () => {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (products: Partial<productService.AiExtractedProduct>[]) =>
+      productService.bulkImportProducts(user!.uid, products),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
+    },
+  })
+}

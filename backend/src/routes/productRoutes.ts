@@ -8,7 +8,9 @@ import {
   adjustStock, 
   getProductByBarcode, 
   batchBarcodeStockUpdate, 
-  getLowStockProducts 
+  getLowStockProducts,
+  aiExtractFromDocument,
+  bulkImportProducts
 } from '../controllers/productController';
 import { protect } from '../middlewares/authMiddleware';
 
@@ -18,6 +20,8 @@ router.use(protect); // All product routes are protected
 
 router.get('/', getProducts);
 router.post('/', createProduct);
+router.post('/ai-extract-document', aiExtractFromDocument);
+router.post('/bulk-import', bulkImportProducts);
 router.get('/low-stock', getLowStockProducts);
 router.post('/batch-stock-update', batchBarcodeStockUpdate);
 router.post('/bulk-delete', bulkSoftDeleteProducts);
