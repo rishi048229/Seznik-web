@@ -300,22 +300,42 @@ RULES:
       console.warn('Dynamic Gemini model listing returned error:', e);
     }
     
+    const isSpreadsheetOrText = 
+      mimeType.includes('csv') || 
+      mimeType.includes('sheet') || 
+      mimeType.includes('excel') || 
+      mimeType.includes('plain') ||
+      mimeType.includes('text');
+
+    let textContent = '';
+    if (isSpreadsheetOrText) {
+      try {
+        textContent = Buffer.from(cleanBase64, 'base64').toString('utf-8');
+      } catch (e) {
+        textContent = cleanBase64;
+      }
+    }
+
     let rawContent = '';
     let lastError = '';
 
     for (const modelName of modelsToTry) {
       try {
+        const contentsPayload = isSpreadsheetOrText
+          ? [`${promptText}\n\nSPREADSHEET / TEXT DOCUMENT DATA TO EXTRACT:\n${textContent}`]
+          : [
+              {
+                inlineData: {
+                  mimeType: mimeType || 'image/jpeg',
+                  data: cleanBase64,
+                },
+              },
+              promptText,
+            ];
+
         const response = await ai.models.generateContent({
           model: modelName,
-          contents: [
-            {
-              inlineData: {
-                mimeType: mimeType || 'image/jpeg',
-                data: cleanBase64,
-              },
-            },
-            promptText,
-          ],
+          contents: contentsPayload,
         });
         rawContent = response.text || '';
         if (rawContent) {
