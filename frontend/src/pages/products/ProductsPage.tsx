@@ -610,10 +610,10 @@ export const ProductsPage = () => {
               <Button
                 variant="outline"
                 className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold"
-                leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400" />}
+                leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
                 onClick={() => setShowAiModal(true)}
               >
-                AI Upload Bill / Menu
+                SEZ AI Bulk Upload
               </Button>
               <Button
                 data-tour="scan-stock-btn"

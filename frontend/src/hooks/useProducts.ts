@@ -100,6 +100,9 @@ export const useBulkImportProducts = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.REPORTS_TOP_CATEGORIES] })
+      qc.refetchQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
+      qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
     },
   })
 }

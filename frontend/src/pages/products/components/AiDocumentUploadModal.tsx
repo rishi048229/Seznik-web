@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { useAiExtractDocument, useBulkImportProducts } from '@/hooks/useProducts'
 import { type AiExtractedProduct } from '@/services/productService'
-import { formatINR } from '@/utils/currency'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@/constants/queryKeys'
 import {
   Sparkles,
   UploadCloud,
@@ -24,7 +25,8 @@ import {
   Table,
   Info,
   RotateCw,
-  Plus
+  Zap,
+  Bot
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -33,19 +35,57 @@ interface AiDocumentUploadModalProps {
   onClose: () => void
 }
 
+const SEZ_AI_LOADING_MESSAGES = [
+  '✨ SEZ AI is scanning your uploaded file and parsing rows...',
+  '🤖 SEZ AI is intelligent-mapping product names, prices & units...',
+  '⚡ SEZ AI is detecting existing barcodes & generating unique 12-digit barcodes for new items...',
+  '🏷️ SEZ AI is auto-assigning smart categories & calculating tax rates...',
+  '📊 SEZ AI is building your interactive product review & edit table...'
+]
+
+const SEZ_AI_IMPORT_MESSAGES = [
+  '📦 SEZ AI is creating missing categories in your database...',
+  '⚡ SEZ AI is executing high-speed batch database insertion...',
+  '✅ SEZ AI is finalizing inventory and category synchronization...'
+]
+
 export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ isOpen, onClose }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'text'>('image')
   const [searchFilter, setSearchFilter] = useState('')
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
 
   const [extractedProducts, setExtractedProducts] = useState<AiExtractedProduct[]>([])
   const [step, setStep] = useState<'upload' | 'analyzing' | 'review'>('upload')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const qc = useQueryClient()
 
   const { mutate: extractDocument, isPending: isExtracting } = useAiExtractDocument()
   const { mutate: bulkImport, isPending: isImporting } = useBulkImportProducts()
+
+  // Cycle interactive SEZ AI progress messages during analysis
+  useEffect(() => {
+    if (step === 'analyzing') {
+      setLoadingMsgIdx(0)
+      const interval = setInterval(() => {
+        setLoadingMsgIdx(prev => (prev + 1) % SEZ_AI_LOADING_MESSAGES.length)
+      }, 2500)
+      return () => clearInterval(interval)
+    }
+  }, [step])
+
+  // Cycle interactive SEZ AI progress messages during import
+  useEffect(() => {
+    if (isImporting) {
+      setLoadingMsgIdx(0)
+      const interval = setInterval(() => {
+        setLoadingMsgIdx(prev => (prev + 1) % SEZ_AI_IMPORT_MESSAGES.length)
+      }, 1500)
+      return () => clearInterval(interval)
+    }
+  }, [isImporting])
 
   const processSelectedFile = (file: File) => {
     if (file.size > 20 * 1024 * 1024) {
@@ -146,7 +186,6 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       {
         onSuccess: (res) => {
           if (res.products && res.products.length > 0) {
-            // Ensure every product has default selected & editable fields
             const enriched = res.products.map(p => ({
               ...p,
               selected: true,
@@ -157,15 +196,15 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             }))
             setExtractedProducts(enriched)
             setStep('review')
-            toast.success(`Gemini AI successfully extracted ${res.count} products!`)
+            toast.success(`SEZ AI successfully extracted ${res.count} products!`)
           } else {
             setStep('upload')
-            toast.error('AI could not find any product items in the document. Please try a clearer file.')
+            toast.error('SEZ AI could not find any product items in the document. Please try a clearer file.')
           }
         },
         onError: (err) => {
           setStep('upload')
-          const msg = err instanceof Error ? err.message : 'AI document analysis failed'
+          const msg = err instanceof Error ? err.message : 'SEZ AI document analysis failed'
           toast.error(msg)
         },
       }
@@ -185,7 +224,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
   }
 
   const handleRegenerateBarcode = (id: string) => {
-    const newBarcode = '890' + Math.floor(100000000 + Math.random() * 900000000).toString()
+    const newBarcode = 'SZ' + Math.floor(1000000000 + Math.random() * 9000000000).toString()
     setExtractedProducts(prev => prev.map(p => p.id === id ? { ...p, barcode: newBarcode, isExistingBarcode: false } : p))
     toast.success('Generated fresh barcode!')
   }
@@ -209,7 +248,12 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
     bulkImport(selectedList, {
       onSuccess: (res) => {
-        toast.success(`Successfully imported ${res.count} products into your inventory!`)
+        toast.success(`Successfully imported ${res.count} products & updated categories!`)
+        // Force immediate invalidation and refetch of categories & products queries
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
         handleResetAndClose()
       },
       onError: (err) => {
@@ -242,20 +286,20 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     <Modal
       isOpen={isOpen}
       onClose={handleResetAndClose}
-      title="AI Smart Bulk Product & Barcode Extractor"
+      title="SEZ AI Smart Bulk Product & Barcode Extractor"
       size="xl"
     >
       <div className="space-y-6">
         {step === 'upload' && (
           <div className="space-y-5">
-            {/* AI Capability Banner */}
+            {/* SEZ AI Capability Banner */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/10 via-blue-900/10 to-indigo-900/10 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-800/50 space-y-2">
               <div className="flex items-center gap-2 text-sm font-bold text-purple-900 dark:text-purple-200">
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
                 <span>Upload Excel Spreadsheets, Bills, Menus, or Handwritten Receipts</span>
               </div>
               <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                Gemini AI intelligently maps columns, reads handwritten bills, supplier invoices, hotel menus, and price sheets. It auto-generates missing barcodes, assigns smart categories, and calculates prices!
+                SEZ AI intelligently maps columns, reads handwritten bills, supplier invoices, hotel menus, and price sheets. It auto-generates missing barcodes, assigns smart categories, and calculates prices!
               </p>
               
               {/* Capacity Banner */}
@@ -346,24 +390,32 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold"
                 leftIcon={<Sparkles size={16} />}
               >
-                Analyze & Extract Products
+                Analyze with SEZ AI
               </Button>
             </div>
           </div>
         )}
 
         {step === 'analyzing' && (
-          <div className="py-16 text-center space-y-4">
-            <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+          <div className="py-16 text-center space-y-6">
+            <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
               <div className="absolute inset-0 rounded-full border-4 border-purple-500/20 border-t-purple-600 animate-spin" />
-              <Sparkles className="w-8 h-8 text-purple-600 dark:text-purple-400 animate-pulse" />
+              <Bot className="w-10 h-10 text-purple-600 dark:text-purple-400 animate-bounce" />
             </div>
-            <div>
+            <div className="space-y-2 max-w-md mx-auto">
+              <Badge variant="info" className="px-3 py-1 text-xs font-bold animate-pulse">
+                SEZ AI Active Processing
+              </Badge>
               <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                Gemini AI is Analyzing Your File...
+                SEZ AI is Analyzing Your File...
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto mt-1">
-                Mapping columns, extracting product names, prices, categories, stock, and barcodes. Generating unique barcodes for items without one...
+              <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 transition-all duration-300">
+                <p className="text-xs font-semibold text-purple-900 dark:text-purple-200 animate-fade-in">
+                  {SEZ_AI_LOADING_MESSAGES[loadingMsgIdx]}
+                </p>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Extracting items, mapping prices, creating categories, and auto-generating barcodes...
               </p>
             </div>
           </div>
@@ -374,7 +426,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             {/* Top Stat Banner */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/40">
-                <p className="text-[11px] text-purple-700 dark:text-purple-300 font-medium">Extracted Products</p>
+                <p className="text-[11px] text-purple-700 dark:text-purple-300 font-medium">SEZ AI Extracted</p>
                 <p className="text-xl font-bold text-purple-900 dark:text-purple-100">{extractedProducts.length}</p>
               </div>
               <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40">
@@ -706,6 +758,16 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 ))
               )}
             </div>
+
+            {/* Import Status Banner during Import */}
+            {isImporting && (
+              <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
+                  {SEZ_AI_IMPORT_MESSAGES[loadingMsgIdx % SEZ_AI_IMPORT_MESSAGES.length]}
+                </p>
+              </div>
+            )}
 
             {/* Action Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-800">
