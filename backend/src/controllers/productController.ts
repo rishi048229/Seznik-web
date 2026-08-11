@@ -308,7 +308,7 @@ RULES:
     if (!rawContent) {
       console.error('All Gemini SDK models failed. Last error:', lastError);
       return res.status(500).json({
-        error: `Gemini AI service error: ${lastError.includes('API key') ? 'Invalid Gemini API Key in server .env' : lastError}`
+        error: `Gemini AI Error: ${lastError}`
       });
     }
     
