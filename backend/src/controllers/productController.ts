@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../config/db';
 
 export const getProducts = async (req: Request, res: Response) => {
@@ -267,49 +268,35 @@ RULES:
 4. "unit": Infer appropriate unit (e.g. piece, kg, liter, plate, box, bottle, pack).
 5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
 
+    const genAI = new GoogleGenerativeAI(apiKey);
     const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
-    let aiResult: any = null;
+    let rawContent = '';
     let lastError = '';
 
-    for (const model of modelsToTry) {
+    for (const modelName of modelsToTry) {
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: mimeType || 'image/jpeg',
-                      data: cleanBase64
-                    }
-                  },
-                  { text: promptText }
-                ]
-              }
-            ]
-          })
-        });
-
-        if (response.ok) {
-          aiResult = await response.json();
-          break;
-        } else {
-          lastError = await response.text();
-          console.warn(`Gemini model ${model} returned error:`, lastError);
-        }
-      } catch (err) {
-        console.warn(`Failed to connect with model ${model}:`, err);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([
+          promptText,
+          {
+            inlineData: {
+              data: cleanBase64,
+              mimeType: mimeType || 'image/jpeg',
+            },
+          },
+        ]);
+        rawContent = result.response.text() || '';
+        if (rawContent) break;
+      } catch (err: any) {
+        lastError = err?.message || String(err);
+        console.warn(`Gemini SDK model ${modelName} failed:`, lastError);
       }
     }
 
-    if (!aiResult) {
-      console.error('All Gemini models failed. Last error:', lastError);
-      return res.status(500).json({ error: 'Gemini AI service error. Please ensure GEMINI_API_KEY is valid.' });
+    if (!rawContent) {
+      console.error('All Gemini SDK models failed. Last error:', lastError);
+      return res.status(500).json({ error: `Gemini AI service error: ${lastError || 'Unable to analyze document.'}` });
     }
-    const rawContent = aiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     // Clean rawContent of any markdown fences
     const jsonStr = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
