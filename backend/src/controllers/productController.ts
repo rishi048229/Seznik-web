@@ -233,12 +233,14 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No document data provided. Please upload an image or PDF file.' });
     }
 
-    // Strictly use backend server GEMINI_API_KEY
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Trim and sanitize GEMINI_API_KEY from environment
+    const rawKey = process.env.GEMINI_API_KEY || '';
+    const apiKey = rawKey.replace(/["']/g, '').trim();
 
-    if (!apiKey) {
-      return res.status(500).json({
-        error: 'AI document extraction service is currently unavailable. Please contact support.'
+    if (!apiKey || apiKey.length < 10) {
+      console.error('GEMINI_API_KEY is missing or invalid in environment.');
+      return res.status(400).json({
+        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY to backend/.env and restart PM2.'
       });
     }
 
@@ -269,7 +271,14 @@ RULES:
 5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
+    const modelsToTry = [
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro',
+      'gemini-1.5-pro-latest',
+      'gemini-2.0-flash-exp'
+    ];
+    
     let rawContent = '';
     let lastError = '';
 
@@ -286,7 +295,10 @@ RULES:
           },
         ]);
         rawContent = result.response.text() || '';
-        if (rawContent) break;
+        if (rawContent) {
+          console.log(`Gemini extraction succeeded using model: ${modelName}`);
+          break;
+        }
       } catch (err: any) {
         lastError = err?.message || String(err);
         console.warn(`Gemini SDK model ${modelName} failed:`, lastError);
@@ -295,7 +307,9 @@ RULES:
 
     if (!rawContent) {
       console.error('All Gemini SDK models failed. Last error:', lastError);
-      return res.status(500).json({ error: `Gemini AI service error: ${lastError || 'Unable to analyze document.'}` });
+      return res.status(500).json({
+        error: `Gemini AI service error: ${lastError.includes('API key') ? 'Invalid Gemini API Key in server .env' : lastError}`
+      });
     }
     
     // Clean rawContent of any markdown fences
