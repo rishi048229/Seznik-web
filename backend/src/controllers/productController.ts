@@ -226,25 +226,18 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
 export const aiExtractFromDocument = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
-    const { documentData, mimeType = 'image/jpeg', customApiKey } = req.body;
+    const { documentData, mimeType = 'image/jpeg' } = req.body;
 
     if (!documentData) {
       return res.status(400).json({ error: 'No document data provided. Please upload an image or PDF file.' });
     }
 
-    // Determine Gemini API key
-    let apiKey = customApiKey || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      const userSettings = await prisma.settings.findUnique({ where: { userId: rawUserId } });
-      const personalInfo: any = userSettings?.personalInfo;
-      if (personalInfo?.geminiApiKey) {
-        apiKey = personalInfo.geminiApiKey;
-      }
-    }
+    // Strictly use backend server GEMINI_API_KEY
+    const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      return res.status(400).json({
-        error: 'Gemini API Key missing. Please set GEMINI_API_KEY in backend .env or enter it in Settings -> AI Configuration.'
+      return res.status(500).json({
+        error: 'AI document extraction service is currently unavailable. Please contact support.'
       });
     }
 

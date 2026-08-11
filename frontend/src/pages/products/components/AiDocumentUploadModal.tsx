@@ -104,7 +104,6 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
         {
           documentData: base64Data,
           mimeType: selectedFile.type || 'image/jpeg',
-          customApiKey: customApiKey.trim() || undefined,
         },
         {
           onSuccess: (res) => {
@@ -249,36 +248,6 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   <Button type="button" size="sm" variant="outline" className="mt-2">
                     Browse File
                   </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Optional Custom Gemini API Key Toggle */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowKeyInput(!showKeyInput)}
-                className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 font-medium"
-              >
-                <Key size={13} />
-                {showKeyInput ? 'Hide Custom Gemini API Key' : 'Have a custom Gemini API Key? (Optional)'}
-              </button>
-
-              {showKeyInput && (
-                <div className="mt-2.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 space-y-1.5">
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Custom Gemini API Key
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="AIzaSy..."
-                    value={customApiKey}
-                    onChange={e => setCustomApiKey(e.target.value)}
-                    className="text-xs"
-                  />
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    If left blank, system uses the <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">GEMINI_API_KEY</code> from backend server configuration.
-                  </p>
                 </div>
               )}
             </div>
