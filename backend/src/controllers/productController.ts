@@ -271,11 +271,35 @@ RULES:
 5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
 
     const ai = new GoogleGenAI({ apiKey });
-    const modelsToTry = [
+    
+    let modelsToTry = [
       'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-exp',
       'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro'
     ];
+
+    try {
+      const listResponse: any = await ai.models.list();
+      const listItems = Array.isArray(listResponse) ? listResponse : (listResponse?.models || []);
+      const discovered = listItems
+        .filter((m: any) => {
+          const name = m?.name || '';
+          const methods = m?.supportedGenerationMethods || [];
+          return methods.includes('generateContent') || name.includes('gemini');
+        })
+        .map((m: any) => (m?.name || '').replace(/^models\//, ''))
+        .filter(Boolean);
+
+      if (discovered.length > 0) {
+        console.log('Discovered Gemini models from API:', discovered);
+        modelsToTry = Array.from(new Set([...discovered, ...modelsToTry]));
+      }
+    } catch (e) {
+      console.warn('Dynamic Gemini model listing returned error:', e);
+    }
     
     let rawContent = '';
     let lastError = '';
