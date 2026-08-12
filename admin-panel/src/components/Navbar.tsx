@@ -9,6 +9,7 @@ import {
   Clock, 
   UserCheck,
   ExternalLink,
+  Smartphone,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -35,11 +36,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', icon: Activity },
-    { id: 'redirects', label: 'Redirects', icon: ExternalLink },
     { id: 'logins', label: 'User Logs & Activity', icon: ShieldAlert },
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
     { id: 'locations', label: 'Geolocation & IP', icon: Globe },
     { id: 'users', label: 'Registered Users', icon: Users },
+    { id: 'app-traffic', label: 'App Traffic', icon: Smartphone },
+    { id: 'web-traffic', label: 'Web Traffic', icon: Globe },
+    { id: 'redirects', label: 'Redirects', icon: ExternalLink },
   ];
 
   return (
@@ -180,7 +183,20 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Tabs Navigation */}
-      <div style={{ display: 'flex', padding: '0 32px', gap: '4px', overflowX: 'auto', borderTop: '1px solid var(--navbar-border)', width: '100%', boxSizing: 'border-box', transition: 'border-color 0.3s ease' }}>
+      <div 
+        style={{ 
+          display: 'flex', 
+          padding: '0 24px', 
+          gap: '6px', 
+          overflowX: 'auto', 
+          borderTop: '1px solid var(--navbar-border)', 
+          width: '100%', 
+          boxSizing: 'border-box', 
+          transition: 'border-color 0.3s ease',
+          scrollbarWidth: 'thin',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isSelected = activeTab === tab.id;
@@ -192,19 +208,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '7px',
-                padding: '11px 14px',
+                padding: '11px 16px',
                 border: 'none',
-                background: 'transparent',
+                background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
                 color: isSelected ? 'var(--accent-blue)' : 'var(--navbar-text-muted)',
                 borderBottom: isSelected ? '2px solid var(--accent-blue)' : '2px solid transparent',
                 fontSize: '0.84rem',
                 fontWeight: isSelected ? 600 : 500,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
+                borderRadius: '6px 6px 0 0',
                 transition: 'all 0.15s ease',
               }}
             >
-              <Icon size={15} />
+              <Icon size={15} color={isSelected ? 'var(--accent-blue)' : undefined} />
               <span>{tab.label}</span>
             </button>
           );

@@ -11,6 +11,7 @@ import { SecurityAnomalyPanel } from './components/SecurityAnomalyPanel';
 import { SectionDetailView } from './components/SectionDetailView';
 import { RegisteredUsersRoster } from './components/RegisteredUsersRoster';
 import { RedirectsView } from './components/RedirectsView';
+import { AppTrafficView } from './components/AppTrafficView';
 import { 
   fetchDashboardMetrics, 
   fetchUserRecords, 
@@ -161,6 +162,14 @@ export const App: React.FC = () => {
                   <DeviceSessionBreakdown data={deviceData} />
                 </div>
               </div>
+            )}
+
+            {activeTab === 'app-traffic' && (
+              <AppTrafficView defaultPlatform="mobile" />
+            )}
+
+            {activeTab === 'web-traffic' && (
+              <AppTrafficView defaultPlatform="web" />
             )}
 
             {activeTab === 'redirects' && (
