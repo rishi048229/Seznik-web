@@ -119,6 +119,7 @@ const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string
   sideBySideBarcodeQr: { label: 'Barcode + QR (Image 1)', icon: '📐' },
   sku: { label: 'SKU / Code', icon: '🔢' },
   category: { label: 'Category', icon: '📁' },
+  sequenceNo: { label: 'Consecutive Label No.', icon: '#️⃣' },
   custom: { label: 'Custom Text', icon: '✎' },
   divider: { label: 'Divider Line', icon: '➖' },
 }

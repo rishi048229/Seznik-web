@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal } from './components/ProductDetailModal'
 import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
+import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
@@ -136,6 +137,8 @@ export const ProductsPage = () => {
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
   const [showAiModal, setShowAiModal] = useState(false)
+  const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
+  const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
@@ -607,6 +610,20 @@ export const ProductsPage = () => {
                   Delete Selected ({selectedIds.size})
                 </Button>
               )}
+              <Button
+                variant="outline"
+                className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 font-bold"
+                leftIcon={<Tag size={16} className="text-blue-600 dark:text-blue-400" />}
+                onClick={() => {
+                  const targetProds = selectedIds.size > 0
+                    ? activeProducts.filter(p => selectedIds.has(p.id))
+                    : activeProducts
+                  setConsecutiveProducts(targetProds)
+                  setShowConsecutiveModal(true)
+                }}
+              >
+                {selectedIds.size > 0 ? `Consecutive Labels (${selectedIds.size})` : 'Consecutive Billing Labels'}
+              </Button>
               <Button
                 variant="outline"
                 className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold"
@@ -1642,6 +1659,13 @@ export const ProductsPage = () => {
       <AiDocumentUploadModal
         isOpen={showAiModal}
         onClose={() => setShowAiModal(false)}
+      />
+
+      <ConsecutiveLabelModal
+        isOpen={showConsecutiveModal}
+        onClose={() => setShowConsecutiveModal(false)}
+        selectedProducts={consecutiveProducts}
+        allProducts={activeProducts}
       />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}

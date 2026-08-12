@@ -36,6 +36,7 @@ export type LabelElementType =
   | 'sideBySideBarcodeQr'
   | 'sku'
   | 'category'
+  | 'sequenceNo'
   | 'custom'
   | 'divider'
 

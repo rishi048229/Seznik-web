@@ -9,6 +9,7 @@ export interface LabelData {
   barcodeValue: string
   sku?: string
   category?: string
+  sequenceNo?: string
 }
 
 // Shared default layout — used both as the Label Designer's starting point
@@ -60,6 +61,7 @@ export const resolveElementText = (el: LabelElement, data: LabelData): string =>
     case 'mrpHeader': val = el.text || 'MRP (Incl. of all taxes)'; break
     case 'sku': val = data.sku || data.barcodeValue; break
     case 'category': val = data.category || ''; break
+    case 'sequenceNo': val = data.sequenceNo || ''; break
     case 'custom': val = el.text ?? ''; break
     case 'barcode':
     case 'qrCode':
