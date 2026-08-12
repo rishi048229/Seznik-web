@@ -264,7 +264,7 @@ Extract ALL individual items/products with their details and return ONLY a valid
   ]
 }
 RULES:
-1. "barcode": If an existing barcode (numeric or alphanumeric) is visible in the document for the item, extract it EXACTLY. If NO barcode is printed or visible, set "barcode": null.
+1. "barcode": CRITICAL RULE: If an existing barcode (numeric or alphanumeric e.g. "2211291244099", "8901234567890", "ITEM-101") is visible or present in the document/sheet for the item, extract that EXACT string value without altering any digit or character! Set "barcode": null ONLY if no barcode or code number exists for the item.
 2. "categoryName": Infer an appropriate category name if not explicitly written (e.g. Starter, Main Course, Grocery, Snacks, Electronics).
 3. "sellingPrice" and "costPrice": Extract prices as numeric values. If cost price is not mentioned, estimate or set equal to sellingPrice.
 4. "unit": Infer appropriate unit (e.g. piece, kg, liter, plate, box, bottle, pack).
