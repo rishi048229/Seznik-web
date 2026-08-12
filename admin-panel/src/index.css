@@ -1,4 +1,8 @@
 @layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
   :root {
     --bg-main: #0B0F19;
     --bg-card: #111827;

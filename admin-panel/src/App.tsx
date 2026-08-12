@@ -76,9 +76,6 @@ export const App: React.FC = () => {
       />
 
       <main style={{ padding: '24px', maxWidth: '1440px', margin: '0 auto' }}>
-        {/* KPI Top Summary Row */}
-        <KPICards metrics={metrics} />
-
         {loading && !metrics ? (
           <div style={{ padding: '60px', textAlign: 'center', color: '#9CA3AF' }}>
             <div className="pulse-dot" style={{ margin: '0 auto 16px auto', width: '16px', height: '16px' }} />
@@ -88,8 +85,9 @@ export const App: React.FC = () => {
           <>
             {activeTab === 'overview' && (
               <>
-                <SectionUsageChart sections={sectionUsage} />
-                <LocationDistribution locations={locationMetrics} />
+                <KPICards metrics={metrics} />
+                <SectionUsageChart sections={sectionUsage} showInsights={false} />
+                <LocationDistribution locations={locationMetrics} showProtocol={false} />
               </>
             )}
 

@@ -11,12 +11,16 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({ logs }) => {
   const [statusFilter, setStatusFilter] = useState('all');
 
   const filteredLogs = logs.filter((log) => {
+    const term = searchTerm.toLowerCase().trim();
     const matchesSearch = 
-      log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.ipAddress.includes(searchTerm) ||
-      log.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.country.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (log.userName || '').toLowerCase().includes(term) ||
+      (log.userEmail || '').toLowerCase().includes(term) ||
+      (log.ipAddress || '').toLowerCase().includes(term) ||
+      (log.city || '').toLowerCase().includes(term) ||
+      (log.country || '').toLowerCase().includes(term) ||
+      (log.userRole || '').toLowerCase().includes(term) ||
+      (log.device || '').toLowerCase().includes(term);
     
     const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -41,8 +45,8 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({ logs }) => {
         {/* Filter Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* Search Box */}
-          <div style={{ position: 'relative', minWidth: '240px' }}>
-            <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          <div style={{ position: 'relative', width: '280px', maxWidth: '100%' }}>
+            <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
             <input
               type="text"
               placeholder="Search user, email, IP, city..."
@@ -57,30 +61,35 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({ logs }) => {
                 color: '#F9FAFB',
                 fontSize: '0.8rem',
                 outline: 'none',
+                boxSizing: 'border-box',
               }}
             />
           </div>
 
           {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid #374151',
-              background: '#111827',
-              color: '#F9FAFB',
-              fontSize: '0.8rem',
-              outline: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active Sessions</option>
-            <option value="success">Success</option>
-            <option value="failed">Failed Attempts</option>
-          </select>
+          <div style={{ position: 'relative', width: '160px', maxWidth: '100%' }}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid #374151',
+                background: '#111827',
+                color: '#F9FAFB',
+                fontSize: '0.8rem',
+                outline: 'none',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active Sessions</option>
+              <option value="success">Success</option>
+              <option value="failed">Failed Attempts</option>
+            </select>
+          </div>
         </div>
       </div>
 
