@@ -247,7 +247,8 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
     // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
     const cleanBase64 = documentData.includes(',') ? documentData.split(',')[1] : documentData;
 
-    const promptText = `You are an expert AI inventory assistant. Analyze the uploaded document (supplier invoice, purchase bill, hotel/restaurant menu, price catalog, handwritten bill/receipt, or price list).
+    const promptText = `You are an expert AI inventory assistant. Analyze the uploaded document (supplier invoice, purchase bill, sticker label grid, barcode sheet, hotel/restaurant menu, price catalog, handwritten bill/receipt, or price list).
+Note: The document may contain sticker/label cards printed across multiple columns and rows. Each card may contain a barcode number (e.g. 2608082035002, 2311041715357), a product name directly below it (e.g. "10*3 REXIN", "10*5 Rexin"), and a price (e.g. ₹ 0.00, ₹ 135.00). Extract ALL cards from ALL columns and rows across the entire document!
 Extract ALL individual items/products with their details and return ONLY a valid JSON object matching this exact structure:
 {
   "products": [
@@ -264,9 +265,9 @@ Extract ALL individual items/products with their details and return ONLY a valid
   ]
 }
 RULES:
-1. "barcode": CRITICAL RULE: If an existing barcode (numeric or alphanumeric e.g. "2211291244099", "8901234567890", "ITEM-101") is visible or present in the document/sheet for the item, extract that EXACT string value without altering any digit or character! Set "barcode": null ONLY if no barcode or code number exists for the item.
-2. "categoryName": Infer an appropriate category name if not explicitly written (e.g. Starter, Main Course, Grocery, Snacks, Electronics).
-3. "sellingPrice" and "costPrice": Extract prices as numeric values. If cost price is not mentioned, estimate or set equal to sellingPrice.
+1. "barcode": CRITICAL RULE: Extract the exact barcode string value (e.g. "2608082035002", "2311041715357", "8901234567890") printed on or near the item without altering any digit or character! Set "barcode": null ONLY if no barcode or code number exists for the item.
+2. "categoryName": Infer an appropriate category name if not explicitly written (e.g. Starter, Main Course, Grocery, Snacks, Jewelry, Packaging, Electronics).
+3. "sellingPrice" and "costPrice": Extract prices as numeric values (strip ₹ or currency symbols). If cost price is not mentioned, set equal to sellingPrice.
 4. "unit": Infer appropriate unit (e.g. piece, kg, liter, plate, box, bottle, pack).
 5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
 

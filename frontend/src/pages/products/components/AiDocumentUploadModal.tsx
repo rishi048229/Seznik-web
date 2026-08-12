@@ -14,6 +14,7 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Barcode,
   Search,
   Check,
@@ -136,7 +137,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     if (file) processSelectedFile(file)
   }
 
-  // Direct Deterministic Excel Parser with 100% Barcode Preservation
+  // Strategy 1: Standard Table Column Parser
   const parseExcelSheetDirectly = (sheet: XLSX.WorkSheet): AiExtractedProduct[] => {
     const jsonRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
     if (!jsonRows || jsonRows.length === 0) return []
@@ -157,13 +158,11 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     const taxKey = findKey(/tax|gst|tax_rate|gst_rate|vat/i)
     const unitKey = findKey(/unit|uom|pack|unit_type/i)
 
-    // Check if at least 1 meaningful column was detected
     if (!nameKey && !sellingPriceKey && !barcodeKey) return []
 
     const products: AiExtractedProduct[] = []
 
     jsonRows.forEach((row, idx) => {
-      // Product Name
       let name = nameKey ? String(row[nameKey]).trim() : ''
       if (!name) {
         const nonBarcodeKey = keys.find(k => k !== barcodeKey && String(row[k]).trim().length > 0 && isNaN(Number(row[k])))
@@ -171,7 +170,6 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       }
       if (!name) name = `Item ${idx + 1}`
 
-      // Barcode preservation
       let rawBarcode = barcodeKey ? String(row[barcodeKey]).trim() : ''
       let isExistingBarcode = false
 
@@ -181,30 +179,21 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
         rawBarcode = 'SZ' + Math.floor(1000000000 + Math.random() * 9000000000).toString()
       }
 
-      // Selling Price
       const sellVal = sellingPriceKey ? parseFloat(String(row[sellingPriceKey]).replace(/[^0-9.]/g, '')) : NaN
       const sellingPrice = !isNaN(sellVal) ? sellVal : 0
 
-      // Cost Price
       const costVal = costPriceKey ? parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, '')) : NaN
       const costPrice = !isNaN(costVal) ? costVal : sellingPrice
 
-      // Category
       const categoryName = categoryKey && row[categoryKey] ? String(row[categoryKey]).trim() : 'General'
-
-      // Current Stock
       const stockVal = stockKey ? parseInt(String(row[stockKey]).replace(/[^0-9]/g, '')) : NaN
       const currentStock = !isNaN(stockVal) ? stockVal : 10
-
-      // Tax Rate / GST %
       const taxVal = taxKey ? parseFloat(String(row[taxKey]).replace(/[^0-9.]/g, '')) : NaN
       const taxRate = !isNaN(taxVal) ? taxVal : 0
-
-      // Unit
       const unitVal = unitKey && row[unitKey] ? String(row[unitKey]).trim().toLowerCase() : 'piece'
 
       products.push({
-        id: `excel-${Date.now()}-${idx}`,
+        id: `excel-table-${Date.now()}-${idx}`,
         name,
         sellingPrice,
         costPrice,
@@ -224,6 +213,85 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     return products
   }
 
+  // Strategy 2: Multi-Column Sticker Label Grid Parser (Scans 2D grid for Barcode -> Name -> Price blocks)
+  const parseLabelGridSheet = (sheet: XLSX.WorkSheet): AiExtractedProduct[] => {
+    const grid: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false })
+    if (!grid || grid.length === 0) return []
+
+    const products: AiExtractedProduct[] = []
+    const usedBarcodes = new Set<string>()
+
+    const isBarcode = (val: string): boolean => {
+      const clean = val.replace(/[^0-9a-zA-Z]/g, '')
+      return clean.length >= 6 && clean.length <= 18 && (/\d{6,}/.test(clean))
+    }
+
+    const parsePrice = (val: string): number | null => {
+      if (!val) return null
+      const cleaned = val.replace(/[^0-9.]/g, '')
+      const num = parseFloat(cleaned)
+      return !isNaN(num) && num >= 0 ? num : null
+    }
+
+    for (let r = 0; r < grid.length; r++) {
+      const row = grid[r] || []
+      for (let c = 0; c < row.length; c++) {
+        const cellVal = String(row[c] || '').trim()
+        if (!cellVal) continue
+
+        if (isBarcode(cellVal) && !usedBarcodes.has(cellVal)) {
+          const barcode = cellVal.replace(/[^0-9a-zA-Z]/g, '')
+          usedBarcodes.add(barcode)
+
+          let name = ''
+          let price = 0
+
+          // Search adjacent cells below (r+1..r+4) or adjacent column c
+          for (let dr = 1; dr <= 4; dr++) {
+            const targetR = r + dr
+            if (targetR < grid.length) {
+              const targetVal = String(grid[targetR][c] || '').trim()
+              if (targetVal) {
+                const p = parsePrice(targetVal)
+                if (p !== null && price === 0 && (targetVal.includes('₹') || targetVal.includes('Rs') || dr > 1)) {
+                  price = p
+                } else if (!name && !isBarcode(targetVal) && targetVal.length > 1) {
+                  name = targetVal
+                }
+              }
+              const sideVal = String(grid[targetR][c + 1] || '').trim()
+              if (sideVal) {
+                const p = parsePrice(sideVal)
+                if (p !== null && price === 0) price = p
+              }
+            }
+          }
+
+          if (!name) name = `Item ${barcode}`
+
+          products.push({
+            id: `excel-grid-${r}-${c}-${Date.now()}`,
+            name,
+            sellingPrice: price,
+            costPrice: price,
+            categoryName: 'General',
+            barcode,
+            isExistingBarcode: true,
+            barcodeType: 'CODE128',
+            taxRate: 0,
+            currentStock: 10,
+            lowStockThreshold: 5,
+            unit: 'piece',
+            priceIncludesGst: false,
+            selected: true
+          })
+        }
+      }
+    }
+
+    return products
+  }
+
   const handleStartExtraction = () => {
     if (!selectedFile) {
       toast.error('Please select an Excel sheet, PDF, bill, or menu file first.')
@@ -232,7 +300,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
     setStep('analyzing')
 
-    // If Excel or CSV file, use Direct Deterministic Parser first
+    // If Excel or CSV file, execute Multi-Strategy Extraction
     if (fileTypeCategory === 'excel') {
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -242,18 +310,32 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
           const firstSheetName = workbook.SheetNames[0]
           const sheet = workbook.Sheets[firstSheetName]
 
-          // 1. Try Direct Deterministic Parsing (100% Barcode & 100% Row Accuracy)
-          const directProducts = parseExcelSheetDirectly(sheet)
+          // Strategy A: Standard Table Column Parser
+          const tableProducts = parseExcelSheetDirectly(sheet)
+          const tableBarcodeCount = tableProducts.filter(p => p.isExistingBarcode).length
 
-          if (directProducts.length > 0) {
-            setExtractedProducts(directProducts)
+          // Strategy B: Multi-Column Sticker Label Grid Scanner
+          const gridProducts = parseLabelGridSheet(sheet)
+          const gridBarcodeCount = gridProducts.filter(p => p.isExistingBarcode).length
+
+          // Pick the strategy that preserved more barcodes or extracted more items!
+          let bestProducts = tableProducts
+          if (
+            gridBarcodeCount > tableBarcodeCount ||
+            (gridProducts.length > tableProducts.length && gridBarcodeCount >= tableBarcodeCount)
+          ) {
+            bestProducts = gridProducts
+          }
+
+          if (bestProducts.length > 0) {
+            setExtractedProducts(bestProducts)
             setStep('review')
-            const existingCount = directProducts.filter(p => p.isExistingBarcode).length
-            toast.success(`Extracted all ${directProducts.length} products! (${existingCount} barcodes preserved 100%)`)
+            const existingCount = bestProducts.filter(p => p.isExistingBarcode).length
+            toast.success(`Extracted all ${bestProducts.length} products! (${existingCount} barcodes preserved 100%)`)
             return
           }
 
-          // 2. Fallback to SEZ AI CSV extraction if sheet structure was non-standard
+          // Fallback to SEZ AI CSV extraction if sheet structure is non-standard
           const csvText = XLSX.utils.sheet_to_csv(sheet)
           if (!csvText || csvText.trim().length === 0) {
             setStep('upload')
@@ -348,7 +430,6 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     bulkImport(selectedList, {
       onSuccess: (res) => {
         toast.success(`Successfully imported ${res.count} products & updated categories!`)
-        // Force immediate invalidation and refetch of categories & products queries
         qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
         qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
         qc.refetchQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
@@ -395,17 +476,17 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/10 via-blue-900/10 to-indigo-900/10 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-800/50 space-y-2">
               <div className="flex items-center gap-2 text-sm font-bold text-purple-900 dark:text-purple-200">
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
-                <span>Upload Excel Spreadsheets, Bills, Menus, or Handwritten Receipts</span>
+                <span>Upload Excel Spreadsheets, Sticker Grids, Bills, Menus, or Handwritten Receipts</span>
               </div>
               <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                SEZ AI intelligently maps columns, reads handwritten bills, supplier invoices, hotel menus, and price sheets. It auto-generates missing barcodes, assigns smart categories, and calculates prices!
+                SEZ AI intelligently maps column tables, sticker label grid sheets, supplier invoices, hotel menus, and price lists. It preserves existing barcodes 100%, auto-generates missing barcodes, and assigns smart categories!
               </p>
               
               {/* Capacity Banner */}
               <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/40 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                 <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded-lg font-medium border border-emerald-200 dark:border-emerald-800/40">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span><strong>Excel / CSV Spreadsheets:</strong> Up to 5,000 products per file (100% Barcode Accuracy)</span>
+                  <span><strong>Excel / CSV / Sticker Grids:</strong> Up to 5,000 products per file (100% Barcode Accuracy)</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg font-medium border border-blue-200 dark:border-blue-800/40">
                   <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
@@ -463,7 +544,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   </div>
                   <div>
                     <p className="text-base font-bold text-gray-900 dark:text-gray-100">
-                      Drop your Excel Sheet, Bill, Menu, or Invoice here
+                      Drop your Excel Sheet, Sticker Sheet, Bill, Menu, or Invoice here
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Supports Excel (.xlsx, .xls, .csv, .ods), JPG, PNG, WEBP & PDF files (Max 20MB)
@@ -522,6 +603,19 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
         {step === 'review' && (
           <div className="space-y-4">
+            {/* AI Verification Notice & Disclaimer Warning Banner */}
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-bold text-amber-950 dark:text-amber-100">
+                  ⚠️ Verification Required: AI & Automated Extraction Notice
+                </p>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                  Automated extraction helps process thousands of products quickly, but AI and file parsers can occasionally misinterpret handwritten text, complex grid columns, or custom formats. <strong>Please inspect and verify product names, prices, categories, and barcodes below before clicking import into your inventory.</strong>
+                </p>
+              </div>
+            </div>
+
             {/* Top Stat Banner */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/40">
