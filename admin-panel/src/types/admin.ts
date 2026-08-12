@@ -55,6 +55,7 @@ export interface SectionUsage {
 export interface LocationMetric {
   country: string;
   countryCode: string;
+  state?: string;
   city: string;
   userCount: number;
   activeSessions: number;
