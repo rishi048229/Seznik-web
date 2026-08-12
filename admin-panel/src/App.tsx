@@ -90,7 +90,6 @@ export const App: React.FC = () => {
               <>
                 <SectionUsageChart sections={sectionUsage} />
                 <LocationDistribution locations={locationMetrics} />
-                <LoginAuditTable logs={loginLogs} />
               </>
             )}
 
