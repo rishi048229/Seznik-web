@@ -1,17 +1,70 @@
 import React, { useState } from 'react';
-import { Users, Mail, Phone, Building2, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { Users, Mail, Phone, Building2, Search, ShieldAlert, ArrowRight, Ban, CheckCircle2, UserCheck, X } from 'lucide-react';
 import type { UserRecord } from '../types/admin';
 
 interface UserManagementViewProps {
   users: UserRecord[];
+  initialSearchTerm?: string | null;
+  onViewUserLogs?: (userEmail?: string) => void;
+  onBanUser?: (userId: string | number, reason: string) => void;
 }
 
-export const UserManagementView: React.FC<UserManagementViewProps> = ({ users }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+export const UserManagementView: React.FC<UserManagementViewProps> = ({
+  users,
+  initialSearchTerm,
+  onViewUserLogs,
+  onBanUser,
+}) => {
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
   const [planFilter, setPlanFilter] = useState('all');
+
+  React.useEffect(() => {
+    if (initialSearchTerm) {
+      setSearchTerm(initialSearchTerm);
+    }
+  }, [initialSearchTerm]);
+
+  // Modal State for Ban User
+  const [selectedUserForBan, setSelectedUserForBan] = useState<UserRecord | null>(null);
+  const [selectedReason, setSelectedReason] = useState<string>('Suspicious activity or unauthorized access');
+  const [customReason, setCustomReason] = useState<string>('');
+
+  // Local state for banned status mapping
+  const [bannedMap, setBannedMap] = useState<Record<string | number, { banned: boolean; reason: string }>>({
+    4: { banned: true, reason: 'Excessive failed security authentications' }, // Mock seed sample
+  });
+
+  const handleConfirmBan = () => {
+    if (!selectedUserForBan) return;
+    const finalReason = selectedReason === 'Custom Reason' ? customReason : selectedReason;
+
+    setBannedMap((prev) => ({
+      ...prev,
+      [selectedUserForBan.id]: {
+        banned: true,
+        reason: finalReason || 'Account suspended by system administrator',
+      },
+    }));
+
+    if (onBanUser) {
+      onBanUser(selectedUserForBan.id, finalReason);
+    }
+
+    setSelectedUserForBan(null);
+    setCustomReason('');
+  };
+
+  const handleUnban = (userId: string | number) => {
+    setBannedMap((prev) => ({
+      ...prev,
+      [userId]: { banned: false, reason: '' },
+    }));
+  };
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
+      String(u.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.uid || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.displayName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (u.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (u.businessName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -21,8 +74,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ users })
     return matchesSearch && matchesPlan;
   });
 
+  const predefinedReasons = [
+    'Suspicious activity or unauthorized access',
+    'Violation of Terms of Service / System Abuse',
+    'Fraudulent payment or billing dispute',
+    'Excessive failed security authentications',
+    'Custom Reason',
+  ];
+
   return (
-    <div className="glass-card" style={{ padding: '24px', marginBottom: '24px' }}>
+    <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', position: 'relative' }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -32,17 +94,40 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ users })
             </h2>
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
-            Full database list of user accounts, subscription plans, and email verification states.
+            Full merchant user roster with User IDs, account privileges, suspension controls, and activity logs.
           </p>
         </div>
 
-        {/* Filter Controls */}
+        {/* Filter Controls & Action Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', minWidth: '240px' }}>
-            <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          {onViewUserLogs && (
+            <button
+              onClick={() => onViewUserLogs()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                color: '#60A5FA',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <span>View All User Activity Logs</span>
+              <ArrowRight size={14} />
+            </button>
+          )}
+
+          {/* Search Input */}
+          <div style={{ position: 'relative', width: '220px' }}>
+            <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
             <input
               type="text"
-              placeholder="Search user name, email, business..."
+              placeholder="Search ID, name, email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -54,6 +139,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ users })
                 color: '#F9FAFB',
                 fontSize: '0.8rem',
                 outline: 'none',
+                boxSizing: 'border-box',
               }}
             />
           </div>
@@ -70,6 +156,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ users })
               fontSize: '0.8rem',
               outline: 'none',
               cursor: 'pointer',
+              boxSizing: 'border-box',
             }}
           >
             <option value="all">All Plans</option>
@@ -80,79 +167,313 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ users })
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table className="custom-table">
+      {/* Users Table */}
+      <div style={{ width: '100%' }}>
+        <table className="custom-table" style={{ width: '100%' }}>
           <thead>
             <tr>
+              <th>User ID</th>
               <th>User Name & Email</th>
               <th>Business Name</th>
               <th>Phone</th>
               <th>Role</th>
               <th>Plan</th>
-              <th>Verified</th>
-              <th>Registered At</th>
-              <th>Last Active</th>
+              <th>Account Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  <div>
-                    <div style={{ fontWeight: 600, color: '#F9FAFB' }}>{u.displayName || 'No Name'}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Mail size={12} /> {u.email || 'No Email'}
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#E5E7EB' }}>
-                    <Building2 size={14} color="#60A5FA" />
-                    <span>{u.businessName || 'Independent'}</span>
-                  </div>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#9CA3AF' }}>
-                    <Phone size={12} />
-                    <span>{u.phone || 'N/A'}</span>
-                  </div>
-                </td>
-                <td>
-                  <span style={{ fontSize: '0.75rem', color: '#D1D5DB', background: '#1F2937', padding: '3px 8px', borderRadius: '4px' }}>
-                    {u.role}
-                  </span>
-                </td>
-                <td>
-                  {u.plan === 'enterprise' && <span className="badge badge-enterprise">Enterprise</span>}
-                  {u.plan === 'pro' && <span className="badge badge-pro">Pro</span>}
-                  {u.plan === 'free' && <span className="badge badge-free">Free</span>}
-                </td>
-                <td>
-                  {u.emailVerified ? (
-                    <span style={{ color: '#34D399', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <CheckCircle2 size={14} /> Verified
-                    </span>
-                  ) : (
-                    <span style={{ color: '#9CA3AF', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <XCircle size={14} /> Unverified
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-                    {new Date(u.createdAt).toLocaleDateString()}
-                  </span>
-                </td>
-                <td>
-                  <span style={{ fontSize: '0.75rem', color: '#60A5FA' }}>
-                    {new Date(u.lastLoginAt).toLocaleString()}
-                  </span>
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#9CA3AF' }}>
+                  No merchant users match your search criteria.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredUsers.map((u) => {
+                const banInfo = bannedMap[u.id];
+                const isUserBanned = banInfo?.banned || u.isBanned;
+                const banReasonText = banInfo?.reason || u.banReason || 'Account suspended by admin';
+
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <code style={{ fontSize: '0.8rem', color: '#60A5FA', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                        #{u.id}
+                      </code>
+                    </td>
+                    <td>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#F9FAFB' }}>{u.displayName || 'No Name'}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Mail size={12} /> {u.email || 'No Email'}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#E5E7EB' }}>
+                        <Building2 size={14} color="#60A5FA" />
+                        <span>{u.businessName || 'Independent'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#9CA3AF' }}>
+                        <Phone size={12} />
+                        <span>{u.phone || 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.75rem', color: '#D1D5DB', background: '#1F2937', padding: '3px 8px', borderRadius: '4px' }}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td>
+                      {u.plan === 'enterprise' && <span className="badge badge-enterprise">Enterprise</span>}
+                      {u.plan === 'pro' && <span className="badge badge-pro">Pro</span>}
+                      {u.plan === 'free' && <span className="badge badge-free">Free</span>}
+                    </td>
+                    <td>
+                      {isUserBanned ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span className="badge badge-failed">
+                            <ShieldAlert size={12} /> Banned
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: '#F87171', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={banReasonText}>
+                            {banReasonText}
+                          </span>
+                        </div>
+                      ) : u.emailVerified ? (
+                        <span className="badge badge-active">
+                          <UserCheck size={12} /> Verified
+                        </span>
+                      ) : (
+                        <span className="badge badge-free">
+                          Unverified
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {/* View Logs Button */}
+                        {onViewUserLogs && (
+                          <button
+                            onClick={() => onViewUserLogs(u.email || String(u.id))}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#1F2937',
+                              border: '1px solid #374151',
+                              color: '#60A5FA',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <span>View logs</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        )}
+
+                        {/* Ban / Unban Button */}
+                        {isUserBanned ? (
+                          <button
+                            onClick={() => handleUnban(u.id)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#34D399',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <CheckCircle2 size={12} />
+                            <span>Unban</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setSelectedUserForBan(u)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: 'rgba(244, 63, 94, 0.15)',
+                              border: '1px solid rgba(244, 63, 94, 0.3)',
+                              color: '#FB7185',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <Ban size={12} />
+                            <span>Ban User</span>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* BAN USER POPUP MODAL */}
+      {selectedUserForBan && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            className="glass-card"
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              padding: '24px',
+              background: '#111827',
+              border: '1px solid rgba(244, 63, 94, 0.4)',
+              borderRadius: '16px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ban size={20} color="#F87171" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
+                    Ban User Account
+                  </h3>
+                  <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                    User ID: #{selectedUserForBan.id} • {selectedUserForBan.displayName}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedUserForBan(null)}
+                style={{ background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#D1D5DB', marginBottom: '16px', lineHeight: '1.4' }}>
+              Are you sure you want to suspend <strong style={{ color: '#F9FAFB' }}>{selectedUserForBan.email}</strong>? Please select a reason for auditing purposes:
+            </p>
+
+            {/* Select Reason */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {predefinedReasons.map((reason) => (
+                <label
+                  key={reason}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: selectedReason === reason ? 'rgba(59, 130, 246, 0.15)' : '#1F2937',
+                    border: `1px solid ${selectedReason === reason ? '#3B82F6' : '#374151'}`,
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    color: '#F9FAFB',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="banReason"
+                    checked={selectedReason === reason}
+                    onChange={() => setSelectedReason(reason)}
+                    style={{ accentColor: '#3B82F6' }}
+                  />
+                  <span>{reason}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Custom Reason Textarea if selected */}
+            {selectedReason === 'Custom Reason' && (
+              <div style={{ marginBottom: '16px' }}>
+                <textarea
+                  placeholder="Enter custom ban reason or admin note..."
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: '1px solid #374151',
+                    background: '#1F2937',
+                    color: '#F9FAFB',
+                    fontSize: '0.8rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button
+                onClick={() => setSelectedUserForBan(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #374151',
+                  background: '#1F2937',
+                  color: '#9CA3AF',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleConfirmBan}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+                  color: '#FFFFFF',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+                }}
+              >
+                Confirm & Ban Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

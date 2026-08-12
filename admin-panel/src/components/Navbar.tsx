@@ -30,7 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', icon: Activity },
-    { id: 'logins', label: 'User Logins Audit', icon: ShieldAlert },
+    { id: 'logins', label: 'User Logs & Activity', icon: ShieldAlert },
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
     { id: 'locations', label: 'Geolocation & IP', icon: Globe },
     { id: 'users', label: 'Registered Users', icon: Users },
@@ -39,7 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header style={{ background: '#111827', borderBottom: '1px solid #1F2937' }} className="sticky top-0 z-50">
       {/* Top Bar */}
-      <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', width: '100%', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ 
             width: '40px', 
@@ -137,7 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Tabs Navigation */}
-      <div style={{ display: 'flex', padding: '0 24px', gap: '8px', overflowX: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ display: 'flex', padding: '0 32px', gap: '8px', overflowX: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isSelected = activeTab === tab.id;

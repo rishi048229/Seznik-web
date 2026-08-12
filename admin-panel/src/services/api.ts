@@ -1,4 +1,13 @@
-import type { UserRecord, UserLoginLog, SectionUsage, LocationMetric, DashboardMetrics } from '../types/admin';
+import type { 
+  UserRecord, 
+  UserLoginLog, 
+  SectionUsage, 
+  LocationMetric, 
+  DashboardMetrics,
+  HeatmapCell,
+  DeviceSessionBreakdownData,
+  SecurityAnomalyData,
+} from '../types/admin';
 
 const API_BASE_URL = 'http://localhost:5005/api/admin';
 
@@ -150,6 +159,10 @@ const MOCK_SECTION_USAGE: SectionUsage[] = [
   { id: 'sec-3', sectionName: 'Products & Inventory', path: '/products', iconName: 'Package', viewCount: 56, uniqueUsers: 4, avgDurationMinutes: 8.4, percentageShare: 16.2, trend: 'neutral', trendPercent: 1.2 },
   { id: 'sec-4', sectionName: 'Sales & Expense Reports', path: '/reports', iconName: 'BarChart3', viewCount: 28, uniqueUsers: 2, avgDurationMinutes: 10.3, percentageShare: 8.1, trend: 'neutral', trendPercent: 0.5 },
   { id: 'sec-5', sectionName: 'Quick Token Generator', path: '/tokens', iconName: 'Ticket', viewCount: 18, uniqueUsers: 2, avgDurationMinutes: 6.1, percentageShare: 5.1, trend: 'up', trendPercent: 18.0 },
+  { id: 'sec-6', sectionName: 'Customer CRM & Loyalty', path: '/crm/customers', iconName: 'Users', viewCount: 14, uniqueUsers: 2, avgDurationMinutes: 7.2, percentageShare: 4.2, trend: 'up', trendPercent: 8.4 },
+  { id: 'sec-7', sectionName: 'GST Tax & Invoice Settings', path: '/settings/tax-invoice', iconName: 'FileText', viewCount: 10, uniqueUsers: 1, avgDurationMinutes: 5.0, percentageShare: 3.1, trend: 'neutral', trendPercent: 0.0 },
+  { id: 'sec-8', sectionName: 'Staff Access & Roles', path: '/settings/staff-roles', iconName: 'Shield', viewCount: 8, uniqueUsers: 1, avgDurationMinutes: 4.5, percentageShare: 2.4, trend: 'up', trendPercent: 5.0 },
+  { id: 'sec-9', sectionName: 'Audit & Security Log Viewer', path: '/admin/logs', iconName: 'ShieldAlert', viewCount: 6, uniqueUsers: 1, avgDurationMinutes: 9.0, percentageShare: 1.8, trend: 'up', trendPercent: 12.0 },
 ];
 
 const MOCK_LOCATION_METRICS: LocationMetric[] = [
@@ -157,19 +170,91 @@ const MOCK_LOCATION_METRICS: LocationMetric[] = [
   { country: 'India', countryCode: 'IN', city: 'Delhi', userCount: 1, activeSessions: 1, percentageShare: 25.0, flagEmoji: '🇮🇳' },
 ];
 
+const MOCK_HEATMAP: HeatmapCell[] = [
+  { day: 'Mon', hour: 10, count: 4 },
+  { day: 'Mon', hour: 11, count: 6 },
+  { day: 'Mon', hour: 14, count: 8 },
+  { day: 'Tue', hour: 10, count: 5 },
+  { day: 'Tue', hour: 12, count: 12 },
+  { day: 'Tue', hour: 15, count: 7 },
+  { day: 'Wed', hour: 11, count: 9 },
+  { day: 'Wed', hour: 16, count: 14 },
+  { day: 'Thu', hour: 10, count: 6 },
+  { day: 'Thu', hour: 14, count: 10 },
+  { day: 'Fri', hour: 11, count: 15 },
+  { day: 'Fri', hour: 17, count: 18 },
+  { day: 'Sat', hour: 12, count: 4 },
+  { day: 'Sun', hour: 18, count: 2 },
+];
+
+const MOCK_DEVICE_BREAKDOWN: DeviceSessionBreakdownData = {
+  desktopCount: 3,
+  desktopPercent: 75,
+  mobileCount: 1,
+  mobilePercent: 25,
+  tabletCount: 0,
+  tabletPercent: 0,
+  newUsersCount: 1,
+  newUsersPercent: 25,
+  returningUsersCount: 3,
+  returningUsersPercent: 75,
+};
+
+const MOCK_SECURITY_ANOMALY: SecurityAnomalyData = {
+  failedLoginCount: 1,
+  failedLoginTrend: -50,
+  anomalousLoginCount: 1,
+  anomalousLoginTrend: 0,
+  recentFlaggedEvents: [
+    {
+      id: 'sec-evt-1',
+      timestamp: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
+      location: 'Frankfurt, Germany',
+      ipAddress: '185.220.101.5',
+      reason: 'Failed credentials from unexpected country',
+      severity: 'warning',
+    },
+  ],
+};
+
 export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
   try {
     const res = await fetch(`${API_BASE_URL}/metrics`);
     if (!res.ok) throw new Error('API request failed');
-    return await res.json();
+    const data = await res.json();
+    return {
+      totalUsers: data.totalUsers ?? 4,
+      totalUsersTrend: 14.2,
+      activeNowCount: data.activeNowCount ?? 1,
+      activeNowTrend: 0,
+      loginsTodayCount: data.loginsTodayCount ?? 4,
+      loginsTodayTrend: 25.0,
+      topSection: 'POS Lite Billing (42.5%)',
+      topSectionShare: 42.5,
+      topSectionTrend: 14.5,
+      topLocation: 'Mumbai, India (75.0%)',
+      topLocationShare: 75.0,
+      topLocationTrend: 5.0,
+      verifiedUserPercentage: data.verifiedUserPercentage ?? 25,
+      freePlanCount: data.freePlanCount ?? 4,
+      proPlanCount: data.proPlanCount ?? 0,
+      enterprisePlanCount: data.enterprisePlanCount ?? 0,
+    };
   } catch (err) {
     console.warn('Falling back to direct DB fetch or mock:', err);
     return {
       totalUsers: 4,
+      totalUsersTrend: 14.2,
       activeNowCount: 1,
+      activeNowTrend: 0,
       loginsTodayCount: 4,
+      loginsTodayTrend: 25.0,
       topSection: 'POS Lite Billing (42.5%)',
+      topSectionShare: 42.5,
+      topSectionTrend: 14.5,
       topLocation: 'Mumbai, India (75.0%)',
+      topLocationShare: 75.0,
+      topLocationTrend: 5.0,
       verifiedUserPercentage: 25,
       freePlanCount: 4,
       proPlanCount: 0,
@@ -221,4 +306,17 @@ export async function fetchLocationMetrics(): Promise<LocationMetric[]> {
     return MOCK_LOCATION_METRICS;
   }
 }
+
+export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
+  return MOCK_HEATMAP;
+}
+
+export async function fetchDeviceSessionBreakdown(): Promise<DeviceSessionBreakdownData> {
+  return MOCK_DEVICE_BREAKDOWN;
+}
+
+export async function fetchSecurityAnomalyData(): Promise<SecurityAnomalyData> {
+  return MOCK_SECURITY_ANOMALY;
+}
+
 
