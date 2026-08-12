@@ -8,6 +8,7 @@ import {
   RefreshCw, 
   Clock, 
   UserCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', icon: Activity },
+    { id: 'redirects', label: 'Redirects', icon: ExternalLink },
     { id: 'logins', label: 'User Logs & Activity', icon: ShieldAlert },
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
     { id: 'locations', label: 'Geolocation & IP', icon: Globe },
