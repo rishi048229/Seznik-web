@@ -1,113 +1,169 @@
 import React from 'react';
-import { LayoutGrid, TrendingUp, TrendingDown, Eye, Clock, Users } from 'lucide-react';
+import { LayoutGrid, TrendingUp, TrendingDown, Clock, Users, ArrowRight } from 'lucide-react';
 import type { SectionUsage } from '../types/admin';
+import { EmptyState } from './EmptyState';
 
 interface SectionUsageChartProps {
-  sections: SectionUsage[];
+  title?: string;
+  sections?: SectionUsage[];
+  showInsights?: boolean;
+  compact?: boolean;
+  hideHeaderButton?: boolean;
+  onViewAllSessions?: (sectionId?: string) => void;
 }
 
-export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({ sections }) => {
+export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
+  title = 'Section & Feature Traffic Breakdown',
+  sections = [],
+  showInsights = true,
+  compact = false,
+  hideHeaderButton = false,
+  onViewAllSessions,
+}) => {
+  const maxShare = Math.max(...sections.map((s) => s.percentageShare), 1);
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-      {/* Section Heatmap Bars */}
-      <div className="glass-card" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <LayoutGrid size={20} color="#F59E0B" />
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
-                Section & Feature Traffic Breakdown
-              </h2>
-            </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
-              Which sections users visit and use the most.
-            </p>
+    <div className="glass-card" style={{ padding: compact ? '16px 20px' : '24px', marginBottom: compact ? '0px' : '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: compact ? '12px' : '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <LayoutGrid size={20} color="#F59E0B" />
+            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              {title}
+            </h2>
           </div>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Telemetry of module usage, unique active merchants, average session duration, and growth trends.
+          </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {sections.map((sec) => (
-            <div key={sec.id} style={{ background: '#111827', padding: '14px 16px', borderRadius: '12px', border: '1px solid #1F2937' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div>
-                  <span style={{ fontWeight: 600, color: '#F9FAFB', fontSize: '0.9rem' }}>
-                    {sec.sectionName}
-                  </span>
-                  <code style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#3B82F6' }}>{sec.path}</code>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: '#34D399' }}>
-                  {sec.trend === 'up' && <TrendingUp size={14} color="#34D399" />}
-                  {sec.trend === 'down' && <TrendingDown size={14} color="#F43F5E" />}
-                  <span>{sec.percentageShare}% share</span>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div style={{ height: '8px', width: '100%', background: '#1F2937', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
-                <div 
-                  style={{ 
-                    height: '100%', 
-                    width: `${sec.percentageShare * 2}%`, 
-                    maxWidth: '100%',
-                    background: 'linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%)',
-                    borderRadius: '4px'
-                  }} 
-                />
-              </div>
-
-              {/* Stats detail row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: '#9CA3AF' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Eye size={12} color="#60A5FA" /> {sec.viewCount.toLocaleString()} Total Views
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Users size={12} color="#C084FC" /> {sec.uniqueUsers} Unique Users
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Clock size={12} color="#FBBF24" /> {sec.avgDurationMinutes}m Avg Session
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {!hideHeaderButton && onViewAllSessions && (
+          <button
+            onClick={() => onViewAllSessions()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--accent-blue)',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '6px 10px',
+              borderRadius: '6px',
+            }}
+          >
+            <span>View All Features</span>
+            <ArrowRight size={14} />
+          </button>
+        )}
       </div>
 
-      {/* Feature Engagement Insights */}
-      <div className="glass-card" style={{ padding: '24px' }}>
-        <h2 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
-          Top Feature Engagement Insights
-        </h2>
+      {sections.length === 0 ? (
+        <EmptyState
+          icon={LayoutGrid}
+          title="No Traffic Recorded"
+          message="No section traffic recorded in this window."
+        />
+      ) : (
+        <div style={{ width: '100%' }}>
+          <table className="custom-table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Section Module</th>
+                <th>Traffic Distribution</th>
+                <th>Unique Users</th>
+                <th>Avg Session Duration</th>
+                <th>Trend Delta</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sections.map((sec) => {
+                const isPositive = sec.trend !== 'down';
+                const TrendIcon = isPositive ? TrendingUp : TrendingDown;
+                const trendColor = isPositive ? '#10B981' : '#EF4444';
+                const barWidth = Math.max(sec.percentageShare, 6);
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '0.9rem', color: '#60A5FA', fontWeight: 600 }}>
-              🥇 POS Lite Billing (#1 Most Used)
-            </h3>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#D1D5DB' }}>
-              Drives 38.2% of all daily session traffic. Cashiers and store managers average 18.5 minutes per billing session.
-            </p>
-          </div>
-
-          <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '0.9rem', color: '#C084FC', fontWeight: 600 }}>
-              🥈 Label Studio & Barcode Designer (+22.1% Surge)
-            </h3>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#D1D5DB' }}>
-              Highest growth rate section. Over 9,840 label templates generated and printed on thermal hardware printers.
-            </p>
-          </div>
-
-          <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '0.9rem', color: '#34D399', fontWeight: 600 }}>
-              🥉 Quick Token Generator (+18.0%)
-            </h3>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#D1D5DB' }}>
-              Used heavily during peak hours for issuing chai, coffee, and ticket slips rapidly without creating full tax invoices.
-            </p>
-          </div>
+                return (
+                  <tr key={sec.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{sec.sectionName}</span>
+                        <code style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', background: 'rgba(79,142,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                          {sec.path}
+                        </code>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${Math.max(sec.percentageShare, 2)}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%)',
+                              borderRadius: '4px',
+                            }}
+                          />
+                        </div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', minWidth: '40px', textAlign: 'right' }}>
+                          {sec.percentageShare}%
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                        <Users size={14} color="#8B5CF6" />
+                        <span>{sec.uniqueUsers} Users</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                        <Clock size={14} color="#D97706" />
+                        <span>{sec.avgDurationMinutes} mins</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, color: trendColor }}>
+                        <TrendIcon size={14} color={trendColor} />
+                        <span>{isPositive ? '+' : ''}{sec.trendPercent}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => {
+                          if (onViewAllSessions) {
+                            onViewAllSessions(sec.id);
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(79,142,247,0.1)',
+                          border: '1px solid rgba(79,142,247,0.2)',
+                          color: 'var(--accent-blue)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span>View feature logs</span>
+                        <ArrowRight size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </div>
+      )}
     </div>
   );
 };

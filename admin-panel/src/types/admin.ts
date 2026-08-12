@@ -1,5 +1,5 @@
 export interface UserRecord {
-  id: string;
+  id: string | number;
   uid: string;
   email: string | null;
   phone: string | null;
@@ -16,6 +16,9 @@ export interface UserRecord {
   country: string;
   countryCode: string;
   ipAddress: string;
+  isBanned?: boolean;
+  banReason?: string;
+  bannedAt?: string;
 }
 
 export interface UserLoginLog {
@@ -32,6 +35,8 @@ export interface UserLoginLog {
   browser: string;
   loginAt: string;
   status: 'success' | 'failed' | 'active';
+  actionType?: 'login' | 'module_access' | 'billing' | 'export' | 'security_flag';
+  actionDetails?: string;
 }
 
 export interface SectionUsage {
@@ -50,21 +55,66 @@ export interface SectionUsage {
 export interface LocationMetric {
   country: string;
   countryCode: string;
+  state?: string;
   city: string;
   userCount: number;
   activeSessions: number;
   percentageShare: number;
-  flagEmoji: string;
+  flagEmoji?: string;
 }
 
 export interface DashboardMetrics {
   totalUsers: number;
+  totalUsersTrend: number;
   activeNowCount: number;
+  activeNowTrend: number;
   loginsTodayCount: number;
+  loginsTodayTrend: number;
   topSection: string;
+  topSectionShare: number;
+  topSectionTrend: number;
   topLocation: string;
+  topLocationShare: number;
+  topLocationTrend: number;
   verifiedUserPercentage: number;
   freePlanCount: number;
   proPlanCount: number;
   enterprisePlanCount: number;
 }
+
+export interface HeatmapCell {
+  day: string;
+  hour: number;
+  count: number;
+}
+
+export interface DeviceSessionBreakdownData {
+  desktopCount: number;
+  desktopPercent: number;
+  mobileCount: number;
+  mobilePercent: number;
+  tabletCount: number;
+  tabletPercent: number;
+  newUsersCount: number;
+  newUsersPercent: number;
+  returningUsersCount: number;
+  returningUsersPercent: number;
+}
+
+export interface FlaggedSecurityEvent {
+  id: string;
+  timestamp: string;
+  location: string;
+  ipAddress: string;
+  reason: string;
+  severity: 'warning' | 'critical';
+}
+
+export interface SecurityAnomalyData {
+  failedLoginCount: number;
+  failedLoginTrend: number;
+  anomalousLoginCount: number;
+  anomalousLoginTrend: number;
+  recentFlaggedEvents: FlaggedSecurityEvent[];
+}
+
