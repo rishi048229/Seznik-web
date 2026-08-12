@@ -247,29 +247,41 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
     // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
     const cleanBase64 = documentData.includes(',') ? documentData.split(',')[1] : documentData;
 
-    const promptText = `You are an expert AI inventory assistant. Analyze the uploaded document (supplier invoice, purchase bill, sticker label grid, barcode sheet, hotel/restaurant menu, price catalog, handwritten bill/receipt, or price list).
-Note: The document may contain sticker/label cards printed across multiple columns and rows. Each card may contain a barcode number (e.g. 2608082035002, 2311041715357), a product name directly below it (e.g. "10*3 REXIN", "10*5 Rexin"), and a price (e.g. ₹ 0.00, ₹ 135.00). Extract ALL cards from ALL columns and rows across the entire document!
-Extract ALL individual items/products with their details and return ONLY a valid JSON object matching this exact structure:
+    const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an Excel sheet, HTML table, CSV data, PDF invoice, purchase bill, multi-column sticker label grid, hotel/restaurant menu, price catalog, handwritten bill, or price list).
+
+YOUR TASK: Extract EVERY SINGLE product/item present anywhere in the document.
+
+For each item, extract:
+1. "name": The exact product name or description (e.g. "BALESTER BRUSH", "BANGLES", "JATI", "MOM CLAY BLACK", "TRAY BOMBAY"). Do NOT set currency prices like "₹ 40.00" as the product name!
+2. "sellingPrice": Numeric selling price (e.g. 80, 750, 150, 25, 40, 350). Strip ₹, Rs, or currency symbols.
+3. "costPrice": Numeric cost price. If not mentioned, set equal to sellingPrice.
+4. "categoryName": Appropriate category (e.g. Groceries, Jewelry, Packaging, Cosmetics, General).
+5. "barcode": CRITICAL BARCODE RULE:
+   - Extract the EXACT barcode number or alphanumeric code (e.g. "165000", "365000", "135000", "105000", "OLDDUE8102023", "380000", "122800", "2608082035002", "2311041715357") printed or listed for the item. Do NOT change a single character!
+   - Set "barcode": null ONLY if the item literally has NO barcode or code number anywhere.
+6. "taxRate": Tax / GST percentage (0, 5, 12, 18, 28). Default to 0 if not listed.
+7. "currentStock": Stock quantity. Default to 10 if not listed.
+8. "unit": Unit type (piece, kg, liter, box, pack, bottle, plate).
+
+OUTPUT REQUIREMENT:
+Return ONLY a valid JSON object matching this exact structure:
 {
   "products": [
     {
-      "name": "Item Name",
-      "sellingPrice": 120,
-      "costPrice": 80,
-      "categoryName": "Beverages",
-      "barcode": "8901234567890",
-      "taxRate": 5,
-      "currentStock": 50,
+      "name": "Product Name",
+      "sellingPrice": 100,
+      "costPrice": 100,
+      "categoryName": "General",
+      "barcode": "165000",
+      "taxRate": 0,
+      "currentStock": 10,
       "unit": "piece"
     }
   ]
 }
 RULES:
-1. "barcode": CRITICAL RULE: Extract the exact barcode string value (e.g. "2608082035002", "2311041715357", "8901234567890") printed on or near the item without altering any digit or character! Set "barcode": null ONLY if no barcode or code number exists for the item.
-2. "categoryName": Infer an appropriate category name if not explicitly written (e.g. Starter, Main Course, Grocery, Snacks, Jewelry, Packaging, Electronics).
-3. "sellingPrice" and "costPrice": Extract prices as numeric values (strip ₹ or currency symbols). If cost price is not mentioned, set equal to sellingPrice.
-4. "unit": Infer appropriate unit (e.g. piece, kg, liter, plate, box, bottle, pack).
-5. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
+1. Extract 100% of all items. Do NOT truncate or skip any products.
+2. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
 
     const ai = new GoogleGenAI({ apiKey });
     
