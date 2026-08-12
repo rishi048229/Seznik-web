@@ -28,11 +28,11 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <LayoutGrid size={20} color="#F59E0B" />
-            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
+            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
               {title}
             </h2>
           </div>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Telemetry of module usage, unique active merchants, average session duration, and growth trends.
           </p>
         </div>
@@ -46,7 +46,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
               gap: '6px',
               background: 'transparent',
               border: 'none',
-              color: '#3B82F6',
+              color: 'var(--accent-blue)',
               fontSize: '0.8rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -83,22 +83,22 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
               {sections.map((sec) => {
                 const isPositive = sec.trend !== 'down';
                 const TrendIcon = isPositive ? TrendingUp : TrendingDown;
-                const trendColor = isPositive ? '#34D399' : '#F87171';
-                const barWidth = Math.max(sec.percentageShare, 6); // Min width of 6% for readability
+                const trendColor = isPositive ? '#10B981' : '#EF4444';
+                const barWidth = Math.max(sec.percentageShare, 6);
 
                 return (
                   <tr key={sec.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 600, color: '#F9FAFB' }}>{sec.sectionName}</span>
-                        <code style={{ fontSize: '0.75rem', color: '#60A5FA', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{sec.sectionName}</span>
+                        <code style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', background: 'rgba(79,142,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                           {sec.path}
                         </code>
                       </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ flex: 1, height: '8px', background: '#1F2937', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
                           <div
                             style={{
                               width: `${Math.max(sec.percentageShare, 2)}%`,
@@ -108,20 +108,20 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                             }}
                           />
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#D1D5DB', minWidth: '40px', textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', minWidth: '40px', textAlign: 'right' }}>
                           {sec.percentageShare}%
                         </span>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#E5E7EB' }}>
-                        <Users size={14} color="#C084FC" />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                        <Users size={14} color="#8B5CF6" />
                         <span>{sec.uniqueUsers} Users</span>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#E5E7EB' }}>
-                        <Clock size={14} color="#FBBF24" />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                        <Clock size={14} color="#D97706" />
                         <span>{sec.avgDurationMinutes} mins</span>
                       </div>
                     </td>
@@ -142,9 +142,9 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          background: 'rgba(59, 130, 246, 0.1)',
-                          border: '1px solid rgba(59, 130, 246, 0.25)',
-                          color: '#60A5FA',
+                          background: 'rgba(79,142,247,0.1)',
+                          border: '1px solid rgba(79,142,247,0.2)',
+                          color: 'var(--accent-blue)',
                           fontSize: '0.75rem',
                           fontWeight: 600,
                           cursor: 'pointer',

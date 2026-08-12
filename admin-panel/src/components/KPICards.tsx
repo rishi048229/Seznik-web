@@ -67,12 +67,12 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
       {cards.map((card, idx) => {
         const Icon = card.icon;
         const isTrendPositive = card.trend >= 0;
         const TrendIcon = isTrendPositive ? TrendingUp : TrendingDown;
-        const trendColor = isTrendPositive ? '#34D399' : '#F87171';
+        const trendColor = isTrendPositive ? '#10B981' : '#EF4444';
 
         return (
           <div
@@ -84,49 +84,53 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
               }
             }}
             style={{
-              padding: '14px 16px',
+              padding: '16px 18px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: onSelectTab ? 'pointer' : 'default',
-              transition: 'all 0.15s ease',
+              transition: 'all 0.2s ease',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '14px',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#9CA3AF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 {card.title}
               </span>
               <div
                 style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '8px',
-                  background: `${card.color}15`,
-                  border: `1px solid ${card.color}30`,
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '10px',
+                  background: `${card.color}20`,
+                  border: `1px solid ${card.color}40`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}
               >
-                <Icon size={15} color={card.color} />
+                <Icon size={16} color={card.color} />
               </div>
             </div>
 
-            <div style={{ marginBottom: '6px' }}>
+            <div style={{ marginBottom: '10px' }}>
               {card.isStringValue ? (
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#F9FAFB', lineHeight: '1.2' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: '1.3' }}>
                   {card.value}
                 </div>
               ) : (
-                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#F9FAFB', lineHeight: '1' }}>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: '1', letterSpacing: '-0.02em' }}>
                   {card.value}
                 </div>
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                 {card.subtext}
               </span>
 
@@ -138,6 +142,9 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '2px',
+                  background: isTrendPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
                 }}
               >
                 <TrendIcon size={12} color={trendColor} />
@@ -147,6 +154,6 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
           </div>
         );
       })}
-    </div>
+      </div>
   );
 };

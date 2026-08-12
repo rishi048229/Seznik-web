@@ -38,6 +38,7 @@ export const App: React.FC = () => {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [selectedUserEmailForLogs, setSelectedUserEmailForLogs] = useState<string | null>(null);
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0); // 0 = Off (Manual), 10s, 30s, 60s, 300s
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -81,18 +82,25 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     loadAllData();
+  }, [timeRange]);
+
+  // Dynamic Auto-Refresh Effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+
     const timer = setInterval(() => {
       loadAllData();
-    }, 15000); // 15s auto-refresh
+    }, autoRefreshInterval * 1000);
+
     return () => clearInterval(timer);
-  }, [timeRange]);
+  }, [autoRefreshInterval, timeRange]);
 
   const activeSection = selectedSectionId
     ? sectionUsage.find((s) => s.id === selectedSectionId) || sectionUsage[0]
     : null;
 
   return (
-    <div style={{ height: '100vh', maxHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#0B0F19', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', maxHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', overflow: 'hidden' }}>
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -105,11 +113,13 @@ export const App: React.FC = () => {
         setTimeRange={setTimeRange}
         lastRefreshedAt={lastRefreshedAt}
         onRefresh={loadAllData}
+        autoRefreshInterval={autoRefreshInterval}
+        setAutoRefreshInterval={setAutoRefreshInterval}
       />
 
       <main style={{ flex: 1, padding: '24px 32px', width: '100%', boxSizing: 'border-box', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         {loading && !metrics ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#9CA3AF' }}>
+          <div style={{ padding: '60px', textAlign: 'center', color: '#64748B' }}>
             <div className="pulse-dot" style={{ margin: '0 auto 16px auto', width: '16px', height: '16px' }} />
             <p>Loading real-time admin telemetry data...</p>
           </div>
@@ -134,9 +144,13 @@ export const App: React.FC = () => {
                   sections={sectionUsage.slice(0, 5)}
                   showInsights={false}
                   compact={true}
-                  onViewAllSessions={() => {
+                  onViewAllSessions={(secId) => {
                     setActiveTab('sections');
-                    setSelectedSectionId(null);
+                    if (secId) {
+                      setSelectedSectionId(secId);
+                    } else {
+                      setSelectedSectionId(null);
+                    }
                   }}
                 />
 
@@ -187,9 +201,12 @@ export const App: React.FC = () => {
             )}
 
             {activeTab === 'locations' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <LocationDistribution locations={locationMetrics} />
-                <SecurityAnomalyPanel data={securityData} summaryOnly={false} />
+                <SecurityAnomalyPanel
+                  data={securityData}
+                  onViewSecurityLogs={() => setActiveTab('logins')}
+                />
               </div>
             )}
 

@@ -361,27 +361,59 @@ const MOCK_SECTION_USAGE: SectionUsage[] = [
 ];
 
 const MOCK_LOCATION_METRICS: LocationMetric[] = [
-  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Mumbai', userCount: 2, activeSessions: 1, percentageShare: 50.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Delhi', userCount: 1, activeSessions: 1, percentageShare: 25.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Karnataka', city: 'Bengaluru', userCount: 1, activeSessions: 0, percentageShare: 25.0, flagEmoji: '🇮🇳' },
-  { country: 'Germany', countryCode: 'DE', state: 'Hessen', city: 'Frankfurt', userCount: 0, activeSessions: 0, percentageShare: 0.0, flagEmoji: '🇩🇪' },
+  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Mumbai', userCount: 2, activeSessions: 1, percentageShare: 40.0, flagEmoji: '🇮🇳' },
+  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Pune', userCount: 1, activeSessions: 0, percentageShare: 15.0, flagEmoji: '🇮🇳' },
+  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Delhi', userCount: 1, activeSessions: 1, percentageShare: 20.0, flagEmoji: '🇮🇳' },
+  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Gurgaon', userCount: 1, activeSessions: 0, percentageShare: 10.0, flagEmoji: '🇮🇳' },
+  { country: 'India', countryCode: 'IN', state: 'Karnataka', city: 'Bengaluru', userCount: 1, activeSessions: 0, percentageShare: 10.0, flagEmoji: '🇮🇳' },
+  { country: 'India', countryCode: 'IN', state: 'Gujarat', city: 'Ahmedabad', userCount: 1, activeSessions: 0, percentageShare: 5.0, flagEmoji: '🇮🇳' },
 ];
 
 const MOCK_HEATMAP: HeatmapCell[] = [
-  { day: 'Mon', hour: 10, count: 4 },
-  { day: 'Mon', hour: 11, count: 6 },
-  { day: 'Mon', hour: 14, count: 8 },
-  { day: 'Tue', hour: 10, count: 5 },
-  { day: 'Tue', hour: 12, count: 12 },
-  { day: 'Tue', hour: 15, count: 7 },
-  { day: 'Wed', hour: 11, count: 9 },
-  { day: 'Wed', hour: 16, count: 14 },
-  { day: 'Thu', hour: 10, count: 6 },
-  { day: 'Thu', hour: 14, count: 10 },
-  { day: 'Fri', hour: 11, count: 15 },
-  { day: 'Fri', hour: 17, count: 18 },
-  { day: 'Sat', hour: 12, count: 4 },
-  { day: 'Sun', hour: 18, count: 2 },
+  // Mon
+  { day: 'Mon', hour: 1, count: 1 },
+  { day: 'Mon', hour: 8, count: 3 },
+  { day: 'Mon', hour: 10, count: 7 },
+  { day: 'Mon', hour: 11, count: 12 },
+  { day: 'Mon', hour: 14, count: 15 },
+  { day: 'Mon', hour: 18, count: 6 },
+  { day: 'Mon', hour: 22, count: 2 },
+  // Tue
+  { day: 'Tue', hour: 0, count: 1 },
+  { day: 'Tue', hour: 9, count: 5 },
+  { day: 'Tue', hour: 10, count: 14 },
+  { day: 'Tue', hour: 12, count: 22 },
+  { day: 'Tue', hour: 15, count: 18 },
+  { day: 'Tue', hour: 19, count: 8 },
+  { day: 'Tue', hour: 21, count: 3 },
+  // Wed
+  { day: 'Wed', hour: 7, count: 2 },
+  { day: 'Wed', hour: 11, count: 16 },
+  { day: 'Wed', hour: 13, count: 19 },
+  { day: 'Wed', hour: 16, count: 25 },
+  { day: 'Wed', hour: 20, count: 7 },
+  // Thu
+  { day: 'Thu', hour: 2, count: 1 },
+  { day: 'Thu', hour: 10, count: 11 },
+  { day: 'Thu', hour: 14, count: 20 },
+  { day: 'Thu', hour: 17, count: 13 },
+  { day: 'Thu', hour: 23, count: 4 },
+  // Fri
+  { day: 'Fri', hour: 9, count: 8 },
+  { day: 'Fri', hour: 11, count: 21 },
+  { day: 'Fri', hour: 15, count: 28 },
+  { day: 'Fri', hour: 17, count: 24 },
+  { day: 'Fri', hour: 22, count: 9 },
+  // Sat
+  { day: 'Sat', hour: 10, count: 6 },
+  { day: 'Sat', hour: 12, count: 12 },
+  { day: 'Sat', hour: 16, count: 14 },
+  { day: 'Sat', hour: 19, count: 10 },
+  // Sun
+  { day: 'Sun', hour: 11, count: 4 },
+  { day: 'Sun', hour: 15, count: 7 },
+  { day: 'Sun', hour: 18, count: 11 },
+  { day: 'Sun', hour: 20, count: 8 },
 ];
 
 const MOCK_DEVICE_BREAKDOWN: DeviceSessionBreakdownData = {

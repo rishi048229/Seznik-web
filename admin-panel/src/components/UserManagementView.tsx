@@ -83,92 +83,93 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   ];
 
   return (
-    <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', position: 'relative' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Users size={20} color="#8B5CF6" />
-            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
-              Registered System Users ({users.length})
-            </h2>
+    <div className="glass-card" style={{ padding: '24px', height: 'calc(100vh - 170px)', minHeight: '620px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Users size={20} color="#8B5CF6" />
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                Registered System Users ({users.length})
+              </h2>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Full merchant user roster with User IDs, account privileges, suspension controls, and activity logs.
+            </p>
           </div>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
-            Full merchant user roster with User IDs, account privileges, suspension controls, and activity logs.
-          </p>
-        </div>
 
-        {/* Filter Controls & Action Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {onViewUserLogs && (
-            <button
-              onClick={() => onViewUserLogs()}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                color: '#60A5FA',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <span>View All User Activity Logs</span>
-              <ArrowRight size={14} />
-            </button>
-          )}
+          {/* Filter Controls & Action Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {onViewUserLogs && (
+              <button
+                onClick={() => onViewUserLogs()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: '#60A5FA',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <span>View All User Activity Logs</span>
+                <ArrowRight size={14} />
+              </button>
+            )}
 
-          {/* Search Input */}
-          <div style={{ position: 'relative', width: '220px' }}>
-            <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              placeholder="Search ID, name, email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+            {/* Search Input */}
+            <div style={{ position: 'relative', width: '220px' }}>
+              <Search size={16} color="#64748B" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                placeholder="Search ID, name, email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 36px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-main)',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <select
+              className="custom-select"
+              value={planFilter}
+              onChange={(e) => setPlanFilter(e.target.value)}
               style={{
-                width: '100%',
-                padding: '8px 12px 8px 36px',
+                padding: '8px 12px',
                 borderRadius: '8px',
-                border: '1px solid #374151',
-                background: '#111827',
-                color: '#F9FAFB',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-main)',
                 fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box',
               }}
-            />
+            >
+              <option value="all">All Plans</option>
+              <option value="enterprise">Enterprise</option>
+              <option value="pro">Pro Plan</option>
+              <option value="free">Free Plan</option>
+            </select>
           </div>
-
-          <select
-            value={planFilter}
-            onChange={(e) => setPlanFilter(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid #374151',
-              background: '#111827',
-              color: '#F9FAFB',
-              fontSize: '0.8rem',
-              outline: 'none',
-              cursor: 'pointer',
-              boxSizing: 'border-box',
-            }}
-          >
-            <option value="all">All Plans</option>
-            <option value="enterprise">Enterprise</option>
-            <option value="pro">Pro Plan</option>
-            <option value="free">Free Plan</option>
-          </select>
         </div>
-      </div>
 
-      {/* Users Table */}
-      <div style={{ width: '100%' }}>
+        {/* Users Table */}
+        <div style={{ width: '100%', overflowY: 'auto', flex: 1, minHeight: 0 }}>
         <table className="custom-table" style={{ width: '100%' }}>
           <thead>
             <tr>
@@ -185,7 +186,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <tbody>
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#9CA3AF' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                   No merchant users match your search criteria.
                 </td>
               </tr>
@@ -204,26 +205,26 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     </td>
                     <td>
                       <div>
-                        <div style={{ fontWeight: 600, color: '#F9FAFB' }}>{u.displayName || 'No Name'}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{u.displayName || 'No Name'}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Mail size={12} /> {u.email || 'No Email'}
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#E5E7EB' }}>
-                        <Building2 size={14} color="#60A5FA" />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                        <Building2 size={14} color="#2563EB" />
                         <span>{u.businessName || 'Independent'}</span>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#9CA3AF' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         <Phone size={12} />
                         <span>{u.phone || 'N/A'}</span>
                       </div>
                     </td>
                     <td>
-                      <span style={{ fontSize: '0.75rem', color: '#D1D5DB', background: '#1F2937', padding: '3px 8px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
                         {u.role}
                       </span>
                     </td>
@@ -262,9 +263,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
-                              background: '#1F2937',
-                              border: '1px solid #374151',
-                              color: '#60A5FA',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-color)',
+                              color: '#2563EB',
                               fontSize: '0.75rem',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -328,6 +329,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           </tbody>
         </table>
       </div>
+    </div>
 
       {/* BAN USER POPUP MODAL */}
       {selectedUserForBan && (
@@ -350,10 +352,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               width: '100%',
               maxWidth: '480px',
               padding: '24px',
-              background: '#111827',
+              background: 'var(--bg-card)',
               border: '1px solid rgba(244, 63, 94, 0.4)',
               borderRadius: '16px',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -362,10 +364,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   <Ban size={20} color="#F87171" />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
                     Ban User Account
                   </h3>
-                  <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     User ID: #{selectedUserForBan.id} • {selectedUserForBan.displayName}
                   </div>
                 </div>
@@ -373,14 +375,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
               <button
                 onClick={() => setSelectedUserForBan(null)}
-                style={{ background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: '#D1D5DB', marginBottom: '16px', lineHeight: '1.4' }}>
-              Are you sure you want to suspend <strong style={{ color: '#F9FAFB' }}>{selectedUserForBan.email}</strong>? Please select a reason for auditing purposes:
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.4' }}>
+              Are you sure you want to suspend <strong style={{ color: 'var(--text-main)' }}>{selectedUserForBan.email}</strong>? Please select a reason for auditing purposes:
             </p>
 
             {/* Select Reason */}
@@ -394,11 +396,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     gap: '10px',
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    background: selectedReason === reason ? 'rgba(59, 130, 246, 0.15)' : '#1F2937',
-                    border: `1px solid ${selectedReason === reason ? '#3B82F6' : '#374151'}`,
+                    background: selectedReason === reason ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card-hover)',
+                    border: `1px solid ${selectedReason === reason ? '#3B82F6' : 'var(--border-color)'}`,
                     cursor: 'pointer',
                     fontSize: '0.8rem',
-                    color: '#F9FAFB',
+                    color: 'var(--text-main)',
                   }}
                 >
                   <input
@@ -425,9 +427,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     width: '100%',
                     padding: '10px',
                     borderRadius: '8px',
-                    border: '1px solid #374151',
-                    background: '#1F2937',
-                    color: '#F9FAFB',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-main)',
                     fontSize: '0.8rem',
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -443,9 +445,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
-                  border: '1px solid #374151',
-                  background: '#1F2937',
-                  color: '#9CA3AF',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-muted)',
                   fontSize: '0.8rem',
                   fontWeight: 600,
                   cursor: 'pointer',

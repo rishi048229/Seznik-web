@@ -15,11 +15,11 @@ export const RegisteredUsersRoster: React.FC<RegisteredUsersRosterProps> = ({ us
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={20} color="#8B5CF6" />
-            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#F9FAFB' }}>
+            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
               Registered Merchant Users Roster
             </h2>
           </div>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Quick overview of administrative accounts, assigned roles, and activity status.
           </p>
         </div>
@@ -33,7 +33,7 @@ export const RegisteredUsersRoster: React.FC<RegisteredUsersRosterProps> = ({ us
               gap: '6px',
               background: 'transparent',
               border: 'none',
-              color: '#3B82F6',
+              color: '#2563EB',
               fontSize: '0.8rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -92,13 +92,13 @@ export const RegisteredUsersRoster: React.FC<RegisteredUsersRosterProps> = ({ us
                           {initial}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 600, color: '#F9FAFB' }}>{name}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{u.email || u.phone || 'No contact'}</div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{u.email || u.phone || 'No contact'}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#D1D5DB' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         <Shield size={12} color="#8B5CF6" />
                         <span>{u.role}</span>
                       </div>
@@ -109,7 +109,7 @@ export const RegisteredUsersRoster: React.FC<RegisteredUsersRosterProps> = ({ us
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                         {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
                       </span>
                     </td>
