@@ -14,19 +14,22 @@ import {
   Printer,
   Bluetooth,
   Hash,
-  Copy,
   CheckCircle2,
   Trash2,
-  RefreshCw,
-  Eye,
   Edit3,
   Layers,
   ChevronLeft,
   ChevronRight,
-  Download,
-  Info,
+  Search,
+  CheckSquare,
+  Square,
+  RotateCcw,
+  Sliders,
   Tag,
-  Sparkles
+  Sparkles,
+  Plus,
+  Filter,
+  Check
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -36,6 +39,7 @@ export interface ConsecutiveProductConfig {
   prefix: string
   startNum: number
   padZeroes: number
+  selected: boolean
   /** Individual custom sequence overrides per label index (0-indexed) */
   customLabels: string[]
 }
@@ -57,120 +61,162 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
   const { status: bleStatus, deviceName: bleDeviceName, isSupported: isBleSupported, connect: connectBlePrinter, print: sendBleData } = useBlePrinter()
 
   const [productConfigs, setProductConfigs] = useState<ConsecutiveProductConfig[]>([])
+  
+  // Global Sequence & Formatting Controls
   const [globalPrefix, setGlobalPrefix] = useState('No.')
   const [globalStartNum, setGlobalStartNum] = useState(1)
   const [globalPadZeroes, setGlobalPadZeroes] = useState(2)
   const [globalCopies, setGlobalCopies] = useState(1)
+  const [isContinuousBatchSeq, setIsContinuousBatchSeq] = useState(true)
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showProductPicker, setShowProductPicker] = useState(false)
 
   const [labelFormat, setLabelFormat] = useState<'CODE128' | 'EAN13' | 'QR'>('CODE128')
   const [previewIndex, setPreviewIndex] = useState(0)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Initialize or sync product configurations whenever modal opens or selectedProducts changes
+  // Initialize product configurations when modal opens or selectedProducts changes
   useEffect(() => {
-    if (isOpen && selectedProducts.length > 0) {
-      const initial = selectedProducts.map(p => ({
-        product: p,
-        copies: globalCopies > 0 ? globalCopies : 1,
-        prefix: globalPrefix,
-        startNum: globalStartNum,
-        padZeroes: globalPadZeroes,
-        customLabels: Array.from({ length: globalCopies > 0 ? globalCopies : 1 }, (_, i) =>
-          generateSeqString(globalPrefix, globalStartNum + i, globalPadZeroes)
-        )
-      }))
-      setProductConfigs(initial)
-      setPreviewIndex(0)
+    if (isOpen) {
+      const sourceList = selectedProducts.length > 0 ? selectedProducts : allProducts
+      if (sourceList.length > 0) {
+        const initial = sourceList.map(p => ({
+          product: p,
+          copies: globalCopies > 0 ? globalCopies : 1,
+          prefix: globalPrefix,
+          startNum: globalStartNum,
+          padZeroes: globalPadZeroes,
+          selected: true,
+          customLabels: []
+        }))
+        const recomputed = recalculateSequences(initial, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+        setProductConfigs(recomputed)
+        setPreviewIndex(0)
+      }
     }
   }, [isOpen, selectedProducts])
 
-  const generateSeqString = (prefix: string, num: number, padZeroes: number): string => {
+  // Helper to format a sequence number string
+  const formatSeqNo = (prefix: string, num: number, padZeroes: number): string => {
     const numStr = num.toString().padStart(padZeroes, '0')
-    return prefix ? `${prefix.trim()} ${numStr}` : numStr
+    const pfx = prefix ? prefix.trim() : ''
+    return pfx ? `${pfx} ${numStr}` : numStr
   }
 
-  const handleUpdateGlobalSettings = (newPrefix: string, newStart: number, newPad: number, newCopies: number) => {
+  // Recalculates sequence strings across all products (continuous or per-product)
+  const recalculateSequences = (
+    configs: ConsecutiveProductConfig[],
+    prefix: string,
+    startNum: number,
+    padZeroes: number,
+    isContinuous: boolean
+  ): ConsecutiveProductConfig[] => {
+    let runningNum = startNum
+
+    return configs.map(item => {
+      if (!item.selected) {
+        return { ...item, customLabels: [] }
+      }
+
+      const itemStartNum = isContinuous ? runningNum : item.startNum
+      const customLabels = Array.from({ length: item.copies }, (_, i) => {
+        const curNum = isContinuous ? (runningNum + i) : (itemStartNum + i)
+        return formatSeqNo(isContinuous ? prefix : item.prefix, curNum, padZeroes)
+      })
+
+      if (isContinuous) {
+        runningNum += item.copies
+      }
+
+      return {
+        ...item,
+        prefix: isContinuous ? prefix : item.prefix,
+        startNum: itemStartNum,
+        padZeroes,
+        customLabels
+      }
+    })
+  }
+
+  const handleUpdateGlobalSettings = (newPrefix: string, newStart: number, newPad: number, newCopies: number, newContinuous: boolean) => {
     setGlobalPrefix(newPrefix)
     setGlobalStartNum(newStart)
     setGlobalPadZeroes(newPad)
     setGlobalCopies(newCopies)
+    setIsContinuousBatchSeq(newContinuous)
 
-    setProductConfigs(prev =>
-      prev.map(item => {
-        const copies = newCopies > 0 ? newCopies : item.copies
-        const customLabels = Array.from({ length: copies }, (_, i) =>
-          generateSeqString(newPrefix, newStart + i, newPad)
-        )
-        return {
-          ...item,
-          copies,
-          prefix: newPrefix,
-          startNum: newStart,
-          padZeroes: newPad,
-          customLabels
-        }
-      })
-    )
+    setProductConfigs(prev => {
+      const updated = prev.map(item => ({
+        ...item,
+        copies: newCopies > 0 ? newCopies : item.copies,
+        prefix: newPrefix,
+        startNum: newStart,
+        padZeroes: newPad
+      }))
+      return recalculateSequences(updated, newPrefix, newStart, newPad, newContinuous)
+    })
+  }
+
+  const handleToggleProductSelection = (configIdx: number, selected: boolean) => {
+    setProductConfigs(prev => {
+      const updated = prev.map((item, idx) => idx === configIdx ? { ...item, selected } : item)
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
+  }
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    setProductConfigs(prev => {
+      const updated = prev.map(item => ({ ...item, selected: checked }))
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
   }
 
   const handleUpdateProductCopies = (configIdx: number, copies: number) => {
     const safeCopies = Math.max(1, copies)
-    setProductConfigs(prev =>
-      prev.map((item, idx) => {
-        if (idx !== configIdx) return item
-        const customLabels = Array.from({ length: safeCopies }, (_, i) =>
-          item.customLabels[i] || generateSeqString(item.prefix, item.startNum + i, item.padZeroes)
-        )
-        return { ...item, copies: safeCopies, customLabels }
-      })
-    )
+    setProductConfigs(prev => {
+      const updated = prev.map((item, idx) => idx === configIdx ? { ...item, copies: safeCopies } : item)
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
   }
 
   const handleUpdateProductStartNum = (configIdx: number, startNum: number) => {
-    setProductConfigs(prev =>
-      prev.map((item, idx) => {
-        if (idx !== configIdx) return item
-        const customLabels = Array.from({ length: item.copies }, (_, i) =>
-          generateSeqString(item.prefix, startNum + i, item.padZeroes)
-        )
-        return { ...item, startNum, customLabels }
-      })
-    )
+    setProductConfigs(prev => {
+      const updated = prev.map((item, idx) => idx === configIdx ? { ...item, startNum } : item)
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
   }
 
   const handleUpdateProductPrefix = (configIdx: number, prefix: string) => {
-    setProductConfigs(prev =>
-      prev.map((item, idx) => {
-        if (idx !== configIdx) return item
-        const customLabels = Array.from({ length: item.copies }, (_, i) =>
-          generateSeqString(prefix, item.startNum + i, item.padZeroes)
-        )
-        return { ...item, prefix, customLabels }
-      })
-    )
+    setProductConfigs(prev => {
+      const updated = prev.map((item, idx) => idx === configIdx ? { ...item, prefix } : item)
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
   }
 
   const handleUpdateIndividualLabelSeq = (configIdx: number, labelIdx: number, val: string) => {
     setProductConfigs(prev =>
       prev.map((item, idx) => {
         if (idx !== configIdx) return item
-        const updated = [...item.customLabels]
-        updated[labelIdx] = val
-        return { ...item, customLabels: updated }
+        const updatedLabels = [...item.customLabels]
+        updatedLabels[labelIdx] = val
+        return { ...item, customLabels: updatedLabels }
       })
     )
   }
 
   const handleRemoveProduct = (configIdx: number) => {
-    setProductConfigs(prev => prev.filter((_, idx) => idx !== configIdx))
+    setProductConfigs(prev => {
+      const updated = prev.filter((_, idx) => idx !== configIdx)
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
   }
 
-  const handleAddProductToBatch = (productId: string) => {
-    const prod = allProducts.find(p => p.id === productId)
-    if (!prod) return
+  const handleAddProductToBatch = (prod: Product) => {
     if (productConfigs.some(c => c.product.id === prod.id)) {
-      toast.error('Product is already in the consecutive print batch.')
+      toast.error(`"${prod.name}" is already in the batch list.`)
       return
     }
 
@@ -180,25 +226,38 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
       prefix: globalPrefix,
       startNum: globalStartNum,
       padZeroes: globalPadZeroes,
-      customLabels: Array.from({ length: globalCopies > 0 ? globalCopies : 1 }, (_, i) =>
-        generateSeqString(globalPrefix, globalStartNum + i, globalPadZeroes)
-      )
+      selected: true,
+      customLabels: []
     }
 
-    setProductConfigs(prev => [...prev, newConfig])
-    toast.success(`Added "${prod.name}" to label print batch.`)
+    setProductConfigs(prev => {
+      const updated = [...prev, newConfig]
+      return recalculateSequences(updated, globalPrefix, globalStartNum, globalPadZeroes, isContinuousBatchSeq)
+    })
+    toast.success(`Added "${prod.name}" to consecutive label batch!`)
   }
 
-  // Calculate total expanded label stickers across all products
-  const flatLabelsList = productConfigs.flatMap(cfg =>
-    cfg.customLabels.map((seqNo, labelIdx) => ({
-      product: cfg.product,
-      seqNo,
-      labelIdx: labelIdx + 1,
-      totalCopies: cfg.copies
-    }))
+  // Filter product configs by search query
+  const filteredConfigs = productConfigs.filter(cfg =>
+    cfg.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    cfg.product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (cfg.product.barcode && cfg.product.barcode.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
+  // Calculate total expanded label stickers across SELECTED products
+  const flatLabelsList = productConfigs
+    .filter(cfg => cfg.selected)
+    .flatMap(cfg =>
+      cfg.customLabels.map((seqNo, labelIdx) => ({
+        product: cfg.product,
+        seqNo,
+        labelIdx: labelIdx + 1,
+        totalCopies: cfg.copies,
+        configId: cfg.product.id
+      }))
+    )
+
+  const selectedProductsCount = productConfigs.filter(c => c.selected).length
   const totalStickersCount = flatLabelsList.length
   const currentPreviewLabel = flatLabelsList[previewIndex] || flatLabelsList[0]
 
@@ -217,7 +276,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
   // Bluetooth Thermal Label Print (TSPL/ESC-POS)
   const handlePrintToBlePrinter = async () => {
     if (flatLabelsList.length === 0) {
-      toast.error('No products selected to print.')
+      toast.error('Please select at least 1 product to print.')
       return
     }
 
@@ -269,7 +328,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
   // Browser Standard Print / Grid PDF Print
   const handleBrowserPrintLabels = () => {
     if (flatLabelsList.length === 0) {
-      toast.error('No products selected to print.')
+      toast.error('Please select at least 1 product to print.')
       return
     }
 
@@ -405,7 +464,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
       title="🏷️ Consecutive Label Billing & Sticker Printing"
       size="xl"
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Printer Bluetooth Connection Status Banner */}
         <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-3 ${
           bleStatus === 'connected'
@@ -459,14 +518,22 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
 
         {/* Global Sequence Numbering Toolbar */}
         <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/10 via-indigo-900/10 to-blue-900/10 dark:from-purple-900/30 dark:via-indigo-900/30 dark:to-blue-900/30 border border-purple-200 dark:border-purple-800/50 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-bold text-purple-900 dark:text-purple-200">
               <Hash className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>Consecutive Sequence & Label Copies Settings</span>
+              <span>Consecutive Sequence & Batch Label Settings</span>
             </div>
-            <Badge variant="info" className="text-[10px]">
-              Total Labels: {totalStickersCount} Stickers
-            </Badge>
+
+            {/* Continuous Batch Sequence Mode Toggle */}
+            <label className="flex items-center gap-2 cursor-pointer bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border border-purple-200 dark:border-purple-800 text-xs font-bold text-purple-900 dark:text-purple-100 shadow-sm">
+              <input
+                type="checkbox"
+                checked={isContinuousBatchSeq}
+                onChange={e => handleUpdateGlobalSettings(globalPrefix, globalStartNum, globalPadZeroes, globalCopies, e.target.checked)}
+                className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+              />
+              <span>Continuous Sequence Across Batch ({isContinuousBatchSeq ? 'ON (01, 02, 03...)' : 'OFF (Per-Product)'})</span>
+            </label>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -477,7 +544,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
               <Input
                 type="text"
                 value={globalPrefix}
-                onChange={e => handleUpdateGlobalSettings(e.target.value, globalStartNum, globalPadZeroes, globalCopies)}
+                onChange={e => handleUpdateGlobalSettings(e.target.value, globalStartNum, globalPadZeroes, globalCopies, isContinuousBatchSeq)}
                 placeholder="e.g. No."
                 className="text-xs font-semibold"
               />
@@ -491,7 +558,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                 type="number"
                 min="1"
                 value={globalStartNum}
-                onChange={e => handleUpdateGlobalSettings(globalPrefix, parseInt(e.target.value) || 1, globalPadZeroes, globalCopies)}
+                onChange={e => handleUpdateGlobalSettings(globalPrefix, parseInt(e.target.value) || 1, globalPadZeroes, globalCopies, isContinuousBatchSeq)}
                 className="text-xs font-semibold"
               />
             </div>
@@ -508,7 +575,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                   { value: '4', label: '0001, 0002... (4 Digits)' },
                 ]}
                 value={String(globalPadZeroes)}
-                onChange={e => handleUpdateGlobalSettings(globalPrefix, globalStartNum, parseInt(e.target.value) || 2, globalCopies)}
+                onChange={e => handleUpdateGlobalSettings(globalPrefix, globalStartNum, parseInt(e.target.value) || 2, globalCopies, isContinuousBatchSeq)}
               />
             </div>
 
@@ -521,7 +588,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                 min="1"
                 max="500"
                 value={globalCopies}
-                onChange={e => handleUpdateGlobalSettings(globalPrefix, globalStartNum, globalPadZeroes, Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={e => handleUpdateGlobalSettings(globalPrefix, globalStartNum, globalPadZeroes, Math.max(1, parseInt(e.target.value) || 1), isContinuousBatchSeq)}
                 className="text-xs font-bold text-purple-900 dark:text-purple-100"
               />
             </div>
@@ -530,55 +597,98 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
 
         {/* Product Selection & Quantity Editing Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-purple-600" />
-              <span>Products Batch List ({productConfigs.length})</span>
-            </h4>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-purple-600" />
+                <span>Products Batch List ({selectedProductsCount} Selected / {productConfigs.length} Total)</span>
+              </h4>
+              <Badge variant="info" className="text-[10px]">
+                {totalStickersCount} Stickers to Print
+              </Badge>
+            </div>
 
-            {allProducts.length > productConfigs.length && (
-              <Select
-                options={[
-                  { value: '', label: '+ Add another product to batch...' },
-                  ...allProducts
-                    .filter(p => !productConfigs.some(c => c.product.id === p.id))
-                    .map(p => ({ value: p.id, label: `${p.name} (${formatINR(p.sellingPrice)})` }))
-                ]}
-                value=""
-                onChange={e => {
-                  if (e.target.value) handleAddProductToBatch(e.target.value)
-                }}
-              />
-            )}
+            <div className="flex items-center gap-2">
+              {/* Quick Search Input */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Filter products..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-8 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
+                />
+              </div>
+
+              {/* Add Product Picker Dropdown */}
+              {allProducts.length > productConfigs.length && (
+                <Select
+                  options={[
+                    { value: '', label: '+ Select products to add...' },
+                    ...allProducts
+                      .filter(p => !productConfigs.some(c => c.product.id === p.id))
+                      .map(p => ({ value: p.id, label: `${p.name} (${formatINR(p.sellingPrice)})` }))
+                  ]}
+                  value=""
+                  onChange={e => {
+                    if (e.target.value) {
+                      const prod = allProducts.find(p => p.id === e.target.value)
+                      if (prod) handleAddProductToBatch(prod)
+                    }
+                  }}
+                />
+              )}
+            </div>
           </div>
 
-          <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
             <table className="w-full text-left text-xs divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800 font-bold text-gray-700 dark:text-gray-300 sticky top-0 z-10">
                 <tr>
-                  <th className="p-2.5 min-w-[150px]">Product</th>
-                  <th className="p-2.5 min-w-[100px]">Price (₹)</th>
+                  <th className="p-2.5 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={productConfigs.length > 0 && productConfigs.every(c => c.selected)}
+                      onChange={e => handleToggleSelectAll(e.target.checked)}
+                      className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                    />
+                  </th>
+                  <th className="p-2.5 min-w-[150px]">Product Name</th>
+                  <th className="p-2.5 min-w-[90px]">Price (₹)</th>
                   <th className="p-2.5 w-24 text-center">Label Copies</th>
-                  <th className="p-2.5 min-w-[130px]">Seq Prefix</th>
+                  <th className="p-2.5 min-w-[110px]">Seq Prefix</th>
                   <th className="p-2.5 w-24 text-center">Start Seq</th>
                   <th className="p-2.5 min-w-[140px]">Generated Seq Range</th>
                   <th className="p-2.5 text-center w-10">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                {productConfigs.length === 0 ? (
+                {filteredConfigs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-gray-500">
-                      No products added to consecutive batch. Select products or add from dropdown.
+                    <td colSpan={8} className="p-6 text-center text-gray-500">
+                      No products match your search filter or batch list is empty.
                     </td>
                   </tr>
                 ) : (
-                  productConfigs.map((cfg, idx) => {
+                  filteredConfigs.map((cfg) => {
+                    const realIndex = productConfigs.findIndex(c => c.product.id === cfg.product.id)
                     const firstSeq = cfg.customLabels[0] || '01'
                     const lastSeq = cfg.customLabels[cfg.customLabels.length - 1] || firstSeq
 
                     return (
-                      <tr key={cfg.product.id} className="hover:bg-purple-50/20 dark:hover:bg-purple-900/10">
+                      <tr
+                        key={cfg.product.id}
+                        className={cfg.selected ? 'bg-purple-50/20 dark:bg-purple-900/10' : 'opacity-50 bg-gray-50/50 dark:bg-gray-800/20'}
+                      >
+                        <td className="p-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={cfg.selected}
+                            onChange={e => handleToggleProductSelection(realIndex, e.target.checked)}
+                            className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                          />
+                        </td>
                         <td className="p-2.5 font-bold text-gray-900 dark:text-gray-100">
                           <div>{cfg.product.name}</div>
                           <div className="text-[10px] text-gray-400 font-mono">Barcode: {cfg.product.barcode || cfg.product.sku}</div>
@@ -592,16 +702,18 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                             min="1"
                             max="500"
                             value={cfg.copies}
-                            onChange={e => handleUpdateProductCopies(idx, parseInt(e.target.value) || 1)}
-                            className="w-16 text-center border border-gray-200 dark:border-gray-700 rounded px-1 py-1 font-bold text-purple-600 dark:text-purple-400"
+                            disabled={!cfg.selected}
+                            onChange={e => handleUpdateProductCopies(realIndex, parseInt(e.target.value) || 1)}
+                            className="w-16 text-center border border-gray-200 dark:border-gray-700 rounded px-1 py-1 font-bold text-purple-600 dark:text-purple-400 disabled:opacity-40"
                           />
                         </td>
                         <td className="p-2">
                           <input
                             type="text"
                             value={cfg.prefix}
-                            onChange={e => handleUpdateProductPrefix(idx, e.target.value)}
-                            className="w-24 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs"
+                            disabled={!cfg.selected || isContinuousBatchSeq}
+                            onChange={e => handleUpdateProductPrefix(realIndex, e.target.value)}
+                            className="w-24 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs disabled:opacity-40"
                           />
                         </td>
                         <td className="p-2 text-center">
@@ -609,20 +721,25 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                             type="number"
                             min="1"
                             value={cfg.startNum}
-                            onChange={e => handleUpdateProductStartNum(idx, parseInt(e.target.value) || 1)}
-                            className="w-16 text-center border border-gray-200 dark:border-gray-700 rounded px-1 py-1 text-xs font-semibold"
+                            disabled={!cfg.selected || isContinuousBatchSeq}
+                            onChange={e => handleUpdateProductStartNum(realIndex, parseInt(e.target.value) || 1)}
+                            className="w-16 text-center border border-gray-200 dark:border-gray-700 rounded px-1 py-1 text-xs font-semibold disabled:opacity-40"
                           />
                         </td>
                         <td className="p-2.5">
-                          <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                            <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{firstSeq} → {lastSeq}</span>
-                          </div>
+                          {cfg.selected ? (
+                            <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                              <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{firstSeq} → {lastSeq}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">Excluded</span>
+                          )}
                         </td>
                         <td className="p-2.5 text-center">
                           <button
                             type="button"
-                            onClick={() => handleRemoveProduct(idx)}
+                            onClick={() => handleRemoveProduct(realIndex)}
                             className="p-1 text-gray-400 hover:text-rose-600 rounded"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -668,10 +785,25 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                 </div>
               </div>
 
-              {/* Sticker Card */}
+              {/* Sticker Card with Interactive Editable Serial Badge */}
               <div className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-700 shadow-lg flex flex-col justify-between items-center text-center space-y-1 relative">
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-purple-900 text-white font-mono text-[10px] font-extrabold shadow-sm">
-                  {currentPreviewLabel?.seqNo || '01'}
+                {/* Editable Serial Badge directly on the Sticker Preview */}
+                <div className="absolute top-2 right-2 flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={currentPreviewLabel?.seqNo || ''}
+                    onChange={e => {
+                      const val = e.target.value
+                      const targetConfig = productConfigs.find(c => c.product.id === currentPreviewLabel?.configId)
+                      if (targetConfig) {
+                        const configIdx = productConfigs.findIndex(c => c.product.id === targetConfig.product.id)
+                        const labelIdx = (currentPreviewLabel?.labelIdx || 1) - 1
+                        handleUpdateIndividualLabelSeq(configIdx, labelIdx, val)
+                      }
+                    }}
+                    className="w-20 text-right px-1.5 py-0.5 rounded bg-purple-900 text-white font-mono text-[10px] font-extrabold border border-purple-700 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                    title="Click to edit serial number directly on preview"
+                  />
                 </div>
 
                 <div className="text-[11px] font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider pt-1">
@@ -699,7 +831,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                   <Edit3 className="w-4 h-4 text-purple-600" />
                   <span>Custom Consecutive Number List</span>
                 </h5>
-                <span className="text-[10px] text-gray-500">Edit individual label number tags</span>
+                <span className="text-[10px] text-gray-500">Edit individual label serial tags</span>
               </div>
 
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
@@ -723,15 +855,12 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                         type="text"
                         value={item.seqNo}
                         onChange={e => {
-                          let accum = 0
-                          for (let cIdx = 0; cIdx < productConfigs.length; cIdx++) {
-                            const cfg = productConfigs[cIdx]
-                            if (idx >= accum && idx < accum + cfg.copies) {
-                              const lIdx = idx - accum
-                              handleUpdateIndividualLabelSeq(cIdx, lIdx, e.target.value)
-                              break
-                            }
-                            accum += cfg.copies
+                          const val = e.target.value
+                          const targetConfig = productConfigs.find(c => c.product.id === item.configId)
+                          if (targetConfig) {
+                            const configIdx = productConfigs.findIndex(c => c.product.id === targetConfig.product.id)
+                            const labelIdx = item.labelIdx - 1
+                            handleUpdateIndividualLabelSeq(configIdx, labelIdx, val)
                           }
                         }}
                         className="w-28 text-right font-mono font-bold bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs text-purple-900 dark:text-purple-200"
@@ -750,6 +879,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
             variant="primary"
             leftIcon={<Printer size={16} />}
             onClick={handlePrintToBlePrinter}
+            disabled={totalStickersCount === 0}
             className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-2.5 shadow-md shadow-purple-500/20"
           >
             Print to Seznik Dev Printer ({totalStickersCount} Labels)
@@ -759,6 +889,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
             variant="outline"
             leftIcon={<Printer size={16} />}
             onClick={handleBrowserPrintLabels}
+            disabled={totalStickersCount === 0}
             className="flex-1 py-2.5 font-bold"
           >
             Print / Save PDF Grid ({totalStickersCount} Stickers)
