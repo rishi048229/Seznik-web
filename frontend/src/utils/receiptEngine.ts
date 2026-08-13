@@ -340,6 +340,20 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const COLS = getCols(paperSize, widthDots)
   const lines: string[] = []
 
+  // Extract all user customization switches
+  const showCompanyHeader = receiptConfig?.showCompanyHeader ?? true
+  const showAddress = receiptConfig?.showAddress ?? true
+  const showPhone = receiptConfig?.showPhone ?? true
+  const showGSTIN = receiptConfig?.showGSTIN ?? true
+  const showCustomerDetails = receiptConfig?.showCustomerDetails ?? true
+  const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
+  const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
+  const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
+  const showFooterMessage = receiptConfig?.showFooterMessage ?? true
+  const showTerms = receiptConfig?.showTerms ?? true
+  const showBarcode = receiptConfig?.showBarcode ?? true
+  const compactMode = receiptConfig?.compactMode ?? false
+
   const companyName = receiptConfig?.companyName || businessName || 'SEZNIK STORE'
   const companyAddr = receiptConfig?.address || businessAddress || ''
   const companyPh = receiptConfig?.phone || businessPhone || ''
@@ -349,36 +363,53 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const totals = calculateReceiptTotals(sale, companyGst, pricesIncludeGst)
 
   // ── 1. HEADER ──
-  lines.push(...wrapProse(companyName, COLS, true))
-  if (companyAddr) lines.push(...wrapProse(companyAddr, COLS, true))
-  if (companyPh) lines.push(centerText(`Ph: ${companyPh}`, COLS))
-  if (companyGst) lines.push(centerText(`GSTIN: ${companyGst}`, COLS))
-
-  lines.push(divider('=', COLS))
-  lines.push(centerText(totals.docTitle, COLS))
-  if (isDuplicate) {
-    lines.push(centerText('*** DUPLICATE ***', COLS))
+  if (showCompanyHeader) {
+    if (companyName) lines.push(...wrapProse(companyName, COLS, true))
+    if (showAddress && companyAddr) lines.push(...wrapProse(companyAddr, COLS, true))
+    if (showPhone && companyPh) lines.push(centerText(`Ph: ${companyPh}`, COLS))
+    if (showGSTIN && companyGst) lines.push(centerText(`GSTIN: ${companyGst}`, COLS))
+    lines.push(divider('=', COLS))
   }
-  lines.push(divider('=', COLS))
+
+  const customTitle = receiptConfig?.headerTitle
+  const titleText = (customTitle !== undefined && customTitle !== null)
+    ? customTitle
+    : totals.docTitle
+
+  if (titleText) {
+    lines.push(centerText(titleText, COLS))
+    if (isDuplicate) {
+      lines.push(centerText('*** DUPLICATE ***', COLS))
+    }
+    lines.push(divider('=', COLS))
+  }
 
   // ── 2. META DETAILS ──
-  const dateObj = sale.createdAt ? new Date(sale.createdAt) : new Date()
-  const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+  if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
+    const dateObj = sale.createdAt ? new Date(sale.createdAt) : new Date()
+    const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
 
-  lines.push(row('Bill No :', sale.invoiceNumber || 'INV-00000', COLS))
-  lines.push(row('Date    :', `${dateStr} ${timeStr}`, COLS))
-  if (cashierName) lines.push(row('Cashier :', cashierName, COLS))
-  if (customerName) lines.push(row('Customer:', customerName, COLS))
-
-  lines.push(divider('-', COLS))
+    if (showInvoiceNoAndDate) {
+      if (compactMode) {
+        lines.push(row(`Inv:#${sale.invoiceNumber || '---'}`, dateStr, COLS))
+      } else {
+        lines.push(row('Bill No :', sale.invoiceNumber || 'INV-00000', COLS))
+        lines.push(row('Date    :', `${dateStr} ${timeStr}`, COLS))
+        if (cashierName) lines.push(row('Cashier :', cashierName, COLS))
+      }
+    }
+    if (showCustomerDetails && customerName) {
+      lines.push(row('Customer:', customerName, COLS))
+    }
+    lines.push(divider('-', COLS))
+  }
 
   // ── 3. ITEMS TABLE ──
   const items = sale.items ?? []
 
   if (COLS >= 48) {
     // 48-Column One-Line Layout
-    // ITEM (22L) QTY (5R) GST (5R) RATE (8R) AMOUNT (8R)
     lines.push(cols([
       { text: 'ITEM', width: 22, align: 'L' },
       { text: 'QTY', width: 5, align: 'R' },
@@ -397,7 +428,6 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       const nameWidth = 22
       const fullName = `${index + 1} ${item.productName}`
 
-      // First line
       const firstLineName = fullName.slice(0, nameWidth)
       lines.push(cols([
         { text: firstLineName, width: 22, align: 'L' },
@@ -407,7 +437,6 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
         { text: formatIndianNumber(lineAmt), width: 8, align: 'R' },
       ], COLS))
 
-      // Continuation lines for long product names
       let remainingName = fullName.slice(nameWidth)
       while (remainingName.length > 0) {
         const chunk = '  ' + remainingName.slice(0, nameWidth - 2)
@@ -420,8 +449,6 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     })
   } else {
     // 32-Column Two-Line Layout
-    // Line 1: ITEM NAME
-    // Line 2:   indent(2) + qty x rate (16L) + GST (4R) + AMOUNT (10R)
     lines.push(row('ITEM', 'AMOUNT', COLS))
     lines.push(divider('-', COLS))
 
@@ -448,16 +475,19 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   lines.push(divider('-', COLS))
 
   // ── 4. TOTALS BLOCK ──
-  lines.push(row('Sub Total', formatIndianNumber(totals.subTotal), COLS))
-  if (totals.totalDiscount > 0) {
-    lines.push(row('Discount', `-${formatIndianNumber(totals.totalDiscount)}`, COLS))
+  if (showSubtotalDiscount) {
+    lines.push(row('Sub Total', formatIndianNumber(totals.subTotal), COLS))
+    if (totals.totalDiscount > 0) {
+      lines.push(row('Discount', `-${formatIndianNumber(totals.totalDiscount)}`, COLS))
+    }
+    lines.push(divider('-', COLS))
   }
-  lines.push(divider('-', COLS))
 
-  if (totals.docTitle === 'TAX INVOICE' && totals.totalTax > 0) {
+  if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE' && totals.totalTax > 0) {
     lines.push(row('Taxable Value', formatIndianNumber(totals.taxableAmount), COLS))
     lines.push(row('  CGST', formatIndianNumber(totals.cgstTotal), COLS))
     lines.push(row('  SGST', formatIndianNumber(totals.sgstTotal), COLS))
+    lines.push(divider('-', COLS))
   }
 
   if (totals.roundOff !== 0) {
@@ -469,10 +499,9 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   lines.push(divider('=', COLS))
 
   // ── 5. GST SUMMARY TABLE (TAX INVOICE ONLY) ──
-  if (totals.docTitle === 'TAX INVOICE' && totals.taxGroups.length > 0) {
+  if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE' && totals.taxGroups.length > 0) {
     lines.push(centerText('GST SUMMARY', COLS))
     if (COLS >= 48) {
-      // 48-col GST Summary: Rate(6R) Taxable(14R) CGST(14R) SGST(14R)
       lines.push(cols([
         { text: 'Rate', width: 6, align: 'R' },
         { text: 'Taxable', width: 14, align: 'R' },
@@ -488,7 +517,6 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
         ], COLS))
       })
     } else {
-      // 32-col GST Summary: Rate(4R) Taxable(10R) CGST(9R) SGST(9R)
       lines.push(cols([
         { text: 'Rate', width: 4, align: 'R' },
         { text: 'Taxable', width: 10, align: 'R' },
@@ -519,14 +547,22 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   lines.push(divider('-', COLS))
 
   // ── 8. FOOTER & TERMS ──
-  lines.push(...wrapProse(footerText, COLS, true))
+  if (showFooterMessage && footerText) {
+    lines.push(...wrapProse(footerText, COLS, true))
+  }
 
-  if (receiptConfig?.termsLine1 || receiptConfig?.termsLine2 || receiptConfig?.termsLine3) {
+  if (showTerms && (receiptConfig?.termsLine1 || receiptConfig?.termsLine2 || receiptConfig?.termsLine3)) {
     lines.push(divider('-', COLS))
     lines.push(centerText('Terms & Conditions', COLS))
-    if (receiptConfig.termsLine1) lines.push(...wrapProse(`1. ${receiptConfig.termsLine1}`, COLS, false))
-    if (receiptConfig.termsLine2) lines.push(...wrapProse(`2. ${receiptConfig.termsLine2}`, COLS, false))
-    if (receiptConfig.termsLine3) lines.push(...wrapProse(`3. ${receiptConfig.termsLine3}`, COLS, false))
+    if (receiptConfig?.termsLine1) lines.push(...wrapProse(`1. ${receiptConfig.termsLine1}`, COLS, false))
+    if (receiptConfig?.termsLine2) lines.push(...wrapProse(`2. ${receiptConfig.termsLine2}`, COLS, false))
+    if (receiptConfig?.termsLine3) lines.push(...wrapProse(`3. ${receiptConfig.termsLine3}`, COLS, false))
+  }
+
+  if (showBarcode && sale.invoiceNumber) {
+    lines.push(divider('-', COLS))
+    lines.push(centerText('|||||||||||||||||||||||', COLS))
+    lines.push(centerText(sale.invoiceNumber, COLS))
   }
 
   lines.push(divider('-', COLS))
