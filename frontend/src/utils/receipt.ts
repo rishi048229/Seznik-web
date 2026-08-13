@@ -506,6 +506,20 @@ export const generateReceiptEscPos = ({
   // 58mm printers use 32 characters/line (384 dots width).
   const lineWidth = paperSize === '80mm' ? 48 : 32
 
+  const headerTitle = receiptConfig?.headerTitle !== undefined ? receiptConfig.headerTitle : 'TAX INVOICE'
+  const compactMode = receiptConfig?.compactMode ?? false
+  const showCompanyHeader = receiptConfig?.showCompanyHeader ?? true
+  const showAddress = receiptConfig?.showAddress ?? true
+  const showPhone = receiptConfig?.showPhone ?? true
+  const showGSTIN = receiptConfig?.showGSTIN ?? true
+  const showCustomerDetails = receiptConfig?.showCustomerDetails ?? true
+  const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
+  const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
+  const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
+  const showFooterMessage = receiptConfig?.showFooterMessage ?? true
+  const showTerms = receiptConfig?.showTerms ?? true
+  const showBarcode = receiptConfig?.showBarcode ?? true
+
   const companyName = receiptConfig?.companyName || businessName || 'Your Company'
   const companyAddress = receiptConfig?.address || businessAddress || ''
   const companyPhone = receiptConfig?.phone || ''
@@ -549,25 +563,34 @@ export const generateReceiptEscPos = ({
   b.init(paperSize)
 
   // ── Header ──
-  b.align('center')
-  b.bold(true).line('TAX INVOICE')
-  b.line(companyName)
-  b.bold(false)
-  if (companyAddress) b.line(companyAddress)
-  if (companyPhone) b.line(`Phone No: ${companyPhone}`)
-  if (companyGSTIN) b.line(`GSTIN: ${companyGSTIN}`)
-  b.hr(lineWidth)
+  if (showCompanyHeader) {
+    b.align('center')
+    if (headerTitle) b.bold(true).line(headerTitle).bold(false)
+    b.bold(true).line(companyName).bold(false)
+    if (showAddress && companyAddress) b.line(companyAddress)
+    if (showPhone && companyPhone) b.line(`Phone: ${companyPhone}`)
+    if (showGSTIN && companyGSTIN) b.line(`GSTIN: ${companyGSTIN}`)
+    b.hr(lineWidth)
+  }
 
   // ── Meta ──
-  b.align('left')
-  b.line(`Invoice No : ${sale.invoiceNumber || '---'}`)
-  b.line(`Date       : ${dateStr}`)
-  b.line(`Bill To    : ${methodLabel}`)
-  if (customerName) b.line(`Mobile     : ${customerName}`)
-  b.hr(lineWidth)
+  if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
+    b.align('left')
+    if (showInvoiceNoAndDate) {
+      if (compactMode) {
+        b.line(`Inv:#${sale.invoiceNumber || '---'} | ${dateStr}`)
+      } else {
+        b.line(`Invoice No : ${sale.invoiceNumber || '---'}`)
+        b.line(`Date       : ${dateStr}`)
+        b.line(`Bill To    : ${methodLabel}`)
+      }
+    }
+    if (showCustomerDetails && customerName) b.line(`Cust       : ${customerName}`)
+    b.hr(lineWidth)
+  }
 
   // ── Items ──
-  b.bold(true).line('SN ITEMS').bold(false)
+  b.bold(true).line('ITEMS').bold(false)
   b.hr(lineWidth)
   saleItems.forEach((item: SaleItem, index: number) => {
     const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
@@ -577,17 +600,23 @@ export const generateReceiptEscPos = ({
         ? ' (+GST)'
         : ''
     b.bold(true)
-    b.twoCol(`${index + 1}. ${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
+    b.twoCol(`${index + 1}.${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
     b.bold(false)
-    b.line(`  ${item.quantity} Pc  Rate:${item.sellingPrice.toFixed(2)}  Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'}  Amt:${lineTotal.toFixed(2)}`)
+    if (showSubtotalDiscount) {
+      b.line(`  ${item.quantity}Pc Rate:${item.sellingPrice.toFixed(2)} Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'} Amt:${lineTotal.toFixed(2)}`)
+    } else {
+      b.line(`  ${item.quantity}Pc x ${item.sellingPrice.toFixed(2)} = ${lineTotal.toFixed(2)}`)
+    }
   })
   b.hr(lineWidth)
 
   // ── Summary ──
-  b.twoCol('Sub Total', money(sale.subtotal), lineWidth)
-  if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, lineWidth)
-  b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
-  if (totalTax > 0) {
+  if (showSubtotalDiscount) {
+    b.twoCol('Sub Total', money(sale.subtotal), lineWidth)
+    if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, lineWidth)
+  }
+  if (showTaxBreakdown && totalTax > 0) {
+    b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
     b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), lineWidth)
     b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), lineWidth)
   }
@@ -596,26 +625,36 @@ export const generateReceiptEscPos = ({
   b.bold(true)
   b.twoCol('Total Amount', money(sale.grandTotal), lineWidth)
   b.bold(false)
-  b.twoCol('Paid Amount', money(paymentMade), lineWidth)
-  b.twoCol('Balance Amount', money(balanceDue), lineWidth)
+  if (paymentMade > 0) b.twoCol('Paid Amount', money(paymentMade), lineWidth)
+  if (balanceDue > 0) b.twoCol('Balance Amount', money(balanceDue), lineWidth)
   b.hr(lineWidth)
 
   // ── Terms ──
-  const t1 = receiptConfig?.termsLine1?.trim()
-  const t2 = receiptConfig?.termsLine2?.trim()
-  const t3 = receiptConfig?.termsLine3?.trim()
-  if (t1 || t2 || t3 || !receiptConfig) {
-    b.align('center').bold(true).line('Terms and Conditions').bold(false).align('left')
-    if (t1) b.line(t1)
-    else if (!receiptConfig) b.line('1. Goods once sold will not be taken back or exchanged')
-    if (t2) b.line(t2)
-    if (t3) b.line(t3)
+  if (showTerms) {
+    const t1 = receiptConfig?.termsLine1?.trim()
+    const t2 = receiptConfig?.termsLine2?.trim()
+    const t3 = receiptConfig?.termsLine3?.trim()
+    if (t1 || t2 || t3) {
+      b.align('center').bold(true).line('Terms and Conditions').bold(false).align('left')
+      if (t1) b.line(t1)
+      if (t2) b.line(t2)
+      if (t3) b.line(t3)
+    }
   }
 
   // ── Footer ──
-  b.align('center')
-  b.line(footerMessage)
-  b.feed(3)
+  if (showFooterMessage && footerMessage) {
+    b.align('center')
+    b.line(footerMessage)
+  }
+
+  if (showBarcode && sale.invoiceNumber) {
+    b.align('center')
+    b.line(`|||||||||||||||||||||||`)
+    b.line(sale.invoiceNumber)
+  }
+
+  b.feed(compactMode ? 1 : 3)
   b.cut()
 
   return b.toBytes()
