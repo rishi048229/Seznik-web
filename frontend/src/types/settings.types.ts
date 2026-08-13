@@ -9,6 +9,7 @@ export interface InvoiceConfig {
 }
 
 export interface ReceiptConfig {
+  headerTitle?: string
   companyName: string
   address: string
   phone: string
@@ -18,6 +19,18 @@ export interface ReceiptConfig {
   termsLine1: string
   termsLine2: string
   termsLine3: string
+  compactMode?: boolean
+  showCompanyHeader?: boolean
+  showAddress?: boolean
+  showPhone?: boolean
+  showGSTIN?: boolean
+  showCustomerDetails?: boolean
+  showInvoiceNoAndDate?: boolean
+  showTaxBreakdown?: boolean
+  showSubtotalDiscount?: boolean
+  showFooterMessage?: boolean
+  showTerms?: boolean
+  showBarcode?: boolean
 }
 
 export interface PersonalInfo {

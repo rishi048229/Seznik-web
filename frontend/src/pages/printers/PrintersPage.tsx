@@ -57,6 +57,8 @@ import {
   Bold,
   Lock,
   Sparkles,
+  Zap,
+  Check,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
@@ -69,8 +71,7 @@ const defaultPrinterConfig: PrinterConfig = {
   autoPrintOnSale: true,
   openCashDrawer: true,
   cutPaper: true,
-
-  paperSize: '80mm',
+  paperSize: '58mm',
   showLogo: true,
   showGSTIN: true,
   showCustomerDetails: true,
@@ -82,9 +83,11 @@ const defaultPrinterConfig: PrinterConfig = {
   labelOffsetX: 0,
   labelOffsetY: 0,
   labelDirection: 0,
-  labelBarcodeOffsetX: 4,
+  labelBarcodeOffsetX: 0,
   labelBarcodeType: 'CODE128',
-  labelDensity: 10,
+  labelBarcodeHeight: 40,
+  labelPrinterMode: 'tspl',
+  labelDensity: 8,
   labelTemplate: defaultLabelTemplate,
 
   invoicePaperSize: 'A4',
@@ -98,6 +101,7 @@ const defaultPrinterConfig: PrinterConfig = {
 // Mirrors SettingsPage's DEFAULT_SETTINGS.receiptConfig exactly, so both
 // pages fall back to the same values before any settings row exists.
 const defaultReceiptConfig: ReceiptConfig = {
+  headerTitle: 'TAX INVOICE',
   companyName: '',
   address: '',
   phone: '',
@@ -107,6 +111,18 @@ const defaultReceiptConfig: ReceiptConfig = {
   termsLine1: '1. Goods once sold will not be taken back or exchanged',
   termsLine2: '2. All disputes are subject to local jurisdiction only',
   termsLine3: '',
+  compactMode: false,
+  showCompanyHeader: true,
+  showAddress: true,
+  showPhone: true,
+  showGSTIN: true,
+  showCustomerDetails: true,
+  showInvoiceNoAndDate: true,
+  showTaxBreakdown: true,
+  showSubtotalDiscount: true,
+  showFooterMessage: true,
+  showTerms: true,
+  showBarcode: true,
 }
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
@@ -700,6 +716,47 @@ export const PrintersPage = () => {
               </div>
             </div>
 
+            {/* Ultra-Compact Paper Saver Mode Banner */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-900/10 via-teal-900/10 to-blue-900/10 dark:from-emerald-900/30 dark:via-teal-900/30 dark:to-blue-900/30 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>⚡ Compact Paper Saver Mode (Reduces 1-product & batch receipts by 50-70% height)</span>
+              </div>
+              <Switch
+                checked={receiptConfig.compactMode ?? false}
+                onChange={v => setReceiptConfig(prev => ({ ...prev, compactMode: v }))}
+                label="Compact Mode"
+              />
+            </div>
+
+            {/* Custom Header Title Input */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                Receipt Header Title
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                  onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
+                  placeholder="e.g. TAX INVOICE, RETAIL BILL, ESTIMATE"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100"
+                />
+                <select
+                  value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                  onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold text-gray-900 dark:text-gray-100"
+                >
+                  <option value="TAX INVOICE">TAX INVOICE</option>
+                  <option value="RETAIL BILL">RETAIL BILL</option>
+                  <option value="BILL OF SUPPLY">BILL OF SUPPLY</option>
+                  <option value="ESTIMATE / QUOTATION">ESTIMATE</option>
+                  <option value="CASH MEMO">CASH MEMO</option>
+                  <option value="">None (Hide Header Title)</option>
+                </select>
+              </div>
+            </div>
+
             <div className="pt-1">
               <div className="flex items-center justify-between mb-2">
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
@@ -774,102 +831,280 @@ export const PrintersPage = () => {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo" info={<FieldInfo textKey="tip.printer.showLogo" />} />
-              <Switch checked={config.showGSTIN} onChange={v => setConfig(prev => ({ ...prev, showGSTIN: v }))} label="GSTIN / Tax number" info={<FieldInfo textKey="tip.printer.showGSTIN" />} />
-              <Switch checked={config.showCustomerDetails} onChange={v => setConfig(prev => ({ ...prev, showCustomerDetails: v }))} label="Customer details" info={<FieldInfo textKey="tip.printer.showCustomerDetails" />} />
-              <Switch checked={config.showBarcode} onChange={v => setConfig(prev => ({ ...prev, showBarcode: v }))} label="Invoice barcode" info={<FieldInfo textKey="tip.printer.showBarcode" />} />
-              <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
-              <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
-              <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
+            {/* Fully Customizable Section Include / Exclude Checkboxes */}
+            <div className="border border-gray-200 dark:border-gray-700 rounded-2xl p-4 bg-gray-50/50 dark:bg-gray-800/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                  Customizable Receipt Sections (Include / Exclude)
+                </span>
+                <div className="flex gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceiptConfig(prev => ({
+                        ...prev,
+                        showCompanyHeader: true,
+                        showAddress: true,
+                        showPhone: true,
+                        showGSTIN: true,
+                        showCustomerDetails: true,
+                        showInvoiceNoAndDate: true,
+                        showSubtotalDiscount: true,
+                        showTaxBreakdown: true,
+                        showFooterMessage: true,
+                        showTerms: true,
+                        showBarcode: true,
+                        compactMode: false
+                      }))
+                      setConfig(prev => ({ ...prev, showLogo: true, showGSTIN: true, showCustomerDetails: true, showBarcode: true }))
+                    }}
+                    className="text-purple-600 dark:text-purple-400 hover:underline font-bold"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceiptConfig(prev => ({
+                        ...prev,
+                        showCompanyHeader: true,
+                        showAddress: false,
+                        showPhone: false,
+                        showGSTIN: false,
+                        showCustomerDetails: false,
+                        showInvoiceNoAndDate: true,
+                        showSubtotalDiscount: false,
+                        showTaxBreakdown: false,
+                        showFooterMessage: false,
+                        showTerms: false,
+                        showBarcode: false,
+                        compactMode: true
+                      }))
+                      setConfig(prev => ({ ...prev, showLogo: false, showGSTIN: false, showCustomerDetails: false, showBarcode: false }))
+                    }}
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
+                  >
+                    Ultra-Compact Paper Saver Preset
+                  </button>
+                </div>
+              </div>
+
+              <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
+                <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo graphic" info={<FieldInfo textKey="tip.printer.showLogo" />} />
+                <Switch
+                  checked={receiptConfig.showCompanyHeader ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showCompanyHeader: v }))}
+                  label="Company Name & Title Header"
+                />
+                <Switch
+                  checked={receiptConfig.showAddress ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showAddress: v }))}
+                  label="Business Address line"
+                />
+                <Switch
+                  checked={receiptConfig.showPhone ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showPhone: v }))}
+                  label="Business Phone Number line"
+                />
+                <Switch
+                  checked={receiptConfig.showGSTIN ?? true}
+                  onChange={v => {
+                    setReceiptConfig(prev => ({ ...prev, showGSTIN: v }))
+                    setConfig(prev => ({ ...prev, showGSTIN: v }))
+                  }}
+                  label="GSTIN / Tax Registration Number"
+                  info={<FieldInfo textKey="tip.printer.showGSTIN" />}
+                />
+                <Switch
+                  checked={receiptConfig.showCustomerDetails ?? true}
+                  onChange={v => {
+                    setReceiptConfig(prev => ({ ...prev, showCustomerDetails: v }))
+                    setConfig(prev => ({ ...prev, showCustomerDetails: v }))
+                  }}
+                  label="Customer Name & Mobile Number"
+                  info={<FieldInfo textKey="tip.printer.showCustomerDetails" />}
+                />
+                <Switch
+                  checked={receiptConfig.showInvoiceNoAndDate ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showInvoiceNoAndDate: v }))}
+                  label="Invoice Number & Date Header"
+                />
+                <Switch
+                  checked={receiptConfig.showSubtotalDiscount ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showSubtotalDiscount: v }))}
+                  label="Subtotal & Item Discount breakdown"
+                />
+                <Switch
+                  checked={receiptConfig.showTaxBreakdown ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showTaxBreakdown: v }))}
+                  label="SGST / CGST Tax breakdown lines"
+                />
+                <Switch
+                  checked={receiptConfig.showFooterMessage ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showFooterMessage: v }))}
+                  label="Footer Thank You message"
+                />
+                <Switch
+                  checked={receiptConfig.showTerms ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showTerms: v }))}
+                  label="Terms & Conditions lines"
+                />
+                <Switch
+                  checked={receiptConfig.showBarcode ?? true}
+                  onChange={v => {
+                    setReceiptConfig(prev => ({ ...prev, showBarcode: v }))
+                    setConfig(prev => ({ ...prev, showBarcode: v }))
+                  }}
+                  label="Bottom Invoice Barcode / QR graphic"
+                  info={<FieldInfo textKey="tip.printer.showBarcode" />}
+                />
+                <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
+                <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
+                <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
+              </div>
             </div>
           </div>
 
-          {/* Live Preview Panel */}
+          {/* Live Preview Panel — 100% Reactive to all Section Toggles */}
           <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
-            <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview — {config.paperSize}</span>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-semibold text-gray-400">Live Preview — {config.paperSize}</span>
+              {receiptConfig.compactMode && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                  ⚡ Compact Mode
+                </span>
+              )}
+            </div>
+
             <div
-              className={`bg-white text-gray-900 p-6 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono text-xs transition-all duration-300 ${
+              className={`bg-white text-gray-900 p-5 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono text-xs transition-all duration-300 ${
                 config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'
               }`}
               style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
             >
-              <div className="text-center space-y-1 pb-3 border-b border-dashed border-gray-400">
-                {config.showLogo && (
-                  <div className="w-10 h-10 bg-indigo-950 text-white rounded-lg flex items-center justify-center font-extrabold mx-auto mb-1">
-                    S
-                  </div>
-                )}
-                <h4 className="font-extrabold text-sm uppercase tracking-tight text-slate-900">
-                  {receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}
-                </h4>
-                {receiptConfig.address && <p className="text-[10px] text-gray-600">{receiptConfig.address}</p>}
-                {config.showGSTIN && (
-                  <p className="text-[10px] font-semibold text-gray-700">
-                    GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}
-                  </p>
-                )}
-              </div>
-
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-0.5 text-[10px]">
-                <div className="flex justify-between">
-                  <span>Inv: #INV-2026-9042</span>
-                  <span>{new Date().toLocaleDateString()}</span>
+              {/* Header section */}
+              {(receiptConfig.showCompanyHeader ?? true) && (
+                <div className={`text-center space-y-0.5 pb-2 border-b border-dashed border-gray-400 ${receiptConfig.compactMode ? 'mb-1' : 'mb-2'}`}>
+                  {config.showLogo && (
+                    <div className="w-9 h-9 bg-indigo-950 text-white rounded-lg flex items-center justify-center font-extrabold mx-auto mb-1">
+                      S
+                    </div>
+                  )}
+                  {receiptConfig.headerTitle !== '' && (
+                    <div className="text-[10px] font-extrabold tracking-wider text-gray-500 uppercase">
+                      {receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                    </div>
+                  )}
+                  <h4 className="font-extrabold text-sm uppercase tracking-tight text-slate-900">
+                    {receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}
+                  </h4>
+                  {(receiptConfig.showAddress ?? true) && receiptConfig.address && (
+                    <p className="text-[10px] text-gray-600">{receiptConfig.address}</p>
+                  )}
+                  {(receiptConfig.showPhone ?? true) && receiptConfig.phone && (
+                    <p className="text-[10px] text-gray-600">Phone: {receiptConfig.phone}</p>
+                  )}
+                  {(receiptConfig.showGSTIN ?? true) && (
+                    <p className="text-[10px] font-semibold text-gray-700">
+                      GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}
+                    </p>
+                  )}
                 </div>
-                {config.showCustomerDetails && (
-                  <div className="flex justify-between text-gray-600">
-                    <span>Cust: Rahul Sharma</span>
-                    <span>Ph: +91 98765 43210</span>
-                  </div>
-                )}
-              </div>
+              )}
 
-              <div className="py-3 border-b border-dashed border-gray-400">
+              {/* Invoice Meta Section */}
+              {((receiptConfig.showInvoiceNoAndDate ?? true) || ((receiptConfig.showCustomerDetails ?? true))) && (
+                <div className={`py-1.5 border-b border-dashed border-gray-400 space-y-0.5 text-[10px]`}>
+                  {(receiptConfig.showInvoiceNoAndDate ?? true) && (
+                    receiptConfig.compactMode ? (
+                      <div className="font-bold">Inv: #INV-2026-9042 | {new Date().toLocaleDateString()}</div>
+                    ) : (
+                      <div className="flex justify-between font-bold">
+                        <span>Inv: #INV-2026-9042</span>
+                        <span>{new Date().toLocaleDateString()}</span>
+                      </div>
+                    )
+                  )}
+                  {(receiptConfig.showCustomerDetails ?? true) && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>Cust: Rahul Sharma</span>
+                      <span>Ph: +91 98765 43210</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Item Table */}
+              <div className="py-2 border-b border-dashed border-gray-400">
                 <div className="flex justify-between font-bold pb-1 text-[11px]">
                   <span>Item</span>
-                  <div className="space-x-3">
+                  <div className="space-x-2">
                     <span>Qty</span>
+                    {(receiptConfig.showSubtotalDiscount ?? true) && <span>Disc</span>}
                     <span>Amt</span>
                   </div>
                 </div>
                 <div className="space-y-1 text-[10px]">
                   <div className="flex justify-between">
-                    <span className="truncate max-w-[110px]">Wireless Keyboard</span>
-                    <div className="space-x-3">
+                    <span className="truncate max-w-[100px]">Wireless Keyboard</span>
+                    <div className="space-x-2">
                       <span>1</span>
+                      {(receiptConfig.showSubtotalDiscount ?? true) && <span>-</span>}
                       <span>₹1,499</span>
                     </div>
                   </div>
                   <div className="flex justify-between">
-                    <span className="truncate max-w-[110px]">Optical Mouse Pro</span>
-                    <div className="space-x-3">
+                    <span className="truncate max-w-[100px]">Optical Mouse Pro</span>
+                    <div className="space-x-2">
                       <span>2</span>
+                      {(receiptConfig.showSubtotalDiscount ?? true) && <span>-</span>}
                       <span>₹1,200</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-1 text-[11px]">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>₹2,699.00</span>
-                </div>
-                <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>GST (18%)</span>
-                  <span>₹485.82</span>
-                </div>
+              {/* Totals Section */}
+              <div className="py-2 border-b border-dashed border-gray-400 space-y-0.5 text-[11px]">
+                {(receiptConfig.showSubtotalDiscount ?? true) && (
+                  <div className="flex justify-between text-[10px] text-gray-600">
+                    <span>Subtotal</span>
+                    <span>₹2,699.00</span>
+                  </div>
+                )}
+                {(receiptConfig.showTaxBreakdown ?? true) && (
+                  <>
+                    <div className="flex justify-between text-gray-600 text-[10px]">
+                      <span>SGST (9%)</span>
+                      <span>₹242.91</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600 text-[10px]">
+                      <span>CGST (9%)</span>
+                      <span>₹242.91</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between font-extrabold text-sm pt-1 border-t border-gray-300">
                   <span>GRAND TOTAL</span>
                   <span>₹3,184.82</span>
                 </div>
               </div>
 
-              <div className="pt-3 text-center space-y-2">
-                <p className="text-[10px] text-gray-600 italic">{receiptConfig.footerMessage}</p>
-                {config.showBarcode && (
+              {/* Footer Section */}
+              <div className="pt-2 text-center space-y-1.5">
+                {(receiptConfig.showFooterMessage ?? true) && receiptConfig.footerMessage && (
+                  <p className="text-[10px] text-gray-600 italic">{receiptConfig.footerMessage}</p>
+                )}
+                {(receiptConfig.showTerms ?? true) && (receiptConfig.termsLine1 || receiptConfig.termsLine2) && (
+                  <div className="text-[9px] text-left text-gray-500 space-y-0.5 pt-1">
+                    {receiptConfig.termsLine1 && <div>• {receiptConfig.termsLine1}</div>}
+                    {receiptConfig.termsLine2 && <div>• {receiptConfig.termsLine2}</div>}
+                  </div>
+                )}
+                {(receiptConfig.showBarcode ?? true) && (
                   <div className="pt-1">
-                    <div className="font-extrabold tracking-widest text-sm text-gray-800">||||| | |||| |||| |||||</div>
+                    <div className="font-extrabold tracking-widest text-xs text-gray-800">||||| | |||| |||| |||||</div>
                     <span className="text-[9px] font-mono text-gray-500">INV-2026-9042</span>
                   </div>
                 )}
