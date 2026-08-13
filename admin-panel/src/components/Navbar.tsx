@@ -10,6 +10,7 @@ import {
   UserCheck,
   ExternalLink,
   Smartphone,
+  Search,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -22,6 +23,7 @@ interface NavbarProps {
   onRefresh: () => void;
   autoRefreshInterval: number;
   setAutoRefreshInterval: (interval: number) => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -33,10 +35,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefresh,
   autoRefreshInterval,
   setAutoRefreshInterval,
+  onOpenCommandPalette,
 }) => {
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', icon: Activity },
-    { id: 'logins', label: 'User Logs & Activity', icon: ShieldAlert },
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
     { id: 'locations', label: 'Geolocation & IP', icon: Globe },
     { id: 'users', label: 'Registered Users', icon: Users },
@@ -73,6 +75,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Quick Search Command Palette Button */}
+          <button
+            onClick={onOpenCommandPalette}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--tab-border)',
+              background: 'var(--tab-bg)',
+              color: 'var(--navbar-text-muted)',
+              fontSize: '0.78rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Search size={14} color="var(--accent-blue)" />
+            <span>Search...</span>
+            <kbd style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', marginLeft: '2px' }}>
+              ⌘K
+            </kbd>
+          </button>
           {/* Time Range Selector */}
           <div style={{ display: 'flex', background: 'var(--tab-bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--tab-border)', transition: 'background 0.3s ease' }}>
             {['24h', '7d', '30d', 'All'].map((range) => (

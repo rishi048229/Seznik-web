@@ -1,18 +1,33 @@
 import React, { useState } from 'react';
-import { Users, Mail, Phone, Building2, Search, ShieldAlert, ArrowRight, Ban, CheckCircle2, UserCheck, X } from 'lucide-react';
+import {
+  Users,
+  Mail,
+  Phone,
+  Building2,
+  Search,
+  ShieldAlert,
+  Ban,
+  CheckCircle2,
+  UserCheck,
+  X,
+  User,
+  MapPin,
+  Globe,
+  Calendar,
+  Clock,
+  ExternalLink,
+} from 'lucide-react';
 import type { UserRecord } from '../types/admin';
 
 interface UserManagementViewProps {
   users: UserRecord[];
   initialSearchTerm?: string | null;
-  onViewUserLogs?: (userEmail?: string) => void;
   onBanUser?: (userId: string | number, reason: string) => void;
 }
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({
   users,
   initialSearchTerm,
-  onViewUserLogs,
   onBanUser,
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
@@ -24,6 +39,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }
   }, [initialSearchTerm]);
 
+  // Modal State for User Profile Details
+  const [selectedUserForProfile, setSelectedUserForProfile] = useState<UserRecord | null>(null);
+
   // Modal State for Ban User
   const [selectedUserForBan, setSelectedUserForBan] = useState<UserRecord | null>(null);
   const [selectedReason, setSelectedReason] = useState<string>('Suspicious activity or unauthorized access');
@@ -31,7 +49,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   // Local state for banned status mapping
   const [bannedMap, setBannedMap] = useState<Record<string | number, { banned: boolean; reason: string }>>({
-    4: { banned: true, reason: 'Excessive failed security authentications' }, // Mock seed sample
+    4: { banned: true, reason: 'Excessive failed security authentications' }, // Seed sample
   });
 
   const handleConfirmBan = () => {
@@ -83,104 +101,80 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   ];
 
   return (
-    <div className="glass-card" style={{ padding: '24px', height: 'calc(100vh - 170px)', minHeight: '620px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Users size={20} color="#8B5CF6" />
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                Registered System Users ({users.length})
-              </h2>
-            </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Full merchant user roster with User IDs, account privileges, suspension controls, and activity logs.
-            </p>
+    <div className="glass-card" style={{ padding: '24px', minHeight: '620px', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={22} color="var(--accent-blue)" />
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              Registered Merchant Users ({users.length})
+            </h2>
           </div>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+            Full merchant user roster with User Profile Details, account privileges, and instant ban/unban controls.
+          </p>
+        </div>
 
-          {/* Filter Controls & Action Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {onViewUserLogs && (
-              <button
-                onClick={() => onViewUserLogs()}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                  color: '#60A5FA',
-                  padding: '8px 14px',
-                  borderRadius: '8px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <span>View All User Activity Logs</span>
-                <ArrowRight size={14} />
-              </button>
-            )}
-
-            {/* Search Input */}
-            <div style={{ position: 'relative', width: '220px' }}>
-              <Search size={16} color="#64748B" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              <input
-                type="text"
-                placeholder="Search ID, name, email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px 8px 36px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color)',
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-main)',
-                  fontSize: '0.8rem',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            <select
-              className="custom-select"
-              value={planFilter}
-              onChange={(e) => setPlanFilter(e.target.value)}
+        {/* Filter Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Search Input */}
+          <div style={{ position: 'relative', width: '240px' }}>
+            <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              placeholder="Search ID, name, email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                padding: '8px 12px',
+                width: '100%',
+                padding: '8px 12px 8px 36px',
                 borderRadius: '8px',
                 border: '1px solid var(--border-color)',
-                backgroundColor: 'var(--bg-card)',
+                backgroundColor: 'var(--bg-main)',
                 color: 'var(--text-main)',
                 fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box',
               }}
-            >
-              <option value="all">All Plans</option>
-              <option value="enterprise">Enterprise</option>
-              <option value="pro">Pro Plan</option>
-              <option value="free">Free Plan</option>
-            </select>
+            />
           </div>
-        </div>
 
-        {/* Users Table */}
-        <div style={{ width: '100%', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          <select
+            value={planFilter}
+            onChange={(e) => setPlanFilter(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-main)',
+              color: 'var(--text-main)',
+              fontSize: '0.8rem',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          >
+            <option value="all">All Plans</option>
+            <option value="enterprise">Enterprise</option>
+            <option value="pro">Pro Plan</option>
+            <option value="free">Free Plan</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Users Table */}
+      <div style={{ width: '100%', overflowX: 'auto' }}>
         <table className="custom-table" style={{ width: '100%' }}>
           <thead>
             <tr>
               <th>User ID</th>
-              <th>User Name & Email</th>
+              <th>User Name &amp; Email</th>
               <th>Business Name</th>
               <th>Phone</th>
               <th>Role</th>
               <th>Plan</th>
               <th>Account Status</th>
-              <th>Actions</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -199,13 +193,15 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 return (
                   <tr key={u.id}>
                     <td>
-                      <code style={{ fontSize: '0.8rem', color: '#60A5FA', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                      <code style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
                         #{u.id}
                       </code>
                     </td>
                     <td>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{u.displayName || 'No Name'}</div>
+                      <div style={{ cursor: 'pointer' }} onClick={() => setSelectedUserForProfile(u)}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {u.displayName || 'No Name'}
+                        </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Mail size={12} /> {u.email || 'No Email'}
                         </div>
@@ -213,7 +209,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                        <Building2 size={14} color="#2563EB" />
+                        <Building2 size={14} color="var(--accent-blue)" />
                         <span>{u.businessName || 'Independent'}</span>
                       </div>
                     </td>
@@ -224,7 +220,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       </div>
                     </td>
                     <td>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
                         {u.role}
                       </span>
                     </td>
@@ -254,29 +250,27 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       )}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {/* View Logs Button */}
-                        {onViewUserLogs && (
-                          <button
-                            onClick={() => onViewUserLogs(u.email || String(u.id))}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              background: 'var(--bg-card)',
-                              border: '1px solid var(--border-color)',
-                              color: '#2563EB',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                            }}
-                          >
-                            <span>View logs</span>
-                            <ArrowRight size={12} />
-                          </button>
-                        )}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                        {/* View Profile Button */}
+                        <button
+                          onClick={() => setSelectedUserForProfile(u)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: 'var(--bg-main)',
+                            border: '1px solid var(--border-color)',
+                            color: 'var(--accent-blue)',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                          }}
+                        >
+                          <User size={12} />
+                          <span>View Profile</span>
+                        </button>
 
                         {/* Ban / Unban Button */}
                         {isUserBanned ? (
@@ -288,7 +282,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                               gap: '4px',
                               background: 'rgba(16, 185, 129, 0.15)',
                               border: '1px solid rgba(16, 185, 129, 0.3)',
-                              color: '#34D399',
+                              color: '#10B981',
                               fontSize: '0.75rem',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -308,7 +302,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                               gap: '4px',
                               background: 'rgba(244, 63, 94, 0.15)',
                               border: '1px solid rgba(244, 63, 94, 0.3)',
-                              color: '#FB7185',
+                              color: '#F87171',
                               fontSize: '0.75rem',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -329,7 +323,182 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           </tbody>
         </table>
       </div>
-    </div>
+
+      {/* USER PROFILE DETAILS MODAL */}
+      {selectedUserForProfile && (() => {
+        const u = selectedUserForProfile;
+        const banInfo = bannedMap[u.id];
+        const isUserBanned = banInfo?.banned || u.isBanned;
+        const banReasonText = banInfo?.reason || u.banReason || 'Account suspended by admin';
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 100,
+              background: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+          >
+            <div
+              className="glass-card"
+              style={{
+                width: '100%',
+                maxWidth: '560px',
+                padding: '24px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '16px',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+              }}
+            >
+              {/* Profile Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      color: '#FFFFFF',
+                      fontSize: '1.2rem',
+                    }}
+                  >
+                    {(u.displayName || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      {u.displayName || 'Merchant User'}
+                    </h3>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      User ID: #{u.id} • UID: <code style={{ color: 'var(--accent-blue)' }}>{u.uid}</code>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedUserForProfile(null)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Profile Details Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px' }}>
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Mail size={12} /> Email Address
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {u.email || 'N/A'}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Phone size={12} /> Contact Phone
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {u.phone || 'N/A'}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Building2 size={12} /> Business / Store
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {u.businessName || 'Independent Merchant'}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={12} /> Location &amp; IP
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {u.city || u.location || 'India'} ({u.ipAddress || 'Dynamic IP'})
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={12} /> Account Role &amp; Plan
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {u.role} ({u.plan.toUpperCase()})
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12} /> Last Active
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {new Date(u.lastLoginAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status & Ban Reason */}
+              <div style={{ padding: '14px', borderRadius: '10px', background: isUserBanned ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)', border: `1px solid ${isUserBanned ? 'rgba(244,63,94,0.3)' : 'rgba(16,185,129,0.3)'}`, marginBottom: '20px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isUserBanned ? '#F87171' : '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {isUserBanned ? <ShieldAlert size={16} /> : <UserCheck size={16} />}
+                  Account Status: {isUserBanned ? 'BANNED / SUSPENDED' : 'ACTIVE & VERIFIED'}
+                </div>
+                {isUserBanned && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: '#F87171' }}>
+                    Reason: {banReasonText}
+                  </p>
+                )}
+              </div>
+
+              {/* Profile Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  onClick={() => setSelectedUserForProfile(null)}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Close Profile
+                </button>
+
+                {isUserBanned ? (
+                  <button
+                    onClick={() => {
+                      handleUnban(u.id);
+                      setSelectedUserForProfile(null);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#10B981', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Unban Account
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setSelectedUserForProfile(null);
+                      setSelectedUserForBan(u);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#EF4444', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Ban User Account
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* BAN USER POPUP MODAL */}
       {selectedUserForBan && (
@@ -396,8 +565,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     gap: '10px',
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    background: selectedReason === reason ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card-hover)',
-                    border: `1px solid ${selectedReason === reason ? '#3B82F6' : 'var(--border-color)'}`,
+                    background: selectedReason === reason ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-main)',
+                    border: `1px solid ${selectedReason === reason ? 'var(--accent-blue)' : 'var(--border-color)'}`,
                     cursor: 'pointer',
                     fontSize: '0.8rem',
                     color: 'var(--text-main)',
@@ -408,7 +577,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     name="banReason"
                     checked={selectedReason === reason}
                     onChange={() => setSelectedReason(reason)}
-                    style={{ accentColor: '#3B82F6' }}
+                    style={{ accentColor: 'var(--accent-blue)' }}
                   />
                   <span>{reason}</span>
                 </label>
@@ -428,7 +597,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     padding: '10px',
                     borderRadius: '8px',
                     border: '1px solid var(--border-color)',
-                    background: 'var(--bg-card)',
+                    background: 'var(--bg-main)',
                     color: 'var(--text-main)',
                     fontSize: '0.8rem',
                     outline: 'none',
@@ -446,7 +615,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   padding: '8px 16px',
                   borderRadius: '8px',
                   border: '1px solid var(--border-color)',
-                  background: 'var(--bg-card)',
+                  background: 'var(--bg-main)',
                   color: 'var(--text-muted)',
                   fontSize: '0.8rem',
                   fontWeight: 600,
@@ -470,7 +639,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
                 }}
               >
-                Confirm & Ban Account
+                Confirm &amp; Ban Account
               </button>
             </div>
           </div>
