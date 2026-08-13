@@ -1,6 +1,7 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
 import { EscPosBuilder } from './escpos'
+import { compileReceiptTextLines } from './receiptEngine'
 
 interface GenerateReceiptHTMLParams {
   sale: Sale
@@ -258,155 +259,39 @@ export const generateReceiptHTML = ({
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // THERMAL (50 mm / 80 mm) RECEIPT HTML
+  // THERMAL (58 mm / 80 mm) RECEIPT HTML (Uses column layout engine)
   // ══════════════════════════════════════════════════════════════════════════
+  const paperSizeKey = width === '80mm' ? '80mm' : '58mm'
+  const textLines = compileReceiptTextLines({
+    sale,
+    receiptConfig,
+    businessName,
+    businessAddress,
+    businessPhone: receiptConfig?.phone,
+    businessGSTIN: receiptConfig?.gstin,
+    customerName,
+    paperSize: paperSizeKey,
+    pricesIncludeGst: true,
+  })
 
-  // Extract customizable receipt toggles with sensible defaults
-  const headerTitle = receiptConfig?.headerTitle !== undefined ? receiptConfig.headerTitle : 'TAX INVOICE'
-  const compactMode = receiptConfig?.compactMode ?? false
-  const showCompanyHeader = receiptConfig?.showCompanyHeader ?? true
-  const showAddress = receiptConfig?.showAddress ?? true
-  const showPhone = receiptConfig?.showPhone ?? true
-  const showGSTIN = receiptConfig?.showGSTIN ?? true
-  const showCustomerDetails = receiptConfig?.showCustomerDetails ?? true
-  const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
-  const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
-  const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
-  const showFooterMessage = receiptConfig?.showFooterMessage ?? true
-  const showTerms = receiptConfig?.showTerms ?? true
-  const showBarcode = receiptConfig?.showBarcode ?? true
-
-  // For thermal: split effectiveTaxRate into SGST + CGST (intrastate)
-  const halfTaxRate = effectiveTaxRate / 2
-  const sgstAmt = totalTax / 2
-  const cgstAmt = totalTax - sgstAmt
-  const taxableAmt = sale.subtotal - (sale.totalDiscount || 0)
-  const paymentMade = sale.amountPaid || 0
-  const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
-
-  // Thermal item rows — Line 1: item name (left) + tax rate (right), Line 2: Qty | Rate | Disc | Amt
-  const thermalItemRows = saleItems
-    .map((item: SaleItem, index: number) => {
-      const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstTagHtml = item.priceIncludesGst
-        ? '<span style="font-size:10px;font-weight:900;color:#1e3a8a;margin-left:4px;">(Incl. GST)</span>'
-        : (item.taxRate && item.taxRate > 0)
-          ? '<span style="font-size:10px;font-weight:900;color:#d97706;margin-left:4px;">(+GST Excl.)</span>'
-          : ''
-      return `
-      <div style="margin:1px 0 ${compactMode ? '2px' : '4px'} 0;">
-        <div style="display:flex;justify-content:space-between;font-size:${baseFS};font-weight:700;">
-          <span>${index + 1}. ${item.productName}${gstTagHtml}</span>
-          <span>${(item.taxRate || effectiveTaxRate).toFixed(2)}%</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:${smallFS};font-weight:600;">
-          <span style="min-width:36px;">${item.quantity} Pc</span>
-          <span style="flex:1;text-align:right;padding-right:6px;">${item.sellingPrice.toFixed(2)}</span>
-          ${showSubtotalDiscount ? `<span style="min-width:36px;text-align:right;padding-right:6px;">${item.discount > 0 ? item.discount.toFixed(2) : '-'}</span>` : ''}
-          <span style="min-width:52px;text-align:right;font-weight:800;">${lineTotal.toFixed(2)}</span>
-        </div>
-      </div>`
-    })
-    .join('')
-
-  const money = (n: number) => `\u20B9${n.toFixed(2)}`
-  const summaryRow = (label: string, value: string, bold = false, fs = smallFS) => `
-    <div style="display:flex;justify-content:space-between;font-size:${fs};font-weight:${bold ? 900 : 800};margin:${compactMode ? '1px' : '2px'} 0;">
-      <span>${label}</span>
-      <span>${value}</span>
-    </div>`
-
-  const sepComp = compactMode
-    ? `<div style="border-top:1px dashed #000;margin:1px 0;"></div>`
-    : sep
+  const rawLinesHtml = textLines.map(l => l.replace(/ /g, '&nbsp;')).join('<br/>')
 
   return `
   <div style="
     font-family:'Courier New',Courier,monospace;
-    font-size:${baseFS};
+    font-size:${smallFS};
     font-weight:700;
-    line-height:1.2;
+    line-height:1.25;
     color:#000;
     width:100%;
     max-width:100%;
-    padding:${compactMode ? '0' : '1mm 0'};
+    padding:0;
     box-sizing:border-box;
-    text-align:center;
+    white-space:pre;
+    text-align:left;
     overflow:hidden;
   ">
-
-    <!-- ── THERMAL HEADER ── -->
-    ${showCompanyHeader ? `
-    <div style="text-align:center;margin-bottom:${compactMode ? '2px' : '4px'};">
-      ${logoURL ? `<img src="${logoURL}" alt="Logo" style="max-width:80px;max-height:45px;object-fit:contain;margin-bottom:2px;display:block;margin-left:auto;margin-right:auto;" />` : ''}
-      ${headerTitle ? `<div style="font-size:${headerFS};font-weight:900;letter-spacing:1px;">${headerTitle}</div>` : ''}
-      <div style="font-size:${headerFS};font-weight:900;margin-top:1px;">${companyName}</div>
-      ${(showAddress && companyAddress) ? `<div style="font-size:${smallFS};margin-top:1px;">${companyAddress}</div>` : ''}
-      ${(showPhone && companyPhone) ? `<div style="font-size:${smallFS};">Phone: ${companyPhone}</div>` : ''}
-      ${(showGSTIN && companyGSTIN) ? `<div style="font-size:${smallFS};font-weight:bold;">GSTIN: ${companyGSTIN}</div>` : ''}
-    </div>
-    ${sepComp}
-    ` : ''}
-
-    <!-- ── THERMAL META ── -->
-    ${(showInvoiceNoAndDate || (showCustomerDetails && customerName)) ? `
-    <div style="font-size:${smallFS};font-weight:800;line-height:${compactMode ? '1.3' : '1.7'};text-align:left;">
-      ${showInvoiceNoAndDate ? (compactMode ? `<div>Inv: #${sale.invoiceNumber || '---'} | Date: ${dateStr}</div>` : `<div>Invoice No : ${sale.invoiceNumber || '---'}</div><div>Date       : ${dateStr}</div><div>Bill To    : ${methodLabel}</div>`) : ''}
-      ${(showCustomerDetails && customerName) ? `<div>Cust: ${customerName}</div>` : ''}
-    </div>
-    ${sepComp}
-    ` : ''}
-
-    <!-- ── THERMAL COLUMN HEADERS ── -->
-    <div style="font-size:${smallFS};font-weight:900;margin-bottom:1px;text-align:left;">ITEMS</div>
-    <div style="display:flex;justify-content:space-between;font-size:${smallFS};font-weight:900;">
-      <span style="min-width:36px;text-align:left;">Qty</span>
-      <span style="flex:1;text-align:right;padding-right:6px;">Rate</span>
-      ${showSubtotalDiscount ? `<span style="min-width:36px;text-align:right;padding-right:6px;">Disc</span>` : ''}
-      <span style="min-width:52px;text-align:right;">Amt</span>
-    </div>
-    ${sepComp}
-
-    <!-- ── THERMAL ITEMS ── -->
-    ${thermalItemRows}
-
-    ${sepComp}
-
-    <!-- ── THERMAL TOTALS ── -->
-    ${showSubtotalDiscount ? summaryRow('Sub Total', money(sale.subtotal)) : ''}
-    ${(showSubtotalDiscount && (sale.totalDiscount || 0) > 0) ? summaryRow('Discount', `(-) ${money(sale.totalDiscount || 0)}`) : ''}
-    ${(showTaxBreakdown && totalTax > 0) ? `
-      ${summaryRow('Taxable Amt', money(taxableAmt))}
-      ${summaryRow(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt))}
-      ${summaryRow(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt))}
-    ` : ''}
-
-    ${sepS}
-
-    ${summaryRow('Total Amount', money(sale.grandTotal), true, totalFS)}
-    ${paymentMade > 0 ? summaryRow('Paid Amount', money(paymentMade), true) : ''}
-    ${balanceDue > 0 ? summaryRow('Balance Amount', money(balanceDue), true) : ''}
-
-    <!-- ── THERMAL FOOTER & BARCODE ── -->
-    ${(showFooterMessage && footerMessage) ? `
-    ${sepComp}
-    <div style="font-size:${smallFS};margin-top:2px;font-weight:800;">${footerMessage}</div>
-    ` : ''}
-
-    ${(showTerms && (receiptConfig?.termsLine1 || receiptConfig?.termsLine2 || receiptConfig?.termsLine3)) ? `
-    <div style="font-size:${tinyFS};margin-top:3px;text-align:left;color:#444;">
-      ${receiptConfig?.termsLine1 ? `<div>• ${receiptConfig.termsLine1}</div>` : ''}
-      ${receiptConfig?.termsLine2 ? `<div>• ${receiptConfig.termsLine2}</div>` : ''}
-      ${receiptConfig?.termsLine3 ? `<div>• ${receiptConfig.termsLine3}</div>` : ''}
-    </div>
-    ` : ''}
-
-    ${(showBarcode && sale.invoiceNumber) ? `
-    <div style="margin-top:4px;">
-      <div style="font-family:monospace;font-size:10px;font-weight:bold;letter-spacing:1px;">|||||||||||||||||||||||</div>
-      <div style="font-size:9px;font-family:monospace;">${sale.invoiceNumber}</div>
-    </div>
-    ` : ''}
+${rawLinesHtml}
   </div>`
 }
 
@@ -500,161 +385,27 @@ export const generateReceiptEscPos = ({
   businessName,
   businessAddress,
   customerName,
-  settingsTaxRate,
 }: GenerateReceiptEscPosParams): Uint8Array => {
-  // 80mm printers (like Veer thermal receipt driver) use 48 characters/line (576 dots width).
-  // 58mm printers use 32 characters/line (384 dots width).
-  const lineWidth = paperSize === '80mm' ? 48 : 32
-
-  const headerTitle = receiptConfig?.headerTitle !== undefined ? receiptConfig.headerTitle : 'TAX INVOICE'
-  const compactMode = receiptConfig?.compactMode ?? false
-  const showCompanyHeader = receiptConfig?.showCompanyHeader ?? true
-  const showAddress = receiptConfig?.showAddress ?? true
-  const showPhone = receiptConfig?.showPhone ?? true
-  const showGSTIN = receiptConfig?.showGSTIN ?? true
-  const showCustomerDetails = receiptConfig?.showCustomerDetails ?? true
-  const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
-  const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
-  const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
-  const showFooterMessage = receiptConfig?.showFooterMessage ?? true
-  const showTerms = receiptConfig?.showTerms ?? true
-  const showBarcode = receiptConfig?.showBarcode ?? true
-
-  const companyName = receiptConfig?.companyName || businessName || 'Your Company'
-  const companyAddress = receiptConfig?.address || businessAddress || ''
-  const companyPhone = receiptConfig?.phone || ''
-  const companyGSTIN = receiptConfig?.gstin || ''
-  const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
-
-  const saleItems = sale.items ?? []
-  const dateRaw2 = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
-  const dateObj = typeof dateRaw2 === 'object' && dateRaw2?.toDate ? dateRaw2.toDate() : (typeof dateRaw2 === 'string' || typeof dateRaw2 === 'number') ? new Date(dateRaw2) : new Date()
-
-
-  const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-  const methodLabel =
-    sale.paymentMethod === 'cash' ? 'Cash Sale'
-      : sale.paymentMethod === 'card' ? 'Card'
-        : sale.paymentMethod === 'upi' ? 'UPI'
-          : 'Credit'
-
-  const totalTax = sale.totalTax || 0
-  const taxableAmount = saleItems.reduce(
-    (sum, item) => sum + (item.sellingPrice * item.quantity - (item.discount || 0)),
-    0
-  )
-  const uniqueItemTaxRates = Array.from(new Set(saleItems.map(item => item.taxRate || 0).filter(rate => rate > 0)))
-  const hasMixedTaxRates = uniqueItemTaxRates.length > 1
-  const inferredTaxRate = taxableAmount > 0 ? (totalTax / taxableAmount) * 100 : 0
-  const effectiveTaxRate = hasMixedTaxRates
-    ? inferredTaxRate
-    : (saleItems[0]?.taxRate ?? inferredTaxRate ?? settingsTaxRate ?? 0)
-  const halfTaxRate = effectiveTaxRate / 2
-  const sgstAmt = totalTax / 2
-  const cgstAmt = totalTax - sgstAmt
-  const taxableAmt = sale.subtotal - (sale.totalDiscount || 0)
-  const paymentMade = sale.amountPaid || 0
-  const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
-
-  const money = (n: number) => `Rs.${n.toFixed(2)}`
+  const textLines = compileReceiptTextLines({
+    sale,
+    receiptConfig,
+    businessName,
+    businessAddress,
+    businessPhone: receiptConfig?.phone,
+    businessGSTIN: receiptConfig?.gstin,
+    customerName,
+    paperSize,
+    pricesIncludeGst: true,
+  })
 
   const b = new EscPosBuilder()
   b.init(paperSize)
 
-  // ── Header ──
-  if (showCompanyHeader) {
-    b.align('center')
-    if (headerTitle) b.bold(true).line(headerTitle).bold(false)
-    b.bold(true).line(companyName).bold(false)
-    if (showAddress && companyAddress) b.line(companyAddress)
-    if (showPhone && companyPhone) b.line(`Phone: ${companyPhone}`)
-    if (showGSTIN && companyGSTIN) b.line(`GSTIN: ${companyGSTIN}`)
-    b.hr(lineWidth)
-  }
-
-  // ── Meta ──
-  if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
-    b.align('left')
-    if (showInvoiceNoAndDate) {
-      if (compactMode) {
-        b.line(`Inv:#${sale.invoiceNumber || '---'} | ${dateStr}`)
-      } else {
-        b.line(`Invoice No : ${sale.invoiceNumber || '---'}`)
-        b.line(`Date       : ${dateStr}`)
-        b.line(`Bill To    : ${methodLabel}`)
-      }
-    }
-    if (showCustomerDetails && customerName) b.line(`Cust       : ${customerName}`)
-    b.hr(lineWidth)
-  }
-
-  // ── Items ──
-  b.bold(true).line('ITEMS').bold(false)
-  b.hr(lineWidth)
-  saleItems.forEach((item: SaleItem, index: number) => {
-    const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
-    const gstTagEsc = item.priceIncludesGst
-      ? ' (Incl)'
-      : (item.taxRate && item.taxRate > 0)
-        ? ' (+GST)'
-        : ''
-    b.bold(true)
-    b.twoCol(`${index + 1}.${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
-    b.bold(false)
-    if (showSubtotalDiscount) {
-      b.line(`  ${item.quantity}Pc Rate:${item.sellingPrice.toFixed(2)} Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'} Amt:${lineTotal.toFixed(2)}`)
-    } else {
-      b.line(`  ${item.quantity}Pc x ${item.sellingPrice.toFixed(2)} = ${lineTotal.toFixed(2)}`)
-    }
+  textLines.forEach(line => {
+    b.line(line)
   })
-  b.hr(lineWidth)
 
-  // ── Summary ──
-  if (showSubtotalDiscount) {
-    b.twoCol('Sub Total', money(sale.subtotal), lineWidth)
-    if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, lineWidth)
-  }
-  if (showTaxBreakdown && totalTax > 0) {
-    b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
-    b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), lineWidth)
-    b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), lineWidth)
-  }
-  b.hr(lineWidth, '=')
-
-  b.bold(true)
-  b.twoCol('Total Amount', money(sale.grandTotal), lineWidth)
-  b.bold(false)
-  if (paymentMade > 0) b.twoCol('Paid Amount', money(paymentMade), lineWidth)
-  if (balanceDue > 0) b.twoCol('Balance Amount', money(balanceDue), lineWidth)
-  b.hr(lineWidth)
-
-  // ── Terms ──
-  if (showTerms) {
-    const t1 = receiptConfig?.termsLine1?.trim()
-    const t2 = receiptConfig?.termsLine2?.trim()
-    const t3 = receiptConfig?.termsLine3?.trim()
-    if (t1 || t2 || t3) {
-      b.align('center').bold(true).line('Terms and Conditions').bold(false).align('left')
-      if (t1) b.line(t1)
-      if (t2) b.line(t2)
-      if (t3) b.line(t3)
-    }
-  }
-
-  // ── Footer ──
-  if (showFooterMessage && footerMessage) {
-    b.align('center')
-    b.line(footerMessage)
-  }
-
-  if (showBarcode && sale.invoiceNumber) {
-    b.align('center')
-    b.line(`|||||||||||||||||||||||`)
-    b.line(sale.invoiceNumber)
-  }
-
-  b.feed(compactMode ? 1 : 3)
+  b.feed(2)
   b.cut()
 
   return b.toBytes()

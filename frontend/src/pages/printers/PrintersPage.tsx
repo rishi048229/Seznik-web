@@ -24,6 +24,7 @@ import {
   type LabelData,
 } from '@/utils/labelPrint'
 import { generateReceiptEscPos } from '@/utils/receipt'
+import { compileReceiptTextLines } from '@/utils/receiptEngine'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
@@ -978,137 +979,40 @@ export const PrintersPage = () => {
             </div>
 
             <div
-              className={`bg-white text-gray-900 p-5 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono text-xs transition-all duration-300 ${
-                config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'
+              className={`bg-white text-gray-900 p-4 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono transition-all duration-300 ${
+                config.paperSize === '58mm' ? 'w-[270px]' : 'w-[370px]'
               }`}
               style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
             >
-              {/* Header section */}
-              {(receiptConfig.showCompanyHeader ?? true) && (
-                <div className={`text-center space-y-0.5 pb-2 border-b border-dashed border-gray-400 ${receiptConfig.compactMode ? 'mb-1' : 'mb-2'}`}>
-                  {config.showLogo && (
-                    <div className="w-9 h-9 bg-indigo-950 text-white rounded-lg flex items-center justify-center font-extrabold mx-auto mb-1">
-                      S
-                    </div>
-                  )}
-                  {receiptConfig.headerTitle !== '' && (
-                    <div className="text-[10px] font-extrabold tracking-wider text-gray-500 uppercase">
-                      {receiptConfig.headerTitle ?? 'TAX INVOICE'}
-                    </div>
-                  )}
-                  <h4 className="font-extrabold text-sm uppercase tracking-tight text-slate-900">
-                    {receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}
-                  </h4>
-                  {(receiptConfig.showAddress ?? true) && receiptConfig.address && (
-                    <p className="text-[10px] text-gray-600">{receiptConfig.address}</p>
-                  )}
-                  {(receiptConfig.showPhone ?? true) && receiptConfig.phone && (
-                    <p className="text-[10px] text-gray-600">Phone: {receiptConfig.phone}</p>
-                  )}
-                  {(receiptConfig.showGSTIN ?? true) && (
-                    <p className="text-[10px] font-semibold text-gray-700">
-                      GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Invoice Meta Section */}
-              {((receiptConfig.showInvoiceNoAndDate ?? true) || ((receiptConfig.showCustomerDetails ?? true))) && (
-                <div className={`py-1.5 border-b border-dashed border-gray-400 space-y-0.5 text-[10px]`}>
-                  {(receiptConfig.showInvoiceNoAndDate ?? true) && (
-                    receiptConfig.compactMode ? (
-                      <div className="font-bold">Inv: #INV-2026-9042 | {new Date().toLocaleDateString()}</div>
-                    ) : (
-                      <div className="flex justify-between font-bold">
-                        <span>Inv: #INV-2026-9042</span>
-                        <span>{new Date().toLocaleDateString()}</span>
-                      </div>
-                    )
-                  )}
-                  {(receiptConfig.showCustomerDetails ?? true) && (
-                    <div className="flex justify-between text-gray-600">
-                      <span>Cust: Rahul Sharma</span>
-                      <span>Ph: +91 98765 43210</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Item Table */}
-              <div className="py-2 border-b border-dashed border-gray-400">
-                <div className="flex justify-between font-bold pb-1 text-[11px]">
-                  <span>Item</span>
-                  <div className="space-x-2">
-                    <span>Qty</span>
-                    {(receiptConfig.showSubtotalDiscount ?? true) && <span>Disc</span>}
-                    <span>Amt</span>
-                  </div>
-                </div>
-                <div className="space-y-1 text-[10px]">
-                  <div className="flex justify-between">
-                    <span className="truncate max-w-[100px]">Wireless Keyboard</span>
-                    <div className="space-x-2">
-                      <span>1</span>
-                      {(receiptConfig.showSubtotalDiscount ?? true) && <span>-</span>}
-                      <span>₹1,499</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="truncate max-w-[100px]">Optical Mouse Pro</span>
-                    <div className="space-x-2">
-                      <span>2</span>
-                      {(receiptConfig.showSubtotalDiscount ?? true) && <span>-</span>}
-                      <span>₹1,200</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Totals Section */}
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-0.5 text-[11px]">
-                {(receiptConfig.showSubtotalDiscount ?? true) && (
-                  <div className="flex justify-between text-[10px] text-gray-600">
-                    <span>Subtotal</span>
-                    <span>₹2,699.00</span>
-                  </div>
-                )}
-                {(receiptConfig.showTaxBreakdown ?? true) && (
-                  <>
-                    <div className="flex justify-between text-gray-600 text-[10px]">
-                      <span>SGST (9%)</span>
-                      <span>₹242.91</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600 text-[10px]">
-                      <span>CGST (9%)</span>
-                      <span>₹242.91</span>
-                    </div>
-                  </>
-                )}
-                <div className="flex justify-between font-extrabold text-sm pt-1 border-t border-gray-300">
-                  <span>GRAND TOTAL</span>
-                  <span>₹3,184.82</span>
-                </div>
-              </div>
-
-              {/* Footer Section */}
-              <div className="pt-2 text-center space-y-1.5">
-                {(receiptConfig.showFooterMessage ?? true) && receiptConfig.footerMessage && (
-                  <p className="text-[10px] text-gray-600 italic">{receiptConfig.footerMessage}</p>
-                )}
-                {(receiptConfig.showTerms ?? true) && (receiptConfig.termsLine1 || receiptConfig.termsLine2) && (
-                  <div className="text-[9px] text-left text-gray-500 space-y-0.5 pt-1">
-                    {receiptConfig.termsLine1 && <div>• {receiptConfig.termsLine1}</div>}
-                    {receiptConfig.termsLine2 && <div>• {receiptConfig.termsLine2}</div>}
-                  </div>
-                )}
-                {(receiptConfig.showBarcode ?? true) && (
-                  <div className="pt-1">
-                    <div className="font-extrabold tracking-widest text-xs text-gray-800">||||| | |||| |||| |||||</div>
-                    <span className="text-[9px] font-mono text-gray-500">INV-2026-9042</span>
-                  </div>
-                )}
-              </div>
+              <pre className="whitespace-pre font-mono text-[11px] leading-[1.3] text-gray-900 overflow-x-auto">
+                {compileReceiptTextLines({
+                  sale: {
+                    id: 'preview-1',
+                    invoiceNumber: 'INV/2026/00142',
+                    items: [
+                      { productId: 'p1', productName: 'Wireless Keyboard', quantity: 1, sellingPrice: 1499, discount: 0, taxRate: 18, taxAmount: 228.66, total: 1499 },
+                      { productId: 'p2', productName: 'Optical Mouse Pro', quantity: 2, sellingPrice: 600, discount: 0, taxRate: 18, taxAmount: 183.05, total: 1200 },
+                      { productId: 'p3', productName: 'Fresh Milk 1L', quantity: 2, sellingPrice: 30, discount: 0, taxRate: 0, taxAmount: 0, total: 60 },
+                    ],
+                    subtotal: 2759,
+                    totalDiscount: 0,
+                    totalTax: 411.71,
+                    grandTotal: 2759,
+                    paymentMethod: 'cash',
+                    amountPaid: 2759,
+                    changeReturned: 0,
+                    isQuickBill: false,
+                    createdAt: new Date().toISOString(),
+                  },
+                  receiptConfig,
+                  businessName: settings?.businessName || 'SEZNIK POS STORE',
+                  businessAddress: receiptConfig.address || settings?.businessAddress || '123 MG Road, Kothrud',
+                  businessPhone: receiptConfig.phone || '9876543210',
+                  businessGSTIN: receiptConfig.gstin || '27AAAAA0000A1Z5',
+                  customerName: 'Rahul Sharma',
+                  paperSize: config.paperSize === '80mm' ? '80mm' : '58mm',
+                }).join('\n')}
+              </pre>
             </div>
             <div
               className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'}`}
