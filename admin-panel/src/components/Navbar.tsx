@@ -40,8 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
     { id: 'locations', label: 'Geolocation & IP', icon: Globe },
     { id: 'users', label: 'Registered Users', icon: Users },
-    { id: 'app-traffic', label: 'App Traffic', icon: Smartphone },
-    { id: 'web-traffic', label: 'Web Traffic', icon: Globe },
+    { id: 'traffic', label: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', icon: ExternalLink },
   ];
 

@@ -76,7 +76,7 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
   }, [locations, searchTerm, viewTab]);
 
   return (
-    <div className="glass-card" style={{ padding: '24px', minHeight: 'calc(100vh - 270px)', display: 'flex', flexDirection: 'column' }}>
+    <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
         <div>

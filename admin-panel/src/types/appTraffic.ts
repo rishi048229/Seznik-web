@@ -1,4 +1,4 @@
-export type TrafficTimeFrame = '24h' | '7d' | '30d' | 'all';
+export type TrafficTimeFrame = '24h' | '7d' | '30d' | 'all' | 'custom';
 
 export type TrafficPlatform = 'mobile' | 'web';
 
