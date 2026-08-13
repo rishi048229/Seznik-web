@@ -23,6 +23,9 @@ dotenv.config();
 
 const app = express();
 
+// Trust reverse proxy (Nginx / Cloudflare / AWS ALB) headers
+app.set('trust proxy', true);
+
 // 1. Security Headers via Helmet
 app.use(
   helmet({
@@ -50,21 +53,25 @@ app.use(
   })
 );
 
-// 3. Global Rate Limiter (300 requests / 15 minutes per IP)
+// 3. Global Rate Limiter (1000 requests / 15 minutes per IP)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 1000,
   message: { error: 'Too many requests from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 app.use('/api', globalLimiter);
 
-// 4. Auth Rate Limiter (20 requests / 15 minutes per IP for brute-force protection)
+// 4. Auth Rate Limiter (100 requests / 15 minutes per IP)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 100,
   message: { error: 'Too many login/register attempts. Please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
