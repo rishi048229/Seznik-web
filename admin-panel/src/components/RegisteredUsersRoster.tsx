@@ -61,13 +61,13 @@ export const RegisteredUsersRoster: React.FC<RegisteredUsersRosterProps> = ({ us
               <tr>
                 <th>User</th>
                 <th>Role</th>
-                <th>Plan</th>
-                <th>Last Active</th>
+                <th>Business Name</th>
+                <th>Joined Date</th>
                 <th>Verification Status</th>
               </tr>
             </thead>
             <tbody>
-              {users.slice(0, 5).map((u) => {
+              {users.slice(0, 6).map((u) => {
                 const name = u.displayName || u.email || 'User';
                 const initial = name.charAt(0).toUpperCase();
 
@@ -104,13 +104,13 @@ export const RegisteredUsersRoster: React.FC<RegisteredUsersRosterProps> = ({ us
                       </div>
                     </td>
                     <td>
-                      <span className={`badge badge-${u.plan || 'free'}`}>
-                        {u.plan || 'free'}
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 500 }}>
+                        {u.businessName || 'Independent'}
                       </span>
                     </td>
                     <td>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
                       </span>
                     </td>
                     <td>

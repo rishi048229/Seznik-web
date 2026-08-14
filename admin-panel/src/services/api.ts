@@ -452,32 +452,39 @@ const MOCK_SECURITY_ANOMALY: SecurityAnomalyData = {
 };
 
 async function fetchAdminEndpoint<T>(path: string): Promise<T> {
-  const urlsToTry: string[] = [];
-  
-  if (API_BASE_URL) {
-    urlsToTry.push(`${API_BASE_URL}${path}`);
-  }
-  if (!urlsToTry.includes(`/api/admin${path}`)) {
-    urlsToTry.push(`/api/admin${path}`);
-  }
+  const localUrl = `/api/admin${path}`;
+  const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}${path}` : null;
 
-  let lastError: any = null;
-
-  for (const url of urlsToTry) {
+  // 1. If running on localhost / dev, local dev server middleware is instant & connected to RDS
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        return (await res.json()) as T;
-      }
-    } catch (e) {
-      lastError = e;
+      const res = await fetch(localUrl);
+      if (res.ok) return (await res.json()) as T;
+    } catch {
+      // fallback to remote if local fails
     }
   }
 
-  throw lastError || new Error(`Failed to fetch ${path} from any endpoint`);
+  // 2. Try remote backend if configured
+  if (remoteUrl) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(remoteUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) return (await res.json()) as T;
+    } catch {
+      // continue
+    }
+  }
+
+  // 3. Fallback to local route
+  try {
+    const res = await fetch(localUrl);
+    if (res.ok) return (await res.json()) as T;
+  } catch {}
+
+  throw new Error(`Failed to fetch ${path}`);
 }
 
 export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {

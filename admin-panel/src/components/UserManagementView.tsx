@@ -14,6 +14,12 @@ import {
   MapPin,
   Calendar,
   Clock,
+  Layers,
+  Scroll,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import type { UserRecord } from '../types/admin';
 
@@ -29,13 +35,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onBanUser,
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
-  const [planFilter, setPlanFilter] = useState('all');
+  const [viewMode, setViewMode] = useState<'paginated' | 'scroll'>('paginated');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   React.useEffect(() => {
     if (initialSearchTerm) {
       setSearchTerm(initialSearchTerm);
     }
   }, [initialSearchTerm]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
 
   // Modal State for User Profile Details
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<UserRecord | null>(null);
@@ -78,17 +90,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   };
 
   const filteredUsers = users.filter((u) => {
-    const matchesSearch =
+    return (
       String(u.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.uid || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.displayName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (u.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (u.businessName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (u.phone || '').includes(searchTerm);
-
-    const matchesPlan = planFilter === 'all' || u.plan === planFilter;
-    return matchesSearch && matchesPlan;
+      (u.phone || '').includes(searchTerm)
+    );
   });
+
+  // Pagination Calculations
+  const totalItems = filteredUsers.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const displayedUsers =
+    viewMode === 'paginated' ? filteredUsers.slice(startIndex, endIndex) : filteredUsers;
 
   const predefinedReasons = [
     'Suspicious activity or unauthorized access',
@@ -110,18 +128,72 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             </h2>
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Full merchant user roster with User Profile Details, account privileges, and instant ban/unban controls.
+            Full merchant user roster with User Profile Details, account privileges, instant ban controls, and flexible view layouts.
           </p>
         </div>
 
-        {/* Filter Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        {/* Filter & View Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* View Mode Toggle: Paginated vs Scroll View */}
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'var(--bg-main)',
+              padding: '3px',
+              borderRadius: '10px',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <button
+              onClick={() => setViewMode('paginated')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: viewMode === 'paginated' ? 'var(--accent-blue)' : 'transparent',
+                color: viewMode === 'paginated' ? '#FFFFFF' : 'var(--text-muted)',
+                fontWeight: viewMode === 'paginated' ? 600 : 500,
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Paginated View (Navigate with pages)"
+            >
+              <Layers size={14} />
+              <span>Paginated</span>
+            </button>
+            <button
+              onClick={() => setViewMode('scroll')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: viewMode === 'scroll' ? 'var(--accent-blue)' : 'transparent',
+                color: viewMode === 'scroll' ? '#FFFFFF' : 'var(--text-muted)',
+                fontWeight: viewMode === 'scroll' ? 600 : 500,
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Scroll View (Continuous scroll list)"
+            >
+              <Scroll size={14} />
+              <span>Scroll View</span>
+            </button>
+          </div>
+
           {/* Search Input */}
-          <div style={{ position: 'relative', width: '240px' }}>
+          <div style={{ position: 'relative', width: '250px' }}>
             <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
             <input
               type="text"
-              placeholder="Search ID, name, email..."
+              placeholder="Search ID, name, email, phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -137,53 +209,58 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               }}
             />
           </div>
-
-          <select
-            value={planFilter}
-            onChange={(e) => setPlanFilter(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-main)',
-              color: 'var(--text-main)',
-              fontSize: '0.8rem',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          >
-            <option value="all">All Plans</option>
-            <option value="enterprise">Enterprise</option>
-            <option value="pro">Pro Plan</option>
-            <option value="free">Free Plan</option>
-          </select>
         </div>
       </div>
 
-      {/* Users Table */}
-      <div style={{ width: '100%', overflowX: 'auto' }}>
-        <table className="custom-table" style={{ width: '100%' }}>
+      {/* Users Table Container (with Scroll View support) */}
+      <div
+        style={{
+          width: '100%',
+          overflowX: 'auto',
+          ...(viewMode === 'scroll'
+            ? {
+                maxHeight: '520px',
+                overflowY: 'auto',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+              }
+            : {}),
+        }}
+      >
+        <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr>
+            <tr
+              style={{
+                ...(viewMode === 'scroll'
+                  ? {
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 10,
+                      backgroundColor: 'var(--bg-card)',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.06)',
+                    }
+                  : {}),
+              }}
+            >
               <th>User ID</th>
               <th>User Name &amp; Email</th>
               <th>Business Name</th>
               <th>Phone</th>
               <th>Role</th>
-              <th>Plan</th>
+              <th>Joined Date</th>
               <th>Account Status</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.length === 0 ? (
+            {displayedUsers.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                   No merchant users match your search criteria.
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((u) => {
+              displayedUsers.map((u) => {
                 const banInfo = bannedMap[u.id];
                 const isUserBanned = banInfo?.banned || u.isBanned;
                 const banReasonText = banInfo?.reason || u.banReason || 'Account suspended by admin';
@@ -223,9 +300,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       </span>
                     </td>
                     <td>
-                      {u.plan === 'enterprise' && <span className="badge badge-enterprise">Enterprise</span>}
-                      {u.plan === 'pro' && <span className="badge badge-pro">Pro</span>}
-                      {u.plan === 'free' && <span className="badge badge-free">Free</span>}
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar size={12} />
+                        <span>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</span>
+                      </div>
                     </td>
                     <td>
                       {isUserBanned ? (
@@ -321,6 +399,197 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Footer Controls: Pagination Navigation or Scroll Summary */}
+      {viewMode === 'paginated' ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--border-color)',
+          }}
+        >
+          {/* Items range description & Page Size Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              Showing <strong style={{ color: 'var(--text-main)' }}>{totalItems === 0 ? 0 : startIndex + 1}</strong> to{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{endIndex}</strong> of{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{totalItems}</strong> merchants
+            </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <span>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-main)',
+                  color: 'var(--text-main)',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Page Navigation Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* First Page */}
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage <= 1}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-main)',
+                color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                opacity: currentPage <= 1 ? 0.4 : 1,
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+              }}
+              title="First Page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+
+            {/* Prev Page */}
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-main)',
+                color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                opacity: currentPage <= 1 ? 0.4 : 1,
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+              }}
+              title="Previous Page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Page Numbers */}
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((pageNumber, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev && pageNumber - prev > 1;
+
+                return (
+                  <React.Fragment key={pageNumber}>
+                    {showEllipsis && (
+                      <span style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>…</span>
+                    )}
+                    <button
+                      onClick={() => setCurrentPage(pageNumber)}
+                      style={{
+                        minWidth: '32px',
+                        height: '32px',
+                        padding: '0 8px',
+                        borderRadius: '6px',
+                        border: pageNumber === currentPage ? 'none' : '1px solid var(--border-color)',
+                        background: pageNumber === currentPage ? 'var(--accent-blue)' : 'var(--bg-main)',
+                        color: pageNumber === currentPage ? '#FFFFFF' : 'var(--text-main)',
+                        fontWeight: pageNumber === currentPage ? 700 : 500,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {pageNumber}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+
+            {/* Next Page */}
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-main)',
+                color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-main)',
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+              }}
+              title="Next Page"
+            >
+              <ChevronRight size={16} />
+            </button>
+
+            {/* Last Page */}
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage >= totalPages}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-main)',
+                color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-main)',
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+              }}
+              title="Last Page"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--border-color)',
+            fontSize: '0.82rem',
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span>
+            Displaying all <strong style={{ color: 'var(--text-main)' }}>{totalItems}</strong> merchant accounts in scroll view.
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--accent-blue)' }}>
+            <Scroll size={13} /> Continuous vertical scroll enabled
+          </span>
+        </div>
+      )}
 
       {/* USER PROFILE DETAILS MODAL */}
       {selectedUserForProfile && (() => {
@@ -423,28 +692,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
                 <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <MapPin size={12} /> Location &amp; IP
+                    <Calendar size={12} /> Account Role &amp; Onboarding
                   </div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
-                    {u.city || u.location || 'India'} ({u.ipAddress || 'Dynamic IP'})
+                    {u.role || 'Admin'} ({u.onboardingCompleted ? 'Onboarded' : 'Pending'})
                   </div>
                 </div>
 
-                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', gridColumn: 'span 2' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={12} /> Account Role &amp; Plan
+                    <Calendar size={12} /> Registered / Joined Date
                   </div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
-                    {u.role} ({u.plan.toUpperCase()})
-                  </div>
-                </div>
-
-                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={12} /> Last Active
-                  </div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
-                    {new Date(u.lastLoginAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {u.createdAt ? new Date(u.createdAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                   </div>
                 </div>
               </div>
