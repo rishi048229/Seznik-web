@@ -282,23 +282,23 @@ export const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] p-4 sm:p-6">
+    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-slate-100 p-3 sm:p-6 md:p-8 overflow-y-auto">
       {/* Main Card */}
-      <div className="flex flex-col sm:flex-row w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl">
+      <div className="flex flex-col md:flex-row w-full max-w-4xl rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 bg-white my-auto">
 
         {/* Top / Left Panel — Branding */}
-        <div className="sm:w-1/2 px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
+        <div className="md:w-5/12 px-6 py-8 sm:p-10 md:p-12 flex flex-col justify-between gap-6 sm:gap-8"
           style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)', color: '#fff' }}>
           <div>
-            <div className="mb-8 sm:mb-12">
-              <img src="/seznik_white_logo.png" alt="Seznik" className="w-32 sm:w-40 h-auto object-contain" />
+            <div className="mb-6 sm:mb-10">
+              <img src="/seznik_white_logo.png" alt="Seznik" className="w-28 sm:w-36 md:w-40 h-auto object-contain" />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold leading-tight tracking-tight mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tracking-tight mb-3">
               Precision in every
               <br />
-              <span style={{ color: 'rgba(255,255,255,0.15)' }}>transaction.</span>
+              <span style={{ color: 'rgba(255,255,255,0.25)' }}>transaction.</span>
             </h1>
-            <p className="text-sm sm:text-base leading-relaxed opacity-75 max-w-xs">
+            <p className="text-xs sm:text-sm md:text-base leading-relaxed opacity-80 max-w-xs">
               A premium retail POS designed to turn complex inventory into a seamless digital editorial for your business.
             </p>
           </div>
@@ -309,8 +309,8 @@ export const LoginPage = () => {
               { icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>, label: 'MULTI-STORE SYNC' },
               { icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>, label: 'SECURE LEDGER' },
             ].map(b => (
-              <div key={b.label} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide"
-                style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+              <div key={b.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide"
+                style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
                 {b.icon}
                 {b.label}
               </div>
@@ -319,40 +319,40 @@ export const LoginPage = () => {
         </div>
 
         {/* Bottom / Right Panel — Form */}
-        <div className="sm:w-1/2 px-8 py-10 sm:px-14 sm:py-16 bg-white flex flex-col justify-center">
-          <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-2">{isRegistering ? 'Create Account' : 'Welcome to Seznik POS'}</h2>
-          <p className="text-sm text-slate-500 mb-8">{isRegistering ? 'Sign up to get started.' : 'Enter your credentials to access your store dashboard.'}</p>
+        <div className="md:w-7/12 px-6 py-8 sm:px-10 sm:py-12 md:px-12 md:py-14 bg-white flex flex-col justify-center">
+          <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-1">{isRegistering ? 'Create Account' : 'Welcome to Seznik POS'}</h2>
+          <p className="text-xs sm:text-sm text-slate-500 mb-6 sm:mb-8">{isRegistering ? 'Sign up to get started.' : 'Enter your credentials to access your store dashboard.'}</p>
 
-          <form noValidate onSubmit={handleSignIn} className="flex flex-col gap-4">
-            {error && <p className="text-red-500 text-sm font-medium p-3 bg-red-50 border border-red-200 rounded-lg">{error}</p>}
+          <form noValidate onSubmit={handleSignIn} className="flex flex-col gap-3.5 sm:gap-4">
+            {error && <p className="text-red-600 text-xs sm:text-sm font-medium p-3 bg-red-50 border border-red-200 rounded-xl leading-snug">{error}</p>}
             
             {isRegistering && (
-              <div className="flex gap-4">
-                <div className="w-1/2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">First Name</label>
                   <input
                     type="text"
                     required
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   />
                 </div>
-                <div className="w-1/2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Last Name</label>
                   <input
                     type="text"
                     required
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Email</label>
               <div className="flex gap-2">
                 <input
                   type="email"
@@ -360,7 +360,7 @@ export const LoginPage = () => {
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   readOnly={isRegistering && verifyStep === 'verified'}
-                  className={`flex-1 min-w-0 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
+                  className={`flex-1 min-w-0 px-3.5 py-2.5 sm:py-2 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
                     isRegistering && verifyStep === 'verified'
                       ? 'border-emerald-300 bg-emerald-50/50'
                       : 'border-slate-300'
@@ -369,7 +369,7 @@ export const LoginPage = () => {
                 />
                 {isRegistering && (
                   verifyStep === 'verified' ? (
-                    <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-lg shrink-0">
+                    <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-xl shrink-0">
                       <CheckCircle2 size={14} /> Verified
                     </span>
                   ) : (
@@ -377,7 +377,7 @@ export const LoginPage = () => {
                       type="button"
                       onClick={handleSendOtp}
                       disabled={verifyStep === 'sending' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (verifyStep === 'sent' && resendIn > 0)}
-                      className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-sky-500 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0 cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0 cursor-pointer"
                     >
                       {verifyStep === 'sending' ? 'Sending…' : verifyStep === 'sent' ? (resendIn > 0 ? `Resend (${resendIn}s)` : 'Resend') : 'Verify Email'}
                     </button>
@@ -391,7 +391,7 @@ export const LoginPage = () => {
 
             {isRegistering && (verifyStep === 'sent' || verifyStep === 'verifying') && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Verification Code</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Verification Code</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -399,14 +399,14 @@ export const LoginPage = () => {
                     maxLength={6}
                     value={otp}
                     onChange={(e) => handleOtpChange(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center text-lg"
+                    className="flex-1 px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center"
                     placeholder="••••••"
                   />
                   <button
                     type="button"
                     onClick={() => handleVerifyOtp()}
                     disabled={otp.length !== 6 || verifyStep === 'verifying'}
-                    className="px-4 py-2 rounded-lg bg-[#0a0a2e] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-[#0a0a2e] text-white text-xs sm:text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer shrink-0"
                   >
                     {verifyStep === 'verifying' ? 'Checking…' : 'Confirm'}
                   </button>
@@ -416,13 +416,13 @@ export const LoginPage = () => {
 
             {isRegistering && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Phone Number</label>
                 <input
                   type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                  className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   placeholder="+91 98765 43210"
                 />
               </div>
@@ -430,7 +430,7 @@ export const LoginPage = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium text-slate-700">Password</label>
+                <label className="text-xs sm:text-sm font-medium text-slate-700">Password</label>
                 {!isRegistering && (
                   <button
                     type="button"
@@ -446,7 +446,7 @@ export const LoginPage = () => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                 placeholder="••••••••"
               />
               {isRegistering && <PasswordRequirementsList password={password} showOnlyIfTyped />}
@@ -455,7 +455,7 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={isSigningIn || loading}
-              className="mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
             >
               {isSigningIn || loading ? <Spinner size="sm" className="text-white" /> : (isRegistering ? 'Sign Up' : 'Sign In')}
