@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { KPICards } from './components/KPICards';
 import { SectionUsageChart } from './components/SectionUsageChart';
-import { LocationDistribution } from './components/LocationDistribution';
 import { UserManagementView } from './components/UserManagementView';
 import { PeakUsageHeatmap } from './components/PeakUsageHeatmap';
 import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
-import { SecurityAnomalyPanel } from './components/SecurityAnomalyPanel';
 import { SectionDetailView } from './components/SectionDetailView';
 import { RegisteredUsersRoster } from './components/RegisteredUsersRoster';
 import { RedirectsView } from './components/RedirectsView';
@@ -17,7 +15,6 @@ import {
   fetchUserRecords, 
   fetchLoginLogs, 
   fetchSectionUsage, 
-  fetchLocationMetrics,
   fetchHeatmapData,
   fetchDeviceSessionBreakdown,
   fetchSecurityAnomalyData,
@@ -27,13 +24,12 @@ import type {
   UserRecord, 
   UserLoginLog, 
   SectionUsage, 
-  LocationMetric,
   HeatmapCell,
   DeviceSessionBreakdownData,
   SecurityAnomalyData,
 } from './types/admin';
 
-const VALID_TABS = ['overview', 'sections', 'locations', 'users', 'traffic', 'redirects'];
+const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -105,7 +101,6 @@ export const App: React.FC = () => {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
   const [sectionUsage, setSectionUsage] = useState<SectionUsage[]>([]);
-  const [locationMetrics, setLocationMetrics] = useState<LocationMetric[]>([]);
   const [heatmapData, setHeatmapData] = useState<HeatmapCell[]>([]);
   const [deviceData, setDeviceData] = useState<DeviceSessionBreakdownData | undefined>(undefined);
   const [securityData, setSecurityData] = useState<SecurityAnomalyData | undefined>(undefined);
@@ -114,12 +109,11 @@ export const App: React.FC = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [m, u, l, s, loc, heat, dev, sec] = await Promise.all([
+      const [m, u, l, s, heat, dev, sec] = await Promise.all([
         fetchDashboardMetrics(),
         fetchUserRecords(),
         fetchLoginLogs(),
         fetchSectionUsage(),
-        fetchLocationMetrics(),
         fetchHeatmapData(),
         fetchDeviceSessionBreakdown(),
         fetchSecurityAnomalyData(),
@@ -129,7 +123,6 @@ export const App: React.FC = () => {
       setUsers(u);
       setLoginLogs(l);
       setSectionUsage(s);
-      setLocationMetrics(loc);
       setHeatmapData(heat);
       setDeviceData(dev);
       setSecurityData(sec);
@@ -256,13 +249,6 @@ export const App: React.FC = () => {
                   }}
                 />
               )
-            )}
-
-            {activeTab === 'locations' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <LocationDistribution locations={locationMetrics} />
-                <SecurityAnomalyPanel data={securityData} />
-              </div>
             )}
 
             {activeTab === 'users' && (

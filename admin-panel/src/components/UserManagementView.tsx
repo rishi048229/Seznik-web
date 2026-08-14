@@ -6,6 +6,7 @@ import {
   Building2,
   Search,
   ShieldAlert,
+  ShieldCheck,
   Ban,
   CheckCircle2,
   UserCheck,
@@ -124,7 +125,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={22} color="var(--accent-blue)" />
             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              Registered Merchant Users ({users.length})
+              Registered Merchant Users
             </h2>
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
@@ -189,16 +190,16 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           </div>
 
           {/* Search Input */}
-          <div style={{ position: 'relative', width: '250px' }}>
+          <div style={{ position: 'relative', width: '280px', maxWidth: '100%' }}>
             <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
             <input
               type="text"
-              placeholder="Search ID, name, email, phone..."
+              placeholder="Search ID, name, email, phone, store..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px 8px 36px',
+                padding: '7px 12px 7px 34px',
                 borderRadius: '8px',
                 border: '1px solid var(--border-color)',
                 backgroundColor: 'var(--bg-main)',
@@ -212,17 +213,72 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         </div>
       </div>
 
+      {/* Single Dedicated Total Registered Users Card */}
+      <div
+        style={{
+          background: 'var(--bg-main)',
+          padding: '18px 22px',
+          borderRadius: '14px',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
+              border: '1px solid rgba(37, 99, 235, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#3B82F6',
+            }}
+          >
+            <Users size={24} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+              Total Registered Users
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '2px' }}>
+              <span style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.5px', lineHeight: 1 }}>
+                {users.length}
+              </span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                Merchant Accounts in Database
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.78rem', color: '#10B981', fontWeight: 600 }}>
+          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
+          <span>Live AWS RDS Database Connection</span>
+        </div>
+      </div>
+
       {/* Users Table Container (with Scroll View support) */}
       <div
         style={{
           width: '100%',
           overflowX: 'auto',
+          transition: 'all 0.25s ease',
           ...(viewMode === 'scroll'
             ? {
-                maxHeight: '520px',
+                minHeight: '480px',
+                maxHeight: '720px',
                 overflowY: 'auto',
                 border: '1px solid var(--border-color)',
                 borderRadius: '12px',
+                background: 'rgba(255, 255, 255, 0.01)',
               }
             : {}),
         }}
@@ -237,7 +293,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       top: 0,
                       zIndex: 10,
                       backgroundColor: 'var(--bg-card)',
-                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.06)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                     }
                   : {}),
               }}

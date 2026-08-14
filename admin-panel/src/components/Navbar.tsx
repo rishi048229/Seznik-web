@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Activity, 
   Users, 
-  Globe, 
   LayoutGrid, 
   ShieldAlert, 
   RefreshCw, 
@@ -40,7 +39,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', icon: Activity },
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
-    { id: 'locations', label: 'Geolocation & IP', icon: Globe },
     { id: 'users', label: 'Registered Users', icon: Users },
     { id: 'traffic', label: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', icon: ExternalLink },

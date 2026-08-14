@@ -558,15 +558,6 @@ export async function fetchSectionUsage(): Promise<SectionUsage[]> {
   }
 }
 
-export async function fetchLocationMetrics(): Promise<LocationMetric[]> {
-  try {
-    return await fetchAdminEndpoint<LocationMetric[]>('/locations');
-  } catch (err) {
-    console.warn('Falling back for location metrics:', err);
-    return MOCK_LOCATION_METRICS;
-  }
-}
-
 export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
   return MOCK_HEATMAP;
 }

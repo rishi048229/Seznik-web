@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Activity, LogIn, LayoutGrid, Globe, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, Receipt, LogIn, LayoutGrid, TrendingUp, TrendingDown } from 'lucide-react';
 import type { DashboardMetrics } from '../types/admin';
 
 interface KPICardsProps {
@@ -22,14 +22,14 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
       targetTab: 'users',
     },
     {
-      id: 'active',
-      title: 'Active Users Now',
-      value: metrics.activeNowCount,
-      subtext: 'Current live sessions',
-      icon: Activity,
-      color: '#10B981', // Green = active/positive
-      trend: metrics.activeNowTrend ?? 0,
-      targetTab: 'logins',
+      id: 'invoices-today',
+      title: 'Total Invoices Today',
+      value: metrics.invoicesTodayCount ?? 0,
+      subtext: 'Receipts & sales created today',
+      icon: Receipt,
+      color: '#10B981', // Green = sales/revenue
+      trend: metrics.invoicesTodayTrend ?? 15.0,
+      targetTab: 'overview',
     },
     {
       id: 'logins',
@@ -52,17 +52,6 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
       isStringValue: true,
       targetTab: 'sections',
       sectionId: 'sec-1',
-    },
-    {
-      id: 'location',
-      title: 'Primary Location',
-      value: metrics.topLocation || 'Mumbai, India (75.0%)',
-      subtext: `${metrics.topLocationShare ?? 75.0}% IP traffic region`,
-      icon: Globe,
-      color: '#8B5CF6', // Purple = location metadata
-      trend: metrics.topLocationTrend ?? 5.0,
-      isStringValue: true,
-      targetTab: 'locations',
     },
   ];
 

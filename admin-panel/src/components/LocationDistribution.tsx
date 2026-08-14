@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Globe, MapPin, Search, Users, Building, Flag, Radio } from 'lucide-react';
+import { Globe, MapPin, Search, Users, Building } from 'lucide-react';
 import type { LocationMetric } from '../types/admin';
 import { EmptyState } from './EmptyState';
 
@@ -10,14 +10,13 @@ interface LocationDistributionProps {
 
 export const LocationDistribution: React.FC<LocationDistributionProps> = ({ locations = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewTab, setViewTab] = useState<'all' | 'state' | 'city' | 'active'>('all');
+  const [viewTab, setViewTab] = useState<'all' | 'state' | 'city'>('all');
 
   const totalRegisteredUsers = locations.reduce((sum, l) => sum + l.userCount, 0);
-  const totalActiveUsers = locations.reduce((sum, l) => sum + l.activeSessions, 0);
 
   // Aggregated State-Wise Demography (India)
   const stateDemographics = useMemo(() => {
-    const map = new Map<string, { state: string; cities: Set<string>; userCount: number; activeSessions: number; percentageShare: number }>();
+    const map = new Map<string, { state: string; cities: Set<string>; userCount: number; percentageShare: number }>();
     locations.forEach((loc) => {
       const stateKey = loc.state || 'Primary Region';
       if (!map.has(stateKey)) {
@@ -25,55 +24,47 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           state: stateKey,
           cities: new Set([loc.city]),
           userCount: loc.userCount,
-          activeSessions: loc.activeSessions,
           percentageShare: loc.percentageShare,
         });
       } else {
         const item = map.get(stateKey)!;
         item.cities.add(loc.city);
         item.userCount += loc.userCount;
-        item.activeSessions += loc.activeSessions;
         item.percentageShare += loc.percentageShare;
       }
     });
 
-    return Array.from(map.values()).map(item => ({
-      ...item,
-      citiesList: Array.from(item.cities).join(', ')
-    }));
-  }, [locations]);
-
-  // Aggregated City-Wise Demography
-  const cityDemographics = useMemo(() => {
-    return [...locations].sort((a, b) => b.userCount - a.userCount);
+    return Array.from(map.values())
+      .map((item) => ({
+        ...item,
+        citiesList: Array.from(item.cities).join(', '),
+      }))
+      .sort((a, b) => b.userCount - a.userCount);
   }, [locations]);
 
   // Filtered rows for State-Wise
   const filteredStateRows = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    return stateDemographics.filter(row =>
-      !term ||
-      row.state.toLowerCase().includes(term) ||
-      row.citiesList.toLowerCase().includes(term)
+    return stateDemographics.filter(
+      (row) =>
+        !term ||
+        row.state.toLowerCase().includes(term) ||
+        row.citiesList.toLowerCase().includes(term)
     );
   }, [stateDemographics, searchTerm]);
 
-  // Filtered rows for City-Wise / All / Active
+  // Filtered rows for City-Wise / All
   const filteredCityRows = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     return locations.filter((loc) => {
-      const matchesSearch =
+      return (
         !term ||
         loc.city.toLowerCase().includes(term) ||
         (loc.state || '').toLowerCase().includes(term) ||
-        loc.country.toLowerCase().includes(term);
-
-      if (viewTab === 'active') {
-        return matchesSearch && loc.activeSessions > 0;
-      }
-      return matchesSearch;
+        loc.country.toLowerCase().includes(term)
+      );
     });
-  }, [locations, searchTerm, viewTab]);
+  }, [locations, searchTerm]);
 
   return (
     <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
@@ -83,24 +74,19 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Globe size={20} color="#06B6D4" />
             <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              India Geolocation & IP Telemetry Demography
+              India Geolocation & Regional User Demography
             </h2>
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            State-wise and City-wise breakdown of registered merchants & currently active users across India.
+            State-wise and City-wise breakdown of registered merchants across India.
           </p>
         </div>
 
-        {/* Top Summary Stats Badges */}
+        {/* Top Summary Stats Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ background: 'var(--bg-card-hover)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            <Users size={14} color="#2563EB" />
-            <span>Total Registered Users: <strong style={{ color: 'var(--text-main)' }}>{totalRegisteredUsers}</strong></span>
-          </div>
-
-          <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#34D399', fontWeight: 600 }}>
-            <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
-            <span>Currently Active Now: <strong style={{ color: '#34D399' }}>{totalActiveUsers} Users</strong></span>
+          <div style={{ background: 'var(--bg-card-hover)', padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            <Users size={16} color="#2563EB" />
+            <span>Total Registered Merchants: <strong style={{ color: 'var(--text-main)' }}>{totalRegisteredUsers}</strong></span>
           </div>
         </div>
       </div>
@@ -112,12 +98,12 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           <button
             onClick={() => setViewTab('all')}
             style={{
-              padding: '5px 12px',
+              padding: '6px 14px',
               borderRadius: '6px',
               border: 'none',
               background: viewTab === 'all' ? '#06B6D4' : 'transparent',
-              color: viewTab === 'all' ? '#FFFFFF' : '#64748B',
-              fontSize: '0.75rem',
+              color: viewTab === 'all' ? '#FFFFFF' : 'var(--text-muted)',
+              fontSize: '0.78rem',
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
@@ -129,12 +115,12 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           <button
             onClick={() => setViewTab('state')}
             style={{
-              padding: '5px 12px',
+              padding: '6px 14px',
               borderRadius: '6px',
               border: 'none',
               background: viewTab === 'state' ? '#06B6D4' : 'transparent',
-              color: viewTab === 'state' ? '#FFFFFF' : '#64748B',
-              fontSize: '0.75rem',
+              color: viewTab === 'state' ? '#FFFFFF' : 'var(--text-muted)',
+              fontSize: '0.78rem',
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
@@ -146,12 +132,12 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           <button
             onClick={() => setViewTab('city')}
             style={{
-              padding: '5px 12px',
+              padding: '6px 14px',
               borderRadius: '6px',
               border: 'none',
               background: viewTab === 'city' ? '#06B6D4' : 'transparent',
-              color: viewTab === 'city' ? '#FFFFFF' : '#64748B',
-              fontSize: '0.75rem',
+              color: viewTab === 'city' ? '#FFFFFF' : 'var(--text-muted)',
+              fontSize: '0.78rem',
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
@@ -159,28 +145,11 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           >
             City-Wise Breakdown
           </button>
-
-          <button
-            onClick={() => setViewTab('active')}
-            style={{
-              padding: '5px 12px',
-              borderRadius: '6px',
-              border: 'none',
-              background: viewTab === 'active' ? '#10B981' : 'transparent',
-              color: viewTab === 'active' ? '#FFFFFF' : '#64748B',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            Active Users Only ({totalActiveUsers})
-          </button>
         </div>
 
         {/* Search Input */}
-        <div style={{ position: 'relative', width: '240px', maxWidth: '100%' }}>
-          <Search size={16} color="#64748B" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', width: '250px', maxWidth: '100%' }}>
+          <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           <input
             type="text"
             placeholder={viewTab === 'state' ? 'Search state or city...' : 'Search city or state...'}
@@ -188,10 +157,10 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: '100%',
-              padding: '7px 12px 7px 36px',
+              padding: '8px 12px 8px 36px',
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-card)',
+              backgroundColor: 'var(--bg-main)',
               color: 'var(--text-main)',
               fontSize: '0.8rem',
               outline: 'none',
@@ -200,8 +169,6 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
           />
         </div>
       </div>
-
-      {/* DYNAMIC COLUMN TABLES BASED ON VIEW TAB */}
 
       {/* 1. STATE-WISE DEMOGRAPHY TABLE */}
       {viewTab === 'state' && (
@@ -219,8 +186,7 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                   <th>State / Province (India)</th>
                   <th>Cities Included</th>
                   <th>Total Registered Users</th>
-                  <th>Currently Active Users</th>
-                  <th>State Traffic Share %</th>
+                  <th>State User Share %</th>
                 </tr>
               </thead>
               <tbody>
@@ -244,22 +210,11 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                       </div>
                     </td>
                     <td>
-                      {row.activeSessions > 0 ? (
-                        <span className="badge badge-active">
-                          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span> {row.activeSessions} Active Now
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          0 Active
-                        </span>
-                      )}
-                    </td>
-                    <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '140px' }}>
-                        <div style={{ flex: 1, height: '8px', background: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
                           <div style={{ width: `${row.percentageShare}%`, height: '100%', background: 'linear-gradient(90deg, #8B5CF6 0%, #3B82F6 100%)', borderRadius: '4px' }} />
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '36px', textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', minWidth: '42px', textAlign: 'right' }}>
                           {row.percentageShare.toFixed(1)}%
                         </span>
                       </div>
@@ -288,8 +243,7 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                   <th>City Location</th>
                   <th>State / Region (India)</th>
                   <th>Registered Users</th>
-                  <th>Currently Active Users</th>
-                  <th>City Traffic Share %</th>
+                  <th>City User Share %</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,22 +268,11 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                       </div>
                     </td>
                     <td>
-                      {loc.activeSessions > 0 ? (
-                        <span className="badge badge-active">
-                          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span> {loc.activeSessions} Active Now
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          0 Active
-                        </span>
-                      )}
-                    </td>
-                    <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '140px' }}>
-                        <div style={{ flex: 1, height: '8px', background: '#1F2937', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
                           <div style={{ width: `${loc.percentageShare}%`, height: '100%', background: 'linear-gradient(90deg, #06B6D4 0%, #3B82F6 100%)', borderRadius: '4px' }} />
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '36px', textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', minWidth: '42px', textAlign: 'right' }}>
                           {loc.percentageShare.toFixed(1)}%
                         </span>
                       </div>
@@ -342,13 +285,13 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
         )
       )}
 
-      {/* 3. ALL LOCATIONS & ACTIVE USERS TABLES */}
-      {(viewTab === 'all' || viewTab === 'active') && (
+      {/* 3. ALL LOCATIONS TABLE */}
+      {viewTab === 'all' && (
         filteredCityRows.length === 0 ? (
           <EmptyState
             icon={Globe}
             title="No Location Telemetry"
-            message="No regional location records match your search or view filter."
+            message="No regional location records match your search query."
           />
         ) : (
           <div style={{ width: '100%', overflowY: 'auto', flex: 1, minHeight: 0 }}>
@@ -359,8 +302,7 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                   <th>State / Region (India)</th>
                   <th>Country</th>
                   <th>Registered Users</th>
-                  <th>Currently Active Users</th>
-                  <th>Traffic Share</th>
+                  <th>User Share %</th>
                 </tr>
               </thead>
               <tbody>
@@ -390,22 +332,11 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                       </div>
                     </td>
                     <td>
-                      {loc.activeSessions > 0 ? (
-                        <span className="badge badge-active">
-                          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span> {loc.activeSessions} Active Now
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          0 Active
-                        </span>
-                      )}
-                    </td>
-                    <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '140px' }}>
-                        <div style={{ flex: 1, height: '8px', background: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
                           <div style={{ width: `${loc.percentageShare}%`, height: '100%', background: 'linear-gradient(90deg, #06B6D4 0%, #3B82F6 100%)', borderRadius: '4px' }} />
                         </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '36px', textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', minWidth: '42px', textAlign: 'right' }}>
                           {loc.percentageShare.toFixed(1)}%
                         </span>
                       </div>

@@ -30,45 +30,36 @@ export default defineConfig(({ mode }) => {
               try {
                 const result = await pool.query(`
                   SELECT 
-                    id, 
-                    uid, 
-                    email, 
-                    phone, 
-                    "displayName", 
-                    "businessName", 
-                    plan, 
-                    role, 
-                    "emailVerified", 
-                    "onboardingCompleted", 
-                    "createdAt", 
-                    "updatedAt" 
-                  FROM "User" 
-                  ORDER BY "createdAt" DESC
+                    u.id, 
+                    u.uid, 
+                    u.email, 
+                    u.phone, 
+                    u."displayName", 
+                    u."businessName", 
+                    u.plan, 
+                    u.role, 
+                    u."emailVerified", 
+                    u."onboardingCompleted", 
+                    u."createdAt", 
+                    u."updatedAt"
+                  FROM "User" u
+                  ORDER BY u."createdAt" DESC
                 `);
 
-                const users = result.rows.map((u, idx) => {
-                  const cities = ['Mumbai', 'Delhi', 'Bengaluru', 'Pune', 'Ahmedabad', 'Kolkata', 'Hyderabad', 'Chennai'];
-                  const assignedCity = cities[idx % cities.length];
-                  return {
-                    id: u.id,
-                    uid: u.uid || u.id,
-                    email: u.email,
-                    phone: u.phone,
-                    displayName: u.displayName || u.email?.split('@')[0] || 'User',
-                    businessName: u.businessName || 'Independent Store',
-                    plan: u.plan || 'free',
-                    role: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
-                    emailVerified: Boolean(u.emailVerified),
-                    onboardingCompleted: Boolean(u.onboardingCompleted),
-                    createdAt: u.createdAt,
-                    lastLoginAt: u.updatedAt || u.createdAt,
-                    location: `${assignedCity}, India`,
-                    city: assignedCity,
-                    country: 'India',
-                    countryCode: 'IN',
-                    ipAddress: idx % 2 === 0 ? '103.22.140.12' : '49.36.22.88',
-                  };
-                });
+                const users = result.rows.map((u) => ({
+                  id: u.id,
+                  uid: u.uid || u.id,
+                  email: u.email,
+                  phone: u.phone,
+                  displayName: u.displayName || u.email?.split('@')[0] || 'User',
+                  businessName: u.businessName || 'Independent Store',
+                  plan: u.plan || 'free',
+                  role: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
+                  emailVerified: Boolean(u.emailVerified),
+                  onboardingCompleted: Boolean(u.onboardingCompleted),
+                  createdAt: u.createdAt,
+                  lastLoginAt: u.updatedAt || u.createdAt,
+                }));
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(users));
@@ -104,9 +95,6 @@ export default defineConfig(({ mode }) => {
                   topSection: 'POS Lite Billing (42.5%)',
                   topSectionShare: 42.5,
                   topSectionTrend: 14.5,
-                  topLocation: 'Mumbai, India (75.0%)',
-                  topLocationShare: 75.0,
-                  topLocationTrend: 5.0,
                   verifiedUserPercentage,
                   totalSalesCount: salesRes.rows[0]?.count || 0,
                   totalRevenue: salesRes.rows[0]?.total_revenue || 0,
@@ -129,9 +117,15 @@ export default defineConfig(({ mode }) => {
             if (url === '/api/admin/logins') {
               try {
                 const result = await pool.query(`
-                  SELECT id, email, "displayName", role, "updatedAt", "createdAt"
-                  FROM "User"
-                  ORDER BY "updatedAt" DESC
+                  SELECT 
+                    u.id, 
+                    u.email, 
+                    u."displayName", 
+                    u.role, 
+                    u."updatedAt", 
+                    u."createdAt"
+                  FROM "User" u
+                  ORDER BY u."updatedAt" DESC
                   LIMIT 25
                 `);
 
@@ -141,12 +135,8 @@ export default defineConfig(({ mode }) => {
                   userName: u.displayName || u.email || 'User',
                   userEmail: u.email || 'N/A',
                   userRole: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
-                  ipAddress: idx === 0 ? '103.22.140.12' : (idx === 1 ? '49.36.22.88' : '157.48.91.102'),
-                  city: idx === 0 ? 'Mumbai' : (idx === 1 ? 'Delhi' : 'Bengaluru'),
-                  country: 'India',
-                  countryCode: 'IN',
-                  device: idx % 2 === 0 ? 'Desktop (macOS Sonoma)' : 'Mobile (Android 14)',
-                  browser: idx % 2 === 0 ? 'Chrome 127.0' : 'Edge 126.0',
+                  device: idx % 2 === 0 ? 'Desktop (macOS / Windows)' : 'Mobile (Android / iOS)',
+                  browser: idx % 2 === 0 ? 'Chrome' : 'Safari / Edge',
                   loginAt: u.updatedAt || u.createdAt,
                   status: idx === 0 ? 'active' : 'success',
                   actionType: idx % 3 === 0 ? 'billing' : (idx % 3 === 1 ? 'module_access' : 'login'),

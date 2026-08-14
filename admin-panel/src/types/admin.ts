@@ -66,16 +66,18 @@ export interface LocationMetric {
 export interface DashboardMetrics {
   totalUsers: number;
   totalUsersTrend: number;
-  activeNowCount: number;
-  activeNowTrend: number;
+  invoicesTodayCount?: number;
+  invoicesTodayTrend?: number;
+  activeNowCount?: number;
+  activeNowTrend?: number;
   loginsTodayCount: number;
   loginsTodayTrend: number;
   topSection: string;
   topSectionShare: number;
   topSectionTrend: number;
-  topLocation: string;
-  topLocationShare: number;
-  topLocationTrend: number;
+  topLocation?: string;
+  topLocationShare?: number;
+  topLocationTrend?: number;
   verifiedUserPercentage: number;
   freePlanCount: number;
   proPlanCount: number;

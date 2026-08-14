@@ -3,7 +3,6 @@ import {
   Search,
   Activity,
   Users,
-  Globe,
   LayoutGrid,
   ExternalLink,
   RefreshCw,
@@ -128,18 +127,6 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: LayoutGrid,
         action: () => {
           onSelectTab('sections');
-          onClose();
-        },
-        badge: 'Page',
-      },
-      {
-        id: 'nav-locations',
-        category: 'Navigation',
-        title: 'Geolocation & IP Telemetry',
-        subtitle: 'State-wise & City-wise India demography and security anomaly alerts',
-        icon: Globe,
-        action: () => {
-          onSelectTab('locations');
           onClose();
         },
         badge: 'Page',

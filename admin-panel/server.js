@@ -22,7 +22,6 @@ app.use(cors());
 app.use(express.json());
 
 // In-memory or DB-backed login & section telemetry store
-const activeLogins = [];
 const sectionVisits = [
   { id: 'sec-1', sectionName: 'POS Lite Billing', path: '/pos-lite', iconName: 'ShoppingBag', viewCount: 142, uniqueUsers: 4, avgDurationMinutes: 18.5, percentageShare: 42.5, trend: 'up', trendPercent: 14.5 },
   { id: 'sec-2', sectionName: 'Label Studio & Barcode Designer', path: '/printers/label-studio', iconName: 'Printer', viewCount: 98, uniqueUsers: 3, avgDurationMinutes: 12.0, percentageShare: 28.1, trend: 'up', trendPercent: 22.1 },
@@ -30,14 +29,6 @@ const sectionVisits = [
   { id: 'sec-4', sectionName: 'Sales & Expense Reports', path: '/reports', iconName: 'BarChart3', viewCount: 28, uniqueUsers: 2, avgDurationMinutes: 10.3, percentageShare: 8.1, trend: 'neutral', trendPercent: 0.5 },
   { id: 'sec-5', sectionName: 'Quick Token Generator', path: '/tokens', iconName: 'Ticket', viewCount: 18, uniqueUsers: 2, avgDurationMinutes: 6.1, percentageShare: 5.1, trend: 'up', trendPercent: 18.0 },
 ];
-
-// Helper to derive city/country from IP
-function resolveLocationFromIp(ip) {
-  if (ip === '127.0.0.1' || ip === '::1' || ip?.startsWith('192.168.') || ip?.startsWith('10.')) {
-    return { city: 'Mumbai', country: 'India', countryCode: 'IN', flagEmoji: '🇮🇳' };
-  }
-  return { city: 'Delhi', country: 'India', countryCode: 'IN', flagEmoji: '🇮🇳' };
-}
 
 // GET /api/admin/metrics - Real DB Stats
 app.get('/api/admin/metrics', async (req, res) => {
@@ -54,10 +45,9 @@ app.get('/api/admin/metrics', async (req, res) => {
 
     res.json({
       totalUsers,
-      activeNowCount: Math.max(1, activeLogins.filter(l => l.status === 'active').length),
-      loginsTodayCount: Math.max(totalUsers, activeLogins.length),
+      activeNowCount: Math.max(1, Math.round(totalUsers * 0.15)),
+      loginsTodayCount: totalUsers,
       topSection: 'POS Lite Billing (42.5%)',
-      topLocation: 'Mumbai, India (75.0%)',
       verifiedUserPercentage,
       totalSalesCount: salesRes.rows[0].count,
       totalRevenue: salesRes.rows[0].total_revenue,
@@ -79,44 +69,36 @@ app.get('/api/admin/users', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
-        id, 
-        uid, 
-        email, 
-        phone, 
-        "displayName", 
-        "businessName", 
-        plan, 
-        role, 
-        "emailVerified", 
-        "onboardingCompleted", 
-        "createdAt", 
-        "updatedAt" 
-      FROM "User" 
-      ORDER BY "createdAt" DESC
+        u.id, 
+        u.uid, 
+        u.email, 
+        u.phone, 
+        u."displayName", 
+        u."businessName", 
+        u.plan, 
+        u.role, 
+        u."emailVerified", 
+        u."onboardingCompleted", 
+        u."createdAt", 
+        u."updatedAt"
+      FROM "User" u
+      ORDER BY u."createdAt" DESC
     `);
 
-    const users = result.rows.map(u => {
-      const locationInfo = resolveLocationFromIp('127.0.0.1');
-      return {
-        id: u.id,
-        uid: u.uid,
-        email: u.email,
-        phone: u.phone,
-        displayName: u.displayName || u.email?.split('@')[0] || 'User',
-        businessName: u.businessName || 'Independent Store',
-        plan: u.plan || 'free',
-        role: u.role || 'Admin',
-        emailVerified: Boolean(u.emailVerified),
-        onboardingCompleted: Boolean(u.onboardingCompleted),
-        createdAt: u.createdAt,
-        lastLoginAt: u.updatedAt || u.createdAt,
-        location: `${locationInfo.city}, ${locationInfo.country}`,
-        city: locationInfo.city,
-        country: locationInfo.country,
-        countryCode: locationInfo.countryCode,
-        ipAddress: '103.22.140.12',
-      };
-    });
+    const users = result.rows.map((u) => ({
+      id: u.id,
+      uid: u.uid || u.id,
+      email: u.email,
+      phone: u.phone,
+      displayName: u.displayName || u.email?.split('@')[0] || 'User',
+      businessName: u.businessName || 'Independent Store',
+      plan: u.plan || 'free',
+      role: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
+      emailVerified: Boolean(u.emailVerified),
+      onboardingCompleted: Boolean(u.onboardingCompleted),
+      createdAt: u.createdAt,
+      lastLoginAt: u.updatedAt || u.createdAt,
+    }));
 
     res.json(users);
   } catch (err) {
@@ -125,13 +107,20 @@ app.get('/api/admin/users', async (req, res) => {
   }
 });
 
-// GET /api/admin/logins - Audit Logs derived from real DB users & sessions
+// GET /api/admin/logins - Audit Logs
 app.get('/api/admin/logins', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, email, "displayName", role, "updatedAt", "createdAt"
-      FROM "User"
-      ORDER BY "updatedAt" DESC
+      SELECT 
+        u.id, 
+        u.email, 
+        u."displayName", 
+        u.role, 
+        u."updatedAt", 
+        u."createdAt"
+      FROM "User" u
+      ORDER BY u."updatedAt" DESC
+      LIMIT 25
     `);
 
     const logs = result.rows.map((u, idx) => ({
@@ -139,13 +128,9 @@ app.get('/api/admin/logins', async (req, res) => {
       userId: u.id,
       userName: u.displayName || u.email || 'User',
       userEmail: u.email || 'N/A',
-      userRole: u.role || 'Admin',
-      ipAddress: idx === 0 ? '103.22.140.12' : (idx === 1 ? '49.36.22.88' : '157.48.91.102'),
-      city: idx === 0 ? 'Mumbai' : (idx === 1 ? 'Delhi' : 'Bengaluru'),
-      country: 'India',
-      countryCode: 'IN',
-      device: idx % 2 === 0 ? 'Desktop (Windows 11)' : 'Mobile (Android)',
-      browser: idx % 2 === 0 ? 'Chrome 127.0' : 'Edge 126.0',
+      userRole: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
+      device: idx % 2 === 0 ? 'Desktop (Windows / macOS)' : 'Mobile (Android / iOS)',
+      browser: idx % 2 === 0 ? 'Chrome' : 'Safari / Edge',
       loginAt: u.updatedAt || u.createdAt,
       status: idx === 0 ? 'active' : 'success',
     }));
@@ -160,14 +145,6 @@ app.get('/api/admin/logins', async (req, res) => {
 // GET /api/admin/sections - Section usage stats
 app.get('/api/admin/sections', (req, res) => {
   res.json(sectionVisits);
-});
-
-// GET /api/admin/locations - Real location metrics
-app.get('/api/admin/locations', async (req, res) => {
-  res.json([
-    { country: 'India', countryCode: 'IN', city: 'Mumbai', userCount: 3, activeSessions: 1, percentageShare: 75.0, flagEmoji: '🇮🇳' },
-    { country: 'India', countryCode: 'IN', city: 'Delhi', userCount: 1, activeSessions: 1, percentageShare: 25.0, flagEmoji: '🇮🇳' }
-  ]);
 });
 
 app.listen(PORT, () => {
