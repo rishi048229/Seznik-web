@@ -598,7 +598,7 @@ export const ProductsPage = () => {
           title={t('page.products')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
               {selectedIds.size > 0 && (
                 <Button
                   variant="danger"
@@ -606,13 +606,14 @@ export const ProductsPage = () => {
                   leftIcon={<Trash2 size={16} />}
                   onClick={handleBulkDelete}
                   loading={isBulkDeleting}
+                  className="shrink-0 whitespace-nowrap"
                 >
                   Delete Selected ({selectedIds.size})
                 </Button>
               )}
               <Button
                 variant="outline"
-                className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 font-bold"
+                className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 font-bold shrink-0 whitespace-nowrap"
                 leftIcon={<Tag size={16} className="text-blue-600 dark:text-blue-400" />}
                 onClick={() => {
                   const targetProds = selectedIds.size > 0
@@ -626,7 +627,7 @@ export const ProductsPage = () => {
               </Button>
               <Button
                 variant="outline"
-                className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold"
+                className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold shrink-0 whitespace-nowrap"
                 leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
                 onClick={() => setShowAiModal(true)}
               >
@@ -637,6 +638,7 @@ export const ProductsPage = () => {
                 variant="outline"
                 leftIcon={<Barcode size={16} />}
                 onClick={() => setShowBarcodeModal(true)}
+                className="shrink-0 whitespace-nowrap"
               >
                 Scan to Update Stock
               </Button>
@@ -644,10 +646,11 @@ export const ProductsPage = () => {
                 variant="outline"
                 leftIcon={<Barcode size={16} />}
                 onClick={() => setShowManualBarcodeModal(true)}
+                className="shrink-0 whitespace-nowrap"
               >
                 Manual Stock Update
               </Button>
-              <Button data-tour="add-product-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
+              <Button data-tour="add-product-btn" leftIcon={<Plus size={16} />} onClick={openCreate} className="shrink-0 whitespace-nowrap font-bold shadow-sm">
                 {t('products.addProduct')}
               </Button>
             </div>

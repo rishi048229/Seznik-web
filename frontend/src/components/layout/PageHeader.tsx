@@ -12,8 +12,8 @@ interface PageHeaderProps {
 
 export const PageHeader = ({ title, breadcrumb, action, className, onWatchTutorial }: PageHeaderProps) => {
   return (
-    <div className={clsx('flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6', className)}>
-      <div className="min-w-0">
+    <div className={clsx('flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 sm:mb-6', className)}>
+      <div className="min-w-0 shrink-0">
         {breadcrumb && breadcrumb.length > 0 && (
           <nav className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-0.5">
             {breadcrumb.map((item, i) => (
@@ -30,16 +30,22 @@ export const PageHeader = ({ title, breadcrumb, action, className, onWatchTutori
             <button
               onClick={onWatchTutorial}
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0 cursor-pointer"
               title="Watch Video Guide & Tutorial"
             >
               <Video size={14} className="animate-pulse" />
-              <span>Video Guide</span>
+              <span className="whitespace-nowrap">Video Guide</span>
             </button>
           )}
         </div>
       </div>
-      {action && <div className="flex-shrink-0 flex items-center gap-2">{action}</div>}
+      {action && (
+        <div className="w-full md:w-auto overflow-x-auto no-scrollbar scroll-smooth py-1 -my-1 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-max">
+            {action}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
