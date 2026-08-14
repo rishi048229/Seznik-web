@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Activity, 
   Users, 
@@ -6,6 +6,7 @@ import {
   ShieldAlert, 
   RefreshCw, 
   Clock, 
+  Calendar,
   UserCheck,
   ExternalLink,
   Smartphone,
@@ -15,27 +16,80 @@ import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
 interface NavbarProps {
   activeTab: string;
-  setActiveTab: (tab: string) => void;
+  onSelectTab?: (tab: string) => void;
+  setActiveTab?: (tab: string) => void;
   timeRange: string;
-  setTimeRange: (range: string) => void;
+  onSelectTimeRange?: (range: string) => void;
+  setTimeRange?: (range: string) => void;
   lastRefreshedAt: string;
   onRefresh: () => void;
   autoRefreshInterval: number;
-  setAutoRefreshInterval: (interval: number) => void;
+  onSelectAutoRefreshInterval?: (interval: number) => void;
+  setAutoRefreshInterval?: (interval: number) => void;
   onOpenCommandPalette?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
+  onSelectTab,
   setActiveTab,
   timeRange,
+  onSelectTimeRange,
   setTimeRange,
   lastRefreshedAt,
   onRefresh,
   autoRefreshInterval,
+  onSelectAutoRefreshInterval,
   setAutoRefreshInterval,
   onOpenCommandPalette,
 }) => {
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedDate = currentDateTime.toLocaleDateString('en-US', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const formattedTime = currentDateTime.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+
+  const handleTabClick = (tabId: string) => {
+    if (onSelectTab) {
+      onSelectTab(tabId);
+    } else if (setActiveTab) {
+      setActiveTab(tabId);
+    }
+  };
+
+  const handleTimeRangeChange = (range: string) => {
+    if (onSelectTimeRange) {
+      onSelectTimeRange(range);
+    } else if (setTimeRange) {
+      setTimeRange(range);
+    }
+  };
+
+  const handleAutoRefreshChange = (interval: number) => {
+    if (onSelectAutoRefreshInterval) {
+      onSelectAutoRefreshInterval(interval);
+    } else if (setAutoRefreshInterval) {
+      setAutoRefreshInterval(interval);
+    }
+  };
+
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', icon: Activity },
     { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
@@ -73,6 +127,34 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Live Date & Time Box */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--tab-border)',
+              background: 'var(--tab-bg)',
+              color: 'var(--navbar-text)',
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--accent-blue)' }}>
+              <Calendar size={13} />
+              <span>{formattedDate}</span>
+            </div>
+            <span style={{ color: 'var(--navbar-text-muted)', opacity: 0.5 }}>|</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--navbar-text)' }}>
+              <Clock size={13} color="#10B981" />
+              <span style={{ fontFamily: 'monospace', letterSpacing: '0.3px', fontWeight: 700 }}>{formattedTime}</span>
+            </div>
+          </div>
+
           {/* Quick Search Command Palette Button */}
           <button
             onClick={onOpenCommandPalette}
@@ -102,7 +184,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {['24h', '7d', '30d', 'All'].map((range) => (
               <button
                 key={range}
-                onClick={() => setTimeRange(range)}
+                onClick={() => handleTimeRangeChange(range)}
                 style={{
                   padding: '4px 10px',
                   borderRadius: '6px',
@@ -129,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <select
               className="custom-select"
               value={autoRefreshInterval}
-              onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+              onChange={(e) => handleAutoRefreshChange(Number(e.target.value))}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -154,7 +236,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 12px',
+              padding: '6px 12px',
               borderRadius: '8px',
               border: '1px solid var(--tab-border)',
               background: 'var(--tab-bg)',
@@ -162,21 +244,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               fontSize: '0.75rem',
               fontWeight: 600,
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              transition: 'all 0.15s ease',
             }}
           >
-            <RefreshCw size={13} className={autoRefreshInterval > 0 ? 'animate-spin-slow' : ''} />
+            <RefreshCw size={13} color="var(--accent-blue)" />
             <span>Refresh</span>
           </button>
 
-          {/* Last refreshed time */}
+          {/* Last Updated Timestamp Pill */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '5px',
+            gap: '6px',
+            padding: '5px 10px',
             fontSize: '0.72rem',
             color: 'var(--navbar-text-muted)',
-            padding: '4px 12px',
             borderRadius: '9999px',
             border: '1px solid var(--tab-border)',
             background: 'var(--tab-bg)',
@@ -226,7 +308,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               style={{
                 display: 'flex',
                 alignItems: 'center',

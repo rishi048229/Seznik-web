@@ -56,7 +56,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '0px' }}>
       {cards.map((card, idx) => {
         const Icon = card.icon;
         const isTrendPositive = card.trend >= 0;
@@ -73,7 +73,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
               }
             }}
             style={{
-              padding: '16px 18px',
+              padding: '16px 20px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -81,19 +81,18 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
               transition: 'all 0.2s ease',
               background: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
-              borderRadius: '14px',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+              borderRadius: '12px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 {card.title}
               </span>
               <div
                 style={{
                   width: '32px',
                   height: '32px',
-                  borderRadius: '10px',
+                  borderRadius: '8px',
                   background: `${card.color}20`,
                   border: `1px solid ${card.color}40`,
                   display: 'flex',
@@ -106,33 +105,33 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
               </div>
             </div>
 
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '8px' }}>
               {card.isStringValue ? (
-                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: '1.3' }}>
+                <div style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: '1.2' }}>
                   {card.value}
                 </div>
               ) : (
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: '1', letterSpacing: '-0.02em' }}>
+                <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: '1', letterSpacing: '-0.02em' }}>
                   {card.value}
                 </div>
               )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 {card.subtext}
               </span>
 
               <span
                 style={{
-                  fontSize: '0.7rem',
+                  fontSize: '0.72rem',
                   fontWeight: 600,
                   color: trendColor,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '2px',
+                  gap: '3px',
                   background: isTrendPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                  padding: '2px 6px',
+                  padding: '3px 7px',
                   borderRadius: '4px',
                 }}
               >
@@ -143,6 +142,6 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
           </div>
         );
       })}
-      </div>
+    </div>
   );
 };

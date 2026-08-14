@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LayoutGrid, ChevronDown } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { KPICards } from './components/KPICards';
 import { SectionUsageChart } from './components/SectionUsageChart';
@@ -53,11 +54,12 @@ export const App: React.FC = () => {
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0); // 0 = Off (Manual), 10s, 30s, 60s, 300s
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+  const [isTop5Expanded, setIsTop5Expanded] = useState<boolean>(false);
 
   const setActiveTab = (tab: string) => {
     const targetTab = VALID_TABS.includes(tab) ? tab : 'overview';
     setActiveTabState(targetTab);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location.hash.replace('#', '') !== targetTab) {
       window.location.hash = targetTab;
       localStorage.setItem('admin_active_tab', targetTab);
     }
@@ -87,7 +89,7 @@ export const App: React.FC = () => {
     const onHashChange = () => {
       const hash = window.location.hash.replace('#', '').trim();
       if (hash && VALID_TABS.includes(hash)) {
-        setActiveTabState(hash);
+        setActiveTabState((prev) => (prev !== hash ? hash : prev));
         localStorage.setItem('admin_active_tab', hash);
       }
     };
@@ -156,22 +158,24 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', maxHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Top Navigation */}
-      <Navbar
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        timeRange={timeRange}
-        onSelectTimeRange={setTimeRange}
-        onRefresh={handleGlobalRefresh}
-        lastRefreshedAt={lastRefreshedAt}
-        autoRefreshInterval={autoRefreshInterval}
-        onSelectAutoRefreshInterval={setAutoRefreshInterval}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-      />
+      <div style={{ flexShrink: 0 }}>
+        <Navbar
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          timeRange={timeRange}
+          onSelectTimeRange={setTimeRange}
+          onRefresh={handleGlobalRefresh}
+          lastRefreshedAt={lastRefreshedAt}
+          autoRefreshInterval={autoRefreshInterval}
+          onSelectAutoRefreshInterval={setAutoRefreshInterval}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        />
+      </div>
 
       {/* Main Container */}
-      <main style={{ flex: 1, padding: '24px 32px', maxWidth: '1600px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      <main style={{ flex: 1, minHeight: 0, padding: '16px 24px', maxWidth: '1600px', margin: '0 auto', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {loading && !metrics ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
             <div className="pulse-dot" style={{ width: '16px', height: '16px' }} />
@@ -182,33 +186,38 @@ export const App: React.FC = () => {
         ) : (
           <>
             {activeTab === 'overview' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {/* 1. Key Performance Indicators */}
-                <KPICards metrics={metrics} onSelectTab={handleSelectTabFromCard} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0 }}>
+                {/* 1. Key Performance Indicators (Always at Top) */}
+                <div style={{ flexShrink: 0 }}>
+                  <KPICards metrics={metrics} onSelectTab={handleSelectTabFromCard} />
+                </div>
 
-                {/* 2. Top 5 Most Used Features */}
-                <SectionUsageChart
-                  title="Top 5 Most Used Features & Section Traffic"
-                  sections={sectionUsage.slice(0, 5)}
-                  showInsights={false}
-                  compact={true}
-                  onViewAllSessions={() => {
-                    setActiveTab('sections');
-                  }}
-                />
-
-                {/* 3. Side-by-Side Row: Peak Usage Heatmap (Left) vs Device Ratio Breakdown (Right) */}
+                {/* 2. Heatmap + Device Breakdown Row */}
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))',
-                    gap: '20px',
+                    gridTemplateColumns: 'minmax(0, 1.45fr) minmax(360px, 1fr)',
+                    gap: '14px',
                     alignItems: 'stretch',
+                    flex: '0 0 auto',
+                    minHeight: '270px',
                   }}
                 >
                   <PeakUsageHeatmap data={heatmapData} />
                   <DeviceSessionBreakdown data={deviceData} />
                 </div>
+
+                {/* 3. Top 5 Most Used Features (Standard Card, No Toggle Button) */}
+                <SectionUsageChart
+                  title="Top 5 Most Used Features"
+                  sections={sectionUsage.slice(0, 5)}
+                  showInsights={false}
+                  compact={true}
+                  isCollapsible={false}
+                  onViewAllSessions={() => {
+                    setActiveTab('sections');
+                  }}
+                />
               </div>
             )}
 
@@ -225,7 +234,9 @@ export const App: React.FC = () => {
                 title="Section & Feature Traffic Breakdown"
                 sections={sectionUsage}
                 showInsights={true}
-                hideHeaderButton={true}
+                compact={false}
+                isCollapsible={false}
+                onViewAllSessions={() => {}}
               />
             )}
 
