@@ -5,7 +5,6 @@ import { SectionUsageChart } from './components/SectionUsageChart';
 import { UserManagementView } from './components/UserManagementView';
 import { PeakUsageHeatmap } from './components/PeakUsageHeatmap';
 import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
-import { SectionDetailView } from './components/SectionDetailView';
 import { RegisteredUsersRoster } from './components/RegisteredUsersRoster';
 import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
@@ -30,7 +29,7 @@ import type {
   SecurityAnomalyData,
 } from './types/admin';
 
-const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects'];
+const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'logins'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -50,7 +49,6 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTabState] = useState<string>(getInitialTab);
   const [timeRange, setTimeRange] = useState<string>('24h');
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(new Date().toLocaleTimeString());
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [selectedUserEmailForLogs, setSelectedUserEmailForLogs] = useState<string | null>(null);
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0); // 0 = Off (Manual), 10s, 30s, 60s, 300s
@@ -63,7 +61,6 @@ export const App: React.FC = () => {
       window.location.hash = targetTab;
       localStorage.setItem('admin_active_tab', targetTab);
     }
-    if (targetTab !== 'sections') setSelectedSectionId(null);
     if (targetTab !== 'logins') setSelectedUserEmailForLogs(null);
     if (targetTab !== 'users') setSelectedUserForProfile(null);
   };
@@ -150,63 +147,53 @@ export const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [autoRefreshInterval, timeRange]);
 
-  const activeSection = selectedSectionId
-    ? sectionUsage.find((s) => s.id === selectedSectionId) || sectionUsage[0]
-    : null;
+  const handleGlobalRefresh = () => {
+    loadAllData();
+  };
+
+  const handleSelectTabFromCard = (targetTab: string) => {
+    setActiveTab(targetTab);
+  };
 
   return (
-    <div style={{ height: '100vh', maxHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+      {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          if (tab !== 'sections') setSelectedSectionId(null);
-          if (tab !== 'logins') setSelectedUserEmailForLogs(null);
-          if (tab !== 'users') setSelectedUserForProfile(null);
-        }}
+        onSelectTab={setActiveTab}
         timeRange={timeRange}
-        setTimeRange={setTimeRange}
+        onSelectTimeRange={setTimeRange}
+        onRefresh={handleGlobalRefresh}
         lastRefreshedAt={lastRefreshedAt}
-        onRefresh={loadAllData}
         autoRefreshInterval={autoRefreshInterval}
-        setAutoRefreshInterval={setAutoRefreshInterval}
+        onSelectAutoRefreshInterval={setAutoRefreshInterval}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
-      <main style={{ flex: 1, padding: '24px 32px', width: '100%', boxSizing: 'border-box', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* Main Container */}
+      <main style={{ flex: 1, padding: '24px 32px', maxWidth: '1600px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         {loading && !metrics ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#64748B' }}>
-            <div className="pulse-dot" style={{ margin: '0 auto 16px auto', width: '16px', height: '16px' }} />
-            <p>Loading real-time admin telemetry data...</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
+            <div className="pulse-dot" style={{ width: '16px', height: '16px' }} />
+            <span style={{ marginLeft: '12px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              Loading real-time DB analytics...
+            </span>
           </div>
         ) : (
           <>
             {activeTab === 'overview' && (
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '20px', overflowY: 'auto' }}>
-                {/* 1. Top 5 Metric Summary Cards */}
-                <KPICards
-                  metrics={metrics}
-                  onSelectTab={(tab, secId) => {
-                    setActiveTab(tab);
-                    if (secId) {
-                      setSelectedSectionId(secId);
-                    }
-                  }}
-                />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {/* 1. Key Performance Indicators */}
+                <KPICards metrics={metrics} onSelectTab={handleSelectTabFromCard} />
 
-                {/* 2. Top 5 Most Used Features (Dedicated Full Width Section) */}
+                {/* 2. Top 5 Most Used Features */}
                 <SectionUsageChart
                   title="Top 5 Most Used Features & Section Traffic"
                   sections={sectionUsage.slice(0, 5)}
                   showInsights={false}
                   compact={true}
-                  onViewAllSessions={(secId) => {
+                  onViewAllSessions={() => {
                     setActiveTab('sections');
-                    if (secId) {
-                      setSelectedSectionId(secId);
-                    } else {
-                      setSelectedSectionId(null);
-                    }
                   }}
                 />
 
@@ -234,35 +221,30 @@ export const App: React.FC = () => {
             )}
 
             {activeTab === 'sections' && (
-              activeSection ? (
-                <SectionDetailView
-                  section={activeSection}
-                  users={users}
-                  logs={loginLogs}
-                  onBack={() => setSelectedSectionId(null)}
-                  onSelectUser={(email) => {
-                    setSelectedUserForProfile(email);
-                    setActiveTab('users');
-                  }}
-                />
-              ) : (
-                <SectionUsageChart
-                  sections={sectionUsage}
-                  showInsights={true}
-                  hideHeaderButton={true}
-                  onViewAllSessions={(secId) => {
-                    if (secId) {
-                      setSelectedSectionId(secId);
-                    }
-                  }}
-                />
-              )
+              <SectionUsageChart
+                title="Section & Feature Traffic Breakdown"
+                sections={sectionUsage}
+                showInsights={true}
+                hideHeaderButton={true}
+              />
             )}
 
             {activeTab === 'users' && (
               <UserManagementView
                 users={users}
-                initialSearchTerm={selectedUserForProfile}
+                selectedUserEmail={selectedUserForProfile}
+                onClearSelectedUser={() => setSelectedUserForProfile(null)}
+              />
+            )}
+
+            {activeTab === 'logins' && (
+              <RegisteredUsersRoster
+                logs={loginLogs}
+                selectedEmail={selectedUserEmailForLogs}
+                onSelectUser={(email) => {
+                  setSelectedUserForProfile(email);
+                  setActiveTab('users');
+                }}
               />
             )}
           </>

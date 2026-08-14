@@ -120,7 +120,7 @@ async function computeRealTopFeatures(pool: pg.Pool) {
     }))
     .sort((a, b) => b.viewCount - a.viewCount);
 
-  return calculated.slice(0, 5);
+  return calculated;
 }
 
 async function computeRealHeatmapData(pool: pg.Pool) {
