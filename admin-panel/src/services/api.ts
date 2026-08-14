@@ -556,8 +556,32 @@ export async function fetchSectionUsage(): Promise<SectionUsage[]> {
   }
 }
 
-export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
-  return MOCK_HEATMAP;
+export async function fetchHeatmapData(): Promise<HeatmapResponse> {
+  try {
+    const res = await fetchAdminEndpoint<any>('/heatmap');
+    if (Array.isArray(res)) {
+      const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
+      return {
+        cells: res,
+        requestsToday: 0,
+        requestsThisHour: 0,
+        requestsThisWeek: total,
+        totalAllTime: total,
+        currentWeekRange: 'Current Week',
+      };
+    }
+    return res;
+  } catch (err) {
+    console.warn('Falling back for heatmap data:', err);
+    return {
+      cells: MOCK_HEATMAP,
+      requestsToday: 0,
+      requestsThisHour: 0,
+      requestsThisWeek: 2029,
+      totalAllTime: 2175,
+      currentWeekRange: 'Current Week',
+    };
+  }
 }
 
 export async function fetchDeviceSessionBreakdown(): Promise<DeviceSessionBreakdownData> {

@@ -25,6 +25,7 @@ import type {
   UserLoginLog, 
   SectionUsage, 
   HeatmapCell,
+  HeatmapResponse,
   DeviceSessionBreakdownData,
   SecurityAnomalyData,
 } from './types/admin';
@@ -101,7 +102,7 @@ export const App: React.FC = () => {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
   const [sectionUsage, setSectionUsage] = useState<SectionUsage[]>([]);
-  const [heatmapData, setHeatmapData] = useState<HeatmapCell[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatmapResponse | HeatmapCell[] | undefined>(undefined);
   const [deviceData, setDeviceData] = useState<DeviceSessionBreakdownData | undefined>(undefined);
   const [securityData, setSecurityData] = useState<SecurityAnomalyData | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(true);
@@ -209,8 +210,15 @@ export const App: React.FC = () => {
                   }}
                 />
 
-                {/* 3. Side-by-Side Row: Peak Usage Heatmap (Left) vs Device Breakdown (Right) */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px', alignItems: 'start' }}>
+                {/* 3. Side-by-Side Row: Peak Usage Heatmap (Left) vs Device Ratio Breakdown (Right) */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))',
+                    gap: '20px',
+                    alignItems: 'stretch',
+                  }}
+                >
                   <PeakUsageHeatmap data={heatmapData} />
                   <DeviceSessionBreakdown data={deviceData} />
                 </div>

@@ -90,6 +90,16 @@ export interface HeatmapCell {
   day: string;
   hour: number;
   count: number;
+  uniqueUsers?: number;
+}
+
+export interface HeatmapResponse {
+  cells: HeatmapCell[];
+  requestsToday: number;
+  requestsThisHour: number;
+  requestsThisWeek: number;
+  totalAllTime: number;
+  currentWeekRange: string;
 }
 
 export interface DeviceSessionBreakdownData {

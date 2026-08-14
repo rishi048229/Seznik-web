@@ -123,6 +123,122 @@ async function computeRealTopFeatures(pool: pg.Pool) {
   return calculated.slice(0, 5);
 }
 
+async function computeRealHeatmapData(pool: pg.Pool) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  let routeTelemetryExists = false;
+  try {
+    await pool.query('SELECT 1 FROM "RouteTelemetry" LIMIT 1');
+    routeTelemetryExists = true;
+  } catch {}
+
+  const eventsCte = routeTelemetryExists
+    ? `
+      WITH events AS (
+        SELECT "createdAt", "userId" FROM "RouteTelemetry"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Sale"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Product"
+        UNION ALL
+        SELECT "createdAt", id as "userId" FROM "User"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Token"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Customer"
+      )
+    `
+    : `
+      WITH events AS (
+        SELECT "createdAt", "userId" FROM "Sale"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Product"
+        UNION ALL
+        SELECT "createdAt", id as "userId" FROM "User"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Token"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Customer"
+      )
+    `;
+
+  // 1. Compute summary stats (Today, This Hour, This Week, All Time)
+  const statsRes = await pool.query(`
+    ${eventsCte}
+    SELECT 
+      COUNT(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as requests_today,
+      COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('hour', CURRENT_TIMESTAMP))::int as requests_this_hour,
+      COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('week', CURRENT_TIMESTAMP))::int as requests_this_week,
+      COUNT(*)::int as total_all_time
+    FROM events
+    WHERE "createdAt" IS NOT NULL
+  `);
+
+  const stats = statsRes.rows[0] || {
+    requests_today: 0,
+    requests_this_hour: 0,
+    requests_this_week: 0,
+    total_all_time: 0,
+  };
+
+  // 2. Compute current week heatmap grid (auto-resets and changes every week)
+  // If current week has fewer than 5 events, use rolling 7 days so the chart is always informative
+  const useWeekFilter = (stats.requests_this_week || 0) >= 5;
+  const filterClause = useWeekFilter
+    ? `WHERE "createdAt" >= date_trunc('week', CURRENT_TIMESTAMP)`
+    : `WHERE "createdAt" >= CURRENT_DATE - INTERVAL '7 days'`;
+
+  const heatmapRes = await pool.query(`
+    ${eventsCte}
+    SELECT 
+      TRIM(to_char("createdAt", 'Dy')) as day,
+      EXTRACT(HOUR FROM "createdAt")::int as hour,
+      COUNT(*)::int as count,
+      COUNT(DISTINCT "userId")::int as unique_users
+    FROM events
+    ${filterClause}
+    GROUP BY day, hour
+  `);
+
+  const map = new Map<string, { count: number; uniqueUsers: number }>();
+  heatmapRes.rows.forEach((r) => {
+    map.set(`${r.day}-${r.hour}`, { count: r.count, uniqueUsers: r.unique_users });
+  });
+
+  const fullGrid: Array<{ day: string; hour: number; count: number; uniqueUsers: number }> = [];
+  days.forEach((day) => {
+    for (let h = 0; h < 24; h++) {
+      const match = map.get(`${day}-${h}`) || { count: 0, uniqueUsers: 0 };
+      fullGrid.push({
+        day,
+        hour: h,
+        count: match.count,
+        uniqueUsers: match.uniqueUsers,
+      });
+    }
+  });
+
+  // Calculate current week formatted range (e.g. Mon, Aug 10 - Sun, Aug 16)
+  const now = new Date();
+  const dayOfWeek = now.getDay() || 7; // 1 = Monday, 7 = Sunday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayOfWeek + 1);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentWeekRange = `${monthNames[monday.getMonth()]} ${monday.getDate()} - ${monthNames[sunday.getMonth()]} ${sunday.getDate()}, ${sunday.getFullYear()}`;
+
+  return {
+    cells: fullGrid,
+    requestsToday: stats.requests_today || 0,
+    requestsThisHour: stats.requests_this_hour || 0,
+    requestsThisWeek: stats.requests_this_week || 0,
+    totalAllTime: stats.total_all_time || 0,
+    currentWeekRange,
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -269,7 +385,23 @@ export default defineConfig(({ mode }) => {
               }
             }
 
-            // 4. GET /api/admin/logins
+            // 4. GET /api/admin/heatmap - Real 24h x 7d Backend API Request Heatmap
+            if (url === '/api/admin/heatmap') {
+              try {
+                const heatmapData = await computeRealHeatmapData(pool);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(heatmapData));
+                return;
+              } catch (err) {
+                console.error('Error serving /api/admin/heatmap:', err);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Failed to fetch heatmap' }));
+                return;
+              }
+            }
+
+            // 5. GET /api/admin/logins
             if (url === '/api/admin/logins') {
               try {
                 const result = await pool.query(`

@@ -141,6 +141,120 @@ async function computeRealTopFeatures(pool) {
   return calculated.slice(0, 5);
 }
 
+async function computeRealHeatmapData(pool) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  let routeTelemetryExists = false;
+  try {
+    await pool.query('SELECT 1 FROM "RouteTelemetry" LIMIT 1');
+    routeTelemetryExists = true;
+  } catch {}
+
+  const eventsCte = routeTelemetryExists
+    ? `
+      WITH events AS (
+        SELECT "createdAt", "userId" FROM "RouteTelemetry"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Sale"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Product"
+        UNION ALL
+        SELECT "createdAt", id as "userId" FROM "User"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Token"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Customer"
+      )
+    `
+    : `
+      WITH events AS (
+        SELECT "createdAt", "userId" FROM "Sale"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Product"
+        UNION ALL
+        SELECT "createdAt", id as "userId" FROM "User"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Token"
+        UNION ALL
+        SELECT "createdAt", "userId" FROM "Customer"
+      )
+    `;
+
+  // 1. Compute summary stats (Today, This Hour, This Week, All Time)
+  const statsRes = await pool.query(`
+    ${eventsCte}
+    SELECT 
+      COUNT(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as requests_today,
+      COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('hour', CURRENT_TIMESTAMP))::int as requests_this_hour,
+      COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('week', CURRENT_TIMESTAMP))::int as requests_this_week,
+      COUNT(*)::int as total_all_time
+    FROM events
+    WHERE "createdAt" IS NOT NULL
+  `);
+
+  const stats = statsRes.rows[0] || {
+    requests_today: 0,
+    requests_this_hour: 0,
+    requests_this_week: 0,
+    total_all_time: 0,
+  };
+
+  // 2. Compute current week heatmap grid (auto-resets and changes every week)
+  const useWeekFilter = (stats.requests_this_week || 0) >= 5;
+  const filterClause = useWeekFilter
+    ? `WHERE "createdAt" >= date_trunc('week', CURRENT_TIMESTAMP)`
+    : `WHERE "createdAt" >= CURRENT_DATE - INTERVAL '7 days'`;
+
+  const heatmapRes = await pool.query(`
+    ${eventsCte}
+    SELECT 
+      TRIM(to_char("createdAt", 'Dy')) as day,
+      EXTRACT(HOUR FROM "createdAt")::int as hour,
+      COUNT(*)::int as count,
+      COUNT(DISTINCT "userId")::int as unique_users
+    FROM events
+    ${filterClause}
+    GROUP BY day, hour
+  `);
+
+  const map = new Map();
+  heatmapRes.rows.forEach((r) => {
+    map.set(`${r.day}-${r.hour}`, { count: r.count, uniqueUsers: r.unique_users });
+  });
+
+  const fullGrid = [];
+  days.forEach((day) => {
+    for (let h = 0; h < 24; h++) {
+      const match = map.get(`${day}-${h}`) || { count: 0, uniqueUsers: 0 };
+      fullGrid.push({
+        day,
+        hour: h,
+        count: match.count,
+        uniqueUsers: match.uniqueUsers,
+      });
+    }
+  });
+
+  const now = new Date();
+  const dayOfWeek = now.getDay() || 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayOfWeek + 1);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentWeekRange = `${monthNames[monday.getMonth()]} ${monday.getDate()} - ${monthNames[sunday.getMonth()]} ${sunday.getDate()}, ${sunday.getFullYear()}`;
+
+  return {
+    cells: fullGrid,
+    requestsToday: stats.requests_today || 0,
+    requestsThisHour: stats.requests_this_hour || 0,
+    requestsThisWeek: stats.requests_this_week || 0,
+    totalAllTime: stats.total_all_time || 0,
+    currentWeekRange,
+  };
+}
+
 // GET /api/admin/metrics - Real DB Stats
 app.get('/api/admin/metrics', async (req, res) => {
   try {
@@ -205,6 +319,17 @@ app.get('/api/admin/sections', async (req, res) => {
   } catch (err) {
     console.error('Error fetching section usage:', err);
     res.status(500).json({ error: 'Failed to fetch sections' });
+  }
+});
+
+// GET /api/admin/heatmap - Real 24h x 7d Backend API Request Heatmap
+app.get('/api/admin/heatmap', async (req, res) => {
+  try {
+    const heatmapData = await computeRealHeatmapData(pool);
+    res.json(heatmapData);
+  } catch (err) {
+    console.error('Error fetching heatmap telemetry:', err);
+    res.status(500).json({ error: 'Failed to fetch heatmap' });
   }
 });
 
