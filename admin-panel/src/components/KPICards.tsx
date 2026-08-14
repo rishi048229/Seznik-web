@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Receipt, LogIn, LayoutGrid, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, Receipt, UserCheck, LayoutGrid, TrendingUp, TrendingDown } from 'lucide-react';
 import type { DashboardMetrics } from '../types/admin';
 
 interface KPICardsProps {
@@ -32,14 +32,14 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
       targetTab: 'overview',
     },
     {
-      id: 'logins',
-      title: 'Logins Today',
-      value: metrics.loginsTodayCount,
-      subtext: 'Total logins in last 24h',
-      icon: LogIn,
-      color: '#3B82F6', // Blue = volume
-      trend: metrics.loginsTodayTrend ?? 25.0,
-      targetTab: 'logins',
+      id: 'active-invoicing-users',
+      title: 'Users Creating Invoices Today',
+      value: metrics.activeInvoicingUsersToday ?? 0,
+      subtext: 'Distinct active billing merchants',
+      icon: UserCheck,
+      color: '#8B5CF6', // Purple = merchant activity
+      trend: metrics.activeInvoicingUsersTrend ?? 10.0,
+      targetTab: 'overview',
     },
     {
       id: 'most-used',

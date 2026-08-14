@@ -34,7 +34,14 @@ const sectionVisits = [
 app.get('/api/admin/metrics', async (req, res) => {
   try {
     const userRes = await pool.query('SELECT COUNT(*)::int as count, COUNT(*) FILTER (WHERE "emailVerified" = true)::int as verified_count FROM "User"');
-    const salesRes = await pool.query('SELECT COUNT(*)::int as count, COALESCE(SUM("grandTotal"), 0)::float as total_revenue FROM "Sale"');
+    const salesRes = await pool.query(`
+      SELECT 
+        COUNT(*)::int as total_sales_count,
+        COUNT(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as invoices_today_count,
+        COUNT(DISTINCT "userId") FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as active_invoicing_users_today,
+        COALESCE(SUM("grandTotal"), 0)::float as total_revenue
+      FROM "Sale"
+    `);
     const productRes = await pool.query('SELECT COUNT(*)::int as count FROM "Product"');
     const customerRes = await pool.query('SELECT COUNT(*)::int as count FROM "Customer"');
     const feedbackRes = await pool.query('SELECT COUNT(*)::int as count FROM "Feedback"');
@@ -42,14 +49,20 @@ app.get('/api/admin/metrics', async (req, res) => {
     const totalUsers = userRes.rows[0].count;
     const verifiedUsers = userRes.rows[0].verified_count;
     const verifiedUserPercentage = totalUsers > 0 ? Math.round((verifiedUsers / totalUsers) * 100) : 0;
+    const totalSalesCount = salesRes.rows[0].total_sales_count;
+    const invoicesTodayCount = salesRes.rows[0].invoices_today_count;
+    const activeInvoicingUsersToday = salesRes.rows[0].active_invoicing_users_today;
 
     res.json({
       totalUsers,
-      activeNowCount: Math.max(1, Math.round(totalUsers * 0.15)),
+      invoicesTodayCount,
+      invoicesTodayTrend: 15.0,
+      activeInvoicingUsersToday,
+      activeInvoicingUsersTrend: 10.0,
       loginsTodayCount: totalUsers,
       topSection: 'POS Lite Billing (42.5%)',
       verifiedUserPercentage,
-      totalSalesCount: salesRes.rows[0].count,
+      totalSalesCount,
       totalRevenue: salesRes.rows[0].total_revenue,
       totalProductsCount: productRes.rows[0].count,
       totalCustomersCount: customerRes.rows[0].count,

@@ -68,10 +68,12 @@ export interface DashboardMetrics {
   totalUsersTrend: number;
   invoicesTodayCount?: number;
   invoicesTodayTrend?: number;
+  activeInvoicingUsersToday?: number;
+  activeInvoicingUsersTrend?: number;
   activeNowCount?: number;
   activeNowTrend?: number;
-  loginsTodayCount: number;
-  loginsTodayTrend: number;
+  loginsTodayCount?: number;
+  loginsTodayTrend?: number;
   topSection: string;
   topSectionShare: number;
   topSectionTrend: number;

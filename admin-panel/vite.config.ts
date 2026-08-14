@@ -77,26 +77,38 @@ export default defineConfig(({ mode }) => {
             if (url === '/api/admin/metrics') {
               try {
                 const userRes = await pool.query('SELECT COUNT(*)::int as count, COUNT(*) FILTER (WHERE "emailVerified" = true)::int as verified_count FROM "User"');
-                const salesRes = await pool.query('SELECT COUNT(*)::int as count, COALESCE(SUM("grandTotal"), 0)::float as total_revenue FROM "Sale"');
+                const salesRes = await pool.query(`
+                  SELECT 
+                    COUNT(*)::int as total_sales_count,
+                    COUNT(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as invoices_today_count,
+                    COUNT(DISTINCT "userId") FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as active_invoicing_users_today,
+                    COALESCE(SUM("grandTotal"), 0)::float as total_revenue
+                  FROM "Sale"
+                `);
                 const productRes = await pool.query('SELECT COUNT(*)::int as count FROM "Product"');
 
                 const totalUsers = userRes.rows[0]?.count || 0;
                 const verifiedUsers = userRes.rows[0]?.verified_count || 0;
                 const verifiedUserPercentage = totalUsers > 0 ? Math.round((verifiedUsers / totalUsers) * 100) : 0;
+                const totalSalesCount = salesRes.rows[0]?.total_sales_count || 0;
+                const invoicesTodayCount = salesRes.rows[0]?.invoices_today_count || 0;
+                const activeInvoicingUsersToday = salesRes.rows[0]?.active_invoicing_users_today || 0;
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
                   totalUsers,
                   totalUsersTrend: 14.2,
-                  activeNowCount: Math.max(1, Math.round(totalUsers * 0.15)),
-                  activeNowTrend: 0,
+                  invoicesTodayCount,
+                  invoicesTodayTrend: 15.0,
+                  activeInvoicingUsersToday,
+                  activeInvoicingUsersTrend: 10.0,
                   loginsTodayCount: totalUsers,
                   loginsTodayTrend: 25.0,
                   topSection: 'POS Lite Billing (42.5%)',
                   topSectionShare: 42.5,
                   topSectionTrend: 14.5,
                   verifiedUserPercentage,
-                  totalSalesCount: salesRes.rows[0]?.count || 0,
+                  totalSalesCount,
                   totalRevenue: salesRes.rows[0]?.total_revenue || 0,
                   totalProductsCount: productRes.rows[0]?.count || 0,
                   freePlanCount: totalUsers,
