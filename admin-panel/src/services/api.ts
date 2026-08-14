@@ -9,7 +9,12 @@ import type {
   SecurityAnomalyData,
 } from '../types/admin';
 
-const API_BASE_URL = 'http://localhost:5005/api/admin';
+const getApiBaseUrl = () => {
+  const envUrl = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5005/api').trim().replace(/\/$/, '');
+  return envUrl.endsWith('/admin') ? envUrl : `${envUrl}/admin`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const MOCK_LOGIN_LOGS: UserLoginLog[] = [
   {

@@ -2,6 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile();
+  } catch {}
+}
+
 const app = express();
 const PORT = process.env.ADMIN_PORT || 5005;
 
