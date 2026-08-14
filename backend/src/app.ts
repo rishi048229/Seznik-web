@@ -18,6 +18,7 @@ import reportRoutes from './routes/reportRoutes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import tokenTypeRoutes from './routes/tokenTypeRoutes';
 import tokenRoutes from './routes/tokenRoutes';
+import { routeTelemetryMiddleware } from './middlewares/routeTelemetry';
 
 dotenv.config();
 
@@ -31,22 +32,31 @@ app.use(
   })
 );
 
-// 2. CORS Configuration
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'http://localhost:3000', 'https://67-rishi048229s-projects.vercel.app'];
+// 2. CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.seznik.com')) {
         callback(null, true);
       } else {
-        callback(null, true); // Allow dev origins gracefully
+        callback(null, true); // Dev-friendly fallback
       }
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
   })
 );
 
@@ -72,7 +82,10 @@ app.use('/api/auth/register', authLimiter);
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
-// 5. API Routes
+// 5. Real-Time Route Telemetry Tracker
+app.use(routeTelemetryMiddleware);
+
+// 6. API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/settings', settingsRoutes);
