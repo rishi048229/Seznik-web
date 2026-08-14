@@ -89,16 +89,36 @@ export const LoginPage = () => {
     }
   }
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = async (codeOverride?: string) => {
+    const codeToVerify = (codeOverride || otp).trim()
+    if (codeToVerify.length !== 6) return
     setError('')
     setVerifyStep('verifying')
     try {
-      await verifyEmailOtp(email.trim(), otp.trim())
+      await verifyEmailOtp(email.trim(), codeToVerify)
       setVerifyStep('verified')
       setOtpMessage('')
     } catch (err) {
       setVerifyStep('sent')
-      setError(err instanceof Error ? err.message : 'Incorrect code')
+      setError(err instanceof Error ? err.message : 'Incorrect verification code')
+    }
+  }
+
+  const handleOtpChange = async (val: string) => {
+    const cleanOtp = val.replace(/\D/g, '').slice(0, 6)
+    setOtp(cleanOtp)
+
+    if (cleanOtp.length === 6 && verifyStep !== 'verified' && verifyStep !== 'verifying') {
+      setVerifyStep('verifying')
+      setError('')
+      try {
+        await verifyEmailOtp(email.trim(), cleanOtp)
+        setVerifyStep('verified')
+        setOtpMessage('')
+      } catch (err) {
+        setVerifyStep('sent')
+        setError(err instanceof Error ? err.message : 'Incorrect verification code')
+      }
     }
   }
 
@@ -123,9 +143,21 @@ export const LoginPage = () => {
         return
       }
 
+      // Auto-verify OTP if 6 digits are typed but not verified yet
       if (verifyStep !== 'verified') {
-        setError('Please verify your email address first. Tap "Verify" next to your email to receive a 6-digit code.')
-        return
+        const cleanOtp = otp.trim()
+        if (cleanOtp.length === 6) {
+          try {
+            await verifyEmailOtp(cleanEmail, cleanOtp)
+            setVerifyStep('verified')
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Incorrect verification code')
+            return
+          }
+        } else {
+          setError('Please tap "Verify Email" to receive a 6-digit code, then enter the code below.')
+          return
+        }
       }
 
       const cleanPhone = phone.trim()
@@ -321,37 +353,35 @@ export const LoginPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <div className="relative flex items-center">
+              <div className="flex gap-2">
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   readOnly={isRegistering && verifyStep === 'verified'}
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
+                  className={`flex-1 min-w-0 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
                     isRegistering && verifyStep === 'verified'
-                      ? 'border-emerald-300 bg-emerald-50/50 pr-28'
-                      : 'border-slate-300 ' + (isRegistering ? 'pr-24' : '')
+                      ? 'border-emerald-300 bg-emerald-50/50'
+                      : 'border-slate-300'
                   }`}
                   placeholder="admin@example.com"
                 />
                 {isRegistering && (
-                  <div className="absolute right-1.5 inset-y-0 flex items-center z-10 pointer-events-auto">
-                    {verifyStep === 'verified' ? (
-                      <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-2">
-                        <CheckCircle2 size={14} /> Verified
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        disabled={verifyStep === 'sending' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (verifyStep === 'sent' && resendIn > 0)}
-                        className="px-3 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-sky-400 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 z-10 cursor-pointer pointer-events-auto"
-                      >
-                        {verifyStep === 'sending' ? 'Sending…' : verifyStep === 'sent' ? (resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend') : 'Verify'}
-                      </button>
-                    )}
-                  </div>
+                  verifyStep === 'verified' ? (
+                    <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-lg shrink-0">
+                      <CheckCircle2 size={14} /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={verifyStep === 'sending' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (verifyStep === 'sent' && resendIn > 0)}
+                      className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-sky-500 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0 cursor-pointer"
+                    >
+                      {verifyStep === 'sending' ? 'Sending…' : verifyStep === 'sent' ? (resendIn > 0 ? `Resend (${resendIn}s)` : 'Resend') : 'Verify Email'}
+                    </button>
+                  )
                 )}
               </div>
               {isRegistering && otpMessage && verifyStep !== 'verified' && (
@@ -368,15 +398,15 @@ export const LoginPage = () => {
                     inputMode="numeric"
                     maxLength={6}
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center"
+                    onChange={(e) => handleOtpChange(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center text-lg"
                     placeholder="••••••"
                   />
                   <button
                     type="button"
-                    onClick={handleVerifyOtp}
+                    onClick={() => handleVerifyOtp()}
                     disabled={otp.length !== 6 || verifyStep === 'verifying'}
-                    className="px-4 py-2 rounded-lg bg-[#0a0a2e] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                    className="px-4 py-2 rounded-lg bg-[#0a0a2e] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
                   >
                     {verifyStep === 'verifying' ? 'Checking…' : 'Confirm'}
                   </button>
