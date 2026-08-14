@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Clock, Zap, Users, Calendar, Sparkles, Flame } from 'lucide-react';
+import { Activity, Clock, Zap, Users, Calendar, Sparkles, Flame, Palette } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
 import { EmptyState } from './EmptyState';
 
@@ -16,9 +16,167 @@ interface HoveredCellInfo {
   y: number;
 }
 
+export type HeatmapPalette = 'traffic' | 'cyber' | 'ocean' | 'github' | 'inferno';
+
+interface PaletteOption {
+  id: HeatmapPalette;
+  name: string;
+  swatches: [string, string, string, string, string];
+  getIntensity: (count: number, maxCount: number) => { background: string; border: string; boxShadow: string };
+  getStatusBadge: (count: number, maxCount: number) => { label: string; color: string };
+}
+
+const PALETTES: Record<HeatmapPalette, PaletteOption> = {
+  traffic: {
+    id: 'traffic',
+    name: 'Traffic Light (Green → Red)',
+    swatches: [
+      'rgba(255,255,255,0.05)',
+      'rgba(16, 185, 129, 0.75)',
+      'rgba(234, 179, 8, 0.85)',
+      'rgba(249, 115, 22, 0.9)',
+      '#EF4444',
+    ],
+    getIntensity: (count, maxCount) => {
+      if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { background: 'rgba(16, 185, 129, 0.55)', border: '1px solid rgba(16, 185, 129, 0.8)', boxShadow: 'none' };
+      if (ratio < 0.35) return { background: 'rgba(234, 179, 8, 0.75)', border: '1px solid rgba(234, 179, 8, 0.95)', boxShadow: '0 0 6px rgba(234, 179, 8, 0.35)' };
+      if (ratio < 0.7) return { background: 'rgba(249, 115, 22, 0.85)', border: '1px solid rgba(249, 115, 22, 1)', boxShadow: '0 0 8px rgba(249, 115, 22, 0.45)' };
+      return { background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', border: '1px solid #EF4444', boxShadow: '0 0 10px rgba(239, 68, 68, 0.65)' };
+    },
+    getStatusBadge: (count, maxCount) => {
+      if (count === 0) return { label: 'Quiet / No Traffic', color: 'var(--text-muted)' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { label: 'Low Activity', color: '#10B981' };
+      if (ratio < 0.35) return { label: 'Moderate Activity', color: '#EAB308' };
+      if (ratio < 0.7) return { label: 'High Activity Volume', color: '#F97316' };
+      return { label: '🔥 Peak Hotspot Surge', color: '#EF4444' };
+    },
+  },
+  cyber: {
+    id: 'cyber',
+    name: 'Cyber Neon (Cyan → Purple)',
+    swatches: [
+      'rgba(255,255,255,0.05)',
+      'rgba(6, 182, 212, 0.75)',
+      'rgba(139, 92, 246, 0.85)',
+      'rgba(236, 72, 153, 0.9)',
+      '#F59E0B',
+    ],
+    getIntensity: (count, maxCount) => {
+      if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { background: 'rgba(6, 182, 212, 0.55)', border: '1px solid rgba(6, 182, 212, 0.8)', boxShadow: 'none' };
+      if (ratio < 0.35) return { background: 'rgba(139, 92, 246, 0.75)', border: '1px solid rgba(139, 92, 246, 0.95)', boxShadow: '0 0 6px rgba(139, 92, 246, 0.35)' };
+      if (ratio < 0.7) return { background: 'rgba(236, 72, 153, 0.85)', border: '1px solid rgba(236, 72, 153, 1)', boxShadow: '0 0 8px rgba(236, 72, 153, 0.45)' };
+      return { background: 'linear-gradient(135deg, #F43F5E 0%, #F59E0B 100%)', border: '1px solid #F43F5E', boxShadow: '0 0 10px rgba(244, 63, 94, 0.65)' };
+    },
+    getStatusBadge: (count, maxCount) => {
+      if (count === 0) return { label: 'Quiet / No Traffic', color: 'var(--text-muted)' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { label: 'Low Activity', color: '#06B6D4' };
+      if (ratio < 0.35) return { label: 'Moderate Activity', color: '#8B5CF6' };
+      if (ratio < 0.7) return { label: 'High Activity Volume', color: '#EC4899' };
+      return { label: '⚡ Cyber Peak Surge', color: '#F59E0B' };
+    },
+  },
+  ocean: {
+    id: 'ocean',
+    name: 'Ocean Cobalt (Blue → Indigo)',
+    swatches: [
+      'rgba(255,255,255,0.05)',
+      'rgba(56, 189, 248, 0.75)',
+      'rgba(59, 130, 246, 0.85)',
+      'rgba(99, 102, 241, 0.9)',
+      '#8B5CF6',
+    ],
+    getIntensity: (count, maxCount) => {
+      if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { background: 'rgba(56, 189, 248, 0.55)', border: '1px solid rgba(56, 189, 248, 0.8)', boxShadow: 'none' };
+      if (ratio < 0.35) return { background: 'rgba(59, 130, 246, 0.75)', border: '1px solid rgba(59, 130, 246, 0.95)', boxShadow: '0 0 6px rgba(59, 130, 246, 0.35)' };
+      if (ratio < 0.7) return { background: 'rgba(99, 102, 241, 0.85)', border: '1px solid rgba(99, 102, 241, 1)', boxShadow: '0 0 8px rgba(99, 102, 241, 0.45)' };
+      return { background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', border: '1px solid #8B5CF6', boxShadow: '0 0 10px rgba(139, 92, 246, 0.65)' };
+    },
+    getStatusBadge: (count, maxCount) => {
+      if (count === 0) return { label: 'Quiet / No Traffic', color: 'var(--text-muted)' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { label: 'Low Activity', color: '#38BDF8' };
+      if (ratio < 0.35) return { label: 'Moderate Activity', color: '#3B82F6' };
+      if (ratio < 0.7) return { label: 'High Activity Volume', color: '#6366F1' };
+      return { label: '🌊 Ocean Peak Wave', color: '#8B5CF6' };
+    },
+  },
+  github: {
+    id: 'github',
+    name: 'GitHub Matrix (Monochrome Green)',
+    swatches: [
+      'rgba(255,255,255,0.05)',
+      'rgba(34, 197, 94, 0.45)',
+      'rgba(22, 163, 74, 0.75)',
+      'rgba(21, 128, 61, 0.9)',
+      '#4ADE80',
+    ],
+    getIntensity: (count, maxCount) => {
+      if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { background: 'rgba(34, 197, 94, 0.45)', border: '1px solid rgba(34, 197, 94, 0.7)', boxShadow: 'none' };
+      if (ratio < 0.35) return { background: 'rgba(22, 163, 74, 0.75)', border: '1px solid rgba(22, 163, 74, 0.9)', boxShadow: '0 0 6px rgba(22, 163, 74, 0.35)' };
+      if (ratio < 0.7) return { background: 'rgba(21, 128, 61, 0.9)', border: '1px solid rgba(34, 197, 94, 0.95)', boxShadow: '0 0 8px rgba(34, 197, 94, 0.45)' };
+      return { background: 'linear-gradient(135deg, #15803D 0%, #4ADE80 100%)', border: '1px solid #4ADE80', boxShadow: '0 0 10px rgba(74, 222, 128, 0.65)' };
+    },
+    getStatusBadge: (count, maxCount) => {
+      if (count === 0) return { label: 'Quiet / No Traffic', color: 'var(--text-muted)' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { label: 'Low Activity', color: '#86EFAC' };
+      if (ratio < 0.35) return { label: 'Moderate Activity', color: '#22C55E' };
+      if (ratio < 0.7) return { label: 'High Activity Volume', color: '#16A34A' };
+      return { label: '🟢 Matrix Peak Activity', color: '#4ADE80' };
+    },
+  },
+  inferno: {
+    id: 'inferno',
+    name: 'Solar Inferno (Gold → Crimson)',
+    swatches: [
+      'rgba(255,255,255,0.05)',
+      'rgba(251, 191, 36, 0.75)',
+      'rgba(249, 115, 22, 0.85)',
+      'rgba(244, 63, 94, 0.9)',
+      '#DC2626',
+    ],
+    getIntensity: (count, maxCount) => {
+      if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { background: 'rgba(251, 191, 36, 0.55)', border: '1px solid rgba(251, 191, 36, 0.8)', boxShadow: 'none' };
+      if (ratio < 0.35) return { background: 'rgba(249, 115, 22, 0.75)', border: '1px solid rgba(249, 115, 22, 0.95)', boxShadow: '0 0 6px rgba(249, 115, 22, 0.35)' };
+      if (ratio < 0.7) return { background: 'rgba(244, 63, 94, 0.85)', border: '1px solid rgba(244, 63, 94, 1)', boxShadow: '0 0 8px rgba(244, 63, 94, 0.45)' };
+      return { background: 'linear-gradient(135deg, #EF4444 0%, #991B1B 100%)', border: '1px solid #EF4444', boxShadow: '0 0 10px rgba(239, 68, 68, 0.65)' };
+    },
+    getStatusBadge: (count, maxCount) => {
+      if (count === 0) return { label: 'Quiet / No Traffic', color: 'var(--text-muted)' };
+      const ratio = count / maxCount;
+      if (ratio < 0.1) return { label: 'Low Activity', color: '#FBBF24' };
+      if (ratio < 0.35) return { label: 'Moderate Activity', color: '#F97316' };
+      if (ratio < 0.7) return { label: 'High Activity Volume', color: '#F43F5E' };
+      return { label: '🔥 Inferno Hotspot', color: '#EF4444' };
+    },
+  },
+};
+
 export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
   const [hoveredCell, setHoveredCell] = useState<HoveredCellInfo | null>(null);
   const [viewFilter, setViewFilter] = useState<'all' | 'business'>('all');
+  const [paletteId, setPaletteId] = useState<HeatmapPalette>(() => {
+    return (localStorage.getItem('seznik_heatmap_palette') as HeatmapPalette) || 'traffic';
+  });
+
+  const activePalette = PALETTES[paletteId] || PALETTES.traffic;
+
+  const handlePaletteChange = (newPalette: HeatmapPalette) => {
+    setPaletteId(newPalette);
+    localStorage.setItem('seznik_heatmap_palette', newPalette);
+  };
 
   // Normalize data whether passed as an array or HeatmapResponse object
   const cells: HeatmapCell[] = Array.isArray(data)
@@ -57,52 +215,6 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
 
   const maxCount = Math.max(...cells.map((c) => c.count), 1);
   const peakSlot = [...cells].sort((a, b) => b.count - a.count)[0] || { day: 'Mon', hour: 12, count: 0 };
-
-  const getIntensityStyle = (count: number) => {
-    if (count === 0) {
-      return {
-        background: 'rgba(255, 255, 255, 0.025)',
-        border: '1px solid var(--border-color)',
-        boxShadow: 'none',
-      };
-    }
-    const ratio = count / maxCount;
-    if (ratio < 0.1) {
-      return {
-        background: 'rgba(16, 185, 129, 0.55)',
-        border: '1px solid rgba(16, 185, 129, 0.8)',
-        boxShadow: 'none',
-      };
-    }
-    if (ratio < 0.35) {
-      return {
-        background: 'rgba(234, 179, 8, 0.75)',
-        border: '1px solid rgba(234, 179, 8, 0.95)',
-        boxShadow: '0 0 6px rgba(234, 179, 8, 0.35)',
-      };
-    }
-    if (ratio < 0.7) {
-      return {
-        background: 'rgba(249, 115, 22, 0.85)',
-        border: '1px solid rgba(249, 115, 22, 1)',
-        boxShadow: '0 0 8px rgba(249, 115, 22, 0.45)',
-      };
-    }
-    return {
-      background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-      border: '1px solid #EF4444',
-      boxShadow: '0 0 10px rgba(239, 68, 68, 0.65)',
-    };
-  };
-
-  const getStatusBadge = (count: number) => {
-    if (count === 0) return { label: 'Quiet / No Traffic', color: 'var(--text-muted)' };
-    const ratio = count / maxCount;
-    if (ratio < 0.1) return { label: 'Low Activity', color: '#10B981' };
-    if (ratio < 0.35) return { label: 'Moderate Activity', color: '#EAB308' };
-    if (ratio < 0.7) return { label: 'High Activity Volume', color: '#F97316' };
-    return { label: '🔥 Peak Hotspot Surge', color: '#EF4444' };
-  };
 
   const formatHourLabel = (h: number) => {
     const period = h >= 12 ? 'PM' : 'AM';
@@ -178,7 +290,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* 2 User-Requested Live Info Cards (Today & This Hour) */}
+        {/* 2 Live Info Cards (Today & This Hour) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Card A: Today */}
           <div
@@ -220,63 +332,110 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* Controls Bar: Time Filter & Color Legend */}
+      {/* Controls Bar: Time Filter, Palette Switcher & Dynamic Legend */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '8px', flexShrink: 0 }}>
-        {/* Time View Filter */}
-        <div
-          style={{
-            display: 'inline-flex',
-            background: 'var(--bg-main)',
-            padding: '2px',
-            borderRadius: '6px',
-            border: '1px solid var(--border-color)',
-          }}
-        >
-          <button
-            onClick={() => setViewFilter('all')}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Time View Filter */}
+          <div
             style={{
-              padding: '4px 10px',
-              borderRadius: '4px',
-              border: 'none',
-              background: viewFilter === 'all' ? 'var(--accent-blue)' : 'transparent',
-              color: viewFilter === 'all' ? '#FFFFFF' : 'var(--text-muted)',
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
+              display: 'inline-flex',
+              background: 'var(--bg-main)',
+              padding: '2px',
+              borderRadius: '6px',
+              border: '1px solid var(--border-color)',
             }}
           >
-            24 Hours
-          </button>
-          <button
-            onClick={() => setViewFilter('business')}
+            <button
+              onClick={() => setViewFilter('all')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                background: viewFilter === 'all' ? 'var(--accent-blue)' : 'transparent',
+                color: viewFilter === 'all' ? '#FFFFFF' : 'var(--text-muted)',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              24 Hours
+            </button>
+            <button
+              onClick={() => setViewFilter('business')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                background: viewFilter === 'business' ? 'var(--accent-blue)' : 'transparent',
+                color: viewFilter === 'business' ? '#FFFFFF' : 'var(--text-muted)',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Business Hours (08:00 - 22:00)
+            </button>
+          </div>
+
+          {/* Color Palette Switcher Dropdown */}
+          <div
             style={{
-              padding: '4px 10px',
-              borderRadius: '4px',
-              border: 'none',
-              background: viewFilter === 'business' ? 'var(--accent-blue)' : 'transparent',
-              color: viewFilter === 'business' ? '#FFFFFF' : 'var(--text-muted)',
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--bg-main)',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              border: '1px solid var(--border-color)',
             }}
           >
-            Business Hours (08:00 - 22:00)
-          </button>
+            <Palette size={13} color="var(--accent-blue)" />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>Theme:</span>
+            <select
+              value={paletteId}
+              onChange={(e) => handlePaletteChange(e.target.value as HeatmapPalette)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-main)',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="traffic">Traffic Light (Green → Red)</option>
+              <option value="cyber">Cyber Neon (Cyan → Purple)</option>
+              <option value="ocean">Ocean Cobalt (Blue → Indigo)</option>
+              <option value="github">GitHub Matrix (Monochrome Green)</option>
+              <option value="inferno">Solar Inferno (Gold → Crimson)</option>
+            </select>
+          </div>
         </div>
 
-        {/* Color Code Legend */}
+        {/* Dynamic Color Code Legend matching selected Palette */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
           <span style={{ fontSize: '0.65rem', fontWeight: 600 }}>Quiet (0)</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)' }} title="0 requests (Quiet)" />
-            <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'rgba(16, 185, 129, 0.6)' }} title="Low (1-10)" />
-            <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'rgba(234, 179, 8, 0.8)' }} title="Moderate (11-50)" />
-            <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'rgba(249, 115, 22, 0.9)' }} title="High (51-200)" />
-            <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' }} title="Peak Hotspot (>200)" />
+            {activePalette.swatches.map((swatchColor, idx) => (
+              <div
+                key={idx}
+                style={{
+                  width: '9px',
+                  height: '9px',
+                  borderRadius: '2px',
+                  background: swatchColor,
+                  border: idx === 0 ? '1px solid var(--border-color)' : 'none',
+                }}
+                title={`Level ${idx + 1}`}
+              />
+            ))}
           </div>
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#EF4444' }}>Peak Hotspot</span>
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: activePalette.swatches[4] }}>
+            Peak Hotspot
+          </span>
         </div>
       </div>
 
@@ -334,7 +493,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
               </span>
               {activeHours.map((h) => {
                 const { count, uniqueUsers } = getCellData(day, h);
-                const styleObj = getIntensityStyle(count);
+                const styleObj = activePalette.getIntensity(count, maxCount);
                 const isHovered = hoveredCell?.day === day && hoveredCell?.hour === h;
 
                 return (
@@ -373,106 +532,62 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
         </div>
       )}
 
-      {/* Floating Interactive Hover Tooltip */}
+      {/* Interactive Tooltip Card */}
       {hoveredCell && (
         <div
           style={{
             position: 'fixed',
             left: `${hoveredCell.x}px`,
-            top: `${hoveredCell.y - 8}px`,
+            top: `${hoveredCell.y - 12}px`,
             transform: 'translate(-50%, -100%)',
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            pointerEvents: 'none',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            borderRadius: '10px',
+            padding: '10px 14px',
             zIndex: 9999,
-            minWidth: '180px',
-            backdropFilter: 'blur(12px)',
+            pointerEvents: 'none',
+            minWidth: '170px',
           }}
         >
-          {/* Tooltip Header: Day & Hour */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-main)' }}>
-              <Calendar size={12} color="var(--accent-blue)" />
-              <span>{dayFullNames[hoveredCell.day] || hoveredCell.day}</span>
-            </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {formatHourLabel(hoveredCell.hour)} - {formatHourLabel((hoveredCell.hour + 1) % 24)}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              {dayFullNames[hoveredCell.day] || hoveredCell.day} • {formatHourLabel(hoveredCell.hour)}
             </span>
           </div>
 
-          {/* Tooltip Body: API Requests Count */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: hoveredCell.count > 0 ? '#10B981' : 'var(--text-muted)' }}>
-                {hoveredCell.count.toLocaleString()}
-              </span>
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                API Requests
-              </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Requests:</span>
+              <strong style={{ color: 'var(--text-main)' }}>{hoveredCell.count.toLocaleString()}</strong>
             </div>
 
-            {/* Unique Active Merchants */}
-            {hoveredCell.uniqueUsers > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                <Users size={11} color="var(--accent-blue)" />
-                <span>{hoveredCell.uniqueUsers} distinct merchant{hoveredCell.uniqueUsers > 1 ? 's' : ''}</span>
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Unique Users:</span>
+              <strong style={{ color: 'var(--accent-blue)' }}>{hoveredCell.uniqueUsers}</strong>
+            </div>
 
-            {/* Activity Status Badge */}
-            <div style={{ marginTop: '2px' }}>
-              <span
-                style={{
-                  fontSize: '0.64rem',
-                  fontWeight: 700,
-                  color: getStatusBadge(hoveredCell.count).color,
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-color)',
-                  display: 'inline-block',
-                }}
-              >
-                {getStatusBadge(hoveredCell.count).label}
-              </span>
+            <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border-color)' }}>
+              {(() => {
+                const status = activePalette.getStatusBadge(hoveredCell.count, maxCount);
+                return (
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      color: status.color,
+                      display: 'block',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {status.label}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
       )}
-
-      {/* Heatmap Telemetry Summary Bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingTop: '6px',
-          borderTop: '1px solid var(--border-color)',
-          fontSize: '0.72rem',
-          color: 'var(--text-muted)',
-          flexWrap: 'wrap',
-          gap: '8px',
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Sparkles size={13} color="#3B82F6" />
-          <span>Week Total: <strong style={{ color: 'var(--text-main)' }}>{requestsThisWeek.toLocaleString()}</strong> calls</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Clock size={13} color="#F59E0B" />
-          <span>Peak: <strong style={{ color: 'var(--text-main)' }}>{dayFullNames[peakSlot.day] || peakSlot.day} @ {formatHourLabel(peakSlot.hour)}</strong></span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span className="pulse-dot" style={{ width: '5px', height: '5px' }}></span>
-          <span style={{ color: '#10B981', fontWeight: 600 }}>Live Postgres</span>
-        </div>
-      </div>
     </div>
   );
 };
