@@ -51,7 +51,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       if (ratio < 0.1) return { label: 'Low Activity', color: '#10B981' };
       if (ratio < 0.35) return { label: 'Moderate Activity', color: '#EAB308' };
       if (ratio < 0.7) return { label: 'High Activity Volume', color: '#F97316' };
-      return { label: '🔥 Peak Hotspot Surge', color: '#EF4444' };
+      return { label: 'Peak Hotspot Surge', color: '#EF4444' };
     },
   },
   cyber: {
@@ -78,7 +78,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       if (ratio < 0.1) return { label: 'Low Activity', color: '#06B6D4' };
       if (ratio < 0.35) return { label: 'Moderate Activity', color: '#8B5CF6' };
       if (ratio < 0.7) return { label: 'High Activity Volume', color: '#EC4899' };
-      return { label: '⚡ Cyber Peak Surge', color: '#F59E0B' };
+      return { label: 'Cyber Peak Surge', color: '#F59E0B' };
     },
   },
   ocean: {
@@ -105,7 +105,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       if (ratio < 0.1) return { label: 'Low Activity', color: '#38BDF8' };
       if (ratio < 0.35) return { label: 'Moderate Activity', color: '#3B82F6' };
       if (ratio < 0.7) return { label: 'High Activity Volume', color: '#6366F1' };
-      return { label: '🌊 Ocean Peak Wave', color: '#8B5CF6' };
+      return { label: 'Ocean Peak Wave', color: '#8B5CF6' };
     },
   },
   github: {
@@ -132,7 +132,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       if (ratio < 0.1) return { label: 'Low Activity', color: '#86EFAC' };
       if (ratio < 0.35) return { label: 'Moderate Activity', color: '#22C55E' };
       if (ratio < 0.7) return { label: 'High Activity Volume', color: '#16A34A' };
-      return { label: '🟢 Matrix Peak Activity', color: '#4ADE80' };
+      return { label: 'Matrix Peak Activity', color: '#4ADE80' };
     },
   },
   inferno: {
@@ -159,7 +159,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       if (ratio < 0.1) return { label: 'Low Activity', color: '#FBBF24' };
       if (ratio < 0.35) return { label: 'Moderate Activity', color: '#F97316' };
       if (ratio < 0.7) return { label: 'High Activity Volume', color: '#F43F5E' };
-      return { label: '🔥 Inferno Hotspot', color: '#EF4444' };
+      return { label: 'Inferno Hotspot Surge', color: '#EF4444' };
     },
   },
 };
@@ -295,39 +295,33 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
           {/* Card A: Today */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.04) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
+              background: 'var(--bg-main)',
+              border: '1px solid var(--border-color)',
               borderRadius: '8px',
-              padding: '6px 12px',
+              padding: '5px 12px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
             }}
           >
-            <Zap size={15} color="#10B981" />
-            <div>
-              <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#10B981', textTransform: 'uppercase' }}>Today: </span>
-              <span style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)' }}>{requestsToday.toLocaleString()}</span>
-            </div>
+            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Today:</span>
+            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace' }}>{requestsToday.toLocaleString()}</span>
           </div>
 
           {/* Card B: This Hour */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.04) 100%)',
-              border: '1px solid rgba(245, 158, 11, 0.25)',
+              background: 'var(--bg-main)',
+              border: '1px solid var(--border-color)',
               borderRadius: '8px',
-              padding: '6px 12px',
+              padding: '5px 12px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
             }}
           >
-            <Flame size={15} color="#F59E0B" />
-            <div>
-              <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase' }}>This Hour: </span>
-              <span style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)' }}>{requestsThisHour.toLocaleString()}</span>
-            </div>
+            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>This Hour:</span>
+            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace' }}>{requestsThisHour.toLocaleString()}</span>
           </div>
         </div>
       </div>

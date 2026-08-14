@@ -322,7 +322,8 @@ export const LocationDistribution: React.FC<LocationDistributionProps> = ({ loca
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                        <span>🇮🇳 {loc.country}</span>
+                        <Globe size={14} color="#10B981" />
+                        <span>{loc.country}</span>
                       </div>
                     </td>
                     <td>

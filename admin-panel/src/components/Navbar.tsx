@@ -26,7 +26,6 @@ interface NavbarProps {
   autoRefreshInterval: number;
   onSelectAutoRefreshInterval?: (interval: number) => void;
   setAutoRefreshInterval?: (interval: number) => void;
-  onOpenCommandPalette?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,7 +40,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   autoRefreshInterval,
   onSelectAutoRefreshInterval,
   setAutoRefreshInterval,
-  onOpenCommandPalette,
 }) => {
   const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
 
@@ -154,31 +152,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span style={{ fontFamily: 'monospace', letterSpacing: '0.3px', fontWeight: 700 }}>{formattedTime}</span>
             </div>
           </div>
-
-          {/* Quick Search Command Palette Button */}
-          <button
-            onClick={onOpenCommandPalette}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--tab-border)',
-              background: 'var(--tab-bg)',
-              color: 'var(--navbar-text-muted)',
-              fontSize: '0.78rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Search size={14} color="var(--accent-blue)" />
-            <span>Search...</span>
-            <kbd style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', marginLeft: '2px' }}>
-              ⌘K
-            </kbd>
-          </button>
           {/* Time Range Selector */}
           <div style={{ display: 'flex', background: 'var(--tab-bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--tab-border)', transition: 'background 0.3s ease' }}>
             {['24h', '7d', '30d', 'All'].map((range) => (

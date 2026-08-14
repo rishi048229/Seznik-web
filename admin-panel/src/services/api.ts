@@ -366,12 +366,12 @@ const MOCK_SECTION_USAGE: SectionUsage[] = [
 ];
 
 const MOCK_LOCATION_METRICS: LocationMetric[] = [
-  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Mumbai', userCount: 2, activeSessions: 1, percentageShare: 40.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Pune', userCount: 1, activeSessions: 0, percentageShare: 15.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Delhi', userCount: 1, activeSessions: 1, percentageShare: 20.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Gurgaon', userCount: 1, activeSessions: 0, percentageShare: 10.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Karnataka', city: 'Bengaluru', userCount: 1, activeSessions: 0, percentageShare: 10.0, flagEmoji: '🇮🇳' },
-  { country: 'India', countryCode: 'IN', state: 'Gujarat', city: 'Ahmedabad', userCount: 1, activeSessions: 0, percentageShare: 5.0, flagEmoji: '🇮🇳' },
+  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Mumbai', userCount: 2, activeSessions: 1, percentageShare: 40.0, flagEmoji: '' },
+  { country: 'India', countryCode: 'IN', state: 'Maharashtra', city: 'Pune', userCount: 1, activeSessions: 0, percentageShare: 15.0, flagEmoji: '' },
+  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Delhi', userCount: 1, activeSessions: 1, percentageShare: 20.0, flagEmoji: '' },
+  { country: 'India', countryCode: 'IN', state: 'Delhi NCR', city: 'Gurgaon', userCount: 1, activeSessions: 0, percentageShare: 10.0, flagEmoji: '' },
+  { country: 'India', countryCode: 'IN', state: 'Karnataka', city: 'Bengaluru', userCount: 1, activeSessions: 0, percentageShare: 10.0, flagEmoji: '' },
+  { country: 'India', countryCode: 'IN', state: 'Gujarat', city: 'Ahmedabad', userCount: 1, activeSessions: 0, percentageShare: 5.0, flagEmoji: '' },
 ];
 
 const MOCK_HEATMAP: HeatmapCell[] = [

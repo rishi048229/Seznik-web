@@ -9,7 +9,6 @@ import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
 import { RegisteredUsersRoster } from './components/RegisteredUsersRoster';
 import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
-import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { 
   fetchDashboardMetrics, 
   fetchUserRecords, 
@@ -53,8 +52,6 @@ export const App: React.FC = () => {
   const [selectedUserEmailForLogs, setSelectedUserEmailForLogs] = useState<string | null>(null);
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0); // 0 = Off (Manual), 10s, 30s, 60s, 300s
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
-  const [isTop5Expanded, setIsTop5Expanded] = useState<boolean>(false);
 
   const setActiveTab = (tab: string) => {
     const targetTab = VALID_TABS.includes(tab) ? tab : 'overview';
@@ -170,7 +167,6 @@ export const App: React.FC = () => {
           lastRefreshedAt={lastRefreshedAt}
           autoRefreshInterval={autoRefreshInterval}
           onSelectAutoRefreshInterval={setAutoRefreshInterval}
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
       </div>
 
@@ -261,20 +257,6 @@ export const App: React.FC = () => {
           </>
         )}
       </main>
-
-      {/* Global Command Palette Modal (Cmd+K / Ctrl+K) */}
-      <CommandPaletteModal
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        users={users}
-        onRefresh={loadAllData}
-        onSelectTab={(tab, userSearch) => {
-          setActiveTab(tab);
-          if (userSearch) {
-            setSelectedUserForProfile(userSearch);
-          }
-        }}
-      />
     </div>
   );
 };
