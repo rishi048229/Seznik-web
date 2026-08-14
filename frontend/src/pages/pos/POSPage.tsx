@@ -12,7 +12,8 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
+import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -39,7 +40,7 @@ export const POSPage = () => {
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
-  const { items, addItem, removeItem, updateQty, clearCart, totals } = useCart()
+  const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
   const [search, setSearch] = useState('')
@@ -52,6 +53,16 @@ export const POSPage = () => {
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
+
+  // Quick-edit a product's own details (name/price/stock/etc.) without leaving
+  // the billing screen — opened from either the product grid or a cart line.
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [isEditProductOpen, setIsEditProductOpen] = useState(false)
+  const openEditProduct = (e: React.MouseEvent, product: Product) => {
+    e.stopPropagation()
+    setEditingProduct(product)
+    setIsEditProductOpen(true)
+  }
 
   // Product filter panel — stock status, price range, sort.
   type StockFilter = 'all' | 'in' | 'low' | 'out'
@@ -640,12 +651,22 @@ export const POSPage = () => {
                 <div
                   key={product.id}
                   onClick={() => !isOutOfStock && handleProductClick(product)}
-                  className={`group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
+                  className={`relative group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
                     isOutOfStock
                       ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
                       : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-300 dark:hover:border-blue-800'
                   }`}
                 >
+                  {/* Edit product — fix name/price/stock without leaving billing */}
+                  <button
+                    type="button"
+                    onClick={(e) => openEditProduct(e, product)}
+                    title={t('products.editProduct')}
+                    className="absolute top-1.5 right-1.5 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-500 dark:text-gray-300 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                  >
+                    <Pencil size={14} />
+                  </button>
+
                   {/* Thumbnail */}
                   <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                     {product.imageURL ? (
@@ -781,13 +802,24 @@ export const POSPage = () => {
                       <p className="text-xs text-gray-400">{formatINR(item.sellingPrice)} {t('pos.each')}</p>
                     </div>
 
-                    {/* Delete Button - Right */}
-                    <button
-                      onClick={() => removeItem(item.productId)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <Trash2 size={16} className="text-red-400" />
-                    </button>
+                    {/* Edit + Delete Buttons - Right (always visible so touch devices without hover can reach them) */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {product && (
+                        <button
+                          onClick={(e) => openEditProduct(e, product)}
+                          title={t('products.editProduct')}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeItem(item.productId)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <Trash2 size={16} className="text-red-400" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Quantity Controls + Line Total - Separate Row */}
@@ -1046,6 +1078,23 @@ export const POSPage = () => {
           </Button>
         </div>
       </Modal>
+
+      {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}
+      <QuickEditProductModal
+        product={editingProduct}
+        isOpen={isEditProductOpen}
+        onClose={() => setIsEditProductOpen(false)}
+        onSaved={(updated) => {
+          if (editingProduct) {
+            updateItemDetails(editingProduct.id, {
+              productName: updated.name,
+              sellingPrice: updated.sellingPrice,
+              taxRate: updated.taxRate,
+              priceIncludesGst: updated.priceIncludesGst,
+            })
+          }
+        }}
+      />
 
       <PrinterAnimationModal
         isOpen={isPrintingAnimating}

@@ -58,6 +58,20 @@ export const useCart = () => {
     )
   }, [])
 
+  // Refreshes an already-added line when its underlying product is edited
+  // mid-sale (e.g. from the "Scan to Bill" quick-edit) — a no-op if that
+  // product isn't currently in the cart.
+  const updateItemDetails = useCallback((
+    productId: string,
+    updates: Partial<Pick<CartItem, 'productName' | 'imageURL' | 'sellingPrice' | 'taxRate' | 'priceIncludesGst'>>
+  ) => {
+    setItems(prev =>
+      prev.map(i =>
+        i.productId === productId ? { ...i, ...updates } : i
+      )
+    )
+  }, [])
+
   const clearCart = useCallback(() => {
     setItems([])
   }, [])
@@ -94,6 +108,7 @@ export const useCart = () => {
     removeItem,
     updateQty,
     applyDiscount,
+    updateItemDetails,
     clearCart,
     totals,
   }

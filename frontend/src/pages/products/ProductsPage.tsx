@@ -32,9 +32,8 @@ import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate, resolveElementText, type LabelData } from '@/utils/labelPrint'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
+import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
 
-
-type UnitType = 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
 type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
 
 interface ProductFormState {
@@ -59,17 +58,6 @@ const BARCODE_TYPE_OPTIONS = [
   { value: 'QR', label: 'QR Code' },
 ]
 
-// Standard Indian GST slabs, plus a custom escape hatch for anything unusual.
-const GST_SLAB_OPTIONS = [
-  { value: '0', label: '0% — Exempt' },
-  { value: '3', label: '3% — Gold, precious stones' },
-  { value: '5', label: '5% — Essentials' },
-  { value: '12', label: '12% — Standard' },
-  { value: '18', label: '18% — Standard' },
-  { value: '28', label: '28% — Luxury' },
-  { value: 'custom', label: 'Custom rate…' },
-]
-
 // Generates a barcode value matching the chosen symbology so the label
 // printer can render it without complaints.
 const generateBarcodeValue = (type: BarcodeType): string => {
@@ -85,16 +73,6 @@ const generateBarcodeValue = (type: BarcodeType): string => {
   const rand = Math.floor(1000 + Math.random() * 9000)
   return `SZ${Date.now().toString().slice(-8)}${rand}`
 }
-
-const UNIT_OPTIONS = [
-  { value: 'piece', label: 'Piece' },
-  { value: 'kg', label: 'Kg' },
-  { value: 'gram', label: 'Gram' },
-  { value: 'liter', label: 'Liter' },
-  { value: 'meter', label: 'Meter' },
-  { value: 'dozen', label: 'Dozen' },
-  { value: 'box', label: 'Box' },
-]
 
 const defaultForm: ProductFormState = {
   name: '',
