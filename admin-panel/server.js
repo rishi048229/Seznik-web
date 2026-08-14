@@ -11,9 +11,11 @@ if (typeof process.loadEnvFile === 'function') {
 const app = express();
 const PORT = process.env.ADMIN_PORT || 5005;
 
-// PostgreSQL Connection Pool using inventory_db connection string
+// PostgreSQL Connection Pool using database connection string
+const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:root@localhost:5432/inventory_db?schema=public';
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:root@localhost:5432/inventory_db?schema=public',
+  connectionString: dbUrl,
+  ssl: dbUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined,
 });
 
 app.use(cors());

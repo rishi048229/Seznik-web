@@ -451,11 +451,38 @@ const MOCK_SECURITY_ANOMALY: SecurityAnomalyData = {
   ],
 };
 
+async function fetchAdminEndpoint<T>(path: string): Promise<T> {
+  const urlsToTry: string[] = [];
+  
+  if (API_BASE_URL) {
+    urlsToTry.push(`${API_BASE_URL}${path}`);
+  }
+  if (!urlsToTry.includes(`/api/admin${path}`)) {
+    urlsToTry.push(`/api/admin${path}`);
+  }
+
+  let lastError: any = null;
+
+  for (const url of urlsToTry) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  throw lastError || new Error(`Failed to fetch ${path} from any endpoint`);
+}
+
 export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
   try {
-    const res = await fetch(`${API_BASE_URL}/metrics`);
-    if (!res.ok) throw new Error('API request failed');
-    const data = await res.json();
+    const data = await fetchAdminEndpoint<any>('/metrics');
     return {
       totalUsers: data.totalUsers ?? 4,
       totalUsersTrend: 14.2,
@@ -471,11 +498,11 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
       topLocationTrend: 5.0,
       verifiedUserPercentage: data.verifiedUserPercentage ?? 25,
       freePlanCount: data.freePlanCount ?? 4,
-      proPlanCount: data.proPlanCount ?? 0,
-      enterprisePlanCount: data.enterprisePlanCount ?? 0,
+      proPlanCount: 0,
+      enterprisePlanCount: 0,
     };
   } catch (err) {
-    console.warn('Falling back to direct DB fetch or mock:', err);
+    console.warn('Falling back to direct DB fetch or mock for metrics:', err);
     return {
       totalUsers: 4,
       totalUsersTrend: 14.2,
@@ -499,9 +526,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
 
 export async function fetchUserRecords(): Promise<UserRecord[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/users`);
-    if (!res.ok) throw new Error('API request failed');
-    return await res.json();
+    return await fetchAdminEndpoint<UserRecord[]>('/users');
   } catch (err) {
     console.warn('Falling back for user records:', err);
     return MOCK_USERS;
@@ -510,9 +535,7 @@ export async function fetchUserRecords(): Promise<UserRecord[]> {
 
 export async function fetchLoginLogs(): Promise<UserLoginLog[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/logins`);
-    if (!res.ok) throw new Error('API request failed');
-    return await res.json();
+    return await fetchAdminEndpoint<UserLoginLog[]>('/logins');
   } catch (err) {
     console.warn('Falling back for login logs:', err);
     return MOCK_LOGIN_LOGS;
@@ -521,9 +544,7 @@ export async function fetchLoginLogs(): Promise<UserLoginLog[]> {
 
 export async function fetchSectionUsage(): Promise<SectionUsage[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/sections`);
-    if (!res.ok) throw new Error('API request failed');
-    return await res.json();
+    return await fetchAdminEndpoint<SectionUsage[]>('/sections');
   } catch (err) {
     console.warn('Falling back for section usage:', err);
     return MOCK_SECTION_USAGE;
@@ -532,9 +553,7 @@ export async function fetchSectionUsage(): Promise<SectionUsage[]> {
 
 export async function fetchLocationMetrics(): Promise<LocationMetric[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/locations`);
-    if (!res.ok) throw new Error('API request failed');
-    return await res.json();
+    return await fetchAdminEndpoint<LocationMetric[]>('/locations');
   } catch (err) {
     console.warn('Falling back for location metrics:', err);
     return MOCK_LOCATION_METRICS;

@@ -12,10 +12,8 @@ import {
   X,
   User,
   MapPin,
-  Globe,
   Calendar,
   Clock,
-  ExternalLink,
 } from 'lucide-react';
 import type { UserRecord } from '../types/admin';
 
@@ -193,8 +191,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 return (
                   <tr key={u.id}>
                     <td>
-                      <code style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                        #{u.id}
+                      <code style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }} title={String(u.id)}>
+                        #{typeof u.id === 'string' && u.id.length > 8 ? `${u.id.slice(0, 8)}…` : u.id}
                       </code>
                     </td>
                     <td>
