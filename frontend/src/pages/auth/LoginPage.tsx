@@ -105,12 +105,35 @@ export const LoginPage = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (isRegistering && verifyStep !== 'verified') {
-      setError('Please verify your email before signing up')
+
+    const cleanEmail = email.trim()
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Please enter a valid email address')
+      return
+    }
+
+    if (!password) {
+      setError('Please enter your password')
       return
     }
 
     if (isRegistering) {
+      if (!firstName.trim() || !lastName.trim()) {
+        setError('Please enter your first and last name')
+        return
+      }
+
+      if (verifyStep !== 'verified') {
+        setError('Please verify your email address first. Tap "Verify" next to your email to receive a 6-digit code.')
+        return
+      }
+
+      const cleanPhone = phone.trim()
+      if (!cleanPhone || cleanPhone.length < 7) {
+        setError('Please enter a valid phone number (at least 7 digits)')
+        return
+      }
+
       const { isValid, failedRequirements } = validatePassword(password)
       if (!isValid) {
         setError(`Password requirements missing: ${failedRequirements.join(', ')}`)
@@ -121,17 +144,16 @@ export const LoginPage = () => {
     setIsSigningIn(true)
     try {
       if (isRegistering) {
-        await registerWithEmail(email.trim(), password, firstName, lastName, phone.trim())
-        trackUserAction('user_register_success', { email: email.trim() })
+        await registerWithEmail(cleanEmail, password, firstName.trim(), lastName.trim(), phone.trim())
+        trackUserAction('user_register_success', { email: cleanEmail })
       } else {
-        await loginWithEmail(email, password)
-        trackUserAction('user_login_success', { email: email.trim() })
+        await loginWithEmail(cleanEmail, password)
+        trackUserAction('user_login_success', { email: cleanEmail })
       }
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to sign in')
     } finally {
-
       setIsSigningIn(false)
     }
   }
@@ -269,8 +291,8 @@ export const LoginPage = () => {
           <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-2">{isRegistering ? 'Create Account' : 'Welcome to Seznik POS'}</h2>
           <p className="text-sm text-slate-500 mb-8">{isRegistering ? 'Sign up to get started.' : 'Enter your credentials to access your store dashboard.'}</p>
 
-          <form onSubmit={handleSignIn} className="flex flex-col gap-4">
-            {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+          <form noValidate onSubmit={handleSignIn} className="flex flex-col gap-4">
+            {error && <p className="text-red-500 text-sm font-medium p-3 bg-red-50 border border-red-200 rounded-lg">{error}</p>}
             
             {isRegistering && (
               <div className="flex gap-4">
@@ -299,7 +321,7 @@ export const LoginPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <input
                   type="email"
                   required
@@ -314,7 +336,7 @@ export const LoginPage = () => {
                   placeholder="admin@example.com"
                 />
                 {isRegistering && (
-                  <div className="absolute inset-y-0 right-1.5 flex items-center">
+                  <div className="absolute right-1.5 inset-y-0 flex items-center z-10 pointer-events-auto">
                     {verifyStep === 'verified' ? (
                       <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-2">
                         <CheckCircle2 size={14} /> Verified
@@ -324,7 +346,7 @@ export const LoginPage = () => {
                         type="button"
                         onClick={handleSendOtp}
                         disabled={verifyStep === 'sending' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (verifyStep === 'sent' && resendIn > 0)}
-                        className="px-3 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-sky-400 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                        className="px-3 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-sky-400 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 z-10 cursor-pointer pointer-events-auto"
                       >
                         {verifyStep === 'sending' ? 'Sending…' : verifyStep === 'sent' ? (resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend') : 'Verify'}
                       </button>
@@ -370,8 +392,6 @@ export const LoginPage = () => {
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  pattern="\+?[0-9][0-9\s-]{6,14}"
-                  title="Enter a valid phone number (7–15 digits)"
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   placeholder="+91 98765 43210"
                 />
@@ -404,8 +424,8 @@ export const LoginPage = () => {
 
             <button
               type="submit"
-              disabled={isSigningIn || loading || (isRegistering && verifyStep !== 'verified')}
-              className="mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isSigningIn || loading}
+              className="mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
             >
               {isSigningIn || loading ? <Spinner size="sm" className="text-white" /> : (isRegistering ? 'Sign Up' : 'Sign In')}

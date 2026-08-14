@@ -561,7 +561,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
   if (showBarcode && sale.invoiceNumber) {
     lines.push(divider('-', COLS))
-    lines.push(centerText('|||||||||||||||||||||||', COLS))
+    lines.push(centerText('', COLS))
     lines.push(centerText(sale.invoiceNumber, COLS))
   }
 
