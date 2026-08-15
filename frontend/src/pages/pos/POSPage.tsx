@@ -604,12 +604,22 @@ export const POSPage = () => {
           )}
 
           {/* Category Tabs */}
-          <div data-tour="pos-category-tabs" className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide">
+          <div
+            data-tour="pos-category-tabs"
+            onWheel={(e) => {
+              if (e.currentTarget && (e.deltaY !== 0 || e.deltaX !== 0)) {
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                  e.currentTarget.scrollLeft += e.deltaY
+                }
+              }
+            }}
+            className="flex items-center gap-2 mt-4 overflow-x-auto py-1 px-0.5 no-scrollbar scroll-smooth overscroll-x-contain touch-pan-x select-none"
+          >
             <button
               onClick={() => setSelectedCategory('')}
-              className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+              className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                 !selectedCategory
-                  ? 'bg-[#0a0a2e] text-white'
+                  ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
               }`}
             >
@@ -619,9 +629,9 @@ export const POSPage = () => {
               <Fragment key={parent.id}>
                 <button
                   onClick={() => setSelectedCategory(parent.id)}
-                  className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                  className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                     selectedCategory === parent.id
-                      ? 'bg-[#0a0a2e] text-white'
+                      ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
                   }`}
                 >
@@ -631,9 +641,9 @@ export const POSPage = () => {
                   <button
                     key={child.id}
                     onClick={() => setSelectedCategory(child.id)}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                       selectedCategory === child.id
-                        ? 'bg-[#0a0a2e] text-white'
+                        ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >

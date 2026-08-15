@@ -198,6 +198,36 @@ export const ProductsPage = () => {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Category quick filter bar horizontal scroll logic
+  const categoryScrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkCategoryScroll = () => {
+    const el = categoryScrollRef.current
+    if (el) {
+      setCanScrollLeft(el.scrollLeft > 5)
+      setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5)
+    }
+  }
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    const el = categoryScrollRef.current
+    if (el) {
+      const scrollAmount = direction === 'left' ? -280 : 280
+      el.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+      setTimeout(checkCategoryScroll, 300)
+    }
+  }
+
+  const handleCategoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (categoryScrollRef.current && (e.deltaY !== 0 || e.deltaX !== 0)) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        categoryScrollRef.current.scrollLeft += e.deltaY
+      }
+    }
+  }
+
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
   const filtered = activeProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -717,36 +747,65 @@ export const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Category Quick Filter Pills (Horizontal Scrollable on Mobile) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-4 max-w-full no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setCategoryFilter('')}
-          className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
-            !categoryFilter
-              ? 'bg-[#0a0a2e] text-white shadow-xs'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
+      {/* Category Quick Filter Pills (Fully Horizontal Scrollable on Mobile, Tablet & Desktop) */}
+      <div className="relative mb-4 group min-w-0">
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => scrollCategories('left')}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -ml-2"
+            aria-label="Scroll Left"
+          >
+            <ChevronLeft size={15} />
+          </button>
+        )}
+
+        <div
+          ref={categoryScrollRef}
+          onScroll={checkCategoryScroll}
+          onWheel={handleCategoryWheel}
+          className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 max-w-full no-scrollbar scroll-smooth overscroll-x-contain touch-pan-x cursor-grab active:cursor-grabbing select-none"
         >
-          All Categories ({activeProducts.length})
-        </button>
-        {categoryOptions.map(c => {
-          const count = activeProducts.filter(p => p.categoryId === c.value).length
-          return (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
-              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
-                categoryFilter === c.value
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              {c.label} ({count})
-            </button>
-          )
-        })}
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+              !categoryFilter
+                ? 'bg-[#0a0a2e] text-white shadow-xs ring-2 ring-blue-500/20'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            All Categories ({activeProducts.length})
+          </button>
+          {categoryOptions.map(c => {
+            const count = activeProducts.filter(p => p.categoryId === c.value).length
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                  categoryFilter === c.value
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/20'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {c.label} ({count})
+              </button>
+            )
+          })}
+        </div>
+
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollCategories('right')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -mr-2"
+            aria-label="Scroll Right"
+          >
+            <ChevronRight size={15} />
+          </button>
+        )}
       </div>
 
       {/* Main Content */}
