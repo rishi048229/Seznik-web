@@ -968,9 +968,9 @@ export const PrintersPage = () => {
           </div>
 
           {/* Live Preview Panel — 100% Reactive to all Section Toggles */}
-          <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-semibold text-gray-400">Live Preview — {config.paperSize}</span>
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Live Preview — {config.paperSize}</span>
               {receiptConfig.compactMode && (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
                   ⚡ Compact Mode
@@ -978,51 +978,54 @@ export const PrintersPage = () => {
               )}
             </div>
 
-            <div
-              className={`bg-white text-gray-900 p-4 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono transition-all duration-300 ${
-                config.paperSize === '58mm' ? 'w-[270px]' : 'w-[370px]'
-              }`}
-              style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
-            >
-              <pre className="whitespace-pre font-mono text-[11px] leading-[1.3] text-gray-900 overflow-x-auto">
-                {compileReceiptTextLines({
-                  sale: {
-                    id: 'preview-1',
-                    invoiceNumber: 'INV/2026/00142',
-                    items: [
-                      { productId: 'p1', productName: 'Wireless Keyboard', quantity: 1, sellingPrice: 1499, discount: 0, taxRate: 18, taxAmount: 228.66, total: 1499 },
-                      { productId: 'p2', productName: 'Optical Mouse Pro', quantity: 2, sellingPrice: 600, discount: 0, taxRate: 18, taxAmount: 183.05, total: 1200 },
-                      { productId: 'p3', productName: 'Fresh Milk 1L', quantity: 2, sellingPrice: 30, discount: 0, taxRate: 0, taxAmount: 0, total: 60 },
-                    ],
-                    subtotal: 2759,
-                    totalDiscount: 0,
-                    totalTax: 411.71,
-                    grandTotal: 2759,
-                    paymentMethod: 'cash',
-                    amountPaid: 2759,
-                    changeReturned: 0,
-                    isQuickBill: false,
-                    createdAt: new Date().toISOString(),
-                  },
-                  receiptConfig,
-                  businessName: settings?.businessName || 'SEZNIK POS STORE',
-                  businessAddress: receiptConfig.address || settings?.businessAddress || '123 MG Road, Kothrud',
-                  businessPhone: receiptConfig.phone || '9876543210',
-                  businessGSTIN: receiptConfig.gstin || '27AAAAA0000A1Z5',
-                  customerName: 'Rahul Sharma',
-                  paperSize: config.paperSize === '80mm' ? '80mm' : '58mm',
-                }).join('\n')}
-              </pre>
-            </div>
-            <div
-              className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'}`}
-              style={{ backgroundImage: 'radial-gradient(circle, transparent, transparent 50%, #f1f5f9 50%, #f1f5f9 100%)', backgroundSize: '12px 12px' }}
-            />
-            {config.cutPaper && (
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2">
-                <Scissors size={12} /> Auto paper cutter enabled
+            {/* Scrollable Receipt Preview Container */}
+            <div className="w-full max-w-[400px] flex flex-col items-center max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar p-1 pb-4">
+              <div
+                className={`bg-white text-gray-900 p-4 rounded-t-xl shadow-xl border-t-8 border-blue-600 font-mono transition-all duration-300 max-w-full ${
+                  config.paperSize === '58mm' ? 'w-[280px]' : 'w-[360px]'
+                }`}
+                style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.12)' }}
+              >
+                <pre className="whitespace-pre font-mono text-[11px] leading-[1.3] text-gray-900 overflow-x-auto no-scrollbar">
+                  {compileReceiptTextLines({
+                    sale: {
+                      id: 'preview-1',
+                      invoiceNumber: 'INV/2026/00142',
+                      items: [
+                        { productId: 'p1', productName: 'Wireless Keyboard', quantity: 1, sellingPrice: 1499, discount: 0, taxRate: 18, taxAmount: 228.66, total: 1499 },
+                        { productId: 'p2', productName: 'Optical Mouse Pro', quantity: 2, sellingPrice: 600, discount: 0, taxRate: 18, taxAmount: 183.05, total: 1200 },
+                        { productId: 'p3', productName: 'Fresh Milk 1L', quantity: 2, sellingPrice: 30, discount: 0, taxRate: 0, taxAmount: 0, total: 60 },
+                      ],
+                      subtotal: 2759,
+                      totalDiscount: 0,
+                      totalTax: 411.71,
+                      grandTotal: 2759,
+                      paymentMethod: 'cash',
+                      amountPaid: 2759,
+                      changeReturned: 0,
+                      isQuickBill: false,
+                      createdAt: new Date().toISOString(),
+                    },
+                    receiptConfig,
+                    businessName: settings?.businessName || 'SEZNIK POS STORE',
+                    businessAddress: receiptConfig.address || settings?.businessAddress || '123 MG Road, Kothrud',
+                    businessPhone: receiptConfig.phone || '9876543210',
+                    businessGSTIN: receiptConfig.gstin || '27AAAAA0000A1Z5',
+                    customerName: 'Rahul Sharma',
+                    paperSize: config.paperSize === '80mm' ? '80mm' : '58mm',
+                  }).join('\n')}
+                </pre>
               </div>
-            )}
+              <div
+                className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[280px]' : 'w-[360px]'} max-w-full rounded-b-sm`}
+                style={{ backgroundImage: 'radial-gradient(circle, transparent, transparent 50%, #f1f5f9 50%, #f1f5f9 100%)', backgroundSize: '12px 12px' }}
+              />
+              {config.cutPaper && (
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2.5">
+                  <Scissors size={12} /> Auto paper cutter enabled
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

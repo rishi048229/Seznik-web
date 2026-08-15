@@ -970,16 +970,29 @@ export const ProductsPage = () => {
         {/* Right Sidebar - Stats */}
         <div className="space-y-6">
           {/* Total Inventory Value */}
-          <Card data-tour="inventory-value-widget" className="p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative">
-            <div className="relative z-10">
-              <p className="text-xs font-bold uppercase tracking-widest opacity-80">{t('products.totalInventoryValue')}</p>
-              <p className="text-3xl font-black mt-1">{formatINR(totalInventoryValue)}</p>
-              <div className="mt-4 flex items-center gap-2 text-[10px] bg-white/20 w-fit px-2 py-1 rounded-full font-bold">
+          <Card data-tour="inventory-value-widget" className="p-5 sm:p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative min-w-0">
+            <div className="relative z-10 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-80 truncate">{t('products.totalInventoryValue')}</p>
+              <p
+                className={`font-black mt-1.5 tracking-tight break-words truncate ${
+                  totalInventoryValue >= 100000000
+                    ? 'text-xl sm:text-2xl xl:text-2xl'
+                    : totalInventoryValue >= 10000000
+                    ? 'text-2xl sm:text-3xl'
+                    : totalInventoryValue >= 1000000
+                    ? 'text-2xl sm:text-3xl'
+                    : 'text-3xl'
+                }`}
+                title={formatINR(totalInventoryValue)}
+              >
+                {formatINR(totalInventoryValue)}
+              </p>
+              <div className="mt-4 flex items-center gap-2 text-[10px] bg-white/20 w-fit px-2.5 py-1 rounded-full font-bold">
                 <TrendingUp size={12} />
                 {activeProducts.length} products
               </div>
             </div>
-            <div className="absolute -right-4 -bottom-4 opacity-10">
+            <div className="absolute -right-4 -bottom-4 opacity-10 pointer-events-none">
               <Layers size={96} />
             </div>
           </Card>
