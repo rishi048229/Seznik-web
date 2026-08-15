@@ -48,6 +48,7 @@ export const POSPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [isScanMode, setIsScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
@@ -335,7 +336,10 @@ export const POSPage = () => {
 
     setIsPrintingAnimating(true)
 
-    const receiptConfig = settings?.receiptConfig
+    const receiptConfig = {
+      ...settings?.receiptConfig,
+      showTaxBreakdown,
+    }
     const customerName = lastSaleData.selectedCustomer
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
       : ''
@@ -369,7 +373,10 @@ export const POSPage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = settings?.receiptConfig
+      const receiptConfig = {
+        ...settings?.receiptConfig,
+        showTaxBreakdown,
+      }
       const customerName = lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
         : ''
@@ -1031,8 +1038,25 @@ export const POSPage = () => {
 
       {/* Print Format Modal */}
       <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); }} title={t('pos.printReceiptTitle')} size="sm">
-        <div className="space-y-6">
+        <div className="space-y-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
+
+          {/* Show / Hide Tax Info Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">Show Tax &amp; GST Info</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Include GST columns &amp; tax breakdown in bill</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTaxBreakdown}
+                onChange={(e) => setShowTaxBreakdown(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <button

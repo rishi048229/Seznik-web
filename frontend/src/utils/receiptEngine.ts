@@ -3,7 +3,7 @@ import type { ReceiptConfig } from '@/types/settings.types'
 
 export interface CompileReceiptParams {
   sale: Sale
-  receiptConfig?: ReceiptConfig | null
+  receiptConfig?: Partial<ReceiptConfig> | null
   businessName?: string
   businessAddress?: string
   businessPhone?: string
@@ -422,7 +422,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
       const gstStr = (totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0)
-        ? `${item.taxRate}%`
+        ? `${Math.round(item.taxRate * 100) / 100}%`
         : ''
 
       const nameWidth = 22
@@ -455,7 +455,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
       const gstStr = (totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0)
-        ? `${item.taxRate}%`
+        ? `${Math.round(item.taxRate * 100) / 100}%`
         : ''
 
       const fullName = `${index + 1} ${item.productName}`
@@ -510,7 +510,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       ], COLS))
       totals.taxGroups.forEach(g => {
         lines.push(cols([
-          { text: `${g.taxRate}%`, width: 6, align: 'R' },
+          { text: `${Math.round(g.taxRate * 100) / 100}%`, width: 6, align: 'R' },
           { text: formatIndianNumber(g.taxableAmount), width: 14, align: 'R' },
           { text: formatIndianNumber(g.cgst), width: 14, align: 'R' },
           { text: formatIndianNumber(g.sgst), width: 14, align: 'R' },
@@ -525,7 +525,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       ], COLS))
       totals.taxGroups.forEach(g => {
         lines.push(cols([
-          { text: `${g.taxRate}%`, width: 4, align: 'R' },
+          { text: `${Math.round(g.taxRate * 100) / 100}%`, width: 4, align: 'R' },
           { text: formatIndianNumber(g.taxableAmount), width: 10, align: 'R' },
           { text: formatIndianNumber(g.cgst), width: 9, align: 'R' },
           { text: formatIndianNumber(g.sgst), width: 9, align: 'R' },

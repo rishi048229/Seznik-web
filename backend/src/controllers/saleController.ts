@@ -56,20 +56,39 @@ export const createSale = async (req: Request, res: Response) => {
       // Update product stock
       if (data.items && Array.isArray(data.items)) {
         for (const item of data.items) {
-          if (item.productId) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { currentStock: { decrement: item.quantity } }
-            });
-            await tx.stockHistory.create({
-              data: {
-                change: -item.quantity,
-                reason: 'sale',
-                productId: item.productId,
+          let targetProductId = item.productId || '';
+          if (!targetProductId && item.productName) {
+            const foundProd = await tx.product.findFirst({
+              where: {
                 userId,
-                createdAt: saleDate,
-              }
+                name: { equals: String(item.productName).trim(), mode: 'insensitive' },
+                isActive: { not: false },
+              },
             });
+            if (foundProd) {
+              targetProductId = foundProd.id;
+            }
+          }
+
+          if (targetProductId) {
+            const prod = await tx.product.findFirst({
+              where: { id: targetProductId, userId },
+            });
+            if (prod) {
+              await tx.product.update({
+                where: { id: targetProductId },
+                data: { currentStock: { decrement: item.quantity } },
+              });
+              await tx.stockHistory.create({
+                data: {
+                  change: -item.quantity,
+                  reason: 'sale',
+                  productId: targetProductId,
+                  userId,
+                  createdAt: saleDate,
+                },
+              });
+            }
           }
         }
       }

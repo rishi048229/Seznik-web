@@ -5,7 +5,7 @@ import { compileReceiptTextLines } from './receiptEngine'
 
 interface GenerateReceiptHTMLParams {
   sale: Sale
-  receiptConfig?: ReceiptConfig | null
+  receiptConfig?: Partial<ReceiptConfig> | null
   businessName?: string
   businessAddress?: string
   customerName?: string
@@ -87,6 +87,14 @@ export const generateReceiptHTML = ({
     : (saleItems[0]?.taxRate ?? inferredTaxRate ?? settingsTaxRate ?? 0)
   const effectiveTaxName = settingsTaxName || 'GST'
 
+  const formatTaxRate = (rate: number): string => {
+    if (!rate || isNaN(rate)) return '0'
+    const rounded = Math.round(rate * 100) / 100
+    return rounded.toString()
+  }
+
+  const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
+
   // ─── Font sizes ──────────────────────────────────────────────────────────
   // Thermal: 58mm vs 80mm vs A4
   const headerFS = is80mm ? '17px' : isThermal ? '15px' : '20px'
@@ -99,11 +107,6 @@ export const generateReceiptHTML = ({
   const sep = `<div style="border-top:1px dashed #000;margin:${isThermal ? '2px' : '3px'} 0;"></div>`
   const sepS = `<div style="border-top:2px solid #000;margin:${isThermal ? '2px' : '3px'} 0;"></div>`
 
-  // ─── Tax calculations ────────────────────────────────────────────────────
-  // For A4: Show IGST (interstate) as single tax column matching reference
-  // For Thermal: Show SGST + CGST split (intrastate) matching thermal reference
-  
-
   // ══════════════════════════════════════════════════════════════════════════
   // A4 INVOICE HTML
   // ══════════════════════════════════════════════════════════════════════════
@@ -115,7 +118,22 @@ export const generateReceiptHTML = ({
       const lineSubtotal = item.sellingPrice * item.quantity
       const itemRate = item.taxRate || effectiveTaxRate
       const igstAmt = item.taxAmount || (lineSubtotal * (itemRate / 100))
-      const baseAmt = lineSubtotal + igstAmt - (item.discount || 0)
+      const baseAmt = lineSubtotal + (showTaxBreakdown ? igstAmt : 0) - (item.discount || 0)
+
+      if (!showTaxBreakdown) {
+        return `
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
+          <td style="padding:10px 12px;font-size:14px;">
+            <div style="font-weight:700;">${item.productName}</div>
+          </td>
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
+          <td style="padding:10px 12px;font-size:14px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
+          <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right;">${baseAmt.toFixed(2)}</td>
+        </tr>`
+      }
+
       return `
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
@@ -128,7 +146,7 @@ export const generateReceiptHTML = ({
           <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
           <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
           <td style="padding:10px 12px;font-size:14px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${itemRate}%</td>
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">${formatTaxRate(itemRate)}%</td>
           <td style="padding:10px 12px;font-size:14px;text-align:right;">${igstAmt.toFixed(2)}</td>
           <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right;">${baseAmt.toFixed(2)}</td>
         </tr>`
@@ -137,6 +155,7 @@ export const generateReceiptHTML = ({
     const totalInWords = numberToWords(sale.grandTotal)
     const paymentMade = sale.amountPaid || 0
     const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
+    const invoiceTitle = showTaxBreakdown ? 'TAX INVOICE' : 'INVOICE'
 
     return `
 <div style="font-family:Arial,sans-serif;color:#000;width:100%;min-height:267mm;box-sizing:border-box;border:1px solid #374151;padding:0;">
@@ -151,7 +170,7 @@ export const generateReceiptHTML = ({
       ${companyGSTIN ? `<div style="font-size:12px;font-weight:700;color:#1e3a8a;">GSTIN: ${companyGSTIN}</div>` : ''}
     </div>
     <div style="text-align:right;">
-      <div style="font-size:26px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">TAX INVOICE</div>
+      <div style="font-size:26px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">${invoiceTitle}</div>
       <div style="font-size:14px;font-weight:700;margin-top:4px;"># ${sale.invoiceNumber || '---'}</div>
       <div style="font-size:12px;color:#6b7280;margin-top:2px;">Date: ${dateStr}</div>
       <div style="font-size:12px;color:#6b7280;">Due Date: ${dueDateStr}</div>
@@ -179,15 +198,18 @@ export const generateReceiptHTML = ({
         <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">HSN/SAC</th>
         <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">Qty</th>
         <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">Rate</th>
+        ${showTaxBreakdown ? `
         <th colspan="2" style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;border-left:1px solid rgba(255,255,255,0.3);">IGST</th>
-        <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">Base Amount</th>
+        ` : ''}
+        <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">${showTaxBreakdown ? 'Base Amount' : 'Amount'}</th>
       </tr>
+      ${showTaxBreakdown ? `
       <tr style="background:#1e3a8a;color:#fff;">
         <th colspan="5" style="padding:2px;"></th>
         <th style="padding:5px 12px;text-align:center;font-size:12px;border-left:1px solid rgba(255,255,255,0.3);">%</th>
         <th style="padding:5px 12px;text-align:right;font-size:12px;">Amt</th>
         <th style="padding:2px;"></th>
-      </tr>
+      </tr>` : ''}
     </thead>
     <tbody>
       ${a4ItemRows}
@@ -208,9 +230,9 @@ export const generateReceiptHTML = ({
         <span style="font-size:12px;color:#6b7280;">Sub Total</span>
         <span style="font-size:12px;font-weight:600;">${sale.subtotal.toFixed(2)}</span>
       </div>
-      ${totalTax > 0 ? `
+      ${(showTaxBreakdown && totalTax > 0) ? `
       <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">${effectiveTaxName} (${effectiveTaxRate}%)</span>
+        <span style="font-size:12px;color:#6b7280;">${effectiveTaxName} (${formatTaxRate(effectiveTaxRate)}%)</span>
         <span style="font-size:12px;">${totalTax.toFixed(2)}</span>
       </div>` : ''}
       ${sale.totalDiscount > 0 ? `
@@ -370,7 +392,7 @@ export const printReceipt = (
 // ─────────────────────────────────────────────────────────────────────────────
 interface GenerateReceiptEscPosParams {
   sale: Sale
-  receiptConfig?: ReceiptConfig | null
+  receiptConfig?: Partial<ReceiptConfig> | null
   paperSize?: '58mm' | '80mm'
   businessName?: string
   businessAddress?: string
