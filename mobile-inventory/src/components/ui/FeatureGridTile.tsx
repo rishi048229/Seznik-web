@@ -57,7 +57,7 @@ export function FeatureGridTile({ label, badge, icon: Icon, color, onPress, them
           <Icon size={28} color={color} strokeWidth={1.9} />
         </View>
 
-        <Text style={[styles.label, { color: theme.textPrimary }]} numberOfLines={1}>
+        <Text style={[styles.label, { color: theme.textPrimary }]} numberOfLines={2}>
           {label}
         </Text>
       </TouchableOpacity>
