@@ -12,7 +12,7 @@ interface AuthContextType {
   loginWithEmail: (email: string, pass: string) => Promise<void>
   registerWithEmail: (email: string, pass: string, fName: string, lName: string, phone: string) => Promise<void>
   signOut: () => Promise<void>
-  setUserRole: (role: UserRole, name: string, password: string) => Promise<void>
+  setUserRole: (role: UserRole, name: string, password: string, agentUid?: string) => Promise<void>
   completeOnboarding: (businessName: string) => Promise<void>
   clearWorkspaceSelection: () => void
   hasRole: () => boolean
@@ -89,10 +89,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserProfile(null)
   }
 
-  const handleSetUserRole = async (role: UserRole, name: string, password: string) => {
+  const handleSetUserRole = async (role: UserRole, name: string, password: string, agentUid?: string) => {
     if (!user) throw new Error('No user logged in')
-    await setUserRoleAndProfile(user.id || user.uid, role, name, password)
-    const updatedProfile = await getUserProfile()
+    const res = await setUserRoleAndProfile(user.id || user.uid, role, name, password, agentUid)
+    const updatedProfile = res?.user || await getUserProfile()
+    setUser(updatedProfile)
     setUserProfile(updatedProfile ? { ...updatedProfile, role } : null)
     setHasSelectedWorkspace(true)
     localStorage.setItem('hasSelectedWorkspace', 'true')

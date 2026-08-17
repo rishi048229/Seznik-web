@@ -84,14 +84,17 @@ export const setUserRoleAndProfile = async (
   uid: string,
   role: UserRole,
   name: string,
-  password: string
-): Promise<void> => {
-  // In a real application, we would call an endpoint to update user role and managed users.
-  // We need to implement this in the backend, but for now we simulate a call.
-  await fetchApi('/auth/setRole', {
+  password: string,
+  agentUid?: string
+): Promise<{ user?: UserProfile; token?: string }> => {
+  const data = await fetchApi('/auth/setRole', {
     method: 'POST',
-    body: JSON.stringify({ uid, role, name, password }),
+    body: JSON.stringify({ uid, role, name, password, agentUid }),
   })
+  if (data?.token) {
+    setAuthToken(data.token)
+  }
+  return data as { user?: UserProfile; token?: string }
 }
 
 export const completeOnboarding = async (
@@ -121,6 +124,17 @@ export const updateUserPassword = async (
   await fetchApi(`/auth/password/${uid}`, {
     method: 'PUT',
     body: JSON.stringify({ password: newPassword }),
+  })
+}
+
+export const updateManagedUserPasswordDirectly = async (
+  adminUid: string,
+  uid: string,
+  newPassword: string
+): Promise<void> => {
+  await fetchApi(`/auth/managed-users/${adminUid}/password`, {
+    method: 'POST',
+    body: JSON.stringify({ uid, newPassword }),
   })
 }
 

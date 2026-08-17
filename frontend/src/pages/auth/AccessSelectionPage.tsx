@@ -17,6 +17,7 @@ export const AccessSelectionPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
+  const [selectedAgentUid, setSelectedAgentUid] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [agents, setAgents] = useState<UserProfile[]>([])
   const [isLoadingAgents, setIsLoadingAgents] = useState(true)
@@ -41,6 +42,9 @@ export const AccessSelectionPage = () => {
         if (isMounted) {
           const agentList = (list || []).filter(u => u.role === 'agent')
           setAgents(agentList)
+          if (agentList.length > 0) {
+            setSelectedAgentUid(agentList[0].uid)
+          }
         }
       } catch (err) {
         console.error('Failed to load agents for access selection:', err)
@@ -68,7 +72,13 @@ export const AccessSelectionPage = () => {
     }
 
     setSelectedRole(role)
-    setName(user?.displayName || user?.email || '')
+    if (role === 'agent' && agents.length > 0) {
+      const defaultAgent = agents[0]
+      setSelectedAgentUid(defaultAgent.uid)
+      setName(defaultAgent.displayName || defaultAgent.email || '')
+    } else {
+      setName(user?.displayName || user?.email || '')
+    }
     setPassword('')
     setIsModalOpen(true)
   }
@@ -84,10 +94,20 @@ export const AccessSelectionPage = () => {
       return
     }
 
+    if (selectedRole === 'agent' && !isCurrentUserAgent && !selectedAgentUid) {
+      toast.error('Please select an agent account from the dropdown')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      await setUserRole(selectedRole, name.trim() || user.displayName || user.email || '', password)
+      await setUserRole(
+        selectedRole,
+        name.trim() || user.displayName || user.email || '',
+        password,
+        selectedRole === 'agent' && !isCurrentUserAgent ? selectedAgentUid : undefined
+      )
 
       toast.success(`Logged in as ${selectedRole}`)
       navigate(ROUTES.DASHBOARD)
@@ -249,7 +269,7 @@ export const AccessSelectionPage = () => {
           setName('')
           setPassword('')
         }}
-        title={`Enter details for ${selectedRole === 'admin' ? 'Admin' : 'Agent'} Access`}
+        title={selectedRole === 'admin' ? 'Confirm Admin Access' : 'Select Agent & Enter Password'}
         size="md"
         footer={
           <div className="flex justify-end gap-3">
@@ -274,29 +294,55 @@ export const AccessSelectionPage = () => {
         }
       >
         <div className="space-y-4">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-            <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold">Account Email</span>
-            <span className="text-sm font-bold text-slate-800">{user?.email}</span>
-          </div>
+          {selectedRole === 'agent' && agents.length > 0 ? (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                Select Agent Account
+              </label>
+              <select
+                value={selectedAgentUid}
+                onChange={(e) => {
+                  setSelectedAgentUid(e.target.value)
+                  const chosen = agents.find(a => a.uid === e.target.value)
+                  if (chosen) setName(chosen.displayName || chosen.email || '')
+                }}
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+              >
+                {agents.map(a => (
+                  <option key={a.uid} value={a.uid}>
+                    {a.displayName} {a.email ? `(${a.email})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold">Account Email</span>
+                <span className="text-sm font-bold text-slate-800">{user?.email}</span>
+              </div>
+
+              <Input
+                label="Account Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your name"
+              />
+            </>
+          )}
 
           <Input
-            label="Account Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your name"
-          />
-          <Input
-            label="Account Password"
+            label={selectedRole === 'agent' ? "Agent Password" : "Admin Password"}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password to confirm access"
+            placeholder={selectedRole === 'agent' ? "Enter password for selected agent" : "Enter admin password to confirm access"}
             autoFocus
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {selectedRole === 'admin'
               ? 'Admin access grants full permissions to all features including stock management, reports, and settings.'
-              : 'Agent access is limited to POS, sales, products (view-only), and customer management.'}
+              : 'Agent access will enforce the specific permissions configured by the Admin.'}
           </p>
         </div>
       </Modal>

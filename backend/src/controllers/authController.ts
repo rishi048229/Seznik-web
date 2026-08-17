@@ -443,8 +443,43 @@ export const getProfile = async (req: Request, res: Response) => {
 export const setRole = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { role, password } = req.body;
+    const { role, password, agentUid } = req.body;
 
+    // 1. If switching to a specific agent account from access selection
+    if (role === 'agent' && agentUid) {
+      const managedUser = await prisma.managedUser.findFirst({
+        where: { uid: agentUid, adminId: userId },
+      });
+
+      if (!managedUser) {
+        return res.status(404).json({ error: 'Selected agent account not found' });
+      }
+
+      if (password) {
+        const isMatch = await bcrypt.compare(password, managedUser.password || '');
+        if (!isMatch) {
+          return res.status(400).json({ error: 'Invalid password for selected agent' });
+        }
+      }
+
+      // Generate new token for the managed user
+      const token = generateToken(managedUser.id, managedUser.role || 'agent');
+      return res.json({
+        user: {
+          id: managedUser.id,
+          uid: managedUser.uid,
+          email: managedUser.email,
+          displayName: managedUser.displayName,
+          role: managedUser.role || 'agent',
+          permissions: managedUser.permissions,
+          accountType: 'managed',
+          onboardingCompleted: true,
+        },
+        token,
+      });
+    }
+
+    // 2. Regular user role confirmation (Admin or Direct user)
     let user = await prisma.user.findUnique({ where: { id: userId } });
     if (user) {
       if (password) {
@@ -458,7 +493,7 @@ export const setRole = async (req: Request, res: Response) => {
         data: { role: role || user.role || 'admin' },
       });
       const { password: _, ...userWithoutPassword } = updatedUser;
-      return res.json(userWithoutPassword);
+      return res.json({ user: userWithoutPassword });
     }
 
     let managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
@@ -477,13 +512,43 @@ export const setRole = async (req: Request, res: Response) => {
         data: { role: role || managedUser.role || 'agent' },
       });
       const { password: _, ...userWithoutPassword } = updatedManaged;
-      return res.json(userWithoutPassword);
+      return res.json({ user: userWithoutPassword });
     }
 
     return res.status(404).json({ error: 'User not found' });
   } catch (error) {
     console.error('setRole error:', error);
     res.status(500).json({ error: 'Server error setting role' });
+  }
+};
+
+export const updateManagedUserPassword = async (req: Request, res: Response) => {
+  try {
+    const adminId = (req as any).user.id;
+    const { uid, newPassword } = req.body;
+
+    if (!uid || !newPassword) {
+      return res.status(400).json({ error: 'Agent ID and new password are required' });
+    }
+
+    const managed = await prisma.managedUser.findFirst({
+      where: { uid, adminId },
+    });
+
+    if (!managed) {
+      return res.status(404).json({ error: 'Agent account not found' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, await bcrypt.genSalt(10));
+    await prisma.managedUser.update({
+      where: { id: managed.id },
+      data: { password: hashedPassword },
+    });
+
+    res.json({ message: 'Agent password updated successfully' });
+  } catch (error) {
+    console.error('updateManagedUserPassword error:', error);
+    res.status(500).json({ error: 'Failed to update agent password' });
   }
 };
 
