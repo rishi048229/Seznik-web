@@ -14,15 +14,15 @@ const getDynamicHostIp = () => {
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:5000/api`;
+      return `http://${ip}:5001/api`;
     }
   }
 
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000/api'; // Android Emulator alias for host machine
+    return 'http://10.0.2.2:5001/api'; // Android Emulator alias for host machine
   }
 
-  return 'http://192.168.1.53:5000/api';
+  return 'http://192.168.0.11:5001/api';
 };
 
 let currentBaseUrl = getDynamicHostIp();
