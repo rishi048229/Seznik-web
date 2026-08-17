@@ -6,13 +6,15 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Linking,
   Alert,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
   Menu,
   Search,
@@ -40,6 +42,8 @@ export default function SalesHistoryTabScreen() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const filteredSales = sales.filter((sale) => {
     const matchesSearch =
@@ -94,26 +98,31 @@ export default function SalesHistoryTabScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.mainWrapper}>
-        <View style={styles.headerRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => setIsDrawerOpen(true)}
-              style={[styles.menuBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-            >
-              <Menu size={20} color={theme.textPrimary} />
-            </TouchableOpacity>
-            <View style={{ marginLeft: 10 }}>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-                Sales History
-              </Text>
-              <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
-                {sales.length} Invoices recorded
-              </Text>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
+        <View style={styles.mainWrapper}>
+          <View style={styles.headerRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={() => setIsDrawerOpen(true)}
+                style={[styles.menuBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Menu size={20} color={theme.textPrimary} />
+              </TouchableOpacity>
+              <View style={{ marginLeft: 10 }}>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+                  Sales History
+                </Text>
+                <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
+                  {sales.length} Invoices recorded
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
         {/* Search */}
         <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -239,14 +248,14 @@ export default function SalesHistoryTabScreen() {
 
       {/* Sidebar Drawer */}
       <SidebarDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   menuBtn: { padding: 9, borderRadius: 12, borderWidth: 1 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
