@@ -10,8 +10,9 @@ import {
   StyleSheet,
   Platform,
   Switch,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Bluetooth,
@@ -47,6 +48,8 @@ export default function PrintersScreen() {
   const router = useRouter();
   const { settings } = useSettings();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const {
     activeDevice,
@@ -250,10 +253,18 @@ export default function PrintersScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+    <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: topPadding }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
       <View style={styles.mainWrapper}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <ArrowLeft size={20} color={theme.textSecondary} />
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
           </TouchableOpacity>
@@ -890,15 +901,15 @@ export default function PrintersScreen() {
         visible={showAiBillModal}
         onClose={() => setShowAiBillModal(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   guideToggleBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(37, 99, 235, 0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   guideToggleBtnText: { fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600, marginLeft: 4 },

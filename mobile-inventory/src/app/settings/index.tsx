@@ -11,8 +11,10 @@ import {
   Image,
   ActivityIndicator,
   Linking,
+  StatusBar,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -94,6 +96,8 @@ export default function SettingsScreen() {
   });
 
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const handlePickLogo = async () => {
     const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -121,12 +125,12 @@ export default function SettingsScreen() {
       return;
     }
 
-    setIsSavingProfile(true);
     try {
+      setIsSavingProfile(true);
       const payload = {
-        businessName: storeName,
-        businessGSTIN: storeGstin,
-        businessPhone: storePhone,
+        businessName: storeName.trim() || undefined,
+        businessGSTIN: storeGstin.trim() || undefined,
+        businessPhone: storePhone.trim() || undefined,
         businessAddress: storeAddress,
         businessLogoURL: logoUri || undefined,
         upiId: upiId || undefined,
@@ -148,13 +152,18 @@ export default function SettingsScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
       <KeyboardAvoidingWrapper>
       <View style={styles.mainWrapper}>
         <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => (activeSection === 'menu' ? router.back() : setActiveSection('menu'))}
             style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <ArrowLeft size={20} color={theme.textSecondary} />
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>
@@ -377,16 +386,16 @@ export default function SettingsScreen() {
         </ScrollView>
       </View>
       </KeyboardAvoidingWrapper>
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   title: { fontSize: 24, fontWeight: '900', marginBottom: 6 },
   menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },

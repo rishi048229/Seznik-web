@@ -5,13 +5,15 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   Linking,
   Modal,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Search,
@@ -74,6 +76,8 @@ const ageingBucketFor = (days: number): AgeingBucket => {
 export default function CreditsDaybookScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const { daybook, isLoading: isDaybookLoading } = useDaybook();
   const { recordCreditPayment } = useCredits();
@@ -208,18 +212,26 @@ export default function CreditsDaybookScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.mainWrapper}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleShareDaybook} style={styles.shareBtn}>
-            <Share2 size={14} color="#FFFFFF" />
-            <Text style={styles.shareBtnText}>Share Ledger</Text>
-          </TouchableOpacity>
-        </View>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
+        <View style={styles.mainWrapper}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <ArrowLeft size={20} color={theme.textSecondary} />
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleShareDaybook} style={styles.shareBtn}>
+              <Share2 size={14} color="#FFFFFF" />
+              <Text style={styles.shareBtnText}>Share Ledger</Text>
+            </TouchableOpacity>
+          </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>Daybook & Credits</Text>
 
@@ -620,17 +632,16 @@ export default function CreditsDaybookScreen() {
           </View>
         </View>
       </Modal>
-
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   shareBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   shareBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },

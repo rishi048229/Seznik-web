@@ -4,12 +4,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Alert,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Star, Send, MessageSquare } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useFeedback } from '@/hooks/useFeedback';
@@ -40,6 +42,8 @@ const AREAS: { value: string; label: string }[] = [
 export default function FeedbackScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
   const { feedback, isLoading, submitFeedback, isSubmitting } = useFeedback();
 
   const [area, setArea] = useState('general');
@@ -63,10 +67,18 @@ export default function FeedbackScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-      <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.mainWrapper}>
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <ArrowLeft size={20} color={theme.textSecondary} />
               <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
             </TouchableOpacity>
@@ -157,16 +169,16 @@ export default function FeedbackScreen() {
             ))
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  mainWrapper: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   title: { fontSize: 24, fontWeight: '900' },
   subtitle: { fontSize: 12, marginTop: 2, marginBottom: 18 },

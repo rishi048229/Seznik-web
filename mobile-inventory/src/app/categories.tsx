@@ -12,6 +12,7 @@ import {
   Switch,
   StyleSheet,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -141,15 +142,21 @@ export default function CategoriesScreen() {
     ]);
   };
 
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
+
   return (
     <ScreenBackground color={theme.bg}>
-    <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: insets.top || 12 }]}>
+    <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.bg} />
 
       <View style={styles.mainWrapper}>
         {/* Header Bar */}
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <ArrowLeft size={20} color={theme.textSecondary} />
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
           </TouchableOpacity>

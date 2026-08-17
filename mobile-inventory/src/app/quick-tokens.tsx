@@ -11,7 +11,10 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Ticket,
@@ -46,6 +49,10 @@ export default function QuickTokensScreen() {
     deleteToken,
   } = useTokens();
 
+  const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
+
   // Selected Token Type for Issue Sheet
   const [selectedType, setSelectedType] = useState<TokenType | null>(null);
   const [issueQty, setIssueQty] = useState('1');
@@ -58,8 +65,6 @@ export default function QuickTokensScreen() {
   const [editingType, setEditingType] = useState<TokenType | null>(null);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypePrice, setNewTypePrice] = useState('50');
-
-  const theme = useAppTheme();
 
   const handleIssueToken = async () => {
     if (!selectedType) return;
@@ -158,18 +163,26 @@ export default function QuickTokensScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.mainWrapper}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowManageModal(true)} style={styles.manageBtn}>
-            <Settings2 size={16} color={BRAND_COLORS.blue600} />
-            <Text style={styles.manageBtnText}>Manage Types</Text>
-          </TouchableOpacity>
-        </View>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
+        <View style={styles.mainWrapper}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <ArrowLeft size={20} color={theme.textSecondary} />
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowManageModal(true)} style={styles.manageBtn}>
+              <Settings2 size={16} color={BRAND_COLORS.blue600} />
+              <Text style={styles.manageBtnText}>Manage Types</Text>
+            </TouchableOpacity>
+          </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>Quick Ticket Tokens</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -352,16 +365,16 @@ export default function QuickTokensScreen() {
         </KeyboardAvoidingWrapper>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   manageBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(37, 99, 235, 0.12)' },
   manageBtnText: { fontSize: 12, fontWeight: '800', color: BRAND_COLORS.blue600, marginLeft: 4 },

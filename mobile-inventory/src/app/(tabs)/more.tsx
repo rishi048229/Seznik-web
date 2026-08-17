@@ -4,9 +4,11 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Menu,
   Users,
@@ -34,6 +36,8 @@ export default function MoreTabScreen() {
   const { user } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const menuSections = [
     {
@@ -132,11 +136,16 @@ export default function MoreTabScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-      <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
         <View style={styles.headerBar}>
           <TouchableOpacity
             onPress={() => setIsDrawerOpen(true)}
             style={[styles.menuBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Menu size={20} color={theme.textPrimary} />
           </TouchableOpacity>
@@ -182,7 +191,7 @@ export default function MoreTabScreen() {
 
         {/* Sidebar Drawer */}
         <SidebarDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
-      </SafeAreaView>
+      </View>
     </ScreenBackground>
   );
 }

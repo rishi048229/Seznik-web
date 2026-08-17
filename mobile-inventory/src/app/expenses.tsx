@@ -10,8 +10,10 @@ import {
   Alert,
   Image,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
   Search,
   Plus,
@@ -102,6 +104,8 @@ export default function ExpensesScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const { periodExpenses, periodTotal, deltaPct, hasComparison } = useMemo(() => {
     const { start, end, prevStart, prevEnd, hasComparison: cmp } = getPeriodWindow(period);
@@ -236,18 +240,26 @@ export default function ExpensesScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.mainWrapper}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
-            <Plus size={16} color="#FFFFFF" />
-            <Text style={styles.addBtnText}>Add Expense</Text>
-          </TouchableOpacity>
-        </View>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
+        <View style={styles.mainWrapper}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <ArrowLeft size={20} color={theme.textSecondary} />
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
+              <Plus size={16} color="#FFFFFF" />
+              <Text style={styles.addBtnText}>Add Expense</Text>
+            </TouchableOpacity>
+          </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>Expense Tracker</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -500,16 +512,16 @@ export default function ExpensesScreen() {
         </SafeAreaView>
         </KeyboardAvoidingWrapper>
       </Modal>
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   addBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   addBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },

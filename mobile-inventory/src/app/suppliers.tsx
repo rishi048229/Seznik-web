@@ -6,13 +6,15 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Alert,
   Linking,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
   Search,
   Plus,
@@ -53,6 +55,8 @@ export default function SuppliersScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const filteredSuppliers = suppliers.filter(
     (s) =>
@@ -90,24 +94,31 @@ export default function SuppliersScreen() {
   };
 
   const handleSaveSupplier = async () => {
-    if (!name.trim() || !phone.trim()) {
-      Alert.alert('Required Fields', 'Please enter the supplier name and phone number.');
+    if (!name.trim()) {
+      Alert.alert('Validation Error', 'Supplier Name is required');
       return;
     }
-    setSubmitting(true);
+
     try {
-      const payload = {
+      setSubmitting(true);
+      const supplierPayload: Partial<Supplier> = {
         name: name.trim(),
-        phone: phone.trim(),
+        phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         gstin: gstin.trim() || undefined,
         address: address.trim() || undefined,
       };
 
       if (editingSupplier) {
-        await updateSupplier({ id: editingSupplier.id, payload });
+        await updateSupplier({ id: editingSupplier.id, payload: supplierPayload as any });
       } else {
-        await createSupplier(payload);
+        await createSupplier({
+          name: name.trim(),
+          phone: phone.trim() || '',
+          email: email.trim() || undefined,
+          gstin: gstin.trim() || undefined,
+          address: address.trim() || undefined,
+        });
       }
       setShowModal(false);
     } catch (err: any) {
@@ -117,8 +128,8 @@ export default function SuppliersScreen() {
     }
   };
 
-  const handleDeleteSupplier = (s: Supplier) => {
-    Alert.alert('Delete Supplier', `Are you sure you want to delete ${s.name}?`, [
+  const handleDelete = (s: Supplier) => {
+    Alert.alert('Delete Supplier', `Are you sure you want to remove "${s.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -141,19 +152,27 @@ export default function SuppliersScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.mainWrapper}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
-          </TouchableOpacity>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
+        <View style={styles.mainWrapper}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <ArrowLeft size={20} color={theme.textSecondary} />
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
-            <Plus size={16} color="#FFFFFF" />
-            <Text style={styles.addBtnText}>Add Supplier</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
+              <Plus size={16} color="#FFFFFF" />
+              <Text style={styles.addBtnText}>Add Supplier</Text>
+            </TouchableOpacity>
+          </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>Suppliers Directory</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -225,7 +244,7 @@ export default function SuppliersScreen() {
                     <TouchableOpacity onPress={() => handleOpenEdit(item)} style={[styles.iconBtn, { marginLeft: 8 }]}>
                       <Edit3 size={15} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteSupplier(item)} style={[styles.iconBtn, { marginLeft: 8 }]}>
+                    <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.iconBtn, { marginLeft: 8 }]}>
                       <Trash2 size={15} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
@@ -352,16 +371,16 @@ export default function SuppliersScreen() {
         </SafeAreaView>
         </KeyboardAvoidingWrapper>
       </Modal>
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   addBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   addBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },

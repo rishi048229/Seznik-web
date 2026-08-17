@@ -6,13 +6,15 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Alert,
   StyleSheet,
   Linking,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
   Search,
   Plus,
@@ -69,6 +71,8 @@ export default function CustomersScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   // Metrics Calculations
   const totalCustomers = customers.length;
@@ -147,10 +151,18 @@ export default function CustomersScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-      <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
         <View style={styles.mainWrapper}>
           {/* TOP NAV BAR */}
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <ArrowLeft size={20} color={theme.textSecondary} />
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back to More</Text>
           </TouchableOpacity>
@@ -419,15 +431,15 @@ export default function CustomersScreen() {
             refetch();
           }}
         />
-      </SafeAreaView>
+      </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4, marginBottom: 8 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 6 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   headerTitle: { fontSize: 24, fontWeight: '900' },

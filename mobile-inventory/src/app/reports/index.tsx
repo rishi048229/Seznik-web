@@ -4,11 +4,13 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Linking,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   PieChart,
@@ -38,6 +40,8 @@ export default function ReportsScreen() {
   const { data, isLoading } = useReports(period);
 
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const handleShareReport = () => {
     const summary = `*Seznik POS Financial Summary*\nPeriod: ${period.toUpperCase()}\nTab: ${activeTab.toUpperCase()}\nTotal Revenue: ₹${(
@@ -50,20 +54,28 @@ export default function ReportsScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-    <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.mainWrapper}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
-          </TouchableOpacity>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
+        <View style={styles.mainWrapper}>
+          {/* Header */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <ArrowLeft size={20} color={theme.textSecondary} />
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleShareReport} style={styles.shareBtn}>
-            <Share2 size={14} color="#FFFFFF" />
-            <Text style={styles.shareBtnText}>Share Report</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity onPress={handleShareReport} style={styles.shareBtn}>
+              <Share2 size={14} color="#FFFFFF" />
+              <Text style={styles.shareBtnText}>Share Report</Text>
+            </TouchableOpacity>
+          </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>Financial Reports</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -250,16 +262,16 @@ export default function ReportsScreen() {
           )}
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   shareBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   shareBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },

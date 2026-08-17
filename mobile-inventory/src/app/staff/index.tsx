@@ -12,7 +12,10 @@ import {
   Alert,
   Switch,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Plus,
   ArrowLeft,
@@ -53,6 +56,8 @@ const EMPTY_PERMISSIONS: UserPermissions = {
 export default function StaffScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
   const { staff, isLoading, createStaff, isCreating, updateStaff, removeStaff, isSyncing } = useManagedUsers();
 
   const [showModal, setShowModal] = useState(false);
@@ -75,65 +80,66 @@ export default function StaffScreen() {
     setShowModal(true);
   };
 
-  const handleOpenEdit = (s: ManagedUser) => {
-    setEditingStaff(s);
-    setDisplayName(s.displayName || '');
-    setEmail(s.email || '');
+  const handleOpenEdit = (member: ManagedUser) => {
+    setEditingStaff(member);
+    setDisplayName(member.displayName || '');
+    setEmail(member.email || '');
     setPassword('');
-    setRole(s.role === 'admin' ? 'admin' : 'agent');
-    setPermissions({ ...EMPTY_PERMISSIONS, ...(s.permissions || {}) });
+    setRole((member.role as any) === 'admin' ? 'admin' : 'agent');
+    setPermissions(member.permissions || EMPTY_PERMISSIONS);
     setShowModal(true);
   };
 
-  const handleSave = async () => {
-    if (!displayName.trim()) {
-      Alert.alert('Required Field', 'Please enter a name for this staff member.');
+  const handleTogglePerm = (key: keyof UserPermissions) => {
+    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSaveStaff = async () => {
+    if (!email.trim()) {
+      Alert.alert('Validation', 'Email is required');
       return;
     }
     if (!editingStaff && !password.trim()) {
-      Alert.alert('Password Required', 'A password is required when creating a new staff account.');
+      Alert.alert('Validation', 'Temporary Password is required for new staff');
       return;
     }
 
-    setSubmitting(true);
     try {
+      setSubmitting(true);
       if (editingStaff) {
-        const changes: Partial<ManagedUser> & { password?: string } = {
-          displayName: displayName.trim(),
-          email: email.trim() || null,
+        await updateStaff(editingStaff.uid, {
+          displayName: displayName.trim() || editingStaff.displayName,
           role,
           permissions,
-        };
-        if (password.trim()) changes.password = password.trim();
-        await updateStaff(editingStaff.uid, changes);
+        });
       } else {
         await createStaff({
-          displayName: displayName.trim(),
-          email: email.trim() || undefined,
+          email: email.trim(),
           password: password.trim(),
+          displayName: displayName.trim() || email.split('@')[0] || 'Staff',
           role,
           permissions,
         });
       }
       setShowModal(false);
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save staff member.');
+    } catch (e: any) {
+      Alert.alert('Save Failed', e?.message || 'Please check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = (s: ManagedUser) => {
-    Alert.alert('Remove Staff Member', `Remove ${s.displayName || 'this staff member'}? They will lose access immediately.`, [
+  const handleDeleteStaff = (member: ManagedUser) => {
+    Alert.alert('Remove Staff', `Are you sure you want to delete ${member.displayName || member.email}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Remove',
+        text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           try {
-            await removeStaff(s.uid);
+            await removeStaff(member.uid);
           } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Failed to remove staff member.');
+            Alert.alert('Delete Failed', e?.message || 'Could not delete staff account.');
           }
         },
       },
@@ -145,10 +151,18 @@ export default function StaffScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-      <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <StatusBar
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.bg}
+      />
+      <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
         <View style={styles.mainWrapper}>
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <ArrowLeft size={20} color={theme.textSecondary} />
               <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
             </TouchableOpacity>
@@ -200,7 +214,7 @@ export default function StaffScreen() {
                     <TouchableOpacity onPress={() => handleOpenEdit(item)} style={styles.iconBtn}>
                       <Edit3 size={16} color={theme.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.iconBtn, { marginLeft: 8 }]}>
+                    <TouchableOpacity onPress={() => handleDeleteStaff(item)} style={[styles.iconBtn, { marginLeft: 8 }]}>
                       <Trash2 size={16} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
@@ -304,7 +318,7 @@ export default function StaffScreen() {
               )}
 
               <TouchableOpacity
-                onPress={handleSave}
+                onPress={handleSaveStaff}
                 disabled={submitting || isCreating || isSyncing}
                 style={[styles.submitBtn, { marginTop: 24 }]}
               >
@@ -315,16 +329,16 @@ export default function StaffScreen() {
           </SafeAreaView>
           </KeyboardAvoidingWrapper>
         </Modal>
-      </SafeAreaView>
+      </View>
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   addBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   addBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },
