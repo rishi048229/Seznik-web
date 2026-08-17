@@ -24,6 +24,7 @@ import {
   Settings,
   Ticket,
   Printer,
+  Calculator,
   LogOut,
   ChevronRight,
   ShieldCheck,
@@ -89,7 +90,8 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, route: '/(tabs)' },
         { id: 'pos', label: 'Full POS Checkout', icon: ShoppingBag, route: '/(tabs)/pos' },
-        { id: 'sales', label: 'Sales History & Receipts', icon: Receipt, route: '/(tabs)/sales' },
+        { id: 'calculator', label: 'POS Calculator', icon: Calculator, route: '/(tabs)/calculator' },
+        { id: 'sales', label: 'Sales History & Receipts', icon: Receipt, route: '/sales' },
         { id: 'tokens', label: 'Quick Counter Tokens', icon: Ticket, route: '/quick-tokens' },
       ],
     },

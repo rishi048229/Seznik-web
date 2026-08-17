@@ -49,6 +49,7 @@ import {
   PhoneCall,
   MessageCircle,
   Package,
+  Calculator,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -367,6 +368,21 @@ export default function DashboardScreen() {
                   icon={Ticket}
                   color="#F59E0B"
                   onPress={() => router.push('/quick-tokens' as any)}
+                  theme={theme}
+                />
+                <FeatureGridTile
+                  label="Calculator"
+                  badge="NEW"
+                  icon={Calculator}
+                  color="#6366F1"
+                  onPress={() => router.push('/(tabs)/calculator' as any)}
+                  theme={theme}
+                />
+                <FeatureGridTile
+                  label="Sales History"
+                  icon={Receipt}
+                  color={BRAND_COLORS.blue600}
+                  onPress={() => router.push('/sales' as any)}
                   theme={theme}
                 />
                 <FeatureGridTile

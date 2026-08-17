@@ -30,6 +30,8 @@ import {
   Mic,
   MicOff,
   Layers,
+  Printer,
+  Bluetooth,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
@@ -37,6 +39,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { useSales } from '@/hooks/useSales';
 import { useSettings } from '@/hooks/useSettings';
 import { useCartStore } from '@/store/useCartStore';
+import { usePrinterStore } from '@/store/usePrinterStore';
 import { PaymentMethod } from '@/types/sale';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -46,6 +49,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import type { PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 
@@ -55,8 +59,10 @@ export default function PosScreen() {
   const { categories } = useCategories();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
+  const { activeDevice, connectionState } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
 
   const {
     items: cartItems,
@@ -349,6 +355,26 @@ export default function PosScreen() {
             style={[styles.toolBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
           >
             <Camera size={16} color={theme.textPrimary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowDirectPrinterModal(true)}
+            style={[
+              styles.toolBtn,
+              {
+                backgroundColor:
+                  activeDevice && connectionState === 'connected'
+                    ? 'rgba(16, 185, 129, 0.12)'
+                    : theme.cardBg,
+                borderColor:
+                  activeDevice && connectionState === 'connected' ? '#10B981' : theme.borderColor,
+              },
+            ]}
+          >
+            <Printer
+              size={16}
+              color={activeDevice && connectionState === 'connected' ? '#10B981' : theme.textPrimary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -921,6 +947,12 @@ export default function PosScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* DIRECT PRINTER CONNECT MODAL */}
+      <DirectPrinterConnectModal
+        visible={showDirectPrinterModal}
+        onClose={() => setShowDirectPrinterModal(false)}
+      />
 
       <SidebarDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       </KeyboardAvoidingWrapper>

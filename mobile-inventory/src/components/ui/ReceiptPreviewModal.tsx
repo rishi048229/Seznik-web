@@ -17,6 +17,8 @@ import { getTemplateById } from '@/constants/receiptTemplates';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+
 interface ReceiptPreviewModalProps {
   visible: boolean;
   saleData: PrintSaleData | null;
@@ -28,8 +30,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   saleData,
   onClose,
 }) => {
-  const { activeDevice, paperWidth, topMargin, autoCut, fontSize, printCopies, activeTemplateId } = usePrinterStore();
+  const { activeDevice, connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies, activeTemplateId } = usePrinterStore();
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
   const theme = useAppTheme();
 
   if (!saleData) return null;
@@ -38,6 +41,11 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const printOptions = { template, topMargin, autoCut, fontSize, copies: printCopies };
 
   const handlePrintThermal = async () => {
+    if (!activeDevice || connectionState !== 'connected') {
+      setShowConnectModal(true);
+      return;
+    }
+
     setIsPrinting(true);
     try {
       const ok = await ThermalPrinterService.printReceipt(saleData, paperWidth, printOptions);
@@ -67,6 +75,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const formattedText = ThermalPrinterService.formatReceiptText(saleData, paperWidth, printOptions);
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
@@ -81,13 +90,17 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Active Printer Pill */}
-          <View style={[styles.printerStatusPill, { backgroundColor: activeDevice ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)' }]}>
-            <Printer size={13} color={activeDevice ? '#10B981' : '#F59E0B'} />
-            <Text style={[styles.printerStatusText, { color: activeDevice ? '#10B981' : '#B45309' }]}>
-              {activeDevice ? `Printer: ${activeDevice.name} (${paperWidth})` : `Paper: ${paperWidth} • System Fallback Ready`}
+          {/* Active Printer Pill - Tappable to connect directly */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowConnectModal(true)}
+            style={[styles.printerStatusPill, { backgroundColor: activeDevice && connectionState === 'connected' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)' }]}
+          >
+            <Printer size={13} color={activeDevice && connectionState === 'connected' ? '#10B981' : '#F59E0B'} />
+            <Text style={[styles.printerStatusText, { color: activeDevice && connectionState === 'connected' ? '#10B981' : '#B45309' }]}>
+              {activeDevice && connectionState === 'connected' ? `Printer: ${activeDevice.name} (${paperWidth})` : `No Printer Connected • Tap to Connect`}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Thermal Paper Scroll Container */}
           <ScrollView style={styles.paperScrollView} contentContainerStyle={{ paddingVertical: 12 }}>
@@ -117,6 +130,19 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
         </View>
       </View>
     </Modal>
+
+    <DirectPrinterConnectModal
+      visible={showConnectModal}
+      onClose={() => setShowConnectModal(false)}
+      onConnected={() => {
+        setTimeout(() => {
+          handlePrintThermal();
+        }, 400);
+      }}
+      showContinueWithoutPrinter={true}
+      onContinueWithoutPrinter={handleSystemPrint}
+    />
+    </>
   );
 };
 

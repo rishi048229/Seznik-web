@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
-import { LayoutDashboard, ShoppingBag, Receipt, Package, Menu } from 'lucide-react-native';
+import { LayoutDashboard, ShoppingBag, Calculator, Package, Menu } from 'lucide-react-native';
 import { useCartStore } from '@/store/useCartStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
@@ -56,10 +56,10 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="sales"
+          name="calculator"
           options={{
-            title: 'Sales',
-            tabBarIcon: ({ color, size }) => <Receipt size={size} color={color} />,
+            title: 'Calculator',
+            tabBarIcon: ({ color, size }) => <Calculator size={size} color={color} />,
           }}
         />
         <Tabs.Screen
