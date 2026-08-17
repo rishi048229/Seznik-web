@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { Shield, Store, ArrowRight, Lock, BadgeCheck, History } from 'lucide-react'
-import type { UserRole } from '@/types/auth.types'
+import { Shield, Store, ArrowRight, Lock, BadgeCheck, History, AlertCircle } from 'lucide-react'
+import type { UserRole, UserProfile } from '@/types/auth.types'
+import { getAllUsers } from '@/services/authService'
 import toast from 'react-hot-toast'
 import { ROUTES } from '@/constants/routes'
 
@@ -17,12 +18,55 @@ export const AccessSelectionPage = () => {
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [agents, setAgents] = useState<UserProfile[]>([])
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+    const fetchAgents = async () => {
+      if (!user) {
+        setIsLoadingAgents(false)
+        return
+      }
+
+      // If user is already logged in with agent role, agent access is directly allowed
+      if (user.role === 'agent') {
+        setIsLoadingAgents(false)
+        return
+      }
+
+      try {
+        const uid = user.uid || (user as any).id || ''
+        const list = await getAllUsers(uid)
+        if (isMounted) {
+          const agentList = (list || []).filter(u => u.role === 'agent')
+          setAgents(agentList)
+        }
+      } catch (err) {
+        console.error('Failed to load agents for access selection:', err)
+      } finally {
+        if (isMounted) setIsLoadingAgents(false)
+      }
+    }
+
+    fetchAgents()
+    return () => { isMounted = false }
+  }, [user])
+
+  const isCurrentUserAgent = user?.role === 'agent'
+  const hasAgents = isCurrentUserAgent || agents.length > 0
 
   const handleRoleSelect = (role: UserRole) => {
     if (role === 'admin' && user?.role === 'agent') {
       toast.error(`Access Denied: ${user?.email || 'Your account'} does not have Admin privileges`)
       return
     }
+
+    if (role === 'agent' && !hasAgents) {
+      toast.error('Agent access is disabled. Please log in as Admin first and create an Agent account under Settings → Permissions & Accounts.')
+      return
+    }
+
     setSelectedRole(role)
     setName(user?.displayName || user?.email || '')
     setPassword('')
@@ -129,22 +173,53 @@ export const AccessSelectionPage = () => {
 
             {/* Agent Card */}
             <div
-              className="group relative bg-white rounded-xl p-6 shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] transition-all duration-500 border border-transparent hover:border-[#006591]/20 flex flex-col items-start overflow-hidden cursor-pointer"
+              className={`group relative rounded-xl p-6 transition-all duration-500 border flex flex-col items-start overflow-hidden ${
+                hasAgents
+                  ? 'bg-white shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] border-transparent hover:border-[#006591]/20 cursor-pointer'
+                  : 'bg-slate-100/90 dark:bg-slate-800/50 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-85'
+              }`}
               onClick={() => handleRoleSelect('agent')}
             >
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                 <Store size={120} />
               </div>
-              <div className="w-14 h-14 bg-[#006591]/5 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
-                <Store className="text-[#006591]" size={32} />
+              <div className="flex items-center justify-between w-full mb-5">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-500 ${
+                  hasAgents ? 'bg-[#006591]/5 group-hover:scale-110' : 'bg-gray-200/80 dark:bg-gray-700/80'
+                }`}>
+                  <Store className={hasAgents ? 'text-[#006591]' : 'text-gray-400'} size={32} />
+                </div>
+                {!hasAgents && !isLoadingAgents && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50">
+                    <Lock size={12} />
+                    Disabled
+                  </span>
+                )}
+                {hasAgents && agents.length > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50">
+                    <BadgeCheck size={12} />
+                    {agents.length} Agent{agents.length > 1 ? 's' : ''} Ready
+                  </span>
+                )}
               </div>
-              <h2 className="text-[#070235] font-bold text-xl mb-2">Agent Access</h2>
+              <h2 className={`font-bold text-xl mb-2 ${hasAgents ? 'text-[#070235]' : 'text-gray-600 dark:text-gray-300'}`}>
+                Agent Access
+              </h2>
               <p className="text-[#47464f] text-sm leading-relaxed mb-6">
-                Front-of-house sales, terminal access, and stock check. Optimized for rapid transaction flow and inventory tracking.
+                {hasAgents
+                  ? 'Front-of-house sales, terminal access, and stock check. Optimized for rapid transaction flow and inventory tracking.'
+                  : 'Agent workstation is currently disabled because no agent accounts have been created yet. Create an agent account under Admin Settings → Permissions & Accounts.'}
               </p>
-              <button className="mt-auto w-full py-3 px-5 bg-[#006591] text-white font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#00557a] transition-all active:scale-[0.98]">
-                <span>Login as Agent</span>
-                <ArrowRight size={16} />
+              <button
+                disabled={!hasAgents}
+                className={`mt-auto w-full py-3 px-5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
+                  hasAgents
+                    ? 'bg-[#006591] text-white group-hover:bg-[#00557a] active:scale-[0.98]'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                <span>{hasAgents ? 'Login as Agent' : 'Agent Access Disabled'}</span>
+                {hasAgents ? <ArrowRight size={16} /> : <Lock size={16} />}
               </button>
             </div>
           </div>
