@@ -84,6 +84,8 @@ export interface DashboardMetrics {
   freePlanCount: number;
   proPlanCount: number;
   enterprisePlanCount: number;
+  timeRange?: string;
+  timeWindowLabel?: string;
 }
 
 export interface HeatmapCell {

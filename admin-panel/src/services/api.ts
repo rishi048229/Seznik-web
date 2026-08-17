@@ -487,9 +487,9 @@ async function fetchAdminEndpoint<T>(path: string): Promise<T> {
   throw new Error(`Failed to fetch ${path}`);
 }
 
-export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
+export async function fetchDashboardMetrics(timeRange: string = '24h'): Promise<DashboardMetrics> {
   try {
-    const data = await fetchAdminEndpoint<any>('/metrics');
+    const data = await fetchAdminEndpoint<any>(`/metrics?timeRange=${encodeURIComponent(timeRange)}`);
     return {
       totalUsers: data.totalUsers ?? 25,
       totalUsersTrend: data.totalUsersTrend ?? 14.2,
@@ -499,9 +499,9 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
       activeInvoicingUsersTrend: data.activeInvoicingUsersTrend ?? 10.0,
       loginsTodayCount: data.loginsTodayCount ?? 25,
       loginsTodayTrend: data.loginsTodayTrend ?? 25.0,
-      topSection: data.topSection || 'POS Lite Billing (42.5%)',
-      topSectionShare: data.topSectionShare ?? 42.5,
-      topSectionTrend: data.topSectionTrend ?? 14.5,
+      topSection: data.topSection || 'Products & Inventory Catalog (89.8%)',
+      topSectionShare: data.topSectionShare ?? 89.8,
+      topSectionTrend: data.topSectionTrend ?? 22.1,
       verifiedUserPercentage: data.verifiedUserPercentage ?? 96,
       freePlanCount: data.freePlanCount ?? 25,
       proPlanCount: 0,
@@ -518,9 +518,9 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
       activeInvoicingUsersTrend: 10.0,
       loginsTodayCount: 25,
       loginsTodayTrend: 25.0,
-      topSection: 'POS Lite Billing (42.5%)',
-      topSectionShare: 42.5,
-      topSectionTrend: 14.5,
+      topSection: 'Products & Inventory Catalog (89.8%)',
+      topSectionShare: 89.8,
+      topSectionTrend: 22.1,
       verifiedUserPercentage: 96,
       freePlanCount: 25,
       proPlanCount: 0,
@@ -529,9 +529,9 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
   }
 }
 
-export async function fetchUserRecords(): Promise<UserRecord[]> {
+export async function fetchUserRecords(timeRange: string = '24h'): Promise<UserRecord[]> {
   try {
-    return await fetchAdminEndpoint<UserRecord[]>('/users');
+    return await fetchAdminEndpoint<UserRecord[]>(`/users?timeRange=${encodeURIComponent(timeRange)}`);
   } catch (err) {
     console.warn('Falling back for user records:', err);
     return MOCK_USERS;
@@ -547,18 +547,18 @@ export async function fetchLoginLogs(): Promise<UserLoginLog[]> {
   }
 }
 
-export async function fetchSectionUsage(): Promise<SectionUsage[]> {
+export async function fetchSectionUsage(timeRange: string = '24h'): Promise<SectionUsage[]> {
   try {
-    return await fetchAdminEndpoint<SectionUsage[]>('/sections');
+    return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
   } catch (err) {
     console.warn('Falling back for section usage:', err);
     return MOCK_SECTION_USAGE;
   }
 }
 
-export async function fetchHeatmapData(): Promise<HeatmapResponse> {
+export async function fetchHeatmapData(timeRange: string = '24h'): Promise<HeatmapResponse> {
   try {
-    const res = await fetchAdminEndpoint<any>('/heatmap');
+    const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}`);
     if (Array.isArray(res)) {
       const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
       return {
@@ -584,8 +584,12 @@ export async function fetchHeatmapData(): Promise<HeatmapResponse> {
   }
 }
 
-export async function fetchDeviceSessionBreakdown(): Promise<DeviceSessionBreakdownData> {
-  return MOCK_DEVICE_BREAKDOWN;
+export async function fetchDeviceSessionBreakdown(timeRange: string = '24h'): Promise<DeviceSessionBreakdownData> {
+  try {
+    return await fetchAdminEndpoint<DeviceSessionBreakdownData>(`/devices?timeRange=${encodeURIComponent(timeRange)}`);
+  } catch (err) {
+    return MOCK_DEVICE_BREAKDOWN;
+  }
 }
 
 export async function fetchSecurityAnomalyData(): Promise<SecurityAnomalyData> {

@@ -103,16 +103,16 @@ export const App: React.FC = () => {
   const [securityData, setSecurityData] = useState<SecurityAnomalyData | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loadAllData = async () => {
+  const loadAllData = async (activeRange = timeRange) => {
     setLoading(true);
     try {
       const [m, u, l, s, heat, dev, sec] = await Promise.all([
-        fetchDashboardMetrics(),
-        fetchUserRecords(),
+        fetchDashboardMetrics(activeRange),
+        fetchUserRecords(activeRange),
         fetchLoginLogs(),
-        fetchSectionUsage(),
-        fetchHeatmapData(),
-        fetchDeviceSessionBreakdown(),
+        fetchSectionUsage(activeRange),
+        fetchHeatmapData(activeRange),
+        fetchDeviceSessionBreakdown(activeRange),
         fetchSecurityAnomalyData(),
       ]);
 
@@ -132,7 +132,7 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadAllData();
+    loadAllData(timeRange);
   }, [timeRange]);
 
   // Dynamic Auto-Refresh Effect

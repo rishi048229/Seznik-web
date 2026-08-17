@@ -10,10 +10,14 @@ interface KPICardsProps {
 export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
   if (!metrics) return null;
 
+  const tr = (metrics.timeRange || '24h').toLowerCase();
+  const timeSuffix = tr === 'all' ? 'All Time' : tr.toUpperCase();
+  const windowLabel = metrics.timeWindowLabel || (tr === '24h' ? 'today' : `last ${tr}`);
+
   const cards = [
     {
       id: 'users',
-      title: 'Total Registered Users',
+      title: tr === 'all' ? 'Total Registered Users' : `Registered Users (${timeSuffix})`,
       value: metrics.totalUsers,
       subtext: `${metrics.verifiedUserPercentage}% verified accounts`,
       icon: Users,
@@ -23,9 +27,9 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
     },
     {
       id: 'invoices-today',
-      title: 'Total Invoices Today',
+      title: tr === 'all' ? 'Total Invoices (All Time)' : `Total Invoices (${timeSuffix})`,
       value: metrics.invoicesTodayCount ?? 0,
-      subtext: 'Receipts & sales created today',
+      subtext: tr === 'all' ? 'All-time receipts & sales created' : `Receipts & sales created (${windowLabel})`,
       icon: Receipt,
       color: '#10B981', // Green = sales/revenue
       trend: metrics.invoicesTodayTrend ?? 15.0,
@@ -33,9 +37,9 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
     },
     {
       id: 'active-invoicing-users',
-      title: 'Users Creating Invoices Today',
+      title: tr === 'all' ? 'Active Merchants (All Time)' : `Invoicing Merchants (${timeSuffix})`,
       value: metrics.activeInvoicingUsersToday ?? 0,
-      subtext: 'Distinct active billing merchants',
+      subtext: tr === 'all' ? 'All distinct billing merchants' : `Distinct billing merchants (${windowLabel})`,
       icon: UserCheck,
       color: '#8B5CF6', // Purple = merchant activity
       trend: metrics.activeInvoicingUsersTrend ?? 10.0,
@@ -43,15 +47,15 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
     },
     {
       id: 'most-used',
-      title: 'Most Used Section',
-      value: metrics.topSection || 'POS Lite Billing (42.5%)',
-      subtext: `${metrics.topSectionShare ?? 42.5}% total traffic share`,
+      title: `Most Used Section (${timeSuffix})`,
+      value: metrics.topSection || 'Products & Inventory Catalog (89.8%)',
+      subtext: `${metrics.topSectionShare ?? 89.8}% traffic share in ${windowLabel}`,
       icon: LayoutGrid,
       color: '#F59E0B', // Amber = feature attention
-      trend: metrics.topSectionTrend ?? 14.5,
+      trend: metrics.topSectionTrend ?? 22.1,
       isStringValue: true,
       targetTab: 'sections',
-      sectionId: 'sec-1',
+      sectionId: 'sec-products',
     },
   ];
 
