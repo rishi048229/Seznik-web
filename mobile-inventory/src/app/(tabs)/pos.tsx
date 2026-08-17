@@ -29,6 +29,7 @@ import {
   Package,
   Mic,
   MicOff,
+  Layers,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
@@ -77,6 +78,10 @@ export default function PosScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
 
+  // Category Search Modal State
+  const [showCategorySearchModal, setShowCategorySearchModal] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+
   // Cart & Checkout State
   const [showCartModal, setShowCartModal] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -106,6 +111,12 @@ export default function PosScreen() {
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
         (p.sku && p.sku.toLowerCase().includes(q));
     return matchesCategory && matchesQuery;
+  });
+
+  const filteredCategoriesForModal = categories.filter((cat) => {
+    if (!cat.isActive) return false;
+    const q = categorySearchQuery.trim().toLowerCase();
+    return !q || cat.name.toLowerCase().includes(q);
   });
 
   // Instant Scan-to-Cart
@@ -377,15 +388,31 @@ export default function PosScreen() {
         </View>
       </View>
 
-      {/* Category chips — horizontal, above a full-width product grid (the standard mobile POS
-          pattern — a narrow vertical sidebar costs too much of the grid's touch-target width
-          on a phone screen). */}
+      {/* Category chips — horizontal, with Category Search button */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.categoryChipRow}
-        contentContainerStyle={{ paddingHorizontal: 16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center' }}
       >
+        {/* Category Search & Picker Button */}
+        <TouchableOpacity
+          onPress={() => setShowCategorySearchModal(true)}
+          style={[
+            styles.categorySearchBtn,
+            { backgroundColor: theme.cardBg, borderColor: selectedCategoryId ? BRAND_COLORS.blue600 : theme.borderColor },
+          ]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Search size={13} color={selectedCategoryId ? BRAND_COLORS.blue600 : theme.textSecondary} />
+          <Text style={[styles.categorySearchBtnText, { color: selectedCategoryId ? BRAND_COLORS.blue600 : theme.textPrimary }]}>
+            Categories
+          </Text>
+          <ChevronDown size={13} color={selectedCategoryId ? BRAND_COLORS.blue600 : theme.textSecondary} style={{ marginLeft: 2 }} />
+        </TouchableOpacity>
+
+        <View style={[styles.categoryDivider, { backgroundColor: theme.borderColor }]} />
+
         <TouchableOpacity
           onPress={() => setSelectedCategoryId(null)}
           style={[
@@ -691,6 +718,210 @@ export default function PosScreen() {
         onClose={() => setShowReceiptPreviewModal(false)}
       />
 
+      {/* CATEGORY SEARCH & QUICK PICKER MODAL */}
+      <Modal
+        visible={showCategorySearchModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          setShowCategorySearchModal(false);
+          setCategorySearchQuery('');
+        }}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => {
+            setShowCategorySearchModal(false);
+            setCategorySearchQuery('');
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.categoryModalSheet,
+              { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+            ]}
+          >
+            <View style={styles.catModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Layers size={18} color={BRAND_COLORS.blue600} />
+                <Text style={[styles.catModalTitle, { color: theme.textPrimary, marginLeft: 8 }]}>
+                  Categories ({categories.length})
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowCategorySearchModal(false);
+                  setCategorySearchQuery('');
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <X size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Category Search Input */}
+            <View
+              style={[
+                styles.catSearchInputBox,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                  borderColor: theme.borderColor,
+                },
+              ]}
+            >
+              <Search size={16} color={theme.textSecondary} />
+              <TextInput
+                style={[styles.catSearchInputField, { color: theme.textPrimary }]}
+                placeholder="Search category name..."
+                placeholderTextColor="#94A3B8"
+                value={categorySearchQuery}
+                onChangeText={setCategorySearchQuery}
+                autoFocus
+              />
+              {categorySearchQuery ? (
+                <TouchableOpacity onPress={() => setCategorySearchQuery('')}>
+                  <X size={14} color={theme.textSecondary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* Category Options List */}
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {/* All Items Option */}
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectedCategoryId(null);
+                  setShowCategorySearchModal(false);
+                  setCategorySearchQuery('');
+                }}
+                style={[
+                  styles.catOptionRow,
+                  { borderBottomColor: theme.borderColor },
+                  !selectedCategoryId && {
+                    backgroundColor: isDark ? 'rgba(37,99,235,0.18)' : 'rgba(37,99,235,0.08)',
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={[
+                      styles.catBullet,
+                      !selectedCategoryId && { backgroundColor: BRAND_COLORS.blue600 },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.catOptionName,
+                      {
+                        color: !selectedCategoryId ? BRAND_COLORS.blue600 : theme.textPrimary,
+                        fontWeight: !selectedCategoryId ? '800' : '600',
+                      },
+                    ]}
+                  >
+                    All Items
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.catCountBadge,
+                    {
+                      backgroundColor: !selectedCategoryId
+                        ? BRAND_COLORS.blue600
+                        : isDark
+                        ? 'rgba(255,255,255,0.1)'
+                        : 'rgba(0,0,0,0.06)',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.catCountText,
+                      { color: !selectedCategoryId ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    {products.length}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {filteredCategoriesForModal.map((cat) => {
+                const isSelected = selectedCategoryId === cat.id;
+                const count = products.filter((p) => p.categoryId === cat.id).length;
+
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => {
+                      setSelectedCategoryId(cat.id);
+                      setShowCategorySearchModal(false);
+                      setCategorySearchQuery('');
+                    }}
+                    style={[
+                      styles.catOptionRow,
+                      { borderBottomColor: theme.borderColor },
+                      isSelected && {
+                        backgroundColor: isDark ? 'rgba(37,99,235,0.18)' : 'rgba(37,99,235,0.08)',
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View
+                        style={[
+                          styles.catBullet,
+                          isSelected && { backgroundColor: BRAND_COLORS.blue600 },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.catOptionName,
+                          {
+                            color: isSelected ? BRAND_COLORS.blue600 : theme.textPrimary,
+                            fontWeight: isSelected ? '800' : '600',
+                          },
+                        ]}
+                      >
+                        {cat.name}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.catCountBadge,
+                        {
+                          backgroundColor: isSelected
+                            ? BRAND_COLORS.blue600
+                            : isDark
+                            ? 'rgba(255,255,255,0.1)'
+                            : 'rgba(0,0,0,0.06)',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.catCountText,
+                          { color: isSelected ? '#FFFFFF' : theme.textSecondary },
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {filteredCategoriesForModal.length === 0 ? (
+                <View style={{ paddingVertical: 28, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                    No categories found matching "{categorySearchQuery}"
+                  </Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <SidebarDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       </KeyboardAvoidingWrapper>
     </View>
@@ -715,6 +946,9 @@ const styles = StyleSheet.create({
   searchInputFull: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   inputField: { flex: 1, marginLeft: 8, fontSize: 13 },
   categoryChipRow: { flexGrow: 0, marginBottom: 10 },
+  categorySearchBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, marginRight: 8 },
+  categorySearchBtnText: { fontSize: 12, fontWeight: '800', marginHorizontal: 4 },
+  categoryDivider: { width: 1, height: 20, marginRight: 8 },
   categoryChip: { borderRadius: 12, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center', marginRight: 8, flexDirection: 'row' },
   categoryChipText: { fontSize: 12, fontWeight: '800' },
   categoryChipCount: { fontSize: 10, fontWeight: '700', marginLeft: 5 },
@@ -761,4 +995,15 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 14, fontWeight: '800', paddingHorizontal: 8 },
   submitBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', width: '100%' },
   submitBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  categoryModalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, maxHeight: '80%' },
+  catModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  catModalTitle: { fontSize: 17, fontWeight: '800' },
+  catSearchInputBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
+  catSearchInputField: { flex: 1, marginLeft: 8, fontSize: 14 },
+  catOptionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderRadius: 12, marginBottom: 4 },
+  catBullet: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'transparent', marginRight: 10 },
+  catOptionName: { fontSize: 14 },
+  catCountBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  catCountText: { fontSize: 11, fontWeight: '700' },
 });
