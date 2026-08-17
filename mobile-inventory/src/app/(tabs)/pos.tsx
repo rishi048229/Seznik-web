@@ -26,7 +26,6 @@ import {
   UserCircle2,
   ChevronDown,
   Barcode,
-  Clock,
   Package,
   Mic,
   MicOff,
@@ -311,19 +310,6 @@ export default function PosScreen() {
         {/* Secondary tools — uniform neutral buttons so they read as a toolbar, not a
             competing set of colored calls-to-action next to the primary search/browse flow. */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={handleHoldOrder}
-            disabled={cartItems.length === 0}
-            style={[styles.toolBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, opacity: cartItems.length === 0 ? 0.4 : 1 }]}
-          >
-            <Clock size={16} color={theme.textPrimary} />
-            {heldOrders.length > 0 ? (
-              <View style={styles.toolBtnBadge}>
-                <Text style={styles.toolBtnBadgeText}>{heldOrders.length}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-
           <TouchableOpacity
             onPress={cycleVoiceLang}
             disabled={isVoiceListening}
