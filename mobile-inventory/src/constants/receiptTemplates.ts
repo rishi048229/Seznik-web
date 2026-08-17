@@ -1,0 +1,318 @@
+import type { LucideIcon } from 'lucide-react-native';
+import {
+  Store,
+  Croissant,
+  Coffee,
+  UtensilsCrossed,
+  ShoppingCart,
+  Shirt,
+  Footprints,
+  Cpu,
+  Smartphone,
+  Pill,
+  Scissors,
+  Hammer,
+  Car,
+  Gem,
+  Sofa,
+  BookOpen,
+} from 'lucide-react-native';
+
+export interface ReceiptTemplate {
+  id: string;
+  name: string;
+  /** Lucide icon used in the Templates picker grid (UI only, not the printed receipt). */
+  icon: LucideIcon;
+  /** Decorative glyph printed on the actual receipt header (works in both the monospace text preview/print and the HTML preview). */
+  emoji: string;
+  /** Header icon-badge background in the HTML/System-Print preview. */
+  accentColor: string;
+  /** Shown under the store name on the printed receipt header. */
+  tagline: string;
+  /** Replaces the generic "Thank you for your purchase!" footer line. */
+  footerMessage: string;
+  /** "Invoice No" / "Bill #" / "Order No" / "Bill No" — how this vertical actually labels its bill number. */
+  billLabel: string;
+  /** Item table column headers — real receipts differ here (e.g. "Item x Qty"/"Rate" vs "Item"/"Amount" vs "Service"/"Amount"). */
+  itemColumnLeft: string;
+  itemColumnRight: string;
+  /** Section header above the item list. */
+  itemLabel: string;
+  /** Whether to print the Taxable Amt / SGST / CGST breakdown rows, or just a flat total — quick-service and services bills usually skip this, tax-invoice-style retail shows it. */
+  showTaxBreakdown: boolean;
+  /** Whether to print a "Customer:" line — counter/quick-service bills usually skip this. */
+  showCustomerLine: boolean;
+  /** Character used for the thin divider rule between sections. */
+  dividerChar: string;
+}
+
+/**
+ * 16 receipt templates covering common Indian small-business verticals. Selecting one on the
+ * Printers > Templates tab changes what every subsequent POS / POS Lite bill prints as — see
+ * PrinterService.formatReceiptText/generateReceiptHtml, which branch on every field below to
+ * produce genuinely different layouts (not just swapped text in one shared shape).
+ */
+export const RECEIPT_TEMPLATES: ReceiptTemplate[] = [
+  {
+    id: 'general',
+    name: 'General Retail',
+    icon: Store,
+    emoji: '🏪',
+    accentColor: '#2563EB',
+    tagline: '',
+    footerMessage: 'Thank you for your purchase!',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item x Qty',
+    itemColumnRight: 'Rate',
+    itemLabel: 'ITEMS',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+  },
+  {
+    id: 'bakery',
+    name: 'Bakery',
+    icon: Croissant,
+    emoji: '🥐',
+    accentColor: '#B45309',
+    tagline: 'Freshly Baked Daily',
+    footerMessage: 'Thank you for stopping by — see you tomorrow!',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'BAKERY ITEMS',
+    showTaxBreakdown: false,
+    showCustomerLine: false,
+    dividerChar: '-',
+  },
+  {
+    id: 'cafe',
+    name: 'Cafe',
+    icon: Coffee,
+    emoji: '☕',
+    accentColor: '#78350F',
+    tagline: 'Brewed With Love',
+    footerMessage: 'Thanks for the visit — enjoy your coffee!',
+    billLabel: 'Order No',
+    itemColumnLeft: 'Item x Qty',
+    itemColumnRight: 'Amount',
+    itemLabel: 'ORDER',
+    showTaxBreakdown: false,
+    showCustomerLine: false,
+    dividerChar: '-',
+  },
+  {
+    id: 'restaurant',
+    name: 'Restaurant',
+    icon: UtensilsCrossed,
+    emoji: '🍽️',
+    accentColor: '#7C2D12',
+    tagline: 'Fine Dining Experience',
+    footerMessage: 'Thank you for dining with us. Visit again!',
+    billLabel: 'Bill #',
+    itemColumnLeft: 'Item x Qty',
+    itemColumnRight: 'Rate',
+    itemLabel: 'FOOD ITEMS',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '=',
+  },
+  {
+    id: 'grocery',
+    name: 'Grocery / Supermarket',
+    icon: ShoppingCart,
+    emoji: '🛒',
+    accentColor: '#15803D',
+    tagline: 'Everyday Essentials',
+    footerMessage: 'Thank you for shopping with us!',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item x Qty',
+    itemColumnRight: 'Rate',
+    itemLabel: 'GROCERY ITEMS',
+    showTaxBreakdown: true,
+    showCustomerLine: false,
+    dividerChar: '-',
+  },
+  {
+    id: 'fashion',
+    name: 'Fashion Store',
+    icon: Shirt,
+    emoji: '👕',
+    accentColor: '#DB2777',
+    tagline: 'Style That Speaks',
+    footerMessage: 'Thank you for shopping! Exchange within 7 days.',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'APPAREL',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+  },
+  {
+    id: 'footwear',
+    name: 'Footwear Store',
+    icon: Footprints,
+    emoji: '👟',
+    accentColor: '#4338CA',
+    tagline: 'Step In Style',
+    footerMessage: 'Thank you for your purchase. Walk in comfort!',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'FOOTWEAR',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+  },
+  {
+    id: 'electronics',
+    name: 'Electronics Store',
+    icon: Cpu,
+    emoji: '💻',
+    accentColor: '#0F172A',
+    tagline: 'Genuine Products, Trusted Service',
+    footerMessage: 'Thank you! Warranty card enclosed where applicable.',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'ELECTRONICS',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '=',
+  },
+  {
+    id: 'mobile',
+    name: 'Mobile / Gadget Store',
+    icon: Smartphone,
+    emoji: '📱',
+    accentColor: '#0369A1',
+    tagline: 'Latest Gadgets, Best Prices',
+    footerMessage: 'Thank you! Keep this bill safe for warranty claims.',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'DEVICES',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '=',
+  },
+  {
+    id: 'pharmacy',
+    name: 'Pharmacy / Medical',
+    icon: Pill,
+    emoji: '💊',
+    accentColor: '#DC2626',
+    tagline: 'Your Health, Our Priority',
+    footerMessage: 'Get well soon! Consult your doctor before use.',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'MEDICINES',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+  },
+  {
+    id: 'salon',
+    name: 'Salon / Spa',
+    icon: Scissors,
+    emoji: '✂️',
+    accentColor: '#BE185D',
+    tagline: 'Look Good, Feel Great',
+    footerMessage: 'Thank you for visiting! Book your next appointment soon.',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Service',
+    itemColumnRight: 'Amount',
+    itemLabel: 'SERVICES',
+    showTaxBreakdown: false,
+    showCustomerLine: true,
+    dividerChar: '-',
+  },
+  {
+    id: 'hardware',
+    name: 'Hardware Store',
+    icon: Hammer,
+    emoji: '🔨',
+    accentColor: '#57534E',
+    tagline: 'Tools & Supplies For Every Job',
+    footerMessage: 'Thank you for your business!',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'HARDWARE ITEMS',
+    showTaxBreakdown: true,
+    showCustomerLine: false,
+    dividerChar: '-',
+  },
+  {
+    id: 'garage',
+    name: 'Auto Garage / Workshop',
+    icon: Car,
+    emoji: '🚗',
+    accentColor: '#B91C1C',
+    tagline: 'Service You Can Trust',
+    footerMessage: 'Thank you! Drive safe.',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Service / Part',
+    itemColumnRight: 'Amount',
+    itemLabel: 'SERVICES / PARTS',
+    showTaxBreakdown: false,
+    showCustomerLine: true,
+    dividerChar: '=',
+  },
+  {
+    id: 'jewellery',
+    name: 'Jewellery Store',
+    icon: Gem,
+    emoji: '💎',
+    accentColor: '#A16207',
+    tagline: 'Timeless Elegance',
+    footerMessage: 'Thank you for your purchase! Certificate enclosed.',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'JEWELLERY ITEMS',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '=',
+  },
+  {
+    id: 'furniture',
+    name: 'Furniture Store',
+    icon: Sofa,
+    emoji: '🛋️',
+    accentColor: '#92400E',
+    tagline: 'Furnishing Comfort',
+    footerMessage: 'Thank you! Delivery details as discussed.',
+    billLabel: 'Invoice No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Amount',
+    itemLabel: 'FURNITURE ITEMS',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+  },
+  {
+    id: 'bookstore',
+    name: 'Bookstore / Stationery',
+    icon: BookOpen,
+    emoji: '📚',
+    accentColor: '#1D4ED8',
+    tagline: 'Read. Write. Grow.',
+    footerMessage: 'Thank you for your purchase — happy reading!',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Item x Qty',
+    itemColumnRight: 'Amount',
+    itemLabel: 'ITEMS',
+    showTaxBreakdown: false,
+    showCustomerLine: false,
+    dividerChar: '-',
+  },
+];
+
+export const DEFAULT_TEMPLATE_ID = RECEIPT_TEMPLATES[0].id;
+
+export function getTemplateById(id?: string | null): ReceiptTemplate {
+  return RECEIPT_TEMPLATES.find((t) => t.id === id) || RECEIPT_TEMPLATES[0];
+}

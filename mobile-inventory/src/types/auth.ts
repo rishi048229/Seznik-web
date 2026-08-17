@@ -1,0 +1,63 @@
+export interface UserPermissions {
+  canManipulateStock?: boolean;
+  canAccessSuppliers?: boolean;
+  canAccessPurchases?: boolean;
+  canAccessExpenses?: boolean;
+  canAccessReports?: boolean;
+  canManageUsers?: boolean;
+  [key: string]: boolean | undefined;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  phone?: string | null;
+  role: 'admin' | 'agent' | string;
+  onboardingCompleted?: boolean;
+  accountType?: 'user' | 'managed';
+  permissions?: UserPermissions | null;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserProfile;
+}
+
+export interface LoginPayload {
+  email: string;
+  password?: string;
+}
+
+/** A staff sub-account created by an admin — serializeManagedUser's shape in authController.ts. */
+export interface ManagedUser {
+  uid: string;
+  displayName?: string | null;
+  email?: string | null;
+  role: 'admin' | 'agent' | string;
+  permissions?: UserPermissions | null;
+  photoURL?: string | null;
+  businessName?: string | null;
+  plan?: string;
+  createdAt?: string;
+}
+
+export interface CreateManagedUserPayload {
+  uid?: string;
+  displayName: string;
+  email?: string;
+  /** Required on create — the backend rejects a missing password. Omitted on edit (sync) calls. */
+  password: string;
+  role?: 'admin' | 'agent';
+  permissions?: UserPermissions;
+  photoURL?: string;
+  businessName?: string;
+  plan?: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password?: string;
+  phone: string;
+  displayName?: string;
+}

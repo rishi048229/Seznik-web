@@ -1,0 +1,107 @@
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { getAuthToken, removeAuthToken, removeStoredUser } from '@/services/secureStore';
+import { useAuthStore } from '@/store/useAuthStore';
+
+// Auto-detect Host IP for physical mobile devices / Android Emulators
+const getDynamicHostIp = () => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  // Get host IP from Expo bundler
+  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+      return `http://${ip}:5000/api`;
+    }
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5000/api'; // Android Emulator alias for host machine
+  }
+
+  return 'http://192.168.1.53:5000/api';
+};
+
+let currentBaseUrl = getDynamicHostIp();
+
+export const getApiBaseUrl = () => currentBaseUrl;
+
+export const setApiBaseUrl = (url: string) => {
+  let formatted = url.trim();
+  if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
+    formatted = `http://${formatted}`;
+  }
+  if (!formatted.endsWith('/api')) {
+    formatted = formatted.replace(/\/$/, '') + '/api';
+  }
+  currentBaseUrl = formatted;
+};
+
+export class ApiError extends Error {
+  status: number;
+  data: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
+export async function fetchApi<T = any>(
+  endpoint: string,
+  options: RequestInit & { timeoutMs?: number } = {}
+): Promise<T> {
+  const { timeoutMs = 30000, ...fetchOptions } = options;
+  const storedToken = await getAuthToken();
+  const token = storedToken || useAuthStore.getState().token;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(fetchOptions.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const fullUrl = `${currentBaseUrl}${cleanEndpoint}`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch(fullUrl, {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
+
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        await removeAuthToken();
+        await removeStoredUser();
+      }
+      const errorMessage = data.error || data.message || `HTTP ${response.status} error`;
+      throw new ApiError(errorMessage, response.status, data);
+    }
+
+    return data as T;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    // Return fallback offline notice instead of crashing app
+    throw new ApiError(
+      error instanceof Error ? error.message : 'Backend connection unavailable',
+      0
+    );
+  }
+}

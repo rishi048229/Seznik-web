@@ -4,3 +4,6 @@ build/
 .env
 .env.local
 .DS_Store
+.expo/
+.vite/
+expo-env.d.ts
