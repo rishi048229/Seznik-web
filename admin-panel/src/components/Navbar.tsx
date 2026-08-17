@@ -18,7 +18,7 @@ interface NavbarProps {
   activeTab: string;
   onSelectTab?: (tab: string) => void;
   setActiveTab?: (tab: string) => void;
-  timeRange: string;
+  timeRange?: string;
   onSelectTimeRange?: (range: string) => void;
   setTimeRange?: (range: string) => void;
   lastRefreshedAt: string;
@@ -32,9 +32,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
   setActiveTab,
-  timeRange,
-  onSelectTimeRange,
-  setTimeRange,
   lastRefreshedAt,
   onRefresh,
   autoRefreshInterval,
@@ -69,14 +66,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       onSelectTab(tabId);
     } else if (setActiveTab) {
       setActiveTab(tabId);
-    }
-  };
-
-  const handleTimeRangeChange = (range: string) => {
-    if (onSelectTimeRange) {
-      onSelectTimeRange(range);
-    } else if (setTimeRange) {
-      setTimeRange(range);
     }
   };
 
@@ -151,28 +140,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Clock size={13} color="#10B981" />
               <span style={{ fontFamily: 'monospace', letterSpacing: '0.3px', fontWeight: 700 }}>{formattedTime}</span>
             </div>
-          </div>
-          {/* Time Range Selector */}
-          <div style={{ display: 'flex', background: 'var(--tab-bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--tab-border)', transition: 'background 0.3s ease' }}>
-            {['24h', '7d', '30d', 'All'].map((range) => (
-              <button
-                key={range}
-                onClick={() => handleTimeRangeChange(range)}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: timeRange === range ? 'var(--accent-blue)' : 'transparent',
-                  color: timeRange === range ? '#FFFFFF' : 'var(--navbar-text-muted)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {range}
-              </button>
-            ))}
           </div>
 
           {/* Auto Refresh Interval Dropdown */}
