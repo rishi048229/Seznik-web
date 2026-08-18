@@ -1,6 +1,74 @@
 import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
+import * as XLSX from 'xlsx';
 import prisma from '../config/db';
+
+// Tried in order for every AI document/invoice call — keeping this in one place means a bad
+// model name never silently kills a whole feature: later entries still get a chance.
+//
+// Verified live against the real API key/project on 2026-08-18 (see models.generateContent
+// responses, not just models.list — several models that show up as "available" in the list
+// still 404 or 429 when actually called):
+//   gemini-3.6-flash        -> works (text + image), ~2-4s
+//   gemini-flash-latest     -> works
+//   gemini-3.5-flash        -> works
+//   gemini-2.5-flash        -> 404 "no longer available to new users" (retired)
+//   gemini-2.5-flash-lite   -> 404 "no longer available to new users" (retired)
+//   gemini-1.5-flash        -> not in this project's model list at all
+//   gemini-2.0-flash        -> not in this project's model list at all
+//   gemini-3.1-pro-preview  -> 429 RESOURCE_EXHAUSTED, free-tier quota is 0 for "pro" models —
+//                              always fails on this account, never worth trying
+const GEMINI_MODEL_FALLBACK_LIST = [
+  'gemini-3.6-flash',
+  'gemini-flash-latest',
+  'gemini-3.5-flash',
+];
+
+/**
+ * Calls Gemini with each model in GEMINI_MODEL_FALLBACK_LIST until one succeeds and returns
+ * parseable content, or throws with the *real* underlying error from the last attempt — never a
+ * generic "something went wrong". Silently swallowing that error (as both AI endpoints used to)
+ * is exactly what made a bad API key or invalid model name indistinguishable from "the document
+ * genuinely had no products in it" from the client's point of view.
+ */
+async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extraConfig: Record<string, any> = {}): Promise<string> {
+  let lastErr: Error = new Error('No Gemini model attempted');
+  for (const modelName of GEMINI_MODEL_FALLBACK_LIST) {
+    try {
+      const generatePromise = ai.models.generateContent({
+        model: modelName,
+        contents,
+        config: { responseMimeType: 'application/json', ...extraConfig },
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
+      );
+      const response: any = await Promise.race([generatePromise, timeoutPromise]);
+      const text = response?.text || '';
+      if (text) return text;
+      lastErr = new Error(`Model ${modelName} returned an empty response`);
+    } catch (err: any) {
+      lastErr = err instanceof Error ? err : new Error(String(err?.message || err));
+      console.warn(`Gemini model ${modelName} failed:`, lastErr.message);
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * .xlsx/.xls are binary (zip-based) spreadsheet formats — base64-decoding them straight to a
+ * UTF-8 string (what this endpoint used to do for every "spreadsheet" mimetype) produces garbage,
+ * not readable rows, so Gemini would extract nothing. Parses the real workbook with the already-
+ * installed `xlsx` package and converts the first sheet to CSV text instead.
+ */
+function excelBufferToCsvText(base64Data: string): string {
+  const buffer = Buffer.from(base64Data, 'base64');
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName) return '';
+  const sheet = workbook.Sheets[firstSheetName];
+  return XLSX.utils.sheet_to_csv(sheet);
+}
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -302,26 +370,25 @@ RULES:
 2. Output ONLY raw JSON without any markdown formatting.`;
 
     const ai = new GoogleGenAI({ apiKey });
-    
-    // Direct prioritized fast models without slow listing
-    const modelsToTry = [
-      'gemini-3.6-flash',
-      'gemini-3.1-pro-preview',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash',
-      'gemini-flash-latest',
-    ];
-    
-    const isSpreadsheetOrText = 
-      mimeType.includes('csv') || 
-      mimeType.includes('sheet') || 
-      mimeType.includes('excel') || 
-      mimeType.includes('plain') || 
+
+    // Genuinely binary spreadsheet formats (.xlsx/.xls) need real parsing — everything else in
+    // this bucket (csv/plain/text) already IS text, so a straight base64->utf8 decode is correct.
+    const isBinarySpreadsheet = mimeType.includes('sheet') || mimeType.includes('excel');
+    const isSpreadsheetOrText =
+      isBinarySpreadsheet ||
+      mimeType.includes('csv') ||
+      mimeType.includes('plain') ||
       mimeType.includes('text');
 
     let textContent = '';
-    if (isSpreadsheetOrText) {
+    if (isBinarySpreadsheet) {
+      try {
+        textContent = excelBufferToCsvText(cleanBase64);
+      } catch (e: any) {
+        console.error('Excel parsing error:', e?.message || e);
+        return res.status(400).json({ error: `Could not read this spreadsheet file: ${e?.message || 'unknown error'}` });
+      }
+    } else if (isSpreadsheetOrText) {
       try {
         textContent = Buffer.from(cleanBase64, 'base64').toString('utf-8');
       } catch (e) {
@@ -329,38 +396,22 @@ RULES:
       }
     }
 
+    // Set whenever a Gemini call itself fails (auth, quota, invalid model, timeout, etc.) so the
+    // final response can say what actually went wrong instead of a generic dead-end message —
+    // "no items found" and "the API call failed" used to look identical to the client.
+    let lastApiError: string | null = null;
+
     const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
-      let lastErr = '';
-      for (const modelName of modelsToTry) {
-        try {
-          const generatePromise = ai.models.generateContent({
-            model: modelName,
-            contents: contentsPayload,
-            config: {
-              responseMimeType: 'application/json',
-              maxOutputTokens: 8192,
-            }
-          });
-
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
-          );
-
-          const response: any = await Promise.race([generatePromise, timeoutPromise]);
-          const text = response?.text || '';
-          if (text) {
-            const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
-            const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
-            if (list.length > 0) return list;
-          }
-        } catch (err: any) {
-          lastErr = err?.message || String(err);
-          console.warn(`Gemini GenAI model ${modelName} failed:`, lastErr);
-        }
+      try {
+        const text = await generateWithGeminiFallback(ai, contentsPayload, { maxOutputTokens: 8192 });
+        const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        return Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+      } catch (err: any) {
+        lastApiError = err?.message || String(err);
+        console.error('Gemini extraction error:', lastApiError);
+        return [];
       }
-      if (lastErr) console.error('Gemini extraction error:', lastErr);
-      return [];
     };
 
     let rawList: any[] = [];
@@ -410,7 +461,9 @@ RULES:
 
     if (rawList.length === 0) {
       return res.status(500).json({
-        error: 'AI document analysis returned no items or failed. Please check file format or split document.'
+        error: lastApiError
+          ? `Gemini AI request failed: ${lastApiError}`
+          : 'AI document analysis returned no items — the document may not contain any recognizable products. Please check file format or try a clearer file.',
       });
     }
     
@@ -510,23 +563,16 @@ export const aiConvertInvoice = async (req: Request, res: Response) => {
 }
 Return ONLY valid raw JSON with no markdown.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: [
-        promptText,
-        {
-          inlineData: {
-            mimeType: mimeType || 'image/jpeg',
-            data: cleanBase64,
-          },
+    const text = await generateWithGeminiFallback(ai, [
+      promptText,
+      {
+        inlineData: {
+          mimeType: mimeType || 'image/jpeg',
+          data: cleanBase64,
         },
-      ],
-      config: {
-        responseMimeType: 'application/json',
       },
-    });
+    ]);
 
-    const text = response.text || '';
     const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
     const saleData = JSON.parse(cleaned);
 
@@ -534,9 +580,9 @@ Return ONLY valid raw JSON with no markdown.`;
       success: true,
       saleData,
     });
-  } catch (error) {
-    console.error('aiConvertInvoice error:', error);
-    res.status(500).json({ error: 'Failed to convert invoice with AI' });
+  } catch (error: any) {
+    console.error('aiConvertInvoice error:', error?.message || error);
+    res.status(500).json({ error: `Failed to convert invoice with AI: ${error?.message || 'unknown error'}` });
   }
 };
 

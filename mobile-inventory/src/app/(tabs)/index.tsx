@@ -81,6 +81,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
 import { useLanguageStore } from '@/store/useLanguageStore';
+import { matchProductByCode } from '@/utils/productBarcodeMatch';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -230,25 +231,8 @@ export default function DashboardScreen() {
     if (!data) return;
 
     const raw = String(data).trim();
-    const cleanNum = raw.replace(/[^0-9]/g, '');
 
-    let matched = products.find((p) => {
-      const pBar = (p.barcode || '').trim();
-      const pSku = (p.sku || '').trim();
-      const pId = String(p.id || '').trim();
-      const pDigits = pBar.replace(/[^0-9]/g, '');
-      return (
-        pBar.toLowerCase() === raw.toLowerCase() ||
-        pSku.toLowerCase() === raw.toLowerCase() ||
-        pId === raw ||
-        (cleanNum.length >= 4 && (
-          pDigits === cleanNum ||
-          pDigits.replace(/^0+/, '') === cleanNum.replace(/^0+/, '') ||
-          cleanNum.endsWith(pDigits) ||
-          pDigits.endsWith(cleanNum)
-        ))
-      );
-    });
+    let matched = matchProductByCode(products, raw);
 
     if (!matched) {
       try {
