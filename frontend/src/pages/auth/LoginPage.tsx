@@ -10,7 +10,7 @@ import {
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
 } from '@/services/authService'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, XCircle, Eye, EyeOff } from 'lucide-react'
 
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -28,6 +28,9 @@ export const LoginPage = () => {
   const [isRegistering, setIsRegistering] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -51,6 +54,22 @@ export const LoginPage = () => {
   const [forgotError, setForgotError] = useState('')
   const [forgotMessage, setForgotMessage] = useState('')
   const [forgotResendIn, setForgotResendIn] = useState(0)
+
+  // Registration password validation states
+  const regPassValidation = validatePassword(password)
+  const isRegPassValid = password.length > 0 && regPassValidation.isValid
+  const isRegPassInvalid = password.length > 0 && !regPassValidation.isValid
+
+  const isRegConfirmValid = confirmPassword.length > 0 && confirmPassword === password && isRegPassValid
+  const isRegConfirmInvalid = confirmPassword.length > 0 && (confirmPassword !== password || !isRegPassValid)
+
+  // Reset password validation states
+  const forgotPassValidation = validatePassword(forgotNewPassword)
+  const isForgotPassValid = forgotNewPassword.length > 0 && forgotPassValidation.isValid
+  const isForgotPassInvalid = forgotNewPassword.length > 0 && !forgotPassValidation.isValid
+
+  const isForgotConfirmValid = forgotConfirmPassword.length > 0 && forgotConfirmPassword === forgotNewPassword && isForgotPassValid
+  const isForgotConfirmInvalid = forgotConfirmPassword.length > 0 && (forgotConfirmPassword !== forgotNewPassword || !isForgotPassValid)
 
   useEffect(() => {
     if (resendIn <= 0) return
@@ -104,21 +123,11 @@ export const LoginPage = () => {
     }
   }
 
-  const handleOtpChange = async (val: string) => {
-    const cleanOtp = val.replace(/\D/g, '').slice(0, 6)
-    setOtp(cleanOtp)
-
-    if (cleanOtp.length === 6 && verifyStep !== 'verified' && verifyStep !== 'verifying') {
-      setVerifyStep('verifying')
-      setError('')
-      try {
-        await verifyEmailOtp(email.trim(), cleanOtp)
-        setVerifyStep('verified')
-        setOtpMessage('')
-      } catch (err) {
-        setVerifyStep('sent')
-        setError(err instanceof Error ? err.message : 'Incorrect verification code')
-      }
+  const handleOtpChange = (value: string) => {
+    const numeric = value.replace(/\D/g, '').slice(0, 6)
+    setOtp(numeric)
+    if (numeric.length === 6) {
+      handleVerifyOtp(numeric)
     }
   }
 
@@ -171,6 +180,11 @@ export const LoginPage = () => {
         setError(`Password requirements missing: ${failedRequirements.join(', ')}`)
         return
       }
+
+      if (password !== confirmPassword) {
+        setError('Passwords do not match. Please ensure both password fields are identical.')
+        return
+      }
     }
 
     setIsSigningIn(true)
@@ -196,6 +210,9 @@ export const LoginPage = () => {
     setOtp('')
     setOtpMessage('')
     setVerifyStep('idle')
+    setConfirmPassword('')
+    setShowPassword(false)
+    setShowConfirmPassword(false)
   }
 
   // Open Forgot Password Modal
@@ -223,7 +240,7 @@ export const LoginPage = () => {
       await sendForgotPasswordOtp(forgotEmail.trim())
       setForgotStep('otp')
       setForgotResendIn(60)
-      setForgotMessage(`We sent a 6-digit reset code to ${forgotEmail.trim()}`)
+      setForgotMessage(`We sent a 6-digit code to ${forgotEmail.trim()}`)
     } catch (err) {
       setForgotError(err instanceof Error ? err.message : 'Failed to send reset code')
     } finally {
@@ -278,6 +295,7 @@ export const LoginPage = () => {
   const handleFinishForgot = () => {
     setEmail(forgotEmail.trim())
     setPassword('')
+    setConfirmPassword('')
     setIsForgotModalOpen(false)
   }
 
@@ -298,36 +316,55 @@ export const LoginPage = () => {
               <br />
               <span style={{ color: 'rgba(255,255,255,0.25)' }}>transaction.</span>
             </h1>
-            <p className="text-xs sm:text-sm md:text-base leading-relaxed opacity-80 max-w-xs">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               A premium retail POS designed to turn complex inventory into a seamless digital editorial for your business.
             </p>
           </div>
 
-          {/* Feature Badges */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>, label: 'MULTI-STORE SYNC' },
-              { icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>, label: 'SECURE LEDGER' },
-            ].map(b => (
-              <div key={b.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide"
-                style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
-                {b.icon}
-                {b.label}
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sky-300 shrink-0">
+                <CheckCircle2 size={16} />
               </div>
-            ))}
+              <div>
+                <p className="text-xs font-semibold">Offline-Ready Sync</p>
+                <p className="text-[10px] sm:text-xs text-slate-300">Continuous operation even during network drops</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sky-300 shrink-0">
+                <CheckCircle2 size={16} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold">Automated GST Invoicing</p>
+                <p className="text-[10px] sm:text-xs text-slate-300">Ready-to-file tax reports in one click</p>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Bottom / Right Panel — Form */}
-        <div className="md:w-7/12 px-6 py-8 sm:px-10 sm:py-12 md:px-12 md:py-14 bg-white flex flex-col justify-center">
-          <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-1">{isRegistering ? 'Create Account' : 'Welcome to Seznik POS'}</h2>
-          <p className="text-xs sm:text-sm text-slate-500 mb-6 sm:mb-8">{isRegistering ? 'Sign up to get started.' : 'Enter your credentials to access your store dashboard.'}</p>
+        <div className="md:w-7/12 p-6 sm:p-10 md:p-12 flex flex-col justify-center">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+              {isRegistering ? 'Create Your Account' : 'Welcome Back'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              {isRegistering
+                ? 'Fill in your details below to set up your business'
+                : 'Enter your credentials to access your terminal'}
+            </p>
+          </div>
 
-          <form noValidate onSubmit={handleSignIn} className="flex flex-col gap-3.5 sm:gap-4">
-            {error && <p className="text-red-600 text-xs sm:text-sm font-medium p-3 bg-red-50 border border-red-200 rounded-xl leading-snug">{error}</p>}
-            
+          {error && (
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSignIn} className="space-y-3 sm:space-y-4">
             {isRegistering && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">First Name</label>
                   <input
@@ -402,14 +439,6 @@ export const LoginPage = () => {
                     className="flex-1 px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center"
                     placeholder="••••••"
                   />
-                  <button
-                    type="button"
-                    onClick={() => handleVerifyOtp()}
-                    disabled={otp.length !== 6 || verifyStep === 'verifying'}
-                    className="px-4 py-2 rounded-xl bg-[#0a0a2e] text-white text-xs sm:text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer shrink-0"
-                  >
-                    {verifyStep === 'verifying' ? 'Checking…' : 'Confirm'}
-                  </button>
                 </div>
               </div>
             )}
@@ -428,9 +457,12 @@ export const LoginPage = () => {
               </div>
             )}
 
+            {/* Password Field with Eye Toggle and Visual Validation */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs sm:text-sm font-medium text-slate-700">Password</label>
+                <label className="text-xs sm:text-sm font-medium text-slate-700">
+                  {isRegistering ? 'Create Password' : 'Password'}
+                </label>
                 {!isRegistering && (
                   <button
                     type="button"
@@ -441,20 +473,84 @@ export const LoginPage = () => {
                   </button>
                 )}
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 transition-all ${
+                    isRegistering && isRegPassValid
+                      ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
+                      : isRegistering && isRegPassInvalid
+                      ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
+                      : 'border-slate-300 focus:ring-[#0a0a2e]'
+                  }`}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors cursor-pointer"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {isRegistering && <PasswordRequirementsList password={password} showOnlyIfTyped />}
             </div>
 
+            {/* Confirm Password Field (Signup only) with Eye Toggle & Match Indicator */}
+            {isRegistering && (
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 transition-all ${
+                      isRegConfirmValid
+                        ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
+                        : isRegConfirmInvalid
+                        ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
+                        : 'border-slate-300 focus:ring-[#0a0a2e]'
+                    }`}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors cursor-pointer"
+                    tabIndex={-1}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {confirmPassword && (
+                  <p className={`text-xs mt-1.5 font-semibold flex items-center gap-1 ${
+                    isRegConfirmValid ? 'text-emerald-600' : 'text-red-500'
+                  }`}>
+                    {isRegConfirmValid ? (
+                      <>
+                        <CheckCircle2 size={14} /> Passwords match
+                      </>
+                    ) : (
+                      <>
+                        <XCircle size={14} /> Passwords do not match
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isSigningIn || loading}
+              disabled={isSigningIn || loading || (isRegistering && (!isRegPassValid || !isRegConfirmValid))}
               className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
             >
@@ -582,6 +678,8 @@ export const LoginPage = () => {
                 placeholder="Enter new password"
                 value={forgotNewPassword}
                 onChange={(e) => setForgotNewPassword(e.target.value)}
+                success={isForgotPassValid}
+                error={isForgotPassInvalid ? ' ' : undefined}
                 autoFocus
               />
               <PasswordRequirementsList password={forgotNewPassword} />
@@ -591,12 +689,29 @@ export const LoginPage = () => {
                 placeholder="Re-enter new password"
                 value={forgotConfirmPassword}
                 onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                success={isForgotConfirmValid}
+                error={isForgotConfirmInvalid ? ' ' : undefined}
               />
+              {forgotConfirmPassword && (
+                <p className={`text-xs font-semibold flex items-center gap-1 -mt-2 ${
+                  isForgotConfirmValid ? 'text-emerald-600' : 'text-red-500'
+                }`}>
+                  {isForgotConfirmValid ? (
+                    <>
+                      <CheckCircle2 size={14} /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={14} /> Passwords do not match
+                    </>
+                  )}
+                </p>
+              )}
               <Button
                 className="w-full bg-[#0a0a2e] text-white hover:bg-[#1e1b6e]"
                 onClick={handleResetPassword}
                 loading={forgotLoading}
-                disabled={!forgotNewPassword || forgotNewPassword.length < 6 || forgotNewPassword !== forgotConfirmPassword}
+                disabled={!isForgotPassValid || !isForgotConfirmValid}
               >
                 Reset Password
               </Button>
