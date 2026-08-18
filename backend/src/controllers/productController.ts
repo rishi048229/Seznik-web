@@ -236,6 +236,9 @@ interface UsableModel {
 const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const modelDiscoveryCache = new Map<string, { models: UsableModel[]; fetchedAt: number }>();
 
+/** Ceiling on a single Gemini call so one hung request can't stall the upload. */
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+
 /**
  * Ranks models so we try the best general-purpose document-reading model first.
  *
@@ -552,97 +555,120 @@ RULES:
       attemptErrors.push({ model, error: String(error).slice(0, 200) });
     };
 
+    const restParts = isSpreadsheetOrText
+      ? [{ text: `${promptText}\n\nDOCUMENT CONTENT:\n${textContent}` }]
+      : [
+          { inline_data: { mime_type: cleanMimeType, data: cleanBase64 } },
+          { text: promptText },
+        ];
+
     const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
+      // REST runs first and alone in the happy path. Calling the SDK first meant
+      // an unparsable SDK response cost a full inference round-trip before REST
+      // repeated the exact same work — roughly doubling wall-clock time.
       for (const apiKey of apiKeys) {
-        const ai = new GoogleGenAI({ apiKey });
-
         for (const { name: modelName, outputTokenLimit: maxOutputTokens } of modelsToTry) {
-          // 1. Try SDK call
-          try {
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: contentsPayload,
-              config: {
-                responseMimeType: 'application/json',
-                maxOutputTokens,
-                // Deterministic reading — we want faithful OCR, not creative rewriting.
-                temperature: 0,
-              }
-            });
-            const text = extractTextFromResponse(response);
-            const items = parseProductsFromText(text);
-            if (items.length > 0) return items;
-          } catch (err: any) {
-            const msg = err?.message || String(err);
-            noteAttemptError(`${modelName} (sdk)`, msg);
-            if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('Rate limit')) {
-              hadRateLimit = true;
-            }
-            if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API key not valid')) {
-              hadAuthError = true;
-            }
-            console.warn(`Gemini SDK model ${modelName} attempt with key ${apiKey.slice(0, 6)}...:`, msg);
-          }
+          for (const withoutThinking of [true, false]) {
+            const startedAt = Date.now();
 
-          // 2. Try Direct REST API Fallback
-          try {
-            const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-            const partsPayload = isSpreadsheetOrText
-              ? [{ text: `${promptText}\n\nDOCUMENT CONTENT:\n${textContent}` }]
-              : [
-                  {
-                    inline_data: {
-                      mime_type: cleanMimeType,
-                      data: cleanBase64,
-                    },
-                  },
-                  { text: promptText },
-                ];
+            const generationConfig: Record<string, unknown> = {
+              responseMimeType: 'application/json',
+              maxOutputTokens,
+              // Deterministic reading — faithful OCR, not creative rewriting.
+              temperature: 0,
+            };
+            // Extraction is transcription, not reasoning. Gemini 2.5+/3.x models
+            // budget "thinking" tokens by default, which is the single largest
+            // latency cost on this call and buys us almost nothing here.
+            if (withoutThinking) {
+              generationConfig.thinkingConfig = { thinkingBudget: 0 };
+            }
 
-            const restResponse = await fetch(restUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: partsPayload }],
-                generationConfig: {
-                  responseMimeType: 'application/json',
-                  maxOutputTokens,
-                  temperature: 0,
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
+
+            try {
+              const restResponse = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contents: [{ parts: restParts }], generationConfig }),
+                  signal: controller.signal,
                 }
-              })
-            });
+              );
 
-            if (restResponse.ok) {
-              const restData: any = await restResponse.json();
-              const text = extractTextFromResponse(restData);
-              const items = parseProductsFromText(text);
-              if (items.length > 0) return items;
-              // A 200 with no parsable items usually means the model hit its
-              // output ceiling mid-JSON or genuinely saw no products.
-              const finishReason = restData?.candidates?.[0]?.finishReason;
-              if (finishReason && finishReason !== 'STOP') {
-                noteAttemptError(
-                  `${modelName} (rest)`,
-                  `Model stopped early (${finishReason}) — the document may contain more items than one response can hold.`
+              if (restResponse.ok) {
+                const restData: any = await restResponse.json();
+                const items = parseProductsFromText(extractTextFromResponse(restData));
+                console.log(
+                  `Gemini ${modelName} answered in ${Date.now() - startedAt}ms — ${items.length} items` +
+                  (withoutThinking ? ' (thinking off)' : '')
                 );
-                console.warn(`Gemini REST model ${modelName} finishReason=${finishReason}`);
+                if (items.length > 0) return items;
+
+                // A 200 with no parsable items means the model hit its output
+                // ceiling mid-JSON, or genuinely saw no products.
+                const finishReason = restData?.candidates?.[0]?.finishReason;
+                if (finishReason && finishReason !== 'STOP') {
+                  noteAttemptError(
+                    `${modelName} (rest)`,
+                    `Model stopped early (${finishReason}) — the document may hold more items than one response can return.`
+                  );
+                  console.warn(`Gemini REST model ${modelName} finishReason=${finishReason}`);
+                }
+                break; // the model answered; a different thinking setting won't help
               }
-            } else {
+
               const errText = await restResponse.text();
+              // Models predating thinkingConfig reject it outright — retry once without.
+              if (withoutThinking && /thinking/i.test(errText)) {
+                console.warn(`Model ${modelName} rejected thinkingConfig; retrying without it.`);
+                continue;
+              }
+
               noteAttemptError(`${modelName} (rest)`, errText);
-              if (restResponse.status === 429 || errText.includes('RESOURCE_EXHAUSTED')) {
-                hadRateLimit = true;
-              }
-              if (restResponse.status === 403 || errText.includes('PERMISSION_DENIED')) {
-                hadAuthError = true;
-              }
-              console.warn(`Gemini REST model ${modelName} returned ${restResponse.status}:`, errText);
+              if (restResponse.status === 429 || errText.includes('RESOURCE_EXHAUSTED')) hadRateLimit = true;
+              if (restResponse.status === 403 || errText.includes('PERMISSION_DENIED')) hadAuthError = true;
+              console.warn(`Gemini REST model ${modelName} returned ${restResponse.status}:`, errText.slice(0, 300));
+              break;
+            } catch (restErr: any) {
+              const timedOut = restErr?.name === 'AbortError';
+              noteAttemptError(
+                `${modelName} (rest)`,
+                timedOut ? `Timed out after ${GEMINI_REQUEST_TIMEOUT_MS / 1000}s` : (restErr?.message || String(restErr))
+              );
+              console.warn(`Gemini REST model ${modelName} failed:`, restErr?.message || restErr);
+              break;
+            } finally {
+              clearTimeout(timeout);
             }
-          } catch (restErr: any) {
-            console.warn(`Gemini REST model ${modelName} failed:`, restErr?.message || restErr);
           }
         }
       }
+
+      // Last resort only — if every REST attempt failed, the SDK is worth one
+      // try in case outbound REST is blocked at the network level.
+      for (const apiKey of apiKeys) {
+        const { name: modelName, outputTokenLimit: maxOutputTokens } = modelsToTry[0];
+        try {
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: contentsPayload,
+            config: { responseMimeType: 'application/json', maxOutputTokens, temperature: 0 },
+          });
+          const items = parseProductsFromText(extractTextFromResponse(response));
+          if (items.length > 0) return items;
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          noteAttemptError(`${modelName} (sdk)`, msg);
+          if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) hadRateLimit = true;
+          if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API key not valid')) hadAuthError = true;
+          console.warn(`Gemini SDK fallback (${modelName}) failed:`, msg);
+        }
+      }
+
       return [];
     };
 

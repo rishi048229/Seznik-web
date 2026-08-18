@@ -123,7 +123,11 @@ export const preprocessImageForOcr = async (file: File): Promise<PreprocessResul
   }
 
   return {
-    dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+    // 0.85 roughly halves the upload versus 0.92 with no measurable OCR loss.
+    // Resolution is left alone: Gemini bills images in 768px tiles, so 2200px
+    // and 1800px cost identical tokens — shrinking further would drop a tile
+    // and lose real detail on dense handwritten lists for no speed gain.
+    dataUrl: canvas.toDataURL('image/jpeg', 0.85),
     mimeType: 'image/jpeg',
     width,
     height,

@@ -57,6 +57,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
   const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'csv' | 'text'>('image')
   const [searchFilter, setSearchFilter] = useState('')
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
+  const [elapsedSec, setElapsedSec] = useState(0)
 
   const [extractedProducts, setExtractedProducts] = useState<AiExtractedProduct[]>([])
   const [step, setStep] = useState<'upload' | 'analyzing' | 'review'>('upload')
@@ -76,6 +77,15 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       }, 2500)
       return () => clearInterval(interval)
     }
+  }, [step])
+
+  // A visible clock reassures during the wait, and turns "it feels slow" into
+  // a number we can actually compare between runs.
+  useEffect(() => {
+    if (step !== 'analyzing') return
+    setElapsedSec(0)
+    const tick = setInterval(() => setElapsedSec(s => s + 1), 1000)
+    return () => clearInterval(tick)
   }, [step])
 
   // Cycle interactive SEZ AI progress messages during import
@@ -618,6 +628,10 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
                 Extracting items, mapping prices, creating categories, and preserving barcodes...
+              </p>
+              <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 tabular-nums">
+                {elapsedSec}s elapsed
+                {elapsedSec > 30 && ' — large documents can take a little longer'}
               </p>
             </div>
           </div>
