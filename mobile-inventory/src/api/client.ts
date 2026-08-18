@@ -14,15 +14,15 @@ const getDynamicHostIp = () => {
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:5001/api`;
+      return `http://${ip}:5000/api`;
     }
   }
 
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001/api'; // Android Emulator alias for host machine
+    return 'http://10.0.2.2:5000/api'; // Android Emulator alias for host machine
   }
 
-  return 'http://192.168.0.11:5001/api';
+  return 'http://192.168.0.111:5000/api';
 };
 
 let currentBaseUrl = getDynamicHostIp();
@@ -56,7 +56,7 @@ export async function fetchApi<T = any>(
   endpoint: string,
   options: RequestInit & { timeoutMs?: number } = {}
 ): Promise<T> {
-  const { timeoutMs = 30000, ...fetchOptions } = options;
+  const { timeoutMs = 90000, ...fetchOptions } = options;
   const storedToken = await getAuthToken();
   const token = storedToken || useAuthStore.getState().token;
   const headers: Record<string, string> = {
@@ -81,7 +81,6 @@ export async function fetchApi<T = any>(
       signal: controller.signal,
     }).finally(() => clearTimeout(timeoutId));
 
-
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -98,9 +97,15 @@ export async function fetchApi<T = any>(
     if (error instanceof ApiError) {
       throw error;
     }
-    // Return fallback offline notice instead of crashing app
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
+      throw new ApiError(
+        `Request timed out or cancelled. Server at ${currentBaseUrl} took too long to respond.`,
+        0
+      );
+    }
     throw new ApiError(
-      error instanceof Error ? error.message : 'Backend connection unavailable',
+      `Cannot connect to backend server (${currentBaseUrl}). Ensure backend is running on port 5000.`,
       0
     );
   }

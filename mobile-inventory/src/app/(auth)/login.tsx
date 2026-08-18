@@ -221,7 +221,7 @@ export default function LoginScreen() {
                   className="border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 mb-3"
                   value={baseUrlInput}
                   onChangeText={setBaseUrlInput}
-                  placeholder="e.g. http://192.168.1.10:5001/api"
+                  placeholder="e.g. http://192.168.1.10:5000/api"
                   placeholderTextColor="#94A3B8"
                   autoCapitalize="none"
                 />
