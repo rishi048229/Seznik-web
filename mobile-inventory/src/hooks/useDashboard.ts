@@ -46,7 +46,7 @@ export function useDashboard() {
     paymentModes: paymentModesQuery.data?.modes || [],
     expenseSummary: expenseQuery.data || { today: 0, thisMonth: 0, collectionsNonCredit: 0, net: 0 },
     topCustomers: topCustomersQuery.data || [],
-    isLoading: dashboardQuery.isLoading || paymentModesQuery.isLoading || expenseQuery.isLoading,
+    isLoading: !dashboardQuery.data && dashboardQuery.isLoading,
     isRefetching: dashboardQuery.isRefetching || paymentModesQuery.isRefetching,
     refetch: refetchAll,
   };

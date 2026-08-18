@@ -40,7 +40,7 @@ export function useSales() {
 
   return {
     sales: salesQuery.data || [],
-    isLoading: salesQuery.isLoading,
+    isLoading: !salesQuery.data && salesQuery.isLoading,
     isRefetching: salesQuery.isRefetching,
     refetch: salesQuery.refetch,
     createSale: createSaleMutation.mutateAsync,

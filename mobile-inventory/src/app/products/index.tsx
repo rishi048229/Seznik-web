@@ -14,6 +14,7 @@ import {
   StatusBar,
   Vibration,
   Image,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -602,6 +603,10 @@ export default function ProductsScreen() {
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item.id}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            removeClippedSubviews={Platform.OS === 'android'}
             contentContainerStyle={{ paddingBottom: 60 }}
             renderItem={({ item }) => {
               const isLowStock = item.currentStock <= item.lowStockThreshold;

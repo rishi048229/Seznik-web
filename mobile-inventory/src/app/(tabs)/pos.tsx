@@ -13,6 +13,7 @@ import {
   StatusBar,
   Vibration,
   Image,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -495,6 +496,10 @@ export default function PosScreen() {
               data={filteredProducts}
               keyExtractor={(item) => item.id}
               numColumns={2}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
               columnWrapperStyle={{ justifyContent: 'space-between' }}
               contentContainerStyle={{ paddingBottom: 150 }}
               renderItem={({ item, index }) => {

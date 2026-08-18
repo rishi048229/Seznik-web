@@ -158,7 +158,7 @@ export function useProducts() {
 
   return {
     products: productsQuery.data || SAMPLE_PRODUCTS,
-    isLoading: productsQuery.isLoading,
+    isLoading: !productsQuery.data && productsQuery.isLoading,
     isRefetching: productsQuery.isRefetching,
     refetch: productsQuery.refetch,
     lowStockProducts: lowStockQuery.data || [],

@@ -35,7 +35,7 @@ export function useCategories() {
 
   return {
     categories: categoriesQuery.data || [],
-    isLoading: categoriesQuery.isLoading,
+    isLoading: !categoriesQuery.data && categoriesQuery.isLoading,
     refetch: categoriesQuery.refetch,
     createCategory: createCategoryMutation.mutateAsync,
     updateCategory: updateCategoryMutation.mutateAsync,
