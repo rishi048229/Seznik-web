@@ -256,14 +256,17 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No document data provided. Please upload an image, PDF, Excel, or CSV file.' });
     }
 
-    // Resolve GEMINI_API_KEY (supports multiple common environment variable names)
-    const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
-    const apiKey = rawKey.replace(/["'\r\n]/g, '').trim();
+    // Resolve GEMINI_API_KEY (supports multiple comma-separated keys for auto-rotation on rate limits)
+    const rawKeyString = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+    const apiKeys = rawKeyString
+      .split(/[,;\n]/)
+      .map(k => k.replace(/["'\r]/g, '').trim())
+      .filter(k => k.length >= 10);
 
-    if (!apiKey || apiKey.length < 10) {
+    if (apiKeys.length === 0) {
       console.error('GEMINI_API_KEY is missing or invalid in environment.');
       return res.status(400).json({
-        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY=AIzaSy... to backend/.env and restart with pm2 restart all --update-env.'
+        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY=AIzaSy... to backend/.env and restart PM2.'
       });
     }
 
@@ -357,70 +360,88 @@ RULES:
       return [];
     };
 
-    const ai = new GoogleGenAI({ apiKey });
+    let hadRateLimit = false;
+    let hadAuthError = false;
+    let lastGeneralErr = '';
 
     const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
-      let lastErr = '';
-      for (const modelName of modelsToTry) {
-        // 1. Try SDK call
-        try {
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents: contentsPayload,
-            config: {
-              responseMimeType: 'application/json',
-              maxOutputTokens: 65536,
-            }
-          });
-          const text = response.text || '';
-          const items = parseProductsFromText(text);
-          if (items.length > 0) return items;
-        } catch (err: any) {
-          lastErr = err?.message || String(err);
-          console.warn(`Gemini SDK model ${modelName} attempt:`, lastErr);
-        }
+      for (const apiKey of apiKeys) {
+        const ai = new GoogleGenAI({ apiKey });
 
-        // 2. Try Direct REST API Fallback
-        try {
-          const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-          const partsPayload = isSpreadsheetOrText
-            ? [{ text: `${promptText}\n\nDOCUMENT CONTENT:\n${textContent}` }]
-            : [
-                {
-                  inline_data: {
-                    mime_type: mimeType || 'image/jpeg',
-                    data: cleanBase64,
-                  },
-                },
-                { text: promptText },
-              ];
-
-          const restResponse = await fetch(restUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: partsPayload }],
-              generationConfig: {
-                response_mime_type: 'application/json',
+        for (const modelName of modelsToTry) {
+          // 1. Try SDK call
+          try {
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents: contentsPayload,
+              config: {
+                responseMimeType: 'application/json',
                 maxOutputTokens: 65536,
               }
-            })
-          });
-
-          if (restResponse.ok) {
-            const restData: any = await restResponse.json();
-            const text = restData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            });
+            const text = response.text || '';
             const items = parseProductsFromText(text);
             if (items.length > 0) return items;
-          } else {
-            const errText = await restResponse.text();
-            console.warn(`Gemini REST model ${modelName} returned ${restResponse.status}:`, errText);
+          } catch (err: any) {
+            const msg = err?.message || String(err);
+            lastGeneralErr = msg;
+            if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('Rate limit')) {
+              hadRateLimit = true;
+            }
+            if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API key not valid')) {
+              hadAuthError = true;
+            }
+            console.warn(`Gemini SDK model ${modelName} attempt with key ${apiKey.slice(0, 6)}...:`, msg);
           }
-        } catch (restErr: any) {
-          console.warn(`Gemini REST model ${modelName} failed:`, restErr?.message || restErr);
+
+          // 2. Try Direct REST API Fallback
+          try {
+            const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            const partsPayload = isSpreadsheetOrText
+              ? [{ text: `${promptText}\n\nDOCUMENT CONTENT:\n${textContent}` }]
+              : [
+                  {
+                    inline_data: {
+                      mime_type: mimeType || 'image/jpeg',
+                      data: cleanBase64,
+                    },
+                  },
+                  { text: promptText },
+                ];
+
+            const restResponse = await fetch(restUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: partsPayload }],
+                generationConfig: {
+                  response_mime_type: 'application/json',
+                  maxOutputTokens: 65536,
+                }
+              })
+            });
+
+            if (restResponse.ok) {
+              const restData: any = await restResponse.json();
+              const text = restData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              const items = parseProductsFromText(text);
+              if (items.length > 0) return items;
+            } else {
+              const errText = await restResponse.text();
+              lastGeneralErr = errText;
+              if (restResponse.status === 429 || errText.includes('RESOURCE_EXHAUSTED')) {
+                hadRateLimit = true;
+              }
+              if (restResponse.status === 403 || errText.includes('PERMISSION_DENIED')) {
+                hadAuthError = true;
+              }
+              console.warn(`Gemini REST model ${modelName} returned ${restResponse.status}:`, errText);
+            }
+          } catch (restErr: any) {
+            console.warn(`Gemini REST model ${modelName} failed:`, restErr?.message || restErr);
+          }
         }
       }
-      if (lastErr) console.error('Gemini extraction all models attempted. Last error:', lastErr);
       return [];
     };
 
@@ -470,8 +491,18 @@ RULES:
     }
 
     if (rawList.length === 0) {
+      if (hadRateLimit) {
+        return res.status(429).json({
+          error: 'Google Gemini AI rate limit / quota exceeded (429). Please wait a few moments or add another API key to backend/.env (comma-separated).'
+        });
+      }
+      if (hadAuthError) {
+        return res.status(403).json({
+          error: 'Invalid or restricted Google Gemini API key (403). Please verify your API key in backend/.env from https://aistudio.google.com/apikey'
+        });
+      }
       return res.status(500).json({
-        error: 'AI document analysis returned no items or failed. Please check file format or split document.'
+        error: 'No product items could be detected in this document. Please verify image clarity, lighting, or try a spreadsheet/CSV file.'
       });
     }
     
