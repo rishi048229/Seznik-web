@@ -3,26 +3,41 @@ import Constants from 'expo-constants';
 import { getAuthToken, removeAuthToken, removeStoredUser } from '@/services/secureStore';
 import { useAuthStore } from '@/store/useAuthStore';
 
-// Auto-detect Host IP for physical mobile devices / Android Emulators
+// Environment Configurable Base URL
+const DEFAULT_PORT = process.env.EXPO_PUBLIC_API_PORT || '5001';
+
 const getDynamicHostIp = () => {
+  // 1. Explicit Full API URL from env (e.g. EXPO_PUBLIC_API_URL="http://192.168.0.11:5001/api" or "https://api.seznik.com/api")
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+    let url = process.env.EXPO_PUBLIC_API_URL.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `http://${url}`;
+    }
+    return url.endsWith('/api') ? url : `${url.replace(/\/$/, '')}/api`;
   }
 
-  // Get host IP from Expo bundler
+  // 2. Explicit Host from env (e.g. EXPO_PUBLIC_API_HOST="192.168.0.11")
+  const envHost = process.env.EXPO_PUBLIC_API_HOST?.trim();
+  if (envHost) {
+    return `http://${envHost}:${DEFAULT_PORT}/api`;
+  }
+
+  // 3. Dynamic Host IP auto-detected from Expo bundler (auto-discovers the developer's laptop/PC IP)
   const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:5001/api`;
+      return `http://${ip}:${DEFAULT_PORT}/api`;
     }
   }
 
+  // 4. Android Emulator loopback alias for host machine
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001/api'; // Android Emulator alias for host machine
+    return `http://10.0.2.2:${DEFAULT_PORT}/api`;
   }
 
-  return 'http://192.168.0.11:5001/api';
+  // 5. Default localhost fallback
+  return `http://localhost:${DEFAULT_PORT}/api`;
 };
 
 let currentBaseUrl = getDynamicHostIp();
@@ -105,7 +120,7 @@ export async function fetchApi<T = any>(
       );
     }
     throw new ApiError(
-      `Cannot connect to backend server (${currentBaseUrl}). Ensure backend is running on port 5001.`,
+      `Cannot connect to backend server (${currentBaseUrl}). Ensure backend is running and reachable on port ${DEFAULT_PORT}.`,
       0
     );
   }
