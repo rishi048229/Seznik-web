@@ -24,6 +24,7 @@ import {
   PlusCircle,
   ArrowRight,
   Printer,
+  Bluetooth,
   Users,
   PieChart,
   DollarSign,
@@ -617,6 +618,76 @@ export default function DashboardScreen() {
                 )}
               </TouchableOpacity>
 
+              {/* 2.5 LIVE THERMAL & BLUETOOTH PRINTER HARDWARE STATUS CARD */}
+              <View style={[styles.printerCard, { backgroundColor: theme.cardBg, borderColor: connectionState === 'connected' ? '#10B981' : theme.borderColor }]}>
+                <View style={styles.printerCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View style={[styles.printerIconBadge, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)' }]}>
+                      <Printer size={20} color={connectionState === 'connected' ? '#10B981' : '#64748B'} />
+                    </View>
+                    <View style={{ marginLeft: 10, flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={[styles.printerCardTitle, { color: theme.textPrimary }]}>
+                          {t('thermalPrinter', 'Thermal POS Printer')}
+                        </Text>
+                        <View style={[styles.statusPill, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
+                          <View style={[styles.statusDot, { backgroundColor: connectionState === 'connected' ? '#10B981' : '#EF4444' }]} />
+                          <Text style={[styles.statusPillText, { color: connectionState === 'connected' ? '#10B981' : '#EF4444' }]}>
+                            {connectionState === 'connected' ? (activeDevice?.name || 'Connected') : 'Disconnected'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
+                        {connectionState === 'connected' 
+                          ? `${activeDevice?.name || 'Bluetooth/USB'} • ${paperWidth} Paper Ready` 
+                          : 'Tap Scan & Connect to link Bluetooth/USB receipt printer'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Action Buttons: Scan/Connect + Test Print + Paper Switch */}
+                <View style={styles.printerActionRow}>
+                  <TouchableOpacity
+                    style={[styles.printerConnectBtn, { backgroundColor: connectionState === 'connected' ? BRAND_COLORS.blue600 : '#10B981' }]}
+                    onPress={() => setShowDirectPrinterModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.printerConnectBtnText}>
+                      {connectionState === 'connected' ? 'Change / Reconnect' : 'Scan & Connect'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {connectionState === 'connected' ? (
+                    <TouchableOpacity
+                      style={[styles.printerTestBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                      onPress={handleTestPrint}
+                      activeOpacity={0.8}
+                    >
+                      <Zap size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 4 }} />
+                      <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]}>Test Print</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* 58mm / 80mm toggle */}
+                  <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
+                    <TouchableOpacity
+                      style={[styles.paperToggleBtn, paperWidth === '58mm' && styles.paperToggleActive]}
+                      onPress={() => setPaperWidth('58mm')}
+                    >
+                      <Text style={[styles.paperToggleText, paperWidth === '58mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>58mm</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.paperToggleBtn, paperWidth === '80mm' && styles.paperToggleActive]}
+                      onPress={() => setPaperWidth('80mm')}
+                    >
+                      <Text style={[styles.paperToggleText, paperWidth === '80mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>80mm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
               {/* 3. EXECUTIVE METRICS STRIP */}
               <Text style={styles.sectionHeader}>{t('todayPerformance', "TODAY'S PERFORMANCE & P&L")}</Text>
               <View style={styles.kpiGrid}>
@@ -1003,6 +1074,106 @@ const styles = StyleSheet.create({
   showMoreBtnText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+
+  // Live Thermal Printer Card
+  printerCard: {
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.5,
+    marginBottom: 16,
+  },
+  printerCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  printerIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  printerCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginRight: 6,
+  },
+  printerCardSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  printerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  printerConnectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  printerConnectBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  printerTestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  printerTestBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  paperToggleContainer: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 2,
+  },
+  paperToggleBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  paperToggleActive: {
+    backgroundColor: BRAND_COLORS.navyInk,
+  },
+  paperToggleText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  paperToggleTextActive: {
+    color: '#FFFFFF',
   },
 
   // Executive KPI Grid
