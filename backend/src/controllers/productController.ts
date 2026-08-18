@@ -271,7 +271,18 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
     }
 
     // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
-    const cleanBase64 = documentData.includes(',') ? documentData.split(',')[1] : documentData;
+    let cleanMimeType = mimeType || 'image/jpeg';
+    let cleanBase64 = documentData;
+
+    if (documentData.startsWith('data:')) {
+      const match = documentData.match(/^data:([^;]+);base64,(.*)$/s);
+      if (match) {
+        cleanMimeType = match[1] || cleanMimeType;
+        cleanBase64 = match[2];
+      } else if (documentData.includes(',')) {
+        cleanBase64 = documentData.split(',')[1];
+      }
+    }
 
     const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an image, fast food or restaurant menu, purchase invoice, supplier bill, handwritten receipt, sticker label grid, catalog, price list, PDF, Excel sheet, or CSV).
 
@@ -316,11 +327,11 @@ RULES:
     ];
 
     const isSpreadsheetOrText = 
-      mimeType.includes('csv') || 
-      mimeType.includes('sheet') || 
-      mimeType.includes('excel') || 
-      mimeType.includes('plain') ||
-      mimeType.includes('text');
+      cleanMimeType.includes('csv') || 
+      cleanMimeType.includes('sheet') || 
+      cleanMimeType.includes('excel') || 
+      cleanMimeType.includes('plain') ||
+      cleanMimeType.includes('text');
 
     let textContent = '';
     if (isSpreadsheetOrText) {
@@ -331,29 +342,72 @@ RULES:
       }
     }
 
+    // Helper: Recursively search ANY JSON structure (arrays, nested category objects, menu sections) for product items
+    const extractItemsRecursively = (obj: any, parentKey = ''): any[] => {
+      if (!obj) return [];
+      if (Array.isArray(obj)) {
+        let list: any[] = [];
+        for (const item of obj) {
+          if (item && typeof item === 'object') {
+            const rawName = item.name || item.product_name || item.productName || item.itemName || item.item_name || item.dish || item.title || item.item || item.description || item.particulars || '';
+            const rawPrice = item.sellingPrice ?? item.selling_price ?? item.price ?? item.rate ?? item.mrp ?? item.sale_price ?? item.amount ?? item.costPrice ?? item.cost;
+            
+            if (rawName || rawPrice !== undefined) {
+              const nameStr = String(rawName || `Item ${list.length + 1}`).trim();
+              const numPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice || 0).replace(/[^0-9.]/g, '')) || 0;
+              const rawCost = item.costPrice ?? item.cost_price ?? item.cost ?? numPrice;
+              const numCost = typeof rawCost === 'number' ? rawCost : parseFloat(String(rawCost || 0).replace(/[^0-9.]/g, '')) || numPrice;
+              const categoryStr = String(item.categoryName || item.category_name || item.category || (parentKey && !['products', 'items', 'data', 'menu', 'result', 'list'].includes(parentKey.toLowerCase()) ? parentKey : 'General')).trim();
+
+              list.push({
+                name: nameStr,
+                sellingPrice: numPrice,
+                costPrice: numCost,
+                categoryName: categoryStr || 'General',
+                barcode: item.barcode || item.bar_code || item.code || null,
+                taxRate: Number(item.taxRate ?? item.tax_rate ?? item.tax ?? item.gst ?? 0) || 0,
+                currentStock: Number(item.currentStock ?? item.current_stock ?? item.stock ?? item.quantity ?? item.qty ?? 10) || 10,
+                unit: String(item.unit || item.uom || item.portion || 'piece').trim().toLowerCase()
+              });
+            } else {
+              list = list.concat(extractItemsRecursively(item, parentKey));
+            }
+          }
+        }
+        return list;
+      } else if (typeof obj === 'object') {
+        let list: any[] = [];
+        for (const key of Object.keys(obj)) {
+          list = list.concat(extractItemsRecursively(obj[key], key));
+        }
+        return list;
+      }
+      return [];
+    };
+
     const parseProductsFromText = (rawText: string): any[] => {
       if (!rawText) return [];
       try {
         const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleaned);
-        if (Array.isArray(parsed.products)) return parsed.products;
-        if (Array.isArray(parsed)) return parsed;
-        if (Array.isArray(parsed.items)) return parsed.items;
-        if (Array.isArray(parsed.data)) return parsed.data;
+        const extracted = extractItemsRecursively(parsed);
+        if (extracted.length > 0) return extracted;
       } catch (e) {
         // Fallback: extract JSON array or object with regex
         const arrayMatch = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (arrayMatch) {
           try {
             const arr = JSON.parse(arrayMatch[0]);
-            if (Array.isArray(arr)) return arr;
+            const extracted = extractItemsRecursively(arr);
+            if (extracted.length > 0) return extracted;
           } catch (_) {}
         }
-        const objMatch = rawText.match(/\{[\s\S]*"products"\s*:\s*(\[[\s\S]*?\])[\s\S]*\}/);
-        if (objMatch && objMatch[1]) {
+        const objMatch = rawText.match(/\{[\s\S]*\}/);
+        if (objMatch) {
           try {
-            const arr = JSON.parse(objMatch[1]);
-            if (Array.isArray(arr)) return arr;
+            const parsedObj = JSON.parse(objMatch[0]);
+            const extracted = extractItemsRecursively(parsedObj);
+            if (extracted.length > 0) return extracted;
           } catch (_) {}
         }
       }
@@ -402,7 +456,7 @@ RULES:
               : [
                   {
                     inline_data: {
-                      mime_type: mimeType || 'image/jpeg',
+                      mime_type: cleanMimeType,
                       data: cleanBase64,
                     },
                   },
@@ -415,7 +469,7 @@ RULES:
               body: JSON.stringify({
                 contents: [{ parts: partsPayload }],
                 generationConfig: {
-                  response_mime_type: 'application/json',
+                  responseMimeType: 'application/json',
                   maxOutputTokens: 65536,
                 }
               })
@@ -480,7 +534,7 @@ RULES:
         : [
             {
               inlineData: {
-                mimeType: mimeType || 'image/jpeg',
+                mimeType: cleanMimeType,
                 data: cleanBase64,
               },
             },
