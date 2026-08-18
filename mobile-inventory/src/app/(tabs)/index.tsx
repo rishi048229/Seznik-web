@@ -87,7 +87,7 @@ export default function DashboardScreen() {
   const { trend, isLoading: isTrendLoading } = useRevenueTrend(timeframe);
   const { connectionState, activeDevice, paperWidth, scanForDevices, isScanning } = usePrinterStore();
   const { createSale, isCreating } = useSales();
-  const { products, updateProduct } = useProducts();
+  const { products, updateProduct, getByBarcode, refetch: refetchProducts } = useProducts();
   const [permission, requestPermission] = useCameraPermissions();
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -108,40 +108,66 @@ export default function DashboardScreen() {
   const theme = useAppTheme();
 
   const formatCurrency = (val: number) => {
-    return `₹${(val || 0).toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(val);
   };
 
-  const handle2ClickInstantBill = async () => {
-    if (!quickAmount.trim() || parseFloat(quickAmount) <= 0) {
-      Alert.alert('Required Amount', 'Please enter a valid bill amount.');
+  const handleQuickBill = async () => {
+    if (!quickItemName.trim() || !quickAmount.trim()) {
+      Alert.alert('Missing Info', 'Please enter item name and price.');
       return;
     }
-    const amt = parseFloat(quickAmount) || 0;
+
+    const price = parseFloat(quickAmount) || 0;
     const qty = parseInt(quickQty) || 1;
-    const name = quickItemName.trim() || 'Quick Billing Item';
+    const total = price * qty;
 
     try {
       const sale = await createSale({
         items: [
           {
-            productId: `quick-${Date.now()}`,
-            productName: name,
+            productName: quickItemName.trim(),
             quantity: qty,
-            unitPrice: amt,
-            total: amt * qty,
+            unitPrice: price,
+            total,
           },
         ],
-        subtotal: amt * qty,
+        subtotal: total,
         totalDiscount: 0,
         totalTax: 0,
-        grandTotal: amt * qty,
+        grandTotal: total,
         paymentMethod: 'cash',
-        amountPaid: amt * qty,
+        amountPaid: total,
         changeReturned: 0,
         isQuickBill: true,
+      });
+
+      // Quick-print thermal receipt automatically
+      await ThermalPrinterService.printSaleReceipt({
+        storeName: settings?.businessName || 'SEZNIK STORE',
+        storeAddress: settings?.businessAddress || '',
+        storePhone: settings?.businessPhone || '',
+        invoiceNumber: sale.invoiceNumber,
+        date: new Date().toLocaleDateString('en-GB'),
+        customerName: 'Quick Walk-in Customer',
+        items: [
+          {
+            productName: quickItemName.trim(),
+            quantity: qty,
+            unitPrice: price,
+            total,
+          },
+        ],
+        subtotal: total,
+        totalTax: 0,
+        totalDiscount: 0,
+        grandTotal: total,
+        amountPaid: total,
+        changeReturned: 0,
+        paymentMethod: 'CASH (Quick Bill)',
       });
 
       setShowQuickBillModal(false);
@@ -155,23 +181,41 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
     setShowScanModal(false);
     if (!data) return;
 
     const raw = String(data).trim();
     const cleanNum = raw.replace(/[^0-9]/g, '');
 
-    const matched = products.find((p) => {
+    let matched = products.find((p) => {
       const pBar = (p.barcode || '').trim();
       const pSku = (p.sku || '').trim();
+      const pId = String(p.id || '').trim();
+      const pDigits = pBar.replace(/[^0-9]/g, '');
       return (
-        pBar === raw ||
-        pSku === raw ||
-        p.id === raw ||
-        (cleanNum.length > 0 && pBar.replace(/[^0-9]/g, '') === cleanNum)
+        pBar.toLowerCase() === raw.toLowerCase() ||
+        pSku.toLowerCase() === raw.toLowerCase() ||
+        pId === raw ||
+        (cleanNum.length >= 4 && (
+          pDigits === cleanNum ||
+          pDigits.replace(/^0+/, '') === cleanNum.replace(/^0+/, '') ||
+          cleanNum.endsWith(pDigits) ||
+          pDigits.endsWith(cleanNum)
+        ))
       );
     });
+
+    if (!matched) {
+      try {
+        const remote = await getByBarcode(raw);
+        if (remote) {
+          matched = remote;
+        }
+      } catch (err) {
+        // Not in backend
+      }
+    }
 
     if (scanMode === 'bill') {
       if (matched) {
@@ -182,7 +226,7 @@ export default function DashboardScreen() {
           `Barcode "${raw}" is not in catalog. Would you like to create this product or add to Quick Bill?`,
           [
             { text: 'Quick Bill', onPress: () => { setQuickItemName(`Item ${raw}`); setShowQuickBillModal(true); } },
-            { text: 'Add to Inventory', onPress: () => router.push('/(tabs)/products' as any) },
+            { text: 'Add to Inventory', onPress: () => router.push('/products' as any) },
           ]
         );
       }
@@ -195,9 +239,9 @@ export default function DashboardScreen() {
           async (qtyText) => {
             const addQty = parseInt(qtyText || '0');
             if (addQty > 0) {
-              await updateProduct({ id: matched.id, payload: { currentStock: matched.currentStock + addQty } });
-              refetch();
-              Alert.alert('Stock Updated', `Added +${addQty} units to ${matched.name}. New Stock: ${matched.currentStock + addQty}`);
+              await updateProduct({ id: matched!.id, payload: { currentStock: matched!.currentStock + addQty } });
+              refetchProducts();
+              Alert.alert('Stock Updated', `Added +${addQty} units to ${matched!.name}. New Stock: ${matched!.currentStock + addQty}`);
             }
           },
           'plain-text',
@@ -675,7 +719,7 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
-                <TouchableOpacity onPress={handle2ClickInstantBill} disabled={isCreating} style={styles.instantBillBtn}>
+                <TouchableOpacity onPress={handleQuickBill} disabled={isCreating} style={styles.instantBillBtn}>
                   {isCreating && <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />}
                   <Text style={styles.instantBillBtnText}>Print & Record Bill Now</Text>
                 </TouchableOpacity>

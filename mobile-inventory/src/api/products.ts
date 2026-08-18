@@ -85,18 +85,28 @@ export const productsApi = {
     });
   },
 
-  aiExtractProducts: async (payload: { imageBase64?: string; mimeType?: string; textData?: string }): Promise<{ success: boolean; count: number; products: any[] }> => {
+  aiExtractProducts: async (payload: { imageBase64?: string; documentData?: string; mimeType?: string; textData?: string }): Promise<{ success: boolean; count: number; products: any[] }> => {
+    const bodyPayload = {
+      ...payload,
+      documentData: payload.documentData || payload.imageBase64 || payload.textData,
+      imageBase64: payload.imageBase64 || payload.documentData,
+    };
     return fetchApi<{ success: boolean; count: number; products: any[] }>('/products/ai-extract', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(bodyPayload),
       timeoutMs: 120000,
     });
   },
 
-  aiConvertInvoice: async (payload: { imageBase64?: string; mimeType?: string; textData?: string }): Promise<{ success: boolean; saleData: any }> => {
+  aiConvertInvoice: async (payload: { imageBase64?: string; documentData?: string; mimeType?: string; textData?: string }): Promise<{ success: boolean; saleData: any }> => {
+    const bodyPayload = {
+      ...payload,
+      documentData: payload.documentData || payload.imageBase64 || payload.textData,
+      imageBase64: payload.imageBase64 || payload.documentData,
+    };
     return fetchApi<{ success: boolean; saleData: any }>('/products/ai-convert-invoice', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(bodyPayload),
       timeoutMs: 120000,
     });
   },

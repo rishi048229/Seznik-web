@@ -1,5 +1,11 @@
 import { Request } from 'express';
-import geoip from 'geoip-lite';
+
+let geoip: any = null;
+try {
+  geoip = require('geoip-lite');
+} catch (e) {
+  geoip = null;
+}
 
 export const INDIAN_STATE_MAP: Record<string, string> = {
   'MH': 'Maharashtra',

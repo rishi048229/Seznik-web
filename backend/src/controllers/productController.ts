@@ -156,16 +156,33 @@ export const adjustStock = async (req: Request, res: Response) => {
 export const getProductByBarcode = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { barcode } = req.params;
-    
+    const rawBarcode = String(req.params.barcode || '').trim();
+    const cleanDigits = rawBarcode.replace(/[^0-9]/g, '');
+
     const product = await prisma.product.findFirst({
-      where: { barcode: String(barcode), userId, isActive: true },
+      where: {
+        userId,
+        isActive: true,
+        OR: [
+          { barcode: rawBarcode },
+          { sku: rawBarcode },
+          { id: rawBarcode },
+          ...(cleanDigits.length >= 4
+            ? [
+                { barcode: cleanDigits },
+                { barcode: cleanDigits.replace(/^0+/, '') },
+                { barcode: `0${cleanDigits}` },
+                { sku: cleanDigits },
+              ]
+            : []),
+        ],
+      },
     });
-    
+
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    
+
     res.json(product);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch product by barcode' });
@@ -227,10 +244,11 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
 export const aiExtractFromDocument = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
-    const { documentData, mimeType = 'image/jpeg' } = req.body;
+    const rawData = req.body.documentData || req.body.imageBase64 || req.body.textData;
+    const mimeType = req.body.mimeType || 'image/jpeg';
 
-    if (!documentData) {
-      return res.status(400).json({ error: 'No document data provided. Please upload an image or PDF file.' });
+    if (!rawData) {
+      return res.status(400).json({ error: 'No document data provided. Please upload an image, PDF, or document file.' });
     }
 
     // Trim and sanitize GEMINI_API_KEY from environment
@@ -240,12 +258,12 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
     if (!apiKey || apiKey.length < 10) {
       console.error('GEMINI_API_KEY is missing or invalid in environment.');
       return res.status(400).json({
-        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY to backend/.env and restart PM2.'
+        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY to backend/.env and restart server.'
       });
     }
 
     // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
-    const cleanBase64 = documentData.includes(',') ? documentData.split(',')[1] : documentData;
+    const cleanBase64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
 
     const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an Excel sheet, HTML table, CSV data, PDF invoice, purchase bill, multi-column sticker label grid, hotel/restaurant menu, price catalog, handwritten bill, or price list).
 
@@ -290,7 +308,9 @@ RULES:
       'gemini-flash-latest',
       'gemini-2.5-pro',
       'gemini-pro-latest',
-      'gemini-2.5-flash-lite'
+      'gemini-2.5-flash-lite',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro'
     ];
 
     try {
@@ -317,7 +337,7 @@ RULES:
       mimeType.includes('csv') || 
       mimeType.includes('sheet') || 
       mimeType.includes('excel') || 
-      mimeType.includes('plain') ||
+      mimeType.includes('plain') || 
       mimeType.includes('text');
 
     let textContent = '';
@@ -416,16 +436,16 @@ RULES:
 
     // Process extracted products
     const processedProducts = rawList.map((item, idx) => {
-      let barcode = item.barcode ? String(item.barcode).trim() : '';
+      let barcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
       let isExistingBarcode = false;
 
-      if (barcode && barcode !== 'null' && barcode !== 'undefined') {
+      if (barcode && barcode !== 'null' && barcode !== 'undefined' && barcode.length > 0) {
         isExistingBarcode = true;
       } else {
-        // Auto-generate unique 12-digit barcode if no barcode existed in document
+        // Auto-generate standard 12-digit numeric barcode if no barcode existed in document
         do {
-          const rand = Math.floor(1000000000 + Math.random() * 9000000000);
-          barcode = `SZ${rand}`;
+          const rand = Math.floor(100000000000 + Math.random() * 900000000000);
+          barcode = String(rand);
         } while (existingBarcodes.has(barcode));
       }
 
@@ -460,10 +480,84 @@ RULES:
   }
 };
 
+export const aiConvertInvoice = async (req: Request, res: Response) => {
+  try {
+    const rawUserId = (req as any).user.id;
+    const rawData = req.body.documentData || req.body.imageBase64 || req.body.textData;
+    const mimeType = req.body.mimeType || 'image/jpeg';
+
+    if (!rawData) {
+      return res.status(400).json({ error: 'No invoice document data provided.' });
+    }
+
+    const rawKey = process.env.GEMINI_API_KEY || '';
+    const apiKey = rawKey.replace(/["']/g, '').trim();
+
+    if (!apiKey || apiKey.length < 10) {
+      return res.status(400).json({ error: 'GEMINI_API_KEY is missing in server backend/.env.' });
+    }
+
+    const cleanBase64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
+    const ai = new GoogleGenAI({ apiKey });
+
+    const promptText = `Analyze this purchase invoice, receipt, or bill image/PDF. Extract all invoice details into a JSON object:
+{
+  "invoiceNumber": "INV-1234",
+  "date": "${new Date().toISOString().split('T')[0]}",
+  "customerName": "Customer or Supplier Name",
+  "items": [
+    {
+      "productName": "Product Name",
+      "quantity": 2,
+      "unitPrice": 100,
+      "total": 200,
+      "gstRate": 18
+    }
+  ],
+  "subtotal": 200,
+  "totalTax": 36,
+  "grandTotal": 236
+}
+Return ONLY valid raw JSON with no markdown.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: mimeType || 'image/jpeg',
+            data: cleanBase64,
+          },
+        },
+        promptText,
+      ],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const text = response.text || '';
+    const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const saleData = JSON.parse(cleaned);
+
+    res.json({
+      success: true,
+      saleData,
+    });
+  } catch (error) {
+    console.error('aiConvertInvoice error:', error);
+    res.status(500).json({ error: 'Failed to convert invoice with AI' });
+  }
+};
+
 export const bulkImportProducts = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
-    const { products: items } = req.body;
+    const items = Array.isArray(req.body.products)
+      ? req.body.products
+      : (Array.isArray(req.body.items)
+        ? req.body.items
+        : (Array.isArray(req.body) ? req.body : []));
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'No items provided for bulk import.' });
@@ -492,7 +586,7 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
     const createData = items.map((item: any, idx: number) => {
       const catId = categoryMap.get(String(item.categoryName || 'General').toLowerCase().trim())!;
       const sku = item.sku || `SKU-AI-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
-      const barcode = item.barcode || `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+      const barcode = item.barcode ? String(item.barcode).trim() : `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 
       return {
         name: String(item.name).trim(),
@@ -517,14 +611,24 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
       skipDuplicates: true
     });
 
+    // Fetch the created/matched products from DB so the frontend gets full Product objects with actual database IDs
+    const createdProducts = await prisma.product.findMany({
+      where: {
+        userId: rawUserId,
+        barcode: { in: createData.map((p) => p.barcode).filter(Boolean) },
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
     res.json({
       success: true,
-      count: result.count,
-      products: createData
+      count: result.count || createdProducts.length,
+      products: createdProducts.length > 0 ? createdProducts : createData
     });
   } catch (error) {
     console.error('bulkImportProducts error:', error);
     res.status(500).json({ error: 'Failed to bulk import products' });
   }
 };
+
 

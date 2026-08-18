@@ -73,6 +73,8 @@ export default function ProductsScreen() {
     updateProduct,
     deleteProduct,
     adjustStock,
+    getByBarcode,
+    refetch: refetchProducts,
   } = useProducts();
   const { categories, createCategory } = useCategories();
   const { suppliers, createSupplier } = useSuppliers();
@@ -210,21 +212,74 @@ export default function ProductsScreen() {
     }
   };
 
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setName(product.name);
+    setBarcode(product.barcode || '');
+    setCategoryId(product.categoryId || null);
+    setSupplierId(product.supplierId || null);
+    setCostPrice(product.costPrice?.toString() || '');
+    setSellingPrice(product.sellingPrice?.toString() || '');
+    setStock(product.currentStock?.toString() || '0');
+    setLowStockThreshold(product.lowStockThreshold?.toString() || '5');
+    setTaxRate(product.taxRate?.toString() || '0');
+    setPriceIncludesGst(Boolean(product.priceIncludesGst));
+    setUnit(product.unit || 'Piece');
+    setImageUrl(product.imageUrl || null);
+    setShowProductModal(true);
+  };
+
+  const handleAddProduct = () => {
+    setEditingProduct(null);
+    setName('');
+    setBarcode(generateEAN13Barcode());
+    setCategoryId(categories[0]?.id || null);
+    setSupplierId(null);
+    setCostPrice('');
+    setSellingPrice('');
+    setStock('0');
+    setLowStockThreshold('5');
+    setTaxRate('0');
+    setPriceIncludesGst(false);
+    setUnit('Piece');
+    setImageUrl(null);
+    setShowProductModal(true);
+  };
+
+  const handleBarCodeScanned = async ({ data }: { data: string }) => {
     setShowScanner(false);
     if (!data) return;
     const raw = String(data).trim();
     const cleanNum = raw.replace(/[^0-9]/g, '');
-    const matched = products.find((p) => {
+
+    let matched = products.find((p) => {
       const pBar = (p.barcode || '').trim();
       const pSku = (p.sku || '').trim();
+      const pId = String(p.id || '').trim();
+      const pDigits = pBar.replace(/[^0-9]/g, '');
       return (
-        pBar === raw ||
-        pSku === raw ||
-        p.id === raw ||
-        (cleanNum.length > 0 && pBar.replace(/[^0-9]/g, '') === cleanNum)
+        pBar.toLowerCase() === raw.toLowerCase() ||
+        pSku.toLowerCase() === raw.toLowerCase() ||
+        pId === raw ||
+        (cleanNum.length >= 4 && (
+          pDigits === cleanNum ||
+          pDigits.replace(/^0+/, '') === cleanNum.replace(/^0+/, '') ||
+          cleanNum.endsWith(pDigits) ||
+          pDigits.endsWith(cleanNum)
+        ))
       );
     });
+
+    if (!matched) {
+      try {
+        const remote = await getByBarcode(raw);
+        if (remote) {
+          matched = remote;
+        }
+      } catch (err) {
+        // Not in backend
+      }
+    }
 
     if (matched) {
       setDetailProduct(matched);
@@ -234,23 +289,42 @@ export default function ProductsScreen() {
     }
   };
 
-  const handleStockBarcodeScanned = ({ data }: { data: string }) => {
+  const handleStockBarcodeScanned = async ({ data }: { data: string }) => {
     if (data === lastScannedBarcode) return;
     setLastScannedBarcode(data);
     Vibration.vibrate(100);
 
     const raw = String(data || '').trim();
     const cleanNum = raw.replace(/[^0-9]/g, '');
-    const matched = products.find((p) => {
+
+    let matched = products.find((p) => {
       const pBar = (p.barcode || '').trim();
       const pSku = (p.sku || '').trim();
+      const pId = String(p.id || '').trim();
+      const pDigits = pBar.replace(/[^0-9]/g, '');
       return (
-        pBar === raw ||
-        pSku === raw ||
-        p.id === raw ||
-        (cleanNum.length > 0 && pBar.replace(/[^0-9]/g, '') === cleanNum)
+        pBar.toLowerCase() === raw.toLowerCase() ||
+        pSku.toLowerCase() === raw.toLowerCase() ||
+        pId === raw ||
+        (cleanNum.length >= 4 && (
+          pDigits === cleanNum ||
+          pDigits.replace(/^0+/, '') === cleanNum.replace(/^0+/, '') ||
+          cleanNum.endsWith(pDigits) ||
+          pDigits.endsWith(cleanNum)
+        ))
       );
     });
+
+    if (!matched) {
+      try {
+        const remote = await getByBarcode(raw);
+        if (remote) {
+          matched = remote;
+        }
+      } catch (err) {
+        // Not in backend
+      }
+    }
 
     if (matched) {
       setScannedProductForStock(matched);

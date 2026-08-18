@@ -55,7 +55,7 @@ import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 
 export default function PosScreen() {
   const insets = useSafeAreaInsets();
-  const { products, isLoading: loadingProducts } = useProducts();
+  const { products, isLoading: loadingProducts, getByBarcode } = useProducts();
   const { categories } = useCategories();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
@@ -126,23 +126,42 @@ export default function PosScreen() {
   });
 
   // Instant Scan-to-Cart
-  const handleBarCodeScannedToCart = ({ data }: { data: string }) => {
+  const handleBarCodeScannedToCart = async ({ data }: { data: string }) => {
     if (data === lastScannedCode) return;
     setLastScannedCode(data);
     Vibration.vibrate(100);
 
     const raw = String(data || '').trim();
     const cleanNum = raw.replace(/[^0-9]/g, '');
-    const matched = products.find((p) => {
+
+    let matched = products.find((p) => {
       const pBar = (p.barcode || '').trim();
       const pSku = (p.sku || '').trim();
+      const pId = String(p.id || '').trim();
+      const pDigits = pBar.replace(/[^0-9]/g, '');
       return (
-        pBar === raw ||
-        pSku === raw ||
-        p.id === raw ||
-        (cleanNum.length > 0 && pBar.replace(/[^0-9]/g, '') === cleanNum)
+        pBar.toLowerCase() === raw.toLowerCase() ||
+        pSku.toLowerCase() === raw.toLowerCase() ||
+        pId === raw ||
+        (cleanNum.length >= 4 && (
+          pDigits === cleanNum ||
+          pDigits.replace(/^0+/, '') === cleanNum.replace(/^0+/, '') ||
+          cleanNum.endsWith(pDigits) ||
+          pDigits.endsWith(cleanNum)
+        ))
       );
     });
+
+    if (!matched) {
+      try {
+        const remote = await getByBarcode(raw);
+        if (remote) {
+          matched = remote;
+        }
+      } catch (err) {
+        // Not in backend
+      }
+    }
 
     if (matched) {
       addItem(matched, 1);

@@ -51,7 +51,7 @@ import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 export default function PosLiteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { products } = useProducts();
+  const { products, getByBarcode } = useProducts();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
   const [permission, requestPermission] = useCameraPermissions();
@@ -90,17 +90,48 @@ export default function PosLiteScreen() {
   const isDark = theme.isDark;
 
   // Handle Instant Scan-to-Cart for POS Lite
-  const handleBarCodeScannedToCart = ({ data }: { data: string }) => {
+  const handleBarCodeScannedToCart = async ({ data }: { data: string }) => {
     if (data === lastScannedCode) return;
     setLastScannedCode(data);
     Vibration.vibrate(100);
 
-    const matched = products.find((p) => p.barcode === data || p.id === data);
+    const raw = String(data || '').trim();
+    const cleanNum = raw.replace(/[^0-9]/g, '');
+
+    let matched = products.find((p) => {
+      const pBar = (p.barcode || '').trim();
+      const pSku = (p.sku || '').trim();
+      const pId = String(p.id || '').trim();
+      const pDigits = pBar.replace(/[^0-9]/g, '');
+      return (
+        pBar.toLowerCase() === raw.toLowerCase() ||
+        pSku.toLowerCase() === raw.toLowerCase() ||
+        pId === raw ||
+        (cleanNum.length >= 4 && (
+          pDigits === cleanNum ||
+          pDigits.replace(/^0+/, '') === cleanNum.replace(/^0+/, '') ||
+          cleanNum.endsWith(pDigits) ||
+          pDigits.endsWith(cleanNum)
+        ))
+      );
+    });
+
+    if (!matched) {
+      try {
+        const remote = await getByBarcode(raw);
+        if (remote) {
+          matched = remote;
+        }
+      } catch (err) {
+        // Not in backend
+      }
+    }
+
     if (matched) {
       addItem(matched, 1);
       Alert.alert('Item Added to Cart!', `${matched.name} (₹${matched.sellingPrice.toFixed(2)}) added.`);
     } else {
-      Alert.alert('Unrecognized Barcode', `No product found matching barcode ${data}.`);
+      Alert.alert('Unrecognized Barcode', `No product found matching barcode ${raw}.`);
     }
 
     setTimeout(() => setLastScannedCode(null), 1500);
