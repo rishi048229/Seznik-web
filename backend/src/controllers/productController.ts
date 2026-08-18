@@ -224,23 +224,46 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
   }
 };
 
+export const checkAiStatus = async (_req: Request, res: Response) => {
+  const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+  const apiKey = rawKey.replace(/["'\r\n]/g, '').trim();
+
+  const isConfigured = Boolean(apiKey && apiKey.length >= 10);
+  const maskedKey = isConfigured
+    ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)} (length: ${apiKey.length})`
+    : 'NOT_FOUND';
+
+  res.json({
+    status: isConfigured ? 'ready' : 'missing_api_key',
+    geminiConfigured: isConfigured,
+    keyMasked: maskedKey,
+    modelsSupported: [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro'
+    ],
+    timestamp: new Date().toISOString()
+  });
+};
+
 export const aiExtractFromDocument = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const { documentData, mimeType = 'image/jpeg' } = req.body;
 
     if (!documentData) {
-      return res.status(400).json({ error: 'No document data provided. Please upload an image or PDF file.' });
+      return res.status(400).json({ error: 'No document data provided. Please upload an image, PDF, Excel, or CSV file.' });
     }
 
-    // Trim and sanitize GEMINI_API_KEY from environment
-    const rawKey = process.env.GEMINI_API_KEY || '';
-    const apiKey = rawKey.replace(/["']/g, '').trim();
+    // Resolve GEMINI_API_KEY (supports multiple common environment variable names)
+    const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+    const apiKey = rawKey.replace(/["'\r\n]/g, '').trim();
 
     if (!apiKey || apiKey.length < 10) {
       console.error('GEMINI_API_KEY is missing or invalid in environment.');
       return res.status(400).json({
-        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY to backend/.env and restart PM2.'
+        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY=AIzaSy... to backend/.env and restart with pm2 restart all --update-env.'
       });
     }
 

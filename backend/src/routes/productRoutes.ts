@@ -10,13 +10,17 @@ import {
   batchBarcodeStockUpdate, 
   getLowStockProducts,
   aiExtractFromDocument,
-  bulkImportProducts
+  bulkImportProducts,
+  checkAiStatus
 } from '../controllers/productController';
 import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
 
-router.use(protect); // All product routes are protected
+// Public / Diagnostic AI Status Check Endpoint (no auth token required)
+router.get('/ai-status', checkAiStatus);
+
+router.use(protect); // All product CRUD routes are protected
 
 router.get('/', getProducts);
 router.post('/', createProduct);
