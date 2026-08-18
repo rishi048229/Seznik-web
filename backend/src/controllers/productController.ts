@@ -237,22 +237,32 @@ const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const modelDiscoveryCache = new Map<string, { models: UsableModel[]; fetchedAt: number }>();
 
 /**
- * Ranks models so we try the best general-purpose vision model first.
- * Newer version > flash (fast/cheap) > pro; snapshots, previews and
- * lite/specialised variants sink to the bottom.
+ * Ranks models so we try the best general-purpose document-reading model first.
+ *
+ * Google's `-latest` aliases win outright: they track whatever the current GA
+ * model is, so they keep working across model retirements without anyone
+ * touching this file. Pinned versions follow as concrete fallbacks, newest
+ * first, with previews well below GA and lite variants below full ones.
  */
 const scoreModel = (name: string): number => {
   let score = 0;
-  const version = name.match(/gemini-(\d+)(?:\.(\d+))?/);
-  if (version) {
-    score += Number(version[1]) * 100 + Number(version[2] ?? 0) * 10;
+
+  if (/-latest$/.test(name)) {
+    score += 1000;
+  } else {
+    const version = name.match(/gemini-(\d+)(?:\.(\d+))?/);
+    if (version) {
+      score += Number(version[1]) * 100 + Number(version[2] ?? 0) * 10;
+    }
   }
+
   if (name.includes('flash')) score += 50;
   else if (name.includes('pro')) score += 30;
-  if (name.includes('lite')) score -= 15;
-  if (/preview|exp|experimental/.test(name)) score -= 25;
+
+  if (name.includes('lite')) score -= 60;                    // weakest at messy handwriting
+  if (/preview|exp|experimental/.test(name)) score -= 200;   // never prefer preview over GA
   if (/thinking/.test(name)) score -= 10;
-  if (/-\d{3,}$/.test(name)) score -= 5; // dated snapshot pins like -001, -0827
+  if (/-\d{3,}$/.test(name)) score -= 5;                     // dated snapshot pins
   return score;
 };
 
@@ -289,8 +299,11 @@ const discoverUsableModels = async (apiKey: string): Promise<UsableModel[]> => {
         outputTokenLimit: Number(m.outputTokenLimit) || 8192,
       }))
       .filter((m: UsableModel) => m.name.startsWith('gemini-'))
-      // Drop families that can't do multimodal document extraction.
-      .filter((m: UsableModel) => !/embedding|aqa|imagen|veo|tts|audio|live/i.test(m.name))
+      // Drop everything that isn't a general-purpose text/vision model.
+      // The `-image` variants matter most here: they GENERATE images rather
+      // than read them, so they rank deceptively well on name alone while
+      // being completely wrong for OCR extraction.
+      .filter((m: UsableModel) => !/embedding|aqa|imagen|veo|tts|audio|live|robotics|computer-use|-image$|-image-/i.test(m.name))
       .sort((a: UsableModel, b: UsableModel) => scoreModel(b.name) - scoreModel(a.name));
 
     if (models.length > 0) {
@@ -303,11 +316,14 @@ const discoverUsableModels = async (apiKey: string): Promise<UsableModel[]> => {
   }
 };
 
-/** Last-resort candidates if model discovery itself is unreachable. */
+/**
+ * Last-resort candidates if model discovery itself is unreachable.
+ * Only evergreen aliases — a pinned version here would be the exact kind of
+ * stale name that broke this feature in the first place.
+ */
 const FALLBACK_MODELS: UsableModel[] = [
-  { name: 'gemini-2.5-flash', outputTokenLimit: 65536 },
-  { name: 'gemini-2.0-flash', outputTokenLimit: 8192 },
   { name: 'gemini-flash-latest', outputTokenLimit: 65536 },
+  { name: 'gemini-pro-latest', outputTokenLimit: 65536 },
 ];
 
 export const checkAiStatus = async (_req: Request, res: Response) => {
