@@ -76,6 +76,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { AiProductImportModal } from '@/components/products/AiProductImportModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
+import { DashboardSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
@@ -444,10 +445,7 @@ export default function DashboardScreen() {
           }
         >
           {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={BRAND_COLORS.blue600} />
-              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading live metrics...</Text>
-            </View>
+            <DashboardSkeleton />
           ) : (
             <>
               {/* 2. APP LAUNCHER — Primary 4 Tools with Show More Menu */}

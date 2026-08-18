@@ -41,6 +41,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ContactImportModal } from '@/components/customers/ContactImportModal';
+import { CustomersListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
@@ -256,9 +257,7 @@ export default function CustomersScreen() {
           </View>
 
           {isLoading ? (
-            <View style={styles.loaderCenter}>
-              <ActivityIndicator size="large" color={BRAND_COLORS.blue600} />
-            </View>
+            <CustomersListSkeleton count={6} />
           ) : (
             <FlatList
               data={filteredCustomers}

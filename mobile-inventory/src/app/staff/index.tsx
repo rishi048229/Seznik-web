@@ -32,6 +32,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
 
 // Mirrors UserPermissions (src/types/auth.ts) and useAuthStore.hasPermission's gating exactly —
 // keep these two in sync if a new permission key is ever added.
@@ -179,7 +180,7 @@ export default function StaffScreen() {
           </Text>
 
           {isLoading ? (
-            <ActivityIndicator size="large" color={BRAND_COLORS.blue600} style={{ marginVertical: 40 }} />
+            <ListScreenSkeleton hasSearch={false} hasStats={false} count={4} />
           ) : (
             <FlatList
               data={staff}

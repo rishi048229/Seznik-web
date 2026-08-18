@@ -51,6 +51,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { DaybookSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 type AgeingBucket = '0-7' | '8-15' | '16-30' | '30+';
@@ -260,7 +261,7 @@ export default function CreditsDaybookScreen() {
 
         {activeTab === 'daybook' ? (
           isDaybookLoading ? (
-            <ActivityIndicator size="large" color={BRAND_COLORS.blue600} style={{ marginTop: 40 }} />
+            <DaybookSkeleton />
           ) : (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
             <Text style={styles.sectionHeader}>CASHFLOW METRICS</Text>

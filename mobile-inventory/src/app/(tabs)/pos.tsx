@@ -52,6 +52,7 @@ import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
+import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function PosScreen() {
@@ -504,7 +505,7 @@ export default function PosScreen() {
       {/* Full-width Product Grid */}
       <View style={styles.productGridContainer}>
           {loadingProducts ? (
-            <ActivityIndicator size="large" color={BRAND_COLORS.blue600} style={{ marginVertical: 60 }} />
+            <PosGridSkeleton />
           ) : (
             <FlatList
               data={filteredProducts}

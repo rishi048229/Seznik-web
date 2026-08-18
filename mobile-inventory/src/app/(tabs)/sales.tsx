@@ -32,6 +32,7 @@ import { Sale } from '@/types/sale';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
+import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function SalesHistoryTabScreen() {
@@ -140,9 +141,7 @@ export default function SalesHistoryTabScreen() {
 
         {/* Sales List */}
         {isLoading ? (
-          <View style={styles.loaderCenter}>
-            <ActivityIndicator size="large" color="#0284C7" />
-          </View>
+          <SalesListSkeleton count={6} />
         ) : (
           <FlatList
             data={filteredSales}

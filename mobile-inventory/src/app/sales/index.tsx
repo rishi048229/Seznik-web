@@ -34,6 +34,7 @@ import { Sale } from '@/types/sale';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
+import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
@@ -182,10 +183,7 @@ export default function SalesHistoryScreen() {
 
           {/* Sales List */}
           {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={BRAND_COLORS.blue600} />
-              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading sales invoices...</Text>
-            </View>
+            <SalesListSkeleton count={6} />
           ) : (
             <FlatList
               data={filteredSales}

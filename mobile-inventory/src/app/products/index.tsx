@@ -62,6 +62,7 @@ import { AiProductImportModal } from '@/components/products/AiProductImportModal
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { ProductsListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function ProductsScreen() {
@@ -629,7 +630,7 @@ export default function ProductsScreen() {
 
         {/* Product Cards List */}
         {isLoading ? (
-          <ActivityIndicator size="large" color={BRAND_COLORS.blue600} style={{ marginVertical: 40 }} />
+          <ProductsListSkeleton count={6} />
         ) : (
           <FlatList
             data={filteredProducts}

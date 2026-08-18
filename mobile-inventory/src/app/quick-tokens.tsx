@@ -34,6 +34,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function QuickTokensScreen() {
@@ -222,7 +223,7 @@ export default function QuickTokensScreen() {
         {/* Today's Tickets List */}
         <Text style={styles.sectionHeader}>TODAY'S TICKETS ({tokens.length})</Text>
         {isLoadingTokens ? (
-          <ActivityIndicator size="large" color={BRAND_COLORS.blue600} style={{ marginVertical: 20 }} />
+          <ListScreenSkeleton hasSearch={false} hasStats={false} count={4} />
         ) : (
           <FlatList
             data={tokens}

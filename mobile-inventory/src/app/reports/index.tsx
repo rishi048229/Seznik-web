@@ -30,6 +30,7 @@ import { useReports } from '@/hooks/useReports';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { ReportsSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function ReportsScreen() {
@@ -139,7 +140,7 @@ export default function ReportsScreen() {
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 50 }}>
           {isLoading ? (
-            <ActivityIndicator size="large" color={BRAND_COLORS.blue600} style={{ marginVertical: 40 }} />
+            <ReportsSkeleton />
           ) : (
             <>
               {/* Summary 2-Card Grid */}
