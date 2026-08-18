@@ -247,32 +247,30 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
     // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
     const cleanBase64 = documentData.includes(',') ? documentData.split(',')[1] : documentData;
 
-    const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an Excel sheet, HTML table, CSV data, PDF invoice, purchase bill, multi-column sticker label grid, hotel/restaurant menu, price catalog, handwritten bill, or price list).
+    const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an image, fast food or restaurant menu, purchase invoice, supplier bill, handwritten receipt, sticker label grid, catalog, price list, PDF, Excel sheet, or CSV).
 
-YOUR TASK: Extract EVERY SINGLE product/item present anywhere in the document.
+YOUR TASK: Extract EVERY SINGLE product / item present anywhere in the document.
 
 For each item, extract:
-1. "name": The exact product name or description (e.g. "BALESTER BRUSH", "BANGLES", "JATI", "MOM CLAY BLACK", "TRAY BOMBAY"). Do NOT set currency prices like "₹ 40.00" as the product name!
-2. "sellingPrice": Numeric selling price (e.g. 80, 750, 150, 25, 40, 350). Strip ₹, Rs, or currency symbols.
+1. "name": The exact item or dish or product name (e.g. "Hot Dog", "French Fries", "Cheese Pizza", "Veg Burger", "BALESTER BRUSH", "BANGLES", "JATI"). Do NOT use prices like "$ 4.95" or "₹ 40.00" as the name!
+2. "sellingPrice": Numeric selling price (e.g. 4.95, 2.50, 80, 750, 150, 25, 40, 350). Strip $, ₹, Rs, or currency symbols.
 3. "costPrice": Numeric cost price. If not mentioned, set equal to sellingPrice.
-4. "categoryName": Appropriate category (e.g. Groceries, Jewelry, Packaging, Cosmetics, General).
-5. "barcode": CRITICAL BARCODE RULE:
-   - Extract the EXACT barcode number or alphanumeric code (e.g. "165000", "365000", "135000", "105000", "OLDDUE8102023", "380000", "122800", "2608082035002", "2311041715357") printed or listed for the item. Do NOT change a single character!
-   - Set "barcode": null ONLY if the item literally has NO barcode or code number anywhere.
-6. "taxRate": Tax / GST percentage (0, 5, 12, 18, 28). Default to 0 if not listed.
-7. "currentStock": Stock quantity. Default to 10 if not listed.
-8. "unit": Unit type (piece, kg, liter, box, pack, bottle, plate).
+4. "categoryName": Appropriate category (e.g. Fast Food, Pizza, Beverages, Groceries, Jewelry, Packaging, Cosmetics, General).
+5. "barcode": The exact barcode number or alphanumeric code if visible. Set null if not visible.
+6. "taxRate": Tax percentage (0, 5, 12, 18, 28). Default 0.
+7. "currentStock": Stock quantity. Default 10.
+8. "unit": Unit type (piece, plate, portion, box, kg, liter, pack, bottle). Default "piece".
 
 OUTPUT REQUIREMENT:
-Return ONLY a valid JSON object matching this exact structure:
+Return ONLY a valid JSON object matching this structure:
 {
   "products": [
     {
-      "name": "Product Name",
-      "sellingPrice": 100,
-      "costPrice": 100,
-      "categoryName": "General",
-      "barcode": "165000",
+      "name": "Hot Dog",
+      "sellingPrice": 2.50,
+      "costPrice": 2.50,
+      "categoryName": "Fast Food",
+      "barcode": null,
       "taxRate": 0,
       "currentStock": 10,
       "unit": "piece"
@@ -280,39 +278,17 @@ Return ONLY a valid JSON object matching this exact structure:
   ]
 }
 RULES:
-1. Extract 100% of all items. Do NOT truncate or skip any products.
-2. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
+1. Extract ALL items found in the image or document. Do NOT skip any products.
+2. Output ONLY raw JSON without additional markdown formatting.`;
 
-    const ai = new GoogleGenAI({ apiKey });
-    
-    let modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-flash-latest',
-      'gemini-2.5-pro',
-      'gemini-pro-latest',
-      'gemini-2.5-flash-lite'
+    const modelsToTry = [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro',
+      'gemini-2.0-flash-lite',
     ];
 
-    try {
-      const listResponse: any = await (ai.models as any).list();
-      const listItems = Array.isArray(listResponse) ? listResponse : (listResponse?.models || []);
-      const discovered = listItems
-        .filter((m: any) => {
-          const name = m?.name || '';
-          const methods = m?.supportedGenerationMethods || [];
-          return methods.includes('generateContent') || name.includes('gemini');
-        })
-        .map((m: any) => (m?.name || '').replace(/^models\//, ''))
-        .filter(Boolean);
-
-      if (discovered.length > 0) {
-        console.log('Discovered Gemini models from API:', discovered);
-        modelsToTry = Array.from(new Set([...discovered, ...modelsToTry]));
-      }
-    } catch (e) {
-      console.warn('Dynamic Gemini model listing returned error:', e);
-    }
-    
     const isSpreadsheetOrText = 
       mimeType.includes('csv') || 
       mimeType.includes('sheet') || 
@@ -329,9 +305,41 @@ RULES:
       }
     }
 
+    const parseProductsFromText = (rawText: string): any[] => {
+      if (!rawText) return [];
+      try {
+        const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed.products)) return parsed.products;
+        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed.items)) return parsed.items;
+        if (Array.isArray(parsed.data)) return parsed.data;
+      } catch (e) {
+        // Fallback: extract JSON array or object with regex
+        const arrayMatch = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (arrayMatch) {
+          try {
+            const arr = JSON.parse(arrayMatch[0]);
+            if (Array.isArray(arr)) return arr;
+          } catch (_) {}
+        }
+        const objMatch = rawText.match(/\{[\s\S]*"products"\s*:\s*(\[[\s\S]*?\])[\s\S]*\}/);
+        if (objMatch && objMatch[1]) {
+          try {
+            const arr = JSON.parse(objMatch[1]);
+            if (Array.isArray(arr)) return arr;
+          } catch (_) {}
+        }
+      }
+      return [];
+    };
+
+    const ai = new GoogleGenAI({ apiKey });
+
     const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
       let lastErr = '';
       for (const modelName of modelsToTry) {
+        // 1. Try SDK call
         try {
           const response = await ai.models.generateContent({
             model: modelName,
@@ -342,17 +350,54 @@ RULES:
             }
           });
           const text = response.text || '';
-          if (text) {
-            const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
-            return Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
-          }
+          const items = parseProductsFromText(text);
+          if (items.length > 0) return items;
         } catch (err: any) {
           lastErr = err?.message || String(err);
-          console.warn(`Gemini GenAI model ${modelName} failed:`, lastErr);
+          console.warn(`Gemini SDK model ${modelName} attempt:`, lastErr);
+        }
+
+        // 2. Try Direct REST API Fallback
+        try {
+          const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+          const partsPayload = isSpreadsheetOrText
+            ? [{ text: `${promptText}\n\nDOCUMENT CONTENT:\n${textContent}` }]
+            : [
+                {
+                  inline_data: {
+                    mime_type: mimeType || 'image/jpeg',
+                    data: cleanBase64,
+                  },
+                },
+                { text: promptText },
+              ];
+
+          const restResponse = await fetch(restUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: partsPayload }],
+              generationConfig: {
+                response_mime_type: 'application/json',
+                maxOutputTokens: 65536,
+              }
+            })
+          });
+
+          if (restResponse.ok) {
+            const restData: any = await restResponse.json();
+            const text = restData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const items = parseProductsFromText(text);
+            if (items.length > 0) return items;
+          } else {
+            const errText = await restResponse.text();
+            console.warn(`Gemini REST model ${modelName} returned ${restResponse.status}:`, errText);
+          }
+        } catch (restErr: any) {
+          console.warn(`Gemini REST model ${modelName} failed:`, restErr?.message || restErr);
         }
       }
-      if (lastErr) console.error('Gemini extraction error:', lastErr);
+      if (lastErr) console.error('Gemini extraction all models attempted. Last error:', lastErr);
       return [];
     };
 
