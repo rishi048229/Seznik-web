@@ -224,25 +224,116 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
   }
 };
 
-export const checkAiStatus = async (_req: Request, res: Response) => {
-  const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
-  const apiKey = rawKey.replace(/["'\r\n]/g, '').trim();
+/**
+ * A Gemini model this API key can actually call right now, with the real
+ * output-token ceiling Google reports for it.
+ */
+interface UsableModel {
+  name: string;
+  outputTokenLimit: number;
+}
 
-  const isConfigured = Boolean(apiKey && apiKey.length >= 10);
+const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const modelDiscoveryCache = new Map<string, { models: UsableModel[]; fetchedAt: number }>();
+
+/**
+ * Ranks models so we try the best general-purpose vision model first.
+ * Newer version > flash (fast/cheap) > pro; snapshots, previews and
+ * lite/specialised variants sink to the bottom.
+ */
+const scoreModel = (name: string): number => {
+  let score = 0;
+  const version = name.match(/gemini-(\d+)(?:\.(\d+))?/);
+  if (version) {
+    score += Number(version[1]) * 100 + Number(version[2] ?? 0) * 10;
+  }
+  if (name.includes('flash')) score += 50;
+  else if (name.includes('pro')) score += 30;
+  if (name.includes('lite')) score -= 15;
+  if (/preview|exp|experimental/.test(name)) score -= 25;
+  if (/thinking/.test(name)) score -= 10;
+  if (/-\d{3,}$/.test(name)) score -= 5; // dated snapshot pins like -001, -0827
+  return score;
+};
+
+/**
+ * Asks Google which models this key can use instead of hardcoding names.
+ *
+ * Hardcoded lists rot: Google retires models (the 1.5 family is gone for new
+ * projects) and different keys/tiers see different catalogues, so a fixed list
+ * eventually 404s for everyone. Discovering at runtime — and reading each
+ * model's own outputTokenLimit rather than assuming one — keeps this working
+ * as the catalogue changes underneath us. Cached for an hour per key.
+ */
+const discoverUsableModels = async (apiKey: string): Promise<UsableModel[]> => {
+  const cached = modelDiscoveryCache.get(apiKey);
+  if (cached && Date.now() - cached.fetchedAt < MODEL_CACHE_TTL_MS) {
+    return cached.models;
+  }
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
+    );
+    if (!res.ok) {
+      console.warn(`Gemini ListModels failed (${res.status}):`, (await res.text()).slice(0, 300));
+      return [];
+    }
+
+    const data: any = await res.json();
+    const models: UsableModel[] = (data?.models ?? [])
+      .filter((m: any) => Array.isArray(m?.supportedGenerationMethods)
+        && m.supportedGenerationMethods.includes('generateContent'))
+      .map((m: any) => ({
+        name: String(m.name || '').replace(/^models\//, ''),
+        outputTokenLimit: Number(m.outputTokenLimit) || 8192,
+      }))
+      .filter((m: UsableModel) => m.name.startsWith('gemini-'))
+      // Drop families that can't do multimodal document extraction.
+      .filter((m: UsableModel) => !/embedding|aqa|imagen|veo|tts|audio|live/i.test(m.name))
+      .sort((a: UsableModel, b: UsableModel) => scoreModel(b.name) - scoreModel(a.name));
+
+    if (models.length > 0) {
+      modelDiscoveryCache.set(apiKey, { models, fetchedAt: Date.now() });
+    }
+    return models;
+  } catch (err: any) {
+    console.warn('Gemini ListModels request threw:', err?.message || err);
+    return [];
+  }
+};
+
+/** Last-resort candidates if model discovery itself is unreachable. */
+const FALLBACK_MODELS: UsableModel[] = [
+  { name: 'gemini-2.5-flash', outputTokenLimit: 65536 },
+  { name: 'gemini-2.0-flash', outputTokenLimit: 8192 },
+  { name: 'gemini-flash-latest', outputTokenLimit: 65536 },
+];
+
+export const checkAiStatus = async (_req: Request, res: Response) => {
+  const rawKeyString = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+  const apiKeys = rawKeyString
+    .split(/[,;\n]/)
+    .map(k => k.replace(/["'\r]/g, '').trim())
+    .filter(k => k.length >= 10);
+
+  const isConfigured = apiKeys.length > 0;
   const maskedKey = isConfigured
-    ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)} (length: ${apiKey.length})`
+    ? `${apiKeys[0].slice(0, 6)}...${apiKeys[0].slice(-4)} (length: ${apiKeys[0].length})`
     : 'NOT_FOUND';
 
+  // Report what the key can really reach, so a bad key or a retired model
+  // shows up here instead of only failing mid-upload.
+  const available = isConfigured ? await discoverUsableModels(apiKeys[0]) : [];
+
   res.json({
-    status: isConfigured ? 'ready' : 'missing_api_key',
+    status: !isConfigured ? 'missing_api_key' : available.length > 0 ? 'ready' : 'no_models_available',
     geminiConfigured: isConfigured,
+    keyCount: apiKeys.length,
     keyMasked: maskedKey,
-    modelsSupported: [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro'
-    ],
+    modelsAvailable: available.slice(0, 12).map(m => ({ model: m.name, maxOutputTokens: m.outputTokenLimit })),
+    modelsWillTry: (available.length > 0 ? available : FALLBACK_MODELS).slice(0, 4).map(m => m.name),
+    usingFallbackList: isConfigured && available.length === 0,
     timestamp: new Date().toISOString()
   });
 };
@@ -323,18 +414,14 @@ RULES:
 2. Skip non-product lines: totals, subtotals, GST summary rows, discounts, "Grand Total", addresses, phone numbers, invoice numbers.
 3. Output ONLY raw JSON.`;
 
-    // Model candidates paired with their REAL max output-token ceilings.
-    // Requesting more than a model allows makes the API reject the entire call
-    // with a 400 INVALID_ARGUMENT — which previously happened on every single
-    // model here, so image/PDF extraction always failed and surfaced as the
-    // misleading "check image clarity/lighting" message.
-    const modelsToTry: { name: string; maxOutputTokens: number }[] = [
-      { name: 'gemini-2.5-flash', maxOutputTokens: 65536 },
-      { name: 'gemini-2.0-flash', maxOutputTokens: 8192 },
-      { name: 'gemini-2.5-flash-lite', maxOutputTokens: 64000 },
-      { name: 'gemini-2.0-flash-lite', maxOutputTokens: 8192 },
-      { name: 'gemini-1.5-flash', maxOutputTokens: 8192 },
-    ];
+    // Ask Google what this key can actually call, rather than trusting a
+    // hardcoded list that goes stale every time a model is retired.
+    const discovered = await discoverUsableModels(apiKeys[0]);
+    const modelsToTry = (discovered.length > 0 ? discovered : FALLBACK_MODELS).slice(0, 4);
+    console.log(
+      `AI extraction will try: ${modelsToTry.map(m => m.name).join(', ')}` +
+      (discovered.length === 0 ? ' (discovery unavailable — using fallback list)' : '')
+    );
 
     const isSpreadsheetOrText = 
       cleanMimeType.includes('csv') || 
@@ -442,13 +529,18 @@ RULES:
 
     let hadRateLimit = false;
     let hadAuthError = false;
-    let lastGeneralErr = '';
+    // Every model+key attempt, so a failure report names the real blocker
+    // instead of just whichever candidate happened to be tried last.
+    const attemptErrors: { model: string; error: string }[] = [];
+    const noteAttemptError = (model: string, error: string) => {
+      attemptErrors.push({ model, error: String(error).slice(0, 200) });
+    };
 
     const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
       for (const apiKey of apiKeys) {
         const ai = new GoogleGenAI({ apiKey });
 
-        for (const { name: modelName, maxOutputTokens } of modelsToTry) {
+        for (const { name: modelName, outputTokenLimit: maxOutputTokens } of modelsToTry) {
           // 1. Try SDK call
           try {
             const response = await ai.models.generateContent({
@@ -466,7 +558,7 @@ RULES:
             if (items.length > 0) return items;
           } catch (err: any) {
             const msg = err?.message || String(err);
-            lastGeneralErr = msg;
+            noteAttemptError(`${modelName} (sdk)`, msg);
             if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('Rate limit')) {
               hadRateLimit = true;
             }
@@ -513,12 +605,15 @@ RULES:
               // output ceiling mid-JSON or genuinely saw no products.
               const finishReason = restData?.candidates?.[0]?.finishReason;
               if (finishReason && finishReason !== 'STOP') {
-                lastGeneralErr = `Model stopped early (${finishReason}) — the document may contain more items than one response can hold.`;
+                noteAttemptError(
+                  `${modelName} (rest)`,
+                  `Model stopped early (${finishReason}) — the document may contain more items than one response can hold.`
+                );
                 console.warn(`Gemini REST model ${modelName} finishReason=${finishReason}`);
               }
             } else {
               const errText = await restResponse.text();
-              lastGeneralErr = errText;
+              noteAttemptError(`${modelName} (rest)`, errText);
               if (restResponse.status === 429 || errText.includes('RESOURCE_EXHAUSTED')) {
                 hadRateLimit = true;
               }
@@ -594,19 +689,39 @@ RULES:
       // Distinguish "the API call itself failed" from "the API worked but saw
       // no products". Previously both cases blamed image clarity/lighting,
       // which sent users chasing a photo problem that wasn't the real cause.
-      const apiCallFailed = Boolean(lastGeneralErr);
-      if (apiCallFailed) {
-        const isModelMissing = /404|not found|NOT_FOUND|is not supported/i.test(lastGeneralErr);
-        const isBadRequest = /400|INVALID_ARGUMENT/i.test(lastGeneralErr);
-        let hint = 'The AI service rejected the request.';
-        if (isModelMissing) {
-          hint = 'The configured Gemini models are unavailable for this API key. Check the key has the Generative Language API enabled.';
-        } else if (isBadRequest) {
-          hint = 'The AI service rejected the request payload (the file may be an unsupported format or too large).';
+      if (attemptErrors.length > 0) {
+        console.error('aiExtractFromDocument — every model attempt failed:', attemptErrors);
+
+        // Prefer the most actionable failure over the chronologically last one:
+        // a trailing 404 from a deprecated candidate hides the real blocker.
+        const pick = (re: RegExp) => attemptErrors.find(a => re.test(a.error));
+        const authErr = pick(/403|PERMISSION_DENIED|API key not valid|API_KEY_INVALID/i);
+        const quotaErr = pick(/429|RESOURCE_EXHAUSTED|quota/i);
+        const badReqErr = pick(/400|INVALID_ARGUMENT/i);
+        const truncErr = pick(/stopped early/i);
+
+        let hint: string;
+        let chosen: { model: string; error: string };
+        if (authErr) {
+          hint = 'Your Gemini API key was rejected. Verify it at https://aistudio.google.com/apikey and confirm the Generative Language API is enabled for that project.';
+          chosen = authErr;
+        } else if (quotaErr) {
+          hint = 'Gemini quota/rate limit reached. Wait a minute, or add a second key to GEMINI_API_KEY in backend/.env (comma-separated) to rotate automatically.';
+          chosen = quotaErr;
+        } else if (truncErr) {
+          hint = 'The document has more items than one AI response can return. Split it into smaller files, or upload it as CSV/Excel.';
+          chosen = truncErr;
+        } else if (badReqErr) {
+          hint = 'Gemini rejected the file payload — it may be an unsupported format or too large.';
+          chosen = badReqErr;
+        } else {
+          hint = `No available Gemini model could process this file. Tried: ${modelsToTry.map(m => m.name).join(', ')}. Open /api/products/ai-status to see which models this key can actually use.`;
+          chosen = attemptErrors[0];
         }
-        console.error('aiExtractFromDocument — all model attempts failed:', lastGeneralErr);
+
         return res.status(502).json({
-          error: `${hint} Details: ${String(lastGeneralErr).slice(0, 300)}`
+          error: `${hint}\n\n(${chosen.model}: ${chosen.error.slice(0, 200)})`,
+          triedModels: modelsToTry.map(m => m.name),
         });
       }
 

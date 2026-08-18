@@ -18,8 +18,11 @@ export interface PreprocessResult {
 
 /** Longest edge we send. Above this, detail gain flattens but payload keeps growing. */
 const MAX_EDGE = 2200
-/** Below this, a photo of a dense price list rarely has legible glyphs. */
-const LOW_RES_EDGE = 900
+/**
+ * Below this, a photo of a dense price list rarely has legible glyphs.
+ * Kept deliberately low so ordinary phone screenshots don't trip the warning.
+ */
+const LOW_RES_EDGE = 640
 
 const loadImage = (file: File): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
