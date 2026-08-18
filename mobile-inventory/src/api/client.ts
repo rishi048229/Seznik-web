@@ -3,26 +3,32 @@ import Constants from 'expo-constants';
 import { getAuthToken, removeAuthToken, removeStoredUser } from '@/services/secureStore';
 import { useAuthStore } from '@/store/useAuthStore';
 
-// Environment Configurable Base URL
+// Environment Configurable Base URLs
+const PROD_DEFAULT_API_URL = 'https://api.seznik.com/api';
 const DEFAULT_PORT = process.env.EXPO_PUBLIC_API_PORT || '5001';
 
 const getDynamicHostIp = () => {
-  // 1. Explicit Full API URL from env (e.g. EXPO_PUBLIC_API_URL="http://192.168.0.11:5001/api" or "https://api.seznik.com/api")
+  // 1. Explicit Full API URL from environment (EAS build, .env, or production config)
   if (process.env.EXPO_PUBLIC_API_URL) {
     let url = process.env.EXPO_PUBLIC_API_URL.trim();
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `http://${url}`;
+      url = `https://${url}`;
     }
     return url.endsWith('/api') ? url : `${url.replace(/\/$/, '')}/api`;
   }
 
-  // 2. Explicit Host from env (e.g. EXPO_PUBLIC_API_HOST="192.168.0.11")
+  // 2. Production build fallback (standalone APK/IPA releases)
+  if (!__DEV__) {
+    return PROD_DEFAULT_API_URL;
+  }
+
+  // 3. Local Development: Explicit Host from env (e.g. EXPO_PUBLIC_API_HOST="192.168.0.11")
   const envHost = process.env.EXPO_PUBLIC_API_HOST?.trim();
   if (envHost) {
     return `http://${envHost}:${DEFAULT_PORT}/api`;
   }
 
-  // 3. Dynamic Host IP auto-detected from Expo bundler (auto-discovers the developer's laptop/PC IP)
+  // 4. Local Development: Dynamic Host IP auto-detected from Expo bundler (auto-detects laptop Wi-Fi IP)
   const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
@@ -31,12 +37,12 @@ const getDynamicHostIp = () => {
     }
   }
 
-  // 4. Android Emulator loopback alias for host machine
+  // 5. Local Development: Android Emulator loopback alias for host machine
   if (Platform.OS === 'android') {
     return `http://10.0.2.2:${DEFAULT_PORT}/api`;
   }
 
-  // 5. Default localhost fallback
+  // 6. Local Development: Default localhost fallback
   return `http://localhost:${DEFAULT_PORT}/api`;
 };
 
