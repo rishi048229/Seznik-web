@@ -285,46 +285,55 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
     }
     cleanBase64 = cleanBase64.replace(/\s/g, '').trim();
 
-    const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an image, fast food or restaurant menu, purchase invoice, supplier bill, handwritten receipt, sticker label grid, catalog, price list, PDF, Excel sheet, or CSV).
+    const promptText = `You are SEZ AI, an expert inventory extraction assistant with strong OCR ability. Analyze the uploaded document and extract every product/item you can read.
 
-YOUR TASK: Extract EVERY SINGLE product / item present anywhere in the document.
+The document may be any of these — treat each appropriately:
+- A PHONE PHOTO of a paper bill, supplier invoice, or price list (may be angled, shadowed, blurry, or unevenly lit)
+- A HANDWRITTEN bill, challan, or stock register page (cursive or print handwriting, possibly in English, Hindi, or a mix)
+- A RESTAURANT / FAST-FOOD MENU (dish names with prices, often in columns or sections)
+- A SCREENSHOT of a spreadsheet, billing software, WhatsApp message, or webpage
+- A sticker/label grid sheet, product catalog page, PDF, spreadsheet, or CSV text
 
-For each item, extract:
-1. "name": The exact item or dish or product name (e.g. "Hot Dog", "French Fries", "Cheese Pizza", "Veg Burger", "BALESTER BRUSH", "BANGLES", "JATI"). Do NOT use prices like "$ 4.95" or "₹ 40.00" as the name!
-2. "sellingPrice": Numeric selling price (e.g. 4.95, 2.50, 80, 750, 150, 25, 40, 350). Strip $, ₹, Rs, or currency symbols.
-3. "costPrice": Numeric cost price. If not mentioned, set equal to sellingPrice.
-4. "categoryName": Appropriate category (e.g. Fast Food, Pizza, Beverages, Groceries, Jewelry, Packaging, Cosmetics, General).
-5. "barcode": The exact barcode number or alphanumeric code if visible. Set null if not visible.
-6. "taxRate": Tax percentage (0, 5, 12, 18, 28). Default 0.
-7. "currentStock": Stock quantity. Default 10.
-8. "unit": Unit type (piece, plate, portion, box, kg, liter, pack, bottle). Default "piece".
+READING GUIDANCE FOR DIFFICULT IMAGES — this matters:
+- Low light, glare, shadows, skew, and camera blur are EXPECTED. Read through them; do not give up.
+- For handwriting, use surrounding context (column alignment, currency symbols, running totals) to resolve ambiguous characters.
+- Common OCR confusions to resolve carefully: 0/O, 1/l/I, 5/S, 6/b, 8/B, 2/Z, 7/1.
+- If a price is genuinely unreadable, still output the item with sellingPrice 0 rather than dropping it — the user reviews and corrects everything before import.
+- NEVER return an empty product list just because quality is poor. Extract your best reading of whatever is legible.
 
-OUTPUT REQUIREMENT:
-Return ONLY a valid JSON object matching this structure:
+For each item extract:
+1. "name": The item/dish/product name exactly as written (e.g. "Hot Dog", "Cheese Pizza", "BALESTER BRUSH", "Parle-G 100g"). NEVER use a price like "$ 4.95" or "₹ 40.00" as the name.
+2. "sellingPrice": Numeric selling price. Strip $, ₹, Rs, INR and commas (e.g. "₹ 1,250.00" -> 1250). If a row shows both MRP and a lower rate, prefer the selling/rate column.
+3. "costPrice": Numeric cost/purchase price. If not shown, set equal to sellingPrice.
+4. "categoryName": A sensible category (e.g. Fast Food, Beverages, Groceries, Jewelry, Stationery, Cosmetics, General). Infer from menu section headings or document context when present.
+5. "barcode": The exact barcode/EAN/UPC/item-code if visible. Set null if not visible — do NOT invent one.
+6. "taxRate": GST percentage (0, 5, 12, 18, 28). Default 0.
+7. "currentStock": Quantity if shown. Default 10.
+8. "unit": piece, plate, portion, box, kg, gram, liter, pack, bottle, dozen. Default "piece".
+
+OUTPUT: Return ONLY a valid raw JSON object, no markdown fences, no commentary:
 {
   "products": [
-    {
-      "name": "Hot Dog",
-      "sellingPrice": 2.50,
-      "costPrice": 2.50,
-      "categoryName": "Fast Food",
-      "barcode": null,
-      "taxRate": 0,
-      "currentStock": 10,
-      "unit": "piece"
-    }
+    { "name": "Hot Dog", "sellingPrice": 2.50, "costPrice": 2.50, "categoryName": "Fast Food", "barcode": null, "taxRate": 0, "currentStock": 10, "unit": "piece" }
   ]
 }
-RULES:
-1. Extract ALL items found in the image or document. Do NOT skip any products.
-2. Output ONLY raw JSON without additional markdown formatting.`;
 
-    const modelsToTry = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
-      'gemini-2.0-flash-lite',
+RULES:
+1. Extract ALL items anywhere in the document — every row, every menu section, every column. Do not skip or summarize.
+2. Skip non-product lines: totals, subtotals, GST summary rows, discounts, "Grand Total", addresses, phone numbers, invoice numbers.
+3. Output ONLY raw JSON.`;
+
+    // Model candidates paired with their REAL max output-token ceilings.
+    // Requesting more than a model allows makes the API reject the entire call
+    // with a 400 INVALID_ARGUMENT — which previously happened on every single
+    // model here, so image/PDF extraction always failed and surfaced as the
+    // misleading "check image clarity/lighting" message.
+    const modelsToTry: { name: string; maxOutputTokens: number }[] = [
+      { name: 'gemini-2.5-flash', maxOutputTokens: 65536 },
+      { name: 'gemini-2.0-flash', maxOutputTokens: 8192 },
+      { name: 'gemini-2.5-flash-lite', maxOutputTokens: 64000 },
+      { name: 'gemini-2.0-flash-lite', maxOutputTokens: 8192 },
+      { name: 'gemini-1.5-flash', maxOutputTokens: 8192 },
     ];
 
     const isSpreadsheetOrText = 
@@ -439,7 +448,7 @@ RULES:
       for (const apiKey of apiKeys) {
         const ai = new GoogleGenAI({ apiKey });
 
-        for (const modelName of modelsToTry) {
+        for (const { name: modelName, maxOutputTokens } of modelsToTry) {
           // 1. Try SDK call
           try {
             const response = await ai.models.generateContent({
@@ -447,7 +456,9 @@ RULES:
               contents: contentsPayload,
               config: {
                 responseMimeType: 'application/json',
-                maxOutputTokens: 65536,
+                maxOutputTokens,
+                // Deterministic reading — we want faithful OCR, not creative rewriting.
+                temperature: 0,
               }
             });
             const text = extractTextFromResponse(response);
@@ -487,7 +498,8 @@ RULES:
                 contents: [{ parts: partsPayload }],
                 generationConfig: {
                   responseMimeType: 'application/json',
-                  maxOutputTokens: 65536,
+                  maxOutputTokens,
+                  temperature: 0,
                 }
               })
             });
@@ -497,6 +509,13 @@ RULES:
               const text = extractTextFromResponse(restData);
               const items = parseProductsFromText(text);
               if (items.length > 0) return items;
+              // A 200 with no parsable items usually means the model hit its
+              // output ceiling mid-JSON or genuinely saw no products.
+              const finishReason = restData?.candidates?.[0]?.finishReason;
+              if (finishReason && finishReason !== 'STOP') {
+                lastGeneralErr = `Model stopped early (${finishReason}) — the document may contain more items than one response can hold.`;
+                console.warn(`Gemini REST model ${modelName} finishReason=${finishReason}`);
+              }
             } else {
               const errText = await restResponse.text();
               lastGeneralErr = errText;
@@ -572,8 +591,27 @@ RULES:
           error: 'Invalid or restricted Google Gemini API key (403). Please verify your API key in backend/.env from https://aistudio.google.com/apikey'
         });
       }
-      return res.status(500).json({
-        error: 'No product items could be detected in this document. Please verify image clarity, lighting, or try a spreadsheet/CSV file.'
+      // Distinguish "the API call itself failed" from "the API worked but saw
+      // no products". Previously both cases blamed image clarity/lighting,
+      // which sent users chasing a photo problem that wasn't the real cause.
+      const apiCallFailed = Boolean(lastGeneralErr);
+      if (apiCallFailed) {
+        const isModelMissing = /404|not found|NOT_FOUND|is not supported/i.test(lastGeneralErr);
+        const isBadRequest = /400|INVALID_ARGUMENT/i.test(lastGeneralErr);
+        let hint = 'The AI service rejected the request.';
+        if (isModelMissing) {
+          hint = 'The configured Gemini models are unavailable for this API key. Check the key has the Generative Language API enabled.';
+        } else if (isBadRequest) {
+          hint = 'The AI service rejected the request payload (the file may be an unsupported format or too large).';
+        }
+        console.error('aiExtractFromDocument — all model attempts failed:', lastGeneralErr);
+        return res.status(502).json({
+          error: `${hint} Details: ${String(lastGeneralErr).slice(0, 300)}`
+        });
+      }
+
+      return res.status(422).json({
+        error: 'The AI read the file but could not identify any products in it. If this is a photo, try retaking it straighter and with more even lighting, or upload the price list as a CSV/Excel file instead.'
       });
     }
     

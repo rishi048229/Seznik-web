@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { useAiExtractDocument, useBulkImportProducts } from '@/hooks/useProducts'
 import { type AiExtractedProduct } from '@/services/productService'
+import { preprocessImageForOcr } from '@/utils/imagePreprocess'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import {
@@ -102,12 +103,13 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       const reader = new FileReader()
       reader.onload = () => setFilePreview(reader.result as string)
       reader.readAsDataURL(file)
-    } else if (lowerName.endsWith('.csv') || file.type.includes('csv')) {
+    } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || file.type.includes('csv')) {
       setFileTypeCategory('csv')
       setFilePreview(null)
     } else if (
       lowerName.endsWith('.xlsx') ||
       lowerName.endsWith('.xls') ||
+      lowerName.endsWith('.xlsm') ||
       lowerName.endsWith('.ods') ||
       file.type.includes('sheet') ||
       file.type.includes('excel')
@@ -309,11 +311,30 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     }
   }
 
-  const readAndSendFile = (file: File) => {
+  const readAndSendFile = async (file: File) => {
+    // Photos and screenshots get downscaled + contrast-normalized first —
+    // oversized, unevenly-lit images are the main reason extraction fails.
+    if (file.type.startsWith('image/')) {
+      try {
+        const processed = await preprocessImageForOcr(file)
+        if (processed.isLowResolution) {
+          toast('This image is quite low resolution — extraction may miss items.', { icon: '⚠️' })
+        }
+        sendExtractionRequest(processed.dataUrl, processed.mimeType)
+        return
+      } catch {
+        // Preprocessing is an enhancement, never a gate — fall through to the raw file.
+      }
+    }
+
     const reader = new FileReader()
     reader.onload = () => {
       const base64Data = reader.result as string
       sendExtractionRequest(base64Data, file.type || 'image/jpeg')
+    }
+    reader.onerror = () => {
+      setStep('upload')
+      toast.error('Could not read that file. Please try another one.')
     }
     reader.readAsDataURL(file)
   }
@@ -420,6 +441,46 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
   const existingBarcodeCount = extractedProducts.filter(p => p.isExistingBarcode).length
   const autoBarcodeCount = extractedProducts.length - existingBarcodeCount
 
+  // Row-level quality flags. Extraction from a photo or handwriting is never
+  // perfect, so surface exactly which rows need a human look rather than
+  // relying on the user to eyeball every line.
+  const issuesById = useMemo(() => {
+    const barcodeCounts = new Map<string, number>()
+    const nameCounts = new Map<string, number>()
+    for (const p of extractedProducts) {
+      const bc = (p.barcode || '').trim()
+      if (bc) barcodeCounts.set(bc, (barcodeCounts.get(bc) ?? 0) + 1)
+      const nm = (p.name || '').trim().toLowerCase()
+      if (nm) nameCounts.set(nm, (nameCounts.get(nm) ?? 0) + 1)
+    }
+
+    const map = new Map<string, string[]>()
+    for (const p of extractedProducts) {
+      const issues: string[] = []
+      if (!p.name?.trim() || /^(item|extracted item)\s*\d*$/i.test(p.name.trim())) {
+        issues.push('Name could not be read')
+      }
+      if (!p.sellingPrice || p.sellingPrice <= 0) {
+        issues.push('No price found')
+      }
+      if (p.costPrice > p.sellingPrice && p.sellingPrice > 0) {
+        issues.push('Cost is higher than selling price')
+      }
+      const bc = (p.barcode || '').trim()
+      if (bc && (barcodeCounts.get(bc) ?? 0) > 1) {
+        issues.push('Duplicate barcode in this batch')
+      }
+      const nm = (p.name || '').trim().toLowerCase()
+      if (nm && (nameCounts.get(nm) ?? 0) > 1) {
+        issues.push('Duplicate name in this batch')
+      }
+      if (issues.length) map.set(p.id, issues)
+    }
+    return map
+  }, [extractedProducts])
+
+  const rowsNeedingReview = extractedProducts.filter(p => issuesById.has(p.id)).length
+
   return (
     <Modal
       isOpen={isOpen}
@@ -448,7 +509,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 </div>
                 <div className="flex items-center gap-1.5 text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg font-medium border border-blue-200 dark:border-blue-800/40">
                   <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <span><strong>Images & PDF Bills / Menus:</strong> Up to 1,000 items per file</span>
+                  <span><strong>Photos, Screenshots & PDFs:</strong> Handwritten bills, menus & invoices</span>
                 </div>
               </div>
             </div>
@@ -463,7 +524,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,application/pdf,.csv,.xlsx,.xls,.ods,text/csv,text/plain"
+                accept="image/*,.heic,.heif,application/pdf,.csv,.xlsx,.xls,.xlsm,.ods,.tsv,.txt,text/csv,text/plain"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -502,10 +563,13 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   </div>
                   <div>
                     <p className="text-base font-bold text-gray-900 dark:text-gray-100">
-                      Drop your CSV File, Excel Sheet, PDF, Image, or Invoice here
+                      Drop a bill, menu photo, screenshot, spreadsheet, or PDF here
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Supports CSV (.csv), Excel (.xlsx, .xls, .ods), JPG, PNG, WEBP & PDF files (Max 20MB)
+                      Handwritten bills · printed invoices · menu photos · screenshots · CSV, Excel (.xlsx, .xls, .ods) · PDF — max 20MB
+                    </p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
+                      Photos are auto-sharpened and light-corrected before reading, so slightly dim or angled shots are fine.
                     </p>
                   </div>
                   <Button type="button" size="sm" variant="outline" className="mt-2">
@@ -594,6 +658,16 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               </div>
             </div>
 
+            {/* Rows the extractor is unsure about */}
+            {rowsNeedingReview > 0 && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-rose-900 dark:text-rose-200">
+                  <strong>{rowsNeedingReview}</strong> {rowsNeedingReview === 1 ? 'row needs' : 'rows need'} a closer look — missing prices, unreadable names, or duplicates. They're marked in the list below and are still safe to import once corrected.
+                </p>
+              </div>
+            )}
+
             {/* Filter Search Bar & Bulk Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="relative flex-1 min-w-[200px]">
@@ -665,10 +739,18 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map(product => (
+                    filteredProducts.map(product => {
+                      const rowIssues = issuesById.get(product.id)
+                      return (
                       <tr
                         key={product.id}
-                        className={product.selected ? 'bg-purple-50/30 dark:bg-purple-900/10' : 'opacity-60'}
+                        className={
+                          !product.selected
+                            ? 'opacity-60'
+                            : rowIssues
+                            ? 'bg-rose-50/40 dark:bg-rose-950/20'
+                            : 'bg-purple-50/30 dark:bg-purple-900/10'
+                        }
                       >
                         <td className="p-3 text-center">
                           <input
@@ -685,6 +767,12 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             onChange={e => handleUpdateProductField(product.id, 'name', e.target.value)}
                             className="w-full bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-2 py-1 text-xs font-semibold"
                           />
+                          {rowIssues && (
+                            <p className="mt-1 flex items-start gap-1 text-[10px] font-medium text-rose-700 dark:text-rose-300">
+                              <AlertCircle className="w-3 h-3 flex-shrink-0 mt-px" />
+                              <span>{rowIssues.join(' · ')}</span>
+                            </p>
+                          )}
                         </td>
                         <td className="p-2">
                           <input
@@ -774,7 +862,8 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           </button>
                         </td>
                       </tr>
-                    ))
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -787,15 +876,25 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   No products match your search filter.
                 </div>
               ) : (
-                filteredProducts.map(product => (
+                filteredProducts.map(product => {
+                  const rowIssues = issuesById.get(product.id)
+                  return (
                   <div
                     key={product.id}
                     className={`p-3.5 rounded-xl border text-xs space-y-3 transition-colors ${
-                      product.selected
-                        ? 'bg-purple-50/40 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/60'
-                        : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-60'
+                      !product.selected
+                        ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-60'
+                        : rowIssues
+                        ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/60'
+                        : 'bg-purple-50/40 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/60'
                     }`}
                   >
+                    {rowIssues && (
+                      <p className="flex items-start gap-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                        <span>{rowIssues.join(' · ')}</span>
+                      </p>
+                    )}
                     {/* Header Row: Checkbox, Name, Delete */}
                     <div className="flex items-start gap-2">
                       <input
@@ -906,7 +1005,8 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                       </div>
                     </div>
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
 
