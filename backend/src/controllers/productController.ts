@@ -283,6 +283,7 @@ export const aiExtractFromDocument = async (req: Request, res: Response) => {
         cleanBase64 = documentData.split(',')[1];
       }
     }
+    cleanBase64 = cleanBase64.replace(/\s/g, '').trim();
 
     const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an image, fast food or restaurant menu, purchase invoice, supplier bill, handwritten receipt, sticker label grid, catalog, price list, PDF, Excel sheet, or CSV).
 
@@ -385,6 +386,22 @@ RULES:
       return [];
     };
 
+    const extractTextFromResponse = (response: any): string => {
+      if (!response) return '';
+      if (typeof response === 'string') return response;
+      if (typeof response.text === 'function') {
+        try {
+          const res = response.text();
+          if (res && typeof res === 'string') return res;
+        } catch (_) {}
+      }
+      if (typeof response.text === 'string') return response.text;
+      if (response.candidates?.[0]?.content?.parts) {
+        return response.candidates[0].content.parts.map((p: any) => p.text || '').join('\n');
+      }
+      return '';
+    };
+
     const parseProductsFromText = (rawText: string): any[] => {
       if (!rawText) return [];
       try {
@@ -433,7 +450,7 @@ RULES:
                 maxOutputTokens: 65536,
               }
             });
-            const text = response.text || '';
+            const text = extractTextFromResponse(response);
             const items = parseProductsFromText(text);
             if (items.length > 0) return items;
           } catch (err: any) {
@@ -477,7 +494,7 @@ RULES:
 
             if (restResponse.ok) {
               const restData: any = await restResponse.json();
-              const text = restData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              const text = extractTextFromResponse(restData);
               const items = parseProductsFromText(text);
               if (items.length > 0) return items;
             } else {
