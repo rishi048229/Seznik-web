@@ -90,6 +90,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'Show Less Options',
 
     // Option Names & Buttons
+    billNow: 'Bill Now',
+    printAndRecordBill: 'Print & Record Bill Now',
     addProduct: 'Add Product',
     addCustomer: 'Add Customer',
     addSupplier: 'Add Supplier',
@@ -262,6 +264,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'कम विकल्प दिखाएं',
 
     // Option Names & Buttons
+    billNow: 'बिल बनाएं',
+    printAndRecordBill: 'बिल प्रिंट और दर्ज करें',
     addProduct: 'सामान जोड़ें',
     addCustomer: 'ग्राहक जोड़ें',
     addSupplier: 'सप्लायर जोड़ें',
@@ -434,6 +438,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'कमी पर्याय दाखवा',
 
     // Option Names & Buttons
+    billNow: 'बिल बनवा',
+    printAndRecordBill: 'बिल छापा आणि नोंदवा',
     addProduct: 'वस्तू जोडा',
     addCustomer: 'ग्राहक जोडा',
     addSupplier: 'पुरवठादार जोडा',
@@ -606,6 +612,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'குறைவாகக் காட்டு',
 
     // Option Names & Buttons
+    billNow: 'பில் போடு',
+    printAndRecordBill: 'பில் அச்சிட்டு பதிவு செய்க',
     addProduct: 'பொருள் சேர்',
     addCustomer: 'வாடிக்கையாளர் சேர்',
     addSupplier: 'வழங்குநர் சேர்',
@@ -778,6 +786,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'తక్కువ ఎంపికలు',
 
     // Option Names & Buttons
+    billNow: 'బిల్ చేయండి',
+    printAndRecordBill: 'బిల్ ప్రింట్ & రికార్డ్ చేయండి',
     addProduct: 'వస్తువును జోడించు',
     addCustomer: 'కస్టమర్‌ను జోడించు',
     addSupplier: 'సరఫరాదారుని జోడించు',
@@ -950,6 +960,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'ઓછા વિકલ્પો બતાવો',
 
     // Option Names & Buttons
+    billNow: 'બિલ બનાવો',
+    printAndRecordBill: 'બિલ પ્રિન્ટ અને સેવ કરો',
     addProduct: 'વસ્તુ ઉમેરો',
     addCustomer: 'ગ્રાહક ઉમેરો',
     addSupplier: 'સપ્લાયર ઉમેરો',
@@ -1122,6 +1134,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'কম বিকল্প দেখান',
 
     // Option Names & Buttons
+    billNow: 'বিল তৈরি করুন',
+    printAndRecordBill: 'বিল প্রিন্ট ও রেকর্ড করুন',
     addProduct: 'পণ্য যোগ করুন',
     addCustomer: 'গ্রাহক যোগ করুন',
     addSupplier: 'সরবরাহকারী যোগ করুন',
@@ -1294,6 +1308,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'കുറച്ച് കാണിക്കുക',
 
     // Option Names & Buttons
+    billNow: 'ബിൽ ചെയ്യുക',
+    printAndRecordBill: 'ബിൽ പ്രിന്റ് ചെയ്ത് രേഖപ്പെടുത്തുക',
     addProduct: 'ഉൽപ്പന്നം ചേർക്കുക',
     addCustomer: 'ഉപഭോക്താവിനെ ചേർക്കുക',
     addSupplier: 'വിതരണക്കാരനെ ചേർക്കുക',
@@ -1466,6 +1482,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     showLessOptions: 'କମ୍ ବିକଳ୍ପ ଦେଖାନ୍ତୁ',
 
     // Option Names & Buttons
+    billNow: 'ବିଲ୍ ବନାନ୍ତୁ',
+    printAndRecordBill: 'ବିଲ୍ ପ୍ରିଣ୍ଟ୍ ଏବଂ ରେକର୍ଡ କରନ୍ତୁ',
     addProduct: 'ସାମଗ୍ରୀ ଯୋଡନ୍ତୁ',
     addCustomer: 'ଗ୍ରାହକ ଯୋଡନ୍ତୁ',
     addSupplier: 'ଯୋଗାଣକାରୀ ଯୋଡନ୍ତୁ',

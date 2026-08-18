@@ -423,7 +423,7 @@ export default function DashboardScreen() {
 
             <TouchableOpacity onPress={() => setShowQuickBillModal(true)} style={styles.billNowBtn}>
               <Zap size={14} color="#FFFFFF" />
-              <Text style={styles.billNowText}>Bill Now</Text>
+              <Text style={styles.billNowText}>{t('billNow', 'Bill Now')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -880,7 +880,7 @@ export default function DashboardScreen() {
 
                 <TouchableOpacity onPress={handleQuickBill} disabled={isCreating} style={styles.instantBillBtn}>
                   {isCreating && <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />}
-                  <Text style={styles.instantBillBtnText}>Print & Record Bill Now</Text>
+                  <Text style={styles.instantBillBtnText}>{t('printAndRecordBill', 'Print & Record Bill Now')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
