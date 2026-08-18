@@ -58,6 +58,7 @@ import {
   ChevronUp,
   LayoutGrid,
   MessageSquarePlus,
+  Trash2,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -125,10 +126,47 @@ export default function DashboardScreen() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voiceText, setVoiceText] = useState('');
 
-  // 2-Click Quick Bill Inputs
-  const [quickItemName, setQuickItemName] = useState('');
-  const [quickAmount, setQuickAmount] = useState('');
-  const [quickQty, setQuickQty] = useState('1');
+  // Multi-Product Instant Quick Bill Inputs
+  interface QuickBillRow {
+    id: string;
+    name: string;
+    price: string;
+    qty: string;
+  }
+  const [quickBillItems, setQuickBillItems] = useState<QuickBillRow[]>([
+    { id: '1', name: '', price: '', qty: '1' },
+  ]);
+  const [quickCustomerName, setQuickCustomerName] = useState('');
+  const [quickPaymentMethod, setQuickPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
+
+  const handleAddQuickBillRow = () => {
+    setQuickBillItems((prev) => [
+      ...prev,
+      { id: Date.now().toString(), name: '', price: '', qty: '1' },
+    ]);
+  };
+
+  const handleUpdateQuickBillRow = (id: string, field: 'name' | 'price' | 'qty', value: string) => {
+    setQuickBillItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleRemoveQuickBillRow = (id: string) => {
+    if (quickBillItems.length <= 1) {
+      setQuickBillItems([{ id: '1', name: '', price: '', qty: '1' }]);
+      return;
+    }
+    setQuickBillItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const calculateQuickBillTotal = () => {
+    return quickBillItems.reduce((acc, item) => {
+      const p = parseFloat(item.price) || 0;
+      const q = parseInt(item.qty) || 1;
+      return acc + p * q;
+    }, 0);
+  };
 
   const theme = useAppTheme();
 
@@ -156,30 +194,34 @@ export default function DashboardScreen() {
   );
 
   const handleQuickBill = async () => {
-    if (!quickItemName.trim() || !quickAmount.trim()) {
-      Alert.alert('Missing Info', 'Please enter item name and price.');
+    const validItems = quickBillItems
+      .filter((item) => item.name.trim().length > 0 && parseFloat(item.price) > 0)
+      .map((item) => {
+        const p = parseFloat(item.price) || 0;
+        const q = Math.max(1, parseInt(item.qty) || 1);
+        return {
+          productName: item.name.trim(),
+          quantity: q,
+          unitPrice: p,
+          total: p * q,
+        };
+      });
+
+    if (validItems.length === 0) {
+      Alert.alert('Missing Info', 'Please enter at least one product with name and price.');
       return;
     }
 
-    const price = parseFloat(quickAmount) || 0;
-    const qty = parseInt(quickQty) || 1;
-    const total = price * qty;
+    const total = validItems.reduce((acc, i) => acc + i.total, 0);
 
     try {
       const sale = await createSale({
-        items: [
-          {
-            productName: quickItemName.trim(),
-            quantity: qty,
-            unitPrice: price,
-            total,
-          },
-        ],
+        items: validItems,
         subtotal: total,
         totalDiscount: 0,
         totalTax: 0,
         grandTotal: total,
-        paymentMethod: 'cash',
+        paymentMethod: quickPaymentMethod,
         amountPaid: total,
         changeReturned: 0,
         isQuickBill: true,
@@ -194,22 +236,15 @@ export default function DashboardScreen() {
             storePhone: settings?.businessPhone || '',
             invoiceNumber: sale.invoiceNumber,
             date: new Date().toLocaleDateString('en-GB'),
-            customerName: 'Quick Walk-in Customer',
-            items: [
-              {
-                productName: quickItemName.trim(),
-                quantity: qty,
-                unitPrice: price,
-                total,
-              },
-            ],
+            customerName: quickCustomerName.trim() || 'Quick Walk-in Customer',
+            items: validItems,
             subtotal: total,
             totalTax: 0,
             totalDiscount: 0,
             grandTotal: total,
             amountPaid: total,
             changeReturned: 0,
-            paymentMethod: 'CASH (Quick Bill)',
+            paymentMethod: quickPaymentMethod.toUpperCase(),
           });
         } catch (printErr) {
           console.warn('Auto print failed:', printErr);
@@ -217,11 +252,10 @@ export default function DashboardScreen() {
       }
 
       setShowQuickBillModal(false);
-      setQuickItemName('');
-      setQuickAmount('');
-      setQuickQty('1');
+      setQuickBillItems([{ id: '1', name: '', price: '', qty: '1' }]);
+      setQuickCustomerName('');
       refetch();
-      Alert.alert('Bill Generated!', `Invoice #${sale.invoiceNumber} recorded successfully.`);
+      Alert.alert('Bill Generated! 🧾', `Invoice #${sale.invoiceNumber} recorded successfully with ${validItems.length} products (${formatCurrency(total)}).`);
     } catch (err: any) {
       Alert.alert('Billing Error', err?.message || 'Failed to complete quick bill');
     }
@@ -254,7 +288,7 @@ export default function DashboardScreen() {
           'Product Not Found',
           `Barcode "${raw}" is not in catalog. Would you like to create this product or add to Quick Bill?`,
           [
-            { text: 'Quick Bill', onPress: () => { setQuickItemName(`Item ${raw}`); setShowQuickBillModal(true); } },
+            { text: 'Quick Bill', onPress: () => { setQuickBillItems([{ id: '1', name: `Item ${raw}`, price: '', qty: '1' }]); setShowQuickBillModal(true); } },
             { text: 'Add to Inventory', onPress: () => router.push('/products' as any) },
           ]
         );
@@ -291,7 +325,7 @@ export default function DashboardScreen() {
     const name = voiceText.trim();
     setShowVoiceModal(false);
     setVoiceText('');
-    setQuickItemName(name);
+    setQuickBillItems([{ id: '1', name, price: '', qty: '1' }]);
     setShowQuickBillModal(true);
   };
 
@@ -815,6 +849,54 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* 7.5 DEDICATED EXPENSE TRACKER & OUTFLOW CARD */}
+              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 16 }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(236, 72, 153, 0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                      <Wallet size={18} color="#EC4899" />
+                    </View>
+                    <View>
+                      <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('expenses', 'Expense Tracker & Outflow')}</Text>
+                      <Text style={{ fontSize: 11, color: theme.textSecondary }}>Live Business Spending</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push('/expenses' as any)}
+                    style={{ backgroundColor: 'rgba(236, 72, 153, 0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <Plus size={13} color="#EC4899" style={{ marginRight: 4 }} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#EC4899' }}>+ Add Expense</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: theme.bg, padding: 12, borderRadius: 14, marginBottom: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase' }}>Today&apos;s Expense</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#EC4899', marginTop: 2 }}>
+                      {formatCurrency(expenseSummary.today)}
+                    </Text>
+                  </View>
+                  <View style={{ width: 1, backgroundColor: theme.borderColor, marginHorizontal: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase' }}>This Month Outflow</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: theme.textPrimary, marginTop: 2 }}>
+                      {formatCurrency(expenseSummary.thisMonth)}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => router.push('/expenses' as any)}
+                  style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: BRAND_COLORS.sky500 }}>
+                    Manage Expense Categories & Cash Outflows ➔
+                  </Text>
+                  <ArrowRight size={14} color={BRAND_COLORS.sky500} />
+                </TouchableOpacity>
+              </View>
+
               {/* 8. REVENUE TREND CHART */}
               <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 20 }]}>
                 <View style={styles.chartHeader}>
@@ -898,16 +980,16 @@ export default function DashboardScreen() {
           )}
         </ScrollView>
 
-        {/* 2-Click Instant "Bill Now" Modal */}
+        {/* Multi-Product Instant "Bill Now" Modal */}
         <Modal visible={showQuickBillModal} animationType="slide" transparent>
           <KeyboardAvoidingWrapper inModal>
             <View style={styles.modalOverlay}>
-              <View style={[styles.bottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={[styles.bottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, maxHeight: '88%' }]}>
                 <View style={styles.sheetHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Zap size={20} color={BRAND_COLORS.blue600} />
                     <Text style={[styles.sheetTitle, { color: theme.textPrimary, marginLeft: 8 }]}>
-                      2-Click Instant Bill
+                      Multi-Product Quick Bill
                     </Text>
                   </View>
                   <TouchableOpacity onPress={() => setShowQuickBillModal(false)}>
@@ -915,38 +997,117 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Item Name (Product / Non-Product)</Text>
+                {/* Optional Customer Name */}
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Customer Name (Optional)</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                  value={quickItemName}
-                  onChangeText={setQuickItemName}
-                  placeholder="e.g. General Counter Items"
+                  style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 12 }]}
+                  value={quickCustomerName}
+                  onChangeText={setQuickCustomerName}
+                  placeholder="Walk-in Customer"
                   placeholderTextColor="#94A3B8"
                 />
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <View style={{ flex: 1, marginRight: 6 }}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Total Amount (₹) *</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                      value={quickAmount}
-                      onChangeText={setQuickAmount}
-                      keyboardType="numeric"
-                      placeholder="150.00"
-                      placeholderTextColor="#94A3B8"
-                    />
+                {/* Item List */}
+                <Text style={[styles.inputLabel, { color: theme.textPrimary, marginBottom: 8 }]}>Products / Items ({quickBillItems.length})</Text>
+                <ScrollView style={{ maxHeight: 240, marginBottom: 10 }} showsVerticalScrollIndicator={false}>
+                  {quickBillItems.map((item, idx) => {
+                    const rowSubtotal = (parseFloat(item.price) || 0) * (parseInt(item.qty) || 1);
+                    return (
+                      <View key={item.id} style={[styles.quickItemRowCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.sky500 }}>
+                            Item #{idx + 1}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textPrimary }}>
+                              = {formatCurrency(rowSubtotal)}
+                            </Text>
+                            {quickBillItems.length > 1 && (
+                              <TouchableOpacity onPress={() => handleRemoveQuickBillRow(item.id)} style={{ padding: 4 }}>
+                                <Trash2 size={15} color="#EF4444" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+
+                        <TextInput
+                          style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 8, paddingVertical: 8 }]}
+                          value={item.name}
+                          onChangeText={(v) => handleUpdateQuickBillRow(item.id, 'name', v)}
+                          placeholder="e.g. Rice 1kg, Chai, Notebook"
+                          placeholderTextColor="#94A3B8"
+                        />
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                          <View style={{ flex: 1.5 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Price (₹) *</Text>
+                            <TextInput
+                              style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0, paddingVertical: 8 }]}
+                              value={item.price}
+                              onChangeText={(v) => handleUpdateQuickBillRow(item.id, 'price', v)}
+                              keyboardType="numeric"
+                              placeholder="100.00"
+                              placeholderTextColor="#94A3B8"
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Qty</Text>
+                            <TextInput
+                              style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0, paddingVertical: 8 }]}
+                              value={item.qty}
+                              onChangeText={(v) => handleUpdateQuickBillRow(item.id, 'qty', v)}
+                              keyboardType="numeric"
+                              placeholder="1"
+                              placeholderTextColor="#94A3B8"
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Add Next Product Row Button */}
+                <TouchableOpacity
+                  onPress={handleAddQuickBillRow}
+                  style={[styles.addQuickItemBtn, { borderColor: BRAND_COLORS.blue600, backgroundColor: 'rgba(37, 99, 235, 0.08)' }]}
+                >
+                  <Plus size={16} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                  <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '800', fontSize: 12 }}>
+                    + Add Next Product / Item
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Payment Method & Total Bar */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 }}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {(['cash', 'upi', 'card'] as const).map((mode) => (
+                      <TouchableOpacity
+                        key={mode}
+                        onPress={() => setQuickPaymentMethod(mode)}
+                        style={[
+                          styles.payModeChip,
+                          quickPaymentMethod === mode && { backgroundColor: BRAND_COLORS.navyInk },
+                          { borderColor: theme.borderColor },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.payModeChipText,
+                            quickPaymentMethod === mode ? { color: '#FFF' } : { color: theme.textSecondary },
+                          ]}
+                        >
+                          {mode.toUpperCase()}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
 
-                  <View style={{ flex: 1, marginLeft: 6 }}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Qty</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                      value={quickQty}
-                      onChangeText={setQuickQty}
-                      keyboardType="numeric"
-                      placeholder="1"
-                      placeholderTextColor="#94A3B8"
-                    />
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary }}>Grand Total</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#10B981' }}>
+                      {formatCurrency(calculateQuickBillTotal())}
+                    </Text>
                   </View>
                 </View>
 
@@ -1244,4 +1405,30 @@ const styles = StyleSheet.create({
   instantBillBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   instantBillBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
   scannerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 40, backgroundColor: '#000' },
+  quickItemRowCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+  },
+  addQuickItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    marginBottom: 8,
+  },
+  payModeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  payModeChipText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
 });

@@ -70,6 +70,94 @@ function excelBufferToCsvText(base64Data: string): string {
   return XLSX.utils.sheet_to_csv(sheet);
 }
 
+/**
+ * Resiliently extracts product lists from Gemini responses, handling trailing commas,
+ * unescaped quotes, truncated output JSON, and relaxed formats without throwing parse errors.
+ */
+function robustParseProductJson(rawText: string): any[] {
+  if (!rawText) return [];
+  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+  // 1. Direct JSON.parse
+  try {
+    const parsed = JSON.parse(cleaned);
+    const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+    if (list.length > 0) return list;
+  } catch (e) {
+    // Attempt repairs
+  }
+
+  // 2. Remove trailing commas before object/array close
+  try {
+    const noTrailingCommas = cleaned.replace(/,\s*([\]}])/g, '$1');
+    const parsed = JSON.parse(noTrailingCommas);
+    const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+    if (list.length > 0) return list;
+  } catch (e) {
+    // Attempt repair of truncated responses
+  }
+
+  // 3. Repair truncated responses (e.g. hitting output token limits)
+  try {
+    const lastBraceIdx = cleaned.lastIndexOf('}');
+    if (lastBraceIdx > 0) {
+      let candidate = cleaned.slice(0, lastBraceIdx + 1);
+      if (!candidate.endsWith(']')) {
+        candidate += ']';
+      }
+      if (candidate.startsWith('{') && !candidate.endsWith('}')) {
+        candidate += '}';
+      }
+      candidate = candidate.replace(/,\s*([\]}])/g, '$1');
+      const parsed = JSON.parse(candidate);
+      const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+      if (list.length > 0) return list;
+    }
+  } catch (e) {
+    // Fall back to regex item extraction
+  }
+
+  // 4. Regex object scanner: extracts individual { ... } item blocks
+  const products: any[] = [];
+  const objectRegex = /\{\s*"name"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*,[\s\S]*?\}/g;
+  let match;
+  while ((match = objectRegex.exec(cleaned)) !== null) {
+    try {
+      const objStr = match[0].replace(/,\s*([\]}])/g, '$1');
+      const obj = JSON.parse(objStr);
+      if (obj && obj.name) {
+        products.push(obj);
+      }
+    } catch (e) {
+      try {
+        const nameMatch = match[0].match(/"name"\s*:\s*"([^"]+)"/);
+        const priceMatch = match[0].match(/"sellingPrice"\s*:\s*([0-9.]+)/);
+        const costMatch = match[0].match(/"costPrice"\s*:\s*([0-9.]+)/);
+        const barcodeMatch = match[0].match(/"barcode"\s*:\s*(?:"([^"]+)"|([0-9]+)|null)/);
+        const catMatch = match[0].match(/"categoryName"\s*:\s*"([^"]+)"/);
+        const unitMatch = match[0].match(/"unit"\s*:\s*"([^"]+)"/);
+        const stockMatch = match[0].match(/"currentStock"\s*:\s*([0-9]+)/);
+
+        if (nameMatch) {
+          products.push({
+            name: nameMatch[1],
+            sellingPrice: priceMatch ? parseFloat(priceMatch[1]) : 0,
+            costPrice: costMatch ? parseFloat(costMatch[1]) : (priceMatch ? parseFloat(priceMatch[1]) : 0),
+            categoryName: catMatch ? catMatch[1] : 'General',
+            barcode: barcodeMatch ? (barcodeMatch[1] || barcodeMatch[2] || null) : null,
+            unit: unitMatch ? unitMatch[1] : 'piece',
+            currentStock: stockMatch ? parseInt(stockMatch[1]) : 10,
+          });
+        }
+      } catch (err) {
+        // Skip unparseable single item
+      }
+    }
+  }
+
+  return products;
+}
+
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
@@ -404,9 +492,11 @@ RULES:
     const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
       try {
         const text = await generateWithGeminiFallback(ai, contentsPayload, { maxOutputTokens: 8192 });
-        const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleaned);
-        return Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+        const list = robustParseProductJson(text);
+        if (list.length === 0) {
+          console.warn('Gemini returned text but 0 products could be parsed:', text.slice(0, 300));
+        }
+        return list;
       } catch (err: any) {
         lastApiError = err?.message || String(err);
         console.error('Gemini extraction error:', lastApiError);
