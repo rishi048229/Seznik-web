@@ -51,6 +51,7 @@ import {
   MessageCircle,
   Package,
   Calculator,
+  Boxes,
   BookOpen,
   ChevronDown,
   ChevronUp,
@@ -108,6 +109,7 @@ export default function DashboardScreen() {
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showMoreTools, setShowMoreTools] = useState(false);
+  const [restockingId, setRestockingId] = useState<string | null>(null);
 
   // Modals & Action States
   const [showQuickBillModal, setShowQuickBillModal] = useState(false);
