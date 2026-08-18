@@ -31,6 +31,9 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   en: {
     // Page Titles
     productsPageTitle: 'Products & Inventory',
+    categoriesPageTitle: 'Categories & Subcategories',
+    creditLedger: 'Credit Ledger',
+    dailyCashflow: 'Daily Cashflow',
     salesPageTitle: 'Sales History',
     customersPageTitle: 'Customers & Ledger',
     daybookPageTitle: 'Daybook & Cashflow',
@@ -205,6 +208,9 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   hi: {
     // Page Titles
     productsPageTitle: 'उत्पाद और स्टॉक सूची',
+    categoriesPageTitle: 'श्रेणियां और उप-श्रेणियां',
+    creditLedger: 'उधारी खाता',
+    dailyCashflow: 'दैनिक रोकड़',
     salesPageTitle: 'बिक्री इतिहास',
     customersPageTitle: 'ग्राहक और उधारी खाता',
     daybookPageTitle: 'डे बुक और रोकड़ खाता',
@@ -379,6 +385,9 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   mr: {
     // Page Titles
     productsPageTitle: 'वस्तू आणि स्टॉक यादी',
+    categoriesPageTitle: 'वर्ग आणि उपवर्ग',
+    creditLedger: 'उधारी खाते',
+    dailyCashflow: 'दैनिक रोकड',
     salesPageTitle: 'विक्री इतिहास',
     customersPageTitle: 'ग्राहक आणि उधारी खाते',
     daybookPageTitle: 'डे बुक आणि रोकड वही',
@@ -553,6 +562,9 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   ta: {
     // Page Titles
     productsPageTitle: 'பொருட்கள் மற்றும் இருப்பு',
+    categoriesPageTitle: 'பிரிவுகள் மற்றும் துணைப் பிரிவுகள்',
+    creditLedger: 'கடன் ஏடு',
+    dailyCashflow: 'தினசரி ரொக்கம்',
     salesPageTitle: 'விற்பனை வரலாறு',
     customersPageTitle: 'வாடிக்கையாளர் கடன் ஏடு',
     daybookPageTitle: 'டே புக் & ரொக்கப் புத்தகம்',
@@ -726,7 +738,10 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
   te: {
     // Page Titles
-    productsPageTitle: 'వస్తువులు మరియు స్టాక్',
+    productsPageTitle: 'ఉత్పత్తులు & ఇన్వెంటరీ',
+    categoriesPageTitle: 'వర్గాలు & ఉపవర్గాలు',
+    creditLedger: 'క్రెడిట్ లెడ్జర్',
+    dailyCashflow: 'రోజువారీ నగదు',
     salesPageTitle: 'అమ్మకాల చరిత్ర',
     customersPageTitle: 'కస్టమర్ మరియు అప్పుల ఖాతా',
     daybookPageTitle: 'డే బుక్ & నగదు పుస్తకం',
@@ -900,7 +915,10 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
   gu: {
     // Page Titles
-    productsPageTitle: 'માલસામાન અને સ્ટોક યાદી',
+    productsPageTitle: 'પ્રોડક્ટ્સ અને સ્ટોક',
+    categoriesPageTitle: 'શ્રેણીઓ અને પેટા-શ્રેણીઓ',
+    creditLedger: 'ઉધાર ખાતું',
+    dailyCashflow: 'દૈનિક રોકડ',
     salesPageTitle: 'વેચાણ ઇતિહાસ',
     customersPageTitle: 'ગ્રાહક અને ઉધારી ખાતાવહી',
     daybookPageTitle: 'ડે બુક અને રોકડ મેળ',
@@ -1074,7 +1092,10 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
   bn: {
     // Page Titles
-    productsPageTitle: 'পণ্য ও স্টক তালিকা',
+    productsPageTitle: 'পণ্য ও স্টক',
+    categoriesPageTitle: 'বিভাগ এবং উপ-বিভাগ',
+    creditLedger: 'বাকি খাতা',
+    dailyCashflow: 'দৈনিক নগদ প্রবাহ',
     salesPageTitle: 'বিক্রয় ইতিহাস',
     customersPageTitle: 'গ্রাহক ও বাকির খাতা',
     daybookPageTitle: 'ডে বুক ও নগদ খাতা',
@@ -1249,6 +1270,9 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   ml: {
     // Page Titles
     productsPageTitle: 'ഉൽപ്പന്നങ്ങളും സ്റ്റോക്കും',
+    categoriesPageTitle: 'വിഭാഗങ്ങളും ഉപവിഭാഗങ്ങളും',
+    creditLedger: 'കടം ലെഡ്ജർ',
+    dailyCashflow: 'പ്രതിദിന പണമിടപാട്',
     salesPageTitle: 'വിൽപ്പന ചരിത്രം',
     customersPageTitle: 'ഉപഭോക്താവും കടം ലെഡ്ജറും',
     daybookPageTitle: 'ഡേ ബുക്കും പണമിടപാടും',
@@ -1422,7 +1446,10 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
   or: {
     // Page Titles
-    productsPageTitle: 'ସାମଗ୍ରୀ ଏବଂ ଷ୍ଟକ୍ ତାଲିକା',
+    productsPageTitle: 'ଉତ୍ପାଦ ଏବଂ ଷ୍ଟକ୍',
+    categoriesPageTitle: 'ବର୍ଗ ଏବଂ ଉପ-ବର୍ଗ',
+    creditLedger: 'ଉଧାର ଖାତା',
+    dailyCashflow: 'ଦୈନିକ ନଗଦ',
     salesPageTitle: 'ବିକ୍ରି ଇତିହାସ',
     customersPageTitle: 'ଗ୍ରାହକ ଏବଂ ଉଧାର ଖାତା',
     daybookPageTitle: 'ଡେ ବୁକ୍ ଏବଂ ନଗଦ ଖାତା',

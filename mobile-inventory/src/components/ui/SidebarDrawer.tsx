@@ -90,6 +90,12 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       ],
     },
     {
+      title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
+      items: [
+        { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
+      ],
+    },
+    {
       title: t('suppliersPurchases', 'SUPPLIERS & PURCHASES'),
       items: [
         { id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' },
@@ -102,12 +108,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         { id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' },
         { id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' },
         { id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: DollarSign, route: '/expenses' },
-      ],
-    },
-    {
-      title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
-      items: [
-        { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
       ],
     },
     {

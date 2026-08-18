@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Text } from 'react-native';
 import { LayoutDashboard, ShoppingBag, Calculator, Package, Menu } from 'lucide-react-native';
 import { useCartStore } from '@/store/useCartStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
-
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const { currentLanguage, t } = useLanguageStore();
+  const currentLanguage = useLanguageStore((state) => state.currentLanguage);
+  const t = useLanguageStore((state) => state.t);
   const cartItemsCount = useCartStore((state) =>
     state.items.reduce((sum, item) => sum + item.quantity, 0)
   );
@@ -20,7 +20,7 @@ export default function TabsLayout() {
   return (
     <>
       <Tabs
-        key={currentLanguage}
+        key={`bottom-nav-${currentLanguage}`}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
@@ -42,7 +42,19 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: t('dashboard', 'Dashboard'),
-            tabBarLabel: t('dashboard', 'Dashboard'),
+            tabBarLabel: ({ color, focused }) => (
+              <Text
+                style={{
+                  color,
+                  fontSize: 10.5,
+                  fontWeight: focused ? '700' : '500',
+                  textAlign: 'center',
+                }}
+                numberOfLines={1}
+              >
+                {t('dashboard', 'Dashboard')}
+              </Text>
+            ),
             tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
           }}
         />
@@ -50,7 +62,19 @@ export default function TabsLayout() {
           name="pos"
           options={{
             title: t('pos', 'POS'),
-            tabBarLabel: t('pos', 'POS'),
+            tabBarLabel: ({ color, focused }) => (
+              <Text
+                style={{
+                  color,
+                  fontSize: 10.5,
+                  fontWeight: focused ? '700' : '500',
+                  textAlign: 'center',
+                }}
+                numberOfLines={1}
+              >
+                {t('pos', 'POS')}
+              </Text>
+            ),
             tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined,
             tabBarBadgeStyle: {
               backgroundColor: BRAND_COLORS.blue600,
@@ -65,7 +89,19 @@ export default function TabsLayout() {
           name="calculator"
           options={{
             title: t('calculator', 'Calculator'),
-            tabBarLabel: t('calculator', 'Calculator'),
+            tabBarLabel: ({ color, focused }) => (
+              <Text
+                style={{
+                  color,
+                  fontSize: 10.5,
+                  fontWeight: focused ? '700' : '500',
+                  textAlign: 'center',
+                }}
+                numberOfLines={1}
+              >
+                {t('calculator', 'Calculator')}
+              </Text>
+            ),
             tabBarIcon: ({ color, size }) => <Calculator size={size} color={color} />,
           }}
         />
@@ -73,7 +109,19 @@ export default function TabsLayout() {
           name="products"
           options={{
             title: t('products', 'Products'),
-            tabBarLabel: t('products', 'Products'),
+            tabBarLabel: ({ color, focused }) => (
+              <Text
+                style={{
+                  color,
+                  fontSize: 10.5,
+                  fontWeight: focused ? '700' : '500',
+                  textAlign: 'center',
+                }}
+                numberOfLines={1}
+              >
+                {t('products', 'Products')}
+              </Text>
+            ),
             tabBarIcon: ({ color, size }) => <Package size={size} color={color} />,
           }}
         />
@@ -87,7 +135,19 @@ export default function TabsLayout() {
           name="more"
           options={{
             title: t('more', 'More'),
-            tabBarLabel: t('more', 'More'),
+            tabBarLabel: ({ color, focused }) => (
+              <Text
+                style={{
+                  color,
+                  fontSize: 10.5,
+                  fontWeight: focused ? '700' : '500',
+                  textAlign: 'center',
+                }}
+                numberOfLines={1}
+              >
+                {t('more', 'More')}
+              </Text>
+            ),
             tabBarIcon: ({ color, size }) => <Menu size={size} color={color} />,
           }}
           listeners={{

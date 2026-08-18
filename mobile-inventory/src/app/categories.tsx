@@ -169,7 +169,7 @@ export default function CategoriesScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('categories', 'Categories & Subcategories')}</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('categoriesPageTitle', 'Categories & Subcategories')}</Text>
 
         {/* Hero Quote Card */}
         <View style={styles.heroQuoteCard}>

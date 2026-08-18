@@ -243,13 +243,13 @@ export default function CreditsDaybookScreen() {
             onPress={() => setActiveTab('daybook')}
             style={[styles.tabBtn, activeTab === 'daybook' && styles.tabBtnActive]}
           >
-            <Text style={[styles.tabText, activeTab === 'daybook' && styles.tabTextActive]}>{t('dayBook', 'Daily Cashflow')}</Text>
+            <Text style={[styles.tabText, activeTab === 'daybook' && styles.tabTextActive]}>{t('dailyCashflow', 'Daily Cashflow')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setActiveTab('credits')}
             style={[styles.tabBtn, activeTab === 'credits' && styles.tabBtnActive]}
           >
-            <Text style={[styles.tabText, activeTab === 'credits' && styles.tabTextActive]}>{t('customersPageTitle', 'Credit Ledger')}</Text>
+            <Text style={[styles.tabText, activeTab === 'credits' && styles.tabTextActive]}>{t('creditLedger', 'Credit Ledger')}</Text>
             {remindersDue.length > 0 ? (
               <View style={styles.tabBadge}>
                 <Text style={styles.tabBadgeText}>{remindersDue.length}</Text>

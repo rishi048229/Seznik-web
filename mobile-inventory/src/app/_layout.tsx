@@ -8,7 +8,12 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
+import { installGlobalAlertInterceptor } from '@/store/useAlertStore';
+import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import '@/global.css';
+
+// Intercept all Alert.alert calls across the app to render custom themed modal
+installGlobalAlertInterceptor();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -60,6 +65,8 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)/forgot-password" />
         <Stack.Screen name="index" />
       </Stack>
+      {/* Global custom themed alert popup matching app design system */}
+      <CustomAlertModal />
     </ThemeProvider>
   );
 }
