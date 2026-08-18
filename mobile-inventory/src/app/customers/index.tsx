@@ -213,7 +213,7 @@ export default function CustomersScreen() {
             <Search size={18} color={theme.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.textPrimary }]}
-              placeholder="Search by customer name or phone..."
+              placeholder={t('searchCustomers', 'Search by customer name or phone...')}
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}

@@ -206,7 +206,7 @@ export default function SuppliersScreen() {
           <Search size={18} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.textPrimary }]}
-            placeholder="Search vendor name, phone, or GSTIN..."
+            placeholder={t('searchSuppliers', 'Search vendor name, phone, or GSTIN...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}

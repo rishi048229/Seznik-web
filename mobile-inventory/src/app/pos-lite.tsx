@@ -47,10 +47,12 @@ import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService'
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function PosLiteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useLanguageStore();
   const { products, getByBarcode } = useProducts();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
@@ -291,7 +293,7 @@ export default function PosLiteScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>

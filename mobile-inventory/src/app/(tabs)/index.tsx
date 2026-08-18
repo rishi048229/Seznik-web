@@ -397,7 +397,7 @@ export default function DashboardScreen() {
 
             <View style={{ marginLeft: 12 }}>
               <Text style={styles.storeTag}>{settings?.businessName || user?.displayName || 'Seznik Store Admin'}</Text>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Dashboard</Text>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('dashboard', 'Dashboard')}</Text>
             </View>
           </View>
 

@@ -445,7 +445,7 @@ export default function CreditsDaybookScreen() {
               <Search size={15} color={theme.textSecondary} />
               <TextInput
                 style={[styles.searchInputLite, { color: theme.textPrimary }]}
-                placeholder="Search customers..."
+                placeholder={t('searchCustomers', 'Search customers...')}
                 placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}

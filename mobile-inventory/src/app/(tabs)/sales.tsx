@@ -32,9 +32,11 @@ import { Sale } from '@/types/sale';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function SalesHistoryTabScreen() {
   const { sales, isLoading, isRefetching, refetch, deleteSale } = useSales();
+  const { t } = useLanguageStore();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,7 +117,7 @@ export default function SalesHistoryTabScreen() {
               </TouchableOpacity>
               <View style={{ marginLeft: 10 }}>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-                  Sales History
+                  {t('salesPageTitle', 'Sales History')}
                 </Text>
                 <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
                   {sales.length} Invoices recorded
@@ -129,7 +131,7 @@ export default function SalesHistoryTabScreen() {
           <Search size={18} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.textPrimary }]}
-            placeholder="Search invoice number or customer..."
+            placeholder={t('searchProducts', 'Search invoice number or customer...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}

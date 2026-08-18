@@ -369,7 +369,7 @@ export default function ExpensesScreen() {
             <Search size={16} color={theme.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.textPrimary }]}
-              placeholder="Search notes or category..."
+              placeholder={t('searchProducts', 'Search notes or category...')}
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}

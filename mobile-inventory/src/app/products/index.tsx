@@ -611,7 +611,7 @@ export default function ProductsScreen() {
           <Search size={18} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.textPrimary }]}
-            placeholder="Search name, barcode or SKU..."
+            placeholder={t('searchProducts', 'Search name, barcode or SKU...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}

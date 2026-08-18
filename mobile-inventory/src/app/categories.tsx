@@ -41,10 +41,12 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function CategoriesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useLanguageStore();
   const { categories, isLoading, createCategory, updateCategory, deleteCategory } = useCategories();
   const { products } = useProducts();
 
@@ -158,16 +160,16 @@ export default function CategoriesScreen() {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => handleOpenAdd()} style={styles.addBtn}>
             <Plus size={16} color="#FFFFFF" />
-            <Text style={styles.addBtnText}>Add Category</Text>
+            <Text style={styles.addBtnText}>{t('addCategory', 'Add Category')}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Categories & Subcategories</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('categories', 'Categories & Subcategories')}</Text>
 
         {/* Hero Quote Card */}
         <View style={styles.heroQuoteCard}>
@@ -197,7 +199,7 @@ export default function CategoriesScreen() {
           <Search size={18} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.textPrimary }]}
-            placeholder="Search category or subcategory name..."
+            placeholder={t('searchProducts', 'Search category or subcategory name...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
