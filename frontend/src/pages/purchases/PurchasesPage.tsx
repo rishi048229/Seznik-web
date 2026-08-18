@@ -14,7 +14,8 @@ import { DateRangePicker } from '@/components/forms/DateRangePicker'
 import { usePurchases, useCreatePurchase, useDeletePurchase } from '@/hooks/usePurchases'
 import { useProducts } from '@/hooks/useProducts'
 import { useSuppliers } from '@/hooks/useSuppliers'
-import { Plus, PlusCircle, Trash2, Truck, Filter } from 'lucide-react'
+import { QuickAddProductModal } from '@/components/common/QuickAddProductModal'
+import { Plus, PlusCircle, Trash2, Truck, Filter, Sparkles } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import toast from 'react-hot-toast'
 import type { Purchase } from '@/types/purchase.types'
@@ -45,6 +46,7 @@ export const PurchasesPage = () => {
   const { mutate: deletePurchase } = useDeletePurchase()
 
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false)
   const [supplierId, setSupplierId] = useState('')
   const [items, setItems] = useState<PurchaseItemRow[]>([])
   const [selectedProduct, setSelectedProduct] = useState('')
@@ -262,9 +264,19 @@ export const PurchasesPage = () => {
           title={t('page.purchases')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button data-tour="record-purchase-btn" leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
-              {t('purchases.recordPurchase')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+                leftIcon={<Plus size={16} />}
+                onClick={() => setIsAddProductOpen(true)}
+              >
+                {t('products.addProduct') || 'Add New Product'}
+              </Button>
+              <Button data-tour="record-purchase-btn" leftIcon={<Plus size={16} />} onClick={() => setIsFormOpen(true)}>
+                {t('purchases.recordPurchase')}
+              </Button>
+            </div>
           }
         />
       </div>
@@ -367,10 +379,20 @@ export const PurchasesPage = () => {
 
           {/* Add Items Section */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('purchases.productsLabel')}
-              <FieldInfo textKey="tip.purchase.products" />
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('purchases.productsLabel')}
+                <FieldInfo textKey="tip.purchase.products" />
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAddProductOpen(true)}
+                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-semibold flex items-center gap-1 bg-purple-50 dark:bg-purple-950/40 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800/40 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+              >
+                <Plus size={13} />
+                <span>{t('products.addProduct') || '+ New Product'}</span>
+              </button>
+            </div>
             <div className="flex gap-2 mb-3">
               <Select
                 options={productOptions}
@@ -431,6 +453,32 @@ export const PurchasesPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Quick Add Product Modal */}
+      <QuickAddProductModal
+        isOpen={isAddProductOpen}
+        onClose={() => setIsAddProductOpen(false)}
+        defaultSupplierId={supplierId}
+        onProductCreated={(newProd) => {
+          // If the Record Purchase modal is currently open, auto-add this new item to the purchase!
+          if (isFormOpen) {
+            setItems(prev => {
+              const existing = prev.find(i => i.productId === newProd.id)
+              if (existing) return prev
+              return [
+                ...prev,
+                {
+                  productId: newProd.id,
+                  productName: newProd.name,
+                  quantity: parseInt(quantityInput) || 1,
+                  costPrice: newProd.costPrice,
+                },
+              ]
+            })
+            setSelectedProduct(newProd.id)
+          }
+        }}
+      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal
