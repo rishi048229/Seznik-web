@@ -303,35 +303,15 @@ RULES:
 
     const ai = new GoogleGenAI({ apiKey });
     
-    let modelsToTry = [
+    // Direct prioritized fast models without slow listing roundtrip
+    const modelsToTry = [
       'gemini-2.5-flash',
-      'gemini-flash-latest',
-      'gemini-2.5-pro',
-      'gemini-pro-latest',
-      'gemini-2.5-flash-lite',
       'gemini-1.5-flash',
-      'gemini-1.5-pro'
+      'gemini-2.0-flash',
+      'gemini-flash-latest',
+      'gemini-1.5-pro',
+      'gemini-2.5-pro',
     ];
-
-    try {
-      const listResponse: any = await (ai.models as any).list();
-      const listItems = Array.isArray(listResponse) ? listResponse : (listResponse?.models || []);
-      const discovered = listItems
-        .filter((m: any) => {
-          const name = m?.name || '';
-          const methods = m?.supportedGenerationMethods || [];
-          return methods.includes('generateContent') || name.includes('gemini');
-        })
-        .map((m: any) => (m?.name || '').replace(/^models\//, ''))
-        .filter(Boolean);
-
-      if (discovered.length > 0) {
-        console.log('Discovered Gemini models from API:', discovered);
-        modelsToTry = Array.from(new Set([...discovered, ...modelsToTry]));
-      }
-    } catch (e) {
-      console.warn('Dynamic Gemini model listing returned error:', e);
-    }
     
     const isSpreadsheetOrText = 
       mimeType.includes('csv') || 
@@ -353,19 +333,26 @@ RULES:
       let lastErr = '';
       for (const modelName of modelsToTry) {
         try {
-          const response = await ai.models.generateContent({
+          const generatePromise = ai.models.generateContent({
             model: modelName,
             contents: contentsPayload,
             config: {
               responseMimeType: 'application/json',
-              maxOutputTokens: 65536,
+              maxOutputTokens: 8192,
             }
           });
-          const text = response.text || '';
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
+          );
+
+          const response: any = await Promise.race([generatePromise, timeoutPromise]);
+          const text = response?.text || '';
           if (text) {
             const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
             const parsed = JSON.parse(cleaned);
-            return Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+            const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
+            if (list.length > 0) return list;
           }
         } catch (err: any) {
           lastErr = err?.message || String(err);

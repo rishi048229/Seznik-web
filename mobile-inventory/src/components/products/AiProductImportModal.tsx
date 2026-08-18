@@ -91,19 +91,21 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
       let base64Data = existingBase64;
       let targetMime = mimeType || 'image/jpeg';
 
-      if (targetMime.startsWith('image/') && ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
-        try {
-          const manipResult = await ImageManipulator.manipulateAsync(
-            uri,
-            [{ resize: { width: 1600 } }],
-            { compress: 0.5, format: ImageManipulator.SaveFormat?.JPEG ?? 'jpeg', base64: true }
-          );
-          if (manipResult.base64) {
-            base64Data = manipResult.base64;
-            targetMime = 'image/jpeg';
+      if (targetMime.startsWith('image/')) {
+        if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
+          try {
+            const manipResult = await ImageManipulator.manipulateAsync(
+              uri,
+              [{ resize: { width: 1024 } }],
+              { compress: 0.5, format: 'jpeg', base64: true }
+            );
+            if (manipResult.base64) {
+              base64Data = manipResult.base64;
+              targetMime = 'image/jpeg';
+            }
+          } catch (manipErr) {
+            console.warn('Image manipulation fallback:', manipErr);
           }
-        } catch (manipErr) {
-          console.warn('Image manipulation fallback:', manipErr);
         }
       }
 
@@ -163,8 +165,8 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
     }
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      base64: true,
-      quality: 0.4,
+      allowsEditing: false,
+      quality: 0.5,
     });
 
     if (!result.canceled && result.assets[0]?.uri) {
@@ -181,13 +183,13 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      base64: true,
-      quality: 0.4,
+      allowsEditing: false,
+      quality: 0.5,
     });
 
     if (!result.canceled && result.assets[0]?.uri) {
       const asset = result.assets[0];
-      await processFileForAi(asset.uri, asset.mimeType || 'image/jpeg', asset.base64 || undefined);
+      await processFileForAi(asset.uri, 'image/jpeg', asset.base64 || undefined);
     }
   };
 
