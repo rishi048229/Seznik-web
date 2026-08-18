@@ -51,13 +51,11 @@ import {
   MessageCircle,
   Package,
   Calculator,
-  Bluetooth,
-  AlertCircle,
-  Share2,
-  CircleDot,
-  Send,
-  Boxes,
-  HelpCircle,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  LayoutGrid,
+  MessageSquarePlus,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -109,7 +107,7 @@ export default function DashboardScreen() {
   const [permission, requestPermission] = useCameraPermissions();
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [restockingId, setRestockingId] = useState<string | null>(null);
+  const [showMoreTools, setShowMoreTools] = useState(false);
 
   // Modals & Action States
   const [showQuickBillModal, setShowQuickBillModal] = useState(false);
@@ -448,33 +446,46 @@ export default function DashboardScreen() {
             </View>
           ) : (
             <>
-              {/* 2. APP LAUNCHER — feature tile grid */}
-              <Text style={styles.sectionHeader}>QUICK ACCESS APPS</Text>
+              {/* 2. APP LAUNCHER — Primary 4 Tools with Show More Menu */}
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
+                <TouchableOpacity
+                  onPress={() => setShowMoreTools((prev) => !prev)}
+                  style={styles.toggleHeaderBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.toggleHeaderText, { color: BRAND_COLORS.sky500 }]}>
+                    {showMoreTools ? 'Show Less' : 'Show More'}
+                  </Text>
+                  {showMoreTools ? (
+                    <ChevronUp size={14} color={BRAND_COLORS.sky500} style={{ marginLeft: 2 }} />
+                  ) : (
+                    <ChevronDown size={14} color={BRAND_COLORS.sky500} style={{ marginLeft: 2 }} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Primary 4 Actions + Expandable Grid */}
               <View style={styles.compactGridRow}>
+                {/* 1. Day Book */}
                 <FeatureGridTile
-                  label="Label Studio"
-                  badge="NEW"
-                  icon={Tag}
+                  label="Day Book"
+                  icon={BookOpen}
                   color="#10B981"
-                  onPress={() => router.push('/printers/label-studio' as any)}
+                  onPress={() => router.push('/credits' as any)}
                   theme={theme}
                 />
+
+                {/* 2. Products */}
                 <FeatureGridTile
-                  label="AI Import"
-                  badge="AI"
-                  icon={Sparkles}
-                  color="#8B5CF6"
-                  onPress={() => setShowAiImportModal(true)}
+                  label="Products"
+                  icon={Package}
+                  color="#0284C7"
+                  onPress={() => router.push('/(tabs)/products' as any)}
                   theme={theme}
                 />
-                <FeatureGridTile
-                  label="Calculator"
-                  badge="NEW"
-                  icon={Calculator}
-                  color="#6366F1"
-                  onPress={() => router.push('/(tabs)/calculator' as any)}
-                  theme={theme}
-                />
+
+                {/* 3. Scan Stock */}
                 <FeatureGridTile
                   label="Scan Stock"
                   icon={Barcode}
@@ -486,286 +497,141 @@ export default function DashboardScreen() {
                   }}
                   theme={theme}
                 />
-                <FeatureGridTile
-                  label="Thermal Printer"
-                  icon={Printer}
-                  color={BRAND_COLORS.blue600}
-                  onPress={() => setShowDirectPrinterModal(true)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Quick Tokens"
-                  icon={Ticket}
-                  color="#F59E0B"
-                  onPress={() => router.push('/quick-tokens' as any)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Customers"
-                  icon={Users}
-                  color="#EC4899"
-                  onPress={() => router.push('/customers' as any)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Suppliers"
-                  icon={Truck}
-                  color="#14B8A6"
-                  onPress={() => router.push('/suppliers' as any)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Expenses"
-                  icon={Wallet}
-                  color="#EF4444"
-                  onPress={() => router.push('/expenses' as any)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Purchases"
-                  icon={ShoppingBag}
-                  color="#10B981"
-                  onPress={() => router.push('/purchases' as any)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Reports"
-                  icon={BarChart3}
-                  color={BRAND_COLORS.blue600}
-                  onPress={() => router.push('/reports' as any)}
-                  theme={theme}
-                />
-                <FeatureGridTile
-                  label="Sales History"
-                  icon={Receipt}
-                  color={BRAND_COLORS.navyInk}
-                  onPress={() => router.push('/sales' as any)}
-                  theme={theme}
-                />
-              </View>
 
-              {/* 3. THERMAL PRINTER LIVE HARDWARE CARD */}
-              <View style={[styles.printerCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <View style={styles.printerCardHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View
-                      style={[
-                        styles.printerStatusDot,
-                        {
-                          backgroundColor:
-                            connectionState === 'connected'
-                              ? '#10B981'
-                              : connectionState === 'connecting'
-                              ? '#F59E0B'
-                              : '#EF4444',
-                        },
-                      ]}
+                {/* 4. AI */}
+                <FeatureGridTile
+                  label="AI Import"
+                  badge="AI"
+                  icon={Sparkles}
+                  color="#8B5CF6"
+                  onPress={() => setShowAiImportModal(true)}
+                  theme={theme}
+                />
+
+                {/* Hidden tools revealed on Show More */}
+                {showMoreTools && (
+                  <>
+                    <FeatureGridTile
+                      label="Reports"
+                      icon={BarChart3}
+                      color="#8B5CF6"
+                      onPress={() => router.push('/reports' as any)}
+                      theme={theme}
                     />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={[styles.printerCardTitle, { color: theme.textPrimary }]}>
-                        {connectionState === 'connected'
-                          ? activeDevice?.name || 'Bluetooth Printer Connected'
-                          : connectionState === 'connecting'
-                          ? 'Connecting to Thermal Printer...'
-                          : 'No Thermal Printer Linked'}
-                      </Text>
-                      <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
-                        {connectionState === 'connected'
-                          ? `Ready for instant receipts • Paper: ${paperWidth}`
-                          : 'Tap below to scan & connect 58mm / 80mm ESC/POS printer'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.printerBadge,
-                      {
-                        backgroundColor:
-                          connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.12)',
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.printerBadgeText,
-                        { color: connectionState === 'connected' ? '#10B981' : '#EF4444' },
-                      ]}
-                    >
-                      {connectionState === 'connected' ? 'ONLINE' : 'OFFLINE'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Printer Action Buttons Row */}
-                <View style={styles.printerActionsRow}>
-                  <TouchableOpacity
-                    onPress={() => setShowDirectPrinterModal(true)}
-                    style={[styles.printerBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-                  >
-                    <Bluetooth size={14} color="#FFFFFF" />
-                    <Text style={styles.printerBtnText}>
-                      {connectionState === 'connected' ? 'Switch Printer' : 'Scan & Connect'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setPaperWidth(paperWidth === '58mm' ? '80mm' : '58mm')}
-                    style={[styles.printerBtnOutline, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                  >
-                    <Text style={[styles.printerBtnOutlineText, { color: theme.textPrimary }]}>
-                      Paper: {paperWidth}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {connectionState === 'connected' && (
-                    <TouchableOpacity
-                      onPress={handleTestPrint}
-                      style={[styles.printerBtnOutline, { borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}
-                    >
-                      <Printer size={13} color="#10B981" />
-                      <Text style={[styles.printerBtnOutlineText, { color: '#10B981', marginLeft: 4 }]}>
-                        Test Print
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-
-              {/* 4. CUSTOMER UDHAAR / CREDIT REMINDER HUB */}
-              <View style={styles.sectionContainer}>
-                <View style={styles.sectionHeaderRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.sectionHeader}>CUSTOMER UDHAAR & REMINDERS</Text>
-                    {creditCustomers.length > 0 && (
-                      <View style={styles.alertCountBadge}>
-                        <Text style={styles.alertCountText}>{creditCustomers.length} Pending</Text>
-                      </View>
-                    )}
-                  </View>
-                  <TouchableOpacity onPress={() => router.push('/customers' as any)}>
-                    <Text style={styles.viewAllBtn}>Ledger ➔</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {creditCustomers.length === 0 ? (
-                  <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, paddingVertical: 14, alignItems: 'center' }]}>
-                    <CheckCircle2 size={24} color="#10B981" />
-                    <Text style={[styles.emptyHeadline, { color: theme.textPrimary }]}>All Customer Dues Clear!</Text>
-                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No pending udhaar balance found in your store ledger.</Text>
-                  </View>
-                ) : (
-                  <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, padding: 0 }]}>
-                    {/* Total Outstanding Banner */}
-                    <View style={[styles.creditBanner, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderBottomColor: theme.borderColor }]}>
-                      <View>
-                        <Text style={[styles.creditBannerLabel, { color: theme.textSecondary }]}>Total Store Udhaar Pending</Text>
-                        <Text style={styles.creditBannerValue}>{formatCurrency(totalOutstandingCredit)}</Text>
-                      </View>
-                      <TouchableOpacity onPress={() => router.push('/customers' as any)} style={styles.settleQuickBtn}>
-                        <Text style={styles.settleQuickBtnText}>View All</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Top 3 Credit Customers with 1-Tap WhatsApp Reminder */}
-                    {creditCustomers.slice(0, 3).map((cust: Customer, idx) => (
-                      <View
-                        key={cust.id || idx}
-                        style={[
-                          styles.creditCustRow,
-                          {
-                            borderBottomColor: theme.borderColor,
-                            borderBottomWidth: idx === Math.min(creditCustomers.length - 1, 2) ? 0 : 1,
-                          },
-                        ]}
-                      >
-                        <View style={{ flex: 1, marginRight: 10 }}>
-                          <Text style={[styles.creditCustName, { color: theme.textPrimary }]} numberOfLines={1}>
-                            {cust.name}
-                          </Text>
-                          <Text style={[styles.creditCustPhone, { color: theme.textSecondary }]}>
-                            {cust.phone || 'No phone'} • Balance: <Text style={{ color: '#EF4444', fontWeight: '800' }}>₹{cust.creditBalance.toFixed(0)}</Text>
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          onPress={() => handleSendWhatsAppReminder(cust)}
-                          style={styles.whatsappBtn}
-                        >
-                          <MessageCircle size={14} color="#FFFFFF" />
-                          <Text style={styles.whatsappBtnText}>Remind</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
+                    <FeatureGridTile
+                      label="Label Studio"
+                      badge="NEW"
+                      icon={Tag}
+                      color="#10B981"
+                      onPress={() => router.push('/printers/label-studio' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Voice Add"
+                      icon={Mic}
+                      color="#EF4444"
+                      onPress={() => setShowVoiceModal(true)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Customers"
+                      icon={Users}
+                      color="#F59E0B"
+                      onPress={() => router.push('/customers' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Suppliers"
+                      icon={Truck}
+                      color="#14B8A6"
+                      onPress={() => router.push('/suppliers' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Thermal Printer"
+                      icon={Printer}
+                      color={BRAND_COLORS.blue600}
+                      onPress={() => router.push('/printers' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Expenses"
+                      icon={Wallet}
+                      color="#EC4899"
+                      onPress={() => router.push('/expenses' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Purchases"
+                      icon={ShoppingBag}
+                      color="#14B8A6"
+                      onPress={() => router.push('/purchases' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Quick Tokens"
+                      icon={Ticket}
+                      color="#F59E0B"
+                      onPress={() => router.push('/quick-tokens' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Calculator"
+                      badge="NEW"
+                      icon={Calculator}
+                      color="#6366F1"
+                      onPress={() => router.push('/(tabs)/calculator' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Sales History"
+                      icon={Receipt}
+                      color={BRAND_COLORS.blue600}
+                      onPress={() => router.push('/sales' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Settings"
+                      icon={SettingsIcon}
+                      color={theme.textSecondary}
+                      onPress={() => router.push('/settings' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label="Feedback"
+                      icon={MessageSquarePlus}
+                      color="#0284C7"
+                      onPress={() => router.push('/feedback' as any)}
+                      theme={theme}
+                    />
+                  </>
                 )}
               </View>
 
-              {/* 5. URGENT RESTOCK & LOW STOCK ACTION CENTER */}
-              <View style={styles.sectionContainer}>
-                <View style={styles.sectionHeaderRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.sectionHeader}>LOW STOCK RESTOCK CENTER</Text>
-                    {lowStockProducts.length > 0 && (
-                      <View style={[styles.alertCountBadge, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
-                        <Text style={[styles.alertCountText, { color: '#D97706' }]}>{lowStockProducts.length} Items</Text>
-                      </View>
-                    )}
-                  </View>
-                  <TouchableOpacity onPress={() => router.push('/products' as any)}>
-                    <Text style={styles.viewAllBtn}>Stock Catalog ➔</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {lowStockProducts.length === 0 ? (
-                  <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, paddingVertical: 14, alignItems: 'center' }]}>
-                    <CheckCircle2 size={24} color="#10B981" />
-                    <Text style={[styles.emptyHeadline, { color: theme.textPrimary }]}>Inventory Levels Healthy</Text>
-                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No products are below minimum low-stock threshold.</Text>
-                  </View>
+              {/* Show More / Show Less Toggle Button */}
+              <TouchableOpacity
+                onPress={() => setShowMoreTools((prev) => !prev)}
+                style={[
+                  styles.showMoreBtn,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: theme.borderColor,
+                  },
+                ]}
+                activeOpacity={0.7}
+              >
+                <LayoutGrid size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 6 }} />
+                <Text style={[styles.showMoreBtnText, { color: theme.textPrimary }]}>
+                  {showMoreTools ? 'Show Less Options' : 'Show More Options (13)'}
+                </Text>
+                {showMoreTools ? (
+                  <ChevronUp size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
                 ) : (
-                  <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, padding: 0 }]}>
-                    {lowStockProducts.slice(0, 3).map((prod: Product, idx) => (
-                      <View
-                        key={prod.id || idx}
-                        style={[
-                          styles.stockAlertRow,
-                          {
-                            borderBottomColor: theme.borderColor,
-                            borderBottomWidth: idx === Math.min(lowStockProducts.length - 1, 2) ? 0 : 1,
-                          },
-                        ]}
-                      >
-                        <View style={{ flex: 1, marginRight: 8 }}>
-                          <Text style={[styles.stockAlertTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                            {prod.name}
-                          </Text>
-                          <Text style={[styles.stockAlertMeta, { color: theme.textSecondary }]}>
-                            Stock: <Text style={{ color: '#EF4444', fontWeight: '800' }}>{prod.currentStock} {prod.unit || 'pcs'}</Text> (Min: {prod.lowStockThreshold || 5}) • Price: ₹{prod.sellingPrice.toFixed(0)}
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          onPress={() => handleQuickRestock(prod, 10)}
-                          disabled={restockingId === prod.id}
-                          style={styles.quickRestockBtn}
-                        >
-                          {restockingId === prod.id ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <>
-                              <Plus size={13} color="#FFFFFF" />
-                              <Text style={styles.quickRestockBtnText}>+10 Restock</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
+                  <ChevronDown size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
                 )}
-              </View>
+              </TouchableOpacity>
 
-              {/* 6. EXECUTIVE METRICS STRIP */}
+              {/* 3. EXECUTIVE METRICS STRIP */}
               <Text style={styles.sectionHeader}>TODAY&apos;S PERFORMANCE & P&L</Text>
               <View style={styles.kpiGrid}>
                 {/* Revenue */}
@@ -1130,167 +996,27 @@ const styles = StyleSheet.create({
   loadingContainer: { paddingVertical: 60, alignItems: 'center' },
   loadingText: { fontSize: 12, fontWeight: '600', marginTop: 12 },
   sectionHeader: { fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.5, marginBottom: 10 },
+  toggleHeaderBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 4 },
+  toggleHeaderText: { fontSize: 11, fontWeight: '800' },
   
   // Compact 4-Column Feature Grid (Frameless / Borderless)
-  compactGridRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 14, paddingVertical: 4 },
+  compactGridRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6, paddingVertical: 4 },
 
-  // Printer Live Control Card
-  printerCard: {
-    borderRadius: 18,
-    padding: 14,
+  // Show More / Less Pill Button
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 18,
-  },
-  printerCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  printerStatusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  printerCardTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  printerCardSub: {
-    fontSize: 10,
-    fontWeight: '600',
     marginTop: 2,
+    marginBottom: 16,
   },
-  printerBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  printerBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  printerActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 8,
-  },
-  printerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  printerBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    marginLeft: 6,
-  },
-  printerBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  printerBtnOutlineText: {
-    fontSize: 11,
+  showMoreBtnText: {
+    fontSize: 12,
     fontWeight: '700',
-  },
-
-  // Credit / Udhaar Reminder Section
-  creditBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderBottomWidth: 1,
-  },
-  creditBannerLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  creditBannerValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#EF4444',
-    marginTop: 2,
-  },
-  settleQuickBtn: {
-    backgroundColor: BRAND_COLORS.blue600,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  settleQuickBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  creditCustRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  creditCustName: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  creditCustPhone: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  whatsappBtn: {
-    backgroundColor: '#25D366',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  whatsappBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    marginLeft: 4,
-  },
-
-  // Low Stock Alert Rows
-  stockAlertRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  stockAlertTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  stockAlertMeta: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  quickRestockBtn: {
-    backgroundColor: '#10B981',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  quickRestockBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    marginLeft: 4,
   },
 
   // Executive KPI Grid
