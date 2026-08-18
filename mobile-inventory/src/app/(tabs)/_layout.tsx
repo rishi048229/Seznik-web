@@ -70,6 +70,12 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="sales"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
           name="more"
           options={{
             title: 'More',
