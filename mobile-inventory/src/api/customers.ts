@@ -3,7 +3,8 @@ import { CreateCustomerPayload, Customer } from '@/types/customer';
 
 export const customersApi = {
   getCustomers: async (): Promise<Customer[]> => {
-    return fetchApi<Customer[]>('/customers');
+    const raw = await fetchApi<any>('/customers');
+    return Array.isArray(raw) ? raw : (Array.isArray(raw?.customers) ? raw.customers : []);
   },
 
   getCustomerById: async (id: string): Promise<Customer> => {

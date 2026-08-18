@@ -3,7 +3,8 @@ import { CreateSalePayload, Sale } from '@/types/sale';
 
 export const salesApi = {
   getSales: async (): Promise<Sale[]> => {
-    return fetchApi<Sale[]>('/sales');
+    const raw = await fetchApi<any>('/sales');
+    return Array.isArray(raw) ? raw : (Array.isArray(raw?.sales) ? raw.sales : []);
   },
 
   getSaleById: async (id: string): Promise<Sale> => {
