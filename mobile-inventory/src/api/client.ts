@@ -5,7 +5,11 @@ import { useAuthStore } from '@/store/useAuthStore';
 
 // Environment Configurable Base URLs
 const PROD_DEFAULT_API_URL = 'https://api.seznik.com/api';
-const DEFAULT_PORT = process.env.EXPO_PUBLIC_API_PORT || '5001';
+const DEFAULT_PORT = (
+  process.env.EXPO_PUBLIC_API_PORT ||
+  process.env.EXPO_PUBLIC_PORT ||
+  '5001'
+).trim();
 
 const getDynamicHostIp = () => {
   // 1. Explicit Full API URL from environment (EAS build, .env, or production config)
