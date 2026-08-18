@@ -6,10 +6,13 @@ import { useCartStore } from '@/store/useCartStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
 
+import { useLanguageStore } from '@/store/useLanguageStore';
+
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const { t } = useLanguageStore();
   const cartItemsCount = useCartStore((state) =>
     state.items.reduce((sum, item) => sum + item.quantity, 0)
   );
@@ -37,14 +40,14 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Dashboard',
+            title: t('dashboard', 'Dashboard'),
             tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="pos"
           options={{
-            title: 'POS',
+            title: t('pos', 'POS'),
             tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined,
             tabBarBadgeStyle: {
               backgroundColor: BRAND_COLORS.blue600,
@@ -58,14 +61,14 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="calculator"
           options={{
-            title: 'Calculator',
+            title: t('calculator', 'Calculator'),
             tabBarIcon: ({ color, size }) => <Calculator size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="products"
           options={{
-            title: 'Products',
+            title: t('products', 'Products'),
             tabBarIcon: ({ color, size }) => <Package size={size} color={color} />,
           }}
         />
@@ -78,7 +81,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="more"
           options={{
-            title: 'More',
+            title: t('more', 'More'),
             tabBarIcon: ({ color, size }) => <Menu size={size} color={color} />,
           }}
           listeners={{

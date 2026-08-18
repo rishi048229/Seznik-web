@@ -42,6 +42,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ContactImportModal } from '@/components/customers/ContactImportModal';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 // Module-level (not inline in the component) so the React Compiler's purity check doesn't flag
 // the Date.now() call — it only analyzes code written directly inside a component/hook body.
@@ -56,6 +57,7 @@ const computeOverdueCustomerIds = (customers: Customer[]): Set<string> => {
 
 export default function CustomersScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { customers, isLoading, createCustomer, updateCustomer, bulkCreateCustomers, refetch } = useCustomers();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,13 +166,13 @@ export default function CustomersScreen() {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back to More</Text>
+            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
           <View style={styles.headerRow}>
             <View>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Customers</Text>
-              <Text style={[styles.headerSub, { color: theme.textSecondary }]}>{totalCustomers} Active Accounts</Text>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('customersPageTitle', 'Customers')}</Text>
+              <Text style={[styles.headerSub, { color: theme.textSecondary }]}>{totalCustomers} {t('allItems', 'Active Accounts')}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity
@@ -178,11 +180,11 @@ export default function CustomersScreen() {
                 style={[styles.addBtn, { backgroundColor: '#10B981', marginRight: 8 }]}
               >
                 <Smartphone size={16} color="#FFFFFF" />
-                <Text style={styles.addBtnText}>Import Contacts</Text>
+                <Text style={styles.addBtnText}>{t('aiImport', 'Import')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
                 <Plus size={16} color="#FFFFFF" />
-                <Text style={styles.addBtnText}>Add</Text>
+                <Text style={styles.addBtnText}>{t('addCustomer', 'Add')}</Text>
               </TouchableOpacity>
             </View>
           </View>

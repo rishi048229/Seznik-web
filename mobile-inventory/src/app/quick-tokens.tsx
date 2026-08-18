@@ -34,9 +34,11 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function QuickTokensScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
 
   const {
     tokenTypes,
@@ -176,7 +178,7 @@ export default function QuickTokensScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowManageModal(true)} style={styles.manageBtn}>
               <Settings2 size={16} color={BRAND_COLORS.blue600} />
@@ -184,13 +186,13 @@ export default function QuickTokensScreen() {
             </TouchableOpacity>
           </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Quick Ticket Tokens</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('quickTokensPageTitle', 'Quick Ticket Tokens')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Counter ticket sales with daily ticket counter
         </Text>
 
         {/* Token Type Tap Grid */}
-        <Text style={styles.sectionHeader}>TAP TO ISSUE TOKEN</Text>
+        <Text style={styles.sectionHeader}>{t('issueToken', 'TAP TO ISSUE TOKEN')}</Text>
         <View style={styles.gridRow}>
           {tokenTypes.map((type) => {
             const displayPrice = type.price || type.defaultPrice || 50;

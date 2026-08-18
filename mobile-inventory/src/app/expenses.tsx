@@ -37,6 +37,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 type Period = 'today' | 'week' | 'month' | 'all';
 
@@ -87,6 +88,7 @@ const resolveExpenseDate = (e: Expense): Date => {
 
 export default function ExpensesScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { expenses, isLoading, createExpense, updateExpense, deleteExpense } = useExpenses();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -253,15 +255,15 @@ export default function ExpensesScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
               <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.addBtnText}>Add Expense</Text>
+              <Text style={styles.addBtnText}>{t('addExpense', 'Add Expense')}</Text>
             </TouchableOpacity>
           </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Expense Tracker</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('expensesPageTitle', 'Expense Tracker')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Categorized spending, payment split & camera receipts
         </Text>

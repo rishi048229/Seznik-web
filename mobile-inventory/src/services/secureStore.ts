@@ -92,3 +92,35 @@ export async function removeStoredUser(): Promise<void> {
     console.error('Error deleting user data:', error);
   }
 }
+
+const LANGUAGE_KEY = 'seznik_app_language';
+
+export async function setStoredLanguage(lang: string): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(LANGUAGE_KEY, lang);
+      }
+    } else {
+      await SecureStore.setItemAsync(LANGUAGE_KEY, lang);
+    }
+  } catch (error) {
+    console.error('Error saving language:', error);
+  }
+}
+
+export async function getStoredLanguage(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        return window.localStorage.getItem(LANGUAGE_KEY);
+      }
+      return null;
+    }
+    return await SecureStore.getItemAsync(LANGUAGE_KEY);
+  } catch (error) {
+    console.error('Error reading language:', error);
+    return null;
+  }
+}
+

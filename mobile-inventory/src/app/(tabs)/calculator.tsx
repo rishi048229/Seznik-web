@@ -43,6 +43,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 /**
  * Interactive Customer Balance Row with Quick Full-Balance Add and Custom Amount Typing
@@ -62,6 +63,7 @@ function CustomerBalanceRow({
 }) {
   const [customAmount, setCustomAmount] = useState('');
   const [isCustomOpen, setIsCustomOpen] = useState(false);
+  const { t } = useLanguageStore();
 
   const due = customer.creditBalance || 0;
   const hasDue = due > 0;
@@ -150,7 +152,7 @@ function CustomerBalanceRow({
               { color: hasDue ? '#EF4444' : theme.textSecondary },
             ]}
           >
-            {hasDue ? `₹${due.toFixed(2)} Due` : 'No Due'}
+            {hasDue ? `₹${due.toFixed(2)} ${t('balanceDue', 'Due')}` : 'No Due'}
           </Text>
         </View>
       </View>
@@ -165,7 +167,7 @@ function CustomerBalanceRow({
           >
             <Wallet size={13} color="#FFFFFF" />
             <Text style={styles.addFullDueBtnText}>
-              Add Full Due (₹{due.toFixed(2)})
+              {t('addFullDue', 'Add Full Due')} (₹{due.toFixed(2)})
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -178,15 +180,15 @@ function CustomerBalanceRow({
               borderColor: theme.borderColor,
               backgroundColor: isCustomOpen
                 ? isDark
-                  ? 'rgba(255,255,255,0.1)'
-                  : 'rgba(0,0,0,0.05)'
+                  ? 'rgba(255, 255, 255, 0.08)'
+                  : 'rgba(0, 0, 0, 0.04)'
                 : 'transparent',
             },
           ]}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           <Text style={[styles.customDueToggleText, { color: theme.textPrimary }]}>
-            {isCustomOpen ? 'Cancel' : '+ Custom Amount'}
+            {isCustomOpen ? t('close', 'Close') : t('customAmount', 'Custom Amount')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -204,7 +206,7 @@ function CustomerBalanceRow({
             <TextInput
               value={customAmount}
               onChangeText={(t) => setCustomAmount(t.replace(/[^0-9.]/g, ''))}
-              placeholder="Enter amount..."
+              placeholder={t('enterAmount', 'Enter amount...')}
               placeholderTextColor={theme.textSecondary}
               keyboardType="numeric"
               style={[styles.customAmountInput, { color: theme.textPrimary }]}
@@ -217,7 +219,7 @@ function CustomerBalanceRow({
             activeOpacity={0.8}
           >
             <Plus size={14} color="#FFFFFF" />
-            <Text style={styles.addCustomBtnText}>Add</Text>
+            <Text style={styles.addCustomBtnText}>{t('addCustom', 'Add')}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -370,13 +372,11 @@ function ProductPickerRow({
     </View>
   );
 }
-
 export default function DedicatedCalculatorTabScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const theme = useAppTheme();
-  const isDark = theme.isDark;
-
+  const { t } = useLanguageStore();
   const { products } = useProducts();
   const { customers } = useCustomers();
   const {
@@ -647,7 +647,7 @@ export default function DedicatedCalculatorTabScreen() {
             </TouchableOpacity>
             <View style={{ marginLeft: 10 }}>
               <Text style={styles.headerBadge}>{settings?.businessName || 'Store Toolkit'}</Text>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Fast Math Pad</Text>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('calculator', 'Fast Math Pad')}</Text>
             </View>
           </View>
 
@@ -678,7 +678,7 @@ export default function DedicatedCalculatorTabScreen() {
                   { color: activeDevice && connectionState === 'connected' ? '#10B981' : '#D97706' },
                 ]}
               >
-                {activeDevice && connectionState === 'connected' ? 'Online' : 'Printer'}
+                {activeDevice && connectionState === 'connected' ? t('online', 'Online') : t('thermalPrinter', 'Printer')}
               </Text>
             </TouchableOpacity>
 
@@ -729,7 +729,7 @@ export default function DedicatedCalculatorTabScreen() {
               activeOpacity={0.8}
             >
               <Package size={15} color="#FFFFFF" />
-              <Text style={styles.addProductsBtnText}>Add Products</Text>
+              <Text style={styles.addProductsBtnText}>{t('addProductsBtn', 'Add Products')}</Text>
             </TouchableOpacity>
 
             {/* 2. Customer Balance Due Button */}
@@ -739,7 +739,7 @@ export default function DedicatedCalculatorTabScreen() {
                 styles.customerBalanceBtn,
                 {
                   backgroundColor: selectedCustomerName
-                    ? isDark
+                    ? theme.isDark
                       ? 'rgba(16, 185, 129, 0.15)'
                       : 'rgba(16, 185, 129, 0.1)'
                     : theme.cardBg,
@@ -759,28 +759,9 @@ export default function DedicatedCalculatorTabScreen() {
                 ]}
                 numberOfLines={1}
               >
-                {selectedCustomerName ? selectedCustomerName : 'Customer Due'}
+                {selectedCustomerName ? selectedCustomerName : t('customerDueBalance', 'Customer Due')}
               </Text>
             </TouchableOpacity>
-
-            {/* 3. Go to POS Button (when items selected) */}
-            {totalCartCount > 0 ? (
-              <TouchableOpacity
-                onPress={() => router.push('/(tabs)/pos' as any)}
-                style={[
-                  styles.goToPosMainBtn,
-                  {
-                    backgroundColor: BRAND_COLORS.navyInk,
-                    borderColor: theme.borderColor,
-                  },
-                ]}
-                activeOpacity={0.8}
-              >
-                <ShoppingBag size={15} color="#FFFFFF" />
-                <Text style={styles.goToPosMainBtnText}>POS ({totalCartCount})</Text>
-                <ArrowRight size={13} color="#94A3B8" style={{ marginLeft: 2 }} />
-              </TouchableOpacity>
-            ) : null}
           </View>
 
           {/* Memory Row */}
@@ -860,7 +841,10 @@ export default function DedicatedCalculatorTabScreen() {
         <Modal
           visible={showProductPicker}
           animationType="slide"
-          onRequestClose={() => setShowProductPicker(false)}
+          onRequestClose={() => {
+            Keyboard.dismiss();
+            setShowProductPicker(false);
+          }}
         >
           <ScreenBackground color={theme.bg}>
             <View style={[styles.modalContainer, { paddingTop: insets.top || 12 }]}>
@@ -868,7 +852,7 @@ export default function DedicatedCalculatorTabScreen() {
               <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Package size={20} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Products</Text>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('addProductsBtn', 'Add Products')}</Text>
                   <View style={[styles.countBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
                     <Text style={[styles.countBadgeText, { color: BRAND_COLORS.blue600 }]}>
                       {filteredProducts.length} items
@@ -894,7 +878,7 @@ export default function DedicatedCalculatorTabScreen() {
                 <TextInput
                   value={productSearchQuery}
                   onChangeText={setProductSearchQuery}
-                  placeholder="Search product name, barcode, SKU..."
+                  placeholder={t('searchProducts', 'Search product name, barcode, SKU...')}
                   placeholderTextColor={theme.textSecondary}
                   style={[styles.searchInput, { color: theme.textPrimary }]}
                 />
@@ -908,7 +892,7 @@ export default function DedicatedCalculatorTabScreen() {
                 ) : null}
               </View>
 
-              {/* Product List with interactive Quantity (+/- & typing in real-time) */}
+              {/* Product List */}
               <FlatList
                 data={filteredProducts}
                 extraData={cartItems}
@@ -935,7 +919,7 @@ export default function DedicatedCalculatorTabScreen() {
                 }
               />
 
-              {/* Floating Bottom Action Bar: Go to Calculator & Go to POS Cart */}
+              {/* Floating Bottom Action Bar */}
               {totalCartCount > 0 ? (
                 <View
                   style={[
@@ -962,14 +946,14 @@ export default function DedicatedCalculatorTabScreen() {
                         styles.goToCalcBtn,
                         {
                           borderColor: BRAND_COLORS.blue600,
-                          backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : 'rgba(37, 99, 235, 0.1)',
+                          backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.2)' : 'rgba(37, 99, 235, 0.1)',
                         },
                       ]}
                       activeOpacity={0.8}
                     >
                       <CalcIcon size={15} color={BRAND_COLORS.blue600} />
                       <Text style={[styles.goToCalcBtnText, { color: BRAND_COLORS.blue600 }]}>
-                        Go to Calculator
+                        {t('goToCalcBtn', 'Go to Calculator')}
                       </Text>
                     </TouchableOpacity>
 
@@ -983,7 +967,7 @@ export default function DedicatedCalculatorTabScreen() {
                       activeOpacity={0.8}
                     >
                       <ShoppingBag size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                      <Text style={styles.goToPosBtnText}>POS Cart</Text>
+                      <Text style={styles.goToPosBtnText}>{t('goToPosBtn', 'POS Cart')}</Text>
                       <ArrowRight size={13} color="#FFFFFF" style={{ marginLeft: 2 }} />
                     </TouchableOpacity>
                   </View>
@@ -1010,7 +994,7 @@ export default function DedicatedCalculatorTabScreen() {
               <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Users size={20} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Customer Due Balance</Text>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>{t('customerDueBalance', 'Customer Due Balance')}</Text>
                   <View style={[styles.countBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
                     <Text style={[styles.countBadgeText, { color: BRAND_COLORS.blue600 }]}>
                       {filteredCustomers.length}
@@ -1036,7 +1020,7 @@ export default function DedicatedCalculatorTabScreen() {
                 <TextInput
                   value={customerSearchQuery}
                   onChangeText={setCustomerSearchQuery}
-                  placeholder="Search customer name or phone..."
+                  placeholder={t('searchCustomerPlaceholder', 'Search customer name or phone...')}
                   placeholderTextColor={theme.textSecondary}
                   style={[styles.searchInput, { color: theme.textPrimary }]}
                 />
@@ -1050,7 +1034,7 @@ export default function DedicatedCalculatorTabScreen() {
                 ) : null}
               </View>
 
-              {/* Filter Tabs: All vs Has Due */}
+              {/* Filter Tabs */}
               <View style={styles.filterTabsRow}>
                 <TouchableOpacity
                   onPress={() => setCustomerFilterOnlyDue(false)}
@@ -1060,13 +1044,8 @@ export default function DedicatedCalculatorTabScreen() {
                     { borderColor: !customerFilterOnlyDue ? BRAND_COLORS.blue600 : theme.borderColor },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.filterTabText,
-                      { color: !customerFilterOnlyDue ? '#FFFFFF' : theme.textSecondary },
-                    ]}
-                  >
-                    All ({customers.length})
+                  <Text style={[styles.filterTabText, { color: !customerFilterOnlyDue ? '#FFFFFF' : theme.textSecondary }]}>
+                    {t('filterAllCustomers', 'All')} ({customers.length})
                   </Text>
                 </TouchableOpacity>
 
@@ -1078,18 +1057,12 @@ export default function DedicatedCalculatorTabScreen() {
                     { borderColor: customerFilterOnlyDue ? '#EF4444' : theme.borderColor },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.filterTabText,
-                      { color: customerFilterOnlyDue ? '#FFFFFF' : theme.textSecondary },
-                    ]}
-                  >
-                    Has Balance Due ({customers.filter((c) => (c.creditBalance || 0) > 0).length})
+                  <Text style={[styles.filterTabText, { color: customerFilterOnlyDue ? '#FFFFFF' : theme.textSecondary }]}>
+                    {t('filterDueOnly', 'Has Balance Due')} ({customers.filter((c) => (c.creditBalance || 0) > 0).length})
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Customer List */}
               <FlatList
                 data={filteredCustomers}
                 keyExtractor={(c) => c.id}
@@ -1101,7 +1074,7 @@ export default function DedicatedCalculatorTabScreen() {
                     isSelected={selectedCustomerId === item.id}
                     onAddBalance={handleAddCustomerBalance}
                     theme={theme}
-                    isDark={isDark}
+                    isDark={theme.isDark}
                   />
                 )}
                 ListEmptyComponent={

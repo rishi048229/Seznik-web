@@ -27,9 +27,11 @@ import { Purchase } from '@/types/purchase';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function PurchasesScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { purchases, isLoading, deletePurchase } = usePurchases();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,16 +82,16 @@ export default function PurchasesScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.push('/purchases/new' as any)} style={styles.addBtn}>
               <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.addBtnText}>New Purchase</Text>
+              <Text style={styles.addBtnText}>{t('recordPurchase', 'New Purchase')}</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.title, { color: theme.textPrimary }]}>Stock Purchases</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>{t('purchasesPageTitle', 'Stock Purchases')}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             Supplier invoices & inventory purchase history
           </Text>
@@ -98,7 +100,7 @@ export default function PurchasesScreen() {
             <Search size={18} color={theme.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.textPrimary }]}
-              placeholder="Search invoice number or supplier..."
+              placeholder={t('searchProducts', 'Search invoice number or supplier...')}
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}

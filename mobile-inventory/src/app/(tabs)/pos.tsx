@@ -52,9 +52,11 @@ import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function PosScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useLanguageStore();
   const { products, isLoading: loadingProducts, getByBarcode } = useProducts();
   const { categories } = useCategories();
   const { createSale, isCreating } = useSales();
@@ -339,7 +341,7 @@ export default function PosScreen() {
           </TouchableOpacity>
           <View style={{ marginLeft: 10 }}>
             <Text style={styles.headerBadge}>{settings?.businessName || 'Point of Sale'}</Text>
-            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Billing Counter</Text>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('pos', 'Billing Counter')}</Text>
           </View>
         </View>
 
@@ -408,7 +410,7 @@ export default function PosScreen() {
           ]}
         >
           <Text style={styles.voiceBannerText} numberOfLines={1}>
-            {voiceFeedback ? voiceFeedback.message : 'Listening... say an item, e.g. "2 bread"'}
+            {voiceFeedback ? voiceFeedback.message : t('listening', 'Listening... say an item, e.g. "2 bread"')}
           </Text>
         </View>
       ) : null}
@@ -420,7 +422,7 @@ export default function PosScreen() {
           <Search size={16} color={theme.textSecondary} />
           <TextInput
             style={[styles.inputField, { color: theme.textPrimary }]}
-            placeholder="Search by name, barcode, or SKU..."
+            placeholder={t('searchProducts', 'Search by name, barcode, or SKU...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -451,7 +453,7 @@ export default function PosScreen() {
         >
           <Search size={13} color={selectedCategoryId ? BRAND_COLORS.blue600 : theme.textSecondary} />
           <Text style={[styles.categorySearchBtnText, { color: selectedCategoryId ? BRAND_COLORS.blue600 : theme.textPrimary }]}>
-            Categories
+            {t('categories', 'Categories')}
           </Text>
           <ChevronDown size={13} color={selectedCategoryId ? BRAND_COLORS.blue600 : theme.textSecondary} style={{ marginLeft: 2 }} />
         </TouchableOpacity>
@@ -467,7 +469,7 @@ export default function PosScreen() {
           ]}
         >
           <Text style={[styles.categoryChipText, !selectedCategoryId ? { color: '#FFFFFF' } : { color: theme.textPrimary }]}>
-            All Items
+            {t('allItems', 'All Items')}
           </Text>
           <Text style={[styles.categoryChipCount, !selectedCategoryId ? { color: 'rgba(255,255,255,0.8)' } : { color: theme.textSecondary }]}>
             {products.length}
@@ -533,7 +535,7 @@ export default function PosScreen() {
                       <Text style={[styles.codeTagText, { color: theme.textSecondary }]}>#{codeNumber}</Text>
                       {item.currentStock <= item.lowStockThreshold ? (
                         <View style={styles.stockBadge}>
-                          <Text style={styles.stockBadgeText}>Low: {item.currentStock}</Text>
+                          <Text style={styles.stockBadgeText}>{t('lowStock', 'Low')}: {item.currentStock}</Text>
                         </View>
                       ) : null}
                     </View>
@@ -592,14 +594,14 @@ export default function PosScreen() {
         <TouchableOpacity onPress={() => setShowCustomerPicker(true)} style={styles.customerRow}>
           <UserCircle2 size={14} color="#94A3B8" />
           <Text style={styles.customerRowText} numberOfLines={1}>
-            {selectedCustomerName || 'Walk-in Customer'}
+            {selectedCustomerName || t('walkInCustomer', 'Walk-in Customer')}
           </Text>
           <ChevronDown size={13} color="#94A3B8" />
         </TouchableOpacity>
 
         {paymentMethod === 'credit' ? (
           <View style={styles.creditRow}>
-            <Text style={styles.creditLabel}>Received Now ₹</Text>
+            <Text style={styles.creditLabel}>{t('receivedNow', 'Received Now')} ₹</Text>
             <TextInput
               style={styles.creditInput}
               keyboardType="numeric"
@@ -609,7 +611,7 @@ export default function PosScreen() {
               placeholderTextColor="#64748B"
             />
             <Text style={styles.creditRemainingText} numberOfLines={1}>
-              ₹{creditRemaining.toFixed(2)} to {(selectedCustomerName || 'customer').split(' ')[0]}&apos;s credit
+              ₹{creditRemaining.toFixed(2)} to {(selectedCustomerName || t('customer', 'customer')).split(' ')[0]}&apos;s credit
             </Text>
           </View>
         ) : null}
@@ -627,7 +629,7 @@ export default function PosScreen() {
               ]}
             >
               <Text style={[styles.tenderChipText, paymentMethod === method ? { color: '#FFFFFF' } : { color: '#94A3B8' }]}>
-                {method === 'credit' ? 'CREDIT' : method.toUpperCase()}
+                {method === 'credit' ? t('credit', 'CREDIT') : method.toUpperCase()}
               </Text>
             </TouchableOpacity>
           ))}
@@ -638,7 +640,7 @@ export default function PosScreen() {
         <View style={styles.footerMainRow}>
           <TouchableOpacity onPress={() => setShowCartModal(true)} style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.tenderTotalLabel}>
-              TOTAL: {cartTotalCount} {cartTotalCount === 1 ? 'ITEM' : 'ITEMS'}
+              {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
             </Text>
             <Text style={styles.tenderTotalPrice}>₹{grandTotalNow.toFixed(2)}</Text>
           </TouchableOpacity>
@@ -648,7 +650,11 @@ export default function PosScreen() {
             disabled={cartItems.length === 0 || isCreating}
             style={[styles.checkoutActionBtn, (cartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
           >
-            {isCreating ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.checkoutActionText}>PRINT</Text>}
+            {isCreating ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.checkoutActionText}>{t('payNow', 'PRINT')}</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>

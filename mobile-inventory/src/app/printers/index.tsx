@@ -43,9 +43,11 @@ import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { RECEIPT_TEMPLATES, getTemplateById } from '@/constants/receiptTemplates';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function PrintersScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { settings } = useSettings();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -266,7 +268,7 @@ export default function PrintersScreen() {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

@@ -30,9 +30,11 @@ import { useReports } from '@/hooks/useReports';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function ReportsScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
 
   const [activeTab, setActiveTab] = useState<'sales' | 'pnl' | 'tax'>('sales');
   const [period, setPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
@@ -68,7 +70,7 @@ export default function ReportsScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleShareReport} style={styles.shareBtn}>
@@ -77,7 +79,7 @@ export default function ReportsScreen() {
             </TouchableOpacity>
           </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Financial Reports</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('reportsPageTitle', 'Financial Reports')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           P&L, Sales trends & GST tax liability summaries
         </Text>

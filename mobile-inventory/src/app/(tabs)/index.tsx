@@ -79,12 +79,14 @@ import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { BRAND_COLORS } from '@/constants/theme';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { settings } = useSettings();
+  const { t } = useLanguageStore();
   const {
     stats,
     paymentModes,
@@ -450,14 +452,14 @@ export default function DashboardScreen() {
             <>
               {/* 2. APP LAUNCHER — Primary 4 Tools with Show More Menu */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
+                <Text style={styles.sectionHeader}>{t('quickAccess', 'QUICK ACCESS')}</Text>
                 <TouchableOpacity
                   onPress={() => setShowMoreTools((prev) => !prev)}
                   style={styles.toggleHeaderBtn}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.toggleHeaderText, { color: BRAND_COLORS.sky500 }]}>
-                    {showMoreTools ? 'Show Less' : 'Show More'}
+                    {showMoreTools ? t('showLessOptions', 'Show Less') : t('showMoreOptions', 'Show More')}
                   </Text>
                   {showMoreTools ? (
                     <ChevronUp size={14} color={BRAND_COLORS.sky500} style={{ marginLeft: 2 }} />
@@ -471,7 +473,7 @@ export default function DashboardScreen() {
               <View style={styles.compactGridRow}>
                 {/* 1. Day Book */}
                 <FeatureGridTile
-                  label="Day Book"
+                  label={t('dayBook', 'Day Book')}
                   icon={BookOpen}
                   color="#10B981"
                   onPress={() => router.push('/credits' as any)}
@@ -480,7 +482,7 @@ export default function DashboardScreen() {
 
                 {/* 2. Products */}
                 <FeatureGridTile
-                  label="Products"
+                  label={t('products', 'Products')}
                   icon={Package}
                   color="#0284C7"
                   onPress={() => router.push('/(tabs)/products' as any)}
@@ -489,7 +491,7 @@ export default function DashboardScreen() {
 
                 {/* 3. Scan Stock */}
                 <FeatureGridTile
-                  label="Scan Stock"
+                  label={t('scanStock', 'Scan Stock')}
                   icon={Barcode}
                   color={BRAND_COLORS.sky500}
                   onPress={() => {
@@ -502,7 +504,7 @@ export default function DashboardScreen() {
 
                 {/* 4. AI */}
                 <FeatureGridTile
-                  label="AI Import"
+                  label={t('aiImport', 'AI Import')}
                   badge="AI"
                   icon={Sparkles}
                   color="#8B5CF6"
@@ -514,14 +516,14 @@ export default function DashboardScreen() {
                 {showMoreTools && (
                   <>
                     <FeatureGridTile
-                      label="Reports"
+                      label={t('reports', 'Reports')}
                       icon={BarChart3}
                       color="#8B5CF6"
                       onPress={() => router.push('/reports' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Label Studio"
+                      label={t('labelStudio', 'Label Studio')}
                       badge="NEW"
                       icon={Tag}
                       color="#10B981"
@@ -529,56 +531,56 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Voice Add"
+                      label={t('voiceAdd', 'Voice Add')}
                       icon={Mic}
                       color="#EF4444"
                       onPress={() => setShowVoiceModal(true)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Customers"
+                      label={t('customers', 'Customers')}
                       icon={Users}
                       color="#F59E0B"
                       onPress={() => router.push('/customers' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Suppliers"
+                      label={t('suppliers', 'Suppliers')}
                       icon={Truck}
                       color="#14B8A6"
                       onPress={() => router.push('/suppliers' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Thermal Printer"
+                      label={t('thermalPrinter', 'Thermal Printer')}
                       icon={Printer}
                       color={BRAND_COLORS.blue600}
-                      onPress={() => router.push('/printers' as any)}
+                      onPress={() => setShowDirectPrinterModal(true)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Expenses"
+                      label={t('expenses', 'Expenses')}
                       icon={Wallet}
                       color="#EC4899"
                       onPress={() => router.push('/expenses' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Purchases"
+                      label={t('purchases', 'Purchases')}
                       icon={ShoppingBag}
                       color="#14B8A6"
                       onPress={() => router.push('/purchases' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Quick Tokens"
+                      label={t('quickTokens', 'Quick Tokens')}
                       icon={Ticket}
                       color="#F59E0B"
                       onPress={() => router.push('/quick-tokens' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Calculator"
+                      label={t('calculator', 'Calculator')}
                       badge="NEW"
                       icon={Calculator}
                       color="#6366F1"
@@ -586,21 +588,21 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Sales History"
+                      label={t('salesHistory', 'Sales History')}
                       icon={Receipt}
                       color={BRAND_COLORS.blue600}
                       onPress={() => router.push('/sales' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Settings"
+                      label={t('settings', 'Settings')}
                       icon={SettingsIcon}
                       color={theme.textSecondary}
                       onPress={() => router.push('/settings' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label="Feedback"
+                      label={t('feedback', 'Feedback')}
                       icon={MessageSquarePlus}
                       color="#0284C7"
                       onPress={() => router.push('/feedback' as any)}
@@ -624,7 +626,7 @@ export default function DashboardScreen() {
               >
                 <LayoutGrid size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 6 }} />
                 <Text style={[styles.showMoreBtnText, { color: theme.textPrimary }]}>
-                  {showMoreTools ? 'Show Less Options' : 'Show More Options (13)'}
+                  {showMoreTools ? t('showLessOptions', 'Show Less Options') : t('showMoreOptions', 'Show More Options (13)')}
                 </Text>
                 {showMoreTools ? (
                   <ChevronUp size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
@@ -634,42 +636,42 @@ export default function DashboardScreen() {
               </TouchableOpacity>
 
               {/* 3. EXECUTIVE METRICS STRIP */}
-              <Text style={styles.sectionHeader}>TODAY&apos;S PERFORMANCE & P&L</Text>
+              <Text style={styles.sectionHeader}>{t('todayPerformance', "TODAY'S PERFORMANCE & P&L")}</Text>
               <View style={styles.kpiGrid}>
                 {/* Revenue */}
                 <View style={[styles.kpiCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Today&apos;s Revenue</Text>
+                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{t('todayRevenue', "Today's Revenue")}</Text>
                     <View style={[styles.kpiIconCircle, { backgroundColor: 'rgba(37, 99, 235, 0.15)' }]}>
                       <TrendingUp size={16} color={BRAND_COLORS.blue600} />
                     </View>
                   </View>
                   <Text style={[styles.kpiValue, { color: theme.textPrimary }]}>{formatCurrency(stats.todayRevenue)}</Text>
-                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{stats.todayInvoices} Invoices Today</Text>
+                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{stats.todayInvoices} {t('invoicesToday', 'Invoices Today')}</Text>
                 </View>
 
                 {/* Net Profit */}
                 <View style={[styles.kpiCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Net Profit (P&L)</Text>
+                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{t('grossMargin', 'Net Profit (P&L)')}</Text>
                     <View style={[styles.kpiIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
                       <DollarSign size={16} color="#10B981" />
                     </View>
                   </View>
                   <Text style={[styles.kpiValue, { color: '#10B981' }]}>{formatCurrency(stats.todayGrossProfit)}</Text>
-                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{grossProfitMargin}% Margin Today</Text>
+                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{grossProfitMargin}% {t('grossMargin', 'Margin Today')}</Text>
                 </View>
 
                 {/* Invoices */}
                 <View style={[styles.kpiCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Invoices Count</Text>
+                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{t('invoicesToday', 'Invoices Count')}</Text>
                     <View style={[styles.kpiIconCircle, { backgroundColor: 'rgba(2, 132, 199, 0.15)' }]}>
                       <Receipt size={16} color={BRAND_COLORS.sky500} />
                     </View>
                   </View>
                   <Text style={[styles.kpiValue, { color: theme.textPrimary }]}>{stats.todayInvoices}</Text>
-                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>Completed Bills</Text>
+                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{t('completedBills', 'Completed Bills')}</Text>
                 </View>
 
                 {/* Catalog Asset Valuation */}
@@ -678,7 +680,7 @@ export default function DashboardScreen() {
                   style={[styles.kpiCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Inventory Asset</Text>
+                    <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{t('inventoryAsset', 'Inventory Asset')}</Text>
                     <View style={[styles.kpiIconCircle, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
                       <Boxes size={16} color="#8B5CF6" />
                     </View>
@@ -689,7 +691,7 @@ export default function DashboardScreen() {
               </View>
 
               {/* 7. PAYMENT MODES & EXPENSES SUMMARY */}
-              <Text style={styles.sectionHeader}>PAYMENT MODES & EXPENSES OUTFLOW</Text>
+              <Text style={styles.sectionHeader}>{t('paymentModesTitle', 'PAYMENT MODES & EXPENSES OUTFLOW')}</Text>
               <View style={styles.dualSectionRow}>
                 {/* Payment Modes Breakdown */}
                 <TouchableOpacity
@@ -697,12 +699,12 @@ export default function DashboardScreen() {
                   style={[styles.halfCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Payment Modes</Text>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('paymentModesTitle', 'Payment Modes')}</Text>
                     <PieChart size={16} color={BRAND_COLORS.blue600} />
                   </View>
 
                   {paymentModes.length === 0 ? (
-                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>No sales recorded yet</Text>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>{t('noSalesToday', 'No sales recorded yet')}</Text>
                   ) : (
                     paymentModes.slice(0, 3).map((mode) => (
                       <View key={mode.method} style={{ marginBottom: 6 }}>
@@ -728,7 +730,7 @@ export default function DashboardScreen() {
                   style={[styles.halfCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Expense Summary</Text>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('expenses', 'Expense Summary')}</Text>
                     <Wallet size={16} color="#EC4899" />
                   </View>
                   <Text style={{ fontSize: 11, color: theme.textSecondary }}>Today&apos;s Outflow</Text>
@@ -744,16 +746,16 @@ export default function DashboardScreen() {
               {/* 8. REVENUE TREND CHART */}
               <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 20 }]}>
                 <View style={styles.chartHeader}>
-                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Revenue Trend</Text>
+                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('revenueTrend', 'Revenue Trend')}</Text>
                   <View style={[styles.timeframeRow, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-                    {(['daily', 'weekly', 'monthly'] as const).map((t) => (
+                    {(['daily', 'weekly', 'monthly'] as const).map((tMode) => (
                       <TouchableOpacity
-                        key={t}
-                        onPress={() => setTimeframe(t)}
-                        style={[styles.timeChip, timeframe === t && { backgroundColor: BRAND_COLORS.blue600 }]}
+                        key={tMode}
+                        onPress={() => setTimeframe(tMode)}
+                        style={[styles.timeChip, timeframe === tMode && { backgroundColor: BRAND_COLORS.blue600 }]}
                       >
-                        <Text style={[styles.timeChipText, timeframe === t ? { color: '#FFFFFF' } : { color: theme.textSecondary }]}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}
+                        <Text style={[styles.timeChipText, timeframe === tMode ? { color: '#FFFFFF' } : { color: theme.textSecondary }]}>
+                          {tMode.charAt(0).toUpperCase() + tMode.slice(1)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -766,7 +768,7 @@ export default function DashboardScreen() {
                   </View>
                 ) : trend.revenue.every((v) => v === 0) ? (
                   <View style={[styles.barChartContainer, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <Text style={{ fontSize: 12, color: theme.textSecondary }}>No sales recorded in this period yet.</Text>
+                    <Text style={{ fontSize: 12, color: theme.textSecondary }}>{t('noSalesToday', 'No sales recorded in this period yet.')}</Text>
                   </View>
                 ) : (
                   <View style={styles.barChartContainer}>
@@ -792,16 +794,16 @@ export default function DashboardScreen() {
               {/* 9. RECENT SALES FEED */}
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeader}>RECENT SALES TRANSACTIONS</Text>
+                  <Text style={styles.sectionHeader}>{t('recentSales', 'RECENT SALES TRANSACTIONS')}</Text>
                   <TouchableOpacity onPress={() => router.push('/sales' as any)}>
-                    <Text style={styles.viewAllBtn}>View All ➔</Text>
+                    <Text style={styles.viewAllBtn}>{t('viewAll', 'View All ➔')}</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   {stats.recentSales.length === 0 ? (
                     <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                      No sales recorded today yet. Start a POS sale!
+                      {t('noSalesToday', 'No sales recorded today yet. Start a POS sale!')}
                     </Text>
                   ) : (
                     stats.recentSales.slice(0, 4).map((sale) => (
@@ -809,7 +811,7 @@ export default function DashboardScreen() {
                         <View>
                           <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>{sale.invoiceNumber}</Text>
                           <Text style={[styles.itemSub, { color: theme.textSecondary }]}>
-                            {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Completed Invoice
+                            {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t('todaySales', 'Completed Invoice')}
                           </Text>
                         </View>
                         <Text style={[styles.itemValue, { color: theme.textPrimary }]}>

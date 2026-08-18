@@ -35,9 +35,11 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { sales, isLoading, isRefetching, refetch, deleteSale } = useSales();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -113,8 +115,8 @@ export default function SalesHistoryScreen() {
                 <ChevronLeft size={20} color={theme.textPrimary} />
               </TouchableOpacity>
               <View style={{ marginLeft: 10 }}>
-                <Text style={styles.headerBadge}>Transactions</Text>
-                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Sales History</Text>
+                <Text style={styles.headerBadge}>{t('transactions', 'Transactions')}</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('salesPageTitle', 'Sales History')}</Text>
               </View>
             </View>
 
@@ -132,7 +134,7 @@ export default function SalesHistoryScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search invoice number or customer..."
+              placeholder={t('searchCustomerPlaceholder', 'Search invoice number or customer...')}
               placeholderTextColor={theme.textSecondary}
               style={[styles.searchInput, { color: theme.textPrimary }]}
             />
@@ -146,11 +148,11 @@ export default function SalesHistoryScreen() {
           {/* Filter Pills */}
           <View style={styles.filterRow}>
             {[
-              { label: 'All', value: null },
-              { label: 'Cash', value: 'cash' },
-              { label: 'UPI', value: 'upi' },
-              { label: 'Card', value: 'card' },
-              { label: 'Udhaar', value: 'credit' },
+              { label: t('all', 'All'), value: null },
+              { label: t('cash', 'Cash'), value: 'cash' },
+              { label: t('upi', 'UPI'), value: 'upi' },
+              { label: t('card', 'Card'), value: 'card' },
+              { label: t('udhaar', 'Udhaar'), value: 'credit' },
             ].map((filter) => {
               const active = selectedPaymentMethod === filter.value;
               return (

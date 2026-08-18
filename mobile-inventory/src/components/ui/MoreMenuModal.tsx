@@ -29,95 +29,91 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 
+import { useLanguageStore } from '@/store/useLanguageStore';
+
 interface MoreMenuModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-const MORE_MENU_ITEMS = [
-  {
-    id: 'products',
-    title: 'Products & Inventory',
-    icon: Package,
-    color: '#0284C7',
-    route: '/products',
-  },
-  {
-    id: 'quick-tokens',
-    title: 'Quick Ticket Tokens',
-    icon: Ticket,
-    color: '#2563EB',
-    route: '/quick-tokens',
-  },
-  {
-    id: 'customers',
-    title: 'Customers & Ledger',
-    icon: Users,
-    color: '#059669',
-    route: '/customers',
-  },
-  {
-    id: 'suppliers',
-    title: 'Suppliers Directory',
-    icon: Truck,
-    color: '#7C3AED',
-    route: '/suppliers',
-  },
-  {
-    id: 'purchases',
-    title: 'Stock Purchases',
-    icon: ShoppingBag,
-    color: '#D97706',
-    route: '/purchases',
-  },
-  {
-    id: 'expenses',
-    title: 'Expense Tracker',
-    icon: DollarSign,
-    color: '#DC2626',
-    route: '/expenses',
-  },
-  {
-    id: 'credits',
-    title: 'Daybook & Cashflow',
-    icon: BookOpen,
-    color: '#0284C7',
-    route: '/credits',
-  },
-  {
-    id: 'reports',
-    title: 'Financial Reports',
-    icon: BarChart3,
-    color: '#2563EB',
-    route: '/reports',
-  },
-  {
-    id: 'staff',
-    title: 'Staff & Permissions',
-    icon: UserCog,
-    color: '#7C3AED',
-    route: '/staff',
-  },
-  {
-    id: 'settings',
-    title: 'Settings',
-    icon: Settings,
-    color: '#64748B',
-    route: '/settings',
-  },
-  {
-    id: 'feedback',
-    title: 'Send Feedback',
-    icon: MessageSquarePlus,
-    color: '#0284C7',
-    route: '/feedback',
-  },
-];
-
 export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useAppTheme();
+  const { t } = useLanguageStore();
+
+  const menuItems = [
+    {
+      id: 'products',
+      title: t('products', 'Products & Inventory'),
+      icon: Package,
+      color: '#0284C7',
+      route: '/products',
+    },
+    {
+      id: 'quick-tokens',
+      title: t('quickTokens', 'Quick Counter Tokens'),
+      icon: Ticket,
+      color: '#2563EB',
+      route: '/quick-tokens',
+    },
+    {
+      id: 'customers',
+      title: t('customers', 'Customers & Ledger'),
+      icon: Users,
+      color: '#059669',
+      route: '/customers',
+    },
+    {
+      id: 'suppliers',
+      title: t('suppliers', 'Suppliers Directory'),
+      icon: Truck,
+      color: '#7C3AED',
+      route: '/suppliers',
+    },
+    {
+      id: 'purchases',
+      title: t('purchases', 'Stock Purchases'),
+      icon: ShoppingBag,
+      color: '#D97706',
+      route: '/purchases',
+    },
+    {
+      id: 'expenses',
+      title: t('expenses', 'Expense Tracker'),
+      icon: DollarSign,
+      color: '#DC2626',
+      route: '/expenses',
+    },
+    {
+      id: 'credits',
+      title: t('dayBook', 'Daybook & Cashflow'),
+      icon: BookOpen,
+      color: '#0284C7',
+      route: '/credits',
+    },
+    {
+      id: 'reports',
+      title: t('reports', 'Financial Reports'),
+      icon: BarChart3,
+      color: '#2563EB',
+      route: '/reports',
+    },
+    {
+      id: 'settings',
+      title: t('settings', 'Settings'),
+      icon: Settings,
+      color: '#64748B',
+      route: '/settings',
+    },
+    {
+      id: 'feedback',
+      title: t('feedback', 'Send Feedback'),
+      icon: MessageSquarePlus,
+      color: '#0284C7',
+      route: '/feedback',
+    },
+  ];
 
   const handleNavigate = (route: string) => {
     onClose();
@@ -155,29 +151,30 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
                     <ShieldCheck size={18} color="#FFFFFF" />
                   </View>
                   <View>
-                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>More Features</Text>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('more', 'More Features')}</Text>
                     <Text style={[styles.userSub, { color: theme.textSecondary }]}>
-                      {user?.displayName || 'Store Account'} · Role: {user?.role || 'Admin'}
+                      {user?.displayName || 'Store Account'} · {t('role', 'Role')}: {user?.role || 'Admin'}
                     </Text>
                   </View>
                 </View>
+
                 <TouchableOpacity
                   onPress={onClose}
-                  style={[styles.closeBtn, { backgroundColor: theme.borderColor }]}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                  <X size={16} color={theme.textPrimary} />
+                  <X size={20} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
 
-              {/* Items Grid rendered consecutively without categories */}
+              {/* Grid Content */}
               <ScrollView
-                style={styles.scrollArea}
-                contentContainerStyle={styles.scrollContent}
+                style={{ maxHeight: 380 }}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
               >
                 <View style={styles.gridRow}>
-                  {MORE_MENU_ITEMS.map((item) => (
+                  {menuItems.map((item) => (
                     <FeatureGridTile
                       key={item.id}
                       label={item.title}

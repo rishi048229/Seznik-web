@@ -33,23 +33,11 @@ import {
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguageStore } from '@/store/useLanguageStore';
-import { LanguageCode } from '@/constants/translations';
+import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.82, 340);
-
-const LANGUAGE_OPTIONS: { code: LanguageCode; name: string }[] = [
-  { code: 'en', name: 'English' },
-  { code: 'hi', name: 'हिंदी' },
-  { code: 'mr', name: 'मराठी' },
-  { code: 'ta', name: 'தமிழ்' },
-  { code: 'te', name: 'తెలుగు' },
-  { code: 'gu', name: 'ગુજરાતી' },
-  { code: 'bn', name: 'বাংলা' },
-  { code: 'ml', name: 'മലയാളം' },
-  { code: 'or', name: 'ଓଡ଼ିଆ' },
-];
 
 interface SidebarDrawerProps {
   visible: boolean;
@@ -62,7 +50,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { user, logout } = useAuth();
-  const { currentLanguage, setLanguage } = useLanguageStore();
+  const { currentLanguage, setLanguage, t } = useLanguageStore();
 
   const theme = isDark
     ? {
@@ -86,48 +74,48 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
 
   const navGroups = [
     {
-      title: 'CORE POS & SALES',
+      title: t('corePosSales', 'CORE POS & SALES'),
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, route: '/(tabs)' },
-        { id: 'pos', label: 'Full POS Checkout', icon: ShoppingBag, route: '/(tabs)/pos' },
-        { id: 'calculator', label: 'POS Calculator', icon: Calculator, route: '/(tabs)/calculator' },
-        { id: 'sales', label: 'Sales History & Receipts', icon: Receipt, route: '/sales' },
-        { id: 'tokens', label: 'Quick Counter Tokens', icon: Ticket, route: '/quick-tokens' },
+        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
+        { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
+        { id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' },
+        { id: 'sales', label: t('salesHistory', 'Sales History & Receipts'), icon: Receipt, route: '/sales' },
+        { id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' },
       ],
     },
     {
-      title: 'INVENTORY & CATALOG',
+      title: t('inventoryCatalog', 'INVENTORY & CATALOG'),
       items: [
-        { id: 'products', label: 'Products & Barcodes', icon: Package, route: '/products' },
+        { id: 'products', label: t('products', 'Products & Barcodes'), icon: Package, route: '/products' },
       ],
     },
     {
-      title: 'SUPPLIERS & PURCHASES',
+      title: t('suppliersPurchases', 'SUPPLIERS & PURCHASES'),
       items: [
-        { id: 'suppliers', label: 'Suppliers Directory', icon: Truck, route: '/suppliers' },
-        { id: 'purchases', label: 'Stock Purchases', icon: ShoppingBag, route: '/purchases' },
+        { id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' },
+        { id: 'purchases', label: t('purchases', 'Stock Purchases'), icon: ShoppingBag, route: '/purchases' },
       ],
     },
     {
-      title: 'CUSTOMERS & DAYBOOK',
+      title: t('customersDaybook', 'CUSTOMERS & DAYBOOK'),
       items: [
-        { id: 'customers', label: 'Customers & Credit Ledger', icon: Users, route: '/customers' },
-        { id: 'credits', label: 'Daybook Cashflow', icon: BookOpen, route: '/credits' },
-        { id: 'expenses', label: 'Expense Tracker', icon: DollarSign, route: '/expenses' },
+        { id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' },
+        { id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' },
+        { id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: DollarSign, route: '/expenses' },
       ],
     },
     {
-      title: 'HARDWARE & PRINTERS',
+      title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
-        { id: 'printers', label: 'Printers & Calibration', icon: Printer, route: '/printers' },
+        { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
       ],
     },
     {
-      title: 'ANALYTICS & SETTINGS',
+      title: t('analyticsSettings', 'ANALYTICS & SETTINGS'),
       items: [
-        { id: 'reports', label: 'P&L Reports & GST Output', icon: BarChart3, route: '/reports' },
-        { id: 'settings', label: 'Settings & Staff Users', icon: Settings, route: '/settings' },
-        { id: 'feedback', label: 'Review & Suggest', icon: Star, route: '/feedback' },
+        { id: 'reports', label: t('reports', 'P&L Reports & GST Output'), icon: BarChart3, route: '/reports' },
+        { id: 'settings', label: t('settings', 'Settings & Staff Users'), icon: Settings, route: '/settings' },
+        { id: 'feedback', label: t('feedback', 'Review & Suggest'), icon: Star, route: '/feedback' },
       ],
     },
   ];
@@ -142,10 +130,8 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        {/* Drawer Content FIRST -> Opens from LEFT */}
         <View style={[styles.drawerContent, { width: DRAWER_WIDTH, backgroundColor: theme.bg }]}>
           <SafeAreaView style={{ flex: 1 }}>
-            {/* Drawer Header */}
             <View style={[styles.drawerHeader, { borderBottomColor: theme.borderColor }]}>
               <View style={styles.brandRow}>
                 <View style={styles.brandBadge}>
@@ -153,10 +139,10 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                 </View>
                 <View>
                   <Text style={[styles.brandTitle, { color: theme.textPrimary }]}>
-                    Seznik <Text style={{ color: BRAND_COLORS.blue600 }}>POS</Text>
+                    {t('brandTitle', 'Seznik')} <Text style={{ color: BRAND_COLORS.blue600 }}>POS</Text>
                   </Text>
                   <Text style={[styles.brandSub, { color: theme.textSecondary }]}>
-                    Mobile Companion
+                    {t('brandSub', 'Mobile Companion')}
                   </Text>
                 </View>
               </View>
@@ -166,7 +152,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
               </TouchableOpacity>
             </View>
 
-            {/* Navigation List */}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 12 }}>
               <View style={[styles.profileTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <Text style={[styles.profileName, { color: theme.textPrimary }]}>
@@ -176,7 +161,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                   {user?.email || 'admin@seznik.com'}
                 </Text>
                 <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText}>Role: {user?.role || 'admin'}</Text>
+                  <Text style={styles.rolePillText}>{t('role', 'Role')}: {user?.role || 'admin'}</Text>
                 </View>
               </View>
 
@@ -219,11 +204,10 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                 </View>
               ))}
 
-              {/* Language Selector */}
               <View style={styles.navGroup}>
-                <Text style={styles.groupTitle}>APP LANGUAGE</Text>
+                <Text style={styles.groupTitle}>{t('appLanguage', 'APP LANGUAGE')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, marginTop: 4 }}>
-                  {LANGUAGE_OPTIONS.map((lang) => {
+                  {SUPPORTED_LANGUAGES.map((lang) => {
                     const isSelected = currentLanguage === lang.code;
                     return (
                       <TouchableOpacity
@@ -243,7 +227,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                             { color: isSelected ? '#FFFFFF' : theme.textPrimary },
                           ]}
                         >
-                          {lang.name}
+                          {lang.nativeName}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -261,13 +245,12 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                 style={styles.logoutBtn}
               >
                 <LogOut size={18} color="#EF4444" />
-                <Text style={styles.logoutBtnText}>Log Out Account</Text>
+                <Text style={styles.logoutBtnText}>{t('logout', 'Log Out Account')}</Text>
               </TouchableOpacity>
             </View>
           </SafeAreaView>
         </View>
 
-        {/* Backdrop SECOND -> Allows backdrop tap to close on right side */}
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       </View>
     </Modal>

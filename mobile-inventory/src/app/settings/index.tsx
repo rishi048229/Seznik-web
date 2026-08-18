@@ -54,7 +54,7 @@ const SUPPORT_EMAIL = 'tech_support@seznik.in';
 export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { currentLanguage, setLanguage } = useLanguageStore();
+  const { currentLanguage, setLanguage, t } = useLanguageStore();
   const { settings } = useSettings();
   const queryClient = useQueryClient();
 
@@ -117,8 +117,6 @@ export default function SettingsScreen() {
   };
 
   const handleSaveSettings = async () => {
-    // Staff Permissions / Language sections don't have a real backend field to persist yet on
-    // this pass — only Business Profile actually saves. Keep the same "Saved!" UX for those.
     if (activeSection !== 'profile') {
       Alert.alert('Settings Saved!', 'Your store configuration has been updated.');
       setActiveSection('menu');
@@ -167,21 +165,21 @@ export default function SettingsScreen() {
           >
             <ArrowLeft size={20} color={theme.textSecondary} />
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>
-              {activeSection === 'menu' ? 'Back' : 'Settings Menu'}
+              {activeSection === 'menu' ? t('back', 'Back') : t('settings', 'Settings Menu')}
             </Text>
           </TouchableOpacity>
         </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>
           {activeSection === 'menu'
-            ? 'Store Configuration'
+            ? t('settings', 'Store Configuration')
             : activeSection === 'profile'
             ? 'Business Profile'
             : activeSection === 'permissions'
             ? 'Staff Permissions'
             : activeSection === 'support'
             ? 'Help & Support'
-            : 'Language & Locale'}
+            : t('appLanguage', 'Language & Locale')}
         </Text>
 
         <ScrollView style={{ flex: 1, marginTop: 12 }} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -191,8 +189,8 @@ export default function SettingsScreen() {
               {[
                 { id: 'profile', icon: Building, label: 'Business Profile', color: BRAND_COLORS.blue600 },
                 { id: 'permissions', icon: Users, label: 'Staff Permissions', color: '#F59E0B' },
-                { id: 'language', icon: Globe, label: 'Language', color: '#10B981' },
-                { id: 'printers', icon: Printer, label: 'Printers', color: BRAND_COLORS.sky500, link: '/printers' },
+                { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
+                { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
                 { id: 'support', icon: LifeBuoy, label: 'Help & Support', color: '#EF4444' },
               ].map((item) => (
                 <FeatureGridTile

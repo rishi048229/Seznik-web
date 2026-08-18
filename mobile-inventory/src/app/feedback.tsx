@@ -18,6 +18,7 @@ import { useFeedback } from '@/hooks/useFeedback';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 // Mirrors VALID_AREAS in backend/src/controllers/feedbackController.ts exactly — anything outside
 // this list gets silently normalized to "general" server-side, so keep these in sync.
@@ -41,6 +42,7 @@ const AREAS: { value: string; label: string }[] = [
 
 export default function FeedbackScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -80,11 +82,11 @@ export default function FeedbackScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.title, { color: theme.textPrimary }]}>Send Feedback</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>{t('feedbackPageTitle', 'Feedback & Suggestions')}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             Found a bug or have an idea? Let the team know.
           </Text>

@@ -51,6 +51,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 type AgeingBucket = '0-7' | '8-15' | '16-30' | '30+';
 
@@ -58,7 +59,7 @@ const AGEING_COLORS: Record<AgeingBucket, string> = {
   '0-7': '#F59E0B',
   '8-15': '#F97316',
   '16-30': '#EF4444',
-  '30+': '#B91C1C',
+  '30+': '#991B1B',
 };
 
 const daysOverdueFor = (oldestUnpaidSince?: string | null): number => {
@@ -75,6 +76,7 @@ const ageingBucketFor = (days: number): AgeingBucket => {
 
 export default function CreditsDaybookScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -225,7 +227,7 @@ export default function CreditsDaybookScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleShareDaybook} style={styles.shareBtn}>
               <Share2 size={14} color="#FFFFFF" />
@@ -233,7 +235,7 @@ export default function CreditsDaybookScreen() {
             </TouchableOpacity>
           </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Daybook & Credits</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('daybookPageTitle', 'Daybook & Credits')}</Text>
 
         {/* Tab Switcher */}
         <View style={[styles.tabRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -241,13 +243,13 @@ export default function CreditsDaybookScreen() {
             onPress={() => setActiveTab('daybook')}
             style={[styles.tabBtn, activeTab === 'daybook' && styles.tabBtnActive]}
           >
-            <Text style={[styles.tabText, activeTab === 'daybook' && styles.tabTextActive]}>Daily Cashflow</Text>
+            <Text style={[styles.tabText, activeTab === 'daybook' && styles.tabTextActive]}>{t('dayBook', 'Daily Cashflow')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setActiveTab('credits')}
             style={[styles.tabBtn, activeTab === 'credits' && styles.tabBtnActive]}
           >
-            <Text style={[styles.tabText, activeTab === 'credits' && styles.tabTextActive]}>Credit Ledger</Text>
+            <Text style={[styles.tabText, activeTab === 'credits' && styles.tabTextActive]}>{t('customersPageTitle', 'Credit Ledger')}</Text>
             {remindersDue.length > 0 ? (
               <View style={styles.tabBadge}>
                 <Text style={styles.tabBadgeText}>{remindersDue.length}</Text>

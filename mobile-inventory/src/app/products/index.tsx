@@ -62,10 +62,12 @@ import { AiProductImportModal } from '@/components/products/AiProductImportModal
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function ProductsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useLanguageStore();
   const {
     products,
     isLoading,
@@ -511,7 +513,7 @@ export default function ProductsScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -520,7 +522,7 @@ export default function ProductsScreen() {
               style={[styles.headerBtn, { backgroundColor: 'rgba(37, 99, 235, 0.15)', marginRight: 6 }]}
             >
               <Sparkles size={14} color={BRAND_COLORS.blue600} />
-              <Text style={[styles.headerBtnText, { color: BRAND_COLORS.blue600 }]}>AI Import</Text>
+              <Text style={[styles.headerBtnText, { color: BRAND_COLORS.blue600 }]}>{t('aiImport', 'AI Import')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -533,33 +535,33 @@ export default function ProductsScreen() {
               style={[styles.headerBtn, { backgroundColor: 'rgba(16, 185, 129, 0.15)', marginRight: 6 }]}
             >
               <Zap size={14} color="#10B981" />
-              <Text style={[styles.headerBtnText, { color: '#10B981' }]}>Scan Stock</Text>
+              <Text style={[styles.headerBtnText, { color: '#10B981' }]}>{t('scanStock', 'Scan Stock')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleOpenAddModal} style={styles.addBtn}>
               <Plus size={15} color="#FFFFFF" />
-              <Text style={styles.addBtnText}>Add Product</Text>
+              <Text style={styles.addBtnText}>{t('addProduct', 'Add Product')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Products & Inventory</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('productsPageTitle', 'Products & Inventory')}</Text>
 
         {/* Stat Cards Strip */}
         <View style={{ height: 68, marginVertical: 12 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
             <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Items</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalItems', 'Total Items')}</Text>
               <Text style={[styles.statValue, { color: theme.textPrimary }]}>{products.length}</Text>
             </View>
 
             <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Low Stock</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
               <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#EF4444' : '#10B981' }]}>{lowStockCount}</Text>
             </View>
 
             <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Stock Value</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
               <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
             </View>
           </ScrollView>
@@ -579,7 +581,7 @@ export default function ProductsScreen() {
               ]}
             >
               <Text style={[styles.catPillText, { color: !selectedCategoryId ? '#FFFFFF' : theme.textPrimary }]}>
-                All Items ({products.length})
+                {t('allItems', 'All Items')} ({products.length})
               </Text>
             </TouchableOpacity>
 
