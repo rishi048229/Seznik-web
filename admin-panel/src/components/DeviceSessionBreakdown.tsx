@@ -49,42 +49,38 @@ export const DeviceSessionBreakdown: React.FC<DeviceSessionBreakdownProps> = ({ 
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'space-around', margin: '6px 0' }}>
-        {/* Device Types */}
+        {/* Platform Invoices Breakdown */}
         <div>
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
-            Device Types
-          </h4>
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', height: '7px', borderRadius: '4px', overflow: 'hidden', background: 'var(--border-color)' }}>
-            {d.desktopPercent > 0 && <div style={{ width: `${d.desktopPercent}%`, background: '#3B82F6', borderRadius: '2px' }} />}
-            {d.mobilePercent > 0 && <div style={{ width: `${d.mobilePercent}%`, background: '#10B981', borderRadius: '2px' }} />}
-            {d.tabletPercent > 0 && <div style={{ width: `${d.tabletPercent}%`, background: '#F59E0B', borderRadius: '2px' }} />}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
+              Invoices by Platform Channel
+            </h4>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              {d.totalInvoices !== undefined ? `${d.totalInvoices} total` : ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'var(--border-color)' }}>
+            {d.desktopPercent > 0 && <div style={{ width: `${d.desktopPercent}%`, background: '#3B82F6', borderRadius: '2px', transition: 'width 0.3s ease' }} title={`Web: ${d.desktopPercent}%`} />}
+            {d.mobilePercent > 0 && <div style={{ width: `${d.mobilePercent}%`, background: '#10B981', borderRadius: '2px', transition: 'width 0.3s ease' }} title={`Mobile: ${d.mobilePercent}%`} />}
+            {d.tabletPercent > 0 && <div style={{ width: `${d.tabletPercent}%`, background: '#F59E0B', borderRadius: '2px', transition: 'width 0.3s ease' }} title={`Tablet: ${d.tabletPercent}%`} />}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-            <div style={{ background: 'var(--bg-card-hover)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                <Laptop size={13} color="#3B82F6" /> Desktop
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+            <div style={{ background: 'var(--bg-card-hover)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                <Laptop size={14} color="#3B82F6" /> Web (Browser POS)
               </div>
-              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                {d.desktopPercent}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>({d.desktopCount})</span>
-              </div>
-            </div>
-
-            <div style={{ background: 'var(--bg-card-hover)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                <Smartphone size={13} color="#10B981" /> Mobile
-              </div>
-              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                {d.mobilePercent}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>({d.mobileCount})</span>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1.05rem', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                {d.desktopPercent}% <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>({d.desktopCount} invoices)</span>
               </div>
             </div>
 
-            <div style={{ background: 'var(--bg-card-hover)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                <Tablet size={13} color="#F59E0B" /> Tablet
+            <div style={{ background: 'var(--bg-card-hover)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                <Smartphone size={14} color="#10B981" /> Mobile App
               </div>
-              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                {d.tabletPercent}% <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>({d.tabletCount})</span>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1.05rem', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                {d.mobilePercent}% <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>({d.mobileCount} invoices)</span>
               </div>
             </div>
           </div>

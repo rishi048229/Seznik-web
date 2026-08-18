@@ -411,6 +411,12 @@ app.get('/api/admin/metrics', async (req, res) => {
         COUNT(*)::int as total_sales_count,
         COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as invoices_in_window,
         COUNT(*) FILTER (WHERE ${intervals.prevFilter})::int as invoices_prev_window,
+        COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'mobile'))::int as mobile_invoices_window,
+        COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'web' OR platform IS NULL))::int as web_invoices_window,
+        COUNT(*) FILTER (WHERE platform = 'mobile')::int as total_mobile_sales,
+        COUNT(*) FILTER (WHERE platform = 'web' OR platform IS NULL)::int as total_web_sales,
+        COALESCE(SUM("grandTotal") FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'mobile')), 0)::float as mobile_revenue_window,
+        COALESCE(SUM("grandTotal") FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'web' OR platform IS NULL)), 0)::float as web_revenue_window,
         COUNT(DISTINCT "userId") FILTER (WHERE ${intervals.currentFilter})::int as active_invoicing_users_window,
         COUNT(DISTINCT "userId") FILTER (WHERE ${intervals.prevFilter})::int as active_invoicing_users_prev_window,
         COALESCE(SUM("grandTotal") FILTER (WHERE ${intervals.currentFilter}), 0)::float as revenue_in_window,
@@ -439,6 +445,16 @@ app.get('/api/admin/metrics', async (req, res) => {
       ? Math.round(((invoicesWindowCount - invoicesPrevCount) / invoicesPrevCount) * 1000) / 10 
       : (invoicesWindowCount > 0 ? 100.0 : 0.0);
 
+    const mobileInvoicesCount = salesRes.rows[0]?.mobile_invoices_window || 0;
+    const webInvoicesCount = salesRes.rows[0]?.web_invoices_window || 0;
+    const totalWindowInvoices = invoicesWindowCount > 0 ? invoicesWindowCount : (mobileInvoicesCount + webInvoicesCount);
+    const mobileInvoicesPercent = totalWindowInvoices > 0 ? Math.round((mobileInvoicesCount / totalWindowInvoices) * 100) : 0;
+    const webInvoicesPercent = totalWindowInvoices > 0 ? Math.round((webInvoicesCount / totalWindowInvoices) * 100) : 100;
+    const mobileRevenue = salesRes.rows[0]?.mobile_revenue_window || 0;
+    const webRevenue = salesRes.rows[0]?.web_revenue_window || 0;
+    const totalMobileInvoices = salesRes.rows[0]?.total_mobile_sales || 0;
+    const totalWebInvoices = salesRes.rows[0]?.total_web_sales || 0;
+
     const activeInvoicingUsers = salesRes.rows[0]?.active_invoicing_users_window || 0;
     const activeInvoicingUsersPrev = salesRes.rows[0]?.active_invoicing_users_prev_window || 0;
     const activeInvoicingTrend = activeInvoicingUsersPrev > 0 
@@ -456,6 +472,14 @@ app.get('/api/admin/metrics', async (req, res) => {
       totalUsersTrend,
       invoicesTodayCount: invoicesWindowCount,
       invoicesTodayTrend: invoicesTrend,
+      mobileInvoicesCount,
+      webInvoicesCount,
+      mobileInvoicesPercent,
+      webInvoicesPercent,
+      mobileRevenue,
+      webRevenue,
+      totalMobileInvoices,
+      totalWebInvoices,
       activeInvoicingUsersToday: activeInvoicingUsers,
       activeInvoicingUsersTrend: activeInvoicingTrend,
       loginsTodayCount: totalUsers,
@@ -558,19 +582,39 @@ app.get('/api/admin/devices', async (req, res) => {
         COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as new_users
       FROM "User"
     `);
-    const total = userRes.rows[0]?.total_users || 1;
+    const totalUsers = userRes.rows[0]?.total_users || 1;
     const newCount = userRes.rows[0]?.new_users || 0;
-    const returningCount = Math.max(0, total - newCount);
-    const newPercent = Math.round((newCount / total) * 100);
+    const returningCount = Math.max(0, totalUsers - newCount);
+    const newPercent = Math.round((newCount / totalUsers) * 100);
     const returningPercent = Math.max(0, 100 - newPercent);
 
+    // Dynamic sales platform distribution
+    const salesRes = await pool.query(`
+      SELECT 
+        COUNT(*)::int as total_sales,
+        COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND platform = 'mobile')::int as mobile_sales_window,
+        COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'web' OR platform IS NULL))::int as web_sales_window,
+        COUNT(*) FILTER (WHERE platform = 'mobile')::int as total_mobile_sales,
+        COUNT(*) FILTER (WHERE platform = 'web' OR platform IS NULL)::int as total_web_sales
+      FROM "Sale"
+    `);
+
+    const row = salesRes.rows[0] || {};
+    const mobileCount = (row.mobile_sales_window || 0) > 0 ? row.mobile_sales_window : (row.total_mobile_sales || 0);
+    const webCount = (row.web_sales_window || 0) > 0 ? row.web_sales_window : (row.total_web_sales || 0);
+    const totalInvoices = mobileCount + webCount;
+
+    const desktopPercent = totalInvoices > 0 ? Math.round((webCount / totalInvoices) * 100) : 100;
+    const mobilePercent = totalInvoices > 0 ? Math.round((mobileCount / totalInvoices) * 100) : 0;
+
     res.json({
-      desktopCount: Math.round(total * 0.75),
-      desktopPercent: 75,
-      mobileCount: Math.round(total * 0.25),
-      mobilePercent: 25,
+      desktopCount: webCount,
+      desktopPercent,
+      mobileCount,
+      mobilePercent,
       tabletCount: 0,
       tabletPercent: 0,
+      totalInvoices,
       newUsersCount: newCount,
       newUsersPercent: newPercent,
       returningUsersCount: returningCount,
@@ -579,6 +623,59 @@ app.get('/api/admin/devices', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/admin/devices:', err);
     res.status(500).json({ error: 'Failed to fetch devices' });
+  }
+});
+
+// GET /api/admin/invoices - Invoices list with platform filter
+app.get('/api/admin/invoices', async (req, res) => {
+  const timeRange = req.query.timeRange || '24h';
+  const platform = req.query.platform || 'all'; // 'all' | 'mobile' | 'web'
+  const limit = Math.min(100, parseInt(req.query.limit || '50', 10));
+  const intervals = getTimeIntervals(timeRange);
+
+  try {
+    let whereConditions = [];
+    if (timeRange !== 'all') {
+      whereConditions.push(`s."createdAt" >= CURRENT_TIMESTAMP - INTERVAL '${intervals.intervalDays} days'`);
+    }
+    if (platform === 'mobile') {
+      whereConditions.push(`s.platform = 'mobile'`);
+    } else if (platform === 'web') {
+      whereConditions.push(`(s.platform = 'web' OR s.platform IS NULL)`);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT 
+        s.id,
+        s."invoiceNumber",
+        COALESCE(s.platform, 'web') as platform,
+        s."grandTotal",
+        s."subtotal",
+        s."totalTax",
+        s."totalDiscount",
+        s."paymentMethod",
+        s."isQuickBill",
+        s."createdAt",
+        s."userId",
+        u."displayName" as "userName",
+        u.email as "userEmail",
+        c.name as "customerName",
+        c.phone as "customerPhone"
+      FROM "Sale" s
+      LEFT JOIN "User" u ON s."userId" = u.id
+      LEFT JOIN "Customer" c ON s."customerId" = c.id
+      ${whereClause}
+      ORDER BY s."createdAt" DESC
+      LIMIT $1
+    `;
+
+    const result = await pool.query(query, [limit]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error in /api/admin/invoices:', err);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 });
 

@@ -592,6 +592,14 @@ export async function fetchDeviceSessionBreakdown(timeRange: string = '24h'): Pr
   }
 }
 
+export async function fetchInvoices(timeRange: string = '24h', platform: string = 'all', limit: number = 50): Promise<InvoiceRecord[]> {
+  try {
+    return await fetchAdminEndpoint<InvoiceRecord[]>(`/invoices?timeRange=${encodeURIComponent(timeRange)}&platform=${encodeURIComponent(platform)}&limit=${limit}`);
+  } catch (err) {
+    return [];
+  }
+}
+
 export async function fetchSecurityAnomalyData(): Promise<SecurityAnomalyData> {
   return MOCK_SECURITY_ANOMALY;
 }

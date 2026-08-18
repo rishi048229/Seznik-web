@@ -14,7 +14,10 @@ export const salesApi = {
   createSale: async (payload: CreateSalePayload): Promise<Sale> => {
     return fetchApi<Sale>('/sales', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        platform: payload.platform || 'mobile',
+      }),
     });
   },
 

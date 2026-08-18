@@ -13,6 +13,7 @@ export interface Sale {
   amountPaid: number
   changeReturned: number
   isQuickBill: boolean
+  platform?: 'web' | 'mobile' | string
   createdAt: Date | string
 
 }

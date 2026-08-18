@@ -39,6 +39,9 @@ export const createSale = async (req: Request, res: Response) => {
     const count = await prisma.sale.count({ where: { userId } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
     
+    // Determine platform (mobile vs web)
+    const platform = data.platform || (req.headers['x-client-platform'] as string) || 'web';
+
     // Parse custom bill date if provided, otherwise default to now
     const saleDate = data.createdAt ? new Date(data.createdAt) : new Date();
 
@@ -47,6 +50,7 @@ export const createSale = async (req: Request, res: Response) => {
       const sale = await tx.sale.create({
         data: {
           ...data,
+          platform,
           invoiceNumber,
           userId,
           createdAt: saleDate,

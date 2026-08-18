@@ -27,6 +27,7 @@ export interface Sale {
   changeReturned: number;
   isQuickBill: boolean;
   notes?: string | null;
+  platform?: 'mobile' | 'web' | string;
   createdAt: string;
 }
 
@@ -42,4 +43,5 @@ export interface CreateSalePayload {
   changeReturned: number;
   isQuickBill?: boolean;
   notes?: string;
+  platform?: 'mobile' | 'web' | string;
 }

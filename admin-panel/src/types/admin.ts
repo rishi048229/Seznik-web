@@ -68,6 +68,14 @@ export interface DashboardMetrics {
   totalUsersTrend: number;
   invoicesTodayCount?: number;
   invoicesTodayTrend?: number;
+  mobileInvoicesCount?: number;
+  webInvoicesCount?: number;
+  mobileInvoicesPercent?: number;
+  webInvoicesPercent?: number;
+  mobileRevenue?: number;
+  webRevenue?: number;
+  totalMobileInvoices?: number;
+  totalWebInvoices?: number;
   activeInvoicingUsersToday?: number;
   activeInvoicingUsersTrend?: number;
   activeNowCount?: number;
@@ -86,6 +94,24 @@ export interface DashboardMetrics {
   enterprisePlanCount: number;
   timeRange?: string;
   timeWindowLabel?: string;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  invoiceNumber: string;
+  platform: 'mobile' | 'web';
+  grandTotal: number;
+  subtotal: number;
+  totalTax: number;
+  totalDiscount: number;
+  paymentMethod: string;
+  isQuickBill: boolean;
+  createdAt: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 export interface HeatmapCell {
@@ -111,6 +137,7 @@ export interface DeviceSessionBreakdownData {
   mobilePercent: number;
   tabletCount: number;
   tabletPercent: number;
+  totalInvoices?: number;
   newUsersCount: number;
   newUsersPercent: number;
   returningUsersCount: number;

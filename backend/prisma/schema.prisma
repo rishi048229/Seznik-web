@@ -198,6 +198,7 @@ model Sale {
   amountPaid      Float
   changeReturned  Float
   isQuickBill     Boolean  @default(false)
+  platform        String   @default("web")
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token           Token?

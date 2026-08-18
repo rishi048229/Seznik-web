@@ -29,11 +29,15 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
       id: 'invoices-today',
       title: tr === 'all' ? 'Total Invoices (All Time)' : `Total Invoices (${timeSuffix})`,
       value: metrics.invoicesTodayCount ?? 0,
-      subtext: tr === 'all' ? 'All-time receipts & sales created' : `Receipts & sales created (${windowLabel})`,
+      subtext: `Web: ${metrics.webInvoicesCount ?? metrics.invoicesTodayCount ?? 0} (${metrics.webInvoicesPercent ?? 100}%) • Mobile: ${metrics.mobileInvoicesCount ?? 0} (${metrics.mobileInvoicesPercent ?? 0}%)`,
       icon: Receipt,
       color: '#10B981', // Green = sales/revenue
       trend: metrics.invoicesTodayTrend ?? 15.0,
       targetTab: 'overview',
+      platformSplit: {
+        web: metrics.webInvoicesCount ?? metrics.invoicesTodayCount ?? 0,
+        mobile: metrics.mobileInvoicesCount ?? 0,
+      },
     },
     {
       id: 'active-invoicing-users',

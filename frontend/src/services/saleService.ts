@@ -19,7 +19,7 @@ export const createSale = async (
 ): Promise<{ id: string; invoiceNumber: string }> => {
   const sale = await fetchApi('/sales', {
     method: 'POST',
-    body: JSON.stringify(saleData),
+    body: JSON.stringify({ ...saleData, platform: 'web' }),
   })
   return { id: sale.id, invoiceNumber: sale.invoiceNumber }
 }

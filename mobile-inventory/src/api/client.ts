@@ -86,6 +86,7 @@ export async function fetchApi<T = any>(
   const token = storedToken || useAuthStore.getState().token;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'x-client-platform': 'mobile',
     ...(fetchOptions.headers as Record<string, string>),
   };
 
