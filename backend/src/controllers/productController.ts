@@ -299,18 +299,18 @@ Return ONLY a valid JSON object matching this exact structure:
 }
 RULES:
 1. Extract 100% of all items. Do NOT truncate or skip any products.
-2. Output ONLY raw JSON. Do not include markdown code block formatting (no \`\`\`json).`;
+2. Output ONLY raw JSON without any markdown formatting.`;
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Direct prioritized fast models without slow listing roundtrip
+    // Direct prioritized fast models without slow listing
     const modelsToTry = [
+      'gemini-3.6-flash',
+      'gemini-3.1-pro-preview',
       'gemini-2.5-flash',
       'gemini-1.5-flash',
       'gemini-2.0-flash',
       'gemini-flash-latest',
-      'gemini-1.5-pro',
-      'gemini-2.5-pro',
     ];
     
     const isSpreadsheetOrText = 
@@ -396,13 +396,13 @@ RULES:
       const contentsPayload = isSpreadsheetOrText
         ? [`${promptText}\n\nSPREADSHEET / TEXT DOCUMENT DATA TO EXTRACT:\n${textContent}`]
         : [
+            promptText,
             {
               inlineData: {
                 mimeType: mimeType || 'image/jpeg',
                 data: cleanBase64,
               },
             },
-            promptText,
           ];
 
       rawList = await extractFromPromptPayload(contentsPayload);
@@ -419,51 +419,54 @@ RULES:
       where: { userId: rawUserId },
       select: { barcode: true }
     });
-    const existingBarcodes = new Set(existingProducts.map(p => p.barcode).filter(Boolean));
+    const existingBarcodeSet = new Set(existingProducts.map(p => p.barcode).filter(Boolean));
 
-    // Process extracted products
-    const processedProducts = rawList.map((item, idx) => {
-      let barcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
-      let isExistingBarcode = false;
+    // Ensure strictly valid barcodes and SKUs
+    const generateEAN13Barcode = () => {
+      let b = '';
+      do {
+        b = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+      } while (existingBarcodeSet.has(b));
+      return b;
+    };
 
-      if (barcode && barcode !== 'null' && barcode !== 'undefined' && barcode.length > 0) {
-        isExistingBarcode = true;
-      } else {
-        // Auto-generate standard 12-digit numeric barcode if no barcode existed in document
-        do {
-          const rand = Math.floor(100000000000 + Math.random() * 900000000000);
-          barcode = String(rand);
-        } while (existingBarcodes.has(barcode));
+    const sanitizedProducts = rawList.map((item: any, idx: number) => {
+      let finalBarcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
+      if (!finalBarcode || existingBarcodeSet.has(finalBarcode)) {
+        finalBarcode = generateEAN13Barcode();
       }
+      existingBarcodeSet.add(finalBarcode);
 
-      existingBarcodes.add(barcode);
+      const finalSku = item.sku ? String(item.sku).trim() : `SKU-${Date.now().toString().slice(-6)}-${idx + 1}`;
 
       return {
         id: `temp-${Date.now()}-${idx}`,
-        name: String(item.name || `Extracted Item ${idx + 1}`).trim(),
-        sellingPrice: Math.max(0, Number(item.sellingPrice) || 0),
-        costPrice: Math.max(0, Number(item.costPrice) || 0),
+        name: String(item.name || 'Extracted Product').trim(),
+        sellingPrice: parseFloat(String(item.sellingPrice)) || 0,
+        costPrice: parseFloat(String(item.costPrice || item.sellingPrice)) || 0,
         categoryName: String(item.categoryName || 'General').trim(),
-        barcode,
-        isExistingBarcode,
+        barcode: finalBarcode,
+        sku: finalSku,
         barcodeType: 'CODE128',
-        taxRate: Math.max(0, Number(item.taxRate) || 0),
-        currentStock: Math.max(0, Number(item.currentStock) || 10),
+        isExistingBarcode: !!item.barcode,
+        taxRate: parseFloat(String(item.taxRate)) || 0,
+        currentStock: parseInt(String(item.currentStock)) || 10,
+        unit: String(item.unit || 'piece').trim(),
         lowStockThreshold: 5,
-        unit: String(item.unit || 'piece').toLowerCase().trim(),
         priceIncludesGst: false,
-        selected: true
+        selected: true,
+        userId: rawUserId
       };
     });
 
     res.json({
       success: true,
-      count: processedProducts.length,
-      products: processedProducts
+      count: sanitizedProducts.length,
+      products: sanitizedProducts,
     });
   } catch (error) {
     console.error('aiExtractFromDocument error:', error);
-    res.status(500).json({ error: 'Failed to process document with Gemini AI' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error during AI extraction' });
   }
 };
 
@@ -508,15 +511,15 @@ export const aiConvertInvoice = async (req: Request, res: Response) => {
 Return ONLY valid raw JSON with no markdown.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: [
+        promptText,
         {
           inlineData: {
             mimeType: mimeType || 'image/jpeg',
             data: cleanBase64,
           },
         },
-        promptText,
       ],
       config: {
         responseMimeType: 'application/json',
