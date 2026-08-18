@@ -750,49 +750,68 @@ export default function DashboardScreen() {
                 <TouchableOpacity
                   onPress={() => router.push('/reports' as any)}
                   style={[styles.halfCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                  activeOpacity={0.7}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('paymentModesTitle', 'Payment Modes')}</Text>
-                    <PieChart size={16} color={BRAND_COLORS.blue600} />
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {t('payments', 'Payments')}
+                    </Text>
+                    <View style={[styles.miniIconCircle, { backgroundColor: theme.isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)' }]}>
+                      <PieChart size={17} color={theme.isDark ? '#38BDF8' : BRAND_COLORS.blue600} />
+                    </View>
                   </View>
 
-                  {paymentModes.length === 0 ? (
-                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>{t('noSalesToday', 'No sales recorded yet')}</Text>
-                  ) : (
-                    paymentModes.slice(0, 3).map((mode) => (
-                      <View key={mode.method} style={{ marginBottom: 6 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textPrimary, textTransform: 'capitalize' }}>
-                            {mode.method}
-                          </Text>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textSecondary }}>
-                            ₹{mode.amount.toFixed(0)} ({mode.percent}%)
-                          </Text>
-                        </View>
-                        <View style={styles.progressBarBg}>
-                          <View style={[styles.progressBarFill, { width: `${Math.min(100, mode.percent)}%`, backgroundColor: BRAND_COLORS.blue600 }]} />
-                        </View>
+                  <View style={styles.halfCardBody}>
+                    {paymentModes.length === 0 ? (
+                      <View style={{ flex: 1, justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 11, color: theme.textSecondary }}>{t('noSalesToday', 'No sales recorded yet')}</Text>
                       </View>
-                    ))
-                  )}
+                    ) : (
+                      paymentModes.slice(0, 3).map((mode) => (
+                        <View key={mode.method} style={{ marginBottom: 6 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textPrimary, textTransform: 'capitalize' }}>
+                              {mode.method}
+                            </Text>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textSecondary }}>
+                              ₹{mode.amount.toFixed(0)} ({mode.percent}%)
+                            </Text>
+                          </View>
+                          <View style={styles.progressBarBg}>
+                            <View style={[styles.progressBarFill, { width: `${Math.min(100, mode.percent)}%`, backgroundColor: BRAND_COLORS.blue600 }]} />
+                          </View>
+                        </View>
+                      ))
+                    )}
+                  </View>
                 </TouchableOpacity>
 
                 {/* Expense Summary */}
                 <TouchableOpacity
                   onPress={() => router.push('/expenses' as any)}
                   style={[styles.halfCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                  activeOpacity={0.7}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('expenses', 'Expense Summary')}</Text>
-                    <Wallet size={16} color="#EC4899" />
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {t('expenses', 'Expenses')}
+                    </Text>
+                    <View style={[styles.miniIconCircle, { backgroundColor: theme.isDark ? 'rgba(244, 114, 182, 0.2)' : 'rgba(236, 72, 153, 0.12)' }]}>
+                      <Wallet size={17} color={theme.isDark ? '#F472B6' : '#EC4899'} />
+                    </View>
                   </View>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary }}>Today&apos;s Outflow</Text>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#EC4899', marginVertical: 2 }}>
-                    ₹{expenseSummary.today.toFixed(2)}
-                  </Text>
-                  <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                    This Month: ₹{expenseSummary.thisMonth.toFixed(0)} ➔
-                  </Text>
+
+                  <View style={styles.halfCardBody}>
+                    <View style={{ flex: 1, justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 11, color: theme.textSecondary }}>Today&apos;s Outflow</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '900', color: '#EC4899', marginVertical: 2 }}>
+                        ₹{expenseSummary.today.toFixed(2)}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 4 }}>
+                      This Month: ₹{expenseSummary.thisMonth.toFixed(0)} ➔
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 
@@ -1186,13 +1205,16 @@ const styles = StyleSheet.create({
 
   // Dual Section
   dualSectionRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  halfCard: { width: '48.5%', borderRadius: 16, padding: 12, borderWidth: 1 },
+  halfCard: { width: '48.5%', minHeight: 142, borderRadius: 16, padding: 14, borderWidth: 1, justifyContent: 'space-between' },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  cardTitle: { fontSize: 14, fontWeight: '800', flex: 1, marginRight: 8 },
+  miniIconCircle: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  halfCardBody: { flex: 1, justifyContent: 'space-between' },
   progressBarBg: { height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, marginTop: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 2 },
 
   card: { borderRadius: 18, padding: 16, borderWidth: 1, overflow: 'hidden' },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  cardTitle: { fontSize: 14, fontWeight: '800' },
   timeframeRow: { flexDirection: 'row', padding: 2, borderRadius: 10, borderWidth: 1 },
   timeChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   timeChipText: { fontSize: 10, fontWeight: '700' },
