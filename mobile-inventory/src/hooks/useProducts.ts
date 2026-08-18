@@ -91,11 +91,12 @@ export function useProducts() {
     queryFn: async () => {
       try {
         const data = await productsApi.getProducts();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           return data;
         }
         return SAMPLE_PRODUCTS;
-      } catch {
+      } catch (err) {
+        console.warn('Failed to fetch backend products, using offline fallback:', err);
         return SAMPLE_PRODUCTS;
       }
     },
