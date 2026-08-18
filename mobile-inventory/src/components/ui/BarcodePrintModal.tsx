@@ -120,16 +120,24 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+        >
           {/* Header */}
           <View style={styles.headerRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
               <Barcode size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Custom Barcode & QR Label</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>Custom Barcode & QR Label</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color={theme.textSecondary} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.6}
+            >
+              <X size={20} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -233,8 +241,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };
@@ -244,7 +252,14 @@ const styles = StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 440, borderRadius: 24, padding: 20, borderWidth: 1 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   modalTitle: { fontSize: 16, fontWeight: '900' },
-  closeBtn: { padding: 4 },
+  closeBtn: {
+    padding: 6,
+    minWidth: 38,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
   productName: { fontSize: 18, fontWeight: '900', marginTop: 4 },
   productSub: { fontSize: 12, marginTop: 2, marginBottom: 14 },
   sectionLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 6 },

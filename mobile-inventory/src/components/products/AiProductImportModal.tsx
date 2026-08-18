@@ -295,8 +295,13 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
                 <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Powered by Gemini AI Multimodal OCR</Text>
               </View>
             </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-              <X size={20} color={theme.textSecondary} />
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.6}
+            >
+              <X size={22} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 

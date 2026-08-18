@@ -77,16 +77,24 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   return (
     <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+        >
           {/* Header */}
           <View style={styles.headerRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
               <FileText size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Thermal Receipt Bill Preview</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>Thermal Receipt Preview</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color={theme.textSecondary} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.6}
+            >
+              <X size={20} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -103,7 +111,11 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           </TouchableOpacity>
 
           {/* Thermal Paper Scroll Container */}
-          <ScrollView style={styles.paperScrollView} contentContainerStyle={{ paddingVertical: 12 }}>
+          <ScrollView
+            style={styles.paperScrollView}
+            contentContainerStyle={{ paddingVertical: 12 }}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.paperReceiptCard}>
               <Text style={styles.receiptMonoText}>{formattedText}</Text>
             </View>
@@ -127,8 +139,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
 
     <DirectPrinterConnectModal
@@ -151,7 +163,14 @@ const styles = StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 440, maxHeight: '90%', borderRadius: 24, padding: 18, borderWidth: 1 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   modalTitle: { fontSize: 16, fontWeight: '900' },
-  closeBtn: { padding: 4 },
+  closeBtn: {
+    padding: 6,
+    minWidth: 38,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
   printerStatusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, marginVertical: 8 },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
   paperScrollView: { maxHeight: 420, marginVertical: 4 },

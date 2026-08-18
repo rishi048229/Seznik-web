@@ -1,18 +1,16 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   FlatList,
   Modal,
   StyleSheet,
   Alert,
   Vibration,
   Platform,
-  Linking,
-  ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,48 +18,357 @@ import {
   Menu,
   Calculator as CalcIcon,
   ShoppingBag,
-  Printer,
-  Share2,
-  Trash2,
   Plus,
   Minus,
   Search,
   Package,
-  Sparkles,
-  Tag,
-  Percent,
-  Receipt,
-  RotateCcw,
   Check,
   X,
-  FileText,
-  Layers,
-  ArrowRight,
   Bluetooth,
+  ChevronRight,
+  ArrowRight,
+  Users,
+  Wallet,
+  UserCheck,
 } from 'lucide-react-native';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useProducts } from '@/hooks/useProducts';
+import { useCustomers } from '@/hooks/useCustomers';
 import { useCartStore } from '@/store/useCartStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useSettings } from '@/hooks/useSettings';
 import { Product } from '@/types/product';
+import { Customer } from '@/types/customer';
 import { BRAND_COLORS } from '@/constants/theme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
-import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
-import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
-import { getTemplateById } from '@/constants/receiptTemplates';
 
-export interface CalcTapeItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  taxRate: number; // 0, 5, 12, 18, 28
-  discountPct: number; // 0..100
-  isProduct: boolean;
-  product?: Product;
+/**
+ * Interactive Customer Balance Row with Quick Full-Balance Add and Custom Amount Typing
+ */
+function CustomerBalanceRow({
+  customer,
+  isSelected,
+  onAddBalance,
+  theme,
+  isDark,
+}: {
+  customer: Customer;
+  isSelected: boolean;
+  onAddBalance: (customer: Customer, amount: number) => void;
+  theme: any;
+  isDark: boolean;
+}) {
+  const [customAmount, setCustomAmount] = useState('');
+  const [isCustomOpen, setIsCustomOpen] = useState(false);
+
+  const due = customer.creditBalance || 0;
+  const hasDue = due > 0;
+
+  const handleAddFull = () => {
+    if (due <= 0) {
+      Alert.alert('No Due Balance', `${customer.name} has zero outstanding balance. You can enter a custom amount.`);
+      return;
+    }
+    onAddBalance(customer, due);
+  };
+
+  const handleAddCustom = () => {
+    const parsed = parseFloat(customAmount);
+    if (!parsed || isNaN(parsed) || parsed <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid balance amount greater than 0.');
+      return;
+    }
+    onAddBalance(customer, parsed);
+    setCustomAmount('');
+    setIsCustomOpen(false);
+  };
+
+  return (
+    <View
+      style={[
+        styles.custCard,
+        {
+          backgroundColor: isSelected
+            ? isDark
+              ? 'rgba(37, 99, 235, 0.15)'
+              : 'rgba(37, 99, 235, 0.06)'
+            : theme.cardBg,
+          borderColor: isSelected ? BRAND_COLORS.blue600 : theme.borderColor,
+        },
+      ]}
+    >
+      {/* Customer Header Info */}
+      <View style={styles.custHeaderRow}>
+        <View
+          style={[
+            styles.custAvatar,
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(37, 99, 235, 0.1)' },
+          ]}
+        >
+          <Text style={[styles.custAvatarText, { color: BRAND_COLORS.blue600 }]}>
+            {customer.name.slice(0, 2).toUpperCase()}
+          </Text>
+        </View>
+
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.custName, { color: theme.textPrimary }]} numberOfLines={1}>
+              {customer.name}
+            </Text>
+            {isSelected ? (
+              <View style={styles.selectedBadge}>
+                <Text style={styles.selectedBadgeText}>Linked</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.custPhone, { color: theme.textSecondary }]}>
+            {customer.phone || 'No phone number'}
+          </Text>
+        </View>
+
+        {/* Due Balance Status Badge */}
+        <View
+          style={[
+            styles.dueBadge,
+            {
+              backgroundColor: hasDue
+                ? isDark
+                  ? 'rgba(239, 68, 68, 0.18)'
+                  : 'rgba(239, 68, 68, 0.1)'
+                : isDark
+                ? 'rgba(255,255,255,0.06)'
+                : 'rgba(0,0,0,0.04)',
+              borderColor: hasDue ? 'rgba(239, 68, 68, 0.3)' : theme.borderColor,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.dueBadgeText,
+              { color: hasDue ? '#EF4444' : theme.textSecondary },
+            ]}
+          >
+            {hasDue ? `₹${due.toFixed(2)} Due` : 'No Due'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Action Buttons: Add Full Balance or Custom */}
+      <View style={styles.custActionRow}>
+        {hasDue ? (
+          <TouchableOpacity
+            onPress={handleAddFull}
+            style={[styles.addFullDueBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+            activeOpacity={0.8}
+          >
+            <Wallet size={13} color="#FFFFFF" />
+            <Text style={styles.addFullDueBtnText}>
+              Add Full Due (₹{due.toFixed(2)})
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          onPress={() => setIsCustomOpen(!isCustomOpen)}
+          style={[
+            styles.customDueToggleBtn,
+            {
+              borderColor: theme.borderColor,
+              backgroundColor: isCustomOpen
+                ? isDark
+                  ? 'rgba(255,255,255,0.1)'
+                  : 'rgba(0,0,0,0.05)'
+                : 'transparent',
+            },
+          ]}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.customDueToggleText, { color: theme.textPrimary }]}>
+            {isCustomOpen ? 'Cancel' : '+ Custom Amount'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Custom Amount Input Row (Expandable) */}
+      {isCustomOpen ? (
+        <View style={styles.customAmountBox}>
+          <View
+            style={[
+              styles.customAmountInputWrap,
+              { backgroundColor: theme.bg, borderColor: BRAND_COLORS.blue600 },
+            ]}
+          >
+            <Text style={[styles.currencyPrefix, { color: BRAND_COLORS.blue600 }]}>₹</Text>
+            <TextInput
+              value={customAmount}
+              onChangeText={(t) => setCustomAmount(t.replace(/[^0-9.]/g, ''))}
+              placeholder="Enter amount..."
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="numeric"
+              style={[styles.customAmountInput, { color: theme.textPrimary }]}
+              autoFocus
+            />
+          </View>
+          <TouchableOpacity
+            onPress={handleAddCustom}
+            style={[styles.addCustomBtn, { backgroundColor: '#10B981' }]}
+            activeOpacity={0.8}
+          >
+            <Plus size={14} color="#FFFFFF" />
+            <Text style={styles.addCustomBtnText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Interactive Product Row with Quantity Selector (synced to cart in real-time)
+ */
+function ProductPickerRow({
+  product,
+  cartQuantity,
+  onUpdateCartQuantity,
+  theme,
+}: {
+  product: Product;
+  cartQuantity: number;
+  onUpdateCartQuantity: (p: Product, qty: number) => void;
+  theme: any;
+}) {
+  const [localInput, setLocalInput] = useState<string | null>(null);
+
+  // If localInput is active (user is typing), use localInput; otherwise reflect cartQuantity
+  const displayQtyStr = localInput !== null ? localInput : String(cartQuantity);
+  const effectiveQty = localInput !== null ? parseInt(localInput, 10) || 0 : cartQuantity;
+  const lineTotal = product.sellingPrice * effectiveQty;
+  const isInCart = cartQuantity > 0;
+
+  const handleMinus = () => {
+    Vibration.vibrate(25);
+    const newQty = Math.max(0, cartQuantity - 1);
+    setLocalInput(null);
+    onUpdateCartQuantity(product, newQty);
+  };
+
+  const handlePlus = () => {
+    Vibration.vibrate(25);
+    const newQty = cartQuantity + 1;
+    setLocalInput(null);
+    onUpdateCartQuantity(product, newQty);
+  };
+
+  const handleTextChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setLocalInput(cleaned);
+    const parsed = parseInt(cleaned, 10) || 0;
+    onUpdateCartQuantity(product, parsed);
+  };
+
+  const handleBlur = () => {
+    setLocalInput(null);
+  };
+
+  const handleQuickAdd = () => {
+    Vibration.vibrate(30);
+    const newQty = cartQuantity > 0 ? cartQuantity + 1 : 1;
+    setLocalInput(null);
+    onUpdateCartQuantity(product, newQty);
+  };
+
+  return (
+    <View
+      style={[
+        styles.productItemCard,
+        {
+          backgroundColor: isInCart
+            ? theme.isDark
+              ? 'rgba(37, 99, 235, 0.15)'
+              : 'rgba(37, 99, 235, 0.06)'
+            : theme.cardBg,
+          borderColor: isInCart ? BRAND_COLORS.blue600 : theme.borderColor,
+        },
+      ]}
+    >
+      <View style={{ flex: 1, marginRight: 10 }}>
+        <Text style={[styles.prodName, { color: theme.textPrimary }]} numberOfLines={1}>
+          {product.name}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+          <Text style={[styles.prodPrice, { color: BRAND_COLORS.blue600 }]}>
+            ₹{product.sellingPrice.toFixed(2)}
+          </Text>
+          <Text style={[styles.prodMeta, { color: theme.textSecondary, marginLeft: 6 }]} numberOfLines={1}>
+            • Total: ₹{lineTotal.toFixed(2)} • Stock: {product.currentStock}
+          </Text>
+        </View>
+      </View>
+
+      {/* Quantity Controls & Real-Time Stepper */}
+      <View style={styles.prodActionRow}>
+        <View
+          style={[
+            styles.prodQtyBox,
+            {
+              borderColor: isInCart ? BRAND_COLORS.blue600 : theme.borderColor,
+              backgroundColor: theme.bg,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handleMinus}
+            style={styles.prodQtyBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Minus size={13} color={isInCart ? BRAND_COLORS.blue600 : theme.textPrimary} />
+          </TouchableOpacity>
+          <TextInput
+            value={displayQtyStr}
+            onChangeText={handleTextChange}
+            onBlur={handleBlur}
+            keyboardType="number-pad"
+            style={[
+              styles.prodQtyInput,
+              { color: theme.textPrimary, fontWeight: isInCart ? '900' : '600' },
+            ]}
+            selectTextOnFocus
+          />
+          <TouchableOpacity
+            onPress={handlePlus}
+            style={styles.prodQtyBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Plus size={13} color={isInCart ? BRAND_COLORS.blue600 : theme.textPrimary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 1-Tap Add/Increment Button */}
+        <TouchableOpacity
+          onPress={handleQuickAdd}
+          activeOpacity={0.8}
+          style={[
+            styles.addProdBtn,
+            { backgroundColor: isInCart ? '#10B981' : BRAND_COLORS.blue600 },
+          ]}
+        >
+          {isInCart ? (
+            <>
+              <Check size={13} color="#FFFFFF" />
+              <Text style={styles.addProdBtnText}>{cartQuantity}</Text>
+            </>
+          ) : (
+            <>
+              <Plus size={13} color="#FFFFFF" />
+              <Text style={styles.addProdBtnText}>Add</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 export default function DedicatedCalculatorTabScreen() {
@@ -71,42 +378,42 @@ export default function DedicatedCalculatorTabScreen() {
   const isDark = theme.isDark;
 
   const { products } = useProducts();
-  const { addItem: addCartItem, clearCart } = useCartStore();
-  const { activeDevice, connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies, activeTemplateId } = usePrinterStore();
+  const { customers } = useCustomers();
+  const {
+    items: cartItems,
+    addItem: addCartItem,
+    updateQuantity: updateCartQuantity,
+    removeItem: removeCartItem,
+    selectedCustomerId,
+    selectedCustomerName,
+    setCustomer: setCartCustomer,
+    getGrandTotal,
+  } = useCartStore();
+  const { activeDevice, connectionState } = usePrinterStore();
   const { settings } = useSettings();
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [activeMode, setActiveMode] = useState<'retail' | 'standard'>('retail');
 
-  // Tape / Ledger items state
-  const [tapeItems, setTapeItems] = useState<CalcTapeItem[]>([]);
-
-  // Standard Calc State
+  // Standard Fast Math Calc State (Active by Default)
   const [calcDisplay, setCalcDisplay] = useState('0');
   const [calcFormula, setCalcFormula] = useState('');
   const [memoryValue, setMemoryValue] = useState<number | null>(null);
-  const [historyLedger, setHistoryLedger] = useState<string[]>([]);
 
-  // Product Picker Modal State
+  // Product Dropdown / Picker Modal State
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState('');
 
-  // Custom / Non-Product Modal State
-  const [showCustomItemModal, setShowCustomItemModal] = useState(false);
-  const [customItemName, setCustomItemName] = useState('');
-  const [customItemPrice, setCustomItemPrice] = useState('');
-  const [customItemQty, setCustomItemQty] = useState('1');
-  const [customItemGst, setCustomItemGst] = useState('0');
+  // Customer Balance & Khata Modal State
+  const [showCustomerBalanceModal, setShowCustomerBalanceModal] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerFilterOnlyDue, setCustomerFilterOnlyDue] = useState(false);
 
-  // Printer Connect & Receipt Preview Modal States
+  // Printer Connect Modal State
   const [showPrinterConnectModal, setShowPrinterConnectModal] = useState(false);
-  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
-  const [previewData, setPreviewData] = useState<PrintSaleData | null>(null);
-  const [isPrintingDirect, setIsPrintingDirect] = useState(false);
 
   // Filtered store products for quick picker
   const filteredProducts = useMemo(() => {
-    if (!productSearchQuery.trim()) return products.slice(0, 30);
+    if (!productSearchQuery.trim()) return products.slice(0, 50);
     const q = productSearchQuery.toLowerCase();
     return products.filter(
       (p) =>
@@ -116,121 +423,139 @@ export default function DedicatedCalculatorTabScreen() {
     );
   }, [products, productSearchQuery]);
 
-  // Calculations for Retail Tape
-  const subtotal = useMemo(() => {
-    return tapeItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  }, [tapeItems]);
+  // Filtered customers for customer balance modal
+  const filteredCustomers = useMemo(() => {
+    let list = customers;
+    if (customerFilterOnlyDue) {
+      list = list.filter((c) => (c.creditBalance || 0) > 0);
+    }
+    if (!customerSearchQuery.trim()) return list;
+    const q = customerSearchQuery.toLowerCase();
+    return list.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.phone && c.phone.includes(q))
+    );
+  }, [customers, customerSearchQuery, customerFilterOnlyDue]);
 
-  const totalDiscount = useMemo(() => {
-    return tapeItems.reduce((sum, item) => {
-      const lineBase = item.price * item.quantity;
-      return sum + (lineBase * (item.discountPct || 0)) / 100;
-    }, 0);
-  }, [tapeItems]);
+  const totalCartCount = useMemo(() => {
+    return cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  }, [cartItems]);
 
-  const totalTax = useMemo(() => {
-    return tapeItems.reduce((sum, item) => {
-      const lineBase = item.price * item.quantity;
-      const discountedLine = lineBase - (lineBase * (item.discountPct || 0)) / 100;
-      return sum + (discountedLine * (item.taxRate || 0)) / 100;
-    }, 0);
-  }, [tapeItems]);
-
-  const grandTotal = Math.max(0, subtotal - totalDiscount + totalTax);
+  const cartGrandTotal = useMemo(() => {
+    return getGrandTotal();
+  }, [cartItems, getGrandTotal]);
 
   // -------------------------------------------------------------
-  // Retail Tape Handlers
+  // Real-Time Cart Quantity Updater
   // -------------------------------------------------------------
-  const handleAddProductToTape = (p: Product) => {
-    Vibration.vibrate(50);
-    const existingIndex = tapeItems.findIndex((item) => item.product?.id === p.id);
-    if (existingIndex >= 0) {
-      const updated = [...tapeItems];
-      updated[existingIndex].quantity += 1;
-      setTapeItems(updated);
+  const handleUpdateCartQuantity = (product: Product, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeCartItem(product.id);
     } else {
-      const newItem: CalcTapeItem = {
-        id: `tape-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-        name: p.name,
-        price: p.sellingPrice,
-        quantity: 1,
-        taxRate: p.taxRate || 0,
-        discountPct: 0,
-        isProduct: true,
-        product: p,
-      };
-      setTapeItems([...tapeItems, newItem]);
+      const existing = cartItems.find((i) => i.product.id === product.id);
+      if (existing) {
+        updateCartQuantity(product.id, newQuantity);
+      } else {
+        addCartItem(product, newQuantity);
+      }
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Customer Due Balance Adder (Adds to calculation & active bill)
+  // -------------------------------------------------------------
+  const handleAddCustomerBalance = (customer: Customer, amount: number) => {
+    Vibration.vibrate(40);
+    // 1. Link customer to the active cart / bill
+    setCartCustomer(customer.id, customer.name);
+
+    // 2. Add previous balance item to cart / bill
+    const balanceProduct: Product = {
+      id: `prev-bal-${customer.id}`,
+      name: `Prev Balance (${customer.name})`,
+      sellingPrice: amount,
+      costPrice: 0,
+      taxRate: 0,
+      priceIncludesGst: false,
+      currentStock: 9999,
+      lowStockThreshold: 0,
+      unit: 'pcs',
+      isActive: true,
+      categoryId: null,
+    };
+    addCartItem(balanceProduct, 1);
+
+    // 3. Update Fast Math Pad calculator with the balance amount
+    const currentNum = parseFloat(calcDisplay) || 0;
+    if (currentNum === 0) {
+      setCalcDisplay(String(Math.round(amount * 100) / 100));
+      setCalcFormula(`Prev Bal: ₹${amount.toFixed(2)} (${customer.name})`);
+    } else {
+      const newTotal = currentNum + amount;
+      setCalcFormula(`${calcDisplay} + ${amount} (Prev Bal)`);
+      setCalcDisplay(String(Math.round(newTotal * 100) / 100));
+    }
+
+    // 4. Close modal and show feedback
+    setShowCustomerBalanceModal(false);
+    Alert.alert(
+      'Balance Added to Bill & Calculator',
+      `₹${amount.toFixed(2)} previous balance for ${customer.name} has been added to the calculation and linked to the active POS bill.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  // -------------------------------------------------------------
+  // Safe Math Expression Evaluator
+  // -------------------------------------------------------------
+  const safeEvaluate = (expr: string): string => {
+    try {
+      let sanitized = expr
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/%/g, '*0.01')
+        .replace(/,/g, '');
+
+      // Strip out all non-math characters
+      sanitized = sanitized.replace(/[^0-9+\-*/.()]/g, '');
+
+      // Trim trailing operators (e.g. "350+" -> "350")
+      sanitized = sanitized.replace(/[+\-*/.]+$/, '');
+
+      if (!sanitized) return '0';
+
+      // eslint-disable-next-line no-eval
+      const result = Function(`'use strict'; return (${sanitized})`)();
+      if (!Number.isFinite(result) || isNaN(result)) return '0';
+
+      const rounded = Math.round(result * 100) / 100;
+      return String(rounded);
+    } catch {
+      return '0';
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Transfer Products Total into Fast Math Pad Calculator
+  // -------------------------------------------------------------
+  const handleInsertAmountToCalculator = (amount: number) => {
+    Vibration.vibrate(40);
+    const rounded = Math.round(amount * 100) / 100;
+    const roundedStr = String(rounded);
+
+    if (
+      calcFormula.endsWith('+ ') ||
+      calcFormula.endsWith('- ') ||
+      calcFormula.endsWith('× ') ||
+      calcFormula.endsWith('÷ ')
+    ) {
+      setCalcDisplay(roundedStr);
+    } else {
+      setCalcDisplay(roundedStr);
+      setCalcFormula('');
     }
     setShowProductPicker(false);
-    setProductSearchQuery('');
-  };
-
-  const handleAddCustomItem = () => {
-    const priceNum = parseFloat(customItemPrice);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      Alert.alert('Invalid Price', 'Please enter a valid price greater than 0.');
-      return;
-    }
-    const qtyNum = parseFloat(customItemQty) || 1;
-    const gstNum = parseFloat(customItemGst) || 0;
-    const nameStr = customItemName.trim() || `Manual Item (₹${priceNum})`;
-
-    Vibration.vibrate(50);
-    const newItem: CalcTapeItem = {
-      id: `custom-${Date.now()}`,
-      name: nameStr,
-      price: priceNum,
-      quantity: qtyNum,
-      taxRate: gstNum,
-      discountPct: 0,
-      isProduct: false,
-    };
-
-    setTapeItems([...tapeItems, newItem]);
-    setCustomItemName('');
-    setCustomItemPrice('');
-    setCustomItemQty('1');
-    setCustomItemGst('0');
-    setShowCustomItemModal(false);
-  };
-
-  const handleUpdateItemQty = (id: string, delta: number) => {
-    Vibration.vibrate(30);
-    setTapeItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.id === id) {
-            const newQ = item.quantity + delta;
-            return newQ > 0 ? { ...item, quantity: newQ } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CalcTapeItem[]
-    );
-  };
-
-  const handleApplyTaxToItem = (id: string, taxRate: number) => {
-    Vibration.vibrate(40);
-    setTapeItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, taxRate } : item))
-    );
-  };
-
-  const handleApplyDiscountToItem = (id: string, discountPct: number) => {
-    Vibration.vibrate(40);
-    setTapeItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, discountPct } : item))
-    );
-  };
-
-  const handleRemoveTapeItem = (id: string) => {
-    Vibration.vibrate(40);
-    setTapeItems((prev) => prev.filter((i) => i.id !== id));
-  };
-
-  const handleClearTape = () => {
-    Vibration.vibrate(60);
-    setTapeItems([]);
   };
 
   // -------------------------------------------------------------
@@ -244,44 +569,47 @@ export default function DedicatedCalculatorTabScreen() {
     } else if (val === 'AC') {
       setCalcDisplay('0');
       setCalcFormula('');
-      setHistoryLedger([]);
+      setMemoryValue(null);
     } else if (val === '⌫') {
-      if (calcDisplay.length > 1) {
-        setCalcDisplay(calcDisplay.slice(0, -1));
-      } else {
+      if (calcDisplay === 'Error' || calcDisplay.length <= 1) {
         setCalcDisplay('0');
+      } else {
+        setCalcDisplay(calcDisplay.slice(0, -1));
       }
     } else if (val === '=') {
-      try {
-        const sanitized = (calcFormula + calcDisplay)
-          .replace(/×/g, '*')
-          .replace(/÷/g, '/')
-          .replace(/%/g, '*0.01');
-        // eslint-disable-next-line no-eval
-        const result = Function(`'use strict'; return (${sanitized})`)();
-        const resStr = Number.isFinite(result) ? String(Math.round(result * 100) / 100) : '0';
-        setHistoryLedger((prev) => [`${calcFormula + calcDisplay} = ${resStr}`, ...prev.slice(0, 15)]);
-        setCalcDisplay(resStr);
-        setCalcFormula('');
-      } catch (e) {
-        setCalcDisplay('Error');
-      }
+      const fullExpr = calcFormula ? `${calcFormula}${calcDisplay}` : calcDisplay;
+      const resStr = safeEvaluate(fullExpr);
+      setCalcDisplay(resStr);
+      setCalcFormula('');
     } else if (['+', '-', '×', '÷'].includes(val)) {
-      setCalcFormula(`${calcFormula}${calcDisplay} ${val} `);
-      setCalcDisplay('0');
+      if (calcDisplay === 'Error') {
+        setCalcDisplay('0');
+        return;
+      }
+      if (calcDisplay === '0' && calcFormula.length > 0) {
+        setCalcFormula(calcFormula.replace(/ [+\-×÷] $/, ` ${val} `));
+      } else {
+        setCalcFormula(`${calcFormula}${calcDisplay} ${val} `);
+        setCalcDisplay('0');
+      }
     } else if (val === '%') {
       const num = parseFloat(calcDisplay) || 0;
-      setCalcDisplay(String(num / 100));
+      const pct = Math.round((num / 100) * 10000) / 10000;
+      setCalcDisplay(String(pct));
     } else if (val === '.') {
-      if (!calcDisplay.includes('.')) {
+      if (calcDisplay === 'Error' || calcDisplay === '0') {
+        setCalcDisplay('0.');
+      } else if (!calcDisplay.includes('.')) {
         setCalcDisplay(calcDisplay + '.');
       }
     } else if (val === '00') {
-      if (calcDisplay !== '0') {
+      if (calcDisplay === 'Error' || calcDisplay === '0') {
+        setCalcDisplay('0');
+      } else {
         setCalcDisplay(calcDisplay + '00');
       }
     } else {
-      if (calcDisplay === '0') {
+      if (calcDisplay === '0' || calcDisplay === 'Error') {
         setCalcDisplay(val);
       } else {
         setCalcDisplay(calcDisplay + val);
@@ -303,161 +631,12 @@ export default function DedicatedCalculatorTabScreen() {
     }
   };
 
-  const handleAddCalculatedValueToTape = () => {
-    const val = parseFloat(calcDisplay);
-    if (isNaN(val) || val <= 0) {
-      Alert.alert('No Amount', 'Please compute or enter an amount first.');
-      return;
-    }
-    Vibration.vibrate(50);
-    const newItem: CalcTapeItem = {
-      id: `calc-${Date.now()}`,
-      name: calcFormula ? `Math (${calcFormula}${calcDisplay})` : `Calc Value`,
-      price: val,
-      quantity: 1,
-      taxRate: 0,
-      discountPct: 0,
-      isProduct: false,
-    };
-    setTapeItems([...tapeItems, newItem]);
-    setActiveMode('retail');
-    setCalcDisplay('0');
-    setCalcFormula('');
-  };
-
-  // -------------------------------------------------------------
-  // Push to POS & Quick Actions
-  // -------------------------------------------------------------
-  const handlePushToPOS = () => {
-    if (tapeItems.length === 0) {
-      Alert.alert('Empty Calculator', 'Add some products or manual calculations before pushing to POS.');
-      return;
-    }
-    clearCart();
-    tapeItems.forEach((item) => {
-      if (item.isProduct && item.product) {
-        addCartItem(item.product, item.quantity);
-      } else {
-        const dummyProduct: Product = {
-          id: `custom-prod-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-          name: item.name,
-          sellingPrice: item.price,
-          costPrice: item.price,
-          currentStock: 999,
-          lowStockThreshold: 0,
-          barcode: '',
-          taxRate: item.taxRate,
-          priceIncludesGst: true,
-          unit: 'Piece',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        addCartItem(dummyProduct, item.quantity);
-      }
-    });
-
-    Vibration.vibrate(80);
-    router.push('/(tabs)/pos' as any);
-  };
-
-  const buildPrintSaleData = (): PrintSaleData => {
-    const fallbackInv = `EST-${Date.now().toString().slice(-6)}`;
-    const halfTax = totalTax / 2;
-
-    return {
-      invoiceNumber: fallbackInv,
-      date: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-      storeName: settings?.businessName || 'SEZNIK RETAIL',
-      storeAddress: settings?.businessAddress || 'Retail Store Outlet',
-      storePhone: settings?.businessPhone || '',
-      storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || '',
-      items: tapeItems.map((item) => ({
-        productName: item.name,
-        quantity: item.quantity,
-        unitPrice: item.price,
-        total: (item.price * item.quantity) - ((item.price * item.quantity * (item.discountPct || 0)) / 100),
-        gstRate: item.taxRate,
-      })),
-      subtotal,
-      taxableAmt: subtotal - totalDiscount,
-      sgst: halfTax,
-      cgst: halfTax,
-      totalDiscount,
-      totalTax,
-      grandTotal,
-      amountPaid: grandTotal,
-      changeReturned: 0,
-      paymentMethod: 'CASH',
-    };
-  };
-
-  const handlePrintEstimateOrBill = async () => {
-    if (tapeItems.length === 0) {
-      Alert.alert('Empty Calculator', 'Add some items or calculations first.');
-      return;
-    }
-
-    const saleData = buildPrintSaleData();
-    setPreviewData(saleData);
-
-    if (!activeDevice || connectionState !== 'connected') {
-      setShowPrinterConnectModal(true);
-      return;
-    }
-
-    setIsPrintingDirect(true);
-    try {
-      const template = getTemplateById(activeTemplateId);
-      const printOptions = { template, topMargin, autoCut, fontSize, copies: printCopies };
-      const ok = await ThermalPrinterService.printReceipt(saleData, paperWidth, printOptions);
-      if (ok) {
-        Alert.alert('Estimate Printed!', 'Calculation receipt sent to thermal printer.');
-      }
-    } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Could not print calculator receipt.');
-    } finally {
-      setIsPrintingDirect(false);
-    }
-  };
-
-  const handleShareWhatsAppQuote = () => {
-    if (tapeItems.length === 0) {
-      Alert.alert('Empty Calculator', 'Add some items or calculations first.');
-      return;
-    }
-
-    let itemLines = tapeItems
-      .map(
-        (i, idx) =>
-          `${idx + 1}. *${i.name}*\n   ${i.quantity} × ₹${i.price.toFixed(2)} = ₹${(i.price * i.quantity).toFixed(2)}${
-            i.taxRate > 0 ? ` (GST +${i.taxRate}%)` : ''
-          }`
-      )
-      .join('\n');
-
-    const quoteText = `*${settings?.businessName || 'SEZNIK STORE'} - Price Estimate / Bill*\n` +
-      `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\n` +
-      `*ITEMS BREAKDOWN:*\n${itemLines}\n\n` +
-      `----------------------------\n` +
-      `*Subtotal:* ₹${subtotal.toFixed(2)}\n` +
-      (totalDiscount > 0 ? `*Discount:* -₹${totalDiscount.toFixed(2)}\n` : '') +
-      (totalTax > 0 ? `*GST / Taxes:* +₹${totalTax.toFixed(2)}\n` : '') +
-      `*GRAND TOTAL: ₹${grandTotal.toFixed(2)}*\n\n` +
-      `Thank you! Please visit again.`;
-
-    const url = `https://wa.me/?text=${encodeURIComponent(quoteText)}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('WhatsApp Error', 'Could not open WhatsApp on this device.');
-    });
-  };
-
   return (
     <ScreenBackground color={theme.bg}>
       <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: insets.top || 12 }]}>
         <SidebarDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
 
-        {/* Top Header */}
+        {/* Top Header Bar */}
         <View style={[styles.headerRow, { borderBottomColor: theme.borderColor }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
@@ -467,13 +646,13 @@ export default function DedicatedCalculatorTabScreen() {
               <Menu size={20} color={theme.textPrimary} />
             </TouchableOpacity>
             <View style={{ marginLeft: 10 }}>
-              <Text style={styles.headerBadge}>{settings?.businessName || 'Retail Toolkit'}</Text>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>POS Calculator</Text>
+              <Text style={styles.headerBadge}>{settings?.businessName || 'Store Toolkit'}</Text>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Fast Math Pad</Text>
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* Direct Printer Connection Pill */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {/* Direct Printer Pill */}
             <TouchableOpacity
               onPress={() => setShowPrinterConnectModal(true)}
               activeOpacity={0.8}
@@ -490,7 +669,7 @@ export default function DedicatedCalculatorTabScreen() {
               ]}
             >
               <Bluetooth
-                size={14}
+                size={13}
                 color={activeDevice && connectionState === 'connected' ? '#10B981' : '#D97706'}
               />
               <Text
@@ -499,397 +678,212 @@ export default function DedicatedCalculatorTabScreen() {
                   { color: activeDevice && connectionState === 'connected' ? '#10B981' : '#D97706' },
                 ]}
               >
-                {activeDevice && connectionState === 'connected' ? 'Printer Online' : 'Connect Printer'}
+                {activeDevice && connectionState === 'connected' ? 'Online' : 'Printer'}
               </Text>
+            </TouchableOpacity>
+
+            {/* POS Cart Shortcut Pill */}
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/pos' as any)}
+              style={[
+                styles.cartPill,
+                {
+                  backgroundColor: totalCartCount > 0 ? BRAND_COLORS.blue600 : theme.cardBg,
+                  borderColor: totalCartCount > 0 ? BRAND_COLORS.blue600 : theme.borderColor,
+                },
+              ]}
+            >
+              <ShoppingBag size={14} color={totalCartCount > 0 ? '#FFFFFF' : theme.textPrimary} />
+              {totalCartCount > 0 ? (
+                <Text style={styles.cartPillCount}>{totalCartCount}</Text>
+              ) : null}
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Dual Mode Switcher Tab Bar */}
-        <View style={[styles.modeToggleBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-          <TouchableOpacity
-            onPress={() => setActiveMode('retail')}
-            style={[
-              styles.modeTabBtn,
-              activeMode === 'retail' && { backgroundColor: BRAND_COLORS.blue600 },
-            ]}
-          >
-            <Layers size={15} color={activeMode === 'retail' ? '#FFFFFF' : theme.textSecondary} />
-            <Text
-              style={[
-                styles.modeTabText,
-                { color: activeMode === 'retail' ? '#FFFFFF' : theme.textSecondary },
-              ]}
-            >
-              Retail Bill Tape ({tapeItems.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setActiveMode('standard')}
-            style={[
-              styles.modeTabBtn,
-              activeMode === 'standard' && { backgroundColor: BRAND_COLORS.blue600 },
-            ]}
-          >
-            <CalcIcon size={15} color={activeMode === 'standard' ? '#FFFFFF' : theme.textSecondary} />
-            <Text
-              style={[
-                styles.modeTabText,
-                { color: activeMode === 'standard' ? '#FFFFFF' : theme.textSecondary },
-              ]}
-            >
-              Fast Math Pad
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* ========================================================= */}
-        {/* MODE 1: RETAIL BILL TAPE & ITEM CALCULATOR */}
+        {/* FAST MATH PAD CALCULATOR VIEW (DEFAULT & EXCLUSIVE) */}
         {/* ========================================================= */}
-        {activeMode === 'retail' ? (
-          <View style={{ flex: 1 }}>
-            {/* Quick Add Bar: Store Products + Custom Open Item */}
-            <View style={styles.quickAddBar}>
-              <TouchableOpacity
-                onPress={() => setShowProductPicker(true)}
-                style={[styles.quickAddBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-              >
-                <Package size={16} color="#FFFFFF" />
-                <Text style={styles.quickAddBtnText}>+ Store Product</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setShowCustomItemModal(true)}
-                style={[styles.quickAddBtn, { backgroundColor: '#10B981' }]}
-              >
-                <Plus size={16} color="#FFFFFF" />
-                <Text style={styles.quickAddBtnText}>+ Open Custom Item</Text>
-              </TouchableOpacity>
-
-              {tapeItems.length > 0 ? (
-                <TouchableOpacity
-                  onPress={handleClearTape}
-                  style={[styles.quickClearBtn, { borderColor: theme.borderColor }]}
-                >
-                  <RotateCcw size={15} color="#EF4444" />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            {/* Tape Items List */}
-            {tapeItems.length === 0 ? (
-              <View style={styles.emptyTapeContainer}>
-                <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(37, 99, 235, 0.1)' }]}>
-                  <Receipt size={32} color={BRAND_COLORS.blue600} />
-                </View>
-                <Text style={[styles.emptyTapeTitle, { color: theme.textPrimary }]}>Calculator Tape is Empty</Text>
-                <Text style={[styles.emptyTapeSub, { color: theme.textSecondary }]}>
-                  Add products from your store catalog or enter custom prices with quantity & GST to compute running totals.
-                </Text>
-
-                <View style={styles.emptyActionRow}>
-                  <TouchableOpacity
-                    onPress={() => setShowProductPicker(true)}
-                    style={[styles.emptyActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-                  >
-                    <Package size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyActionText}>Browse Products</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setShowCustomItemModal(true)}
-                    style={[styles.emptyActionBtn, { backgroundColor: '#10B981' }]}
-                  >
-                    <Plus size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyActionText}>Add Manual Price</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <FlatList
-                data={tapeItems}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
-                renderItem={({ item, index }) => {
-                  const lineTotal =
-                    item.price * item.quantity -
-                    (item.price * item.quantity * (item.discountPct || 0)) / 100 +
-                    (item.price * item.quantity * (item.taxRate || 0)) / 100;
-
-                  return (
-                    <View
-                      style={[
-                        styles.tapeCard,
-                        { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
-                      ]}
-                    >
-                      <View style={styles.tapeCardHeader}>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={styles.tapeIndex}>{index + 1}.</Text>
-                            <Text
-                              style={[styles.tapeItemName, { color: theme.textPrimary }]}
-                              numberOfLines={1}
-                            >
-                              {item.name}
-                            </Text>
-                          </View>
-                          <Text style={[styles.tapeItemPrice, { color: theme.textSecondary }]}>
-                            ₹{item.price.toFixed(2)} each {item.isProduct ? '• Catalog' : '• Manual'}
-                          </Text>
-                        </View>
-
-                        <Text style={[styles.tapeLineTotal, { color: BRAND_COLORS.blue600 }]}>
-                          ₹{lineTotal.toFixed(2)}
-                        </Text>
-                      </View>
-
-                      {/* Stepper & Slabs Row */}
-                      <View style={styles.tapeControlsRow}>
-                        {/* Quantity Stepper */}
-                        <View style={[styles.stepperContainer, { borderColor: theme.borderColor }]}>
-                          <TouchableOpacity
-                            onPress={() => handleUpdateItemQty(item.id, -1)}
-                            style={styles.stepBtn}
-                          >
-                            <Minus size={14} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                          <Text style={[styles.stepQtyText, { color: theme.textPrimary }]}>
-                            {item.quantity}
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => handleUpdateItemQty(item.id, 1)}
-                            style={styles.stepBtn}
-                          >
-                            <Plus size={14} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* GST Quick Chips */}
-                        <View style={styles.slabChipsRow}>
-                          {[0, 5, 12, 18, 28].map((gstVal) => (
-                            <TouchableOpacity
-                              key={gstVal}
-                              onPress={() => handleApplyTaxToItem(item.id, gstVal)}
-                              style={[
-                                styles.slabChip,
-                                {
-                                  backgroundColor:
-                                    item.taxRate === gstVal ? BRAND_COLORS.blue600 : 'transparent',
-                                  borderColor:
-                                    item.taxRate === gstVal ? BRAND_COLORS.blue600 : theme.borderColor,
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.slabChipText,
-                                  { color: item.taxRate === gstVal ? '#FFFFFF' : theme.textSecondary },
-                                ]}
-                              >
-                                {gstVal}%
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-
-                        {/* Delete Line */}
-                        <TouchableOpacity
-                          onPress={() => handleRemoveTapeItem(item.id)}
-                          style={styles.deleteLineBtn}
-                        >
-                          <Trash2 size={16} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                }}
-              />
-            )}
-
-            {/* Bottom Summary Bar & 1-Tap Execution */}
-            {tapeItems.length > 0 ? (
-              <View
-                style={[
-                  styles.bottomBar,
-                  { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor },
-                ]}
-              >
-                {/* Financial Summary */}
-                <View style={styles.summaryGrid}>
-                  <View style={styles.summaryCol}>
-                    <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Subtotal</Text>
-                    <Text style={[styles.summaryVal, { color: theme.textPrimary }]}>
-                      ₹{subtotal.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryCol}>
-                    <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Tax / GST</Text>
-                    <Text style={[styles.summaryVal, { color: '#10B981' }]}>
-                      +₹{totalTax.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryCol}>
-                    <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Grand Total</Text>
-                    <Text style={[styles.summaryGrandVal, { color: BRAND_COLORS.blue600 }]}>
-                      ₹{grandTotal.toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* 1-Tap Action Buttons */}
-                <View style={styles.actionButtonsRow}>
-                  <TouchableOpacity
-                    onPress={handlePushToPOS}
-                    style={[styles.primaryActionBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
-                  >
-                    <ShoppingBag size={16} color="#FFFFFF" />
-                    <Text style={styles.primaryActionBtnText}>Push to POS Cart</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handlePrintEstimateOrBill}
-                    disabled={isPrintingDirect}
-                    style={[styles.primaryActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-                  >
-                    {isPrintingDirect ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Printer size={16} color="#FFFFFF" />
-                        <Text style={styles.primaryActionBtnText}>Print Bill</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleShareWhatsAppQuote}
-                    style={[styles.iconActionBtn, { backgroundColor: '#10B981' }]}
-                  >
-                    <Share2 size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
+        <View style={styles.mathContainer}>
+          {/* Digital Display Box */}
+          <View style={[styles.displayBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            {memoryValue !== null ? (
+              <View style={styles.memBadge}>
+                <Text style={styles.memBadgeText}>M: {memoryValue}</Text>
               </View>
             ) : null}
+            <Text style={[styles.formulaText, { color: theme.textSecondary }]} numberOfLines={1}>
+              {calcFormula || ' '}
+            </Text>
+            <Text style={[styles.mainDisplayText, { color: theme.textPrimary }]} numberOfLines={1}>
+              {calcDisplay}
+            </Text>
           </View>
-        ) : (
-          /* ========================================================= */
-          /* MODE 2: FAST MATH PAD & RUNNING CALCULATOR */
-          /* ========================================================= */
-          <View style={styles.mathContainer}>
-            {/* Screen Display */}
-            <View style={[styles.displayBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              {memoryValue !== null ? (
-                <View style={styles.memBadge}>
-                  <Text style={styles.memBadgeText}>M: {memoryValue}</Text>
-                </View>
-              ) : null}
-              <Text style={[styles.formulaText, { color: theme.textSecondary }]} numberOfLines={1}>
-                {calcFormula || ' '}
-              </Text>
-              <Text style={[styles.mainDisplayText, { color: theme.textPrimary }]} numberOfLines={1}>
-                {calcDisplay}
-              </Text>
-            </View>
 
-            {/* Fast Add to Tape Action */}
+          {/* Action Row: "Add Products" + "Customer Balance" + "Go to POS" */}
+          <View style={styles.actionRow}>
+            {/* 1. Add Products Button */}
             <TouchableOpacity
-              onPress={handleAddCalculatedValueToTape}
-              style={[styles.addValueToTapeBtn, { backgroundColor: 'rgba(37, 99, 235, 0.1)', borderColor: BRAND_COLORS.blue600 }]}
+              onPress={() => setShowProductPicker(true)}
+              style={[styles.addProductsBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+              activeOpacity={0.8}
             >
-              <Plus size={16} color={BRAND_COLORS.blue600} />
-              <Text style={[styles.addValueToTapeText, { color: BRAND_COLORS.blue600 }]}>
-                Add ₹{calcDisplay} to Retail Bill Tape
-              </Text>
-              <ArrowRight size={16} color={BRAND_COLORS.blue600} />
+              <Package size={15} color="#FFFFFF" />
+              <Text style={styles.addProductsBtnText}>Add Products</Text>
             </TouchableOpacity>
 
-            {/* Memory & Quick Tax Keys */}
-            <View style={styles.quickOpsRow}>
-              {(['MC', 'MR', 'M+', 'M-'] as const).map((op) => (
-                <TouchableOpacity
-                  key={op}
-                  onPress={() => handleMemoryOp(op)}
-                  style={[styles.memBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-                >
-                  <Text style={[styles.memBtnText, { color: theme.textPrimary }]}>{op}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {/* 2. Customer Balance Due Button */}
+            <TouchableOpacity
+              onPress={() => setShowCustomerBalanceModal(true)}
+              style={[
+                styles.customerBalanceBtn,
+                {
+                  backgroundColor: selectedCustomerName
+                    ? isDark
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : 'rgba(16, 185, 129, 0.1)'
+                    : theme.cardBg,
+                  borderColor: selectedCustomerName ? '#10B981' : theme.borderColor,
+                },
+              ]}
+              activeOpacity={0.8}
+            >
+              <Users
+                size={15}
+                color={selectedCustomerName ? '#10B981' : BRAND_COLORS.blue600}
+              />
+              <Text
+                style={[
+                  styles.customerBalanceBtnText,
+                  { color: selectedCustomerName ? '#10B981' : theme.textPrimary },
+                ]}
+                numberOfLines={1}
+              >
+                {selectedCustomerName ? selectedCustomerName : 'Customer Due'}
+              </Text>
+            </TouchableOpacity>
 
-            {/* Keypad Grid */}
-            <View style={styles.keypadGrid}>
-              {[
-                ['C', '⌫', '%', '÷'],
-                ['7', '8', '9', '×'],
-                ['4', '5', '6', '-'],
-                ['1', '2', '3', '+'],
-                ['00', '0', '.', '='],
-              ].map((row, rIdx) => (
-                <View key={rIdx} style={styles.keypadRow}>
-                  {row.map((btn) => {
-                    const isOp = ['÷', '×', '-', '+', '='].includes(btn);
-                    const isEquals = btn === '=';
-                    const isClear = ['C', 'AC', '⌫'].includes(btn);
+            {/* 3. Go to POS Button (when items selected) */}
+            {totalCartCount > 0 ? (
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/pos' as any)}
+                style={[
+                  styles.goToPosMainBtn,
+                  {
+                    backgroundColor: BRAND_COLORS.navyInk,
+                    borderColor: theme.borderColor,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <ShoppingBag size={15} color="#FFFFFF" />
+                <Text style={styles.goToPosMainBtnText}>POS ({totalCartCount})</Text>
+                <ArrowRight size={13} color="#94A3B8" style={{ marginLeft: 2 }} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-                    return (
-                      <TouchableOpacity
-                        key={btn}
-                        activeOpacity={0.7}
-                        onPress={() => handleKeypadPress(btn)}
+          {/* Memory Row */}
+          <View style={styles.quickOpsRow}>
+            {(['MC', 'MR', 'M+', 'M-'] as const).map((op) => (
+              <TouchableOpacity
+                key={op}
+                onPress={() => handleMemoryOp(op)}
+                style={[styles.memBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+              >
+                <Text style={[styles.memBtnText, { color: theme.textPrimary }]}>{op}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Keypad Grid */}
+          <View style={styles.keypadGrid}>
+            {[
+              ['C', '⌫', '%', '÷'],
+              ['7', '8', '9', '×'],
+              ['4', '5', '6', '-'],
+              ['1', '2', '3', '+'],
+              ['00', '0', '.', '='],
+            ].map((row, rIdx) => (
+              <View key={rIdx} style={styles.keypadRow}>
+                {row.map((btn) => {
+                  const isOp = ['÷', '×', '-', '+', '='].includes(btn);
+                  const isEquals = btn === '=';
+                  const isClear = ['C', 'AC', '⌫'].includes(btn);
+
+                  return (
+                    <TouchableOpacity
+                      key={btn}
+                      activeOpacity={0.7}
+                      onPress={() => handleKeypadPress(btn)}
+                      style={[
+                        styles.keyBtn,
+                        {
+                          backgroundColor: isEquals
+                            ? BRAND_COLORS.blue600
+                            : isOp
+                            ? 'rgba(37, 99, 235, 0.15)'
+                            : isClear
+                            ? 'rgba(239, 68, 68, 0.12)'
+                            : theme.cardBg,
+                          borderColor: theme.borderColor,
+                        },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.keyBtn,
+                          styles.keyText,
                           {
-                            backgroundColor: isEquals
-                              ? BRAND_COLORS.blue600
+                            color: isEquals
+                              ? '#FFFFFF'
                               : isOp
-                              ? 'rgba(37, 99, 235, 0.15)'
+                              ? BRAND_COLORS.blue600
                               : isClear
-                              ? 'rgba(239, 68, 68, 0.12)'
-                              : theme.cardBg,
-                            borderColor: theme.borderColor,
+                              ? '#EF4444'
+                              : theme.textPrimary,
                           },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.keyText,
-                            {
-                              color: isEquals
-                                ? '#FFFFFF'
-                                : isOp
-                                ? BRAND_COLORS.blue600
-                                : isClear
-                                ? '#EF4444'
-                                : theme.textPrimary,
-                            },
-                          ]}
-                        >
-                          {btn}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
+                        {btn}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
           </View>
-        )}
+        </View>
 
         {/* ========================================================= */}
-        {/* MODAL 1: STORE PRODUCTS QUICK PICKER */}
+        {/* MODAL: PRODUCT DROPDOWN & QUANTITY PICKER */}
         {/* ========================================================= */}
-        <Modal visible={showProductPicker} animationType="slide" onRequestClose={() => setShowProductPicker(false)}>
+        <Modal
+          visible={showProductPicker}
+          animationType="slide"
+          onRequestClose={() => setShowProductPicker(false)}
+        >
           <ScreenBackground color={theme.bg}>
             <View style={[styles.modalContainer, { paddingTop: insets.top || 12 }]}>
-              {/* Header */}
+              {/* Modal Header */}
               <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Package size={20} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Store Product</Text>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Products</Text>
+                  <View style={[styles.countBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                    <Text style={[styles.countBadgeText, { color: BRAND_COLORS.blue600 }]}>
+                      {filteredProducts.length} items
+                    </Text>
+                  </View>
                 </View>
-                <TouchableOpacity onPress={() => setShowProductPicker(false)} style={styles.closeBtn}>
+                <TouchableOpacity
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowProductPicker(false);
+                  }}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                  activeOpacity={0.6}
+                >
                   <X size={22} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -903,49 +897,217 @@ export default function DedicatedCalculatorTabScreen() {
                   placeholder="Search product name, barcode, SKU..."
                   placeholderTextColor={theme.textSecondary}
                   style={[styles.searchInput, { color: theme.textPrimary }]}
-                  autoFocus
                 />
                 {productSearchQuery ? (
-                  <TouchableOpacity onPress={() => setProductSearchQuery('')}>
+                  <TouchableOpacity
+                    onPress={() => setProductSearchQuery('')}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
                     <X size={16} color={theme.textSecondary} />
                   </TouchableOpacity>
                 ) : null}
               </View>
 
-              {/* Product List */}
+              {/* Product List with interactive Quantity (+/- & typing in real-time) */}
               <FlatList
                 data={filteredProducts}
+                extraData={cartItems}
                 keyExtractor={(p) => p.id}
-                contentContainerStyle={{ padding: 16 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => handleAddProductToTape(item)}
-                    activeOpacity={0.8}
-                    style={[styles.productItemCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.prodName, { color: theme.textPrimary }]}>{item.name}</Text>
-                      <Text style={[styles.prodMeta, { color: theme.textSecondary }]}>
-                        Stock: {item.currentStock} {item.unit || 'pcs'} • GST: {item.taxRate || 0}%
-                        {item.barcode ? ` • Barcode: ${item.barcode}` : ''}
-                      </Text>
-                    </View>
-
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[styles.prodPrice, { color: BRAND_COLORS.blue600 }]}>
-                        ₹{item.sellingPrice.toFixed(2)}
-                      </Text>
-                      <View style={styles.addPill}>
-                        <Plus size={12} color="#FFFFFF" />
-                        <Text style={styles.addPillText}>Add</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                )}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+                renderItem={({ item }) => {
+                  const cartQty = cartItems.find((i) => i.product.id === item.id)?.quantity || 0;
+                  return (
+                    <ProductPickerRow
+                      product={item}
+                      cartQuantity={cartQty}
+                      onUpdateCartQuantity={handleUpdateCartQuantity}
+                      theme={theme}
+                    />
+                  );
+                }}
                 ListEmptyComponent={
                   <View style={styles.emptySearchBox}>
                     <Text style={{ color: theme.textSecondary, textAlign: 'center' }}>
                       No matching store products found.
+                    </Text>
+                  </View>
+                }
+              />
+
+              {/* Floating Bottom Action Bar: Go to Calculator & Go to POS Cart */}
+              {totalCartCount > 0 ? (
+                <View
+                  style={[
+                    styles.floatingCartBar,
+                    { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor },
+                  ]}
+                >
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={[styles.floatingCartCount, { color: theme.textSecondary }]}>
+                      {totalCartCount} {totalCartCount === 1 ? 'item' : 'items'} in Cart
+                    </Text>
+                    <Text style={[styles.floatingCartTotal, { color: BRAND_COLORS.blue600 }]} numberOfLines={1}>
+                      ₹{cartGrandTotal.toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    {/* Option 1: Go to Calculator with Product Total */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleInsertAmountToCalculator(cartGrandTotal);
+                      }}
+                      style={[
+                        styles.goToCalcBtn,
+                        {
+                          borderColor: BRAND_COLORS.blue600,
+                          backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : 'rgba(37, 99, 235, 0.1)',
+                        },
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      <CalcIcon size={15} color={BRAND_COLORS.blue600} />
+                      <Text style={[styles.goToCalcBtnText, { color: BRAND_COLORS.blue600 }]}>
+                        Go to Calculator
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Option 2: Go to POS Cart */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowProductPicker(false);
+                        router.push('/(tabs)/pos' as any);
+                      }}
+                      style={[styles.goToPosBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                      activeOpacity={0.8}
+                    >
+                      <ShoppingBag size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                      <Text style={styles.goToPosBtnText}>POS Cart</Text>
+                      <ArrowRight size={13} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </ScreenBackground>
+        </Modal>
+
+        {/* ========================================================= */}
+        {/* CUSTOMER BALANCE & KHATA DUE MODAL */}
+        {/* ========================================================= */}
+        <Modal
+          visible={showCustomerBalanceModal}
+          animationType="slide"
+          onRequestClose={() => {
+            Keyboard.dismiss();
+            setShowCustomerBalanceModal(false);
+          }}
+        >
+          <ScreenBackground color={theme.bg}>
+            <View style={[styles.modalContainer, { paddingTop: insets.top || 12 }]}>
+              {/* Modal Header */}
+              <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Users size={20} color={BRAND_COLORS.blue600} />
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Customer Due Balance</Text>
+                  <View style={[styles.countBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                    <Text style={[styles.countBadgeText, { color: BRAND_COLORS.blue600 }]}>
+                      {filteredCustomers.length}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowCustomerBalanceModal(false);
+                  }}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                  activeOpacity={0.6}
+                >
+                  <X size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Search Bar */}
+              <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Search size={16} color={theme.textSecondary} />
+                <TextInput
+                  value={customerSearchQuery}
+                  onChangeText={setCustomerSearchQuery}
+                  placeholder="Search customer name or phone..."
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.searchInput, { color: theme.textPrimary }]}
+                />
+                {customerSearchQuery ? (
+                  <TouchableOpacity
+                    onPress={() => setCustomerSearchQuery('')}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={16} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Filter Tabs: All vs Has Due */}
+              <View style={styles.filterTabsRow}>
+                <TouchableOpacity
+                  onPress={() => setCustomerFilterOnlyDue(false)}
+                  style={[
+                    styles.filterTab,
+                    !customerFilterOnlyDue && { backgroundColor: BRAND_COLORS.blue600 },
+                    { borderColor: !customerFilterOnlyDue ? BRAND_COLORS.blue600 : theme.borderColor },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      { color: !customerFilterOnlyDue ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    All ({customers.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setCustomerFilterOnlyDue(true)}
+                  style={[
+                    styles.filterTab,
+                    customerFilterOnlyDue && { backgroundColor: '#EF4444' },
+                    { borderColor: customerFilterOnlyDue ? '#EF4444' : theme.borderColor },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      { color: customerFilterOnlyDue ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    Has Balance Due ({customers.filter((c) => (c.creditBalance || 0) > 0).length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Customer List */}
+              <FlatList
+                data={filteredCustomers}
+                keyExtractor={(c) => c.id}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+                renderItem={({ item }) => (
+                  <CustomerBalanceRow
+                    customer={item}
+                    isSelected={selectedCustomerId === item.id}
+                    onAddBalance={handleAddCustomerBalance}
+                    theme={theme}
+                    isDark={isDark}
+                  />
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptySearchBox}>
+                    <Text style={{ color: theme.textSecondary, textAlign: 'center' }}>
+                      No matching customers found.
                     </Text>
                   </View>
                 }
@@ -955,112 +1117,13 @@ export default function DedicatedCalculatorTabScreen() {
         </Modal>
 
         {/* ========================================================= */}
-        {/* MODAL 2: CUSTOM / OPEN NON-PRODUCT ITEM */}
-        {/* ========================================================= */}
-        <Modal visible={showCustomItemModal} transparent animationType="fade" onRequestClose={() => setShowCustomItemModal(false)}>
-          <View style={styles.overlay}>
-            <View style={[styles.cardModal, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-              <View style={styles.cardModalHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Tag size={18} color="#10B981" />
-                  <Text style={[styles.cardModalTitle, { color: theme.textPrimary }]}>Add Custom / Open Item</Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowCustomItemModal(false)}>
-                  <X size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={[styles.formLabel, { color: theme.textPrimary }]}>Item Name / Description</Text>
-              <TextInput
-                value={customItemName}
-                onChangeText={setCustomItemName}
-                placeholder="e.g. Labor Charge, Extra Packing, Stitching"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.formInput, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-              />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.formLabel, { color: theme.textPrimary }]}>Price (₹) *</Text>
-                  <TextInput
-                    value={customItemPrice}
-                    onChangeText={setCustomItemPrice}
-                    placeholder="0.00"
-                    placeholderTextColor={theme.textSecondary}
-                    keyboardType="decimal-pad"
-                    style={[styles.formInput, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                    autoFocus
-                  />
-                </View>
-
-                <View style={{ width: 100 }}>
-                  <Text style={[styles.formLabel, { color: theme.textPrimary }]}>Quantity</Text>
-                  <TextInput
-                    value={customItemQty}
-                    onChangeText={setCustomItemQty}
-                    placeholder="1"
-                    placeholderTextColor={theme.textSecondary}
-                    keyboardType="number-pad"
-                    style={[styles.formInput, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                  />
-                </View>
-              </View>
-
-              {/* GST Slab Selector */}
-              <Text style={[styles.formLabel, { color: theme.textPrimary }]}>GST Slab Rate</Text>
-              <View style={styles.gstSlabRow}>
-                {['0', '5', '12', '18', '28'].map((slab) => (
-                  <TouchableOpacity
-                    key={slab}
-                    onPress={() => setCustomItemGst(slab)}
-                    style={[
-                      styles.gstBtn,
-                      {
-                        backgroundColor: customItemGst === slab ? BRAND_COLORS.blue600 : theme.cardBg,
-                        borderColor: customItemGst === slab ? BRAND_COLORS.blue600 : theme.borderColor,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.gstBtnText, { color: customItemGst === slab ? '#FFFFFF' : theme.textPrimary }]}>
-                      {slab}%
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity
-                onPress={handleAddCustomItem}
-                style={[styles.submitCustomBtn, { backgroundColor: '#10B981' }]}
-              >
-                <Check size={18} color="#FFFFFF" />
-                <Text style={styles.submitCustomBtnText}>Add to Calculation Tape</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ========================================================= */}
         {/* DIRECT PRINTER CONNECT DIALOG MODAL */}
         {/* ========================================================= */}
         <DirectPrinterConnectModal
           visible={showPrinterConnectModal}
           onClose={() => setShowPrinterConnectModal(false)}
-          onConnected={() => {
-            if (previewData) {
-              setTimeout(() => {
-                handlePrintEstimateOrBill();
-              }, 400);
-            }
-          }}
           title="Connect Bluetooth Printer"
-          subtitle="Pair or select your thermal receipt printer below to print this calculation."
-        />
-
-        {/* Receipt Preview Modal */}
-        <ReceiptPreviewModal
-          visible={showReceiptPreview}
-          saleData={previewData}
-          onClose={() => setShowReceiptPreview(false)}
+          subtitle="Pair or select your thermal receipt printer below."
         />
       </View>
     </ScreenBackground>
@@ -1078,12 +1141,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   menuBtn: { padding: 9, borderRadius: 12, borderWidth: 1 },
-  headerBadge: { fontSize: 10, fontWeight: '800', color: BRAND_COLORS.sky500, textTransform: 'uppercase', letterSpacing: 0.5 },
+  headerBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: BRAND_COLORS.sky500,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   headerTitle: { fontSize: 20, fontWeight: '900' },
   printerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
@@ -1091,231 +1160,26 @@ const styles = StyleSheet.create({
   printerPillText: {
     fontSize: 11,
     fontWeight: '800',
-    marginLeft: 5,
+    marginLeft: 4,
   },
-  modeToggleBar: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 8,
-    borderRadius: 14,
-    padding: 3,
-    borderWidth: 1,
-  },
-  modeTabBtn: {
-    flex: 1,
+  cartPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 11,
-  },
-  modeTabText: {
-    fontSize: 12,
-    fontWeight: '800',
-    marginLeft: 6,
-  },
-  quickAddBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    gap: 8,
-  },
-  quickAddBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  quickAddBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-    marginLeft: 6,
-  },
-  quickClearBtn: {
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTapeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 30,
-  },
-  emptyIconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  emptyTapeTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginBottom: 6,
-  },
-  emptyTapeSub: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-  },
-  emptyActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  emptyActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  emptyActionText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-    marginLeft: 6,
-  },
-  tapeCard: {
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  tapeCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  tapeIndex: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#94A3B8',
-    marginRight: 6,
-  },
-  tapeItemName: {
-    fontSize: 14,
-    fontWeight: '800',
-    flex: 1,
-  },
-  tapeItemPrice: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  tapeLineTotal: {
-    fontSize: 15,
-    fontWeight: '900',
-    marginLeft: 10,
-  },
-  tapeControlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150, 150, 150, 0.1)',
-  },
-  stepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
   },
-  stepBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  stepQtyText: {
-    fontSize: 12,
-    fontWeight: '800',
-    paddingHorizontal: 4,
-  },
-  slabChipsRow: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  slabChip: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  slabChipText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  deleteLineBtn: {
-    padding: 6,
-  },
-  bottomBar: {
-    padding: 16,
-    borderTopWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  summaryCol: {
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  summaryVal: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  summaryGrandVal: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  primaryActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  primaryActionBtnText: {
+  cartPillCount: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-    marginLeft: 6,
-  },
-  iconActionBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontSize: 11,
+    fontWeight: '900',
+    marginLeft: 4,
   },
   mathContainer: {
     flex: 1,
     paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 16,
   },
   displayBox: {
@@ -1351,19 +1215,51 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  addValueToTapeBtn: {
+  actionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
+    gap: 8,
     marginBottom: 10,
   },
-  addValueToTapeText: {
+  addProductsBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    shadowColor: BRAND_COLORS.blue600,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addProductsBtnText: {
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+    marginLeft: 6,
+  },
+  goToPosMainBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  goToPosMainBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 6,
   },
   quickOpsRow: {
     flexDirection: 'row',
@@ -1414,18 +1310,33 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '900',
     marginLeft: 8,
   },
+  countBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
   closeBtn: {
-    padding: 4,
+    padding: 6,
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     margin: 16,
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 14,
@@ -1439,7 +1350,8 @@ const styles = StyleSheet.create({
   productItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    justifyContent: 'space-between',
+    padding: 12,
     borderRadius: 16,
     borderWidth: 1,
     marginBottom: 8,
@@ -1450,24 +1362,45 @@ const styles = StyleSheet.create({
   },
   prodMeta: {
     fontSize: 11,
-    marginTop: 3,
   },
   prodPrice: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
   },
-  addPill: {
+  prodActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BRAND_COLORS.blue600,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginTop: 4,
+    gap: 8,
   },
-  addPillText: {
+  prodQtyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  prodQtyBtn: {
+    padding: 4,
+  },
+  prodQtyInput: {
+    width: 32,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '800',
+    paddingVertical: 2,
+  },
+  addProdBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  addProdBtnText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     marginLeft: 2,
   },
@@ -1475,71 +1408,221 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     alignItems: 'center',
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  cardModal: {
-    width: '100%',
-    maxWidth: 440,
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-  },
-  cardModalHeader: {
+  floatingCartBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  cardModalTitle: {
+  floatingCartCount: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  floatingCartTotal: {
     fontSize: 16,
     fontWeight: '900',
-    marginLeft: 8,
+    marginTop: 1,
   },
-  formLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  formInput: {
+  goToCalcBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    padding: 12,
-    fontSize: 14,
   },
-  gstSlabRow: {
+  goToCalcBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 4,
+  },
+  goToPosBtn: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: BRAND_COLORS.blue600,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  gstBtn: {
+  goToPosBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  customerBalanceBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  customerBalanceBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  filterTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  filterTab: {
     flex: 1,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  gstBtnText: {
+  filterTabText: {
     fontSize: 12,
     fontWeight: '800',
   },
-  submitCustomBtn: {
+  custCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  custHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  custAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  custAvatarText: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  custName: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  selectedBadge: {
+    backgroundColor: '#10B981',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    marginLeft: 6,
+  },
+  selectedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  custPhone: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dueBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  dueBadgeText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  custActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  addFullDueBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    gap: 6,
   },
-  submitCustomBtnText: {
+  addFullDueBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
-    marginLeft: 6,
+  },
+  customDueToggleBtn: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customDueToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  customAmountBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(150, 150, 150, 0.15)',
+  },
+  customAmountInputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  currencyPrefix: {
+    fontSize: 14,
+    fontWeight: '900',
+    marginRight: 4,
+  },
+  customAmountInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    padding: 0,
+  },
+  addCustomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 4,
+  },
+  addCustomBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

@@ -319,8 +319,13 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Convert A4 Invoices to Thermal Receipts</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-            <X size={20} color={theme.textSecondary} />
+          <TouchableOpacity
+            onPress={handleClose}
+            style={styles.closeBtn}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            activeOpacity={0.6}
+          >
+            <X size={22} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
 

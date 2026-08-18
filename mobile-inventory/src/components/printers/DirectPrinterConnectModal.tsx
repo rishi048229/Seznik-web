@@ -86,11 +86,14 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.card, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+        >
           {/* Header */}
           <View style={styles.headerRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
               <View style={[styles.iconBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
                 <Bluetooth size={20} color={BRAND_COLORS.blue600} />
               </View>
@@ -101,8 +104,13 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={20} color={theme.textSecondary} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.6}
+            >
+              <X size={22} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -115,7 +123,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
           ) : null}
 
           {/* Device Lists Scroll */}
-          <ScrollView style={styles.scrollList} contentContainerStyle={{ paddingVertical: 4 }}>
+          <ScrollView
+            style={styles.scrollList}
+            contentContainerStyle={{ paddingVertical: 4 }}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* PAIRED PRINTERS */}
             {pairedPrinters.length > 0 ? (
               <View style={styles.section}>
@@ -265,8 +277,8 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
               <Text style={styles.dismissBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };
@@ -310,7 +322,12 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   closeBtn: {
-    padding: 4,
+    padding: 6,
+    minWidth: 38,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
   },
   warningBanner: {
     flexDirection: 'row',
