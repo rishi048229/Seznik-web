@@ -410,9 +410,9 @@ export const getExpenseSummary = async (req: Request, res: Response) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [todayExpenses, monthExpenses, allExpenses, allSales, todaySales] = await Promise.all([
-      prisma.$queryRaw<any[]>`SELECT * FROM "Expense" WHERE "userId" = ${userId} AND "expenseDate" >= ${todayStart}`,
-      prisma.$queryRaw<any[]>`SELECT * FROM "Expense" WHERE "userId" = ${userId} AND "expenseDate" >= ${monthStart}`,
-      prisma.$queryRaw<any[]>`SELECT * FROM "Expense" WHERE "userId" = ${userId}`,
+      prisma.expense.findMany({ where: { userId, expenseDate: { gte: todayStart } } }),
+      prisma.expense.findMany({ where: { userId, expenseDate: { gte: monthStart } } }),
+      prisma.expense.findMany({ where: { userId } }),
       prisma.sale.findMany({ where: { userId } }),
       prisma.sale.findMany({ where: { userId, createdAt: { gte: todayStart } } }),
     ]);

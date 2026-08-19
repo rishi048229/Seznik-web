@@ -733,6 +733,61 @@ export default function DashboardScreen() {
                 </View>
               </View>
 
+              {/* 2.6 LIVE BUSINESS SPENDING & OUTFLOW CARD */}
+              <View style={[styles.expenseCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={styles.expenseCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View style={[styles.expenseIconBadge, { backgroundColor: 'rgba(236, 72, 153, 0.12)' }]}>
+                      <Wallet size={18} color="#EC4899" />
+                    </View>
+                    <View style={{ marginLeft: 10, flex: 1 }}>
+                      <Text style={[styles.expenseCardTitle, { color: theme.textPrimary }]}>
+                        {t('expenses', 'Business Spending & Outflow')}
+                      </Text>
+                      <Text style={[styles.expenseCardSub, { color: theme.textSecondary }]}>
+                        {t('spendingTracker', 'Live cash outflow & net daily balance')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => router.push('/expenses' as any)}
+                    style={[styles.addExpenseQuickBtn, { backgroundColor: '#EC4899' }]}
+                    activeOpacity={0.8}
+                  >
+                    <Plus size={13} color="#FFF" />
+                    <Text style={styles.addExpenseQuickBtnText}>{t('addExpense', '+ Expense')}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.expenseStatsRow, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                  <View style={styles.expenseStatCol}>
+                    <Text style={[styles.expenseStatLabel, { color: theme.textSecondary }]}>{t('today', "Today's Outflow")}</Text>
+                    <Text style={[styles.expenseStatVal, { color: '#EF4444' }]}>
+                      {formatCurrency(expenseSummary.today)}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.expenseStatDivider, { backgroundColor: theme.borderColor }]} />
+
+                  <View style={styles.expenseStatCol}>
+                    <Text style={[styles.expenseStatLabel, { color: theme.textSecondary }]}>{t('thisMonth', 'This Month')}</Text>
+                    <Text style={[styles.expenseStatVal, { color: theme.textPrimary }]}>
+                      {formatCurrency(expenseSummary.thisMonth)}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.expenseStatDivider, { backgroundColor: theme.borderColor }]} />
+
+                  <View style={styles.expenseStatCol}>
+                    <Text style={[styles.expenseStatLabel, { color: theme.textSecondary }]}>{t('netCashflow', 'Net Flow')}</Text>
+                    <Text style={[styles.expenseStatVal, { color: expenseSummary.net >= 0 ? '#10B981' : '#EF4444' }]}>
+                      {formatCurrency(expenseSummary.net)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
               {/* 3. EXECUTIVE METRICS STRIP */}
               <Text style={styles.sectionHeader}>{t('todayPerformance', "TODAY'S PERFORMANCE & P&L")}</Text>
               <View style={styles.kpiGrid}>
@@ -1441,5 +1496,70 @@ const styles = StyleSheet.create({
   payModeChipText: {
     fontSize: 10,
     fontWeight: '800',
+  },
+  expenseCard: {
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  expenseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  expenseIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expenseCardTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  expenseCardSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  addExpenseQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 4,
+  },
+  addExpenseQuickBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  expenseStatsRow: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  expenseStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  expenseStatDivider: {
+    width: 1,
+    height: 28,
+  },
+  expenseStatLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  expenseStatVal: {
+    fontSize: 13,
+    fontWeight: '900',
   },
 });

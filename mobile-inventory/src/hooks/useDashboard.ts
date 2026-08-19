@@ -5,19 +5,19 @@ export function useDashboard() {
   const dashboardQuery = useQuery({
     queryKey: ['reports', 'dashboard'],
     queryFn: reportsApi.getDashboardStats,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 15,
   });
 
   const paymentModesQuery = useQuery({
     queryKey: ['reports', 'paymentModes'],
     queryFn: reportsApi.getPaymentModeBreakdown,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 15,
   });
 
   const expenseQuery = useQuery({
     queryKey: ['reports', 'expenseSummary'],
     queryFn: reportsApi.getExpenseSummary,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 15,
   });
 
   const topCustomersQuery = useQuery({

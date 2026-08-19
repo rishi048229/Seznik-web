@@ -209,13 +209,18 @@ export default function ExpensesScreen() {
         category,
         paymentMethod,
         notes: description.trim() || undefined,
+        description: description.trim() || undefined,
         receiptImageUrl: receiptImage || undefined,
+        receiptImageURL: receiptImage || undefined,
         date: editingExpense ? undefined : new Date().toISOString(),
+        expenseDate: editingExpense ? undefined : new Date().toISOString(),
       };
       if (editingExpense) {
         await updateExpense({ id: editingExpense.id, payload });
+        Alert.alert('Expense Updated! ✅', 'The expense record was updated.');
       } else {
         await createExpense(payload);
+        Alert.alert('Expense Recorded! 💸', 'Your business expense has been logged.');
       }
       setShowModal(false);
       resetForm();

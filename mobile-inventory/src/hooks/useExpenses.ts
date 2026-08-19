@@ -10,29 +10,27 @@ export function useExpenses() {
     queryFn: expensesApi.getExpenses,
   });
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+    queryClient.invalidateQueries({ queryKey: ['reports'] });
+    queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['reports', 'expenseSummary'] });
+  };
+
   const createExpenseMutation = useMutation({
     mutationFn: (payload: CreateExpensePayload) => expensesApi.createExpense(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
-    },
+    onSuccess: invalidateAll,
   });
 
   const updateExpenseMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<CreateExpensePayload> }) =>
       expensesApi.updateExpense(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
-    },
+    onSuccess: invalidateAll,
   });
 
   const deleteExpenseMutation = useMutation({
     mutationFn: (id: string) => expensesApi.deleteExpense(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
-    },
+    onSuccess: invalidateAll,
   });
 
   return {

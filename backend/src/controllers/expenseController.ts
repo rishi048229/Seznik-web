@@ -1,56 +1,57 @@
 import { Request, Response } from 'express';
-import crypto from 'crypto';
 import prisma from '../config/db';
 
 export const getExpenses = async (req: Request, res: Response) => {
-  const userId = (req as any).user.id;
   try {
-    const expenses: any[] = await prisma.$queryRaw`
-      SELECT * FROM "Expense" WHERE "userId" = ${userId} ORDER BY "expenseDate" DESC
-    `;
+    const userId = (req as any).user.id;
+    const expenses = await prisma.expense.findMany({
+      where: { userId },
+      orderBy: { expenseDate: 'desc' },
+    });
     res.json(expenses);
   } catch (error) {
     console.error('getExpenses error:', error);
-    try {
-      const fallbackExpenses: any[] = await prisma.$queryRaw`
-        SELECT * FROM "Expense" WHERE "userId" = ${userId} ORDER BY "createdAt" DESC
-      `;
-      res.json(fallbackExpenses);
-    } catch (err2) {
-      console.error('getExpenses fallback error:', err2);
-      res.status(500).json({ error: 'Failed to fetch expenses' });
-    }
+    res.status(500).json({ error: 'Failed to fetch expenses' });
   }
 };
 
 export const createExpense = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { amount, category, description, paymentMethod, receiptImageURL, expenseDate } = req.body;
-    const id = crypto.randomUUID();
-    const now = new Date();
-    const dateVal = expenseDate ? new Date(expenseDate) : now;
-    const pm = paymentMethod || 'cash';
-    const desc = description || null;
-    const receipt = receiptImageURL || null;
-    const amt = parseFloat(amount) || 0;
+    const {
+      amount,
+      category = 'General',
+      description,
+      notes,
+      paymentMethod = 'cash',
+      receiptImageURL,
+      receiptImageUrl,
+      expenseDate,
+      date,
+    } = req.body;
 
-    await prisma.$executeRaw`
-      INSERT INTO "Expense" ("id", "amount", "category", "description", "paymentMethod", "receiptImageURL", "expenseDate", "userId", "createdAt")
-      VALUES (${id}, ${amt}, ${category}, ${desc}, ${pm}, ${receipt}, ${dateVal}, ${userId}, ${now})
-    `;
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt <= 0) {
+      return res.status(400).json({ error: 'Valid expense amount is required' });
+    }
 
-    res.status(201).json({
-      id,
-      amount: amt,
-      category,
-      description: desc,
-      paymentMethod: pm,
-      receiptImageURL: receipt,
-      expenseDate: dateVal,
-      userId,
-      createdAt: now,
+    const rawDate = expenseDate || date || new Date();
+    const parsedDate = new Date(rawDate);
+    const validDate = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+
+    const expense = await prisma.expense.create({
+      data: {
+        amount: amt,
+        category: category || 'General',
+        description: description || notes || null,
+        paymentMethod: (paymentMethod || 'cash').toLowerCase(),
+        receiptImageURL: receiptImageURL || receiptImageUrl || null,
+        expenseDate: validDate,
+        userId,
+      },
     });
+
+    res.status(201).json(expense);
   } catch (error) {
     console.error('createExpense error:', error);
     res.status(500).json({ error: 'Failed to create expense' });
@@ -61,28 +62,44 @@ export const updateExpense = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const { amount, category, description, paymentMethod, receiptImageURL, expenseDate } = req.body;
+    const {
+      amount,
+      category,
+      description,
+      notes,
+      paymentMethod,
+      receiptImageURL,
+      receiptImageUrl,
+      expenseDate,
+      date,
+    } = req.body;
 
-    const dateVal = expenseDate ? new Date(expenseDate) : null;
-    const amt = amount !== undefined ? parseFloat(amount) : null;
-    const cat = category !== undefined ? category : null;
-    const desc = description !== undefined ? description : null;
-    const pm = paymentMethod !== undefined ? paymentMethod : null;
-    const receipt = receiptImageURL !== undefined ? receiptImageURL : null;
+    const dataToUpdate: any = {};
+    if (amount !== undefined) {
+      const amt = parseFloat(amount);
+      if (!isNaN(amt)) dataToUpdate.amount = amt;
+    }
+    if (category !== undefined) dataToUpdate.category = category;
+    if (description !== undefined || notes !== undefined) {
+      dataToUpdate.description = description || notes || null;
+    }
+    if (paymentMethod !== undefined) {
+      dataToUpdate.paymentMethod = String(paymentMethod).toLowerCase();
+    }
+    if (receiptImageURL !== undefined || receiptImageUrl !== undefined) {
+      dataToUpdate.receiptImageURL = receiptImageURL || receiptImageUrl || null;
+    }
+    if (expenseDate !== undefined || date !== undefined) {
+      const parsedDate = new Date(expenseDate || date);
+      if (!isNaN(parsedDate.getTime())) dataToUpdate.expenseDate = parsedDate;
+    }
 
-    await prisma.$executeRaw`
-      UPDATE "Expense" 
-      SET 
-        "amount" = COALESCE(${amt}, "amount"),
-        "category" = COALESCE(${cat}, "category"),
-        "description" = COALESCE(${desc}, "description"),
-        "paymentMethod" = COALESCE(${pm}, "paymentMethod"),
-        "receiptImageURL" = COALESCE(${receipt}, "receiptImageURL"),
-        "expenseDate" = COALESCE(${dateVal}, "expenseDate")
-      WHERE "id" = ${id} AND "userId" = ${userId}
-    `;
+    const updated = await prisma.expense.updateMany({
+      where: { id: String(id), userId },
+      data: dataToUpdate,
+    });
 
-    res.json({ success: true });
+    res.json({ success: true, count: updated.count });
   } catch (error) {
     console.error('updateExpense error:', error);
     res.status(500).json({ error: 'Failed to update expense' });
@@ -93,9 +110,9 @@ export const deleteExpense = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    await prisma.$executeRaw`
-      DELETE FROM "Expense" WHERE "id" = ${id} AND "userId" = ${userId}
-    `;
+    await prisma.expense.deleteMany({
+      where: { id: String(id), userId },
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('deleteExpense error:', error);
