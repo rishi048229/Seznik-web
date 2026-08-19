@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
@@ -336,10 +336,7 @@ export const POSPage = () => {
 
     setIsPrintingAnimating(true)
 
-    const receiptConfig = {
-      ...settings?.receiptConfig,
-      showTaxBreakdown,
-    }
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = lastSaleData.selectedCustomer
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
       : ''
@@ -373,10 +370,7 @@ export const POSPage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = {
-        ...settings?.receiptConfig,
-        showTaxBreakdown,
-      }
+      const receiptConfig = resolveEffectiveReceiptConfig(settings)
       const customerName = lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
         : ''

@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -359,10 +359,7 @@ export const POSLitePage = () => {
     const tempSale = buildTempSale()
     if (!tempSale || !lastSaleData) return
 
-    const receiptConfig = {
-      ...settings?.receiptConfig,
-      showTaxBreakdown,
-    }
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = lastSaleData.selectedCustomer
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
       : ''
@@ -395,10 +392,7 @@ export const POSLitePage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = {
-        ...settings?.receiptConfig,
-        showTaxBreakdown,
-      }
+      const receiptConfig = resolveEffectiveReceiptConfig(settings)
       const customerName = lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
         : ''

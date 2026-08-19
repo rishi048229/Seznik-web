@@ -11,7 +11,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ArrowLeft, Printer, FileText, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -34,10 +34,7 @@ export const SaleDetailPage = () => {
   const handlePrint = (format: 'a4' | 'thermal') => {
     if (!sale) return
 
-    const receiptConfig = {
-      ...settings?.receiptConfig,
-      showTaxBreakdown,
-    }
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = sale.customerId
       ? customers?.find(c => c.id === sale.customerId)?.name
       : ''
@@ -54,7 +51,7 @@ export const SaleDetailPage = () => {
       businessAddress: settings?.businessAddress,
       customerName,
       width: paperWidth,
-      logoURL: receiptConfig?.logoURL,
+      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
     })
 
@@ -70,10 +67,7 @@ export const SaleDetailPage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = {
-        ...settings?.receiptConfig,
-        showTaxBreakdown,
-      }
+      const receiptConfig = resolveEffectiveReceiptConfig(settings)
       const customerName = sale.customerId
         ? customers?.find(c => c.id === sale.customerId)?.name
         : ''

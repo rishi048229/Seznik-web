@@ -117,6 +117,7 @@ export interface PrinterConfig {
   invoiceShowTerms: boolean
   invoiceTermsText: string
   invoiceShowPaymentQR: boolean
+  paymentQrURL?: string
 }
 
 export interface UserSettings {

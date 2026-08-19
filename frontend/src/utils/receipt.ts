@@ -1,7 +1,45 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
-import type { ReceiptConfig } from '@/types/settings.types'
+import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
 import { EscPosBuilder } from './escpos'
 import { compileReceiptTextLines } from './receiptEngine'
+
+export const resolveEffectiveReceiptConfig = (
+  settings?: Partial<UserSettings> | null,
+  overrides?: Partial<ReceiptConfig> | null
+): ReceiptConfig => {
+  const pConf = settings?.printerConfig
+  const rConf = settings?.receiptConfig
+
+  const merged: ReceiptConfig = {
+    headerTitle: rConf?.headerTitle || 'TAX INVOICE',
+    companyName: rConf?.companyName || settings?.businessName || '',
+    address: rConf?.address || settings?.businessAddress || '',
+    phone: rConf?.phone || settings?.businessPhone || '',
+    gstin: rConf?.gstin || settings?.businessGSTIN || '',
+    logoURL: rConf?.logoURL || settings?.businessLogoURL || '',
+    footerMessage: rConf?.footerMessage || 'Thank you for your purchase!',
+    termsLine1: rConf?.termsLine1 || '1. Goods once sold will not be taken back or exchanged',
+    termsLine2: rConf?.termsLine2 || '2. All disputes are subject to local jurisdiction only',
+    termsLine3: rConf?.termsLine3 || '',
+    compactMode: rConf?.compactMode ?? false,
+    showLogo: pConf?.showLogo ?? rConf?.showLogo ?? true,
+    showCompanyHeader: rConf?.showCompanyHeader ?? true,
+    showAddress: rConf?.showAddress ?? true,
+    showPhone: rConf?.showPhone ?? true,
+    showGSTIN: pConf?.showGSTIN ?? rConf?.showGSTIN ?? true,
+    showCustomerDetails: pConf?.showCustomerDetails ?? rConf?.showCustomerDetails ?? true,
+    showInvoiceNoAndDate: rConf?.showInvoiceNoAndDate ?? true,
+    showTaxBreakdown: rConf?.showTaxBreakdown ?? true,
+    showSubtotalDiscount: rConf?.showSubtotalDiscount ?? true,
+    showFooterMessage: rConf?.showFooterMessage ?? true,
+    showTerms: rConf?.showTerms ?? true,
+    showBarcode: pConf?.showBarcode ?? rConf?.showBarcode ?? true,
+    showPaymentQR: rConf?.showPaymentQR ?? pConf?.invoiceShowPaymentQR ?? false,
+    paymentQrURL: rConf?.paymentQrURL || pConf?.paymentQrURL || '',
+    ...overrides,
+  }
+  return merged
+}
 
 interface GenerateReceiptHTMLParams {
   sale: Sale
@@ -434,6 +472,17 @@ export const generateReceiptEscPos = ({
   textLines.forEach(line => {
     b.line(line)
   })
+
+  // Payment QR Code on ESC/POS Bluetooth receipt
+  if (receiptConfig?.showPaymentQR && (receiptConfig?.paymentQrURL || receiptConfig?.phone || businessName)) {
+    b.feed(1)
+    b.align('center')
+    b.line('SCAN TO PAY VIA QR')
+    const qrPayload = (receiptConfig.paymentQrURL?.startsWith('http') || receiptConfig.paymentQrURL?.startsWith('upi:'))
+      ? receiptConfig.paymentQrURL
+      : `upi://pay?pa=${receiptConfig.phone || '9876543210'}&pn=${encodeURIComponent(businessName || 'SEZNIK')}&am=${sale.grandTotal}&cu=INR`
+    b.qr(qrPayload, paperSize === '80mm' ? 6 : 4)
+  }
 
   b.feed(2)
   b.cut()
