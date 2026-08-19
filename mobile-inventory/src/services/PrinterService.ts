@@ -3,7 +3,7 @@ import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, Emitte
 import { ReceiptTemplate, getTemplateById } from '../constants/receiptTemplates';
 import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } from '../types/labelTemplate';
 import { CustomReceiptTemplate } from '../types/customReceipt';
-import { buildBillPdfUrl } from '../utils/billQrService';
+import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
 import { Product } from '../types/product';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
@@ -89,6 +89,12 @@ export interface ReceiptPrintOptions {
   fontSize?: 'small' | 'medium' | 'large';
   /** Number of times to print the same receipt (e.g. customer + merchant copy). */
   copies?: number;
+  storeName?: string;
+  storeAddress?: string;
+  storePhone?: string;
+  storeGstin?: string;
+  storeLogoUrl?: string;
+  upiId?: string;
 }
 
 export interface BluetoothPrinterDevice {
@@ -1129,11 +1135,12 @@ class ThermalPrinterServiceManager {
 
           case 'barcode': {
             let rawVal = this.interpolateReceiptVariables(entry.value, data);
-            if (!rawVal || rawVal === '{{bill_pdf_url}}') {
+            if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
+              const merchantUpi = entry.upiId || data.upiId || 'store@upi';
+              rawVal = buildUpiPayString(merchantUpi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
+            } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
               rawVal = billPdfUrl;
-            } else if (rawVal === '{{upi_qr}}') {
-              rawVal = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : billPdfUrl;
-            } else if (rawVal === '{{invoice_no}}') {
+            } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
               rawVal = data.invoiceNumber || 'INV-0000';
             }
 
@@ -2589,11 +2596,12 @@ class ThermalPrinterServiceManager {
 
         case 'barcode': {
           let rawVal = this.interpolateReceiptVariables(entry.value, data);
-          if (!rawVal || rawVal === '{{bill_pdf_url}}') {
+          if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
+            const merchantUpi = entry.upiId || data.upiId || 'store@upi';
+            rawVal = buildUpiPayString(merchantUpi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
+          } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
             rawVal = buildBillPdfUrl(data);
-          } else if (rawVal === '{{upi_qr}}') {
-            rawVal = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : buildBillPdfUrl(data);
-          } else if (rawVal === '{{invoice_no}}') {
+          } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
             rawVal = data.invoiceNumber || 'INV-0000';
           }
 
@@ -2731,35 +2739,43 @@ class ThermalPrinterServiceManager {
    * 1-Tap Sample Test Print for Receipts
    */
   public async printTestReceipt(paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
+    const customTemplate = options.customTemplate !== undefined ? options.customTemplate : this.resolveActiveCustomTemplate(options);
     const template = this.resolveActiveTemplate(options);
-    const sampleItems = template.sampleItems && template.sampleItems.length > 0
-      ? template.sampleItems
+
+    const sampleItems = (customTemplate ? null : template.sampleItems) && (template.sampleItems?.length || 0) > 0
+      ? template.sampleItems!
       : [
-          { productName: 'Sample Item One', quantity: 1, unitPrice: 250.0, total: 250.0 },
-          { productName: 'Sample Item Two', quantity: 2, unitPrice: 120.0, total: 240.0 },
+          { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450.0, total: 450.0, unit: 'Bag', gstRate: 5 },
+          { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180.0, total: 360.0, unit: 'Btl', gstRate: 5 },
+          { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280.0, total: 280.0, unit: 'Bag', gstRate: 0 },
         ];
 
     const subtotal = sampleItems.reduce((s, it) => s + it.total, 0);
-    const totalTax = template.showTaxBreakdown ? Math.round(subtotal * 0.18 * 100) / 100 : 0;
+    const totalTax = (!customTemplate && template.showTaxBreakdown) ? Math.round(subtotal * 0.05 * 100) / 100 : 40.5;
     const grandTotal = subtotal + totalTax;
 
     const sampleData: PrintSaleData = {
-      storeName: 'SEZNIK POS STORE',
-      storeAddress: '123 Market Road, City Center',
-      storePhone: '9876543210',
-      storeGstin: '07AAAAA0000A1Z5',
+      storeName: options.storeName || 'Your Store Name',
+      storeAddress: options.storeAddress || '123 Market Road, City Center',
+      storePhone: options.storePhone || '9876543210',
+      storeGstin: options.storeGstin || '',
+      storeLogoUrl: options.storeLogoUrl,
+      upiId: options.upiId,
       invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
       date: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
       customerName: 'Walk-in Customer',
+      customerPhone: '9988776655',
       items: sampleItems,
       subtotal,
       totalDiscount: 0,
       totalTax,
       grandTotal,
-      paymentMethod: 'CASH (BLUETOOTH PRINTER)',
+      amountPaid: grandTotal,
+      changeReturned: 0,
+      paymentMethod: 'CASH',
     };
 
-    return this.printReceipt(sampleData, paperWidth, { ...options, template });
+    return this.printReceipt(sampleData, paperWidth, { ...options, customTemplate, template });
   }
 
   /**

@@ -41,7 +41,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
-import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
+import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
@@ -318,12 +318,20 @@ export default function PrintersScreen() {
     }
   };
 
-  const printOptions = {
+  const printOptions: ReceiptPrintOptions = {
     template: activeTemplate,
+    customTemplate: activeCustomTemplate,
+    includeBillQr: enableBillQrCode,
     topMargin: topMarginVal,
     autoCut: autoCutVal,
     fontSize: fontSizeVal,
     copies: 1, // test prints always send exactly one copy regardless of the saved "copies" calibration
+    storeName: settings?.businessName || undefined,
+    storeAddress: settings?.businessAddress || undefined,
+    storePhone: settings?.businessPhone || undefined,
+    storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || undefined,
+    storeLogoUrl: settings?.businessLogoURL || undefined,
+    upiId: settings?.upiId || undefined,
   };
 
   return (
@@ -426,7 +434,8 @@ export default function PrintersScreen() {
             <TouchableOpacity
               onPress={async () => {
                 const ok = await ThermalPrinterService.printTestReceipt(paperWidthVal === 80 ? '80mm' : '58mm', printOptions);
-                if (ok) Alert.alert('Test Receipt Sent', `Printed using the ${activeTemplate.name} template.`);
+                const activeName = activeCustomTemplate ? activeCustomTemplate.name : activeTemplate.name;
+                if (ok) Alert.alert('Test Receipt Sent', `Printed using "${activeName}".`);
               }}
               style={styles.testPrintBtn}
             >
@@ -767,6 +776,7 @@ export default function PrintersScreen() {
                             date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                             customerName="Walk-in Customer"
                             paperWidth={ct.paperWidth || '58mm'}
+                            upiId={settings?.upiId || ''}
                           />
 
                           {/* Quick Action to Edit in Builder */}

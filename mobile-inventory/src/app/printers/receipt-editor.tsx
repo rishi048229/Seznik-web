@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   TextInput,
   Modal,
   Alert,
@@ -283,12 +284,12 @@ export default function ReceiptEditorScreen() {
 
   // Sample data for live preview & test printing
   const samplePrintData: PrintSaleData = useMemo(() => ({
-    storeName: settings?.businessName || 'SEZNIK SUPERSTORE',
+    storeName: settings?.businessName || 'Your Store Name',
     storeAddress: settings?.businessAddress || '123 Market Road, City Centre',
     storePhone: settings?.businessPhone || '+91 98765 43210',
     storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || '27AAAAA0000A1Z5',
     storeLogoUrl: settings?.businessLogoURL || undefined,
-    upiId: settings?.upiId || 'seznik@upi',
+    upiId: settings?.upiId || 'store@upi',
     invoiceNumber: 'INV-2026-0042',
     date: new Date().toLocaleDateString('en-GB'),
     customerName: 'Aarav Sharma',
@@ -422,11 +423,13 @@ export default function ReceiptEditorScreen() {
           type: 'barcode',
           enabled: true,
           codeType: 'qr_code',
+          qrType: 'upi',
           format: 'qr',
-          value: '{{bill_pdf_url}}',
+          value: '{{upi_qr}}',
+          upiId: settings?.upiId || 'store@upi',
           align: 'center',
           size: 'medium',
-          showText: true,
+          showText: false,
         };
         break;
       case 'left_right_text':
@@ -611,21 +614,22 @@ export default function ReceiptEditorScreen() {
         };
 
       case 'barcode': {
-        if (entry.value.includes('bill_pdf_url')) {
+        if (entry.qrType === 'upi' || entry.value?.includes('upi_qr') || entry.upiId) {
+          const uId = entry.upiId || settings?.upiId || 'store@upi';
+          return {
+            title: 'UPI Payment QR Code',
+            subtitle: `Scan to Pay • ${uId} • Auto Bill Total`,
+            icon: <QrCode size={18} color="#16A34A" />,
+          };
+        }
+        if (entry.value.includes('bill_pdf_url') || entry.qrType === 'digital_bill') {
           return {
             title: 'Digital Bill QR Code',
             subtitle: 'Scan to download digital tax invoice PDF',
             icon: <QrCode size={18} color="#6366F1" />,
           };
         }
-        if (entry.value.includes('upi_qr')) {
-          return {
-            title: 'UPI Payment QR Code',
-            subtitle: 'Scan with PhonePe, GPay, Paytm to pay',
-            icon: <QrCode size={18} color="#6366F1" />,
-          };
-        }
-        if (entry.value.includes('invoice_no')) {
+        if (entry.value.includes('invoice_no') || entry.qrType === 'invoice_barcode') {
           return {
             title: 'Invoice Barcode (1D)',
             subtitle: 'Scannable barcode of invoice number',
@@ -1014,18 +1018,18 @@ export default function ReceiptEditorScreen() {
         animationType="slide"
         onRequestClose={() => setShowAddEntrySheet(false)}
       >
-        <TouchableOpacity
-          style={styles.sheetOverlay}
-          activeOpacity={1}
-          onPress={() => setShowAddEntrySheet(false)}
-        >
-          <View style={[styles.sheetContainer, { backgroundColor: theme.cardBg }]}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowAddEntrySheet(false)}>
+          <Pressable style={[styles.sheetModalCard, { backgroundColor: theme.cardBg }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHandle} />
             <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>
               Add Section to Receipt
             </Text>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="always"
+            >
               {[
                 {
                   type: 'text' as const,
@@ -1106,8 +1110,8 @@ export default function ReceiptEditorScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
-        </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* SECTION TILE CONFIGURATION & VALUE EDITOR MODAL */}
@@ -1118,8 +1122,8 @@ export default function ReceiptEditorScreen() {
           animationType="slide"
           onRequestClose={() => setEditingEntry(null)}
         >
-          <View style={styles.configOverlay}>
-            <View style={[styles.configContainer, { backgroundColor: theme.bg }]}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setEditingEntry(null)}>
+            <Pressable style={[styles.modalCard, { backgroundColor: theme.bg }]} onPress={(e) => e.stopPropagation()}>
               <View style={[styles.configHeader, { borderBottomColor: theme.borderColor }]}>
                 <View>
                   <Text style={[styles.configHeaderTitle, { color: theme.textPrimary }]}>
@@ -1134,7 +1138,12 @@ export default function ReceiptEditorScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="always"
+              >
                 {/* 1. TEXT SECTION */}
                 {editingEntry.type === 'text' && (
                   <View style={{ gap: 14 }}>
@@ -1452,91 +1461,188 @@ export default function ReceiptEditorScreen() {
                 )}
 
                 {/* 5. BARCODE & QR CODE */}
-                {editingEntry.type === 'barcode' && (
-                  <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Select Code Type & Purpose:</Text>
-                    <View style={{ gap: 10 }}>
-                      {[
-                        {
-                          id: 'digital_bill',
-                          title: 'Digital Bill Download QR Code',
-                          sub: 'Customers scan with phone camera to download digital tax invoice PDF',
-                          val: '{{bill_pdf_url}}',
-                          codeType: 'qr_code' as const,
-                        },
-                        {
-                          id: 'upi',
-                          title: 'UPI Payment QR Code',
-                          sub: 'Customers scan with PhonePe, GPay, Paytm to pay bill amount instantly',
-                          val: '{{upi_qr}}',
-                          codeType: 'qr_code' as const,
-                        },
-                        {
-                          id: 'invoice_bar',
-                          title: 'Invoice Number Barcode (1D)',
-                          sub: 'Prints a 1D barcode of invoice number for POS inventory scanners',
-                          val: '{{invoice_no}}',
-                          codeType: 'barcode_1d' as const,
-                        },
-                        {
-                          id: 'custom',
-                          title: 'Custom Website or Link',
-                          sub: 'Enter your custom website URL, review link, or promo text',
-                          val: editingEntry.value.includes('{{') ? 'https://yourstore.com' : editingEntry.value,
-                          codeType: editingEntry.codeType || 'qr_code',
-                        },
-                      ].map((preset) => {
-                        const isSel =
-                          (preset.id === 'digital_bill' && editingEntry.value === '{{bill_pdf_url}}') ||
-                          (preset.id === 'upi' && editingEntry.value === '{{upi_qr}}') ||
-                          (preset.id === 'invoice_bar' && editingEntry.value === '{{invoice_no}}') ||
-                          (preset.id === 'custom' && !editingEntry.value.includes('{{bill_pdf_url}}') && !editingEntry.value.includes('{{upi_qr}}') && !editingEntry.value.includes('{{invoice_no}}'));
+                {editingEntry.type === 'barcode' && (() => {
+                  const isUpi = editingEntry.qrType === 'upi' || editingEntry.value === '{{upi_qr}}' || !!editingEntry.upiId;
+                  const isDigitalBill = (editingEntry.qrType === 'digital_bill' || editingEntry.value === '{{bill_pdf_url}}') && !isUpi;
+                  const isInvoiceBar = editingEntry.qrType === 'invoice_barcode' || editingEntry.value === '{{invoice_no}}';
+                  const isCustom = !isUpi && !isDigitalBill && !isInvoiceBar;
 
-                        return (
-                          <TouchableOpacity
-                            key={preset.id}
-                            onPress={() =>
+                  return (
+                    <View style={{ gap: 14 }}>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Select Code Type & Purpose:</Text>
+                      <View style={{ gap: 10 }}>
+                        {[
+                          {
+                            id: 'upi',
+                            title: 'UPI Payment QR Code',
+                            sub: 'Accept customer payments via PhonePe, GPay, Paytm with auto bill amount prefilled',
+                            val: '{{upi_qr}}',
+                            codeType: 'qr_code' as const,
+                            qrType: 'upi' as const,
+                          },
+                          {
+                            id: 'digital_bill',
+                            title: 'Digital Bill Download QR Code',
+                            sub: 'Customers scan with phone camera to download digital tax invoice PDF',
+                            val: '{{bill_pdf_url}}',
+                            codeType: 'qr_code' as const,
+                            qrType: 'digital_bill' as const,
+                          },
+                          {
+                            id: 'invoice_bar',
+                            title: 'Invoice Number Barcode (1D)',
+                            sub: 'Prints a 1D barcode of invoice number for POS inventory scanners',
+                            val: '{{invoice_no}}',
+                            codeType: 'barcode_1d' as const,
+                            qrType: 'invoice_barcode' as const,
+                          },
+                          {
+                            id: 'custom',
+                            title: 'Custom Website or Link',
+                            sub: 'Enter your custom website URL, review link, or promo text',
+                            val: editingEntry.value.includes('{{') ? 'https://yourstore.com' : editingEntry.value,
+                            codeType: editingEntry.codeType || 'qr_code',
+                            qrType: 'custom' as const,
+                          },
+                        ].map((preset) => {
+                          const isSel =
+                            (preset.id === 'upi' && isUpi) ||
+                            (preset.id === 'digital_bill' && isDigitalBill) ||
+                            (preset.id === 'invoice_bar' && isInvoiceBar) ||
+                            (preset.id === 'custom' && isCustom);
+
+                          return (
+                            <TouchableOpacity
+                              key={preset.id}
+                              onPress={() => {
+                                const currentUpi = editingEntry.upiId || settings?.upiId || 'store@upi';
+                                setEditingEntry({
+                                  ...editingEntry,
+                                  value: preset.val,
+                                  codeType: preset.codeType,
+                                  qrType: preset.qrType,
+                                  upiId: preset.id === 'upi' ? currentUpi : editingEntry.upiId,
+                                  format: preset.codeType === 'qr_code' ? 'qr' : 'code128',
+                                });
+                              }}
+                              style={{
+                                backgroundColor: isSel ? (theme.isDark ? '#1E293B' : '#EFF6FF') : theme.cardBg,
+                                borderColor: isSel ? '#2563EB' : theme.borderColor,
+                                borderWidth: isSel ? 2 : 1,
+                                borderRadius: 10,
+                                padding: 12,
+                              }}
+                            >
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: isSel ? '#2563EB' : theme.textPrimary }}>
+                                {preset.title}
+                              </Text>
+                              <Text style={{ fontSize: 12, color: isSel ? (theme.isDark ? '#93C5FD' : '#1E40AF') : theme.textSecondary, marginTop: 3 }}>
+                                {preset.sub}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      {/* Dedicated UPI ID Configuration Box */}
+                      {isUpi && (
+                        <View style={{ marginTop: 4, padding: 14, backgroundColor: theme.isDark ? '#064E3B20' : '#ECFDF5', borderRadius: 10, borderWidth: 1, borderColor: '#A7F3D0' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <CreditCard size={16} color="#059669" />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>Store UPI ID / VPA (To Receive Payments):</Text>
+                          </View>
+
+                          <TextInput
+                            style={[styles.input, { color: theme.textPrimary, borderColor: '#6EE7B7', backgroundColor: theme.cardBg, fontWeight: '700' }]}
+                            value={editingEntry.upiId !== undefined ? editingEntry.upiId : (settings?.upiId || '')}
+                            onChangeText={(v) =>
                               setEditingEntry({
                                 ...editingEntry,
-                                value: preset.val,
-                                codeType: preset.codeType,
-                                format: preset.codeType === 'qr_code' ? 'qr' : 'code128',
+                                upiId: v,
+                                value: '{{upi_qr}}',
+                                qrType: 'upi',
                               })
                             }
-                            style={{
-                              backgroundColor: isSel ? (theme.isDark ? '#1E293B' : '#EFF6FF') : theme.cardBg,
-                              borderColor: isSel ? '#2563EB' : theme.borderColor,
-                              borderWidth: isSel ? 2 : 1,
-                              borderRadius: 10,
-                              padding: 12,
-                            }}
-                          >
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: isSel ? '#2563EB' : theme.textPrimary }}>
-                              {preset.title}
-                            </Text>
-                            <Text style={{ fontSize: 12, color: isSel ? (theme.isDark ? '#93C5FD' : '#1E40AF') : theme.textSecondary, marginTop: 3 }}>
-                              {preset.sub}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                            placeholder="e.g. yourstore@okaxis, 9876543210@paytm, store@upi"
+                            placeholderTextColor="#94A3B8"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                          />
 
-                    {/* Custom text input */}
-                    {!editingEntry.value.includes('{{bill_pdf_url}}') && !editingEntry.value.includes('{{upi_qr}}') && !editingEntry.value.includes('{{invoice_no}}') && (
-                      <View style={{ marginTop: 6 }}>
-                        <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Custom Link or Code Value:</Text>
-                        <TextInput
-                          style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                          value={editingEntry.value}
-                          onChangeText={(v) => setEditingEntry({ ...editingEntry, value: v })}
-                          placeholder="e.g. https://yourstore.com/review"
-                          placeholderTextColor="#94A3B8"
-                        />
+                          <Text style={{ fontSize: 11, color: '#047857', marginTop: 8, lineHeight: 16 }}>
+                            Instant Auto-Pay: When customers scan this QR code with PhonePe, Google Pay, Paytm, or BHIM, their app automatically opens with your UPI ID and prompts them to pay the exact live bill amount (e.g. ₹{samplePrintData.grandTotal?.toFixed(2) || '1,080.50'}).
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Custom text input */}
+                      {isCustom && (
+                        <View style={{ marginTop: 4 }}>
+                          <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Custom Link or Code Value:</Text>
+                          <TextInput
+                            style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                            value={editingEntry.value}
+                            onChangeText={(v) => setEditingEntry({ ...editingEntry, value: v, qrType: 'custom' })}
+                            placeholder="e.g. https://yourstore.com/review"
+                            placeholderTextColor="#94A3B8"
+                          />
+                        </View>
+                      )}
+
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>QR / Barcode Size:</Text>
+                      <View style={styles.optionsRow}>
+                        {[
+                          { id: 'small', label: 'Small' },
+                          { id: 'medium', label: 'Standard' },
+                          { id: 'large', label: 'Large' },
+                        ].map((sz) => {
+                          const isSel = (editingEntry.size || 'medium') === sz.id;
+                          return (
+                            <TouchableOpacity
+                              key={sz.id}
+                              onPress={() => setEditingEntry({ ...editingEntry, size: sz.id as any })}
+                              style={[
+                                styles.optionChip,
+                                {
+                                  backgroundColor: isSel ? '#2563EB' : theme.cardBg,
+                                  borderColor: isSel ? '#2563EB' : theme.borderColor,
+                                },
+                              ]}
+                            >
+                              <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600' }}>
+                                {sz.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                    )}
-                  </View>
-                )}
+
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Alignment:</Text>
+                      <View style={styles.optionsRow}>
+                        {(['left', 'center', 'right'] as const).map((al) => {
+                          const isSel = (editingEntry.align || 'center') === al;
+                          return (
+                            <TouchableOpacity
+                              key={al}
+                              onPress={() => setEditingEntry({ ...editingEntry, align: al })}
+                              style={[
+                                styles.optionChip,
+                                {
+                                  backgroundColor: isSel ? '#2563EB' : theme.cardBg,
+                                  borderColor: isSel ? '#2563EB' : theme.borderColor,
+                                },
+                              ]}
+                            >
+                              <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600', textTransform: 'capitalize' }}>
+                                {al}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })()}
 
                 {/* 6. TWO-COLUMN ROW (LEFT-RIGHT) */}
                 {editingEntry.type === 'left_right_text' && (
@@ -1772,8 +1878,8 @@ export default function ReceiptEditorScreen() {
                   <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>Save Changes</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
 
@@ -1814,6 +1920,7 @@ export default function ReceiptEditorScreen() {
                 amountPaid={samplePrintData.amountPaid}
                 changeReturned={samplePrintData.changeReturned}
                 paymentMethod={samplePrintData.paymentMethod}
+                upiId={settings?.upiId || 'store@upi'}
                 paperWidth={template.paperWidth || '58mm'}
               />
             </ScrollView>
@@ -2083,6 +2190,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 28,
     paddingTop: 12,
+    maxHeight: '80%',
+    zIndex: 10,
   },
   sheetHandle: {
     width: 40,
@@ -2118,15 +2227,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-  configOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
-  configContainer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '85%',
+  modalCard: {
+    width: '100%',
+    height: '85%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  sheetModalCard: {
+    width: '100%',
+    maxHeight: '75%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
   },
   configHeader: {
     flexDirection: 'row',

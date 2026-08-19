@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, Platform } from 'react-native';
 import QRCodeSVG from 'react-native-qrcode-svg';
 import { Image as ImageIcon } from 'lucide-react-native';
 import { CustomReceiptTemplate, CustomReceiptEntry } from '@/types/customReceipt';
-import { buildBillPdfUrl } from '@/utils/billQrService';
+import { buildBillPdfUrl, buildUpiPayString } from '@/utils/billQrService';
 
 interface CustomReceiptMockupProps {
   template: CustomReceiptTemplate;
@@ -24,6 +24,7 @@ interface CustomReceiptMockupProps {
   amountPaid?: number;
   changeReturned?: number;
   paymentMethod?: string;
+  upiId?: string;
   paperWidth?: '58mm' | '80mm';
 }
 
@@ -52,6 +53,7 @@ export function CustomReceiptMockup({
   amountPaid = 1100,
   changeReturned = 19.5,
   paymentMethod = 'UPI',
+  upiId = 'store@upi',
   paperWidth,
 }: CustomReceiptMockupProps) {
   const activePaperWidth = paperWidth || template.paperWidth || '58mm';
@@ -59,7 +61,7 @@ export function CustomReceiptMockup({
   const paperMaxWidth = is80mm ? 360 : 280;
 
   const sampleBillPdfUrl = buildBillPdfUrl({ invoiceNumber: invoiceNumber || 'INV-2026-0042' });
-  const sampleUpiStr = `upi://pay?pa=store@upi&pn=${encodeURIComponent(storeName || 'Store')}&am=${grandTotal.toFixed(2)}&cu=INR`;
+  const sampleUpiStr = buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber);
 
   const replaceVars = (str?: string): string => {
     if (!str) return '';
@@ -218,11 +220,12 @@ export function CustomReceiptMockup({
       case 'barcode': {
         const isQr = entry.codeType === 'qr_code' || entry.format === 'qr';
         let rawVal = replaceVars(entry.value);
-        if (!rawVal || rawVal === '{{bill_pdf_url}}') {
+        if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
+          const merchantUpi = entry.upiId || upiId || 'store@upi';
+          rawVal = buildUpiPayString(merchantUpi, storeName || 'Store', grandTotal, invoiceNumber);
+        } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
           rawVal = sampleBillPdfUrl;
-        } else if (rawVal === '{{upi_qr}}') {
-          rawVal = sampleUpiStr;
-        } else if (rawVal === '{{invoice_no}}') {
+        } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
           rawVal = invoiceNumber || 'INV-2026-0042';
         }
 

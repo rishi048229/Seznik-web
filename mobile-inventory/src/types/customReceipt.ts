@@ -52,10 +52,12 @@ export interface BarcodeReceiptEntry extends BaseReceiptEntry {
   type: 'barcode';
   codeType: 'barcode_1d' | 'qr_code';
   format: 'code128' | 'ean13' | 'qr';
-  value: string; // e.g. '{{invoice_no}}' or '{{bill_pdf_url}}' or custom value
+  value: string; // e.g. '{{invoice_no}}' or '{{bill_pdf_url}}' or '{{upi_qr}}' or custom value
   align: 'left' | 'center' | 'right';
   size: 'small' | 'medium' | 'large';
   showText?: boolean;
+  qrType?: 'upi' | 'digital_bill' | 'invoice_barcode' | 'custom';
+  upiId?: string; // Merchant VPA e.g. "store@okaxis" or "9876543210@paytm"
 }
 
 export interface LeftRightTextReceiptEntry extends BaseReceiptEntry {
