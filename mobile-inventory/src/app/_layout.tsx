@@ -30,6 +30,8 @@ const queryClient = new QueryClient({
   },
 });
 
+import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
@@ -51,15 +53,11 @@ function RootLayoutNav() {
       router.replace('/');
     }
 
-    SplashScreen.hideAsync();
+    SplashScreen.hideAsync().catch(() => {});
   }, [isLoading, isAuthenticated, segments]);
 
   if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <ActivityIndicator size="large" color="#0284C7" />
-      </View>
-    );
+    return <AppSplashScreen />;
   }
 
   return (
@@ -73,6 +71,7 @@ function RootLayoutNav() {
         }}
       >
         <Stack.Screen name="(auth)/login" />
+        <Stack.Screen name="(auth)/register" />
         <Stack.Screen name="(auth)/forgot-password" />
         <Stack.Screen name="index" />
       </Stack>

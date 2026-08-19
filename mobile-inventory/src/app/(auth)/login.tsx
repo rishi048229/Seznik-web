@@ -8,16 +8,38 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
+  StatusBar,
+  StyleSheet,
   Alert,
+  Modal,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Lock, Mail, Server, ShieldCheck } from 'lucide-react-native';
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  Server,
+  ShieldCheck,
+  ArrowRight,
+  Globe,
+  Check,
+  X,
+  Zap,
+} from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { BRAND_COLORS } from '@/constants/theme';
+import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { getApiBaseUrl, setApiBaseUrl } from '@/api/client';
+import { useTranslation } from '@/store/useLanguageStore';
+import { SUPPORTED_LANGUAGES } from '@/constants/translations';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
@@ -28,11 +50,20 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginScreen() {
   const router = useRouter();
+  const theme = useAppTheme();
+  const { t, currentLanguage, setLanguage } = useTranslation();
   const { login, isLoggingIn } = useAuth();
+
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showApiConfig, setShowApiConfig] = useState(false);
+  const [showLangModal, setShowLangModal] = useState(false);
   const [baseUrlInput, setBaseUrlInput] = useState(getApiBaseUrl());
+
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentLanguage) || SUPPORTED_LANGUAGES[0];
 
   const {
     control,
@@ -50,7 +81,6 @@ export default function LoginScreen() {
     setApiError(null);
     try {
       await login(data);
-      // Auth state change in useAuthStore will trigger root layout redirect
     } catch (err: any) {
       const msg = err?.message || 'Login failed. Please check your credentials.';
       setApiError(msg);
@@ -66,176 +96,593 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-          className="px-6 py-8"
-          keyboardShouldPersistTaps="handled"
+    <ScreenBackground color={theme.bg}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <StatusBar
+          barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={theme.bg}
+        />
+
+        {/* Top Bar with Language Selector */}
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity
+            onPress={() => setShowLangModal(true)}
+            style={[
+              styles.langPill,
+              { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+            ]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.75}
+          >
+            <Globe size={14} color={BRAND_COLORS.blue600} />
+            <Text style={[styles.langPillText, { color: theme.textPrimary }]}>
+              {currentLangObj.nativeName}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
         >
-          {/* Header & Branding */}
-          <View className="items-center mb-8">
-            <View className="w-16 h-16 rounded-2xl bg-blue-600 items-center justify-center shadow-lg shadow-blue-500/30 mb-4">
-              <ShieldCheck size={36} color="#FFFFFF" />
-            </View>
-            <Text className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Seznik <Text className="text-sky-500">POS</Text>
-            </Text>
-            <Text className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Mobile Companion & Checkout
-            </Text>
-          </View>
-
-          {/* Form Card */}
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-800">
-            <Text className="text-xl font-bold text-slate-900 dark:text-white mb-6">
-              Welcome back
-            </Text>
-
-            {/* Error Message */}
-            {apiError ? (
-              <View className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/80 rounded-xl p-3.5 mb-5">
-                <Text className="text-red-700 dark:text-red-300 text-xs font-medium">
-                  {apiError}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* Email Field */}
-            <View className="mb-4">
-              <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                Email Address
-              </Text>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <View className="flex-row items-center border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 px-3.5 py-3">
-                    <Mail size={18} color="#64748B" />
-                    <TextInput
-                      className="flex-1 ml-3 text-slate-900 dark:text-white text-base"
-                      placeholder="store@seznik.com"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      onBlur={onBlur}
-                      onChangeText={onChange}
-                      value={value}
-                    />
-                  </View>
-                )}
-              />
-              {errors.email ? (
-                <Text className="text-red-500 text-xs mt-1 font-medium">
-                  {errors.email.message}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Password Field */}
-            <View className="mb-6">
-              <View className="flex-row justify-between items-center mb-1.5">
-                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Password
-                </Text>
-                <TouchableOpacity
-                  onPress={() => router.push('/(auth)/forgot-password' as any)}
-                >
-                  <Text className="text-xs text-sky-600 dark:text-sky-400 font-semibold">
-                    Forgot?
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <Controller
-                control={control}
-                name="password"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <View className="flex-row items-center border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 px-3.5 py-3">
-                    <Lock size={18} color="#64748B" />
-                    <TextInput
-                      className="flex-1 ml-3 text-slate-900 dark:text-white text-base"
-                      placeholder="••••••••"
-                      placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      onBlur={onBlur}
-                      onChangeText={onChange}
-                      value={value}
-                    />
-                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                      {showPassword ? (
-                        <EyeOff size={18} color="#64748B" />
-                      ) : (
-                        <Eye size={18} color="#64748B" />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
-              />
-              {errors.password ? (
-                <Text className="text-red-500 text-xs mt-1 font-medium">
-                  {errors.password.message}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Submit Button */}
-            <TouchableOpacity
-              className={`rounded-xl py-3.5 flex-row justify-center items-center ${
-                isLoggingIn ? 'bg-blue-400' : 'bg-blue-600 active:bg-blue-700'
-              }`}
-              onPress={handleSubmit(onSubmit)}
-              disabled={isLoggingIn}
-            >
-              {isLoggingIn ? (
-                <ActivityIndicator color="#FFFFFF" className="mr-2" />
-              ) : null}
-              <Text className="text-white font-semibold text-base">
-                {isLoggingIn ? 'Signing in...' : 'Sign In'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Dev API Server Config Toggle */}
-          <View className="mt-8 items-center">
-            <TouchableOpacity
-              onPress={() => setShowApiConfig(!showApiConfig)}
-              className="flex-row items-center space-x-1 py-2 px-3"
-            >
-              <Server size={14} color="#64748B" />
-              <Text className="text-xs text-slate-500 dark:text-slate-400 ml-1.5 font-medium">
-                Server API URL: {getApiBaseUrl()}
-              </Text>
-            </TouchableOpacity>
-
-            {showApiConfig ? (
-              <View className="w-full mt-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Configure Dev API Base URL
-                </Text>
-                <TextInput
-                  className="border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 mb-3"
-                  value={baseUrlInput}
-                  onChangeText={setBaseUrlInput}
-                  placeholder="e.g. http://192.168.0.11:5001/api"
-                  placeholderTextColor="#94A3B8"
-                  autoCapitalize="none"
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Brand Header */}
+            <View style={styles.header}>
+              <View style={[styles.iconContainer, { backgroundColor: BRAND_COLORS.navyInk }]}>
+                <Image
+                  source={require('../../../assets/images/seznik_white_logo.png')}
+                  style={{ width: 44, height: 44 }}
+                  resizeMode="contain"
                 />
-                <TouchableOpacity
-                  onPress={handleSaveApiUrl}
-                  className="bg-slate-800 dark:bg-slate-700 rounded-lg py-2 items-center"
-                >
-                  <Text className="text-white text-xs font-semibold">Save Base URL</Text>
+              </View>
+              <Text style={[styles.brandTitle, { color: theme.textPrimary }]}>
+                Seznik <Text style={{ color: BRAND_COLORS.blue600 }}>POS</Text>
+              </Text>
+              <Text style={[styles.brandSubtitle, { color: theme.textSecondary }]}>
+                {t('mobileCompanion', 'Cloud Billing & Retail Management')}
+              </Text>
+            </View>
+
+            {/* Login Card */}
+            <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.cardHeading, { color: theme.textPrimary }]}>
+                {t('welcomeBack', 'Welcome Back')}
+              </Text>
+              <Text style={[styles.cardSubheading, { color: theme.textSecondary }]}>
+                {t('signInToContinue', 'Sign in to access your store')}
+              </Text>
+
+              {/* Error Message */}
+              {apiError ? (
+                <View style={[styles.errorBox, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)' }]}>
+                  <Text style={styles.errorText}>{apiError}</Text>
+                </View>
+              ) : null}
+
+              {/* Email Field */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>
+                  {t('emailAddress', 'Email Address')}
+                </Text>
+                <Controller
+                  control={control}
+                  name="email"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        {
+                          backgroundColor: theme.bg,
+                          borderColor: emailFocused ? BRAND_COLORS.blue600 : theme.borderColor,
+                          borderWidth: emailFocused ? 1.5 : 1,
+                        },
+                      ]}
+                    >
+                      <Mail size={18} color={emailFocused ? BRAND_COLORS.blue600 : theme.textSecondary} style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="store@seznik.com"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        onFocus={() => setEmailFocused(true)}
+                        onBlur={() => {
+                          setEmailFocused(false);
+                          onBlur();
+                        }}
+                        onChangeText={(val) => {
+                          onChange(val);
+                          if (apiError) setApiError(null);
+                        }}
+                        value={value}
+                      />
+                    </View>
+                  )}
+                />
+                {errors.email ? (
+                  <Text style={styles.fieldError}>{errors.email.message}</Text>
+                ) : null}
+              </View>
+
+              {/* Password Field */}
+              <View style={styles.inputGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.label, { color: theme.textPrimary }]}>
+                    {t('password', 'Password')}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(auth)/forgot-password' as any)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.forgotPasswordText}>
+                      {t('forgotPasswordPrompt', 'Forgot Password?')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Controller
+                  control={control}
+                  name="password"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        {
+                          backgroundColor: theme.bg,
+                          borderColor: passwordFocused ? BRAND_COLORS.blue600 : theme.borderColor,
+                          borderWidth: passwordFocused ? 1.5 : 1,
+                        },
+                      ]}
+                    >
+                      <Lock size={18} color={passwordFocused ? BRAND_COLORS.blue600 : theme.textSecondary} style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="••••••••"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        onFocus={() => setPasswordFocused(true)}
+                        onBlur={() => {
+                          setPasswordFocused(false);
+                          onBlur();
+                        }}
+                        onChangeText={(val) => {
+                          onChange(val);
+                          if (apiError) setApiError(null);
+                        }}
+                        value={value}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowPassword(!showPassword)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{ padding: 4 }}
+                      >
+                        {showPassword ? (
+                          <EyeOff size={18} color={theme.textSecondary} />
+                        ) : (
+                          <Eye size={18} color={theme.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                />
+                {errors.password ? (
+                  <Text style={styles.fieldError}>{errors.password.message}</Text>
+                ) : null}
+              </View>
+
+              {/* Submit Button */}
+              <TouchableOpacity
+                onPress={handleSubmit(onSubmit)}
+                disabled={isLoggingIn}
+                style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }, isLoggingIn && { opacity: 0.7 }]}
+                activeOpacity={0.85}
+              >
+                {isLoggingIn ? (
+                  <ActivityIndicator color="#FFFFFF" style={{ marginRight: 8 }} />
+                ) : (
+                  <ArrowRight size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                )}
+                <Text style={styles.primaryButtonText}>
+                  {isLoggingIn ? t('signingIn', 'Signing In...') : t('signIn', 'Sign In')}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Dev Bypass Login Button */}
+              <TouchableOpacity
+                onPress={async () => {
+                  const { setAuth } = useAuthStore.getState();
+                  await setAuth('dev-token-bypass', {
+                    id: 'ce3d6fd8-ef6c-4b82-b5dd-77e1ae664305',
+                    email: 'ykapse07@gmail.com',
+                    displayName: 'yash kapse (Dev)',
+                    role: 'admin',
+                    onboardingCompleted: true,
+                    accountType: 'user',
+                  });
+                  router.replace('/');
+                }}
+                style={styles.bypassButton}
+                activeOpacity={0.8}
+              >
+                <Zap size={15} color="#D97706" style={{ marginRight: 6 }} />
+                <Text style={styles.bypassButtonText}>
+                  Bypass Login (Development Only)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Bottom Register Prompt */}
+            <View style={styles.registerPromptRow}>
+              <Text style={[styles.registerPromptText, { color: theme.textSecondary }]}>
+                {t('dontHaveAccount', "Don't have an account?")}
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push('/(auth)/register' as any)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.registerPromptLink}>
+                  {t('createAccount', 'Create Account')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Developer Server Setting Link */}
+            <View style={styles.devBoxContainer}>
+              <TouchableOpacity
+                onPress={() => setShowApiConfig(!showApiConfig)}
+                style={styles.devToggle}
+              >
+                <Server size={12} color={theme.textSecondary} />
+                <Text style={[styles.devToggleText, { color: theme.textSecondary }]}>
+                  API: {getApiBaseUrl()}
+                </Text>
+              </TouchableOpacity>
+
+              {showApiConfig ? (
+                <View style={[styles.devCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.devCardTitle, { color: theme.textPrimary }]}>
+                    Server API Base URL
+                  </Text>
+                  <TextInput
+                    style={[styles.devInput, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                    value={baseUrlInput}
+                    onChangeText={setBaseUrlInput}
+                    placeholder="http://192.168.0.11:5001/api"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    onPress={handleSaveApiUrl}
+                    style={styles.devSaveBtn}
+                  >
+                    <Text style={styles.devSaveBtnText}>Save URL</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        {/* Language Modal */}
+        <Modal
+          visible={showLangModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowLangModal(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={styles.modalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Globe size={18} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                    {t('selectLanguage', 'Select Language')}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowLangModal(false)}>
+                  <X size={20} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
-            ) : null}
+
+              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                {SUPPORTED_LANGUAGES.map((l) => {
+                  const isSelected = l.code === currentLanguage;
+                  return (
+                    <TouchableOpacity
+                      key={l.code}
+                      onPress={() => {
+                        setLanguage(l.code);
+                        setShowLangModal(false);
+                      }}
+                      style={[
+                        styles.langRow,
+                        { borderColor: isSelected ? BRAND_COLORS.blue600 : theme.borderColor },
+                        isSelected && { backgroundColor: 'rgba(37, 99, 235, 0.08)' },
+                      ]}
+                    >
+                      <View>
+                        <Text style={[styles.langNative, { color: theme.textPrimary }, isSelected && { color: BRAND_COLORS.blue600, fontWeight: '800' }]}>
+                          {l.nativeName}
+                        </Text>
+                        <Text style={[styles.langEnglish, { color: theme.textSecondary }]}>
+                          {l.name}
+                        </Text>
+                      </View>
+                      {isSelected ? <Check size={18} color={BRAND_COLORS.blue600} /> : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </ScreenBackground>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  langPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+  },
+  langPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+    justifyContent: 'center',
+    flexGrow: 1,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  iconContainer: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    shadowColor: BRAND_COLORS.navyInk,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  brandTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  brandSubtitle: {
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  card: {
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  cardHeading: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  cardSubheading: {
+    fontSize: 12,
+    marginTop: 3,
+    marginBottom: 18,
+  },
+  errorBox: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  forgotPasswordText: {
+    color: BRAND_COLORS.blue600,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 52,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+  },
+  fieldError: {
+    color: '#EF4444',
+    fontSize: 11,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    borderRadius: 14,
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  bypassButton: {
+    marginTop: 12,
+    borderRadius: 14,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bypassButtonText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  registerPromptRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+  },
+  registerPromptText: {
+    fontSize: 13,
+  },
+  registerPromptLink: {
+    color: BRAND_COLORS.blue600,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  devBoxContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  devToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  devToggleText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  devCard: {
+    width: '100%',
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  devCardTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  devInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 8,
+    fontSize: 11,
+    marginBottom: 8,
+  },
+  devSaveBtn: {
+    backgroundColor: BRAND_COLORS.navyInk,
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  devSaveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.15)',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  langRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  langNative: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  langEnglish: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+});
