@@ -11,11 +11,13 @@ import {
   Platform,
 } from 'react-native';
 import { X, Printer, ExternalLink, FileText, CheckCircle2, Share2 } from 'lucide-react-native';
-import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
+import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
+import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
+import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 
@@ -30,15 +32,43 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   saleData,
   onClose,
 }) => {
-  const { activeDevice, connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies, activeTemplateId } = usePrinterStore();
+  const {
+    activeDevice,
+    connectionState,
+    paperWidth,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
+  } = usePrinterStore();
   const [isPrinting, setIsPrinting] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const theme = useAppTheme();
 
   if (!saleData) return null;
 
+  const activeCustomTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
   const template = getTemplateById(activeTemplateId);
-  const printOptions = { template, topMargin, autoCut, fontSize, copies: printCopies };
+
+  const printOptions: ReceiptPrintOptions = {
+    template,
+    customTemplate: activeCustomTemplate,
+    includeBillQr: enableBillQrCode,
+    topMargin,
+    autoCut,
+    fontSize,
+    copies: printCopies,
+    storeName: saleData.storeName,
+    storeAddress: saleData.storeAddress,
+    storePhone: saleData.storePhone,
+    storeGstin: saleData.storeGstin,
+    storeLogoUrl: saleData.storeLogoUrl,
+    upiId: saleData.upiId,
+  };
 
   const handlePrintThermal = async () => {
     if (!activeDevice || connectionState !== 'connected') {
@@ -72,7 +102,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     }
   };
 
-  const formattedText = ThermalPrinterService.formatReceiptText(saleData, paperWidth, printOptions);
+  const activeTemplateName = activeCustomTemplate ? activeCustomTemplate.name : template.name;
 
   return (
     <>
@@ -86,7 +116,14 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           <View style={styles.headerRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
               <FileText size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>Thermal Receipt Preview</Text>
+              <View>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                  Thermal Receipt Preview
+                </Text>
+                <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600' }} numberOfLines={1}>
+                  Using template: {activeTemplateName}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity
               onPress={onClose}
@@ -113,12 +150,42 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           {/* Thermal Paper Scroll Container */}
           <ScrollView
             style={styles.paperScrollView}
-            contentContainerStyle={{ paddingVertical: 12 }}
+            contentContainerStyle={{ paddingVertical: 12, alignItems: 'center' }}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.paperReceiptCard}>
-              <Text style={styles.receiptMonoText}>{formattedText}</Text>
-            </View>
+            {activeCustomTemplate ? (
+              <CustomReceiptMockup
+                template={activeCustomTemplate}
+                storeName={saleData.storeName || 'Your Store Name'}
+                storeAddress={saleData.storeAddress || ''}
+                storePhone={saleData.storePhone || ''}
+                storeGstin={saleData.storeGstin || ''}
+                invoiceNumber={saleData.invoiceNumber}
+                date={saleData.date}
+                customerName={saleData.customerName || 'Walk-in Customer'}
+                items={saleData.items}
+                subtotal={saleData.subtotal}
+                totalDiscount={saleData.totalDiscount}
+                totalTax={saleData.totalTax}
+                grandTotal={saleData.grandTotal}
+                paperWidth={paperWidth}
+                upiId={saleData.upiId || ''}
+              />
+            ) : (
+              <ReceiptTemplateMockup
+                template={template}
+                storeName={saleData.storeName || 'Your Store Name'}
+                storeAddress={saleData.storeAddress || ''}
+                storePhone={saleData.storePhone || ''}
+                invoiceNumber={saleData.invoiceNumber}
+                date={saleData.date}
+                customerName={saleData.customerName || 'Walk-in Customer'}
+                items={saleData.items}
+                subtotal={saleData.subtotal}
+                totalTax={saleData.totalTax}
+                grandTotal={saleData.grandTotal}
+              />
+            )}
           </ScrollView>
 
           {/* Action Row */}
