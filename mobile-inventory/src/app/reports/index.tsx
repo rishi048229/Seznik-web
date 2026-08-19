@@ -220,16 +220,30 @@ export default function ReportsScreen() {
                   <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Performance Trend</Text>
                   <Text style={styles.chartTag}>Live Analytics</Text>
                 </View>
-                <View style={styles.chartBox}>
-                  {[40, 65, 80, 50, 95, 70, 85].map((val, idx) => (
-                    <View key={idx} style={styles.chartCol}>
-                      <View style={[styles.chartBar, { height: `${val}%`, backgroundColor: idx === 4 ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk }]} />
-                      <Text style={[styles.chartLabel, { color: theme.textSecondary }]}>
-                        {['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7'][idx]}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+                {data.salesRevenue.length === 0 || data.salesRevenue.every((v: number) => v === 0) ? (
+                  <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 12, color: theme.textSecondary }}>No sales in this period</Text>
+                  </View>
+                ) : (
+                  <View style={styles.chartBox}>
+                    {(() => {
+                      const maxVal = Math.max(1, ...data.salesRevenue);
+                      return data.salesRevenue.slice(-7).map((val: number, idx: number) => {
+                        const heightPct = Math.max(8, Math.round((val / maxVal) * 100));
+                        const label = (data.salesLabels || []).slice(-7)[idx] || `D${idx + 1}`;
+                        const isLast = idx === Math.min(6, data.salesRevenue.length - 1);
+                        return (
+                          <View key={idx} style={styles.chartCol}>
+                            <View style={[styles.chartBar, { height: `${heightPct}%`, backgroundColor: isLast ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk }]} />
+                            <Text style={[styles.chartLabel, { color: theme.textSecondary }]} numberOfLines={1}>
+                              {label}
+                            </Text>
+                          </View>
+                        );
+                      });
+                    })()}
+                  </View>
+                )}
               </View>
 
               {/* Itemized P&L / Tax Breakdown List */}

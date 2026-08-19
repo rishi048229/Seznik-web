@@ -126,13 +126,10 @@ export const reportsApi = {
     return fetchApi<TaxReportData>(`/reports/tax?${params.toString()}`);
   },
 
-  /** period: 'daily' (days, default 7) | 'weekly' (weeks, default 8) | 'monthly' (months, default 6) */
+  /** period: 'daily' (days, default 7) | 'weekly' (default 28 days) | 'monthly' (default 90 days) */
   getRevenueTrend: async (period: 'daily' | 'weekly' | 'monthly' = 'daily', span?: number): Promise<RevenueTrendData> => {
-    const params = new URLSearchParams({ period });
-    if (span) {
-      const key = period === 'weekly' ? 'weeks' : period === 'monthly' ? 'months' : 'days';
-      params.append(key, String(span));
-    }
+    const daysCount = period === 'monthly' ? (span ? span * 30 : 90) : period === 'weekly' ? (span ? span * 7 : 28) : (span || 7);
+    const params = new URLSearchParams({ period, days: String(daysCount) });
     return fetchApi<RevenueTrendData>(`/reports/trend?${params.toString()}`);
   },
 

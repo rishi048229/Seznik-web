@@ -1,28 +1,63 @@
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi } from '@/api/reports';
 
-export function useReports(period?: string, start?: string, end?: string) {
+export function useReports(period: 'today' | '7days' | '30days' | 'year' = '30days', customStart?: string, customEnd?: string) {
+  // Compute start/end dates
+  const now = new Date();
+  let startDate: string | undefined = customStart;
+  let endDate: string | undefined = customEnd || now.toISOString();
+
+  if (!customStart) {
+    if (period === 'today') {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      startDate = d.toISOString();
+    } else if (period === '7days') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      startDate = d.toISOString();
+    } else if (period === '30days') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      startDate = d.toISOString();
+    } else if (period === 'year') {
+      const d = new Date(now.getFullYear(), 0, 1);
+      startDate = d.toISOString();
+    }
+  }
+
   const salesReportQuery = useQuery({
-    queryKey: ['reports', 'sales', period, start, end],
-    queryFn: () => reportsApi.getSalesReport(start, end),
+    queryKey: ['reports', 'sales', period, startDate, endDate],
+    queryFn: () => reportsApi.getSalesReport(startDate, endDate),
+    staleTime: 1000 * 60 * 5,
   });
 
   const plReportQuery = useQuery({
-    queryKey: ['reports', 'pl', period, start, end],
-    queryFn: () => reportsApi.getPLReport(start, end),
+    queryKey: ['reports', 'pl', period, startDate, endDate],
+    queryFn: () => reportsApi.getPLReport(startDate, endDate),
+    staleTime: 1000 * 60 * 5,
   });
 
   const taxReportQuery = useQuery({
-    queryKey: ['reports', 'tax', period, start, end],
-    queryFn: () => reportsApi.getTaxReport(start, end),
+    queryKey: ['reports', 'tax', period, startDate, endDate],
+    queryFn: () => reportsApi.getTaxReport(startDate, endDate),
+    staleTime: 1000 * 60 * 5,
   });
 
+  const totalSales = (salesReportQuery.data?.revenue || []).reduce((sum, val) => sum + val, 0);
+  const totalInvoices = (salesReportQuery.data?.invoiceCount || []).reduce((sum, val) => sum + val, 0);
+  const grossProfit = plReportQuery.data?.netProfit ?? 0;
+  const totalTax = taxReportQuery.data?.totalOutputTax ?? 0;
+  const totalExpenses = plReportQuery.data?.totalExpenses ?? 0;
+
   const data = {
-    totalSales: (salesReportQuery.data as any)?.totalSales || 45800,
-    grossProfit: (plReportQuery.data as any)?.grossProfit || 14200,
-    totalTax: (taxReportQuery.data as any)?.totalTax || 5400,
-    invoiceCount: (salesReportQuery.data as any)?.invoiceCount || 128,
-    totalExpenses: (plReportQuery.data as any)?.totalExpenses || 3400,
+    totalSales,
+    grossProfit,
+    totalTax,
+    invoiceCount: totalInvoices,
+    totalExpenses,
+    salesLabels: salesReportQuery.data?.labels || [],
+    salesRevenue: salesReportQuery.data?.revenue || [],
   };
 
   return {
