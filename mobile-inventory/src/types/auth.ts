@@ -5,6 +5,7 @@ export interface UserPermissions {
   canAccessExpenses?: boolean;
   canAccessReports?: boolean;
   canManageUsers?: boolean;
+  canAccessKOT?: boolean;
   [key: string]: boolean | undefined;
 }
 

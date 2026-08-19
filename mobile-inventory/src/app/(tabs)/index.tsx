@@ -59,6 +59,7 @@ import {
   LayoutGrid,
   MessageSquarePlus,
   Trash2,
+  ChefHat,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -88,7 +89,7 @@ import { matchProductByCode } from '@/utils/productBarcodeMatch';
 export default function DashboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { settings } = useSettings();
   const { t, currentLanguage } = useTranslation();
   const {
@@ -532,6 +533,16 @@ export default function DashboardScreen() {
                 {/* Hidden tools revealed on Show More */}
                 {showMoreTools && (
                   <>
+                    {hasPermission('canAccessKOT') && (
+                      <FeatureGridTile
+                        label={t('kotOrders', 'KOT Orders')}
+                        badge="NEW"
+                        icon={ChefHat}
+                        color="#F97316"
+                        onPress={() => router.push('/kot' as any)}
+                        theme={theme}
+                      />
+                    )}
                     <FeatureGridTile
                       label={t('reports', 'Reports')}
                       icon={BarChart3}

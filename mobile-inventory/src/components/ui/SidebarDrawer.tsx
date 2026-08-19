@@ -29,6 +29,9 @@ import {
   ChevronRight,
   ShieldCheck,
   Star,
+  ChefHat,
+  PlusCircle,
+  LayoutGrid,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,7 +52,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const pathname = usePathname();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
 
   const theme = isDark
@@ -83,6 +86,18 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         { id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' },
       ],
     },
+    ...(hasPermission('canAccessKOT')
+      ? [
+          {
+            title: t('kotRestaurantOrders', 'KOT & RESTAURANT ORDERS'),
+            items: [
+              { id: 'kot-orders', label: t('ordersBoard', 'Orders Board'), icon: ChefHat, route: '/kot' },
+              { id: 'kot-new', label: t('newKotOrder', 'New Order'), icon: PlusCircle, route: '/kot/new' },
+              { id: 'kot-tables', label: t('restaurantTables', 'Tables'), icon: LayoutGrid, route: '/kot/tables' },
+            ],
+          },
+        ]
+      : []),
     {
       title: t('inventoryCatalog', 'INVENTORY & CATALOG'),
       items: [

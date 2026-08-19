@@ -105,7 +105,11 @@
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
       "Bash(npm run *)",
       "Bash(echo \"FRONTEND_EXIT:$?\")",
-      "Bash(echo \"BACKEND_EXIT:$?\")"
+      "Bash(echo \"BACKEND_EXIT:$?\")",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId, CommandLine | Where-Object { $_.CommandLine -match 'backend|tsx|ts-node|server' })",
+      "PowerShell(Stop-Process -Id 62076,61676 -Force -ErrorAction SilentlyContinue)",
+      "Bash(curl -s localhost:5001/health)"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

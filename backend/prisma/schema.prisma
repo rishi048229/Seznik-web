@@ -38,6 +38,11 @@ model User {
   feedbacks           Feedback[]
   tokenTypes          TokenType[]
   tokens              Token[]
+  creditReminders     CreditReminder[]
+  dayCloses           DayClose[]
+  restaurantTables    RestaurantTable[]
+  kotOrders           KOTOrder[]
+  kotOrderItems       KOTOrderItem[]
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -104,6 +109,10 @@ model Settings {
   notificationConfig Json?
   receiptConfig      Json?
   printerConfig      Json?
+  // Pre-existing columns not previously tracked in this file (restored from live DB
+  // introspection so `db push` stays additive-only and never proposes dropping real data).
+  upiId              String?
+  labelConfig        Json?
   userId             String   @unique
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt          DateTime @default(now())
@@ -118,10 +127,15 @@ model Customer {
   address       String?
   creditBalance Float    @default(0)
   creditLimit   Float    @default(0)
+  // Pre-existing column not previously tracked in this file (restored from live DB
+  // introspection so `db push` stays additive-only and never proposes dropping real data).
+  oldestUnpaidSince DateTime?
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   sales         Sale[]
   creditTransactions CreditTransaction[]
+  creditReminders CreditReminder[]
+  kotOrders     KOTOrder[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -165,9 +179,10 @@ model Product {
   
   userId            String
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   stockHistory      StockHistory[]
-  
+  kotOrderItems     KOTOrderItem[]
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -202,6 +217,7 @@ model Sale {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token           Token?
+  kotOrder        KOTOrder?
   createdAt       DateTime @default(now())
 }
 
@@ -259,6 +275,38 @@ model Feedback {
   createdAt DateTime @default(now())
 }
 
+// Pre-existing model not previously tracked in this file (restored from live DB
+// introspection — no current backend route writes to it; `getRemindersDue`/`logReminderSent`
+// in creditController.ts compute reminders in-memory rather than persisting here, so this
+// table is effectively dormant, but it holds real historical rows and is left untouched).
+model CreditReminder {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount     Float
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sentAt     DateTime @default(now())
+}
+
+// Pre-existing model not previously tracked in this file (restored from live DB
+// introspection). The frontend Daybook screen (mobile-inventory/src/app/credits.tsx) calls
+// GET/POST /api/reports/day-close for this, but no such route exists in reportRoutes.ts today
+// — that's a separate, pre-existing bug outside this change's scope, not something fixed here.
+model DayClose {
+  id           String   @id @default(uuid())
+  closeDate    DateTime @db.Date
+  expectedCash Float
+  countedCash  Float
+  variance     Float
+  notes        String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, closeDate])
+}
+
 // A user-defined quick-bill item (e.g. "Chai Token", "Samosa Token", "Parking").
 // price is nullable — a fixed-price type issues instantly, a null-price type
 // (parking, QR bill) prompts for the amount at issue time.
@@ -292,4 +340,90 @@ model Token {
   userId      String
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime   @default(now())
+}
+
+// ─── KOT & Restaurant Orders (Phase 1) ─────────────────────────────────────
+
+// Flat list of dine-in tables for Phase 1. Deliberately has no position/shape/
+// capacity columns yet — a future floor-plan UI can add those as additive
+// nullable columns via `npx prisma db push` with zero impact on existing rows
+// or on KOTOrder, since it only references this model's id.
+model RestaurantTable {
+  id        String     @id @default(uuid())
+  name      String
+  isActive  Boolean    @default(true)
+  sortOrder Int        @default(0)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    KOTOrder[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+// A dine-in/takeaway/delivery order moving through the kitchen. Items are a
+// live child relation (not a JSON blob like Sale.items) so they can be added
+// or removed while the order is still open — totals are computed on read and
+// only crystallized into a real Sale's columns once the bill is generated.
+model KOTOrder {
+  id              String           @id @default(uuid())
+  // Per-day sequential ticket number, resets daily. Mirrors Token.tokenNumber.
+  orderNumber     Int
+  orderType       String           @default("dine_in") // 'dine_in' | 'takeaway' | 'delivery'
+  tableId         String?
+  // SetNull, not Cascade: deleting/deactivating a table config must never destroy order history.
+  table           RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  // Free-text identifier for takeaway/delivery orders, or a supplemental note alongside a table.
+  partyLabel      String?
+  guestCount      Int?
+  customerId      String?
+  customer        Customer?        @relation(fields: [customerId], references: [id])
+  // open -> sent_to_kitchen -> preparing -> ready -> served -> billed, or cancelled from any
+  // non-terminal state. 'billed' is only ever set by the /bill endpoint, never generic status updates.
+  status          String           @default("open")
+  notes           String?
+  // 'normal' | 'urgent' — surfaced on the orders board and printed as a banner on the KOT ticket.
+  priority        String           @default("normal")
+  // Phone number for takeaway/delivery orders — separate from an attached Customer record,
+  // which stays optional (most takeaway/delivery orders never need a full customer profile).
+  contactNumber   String?
+  // First entry into sent_to_kitchen — powers a future "time since fired" display; not used
+  // by any Phase 1 controller/UI beyond being set once.
+  sentToKitchenAt DateTime?
+  // Set once billed. SetNull (not Cascade): the order predates and outlives the sale it produces.
+  saleId          String?          @unique
+  sale            Sale?            @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  items           KOTOrderItem[]
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([userId, status])
+  @@index([tableId])
+}
+
+model KOTOrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       KOTOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String?
+  // SetNull + productName snapshot: order history survives product deletion, same reasoning as
+  // Sale.items JSON already snapshotting productName instead of always joining the live row.
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName String
+  quantity    Float
+  unitPrice   Float    // snapshot of Product.sellingPrice at add-time
+  taxRate     Float    // snapshot of Product.taxRate at add-time
+  notes       String?  // free-text note, e.g. "extra crispy please"
+  // Quick-pick add-on/modifier tags, e.g. ["No Onion", "Extra Spicy"] — separate from the
+  // free-text notes field above so the kitchen ticket can print them as a distinct tag list.
+  modifiers   String[] @default([])
+  // Reserved for a future Kitchen Display System (per-item ticking); unused by Phase 1.
+  status      String   @default("pending")
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orderId])
 }

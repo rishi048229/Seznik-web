@@ -44,6 +44,7 @@ const PERMISSION_FIELDS: { key: keyof UserPermissions; label: string; hint: stri
   { key: 'canAccessExpenses', label: 'Access Expenses', hint: 'View & log business expenses' },
   { key: 'canAccessReports', label: 'Access Reports', hint: 'View financial reports & analytics' },
   { key: 'canManageUsers', label: 'Manage Staff', hint: 'Add/edit/remove other staff accounts' },
+  { key: 'canAccessKOT', label: 'Access KOT & Restaurant Orders', hint: 'View and manage kitchen order tickets, tables and restaurant billing' },
 ];
 
 const EMPTY_PERMISSIONS: UserPermissions = {
@@ -53,6 +54,7 @@ const EMPTY_PERMISSIONS: UserPermissions = {
   canAccessExpenses: false,
   canAccessReports: false,
   canManageUsers: false,
+  canAccessKOT: false,
 };
 
 export default function StaffScreen() {

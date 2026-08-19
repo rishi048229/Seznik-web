@@ -38,6 +38,26 @@ export interface PrintSaleData {
   paymentMethod: string;
 }
 
+/**
+ * Kitchen Order Ticket content — deliberately has NO prices/tax/totals anywhere in it. A KOT is
+ * what the kitchen reads to cook, not a customer-facing bill, so it prints item names/quantities/
+ * modifiers/notes as large, scannable text instead of the itemized-pricing layout PrintSaleData
+ * uses for the final receipt.
+ */
+export interface PrintKotData {
+  storeName?: string;
+  orderNumber: number;
+  orderType: 'dine_in' | 'takeaway' | 'delivery';
+  tableName?: string;
+  partyLabel?: string;
+  guestCount?: number;
+  contactNumber?: string;
+  priority?: 'normal' | 'urgent';
+  notes?: string;
+  time: string;
+  items: { productName: string; quantity: number; notes?: string; modifiers?: string[] }[];
+}
+
 /** Calibration/personalization options threaded through the receipt print pipeline — sourced from usePrinterStore. */
 export interface ReceiptPrintOptions {
   template?: ReceiptTemplate;
@@ -510,6 +530,97 @@ class ThermalPrinterServiceManager {
     lines.push('');
 
     return lines.join('\n');
+  }
+
+  /**
+   * Kitchen Order Ticket — plain text, no prices anywhere, printed extra-large (see printKotTicket's
+   * widthtimes/heigthtimes) so it reads clearly from across a kitchen. Independent of ReceiptTemplate
+   * (a KOT doesn't vary by business vertical the way a customer bill's layout does).
+   */
+  public formatKotText(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+    const width = paperWidth === '58mm' ? 32 : 48;
+    const divider = '='.repeat(width);
+    const thinDivider = '-'.repeat(width);
+
+    const centerLine = (str: string) => {
+      const trimmed = str.trim();
+      if (trimmed.length >= width) return trimmed.slice(0, width);
+      const padLeft = Math.floor((width - trimmed.length) / 2);
+      return ' '.repeat(padLeft) + trimmed;
+    };
+
+    const lines: string[] = [];
+    lines.push(centerLine('*** KITCHEN ORDER TICKET ***'));
+    lines.push(divider);
+    if (data.priority === 'urgent') {
+      lines.push(centerLine('!!! URGENT !!!'));
+      lines.push(divider);
+    }
+
+    lines.push(centerLine(`KOT #${data.orderNumber}`));
+    const typeLabel = data.orderType === 'dine_in' ? 'DINE-IN' : data.orderType === 'takeaway' ? 'TAKEAWAY' : 'DELIVERY';
+    lines.push(centerLine(typeLabel));
+    if (data.orderType === 'dine_in') {
+      lines.push(centerLine(data.tableName || data.partyLabel || 'No table'));
+      if (data.guestCount) lines.push(centerLine(`${data.guestCount} guests`));
+    } else if (data.partyLabel) {
+      lines.push(centerLine(data.partyLabel));
+    }
+    if (data.contactNumber) lines.push(centerLine(`Ph: ${data.contactNumber}`));
+    lines.push(centerLine(data.time));
+    lines.push(divider);
+
+    data.items.forEach((item, idx) => {
+      lines.push(`${idx + 1}. ${item.quantity} x ${item.productName}`);
+      if (item.modifiers && item.modifiers.length > 0) {
+        lines.push(`   * ${item.modifiers.join(', ')}`);
+      }
+      if (item.notes) {
+        lines.push(`   note: ${item.notes}`);
+      }
+      lines.push(thinDivider);
+    });
+
+    if (data.notes) {
+      lines.push(`ORDER NOTE: ${data.notes}`);
+      lines.push(divider);
+    }
+
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  /** HTML fallback for KOT tickets (system print dialog / no Bluetooth ESC/POS device paired). */
+  public generateKotHtml(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+    const widthPx = paperWidth === '58mm' ? '280px' : '380px';
+    const typeLabel = data.orderType === 'dine_in' ? 'DINE-IN' : data.orderType === 'takeaway' ? 'TAKEAWAY' : 'DELIVERY';
+    const itemsHtml = data.items
+      .map(
+        (item, idx) => `
+        <div style="margin-bottom: 10px;">
+          <div><b>${idx + 1}. ${item.quantity} x ${item.productName}</b></div>
+          ${item.modifiers && item.modifiers.length ? `<div style="font-size: 0.9em;">* ${item.modifiers.join(', ')}</div>` : ''}
+          ${item.notes ? `<div style="font-size: 0.9em; font-style: italic;">note: ${item.notes}</div>` : ''}
+        </div>`
+      )
+      .join('<hr style="border: none; border-top: 1px dashed #000; margin: 6px 0;">');
+
+    return `
+      <html><body style="font-family: monospace; width: ${widthPx}; margin: 0 auto; padding: 12px; font-size: 16px;">
+        <div style="text-align: center; font-weight: bold; font-size: 1.2em;">*** KITCHEN ORDER TICKET ***</div>
+        ${data.priority === 'urgent' ? '<div style="text-align: center; font-weight: bold; color: #DC2626; margin-top: 6px;">!!! URGENT !!!</div>' : ''}
+        <hr style="border: none; border-top: 2px solid #000; margin: 8px 0;">
+        <div style="text-align: center; font-weight: bold; font-size: 1.3em;">KOT #${data.orderNumber}</div>
+        <div style="text-align: center; font-weight: bold;">${typeLabel}</div>
+        <div style="text-align: center;">${data.orderType === 'dine_in' ? (data.tableName || data.partyLabel || 'No table') : (data.partyLabel || '')}</div>
+        ${data.guestCount ? `<div style="text-align: center;">${data.guestCount} guests</div>` : ''}
+        ${data.contactNumber ? `<div style="text-align: center;">Ph: ${data.contactNumber}</div>` : ''}
+        <div style="text-align: center;">${data.time}</div>
+        <hr style="border: none; border-top: 2px solid #000; margin: 8px 0;">
+        ${itemsHtml}
+        ${data.notes ? `<hr style="border: none; border-top: 2px solid #000; margin: 8px 0;"><div><b>ORDER NOTE:</b> ${data.notes}</div>` : ''}
+      </body></html>
+    `;
   }
 
   /**
@@ -1714,6 +1825,45 @@ class ThermalPrinterServiceManager {
       return true;
     } catch (error) {
       console.error('Print error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Prints a Kitchen Order Ticket — same connect-and-print pipeline as printReceipt (native ESC/POS
+   * with a system-print-dialog fallback), but always at double width/height (kitchen tickets need to
+   * be readable at a glance, unlike a bill a cashier reads up close) and with no logo/QR/pricing.
+   */
+  public async printKotTicket(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm', options: { autoCut?: boolean } = {}): Promise<boolean> {
+    try {
+      if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        try {
+          const textContent = this.sanitizeForThermalPrint(this.formatKotText(data, paperWidth));
+          const printOptions = { widthtimes: 1, heigthtimes: 1, cut: false };
+
+          await NativeEscposPrinter.printText(textContent, printOptions);
+
+          if (typeof NativeEscposPrinter.printAndFeed === 'function') {
+            try {
+              await NativeEscposPrinter.printAndFeed(60);
+            } catch (feedErr) {
+              console.warn('printAndFeed failed (non-fatal):', feedErr);
+            }
+          }
+          if (options.autoCut && typeof NativeEscposPrinter.cutOnePoint === 'function') {
+            await NativeEscposPrinter.cutOnePoint();
+          }
+          return true;
+        } catch (escErr: any) {
+          console.warn('ESC/POS KOT print failed or socket disconnected, falling back to System Printer dialog:', escErr);
+        }
+      }
+
+      const html = this.generateKotHtml(data, paperWidth);
+      await Print.printAsync({ html });
+      return true;
+    } catch (error) {
+      console.error('KOT print error:', error);
       return false;
     }
   }
