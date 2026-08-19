@@ -5,6 +5,7 @@ import PrinterService from '../services/PrinterService';
 import { settingsApi } from '../api/settings';
 import { DEFAULT_TEMPLATE_ID } from '../constants/receiptTemplates';
 import { LabelTemplate } from '../types/labelTemplate';
+import { getStoredActiveTemplate, setStoredActiveTemplate } from '@/services/secureStore';
 
 export interface PhoneBluetoothDevice extends PrinterDevice {
   statusTag?: 'Paired' | 'New';
@@ -296,15 +297,36 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
   setActiveTemplate: async (templateId) => {
     set({ activeTemplateId: templateId });
-    await settingsApi.updateReceiptConfig({ templateId });
+    await setStoredActiveTemplate(templateId);
+    try {
+      await settingsApi.updateReceiptConfig({ templateId });
+    } catch (e) {
+      console.warn('Could not sync template config to server, persisted locally:', e);
+    }
   },
 
   hydrateFromSettings: async () => {
     try {
+      // 1. First hydrate immediately from local storage for instant offline availability
+      const localTemplateId = await getStoredActiveTemplate();
+      if (localTemplateId) {
+        set({ activeTemplateId: localTemplateId });
+      }
+
+      // 2. Fetch server settings to sync cloud configuration
       const settings = await settingsApi.getSettings();
       const printerConfig = (settings?.printerConfig || {}) as Record<string, any>;
       const receiptConfig = (settings?.receiptConfig || {}) as Record<string, any>;
       const labelConfig = (settings?.labelConfig || {}) as Record<string, any>;
+
+      const effectiveTemplateId =
+        typeof receiptConfig.templateId === 'string'
+          ? receiptConfig.templateId
+          : localTemplateId || get().activeTemplateId;
+
+      if (effectiveTemplateId) {
+        await setStoredActiveTemplate(effectiveTemplateId);
+      }
 
       set({
         paperWidth: printerConfig.paperWidth === '80mm' ? '80mm' : get().paperWidth,
@@ -317,7 +339,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         labelWidthMm: typeof printerConfig.labelWidthMm === 'number' ? printerConfig.labelWidthMm : get().labelWidthMm,
         labelHeightMm: typeof printerConfig.labelHeightMm === 'number' ? printerConfig.labelHeightMm : get().labelHeightMm,
         labelGapMm: typeof printerConfig.labelGapMm === 'number' ? printerConfig.labelGapMm : get().labelGapMm,
-        activeTemplateId: typeof receiptConfig.templateId === 'string' ? receiptConfig.templateId : get().activeTemplateId,
+        activeTemplateId: effectiveTemplateId,
         labelTemplates: Array.isArray(labelConfig.templates) ? labelConfig.templates : get().labelTemplates,
         activeLabelTemplateId:
           typeof labelConfig.activeTemplateId === 'string' || labelConfig.activeTemplateId === null

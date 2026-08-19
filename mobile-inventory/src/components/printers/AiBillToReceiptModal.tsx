@@ -416,7 +416,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
                       ]}
                     >
                       <Text style={[styles.templateChipText, { color: selected ? '#FFFFFF' : theme.textPrimary }]}>
-                        {t.emoji} {t.name}
+                        {t.name}
                       </Text>
                     </TouchableOpacity>
                   );

@@ -48,6 +48,7 @@ import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { useLanguageStore } from '@/store/useLanguageStore';
+import { usePrinterStore } from '@/store/usePrinterStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 
 export default function PosLiteScreen() {
@@ -57,6 +58,7 @@ export default function PosLiteScreen() {
   const { products, getByBarcode } = useProducts();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
+  const { connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
 
   const {

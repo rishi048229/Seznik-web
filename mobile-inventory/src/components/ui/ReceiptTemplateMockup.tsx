@@ -15,36 +15,44 @@ interface ReceiptTemplateMockupProps {
   storeName: string;
   storeAddress?: string;
   storePhone?: string;
-  items: MockupItem[];
-  subtotal: number;
-  totalTax: number;
-  grandTotal: number;
-  invoiceNumber: string;
-  date: string;
+  items?: MockupItem[];
+  subtotal?: number;
+  totalTax?: number;
+  grandTotal?: number;
+  invoiceNumber?: string;
+  date?: string;
   customerName?: string;
 }
 
 /**
  * A real, visually-styled mock receipt (colors, icon badge, varied type weight) — NOT the
- * monospace ESC/POS text preview. The plain-text preview looks identical across every template
- * since it's all black-on-white fixed-width text; this actually shows the per-template accent
- * color, emoji badge, and layout differences the way the printed logo/QR version will read.
- * Purely presentational for the Templates picker — the real print still goes through
- * PrinterService.formatReceiptText/generateReceiptHtml, unchanged.
+ * monospace ESC/POS text preview. Displays per-template accent color, emoji badge, tagline,
+ * and contextual sample items tailored to that business vertical.
  */
 export function ReceiptTemplateMockup({
   template,
   storeName,
   storeAddress,
   storePhone,
-  items,
-  subtotal,
-  totalTax,
-  grandTotal,
-  invoiceNumber,
-  date,
-  customerName,
+  items: propItems,
+  subtotal: propSubtotal,
+  totalTax: propTotalTax,
+  grandTotal: propGrandTotal,
+  invoiceNumber = 'INV-1024',
+  date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+  customerName = 'Walk-in Customer',
 }: ReceiptTemplateMockupProps) {
+  const items = propItems || template.sampleItems || [
+    { productName: 'Sample Item One', quantity: 1, unitPrice: 250, total: 250, unit: 'Pc' },
+    { productName: 'Sample Item Two', quantity: 2, unitPrice: 120, total: 240, unit: 'Pc' },
+  ];
+
+  const calculatedSubtotal = items.reduce((sum, it) => sum + it.total, 0);
+  const subtotal = propSubtotal !== undefined ? propSubtotal : calculatedSubtotal;
+  const calculatedTax = template.showTaxBreakdown ? Math.round(subtotal * 0.18 * 100) / 100 : 0;
+  const totalTax = propTotalTax !== undefined ? propTotalTax : calculatedTax;
+  const grandTotal = propGrandTotal !== undefined ? propGrandTotal : (subtotal + totalTax);
+
   const taxable = subtotal;
   const halfTax = totalTax / 2;
 
@@ -76,8 +84,8 @@ export function ReceiptTemplateMockup({
         <View key={idx} style={{ marginTop: 4 }}>
           <Text style={styles.itemName}>{idx + 1}. {item.productName}</Text>
           <View style={styles.row}>
-            <Text style={styles.itemSub}>{item.quantity} {item.unit || 'Pc'} x {item.unitPrice.toFixed(2)}</Text>
-            <Text style={styles.itemAmount}>{item.total.toFixed(2)}</Text>
+            <Text style={styles.itemSub}>{item.quantity} {item.unit || 'Pc'} x ₹{item.unitPrice.toFixed(2)}</Text>
+            <Text style={styles.itemAmount}>₹{item.total.toFixed(2)}</Text>
           </View>
         </View>
       ))}
@@ -86,23 +94,23 @@ export function ReceiptTemplateMockup({
 
       {template.showTaxBreakdown ? (
         <>
-          <View style={styles.row}><Text style={styles.metaText}>Sub Total</Text><Text style={styles.metaText}>Rs.{subtotal.toFixed(2)}</Text></View>
-          <View style={styles.row}><Text style={styles.metaText}>Taxable Amt</Text><Text style={styles.metaText}>Rs.{taxable.toFixed(2)}</Text></View>
-          <View style={styles.row}><Text style={styles.metaText}>SGST</Text><Text style={styles.metaText}>Rs.{halfTax.toFixed(2)}</Text></View>
-          <View style={styles.row}><Text style={styles.metaText}>CGST</Text><Text style={styles.metaText}>Rs.{halfTax.toFixed(2)}</Text></View>
+          <View style={styles.row}><Text style={styles.metaText}>Sub Total</Text><Text style={styles.metaText}>₹{subtotal.toFixed(2)}</Text></View>
+          <View style={styles.row}><Text style={styles.metaText}>Taxable Amt</Text><Text style={styles.metaText}>₹{taxable.toFixed(2)}</Text></View>
+          <View style={styles.row}><Text style={styles.metaText}>SGST (9%)</Text><Text style={styles.metaText}>₹{halfTax.toFixed(2)}</Text></View>
+          <View style={styles.row}><Text style={styles.metaText}>CGST (9%)</Text><Text style={styles.metaText}>₹{halfTax.toFixed(2)}</Text></View>
           <View style={[styles.divider, styles.dividerDouble, { borderColor: template.accentColor }]} />
           <View style={styles.row}>
             <Text style={[styles.totalLabel, { color: template.accentColor }]}>Total Amount</Text>
-            <Text style={[styles.totalValue, { color: template.accentColor }]}>Rs.{grandTotal.toFixed(2)}</Text>
+            <Text style={[styles.totalValue, { color: template.accentColor }]}>₹{grandTotal.toFixed(2)}</Text>
           </View>
         </>
       ) : (
         <>
-          {totalTax > 0 ? <View style={styles.row}><Text style={styles.metaText}>Tax</Text><Text style={styles.metaText}>Rs.{totalTax.toFixed(2)}</Text></View> : null}
+          {totalTax > 0 ? <View style={styles.row}><Text style={styles.metaText}>Tax</Text><Text style={styles.metaText}>₹{totalTax.toFixed(2)}</Text></View> : null}
           <View style={[styles.divider, styles.dividerDouble, { borderColor: template.accentColor }]} />
           <View style={styles.row}>
             <Text style={[styles.totalLabel, { color: template.accentColor }]}>Grand Total</Text>
-            <Text style={[styles.totalValue, { color: template.accentColor }]}>Rs.{grandTotal.toFixed(2)}</Text>
+            <Text style={[styles.totalValue, { color: template.accentColor }]}>₹{grandTotal.toFixed(2)}</Text>
           </View>
         </>
       )}

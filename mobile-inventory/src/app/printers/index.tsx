@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,8 @@ import {
   Layers,
   ChevronRight,
   Sparkles,
+  Search,
+  X,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -40,7 +42,12 @@ import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService'
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
-import { RECEIPT_TEMPLATES, getTemplateById } from '@/constants/receiptTemplates';
+import {
+  RECEIPT_TEMPLATES,
+  TEMPLATE_CATEGORIES,
+  TemplateCategory,
+  getTemplateById,
+} from '@/constants/receiptTemplates';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -87,6 +94,35 @@ export default function PrintersScreen() {
   // Note: A4 physical printer tab is hidden per user specification (only PDF invoice export is provided)
   const [isPrintingA4, setIsPrintingA4] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
+
+  // Template Search & Category Filter States
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateCategory, setTemplateCategory] = useState<TemplateCategory>('all');
+
+  const filteredTemplates = useMemo(() => {
+    return RECEIPT_TEMPLATES.filter((t) => {
+      const matchCategory = templateCategory === 'all' || t.category === templateCategory;
+      if (!matchCategory) return false;
+
+      if (!templateSearch.trim()) return true;
+      const q = templateSearch.toLowerCase().trim();
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.tagline.toLowerCase().includes(q) ||
+        t.billLabel.toLowerCase().includes(q) ||
+        t.itemLabel.toLowerCase().includes(q) ||
+        (t.keywords && t.keywords.some((k) => k.toLowerCase().includes(q)))
+      );
+    });
+  }, [templateSearch, templateCategory]);
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: RECEIPT_TEMPLATES.length };
+    RECEIPT_TEMPLATES.forEach((t) => {
+      counts[t.category] = (counts[t.category] || 0) + 1;
+    });
+    return counts;
+  }, []);
 
   // Calibration Steppers State — seeded from the store once hydrateFromSettings() resolves,
   // so a real saved calibration doesn't get overwritten by these UI defaults on every open.
@@ -433,89 +469,201 @@ export default function PrintersScreen() {
                 Pick the format that matches your business. Every new bill from POS / POS Lite prints in this style until you change it.
               </Text>
 
-              <View style={{ gap: 16 }}>
-                {RECEIPT_TEMPLATES.map((t) => {
-                  const selected = t.id === activeTemplateId;
-                  const Icon = t.icon;
+              {/* Template Search Bar */}
+              <View
+                style={[
+                  styles.templateSearchBar,
+                  { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                ]}
+              >
+                <Search size={18} color={theme.textSecondary} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={[styles.templateSearchInput, { color: theme.textPrimary }]}
+                  placeholder="Search templates by business, tagline, or keyword..."
+                  placeholderTextColor="#94A3B8"
+                  value={templateSearch}
+                  onChangeText={setTemplateSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {templateSearch.length > 0 ? (
+                  <TouchableOpacity onPress={() => setTemplateSearch('')} style={{ padding: 4 }}>
+                    <X size={16} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
 
-                  return (
-                    <TouchableOpacity
-                      key={t.id}
-                      activeOpacity={0.9}
-                      onPress={() => handleSelectTemplate(t.id)}
-                      style={[
-                        styles.templateFullCard,
-                        {
-                          backgroundColor: theme.cardBg,
-                          borderColor: selected ? BRAND_COLORS.blue600 : theme.borderColor,
-                          borderWidth: selected ? 2 : 1,
-                        },
-                      ]}
-                    >
-                      {/* Card Title Header Bar */}
-                      <View style={styles.templateCardHeaderRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <View
-                            style={[
-                              styles.templateIconBox,
-                              { backgroundColor: selected ? 'rgba(37, 99, 235, 0.15)' : 'rgba(100, 116, 139, 0.12)', marginBottom: 0 },
-                            ]}
-                          >
-                            <Icon size={20} color={selected ? BRAND_COLORS.blue600 : theme.textSecondary} />
-                          </View>
-                          <View style={{ marginLeft: 10 }}>
-                            <Text style={[styles.templateName, { color: theme.textPrimary, textAlign: 'left', fontSize: 15 }]}>
-                              {t.name}
-                            </Text>
-                            <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }} numberOfLines={1}>
-                              {t.tagline || `${t.billLabel} • ${t.itemColumnLeft}/${t.itemColumnRight}`}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Selected Pill Badge */}
-                        <View
+              {/* Category Horizontal Filter Pills */}
+              <View style={{ marginBottom: 16 }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+                >
+                  {TEMPLATE_CATEGORIES.map((cat) => {
+                    const isSelected = templateCategory === cat.id;
+                    const count = categoryCounts[cat.id] || 0;
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        onPress={() => setTemplateCategory(cat.id)}
+                        style={[
+                          styles.catPill,
+                          {
+                            backgroundColor: isSelected ? BRAND_COLORS.navyInk : theme.cardBg,
+                            borderColor: isSelected ? BRAND_COLORS.navyInk : theme.borderColor,
+                          },
+                        ]}
+                        activeOpacity={0.8}
+                      >
+                        <Text
                           style={[
-                            styles.selectedPill,
-                            { backgroundColor: selected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)' },
+                            styles.catPillText,
+                            { color: isSelected ? '#FFFFFF' : theme.textPrimary },
                           ]}
                         >
-                          {selected ? <CheckCircle2 size={13} color="#10B981" style={{ marginRight: 4 }} /> : null}
+                          {cat.label}
+                        </Text>
+                        <View
+                          style={[
+                            styles.catCountBadge,
+                            {
+                              backgroundColor: isSelected
+                                ? 'rgba(255, 255, 255, 0.2)'
+                                : 'rgba(100, 116, 139, 0.12)',
+                            },
+                          ]}
+                        >
                           <Text
-                            style={{
-                              fontSize: 11,
-                              fontWeight: '800',
-                              color: selected ? '#10B981' : theme.textSecondary,
-                            }}
+                            style={[
+                              styles.catCountText,
+                              { color: isSelected ? '#FFFFFF' : theme.textSecondary },
+                            ]}
                           >
-                            {selected ? 'ACTIVE TEMPLATE' : 'SELECT'}
+                            {count}
                           </Text>
                         </View>
-                      </View>
-
-                      {/* Visual Thermal Paper Receipt Card — real styling per template, not raw print text */}
-                      <View style={styles.previewPaperContainer}>
-                        <ReceiptTemplateMockup
-                          template={t}
-                          storeName={settings?.businessName || 'Your Store Name'}
-                          storeAddress={settings?.businessAddress || '123 Market Road, City'}
-                          storePhone={settings?.businessPhone || '9999999999'}
-                          invoiceNumber="INV-1024"
-                          date={new Date().toLocaleDateString('en-GB')}
-                          customerName="Walk-in Customer"
-                          items={[
-                            { productName: 'Sample Item One', quantity: 1, unitPrice: 250, total: 250, unit: 'Pc' },
-                            { productName: 'Sample Item Two', quantity: 2, unitPrice: 120, total: 240, unit: 'Pc' },
-                          ]}
-                          subtotal={490}
-                          totalTax={88.2}
-                          grandTotal={578.2}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
+
+              {/* Result Summary Bar */}
+              <View style={styles.resultsHeaderRow}>
+                <Text style={[styles.resultsCountText, { color: theme.textSecondary }]}>
+                  Showing {filteredTemplates.length} of {RECEIPT_TEMPLATES.length} templates
+                </Text>
+                {(templateSearch.length > 0 || templateCategory !== 'all') && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setTemplateSearch('');
+                      setTemplateCategory('all');
+                    }}
+                  >
+                    <Text style={styles.resetFilterText}>Clear Filters</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Templates List or Empty State */}
+              {filteredTemplates.length === 0 ? (
+                <View style={[styles.emptyTemplateBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Search size={32} color={theme.textSecondary} style={{ marginBottom: 10 }} />
+                  <Text style={[styles.emptyTemplateTitle, { color: theme.textPrimary }]}>
+                    No templates found
+                  </Text>
+                  <Text style={[styles.emptyTemplateSub, { color: theme.textSecondary }]}>
+                    No receipt layouts match "{templateSearch}". Try searching for another keyword or change category.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setTemplateSearch('');
+                      setTemplateCategory('all');
+                    }}
+                    style={styles.resetFilterBtn}
+                  >
+                    <Text style={styles.resetFilterBtnText}>Show All 33 Templates</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ gap: 16 }}>
+                  {filteredTemplates.map((t) => {
+                    const selected = t.id === activeTemplateId;
+                    const Icon = t.icon;
+
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        activeOpacity={0.9}
+                        onPress={() => handleSelectTemplate(t.id)}
+                        style={[
+                          styles.templateFullCard,
+                          {
+                            backgroundColor: theme.cardBg,
+                            borderColor: selected ? BRAND_COLORS.blue600 : theme.borderColor,
+                            borderWidth: selected ? 2 : 1,
+                          },
+                        ]}
+                      >
+                        {/* Card Title Header Bar */}
+                        <View style={styles.templateCardHeaderRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                            <View
+                              style={[
+                                styles.templateIconBox,
+                                { backgroundColor: selected ? 'rgba(37, 99, 235, 0.15)' : 'rgba(100, 116, 139, 0.12)', marginBottom: 0 },
+                              ]}
+                            >
+                              <Icon size={20} color={selected ? BRAND_COLORS.blue600 : theme.textSecondary} />
+                            </View>
+                            <View style={{ marginLeft: 10, flex: 1 }}>
+                              <Text style={[styles.templateName, { color: theme.textPrimary, textAlign: 'left', fontSize: 15 }]}>
+                                {t.name}
+                              </Text>
+                              <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }} numberOfLines={1}>
+                                {t.tagline || `${t.billLabel} • ${t.itemColumnLeft}/${t.itemColumnRight}`}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Selected Pill Badge */}
+                          <View
+                            style={[
+                              styles.selectedPill,
+                              { backgroundColor: selected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)' },
+                            ]}
+                          >
+                            {selected ? <CheckCircle2 size={13} color="#10B981" style={{ marginRight: 4 }} /> : null}
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                fontWeight: '800',
+                                color: selected ? '#10B981' : theme.textSecondary,
+                              }}
+                            >
+                              {selected ? 'ACTIVE' : 'SELECT'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Visual Thermal Paper Receipt Card */}
+                        <View style={styles.previewPaperContainer}>
+                          <ReceiptTemplateMockup
+                            template={t}
+                            storeName={settings?.businessName || 'Your Store Name'}
+                            storeAddress={settings?.businessAddress || '123 Market Road, City'}
+                            storePhone={settings?.businessPhone || '9999999999'}
+                            invoiceNumber="INV-1024"
+                            date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            customerName="Walk-in Customer"
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </>
           ) : (
             <>
@@ -974,4 +1122,87 @@ const styles = StyleSheet.create({
   templateCardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   selectedPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   previewPaperContainer: { alignItems: 'center', marginTop: 4 },
+  templateSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 46,
+    marginBottom: 12,
+  },
+  templateSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingVertical: 0,
+  },
+  catPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  catPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  catCountBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  catCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  resultsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 2,
+  },
+  resultsCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  resetFilterText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: BRAND_COLORS.blue600,
+  },
+  emptyTemplateBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  emptyTemplateTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  emptyTemplateSub: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  resetFilterBtn: {
+    backgroundColor: BRAND_COLORS.navyInk,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  resetFilterBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
 });

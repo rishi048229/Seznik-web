@@ -94,6 +94,7 @@ export async function removeStoredUser(): Promise<void> {
 }
 
 const LANGUAGE_KEY = 'seznik_app_language';
+const TEMPLATE_KEY = 'seznik_active_template_id';
 
 export async function setStoredLanguage(lang: string): Promise<void> {
   try {
@@ -123,4 +124,34 @@ export async function getStoredLanguage(): Promise<string | null> {
     return null;
   }
 }
+
+export async function setStoredActiveTemplate(templateId: string): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(TEMPLATE_KEY, templateId);
+      }
+    } else {
+      await SecureStore.setItemAsync(TEMPLATE_KEY, templateId);
+    }
+  } catch (error) {
+    console.error('Error saving active template:', error);
+  }
+}
+
+export async function getStoredActiveTemplate(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        return window.localStorage.getItem(TEMPLATE_KEY);
+      }
+      return null;
+    }
+    return await SecureStore.getItemAsync(TEMPLATE_KEY);
+  } catch (error) {
+    console.error('Error reading active template:', error);
+    return null;
+  }
+}
+
 

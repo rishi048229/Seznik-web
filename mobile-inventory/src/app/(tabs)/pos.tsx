@@ -47,7 +47,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
-import type { PrintSaleData } from '@/services/PrinterService';
+import ThermalPrinterService, { type PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
@@ -64,7 +64,7 @@ export default function PosScreen() {
   const { categories } = useCategories();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
-  const { activeDevice, connectionState } = usePrinterStore();
+  const { activeDevice, connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);

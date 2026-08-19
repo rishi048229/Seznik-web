@@ -442,61 +442,112 @@ class ThermalPrinterServiceManager {
     this.notifyStatusChange('disconnected');
   }
 
+  public resolveActiveTemplate(options?: ReceiptPrintOptions): ReceiptTemplate {
+    if (options?.template) return options.template;
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const activeId = usePrinterStore.getState().activeTemplateId;
+      return getTemplateById(activeId);
+    } catch {
+      return getTemplateById();
+    }
+  }
+
   /**
    * Plaintext formatted receipt representation
    */
   public formatReceiptText(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): string {
-    const template = options.template || getTemplateById();
-    const width = paperWidth === '58mm' ? 32 : 48;
+    const template = this.resolveActiveTemplate(options);
+    // 58mm paper rolls have a 48mm printable head (384 dots). With hardware margins, safe character width is 30 cols.
+    // 80mm rolls have a 72mm printable head, safe character width is 44 cols.
+    const width = paperWidth === '58mm' ? 30 : 44;
     const divider = template.dividerChar.repeat(width);
     const doubleDivider = '='.repeat(width);
 
     const padLine = (left: string, right: string) => {
-      const available = width - left.length - right.length;
+      const leftStr = String(left ?? '');
+      const rightStr = String(right ?? '');
+      const available = width - leftStr.length - rightStr.length;
       if (available <= 0) {
-        return left.slice(0, width - right.length - 1) + ' ' + right;
+        const maxLeft = Math.max(1, width - rightStr.length - 1);
+        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
       }
-      return left + ' '.repeat(available) + right;
-    };
-
-    const centerLine = (str: string) => {
-      const trimmed = str.trim();
-      if (trimmed.length >= width) return trimmed.slice(0, width);
-      const padLeft = Math.floor((width - trimmed.length) / 2);
-      return ' '.repeat(padLeft) + trimmed;
+      return leftStr + ' '.repeat(available) + rightStr;
     };
 
     const lines: string[] = [];
 
+    const wrapAndCenter = (str: string) => {
+      const trimmed = String(str ?? '').trim();
+      if (!trimmed) return;
+      if (trimmed.length <= width) {
+        const padLeft = Math.max(0, Math.floor((width - trimmed.length) / 2));
+        lines.push(' '.repeat(padLeft) + trimmed);
+        return;
+      }
+      // Word-wrap cleanly so long names, taglines, or footers never get clipped at the right margin
+      const words = trimmed.split(' ');
+      let currentLine = '';
+      for (const word of words) {
+        if (!currentLine) {
+          currentLine = word;
+        } else if (currentLine.length + 1 + word.length <= width) {
+          currentLine += ' ' + word;
+        } else {
+          const padLeft = Math.max(0, Math.floor((width - currentLine.length) / 2));
+          lines.push(' '.repeat(padLeft) + currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) {
+        const padLeft = Math.max(0, Math.floor((width - currentLine.length) / 2));
+        lines.push(' '.repeat(padLeft) + currentLine);
+      }
+    };
+
     // Top margin: blank feed lines before anything prints (see usePrinterStore.topMargin).
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
 
-    // Header — tagline + which contact lines show are what make this actually read as a
-    // bakery/cafe/garage/etc. receipt rather than a generic invoice. template.emoji is deliberately
-    // NOT printed here: the native printText() call defaults to GBK encoding, which has no emoji
-    // glyphs, so it would print as "??" either side of the store name (the emoji is real RN Text
-    // rendering in ReceiptTemplateMockup/the icon badge — fine there, not here).
+    // Header — tagline + contact lines
     const storeName = (data.storeName || 'Your Store Name').toUpperCase();
-    lines.push(centerLine(storeName));
-    if (template.tagline) lines.push(centerLine(template.tagline));
-    if (data.storeAddress) lines.push(centerLine(data.storeAddress));
-    if (data.storePhone) lines.push(centerLine(`Phone: ${data.storePhone}`));
-    if (template.showTaxBreakdown && data.storeGstin) lines.push(centerLine(`GSTIN: ${data.storeGstin}`));
+    wrapAndCenter(storeName);
+    if (template.tagline) wrapAndCenter(template.tagline);
+    if (data.storeAddress) wrapAndCenter(data.storeAddress);
+    if (data.storePhone) wrapAndCenter(`Phone: ${data.storePhone}`);
+    if (template.showTaxBreakdown && data.storeGstin) wrapAndCenter(`GSTIN: ${data.storeGstin}`);
     lines.push(divider);
 
-    // Meta / Bill Info — bill-number label and whether a customer line prints varies per vertical
-    // (quick-service counters skip the customer line; tax-invoice-style retail keeps it).
+    // Meta / Bill Info
     lines.push(padLine(`${template.billLabel}: ${data.invoiceNumber}`, data.date));
-    if (template.showCustomerLine) lines.push(`Customer: ${data.customerName || 'Walk-in'}`);
+    if (template.showCustomerLine) {
+      const custLine = `Customer: ${data.customerName || 'Walk-in'}`;
+      if (custLine.length <= width) {
+        lines.push(custLine);
+      } else {
+        lines.push(custLine.slice(0, width));
+      }
+    }
     lines.push(divider);
 
-    // Item Table Header — column wording differs per vertical (Item x Qty/Rate vs Item/Amount vs Service/Amount).
+    // Item Table Header
     lines.push(padLine(template.itemColumnLeft, template.itemColumnRight));
     lines.push(divider);
 
     // Items
     data.items.forEach((item, idx) => {
-      lines.push(`${idx + 1}. ${item.productName}`);
+      const namePrefix = `${idx + 1}. `;
+      const rawName = String(item.productName || 'Item');
+      if (namePrefix.length + rawName.length <= width) {
+        lines.push(namePrefix + rawName);
+      } else {
+        const maxFirstLine = Math.max(1, width - namePrefix.length);
+        lines.push(namePrefix + rawName.slice(0, maxFirstLine));
+        const rem = rawName.slice(maxFirstLine);
+        if (rem) {
+          lines.push('   ' + rem.slice(0, Math.max(1, width - 3)));
+        }
+      }
+
       if (template.showTaxBreakdown && item.gstRate) {
         lines.push(`   ${item.gstRate.toFixed(2)}% GST`);
       }
@@ -538,11 +589,7 @@ class ThermalPrinterServiceManager {
     lines.push(divider);
 
     // Footer
-    lines.push(centerLine(template.footerMessage));
-    // One trailing blank line as a small text-side buffer; printAndFeed() in printReceipt() does
-    // the actual tear-bar clearance via a dedicated feed command. Previously this pushed 3 blank
-    // lines AND a large printAndFeed, which stacked into far more blank paper than needed before
-    // the tear point — trimmed down to stop right after the bill content.
+    wrapAndCenter(template.footerMessage);
     lines.push('');
 
     return lines.join('\n');
@@ -783,8 +830,8 @@ class ThermalPrinterServiceManager {
    * HTML receipt tailored for thermal printers (58mm / 80mm paper widths)
    */
   public generateReceiptHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): string {
-    const template = options.template || getTemplateById();
-    const widthPx = paperWidth === '58mm' ? '280px' : '380px';
+    const template = this.resolveActiveTemplate(options);
+    const widthPx = paperWidth === '58mm' ? '260px' : '360px';
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
 
@@ -913,7 +960,7 @@ class ThermalPrinterServiceManager {
    * anything sent via the ESC/POS SDK: it isn't listening for ESC/POS commands at all.
    */
   public generateA4InvoiceHtml(data: PrintSaleData, options: ReceiptPrintOptions = {}): string {
-    const template = options.template || getTemplateById();
+    const template = this.resolveActiveTemplate(options);
     const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
     const halfTax = data.totalTax / 2;
     const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
@@ -1970,18 +2017,24 @@ class ThermalPrinterServiceManager {
           }
           return true;
         } catch (escErr: any) {
-          console.warn('ESC/POS direct print failed or socket disconnected, falling back to System Printer dialog:', escErr);
+          console.error('ESC/POS direct print failed:', escErr);
+          throw new Error(`Thermal printer error: ${escErr?.message || 'Could not print text'}`);
         }
       }
 
-      const html = this.generateReceiptHtml(data, paperWidth, options);
-      for (let i = 0; i < copies; i++) {
-        await Print.printAsync({ html });
+      // If running in web browser without native ESC/POS, use web print preview
+      if (Platform.OS === 'web') {
+        const html = this.generateReceiptHtml(data, paperWidth, options);
+        for (let i = 0; i < copies; i++) {
+          await Print.printAsync({ html });
+        }
+        return true;
       }
-      return true;
-    } catch (error) {
+
+      throw new Error('Bluetooth thermal printer is not connected. Please connect your printer in Printers settings.');
+    } catch (error: any) {
       console.error('Print error:', error);
-      return false;
+      throw error;
     }
   }
 
@@ -2071,26 +2124,35 @@ class ThermalPrinterServiceManager {
    * 1-Tap Sample Test Print for Receipts
    */
   public async printTestReceipt(paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
+    const template = this.resolveActiveTemplate(options);
+    const sampleItems = template.sampleItems && template.sampleItems.length > 0
+      ? template.sampleItems
+      : [
+          { productName: 'Sample Item One', quantity: 1, unitPrice: 250.0, total: 250.0 },
+          { productName: 'Sample Item Two', quantity: 2, unitPrice: 120.0, total: 240.0 },
+        ];
+
+    const subtotal = sampleItems.reduce((s, it) => s + it.total, 0);
+    const totalTax = template.showTaxBreakdown ? Math.round(subtotal * 0.18 * 100) / 100 : 0;
+    const grandTotal = subtotal + totalTax;
+
     const sampleData: PrintSaleData = {
-      storeName: 'SEZNIK THERMAL STORE',
-      storeAddress: 'Main Market, Station Road, Delhi',
+      storeName: 'SEZNIK POS STORE',
+      storeAddress: '123 Market Road, City Center',
+      storePhone: '9876543210',
       storeGstin: '07AAAAA0000A1Z5',
       invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
       date: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-      customerName: 'Test Customer',
-      items: [
-        { productName: 'Organic Basmati Rice 5kg', quantity: 1, unitPrice: 480.0, total: 480.0 },
-        { productName: 'Fresh Cow Milk 1L', quantity: 2, unitPrice: 66.0, total: 132.0 },
-        { productName: 'Filter Coffee 250g', quantity: 1, unitPrice: 210.0, total: 210.0 },
-      ],
-      subtotal: 822.0,
-      totalDiscount: 22.0,
-      totalTax: 18.0,
-      grandTotal: 818.0,
+      customerName: 'Walk-in Customer',
+      items: sampleItems,
+      subtotal,
+      totalDiscount: 0,
+      totalTax,
+      grandTotal,
       paymentMethod: 'CASH (BLUETOOTH PRINTER)',
     };
 
-    return this.printReceipt(sampleData, paperWidth, options);
+    return this.printReceipt(sampleData, paperWidth, { ...options, template });
   }
 
   /**

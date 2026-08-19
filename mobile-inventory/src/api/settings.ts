@@ -41,22 +41,22 @@ export const settingsApi = {
   },
 
   updatePrinterConfig: async (printerConfig: Record<string, any>): Promise<Settings> => {
-    return fetchApi<Settings>('/settings/printer', {
-      method: 'PATCH',
+    return fetchApi<Settings>('/settings', {
+      method: 'POST',
       body: JSON.stringify({ printerConfig }),
     });
   },
 
   updateReceiptConfig: async (receiptConfig: Record<string, any>): Promise<Settings> => {
-    return fetchApi<Settings>('/settings/receipt', {
-      method: 'PATCH',
+    return fetchApi<Settings>('/settings', {
+      method: 'POST',
       body: JSON.stringify({ receiptConfig }),
     });
   },
 
   updateLabelConfig: async (labelConfig: Record<string, any>): Promise<Settings> => {
-    return fetchApi<Settings>('/settings/label', {
-      method: 'PATCH',
+    return fetchApi<Settings>('/settings', {
+      method: 'POST',
       body: JSON.stringify({ labelConfig }),
     });
   },
