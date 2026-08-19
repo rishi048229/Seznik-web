@@ -35,6 +35,9 @@ import {
   Sparkles,
   Search,
   X,
+  Receipt,
+  QrCode,
+  Edit2,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -42,6 +45,7 @@ import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService'
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
+import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 import {
   RECEIPT_TEMPLATES,
   TEMPLATE_CATEGORIES,
@@ -87,8 +91,14 @@ export default function PrintersScreen() {
     setLabelGapMm,
     labelTemplates,
     activeLabelTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    setActiveCustomTemplate,
+    enableBillQrCode,
+    setEnableBillQrCode,
   } = usePrinterStore();
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
+  const activeCustomTemplate = customTemplates.find((t) => t.id === activeCustomTemplateId) || null;
 
   const [activeTab, setActiveTab] = useState<'receipt' | 'label' | 'templates'>('receipt');
   // Note: A4 physical printer tab is hidden per user specification (only PDF invoice export is provided)
@@ -99,7 +109,19 @@ export default function PrintersScreen() {
   const [templateSearch, setTemplateSearch] = useState('');
   const [templateCategory, setTemplateCategory] = useState<TemplateCategory>('all');
 
+  const filteredCustomTemplates = useMemo(() => {
+    if (templateCategory !== 'all' && templateCategory !== 'custom') return [];
+    if (!templateSearch.trim()) return customTemplates;
+    const q = templateSearch.toLowerCase().trim();
+    return customTemplates.filter(
+      (ct) =>
+        ct.name.toLowerCase().includes(q) ||
+        (ct.description && ct.description.toLowerCase().includes(q))
+    );
+  }, [customTemplates, templateSearch, templateCategory]);
+
   const filteredTemplates = useMemo(() => {
+    if (templateCategory === 'custom') return [];
     return RECEIPT_TEMPLATES.filter((t) => {
       const matchCategory = templateCategory === 'all' || t.category === templateCategory;
       if (!matchCategory) return false;
@@ -117,12 +139,15 @@ export default function PrintersScreen() {
   }, [templateSearch, templateCategory]);
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: RECEIPT_TEMPLATES.length };
+    const counts: Record<string, number> = {
+      all: RECEIPT_TEMPLATES.length + customTemplates.length,
+      custom: customTemplates.length,
+    };
     RECEIPT_TEMPLATES.forEach((t) => {
       counts[t.category] = (counts[t.category] || 0) + 1;
     });
     return counts;
-  }, []);
+  }, [customTemplates]);
 
   // Calibration Steppers State — seeded from the store once hydrateFromSettings() resolves,
   // so a real saved calibration doesn't get overwritten by these UI defaults on every open.
@@ -275,10 +300,21 @@ export default function PrintersScreen() {
   const handleSelectTemplate = async (templateId: string) => {
     try {
       await setActiveTemplate(templateId);
+      await setActiveCustomTemplate(null);
       const t = getTemplateById(templateId);
       Alert.alert(`${t.name} Selected!`, `New bills from POS / POS Lite will now print using the ${t.name} format.`);
     } catch (e: any) {
       Alert.alert('Template Selection Failed', e?.message || 'Could not save your template choice. Please try again.');
+    }
+  };
+
+  const handleSelectCustomTemplate = async (customId: string) => {
+    try {
+      await setActiveCustomTemplate(customId);
+      const ct = customTemplates.find((c) => c.id === customId);
+      Alert.alert('Custom Receipt Selected!', `New bills from POS / POS Lite will now print using "${ct?.name || 'Custom Receipt'}".`);
+    } catch (e: any) {
+      Alert.alert('Selection Failed', e?.message || 'Could not set active custom template.');
     }
   };
 
@@ -469,6 +505,49 @@ export default function PrintersScreen() {
                 Pick the format that matches your business. Every new bill from POS / POS Lite prints in this style until you change it.
               </Text>
 
+              {/* Custom Receipt Builder Launch Banner */}
+              <TouchableOpacity
+                onPress={() => router.push('/printers/receipt-builder')}
+                activeOpacity={0.88}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: activeCustomTemplateId ? '#3B82F6' : BRAND_COLORS.blue600,
+                    borderWidth: 1.5,
+                    padding: 14,
+                    marginBottom: 14,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      backgroundColor: '#EFF6FF',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                    }}
+                  >
+                    <Receipt size={20} color="#2563EB" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: theme.textPrimary }}>
+                      Custom Receipt Builder & Studio
+                    </Text>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                      {activeCustomTemplate
+                        ? `Active: "${activeCustomTemplate.name}" • Tap to customize`
+                        : 'Create unique receipt layouts with custom logos, lines, tables & QR codes'}
+                    </Text>
+                  </View>
+                  <ChevronRight size={18} color="#2563EB" />
+                </View>
+              </TouchableOpacity>
+
               {/* Template Search Bar */}
               <View
                 style={[
@@ -552,7 +631,7 @@ export default function PrintersScreen() {
               {/* Result Summary Bar */}
               <View style={styles.resultsHeaderRow}>
                 <Text style={[styles.resultsCountText, { color: theme.textSecondary }]}>
-                  Showing {filteredTemplates.length} of {RECEIPT_TEMPLATES.length} templates
+                  Showing {filteredTemplates.length + filteredCustomTemplates.length} of {RECEIPT_TEMPLATES.length + customTemplates.length} templates
                 </Text>
                 {(templateSearch.length > 0 || templateCategory !== 'all') && (
                   <TouchableOpacity
@@ -567,29 +646,147 @@ export default function PrintersScreen() {
               </View>
 
               {/* Templates List or Empty State */}
-              {filteredTemplates.length === 0 ? (
+              {filteredTemplates.length === 0 && filteredCustomTemplates.length === 0 ? (
                 <View style={[styles.emptyTemplateBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <Search size={32} color={theme.textSecondary} style={{ marginBottom: 10 }} />
-                  <Text style={[styles.emptyTemplateTitle, { color: theme.textPrimary }]}>
-                    No templates found
-                  </Text>
-                  <Text style={[styles.emptyTemplateSub, { color: theme.textSecondary }]}>
-                    No receipt layouts match "{templateSearch}". Try searching for another keyword or change category.
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setTemplateSearch('');
-                      setTemplateCategory('all');
-                    }}
-                    style={styles.resetFilterBtn}
-                  >
-                    <Text style={styles.resetFilterBtnText}>Show All 33 Templates</Text>
-                  </TouchableOpacity>
+                  {templateCategory === 'custom' ? (
+                    <>
+                      <Receipt size={36} color={BRAND_COLORS.blue600} style={{ marginBottom: 10 }} />
+                      <Text style={[styles.emptyTemplateTitle, { color: theme.textPrimary }]}>
+                        No Custom Receipts Yet
+                      </Text>
+                      <Text style={[styles.emptyTemplateSub, { color: theme.textSecondary }]}>
+                        Design your own receipt with custom logos, text lines, items tables, and digital QR codes.
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => router.push('/printers/receipt-builder')}
+                        style={[styles.resetFilterBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                      >
+                        <Text style={[styles.resetFilterBtnText, { color: '#FFF' }]}>+ Build Custom Receipt</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <Search size={32} color={theme.textSecondary} style={{ marginBottom: 10 }} />
+                      <Text style={[styles.emptyTemplateTitle, { color: theme.textPrimary }]}>
+                        No templates found
+                      </Text>
+                      <Text style={[styles.emptyTemplateSub, { color: theme.textSecondary }]}>
+                        No receipt layouts match "{templateSearch}". Try searching for another keyword or change category.
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setTemplateSearch('');
+                          setTemplateCategory('all');
+                        }}
+                        style={styles.resetFilterBtn}
+                      >
+                        <Text style={styles.resetFilterBtnText}>Show All Templates</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               ) : (
                 <View style={{ gap: 16 }}>
+                  {/* 1. CUSTOM RECEIPTS (Rendered prominently when in All or Custom category) */}
+                  {filteredCustomTemplates.map((ct) => {
+                    const isCustomActive = ct.id === activeCustomTemplateId;
+                    const activeEntriesCount = ct.entries.filter((e) => e.enabled).length;
+
+                    return (
+                      <TouchableOpacity
+                        key={`custom-${ct.id}`}
+                        activeOpacity={0.9}
+                        onPress={() => handleSelectCustomTemplate(ct.id)}
+                        style={[
+                          styles.templateFullCard,
+                          {
+                            backgroundColor: theme.cardBg,
+                            borderColor: isCustomActive ? '#10B981' : BRAND_COLORS.blue600,
+                            borderWidth: isCustomActive ? 2.5 : 1.5,
+                          },
+                        ]}
+                      >
+                        {/* Card Title Header Bar */}
+                        <View style={styles.templateCardHeaderRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                            <View
+                              style={[
+                                styles.templateIconBox,
+                                {
+                                  backgroundColor: isCustomActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(37, 99, 235, 0.15)',
+                                  marginBottom: 0,
+                                },
+                              ]}
+                            >
+                              <Receipt size={20} color={isCustomActive ? '#10B981' : '#2563EB'} />
+                            </View>
+                            <View style={{ marginLeft: 10, flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={[styles.templateName, { color: theme.textPrimary, textAlign: 'left', fontSize: 15 }]}>
+                                  {ct.name}
+                                </Text>
+                                <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#2563EB' }}>CUSTOM</Text>
+                                </View>
+                              </View>
+                              <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }} numberOfLines={1}>
+                                {activeEntriesCount} blocks configured • {ct.paperWidth || '58mm'} Paper Roll
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Selected Pill Badge */}
+                          <View
+                            style={[
+                              styles.selectedPill,
+                              { backgroundColor: isCustomActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)' },
+                            ]}
+                          >
+                            {isCustomActive ? <CheckCircle2 size={13} color="#10B981" style={{ marginRight: 4 }} /> : null}
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                fontWeight: '800',
+                                color: isCustomActive ? '#10B981' : theme.textSecondary,
+                              }}
+                            >
+                              {isCustomActive ? 'ACTIVE' : 'SELECT'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Real Visual Thermal Paper Receipt Preview with User-Entered Values */}
+                        <View style={styles.previewPaperContainer}>
+                          <CustomReceiptMockup
+                            template={ct}
+                            storeName={settings?.businessName || 'Your Store Name'}
+                            storeAddress={settings?.businessAddress || '123 Market Road, City'}
+                            storePhone={settings?.businessPhone || '9999999999'}
+                            storeGstin={(settings as any)?.gstin || (settings as any)?.taxNumber || ''}
+                            invoiceNumber="INV-1024"
+                            date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            customerName="Walk-in Customer"
+                          />
+
+                          {/* Quick Action to Edit in Builder */}
+                          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: theme.borderColor, paddingTop: 8 }}>
+                            <TouchableOpacity
+                              onPress={() => router.push({ pathname: '/printers/receipt-editor', params: { id: ct.id } })}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#EFF6FF', borderRadius: 6 }}
+                              activeOpacity={0.7}
+                            >
+                              <Edit2 size={13} color="#2563EB" />
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#2563EB' }}>Edit in Builder</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* 2. STANDARD PRESET TEMPLATES */}
                   {filteredTemplates.map((t) => {
-                    const selected = t.id === activeTemplateId;
+                    const selected = t.id === activeTemplateId && !activeCustomTemplateId;
                     const Icon = t.icon;
 
                     return (
@@ -671,7 +868,7 @@ export default function PrintersScreen() {
               <TouchableOpacity
                 onPress={() => setShowAiBillModal(true)}
                 activeOpacity={0.88}
-                style={[styles.card, { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.blue600, padding: 18, marginBottom: 14 }]}
+                style={[styles.card, { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.blue600, padding: 18, marginBottom: 12 }]}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: BRAND_COLORS.blue600, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -684,6 +881,57 @@ export default function PrintersScreen() {
                   <ChevronRight size={20} color="#FFFFFF" />
                 </View>
               </TouchableOpacity>
+
+              {/* CUSTOM RECEIPT BUILDER & DIGITAL QR CARD */}
+              <TouchableOpacity
+                onPress={() => router.push('/printers/receipt-builder')}
+                activeOpacity={0.88}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: activeCustomTemplateId ? '#3B82F6' : theme.borderColor,
+                    borderWidth: activeCustomTemplateId ? 2 : 1,
+                    padding: 16,
+                    marginBottom: 14,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      backgroundColor: '#EFF6FF',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                    }}
+                  >
+                    <Receipt size={22} color="#2563EB" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary }}>
+                        Build Custom Receipt
+                      </Text>
+                      {activeCustomTemplate && (
+                        <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#16A34A' }}>Active</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                      {activeCustomTemplate
+                        ? `Using "${activeCustomTemplate.name}" • Tap to customize layout`
+                        : 'Design receipt layout, add custom blocks & enable Digital Bill QR'}
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color={theme.textSecondary} />
+                </View>
+              </TouchableOpacity>
+
               {/* Section: PAIRED & SAVED BLUETOOTH PRINTERS */}
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>PAIRED BLUETOOTH PRINTERS ({pairedPrinters.length})</Text>

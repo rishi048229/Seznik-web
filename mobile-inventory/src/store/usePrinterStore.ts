@@ -5,7 +5,17 @@ import PrinterService from '../services/PrinterService';
 import { settingsApi } from '../api/settings';
 import { DEFAULT_TEMPLATE_ID } from '../constants/receiptTemplates';
 import { LabelTemplate } from '../types/labelTemplate';
-import { getStoredActiveTemplate, setStoredActiveTemplate } from '@/services/secureStore';
+import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '../types/customReceipt';
+import {
+  getStoredActiveTemplate,
+  setStoredActiveTemplate,
+  getStoredCustomReceiptTemplates,
+  setStoredCustomReceiptTemplates,
+  getStoredActiveCustomReceiptTemplate,
+  setStoredActiveCustomReceiptTemplate,
+  getStoredEnableBillQr,
+  setStoredEnableBillQr,
+} from '@/services/secureStore';
 
 export interface PhoneBluetoothDevice extends PrinterDevice {
   statusTag?: 'Paired' | 'New';
@@ -33,6 +43,12 @@ interface PrinterState {
   topMargin: number;
   /** Selected receipt template id (see src/constants/receiptTemplates.ts). Determines what every subsequent POS bill prints as. */
   activeTemplateId: string;
+  /** Custom designed receipt templates */
+  customTemplates: CustomReceiptTemplate[];
+  /** Active custom receipt template id (null if using standard preset) */
+  activeCustomTemplateId: string | null;
+  /** Whether to print dynamic Digital Bill PDF QR code on bills */
+  enableBillQrCode: boolean;
   /**
    * 'gap' = die-cut label stock on a separate TSPL label printer (gap sensor between labels).
    * 'continuous' = barcode/QR labels printed on the connected ESC/POS thermal RECEIPT roll instead
@@ -78,6 +94,12 @@ interface PrinterState {
   saveLabelTemplate: (template: LabelTemplate) => Promise<void>;
   deleteLabelTemplate: (id: string) => Promise<void>;
   setActiveLabelTemplate: (id: string | null) => Promise<void>;
+  /** Custom receipt builder methods */
+  saveCustomTemplate: (template: CustomReceiptTemplate) => Promise<void>;
+  deleteCustomTemplate: (id: string) => Promise<void>;
+  duplicateCustomTemplate: (id: string) => Promise<CustomReceiptTemplate>;
+  setActiveCustomTemplate: (id: string | null) => Promise<void>;
+  setEnableBillQrCode: (val: boolean) => Promise<void>;
   setDefaultPrinter: (deviceId: string) => void;
   forgetPrinter: (deviceId: string) => void;
   /** Persists paperWidth/printDensity/topMargin/autoCut/printCopies/fontSize/labelPaperMode/labelWidthMm/labelHeightMm/labelGapMm together — call from the Printers "Save Calibration" button. */
@@ -116,6 +138,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   printCopies: 1,
   topMargin: 2,
   activeTemplateId: DEFAULT_TEMPLATE_ID,
+  customTemplates: [],
+  activeCustomTemplateId: null,
+  enableBillQrCode: true,
   // Defaults to 'gap' (the pre-existing TSPL label-printer behavior) so nothing changes for stores
   // that already have a separate die-cut label printer set up — 'continuous' is an opt-in switch.
   labelPaperMode: 'gap',
@@ -279,6 +304,53 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await settingsApi.updateLabelConfig({ templates: get().labelTemplates, activeTemplateId: activeLabelTemplateId });
   },
 
+  saveCustomTemplate: async (template) => {
+    const existing = get().customTemplates;
+    const idx = existing.findIndex((t) => t.id === template.id);
+    const updated = idx >= 0 ? existing.map((t, i) => (i === idx ? template : t)) : [...existing, template];
+    set({ customTemplates: updated });
+    await setStoredCustomReceiptTemplates(updated);
+  },
+
+  deleteCustomTemplate: async (id) => {
+    const customTemplates = get().customTemplates.filter((t) => t.id !== id);
+    const activeCustomTemplateId = get().activeCustomTemplateId === id ? null : get().activeCustomTemplateId;
+    set({ customTemplates, activeCustomTemplateId });
+    await setStoredCustomReceiptTemplates(customTemplates);
+    if (get().activeCustomTemplateId === id) {
+      await setStoredActiveCustomReceiptTemplate(null);
+    }
+  },
+
+  duplicateCustomTemplate: async (id) => {
+    const target = get().customTemplates.find((t) => t.id === id) || createDefaultReceiptTemplate();
+    const now = new Date().toISOString();
+    const cloned: CustomReceiptTemplate = {
+      ...target,
+      id: `receipt-tpl-${Date.now()}`,
+      name: `${target.name} (Copy)`,
+      isDefault: false,
+      createdAt: now,
+      updatedAt: now,
+      entries: target.entries.map((e) => ({
+        ...e,
+        id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      })),
+    };
+    await get().saveCustomTemplate(cloned);
+    return cloned;
+  },
+
+  setActiveCustomTemplate: async (id) => {
+    set({ activeCustomTemplateId: id });
+    await setStoredActiveCustomReceiptTemplate(id);
+  },
+
+  setEnableBillQrCode: async (enabled) => {
+    set({ enableBillQrCode: enabled });
+    await setStoredEnableBillQr(enabled);
+  },
+
   savePrinterCalibration: async (config) => {
     set(config);
     await settingsApi.updatePrinterConfig({
@@ -296,8 +368,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   },
 
   setActiveTemplate: async (templateId) => {
-    set({ activeTemplateId: templateId });
+    set({ activeTemplateId: templateId, activeCustomTemplateId: null });
     await setStoredActiveTemplate(templateId);
+    await setStoredActiveCustomReceiptTemplate(null);
     try {
       await settingsApi.updateReceiptConfig({ templateId });
     } catch (e) {
@@ -308,10 +381,25 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   hydrateFromSettings: async () => {
     try {
       // 1. First hydrate immediately from local storage for instant offline availability
-      const localTemplateId = await getStoredActiveTemplate();
+      const [localTemplateId, localCustomTemplates, localActiveCustomId, localEnableBillQr] = await Promise.all([
+        getStoredActiveTemplate(),
+        getStoredCustomReceiptTemplates(),
+        getStoredActiveCustomReceiptTemplate(),
+        getStoredEnableBillQr(),
+      ]);
+
+      const initialTemplates = localCustomTemplates && localCustomTemplates.length > 0
+        ? localCustomTemplates
+        : [createDefaultReceiptTemplate('Standard Shop Receipt')];
+
       if (localTemplateId) {
         set({ activeTemplateId: localTemplateId });
       }
+      set({
+        customTemplates: initialTemplates,
+        activeCustomTemplateId: localActiveCustomId,
+        enableBillQrCode: localEnableBillQr,
+      });
 
       // 2. Fetch server settings to sync cloud configuration
       const settings = await settingsApi.getSettings();

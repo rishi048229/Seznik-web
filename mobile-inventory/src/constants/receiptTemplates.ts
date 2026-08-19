@@ -35,8 +35,9 @@ import {
 
 export type TemplateCategory =
   | 'all'
-  | 'retail'
+  | 'custom'
   | 'food'
+  | 'retail'
   | 'fashion'
   | 'tech'
   | 'services'
@@ -91,6 +92,7 @@ export interface CategoryFilterOption {
 
 export const TEMPLATE_CATEGORIES: CategoryFilterOption[] = [
   { id: 'all', label: 'All', emoji: '🌟' },
+  { id: 'custom', label: 'Custom', emoji: '🛠️' },
   { id: 'food', label: 'Food & Dining', emoji: '🍔' },
   { id: 'retail', label: 'Retail & Grocery', emoji: '🛒' },
   { id: 'fashion', label: 'Fashion & Lifestyle', emoji: '👗' },

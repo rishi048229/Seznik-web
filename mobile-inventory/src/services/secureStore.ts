@@ -154,4 +154,95 @@ export async function getStoredActiveTemplate(): Promise<string | null> {
   }
 }
 
+const CUSTOM_RECEIPT_TEMPLATES_KEY = 'seznik_custom_receipt_templates';
+const ACTIVE_CUSTOM_RECEIPT_KEY = 'seznik_active_custom_receipt';
+const ENABLE_BILL_QR_KEY = 'seznik_enable_bill_qr';
+
+export async function getStoredCustomReceiptTemplates(): Promise<any[] | null> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(CUSTOM_RECEIPT_TEMPLATES_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(CUSTOM_RECEIPT_TEMPLATES_KEY);
+    }
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error('Error reading custom receipt templates:', error);
+    return null;
+  }
+}
+
+export async function setStoredCustomReceiptTemplates(templates: any[]): Promise<void> {
+  try {
+    const raw = JSON.stringify(templates);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(CUSTOM_RECEIPT_TEMPLATES_KEY, raw);
+      }
+    } else {
+      await SecureStore.setItemAsync(CUSTOM_RECEIPT_TEMPLATES_KEY, raw);
+    }
+  } catch (error) {
+    console.error('Error saving custom receipt templates:', error);
+  }
+}
+
+export async function getStoredActiveCustomReceiptTemplate(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_CUSTOM_RECEIPT_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(ACTIVE_CUSTOM_RECEIPT_KEY);
+  } catch (error) {
+    console.error('Error reading active custom receipt template id:', error);
+    return null;
+  }
+}
+
+export async function setStoredActiveCustomReceiptTemplate(id: string | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (id) window.localStorage.setItem(ACTIVE_CUSTOM_RECEIPT_KEY, id);
+        else window.localStorage.removeItem(ACTIVE_CUSTOM_RECEIPT_KEY);
+      }
+    } else {
+      if (id) await SecureStore.setItemAsync(ACTIVE_CUSTOM_RECEIPT_KEY, id);
+      else await SecureStore.deleteItemAsync(ACTIVE_CUSTOM_RECEIPT_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving active custom receipt template id:', error);
+  }
+}
+
+export async function getStoredEnableBillQr(): Promise<boolean> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(ENABLE_BILL_QR_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(ENABLE_BILL_QR_KEY);
+    }
+    return raw !== null ? raw === 'true' : true; // default true
+  } catch {
+    return true;
+  }
+}
+
+export async function setStoredEnableBillQr(enabled: boolean): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ENABLE_BILL_QR_KEY, enabled ? 'true' : 'false');
+      }
+    } else {
+      await SecureStore.setItemAsync(ENABLE_BILL_QR_KEY, enabled ? 'true' : 'false');
+    }
+  } catch (error) {
+    console.error('Error saving enable bill qr setting:', error);
+  }
+}
+
+
 

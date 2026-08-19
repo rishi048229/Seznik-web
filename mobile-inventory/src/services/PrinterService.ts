@@ -2,6 +2,8 @@ import * as Print from 'expo-print';
 import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, EmitterSubscription } from 'react-native';
 import { ReceiptTemplate, getTemplateById } from '../constants/receiptTemplates';
 import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } from '../types/labelTemplate';
+import { CustomReceiptTemplate } from '../types/customReceipt';
+import { buildBillPdfUrl } from '../utils/billQrService';
 import { Product } from '../types/product';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
@@ -25,6 +27,7 @@ export interface PrintSaleData {
   invoiceNumber: string;
   date: string;
   customerName?: string;
+  customerPhone?: string;
   items: { productName: string; quantity: number; unitPrice: number; total: number; unit?: string; gstRate?: number; discount?: number }[];
   subtotal: number;
   taxableAmt?: number;
@@ -77,6 +80,8 @@ export interface PrintTokenData {
 /** Calibration/personalization options threaded through the receipt print pipeline — sourced from usePrinterStore. */
 export interface ReceiptPrintOptions {
   template?: ReceiptTemplate;
+  customTemplate?: CustomReceiptTemplate | null;
+  includeBillQr?: boolean;
   /** Blank feed lines before print starts. */
   topMargin?: number;
   /** Feeds + cuts after printing, via the native printText `cut` option — no-op on printers without a cutter. */
@@ -453,10 +458,192 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  public resolveActiveCustomTemplate(options?: ReceiptPrintOptions): CustomReceiptTemplate | null {
+    if (options?.customTemplate) return options.customTemplate;
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const state = usePrinterStore.getState();
+      const activeCustomId = state.activeCustomTemplateId;
+      if (!activeCustomId) return null;
+      return state.customTemplates?.find((t: any) => t.id === activeCustomId) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  public interpolateReceiptVariables(text: string, data: PrintSaleData): string {
+    if (!text) return '';
+    const dateStr = data.date || new Date().toLocaleDateString('en-GB');
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const billPdfUrl = buildBillPdfUrl(data);
+    const upiStr = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : '';
+
+    return text
+      .replace(/\{\{store_name\}\}/g, (data.storeName || 'Your Store').toUpperCase())
+      .replace(/\{\{store_address\}\}/g, data.storeAddress || '')
+      .replace(/\{\{store_phone\}\}/g, data.storePhone || '')
+      .replace(/\{\{store_gstin\}\}/g, data.storeGstin || '')
+      .replace(/\{\{invoice_no\}\}/g, data.invoiceNumber || 'INV-0000')
+      .replace(/\{\{date\}\}/g, dateStr)
+      .replace(/\{\{time\}\}/g, timeStr)
+      .replace(/\{\{customer_name\}\}/g, data.customerName || 'Walk-in')
+      .replace(/\{\{customer_phone\}\}/g, data.customerPhone || '')
+      .replace(/\{\{subtotal\}\}/g, `Rs.${data.subtotal.toFixed(2)}`)
+      .replace(/\{\{discount\}\}/g, `Rs.${data.totalDiscount.toFixed(2)}`)
+      .replace(/\{\{tax\}\}/g, `Rs.${data.totalTax.toFixed(2)}`)
+      .replace(/\{\{grand_total\}\}/g, `Rs.${data.grandTotal.toFixed(2)}`)
+      .replace(/\{\{paid_amount\}\}/g, `Rs.${(data.amountPaid !== undefined ? data.amountPaid : data.grandTotal).toFixed(2)}`)
+      .replace(/\{\{change_returned\}\}/g, `Rs.${(data.changeReturned !== undefined ? data.changeReturned : 0).toFixed(2)}`)
+      .replace(/\{\{payment_method\}\}/g, (data.paymentMethod || 'CASH').toUpperCase())
+      .replace(/\{\{upi_qr\}\}/g, upiStr)
+      .replace(/\{\{bill_pdf_url\}\}/g, billPdfUrl)
+      .replace(/\{\{footer_message\}\}/g, 'Thank you for your business!');
+  }
+
+  public formatCustomReceiptText(
+    data: PrintSaleData,
+    customTemplate: CustomReceiptTemplate,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: ReceiptPrintOptions = {}
+  ): string {
+    const width = paperWidth === '58mm' ? 30 : 44;
+    const lines: string[] = [];
+
+    // Top margin
+    for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
+
+    const padLine = (left: string, right: string) => {
+      const leftStr = String(left ?? '');
+      const rightStr = String(right ?? '');
+      const available = width - leftStr.length - rightStr.length;
+      if (available <= 0) {
+        const maxLeft = Math.max(1, width - rightStr.length - 1);
+        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
+      }
+      return leftStr + ' '.repeat(available) + rightStr;
+    };
+
+    const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
+      const trimmed = str.trim();
+      if (!trimmed) return '';
+      if (trimmed.length >= width) return trimmed.slice(0, width);
+      if (align === 'center') {
+        const padLeft = Math.floor((width - trimmed.length) / 2);
+        return ' '.repeat(padLeft) + trimmed;
+      }
+      if (align === 'right') {
+        return ' '.repeat(width - trimmed.length) + trimmed;
+      }
+      return trimmed;
+    };
+
+    customTemplate.entries.forEach((entry) => {
+      if (!entry.enabled) return;
+
+      switch (entry.type) {
+        case 'text':
+        case 'text_special': {
+          const rawText = this.interpolateReceiptVariables(entry.text, data);
+          const splitted = rawText.split('\n');
+          splitted.forEach((line) => {
+            lines.push(alignText(line, entry.align || 'left'));
+          });
+          break;
+        }
+
+        case 'horizontal_line': {
+          const char =
+            entry.lineStyle === 'double' ? '=' : entry.lineStyle === 'dotted' ? '.' : '-';
+          lines.push(char.repeat(width));
+          break;
+        }
+
+        case 'left_right_text': {
+          const left = this.interpolateReceiptVariables(entry.left, data);
+          const right = this.interpolateReceiptVariables(entry.right, data);
+          lines.push(padLine(left, right));
+          break;
+        }
+
+        case 'table': {
+          const itemCol = entry.columnHeaders?.item || 'Item';
+          const totalCol = entry.columnHeaders?.total || 'Total';
+          lines.push(padLine(itemCol, totalCol));
+          lines.push('-'.repeat(width));
+
+          data.items.forEach((item, idx) => {
+            const namePrefix = `${idx + 1}. `;
+            const rawName = String(item.productName || 'Item');
+            if (namePrefix.length + rawName.length <= width) {
+              lines.push(namePrefix + rawName);
+            } else {
+              const maxFirst = Math.max(1, width - namePrefix.length);
+              lines.push(namePrefix + rawName.slice(0, maxFirst));
+              const rem = rawName.slice(maxFirst);
+              if (rem) lines.push('   ' + rem.slice(0, Math.max(1, width - 3)));
+            }
+
+            if (entry.showTaxColumn && item.gstRate) {
+              lines.push(`   ${item.gstRate.toFixed(1)}% GST`);
+            }
+
+            lines.push(
+              padLine(
+                `   ${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}`,
+                item.total.toFixed(2)
+              )
+            );
+          });
+          break;
+        }
+
+        case 'multi_format': {
+          const joined = entry.segments
+            .map((seg) => this.interpolateReceiptVariables(seg.text, data))
+            .filter(Boolean)
+            .join(' ');
+          lines.push(alignText(joined, entry.align || 'left'));
+          break;
+        }
+
+        case 'barcode': {
+          const val = this.interpolateReceiptVariables(entry.value, data);
+          if (entry.format === 'qr' || entry.codeType === 'qr_code') {
+            lines.push(alignText(`[QR: ${val}]`, entry.align || 'center'));
+          } else {
+            lines.push(alignText(`* ${val} *`, entry.align || 'center'));
+          }
+          break;
+        }
+
+        case 'files_note': {
+          if (entry.title) lines.push(alignText(entry.title, entry.align || 'left'));
+          const text = this.interpolateReceiptVariables(entry.content, data);
+          text.split('\n').forEach((l) => lines.push(alignText(l, entry.align || 'left')));
+          break;
+        }
+
+        case 'image': {
+          // Native print will handle image printing via printPic; for text feed keep spacing
+          lines.push('');
+          break;
+        }
+      }
+    });
+
+    lines.push('');
+    return lines.join('\n');
+  }
+
   /**
    * Plaintext formatted receipt representation
    */
   public formatReceiptText(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): string {
+    const customTemplate = this.resolveActiveCustomTemplate(options);
+    if (customTemplate) {
+      return this.formatCustomReceiptText(data, customTemplate, paperWidth, options);
+    }
+
     const template = this.resolveActiveTemplate(options);
     // 58mm paper rolls have a 48mm printable head (384 dots). With hardware margins, safe character width is 30 cols.
     // 80mm rolls have a 72mm printable head, safe character width is 44 cols.
@@ -826,10 +1013,196 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  public generateCustomReceiptHtml(
+    data: PrintSaleData,
+    customTemplate: CustomReceiptTemplate,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: ReceiptPrintOptions = {}
+  ): string {
+    const widthPx = paperWidth === '58mm' ? '280px' : '380px';
+    const fontSize = paperWidth === '58mm' ? '12px' : '14px';
+    const topMarginPx = (options.topMargin || 0) * 10;
+    const billPdfUrl = buildBillPdfUrl(data);
+
+    const blocksHtml = customTemplate.entries
+      .filter((e) => e.enabled)
+      .map((entry) => {
+        switch (entry.type) {
+          case 'text': {
+            const txt = this.interpolateReceiptVariables(entry.text, data).replace(/\n/g, '<br/>');
+            const align = entry.align || 'left';
+            const isBold = entry.bold ? 'font-weight: bold;' : '';
+            const isUnderline = entry.underline ? 'text-decoration: underline;' : '';
+            const sizeStyle =
+              entry.size === 'large'
+                ? 'font-size: 1.25em;'
+                : entry.size === 'double_width'
+                ? 'font-size: 1.15em; letter-spacing: 2px;'
+                : entry.size === 'double_height'
+                ? 'font-size: 1.35em; line-height: 1.3;'
+                : entry.size === 'small'
+                ? 'font-size: 0.85em;'
+                : '';
+            return `<div style="text-align: ${align}; ${isBold} ${isUnderline} ${sizeStyle} margin: 2px 0;">${txt}</div>`;
+          }
+
+          case 'image': {
+            const uri = entry.imageUri || entry.imageBase64 || data.storeLogoUrl;
+            if (!uri) return '';
+            const align = entry.align || 'center';
+            const widthPct = entry.widthPercent || 40;
+            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-width: ${widthPct}%; max-height: 80px; object-fit: contain; border-radius: 4px;" /></div>`;
+          }
+
+          case 'text_special': {
+            const txt = this.interpolateReceiptVariables(entry.text, data).replace(/\n/g, '<br/>');
+            const align = entry.align || 'left';
+            const isBold = entry.bold ? 'font-weight: bold;' : '';
+            const isItalic = entry.italic ? 'font-style: italic;' : '';
+            const isUnderline = entry.underline ? 'text-decoration: underline;' : '';
+            const fontSz = entry.fontSizePt ? `font-size: ${entry.fontSizePt}pt;` : '';
+            const fontFam = entry.fontFamily ? `font-family: ${entry.fontFamily};` : '';
+            return `<div style="text-align: ${align}; ${isBold} ${isItalic} ${isUnderline} ${fontSz} ${fontFam} margin: 3px 0;">${txt}</div>`;
+          }
+
+          case 'horizontal_line': {
+            const borderStyle =
+              entry.lineStyle === 'double'
+                ? '3px double #000'
+                : entry.lineStyle === 'dotted'
+                ? '1px dotted #000'
+                : entry.lineStyle === 'dashed'
+                ? '1px dashed #000'
+                : '1px solid #000';
+            return `<div style="border-bottom: ${borderStyle}; margin: 6px 0;"></div>`;
+          }
+
+          case 'left_right_text': {
+            const left = this.interpolateReceiptVariables(entry.left, data);
+            const right = this.interpolateReceiptVariables(entry.right, data);
+            const isBold = entry.bold ? 'font-weight: bold;' : '';
+            const sizeStyle = entry.size === 'large' ? 'font-size: 1.15em;' : entry.size === 'small' ? 'font-size: 0.9em;' : '';
+            return `<div style="display: flex; justify-content: space-between; ${isBold} ${sizeStyle} margin: 2px 0;"><span>${left}</span><span>${right}</span></div>`;
+          }
+
+          case 'table': {
+            const itemHeader = entry.columnHeaders?.item || 'Item';
+            const totalHeader = entry.columnHeaders?.total || 'Total';
+            const itemsRows = data.items
+              .map(
+                (item, idx) => `
+                <div style="margin-bottom: 5px;">
+                  <div><b>${idx + 1}. ${item.productName}</b></div>
+                  ${entry.showTaxColumn && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${item.gstRate.toFixed(1)}% GST</div>` : ''}
+                  <div style="display: flex; justify-content: space-between; font-size: 0.95em;">
+                    <span>&nbsp;&nbsp;${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}</span>
+                    <span>${item.total.toFixed(2)}</span>
+                  </div>
+                </div>`
+              )
+              .join('');
+
+            return `
+              <div style="margin: 4px 0;">
+                <div style="display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 4px;">
+                  <span>${itemHeader}</span>
+                  <span>${totalHeader}</span>
+                </div>
+                ${itemsRows}
+              </div>`;
+          }
+
+          case 'multi_format': {
+            const align = entry.align || 'left';
+            const segmentsHtml = entry.segments
+              .map((seg) => {
+                const txt = this.interpolateReceiptVariables(seg.text, data);
+                const isBold = seg.bold ? 'font-weight: bold;' : '';
+                const isUnderline = seg.underline ? 'text-decoration: underline;' : '';
+                const sz = seg.size === 'large' ? 'font-size: 1.15em;' : seg.size === 'small' ? 'font-size: 0.85em;' : '';
+                return `<span style="${isBold} ${isUnderline} ${sz}">${txt}</span>`;
+              })
+              .join(' ');
+            return `<div style="text-align: ${align}; margin: 3px 0;">${segmentsHtml}</div>`;
+          }
+
+          case 'barcode': {
+            const rawVal = this.interpolateReceiptVariables(entry.value, data);
+            const align = entry.align || 'center';
+            const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
+            const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 70 : 95;
+
+            if (isQr) {
+              const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(rawVal || billPdfUrl)}`;
+              return `
+                <div style="text-align: ${align}; margin: 8px 0;">
+                  <img src="${qrApiUrl}" width="${qrSize}" height="${qrSize}" alt="QR Code" style="display: inline-block;" />
+                  ${entry.showText ? `<div style="font-size: 0.8em; margin-top: 2px;">${rawVal}</div>` : ''}
+                </div>`;
+            } else {
+              return `
+                <div style="text-align: ${align}; margin: 6px 0;">
+                  <div style="font-family: 'Courier New', monospace; font-size: 1.3em; letter-spacing: 3px; font-weight: bold; border-top: 1px dashed #999; border-bottom: 1px dashed #999; padding: 4px 0; display: inline-block;">* ${rawVal} *</div>
+                  ${entry.showText ? `<div style="font-size: 0.8em; margin-top: 2px;">${rawVal}</div>` : ''}
+                </div>`;
+            }
+          }
+
+          case 'files_note': {
+            const align = entry.align || 'left';
+            const txt = this.interpolateReceiptVariables(entry.content, data).replace(/\n/g, '<br/>');
+            return `
+              <div style="text-align: ${align}; margin: 6px 0; font-size: 0.85em; color: #333;">
+                ${entry.title ? `<div style="font-weight: bold; margin-bottom: 2px;">${entry.title}</div>` : ''}
+                <div>${txt}</div>
+              </div>`;
+          }
+
+          default:
+            return '';
+        }
+      })
+      .join('');
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @page { margin: 0; size: auto; }
+            body {
+              width: ${widthPx};
+              margin: ${topMarginPx}px auto 0;
+              padding: 10px;
+              font-family: 'Courier New', Courier, monospace;
+              font-size: ${fontSize};
+              color: #000;
+              background: #fff;
+              box-sizing: border-box;
+            }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+        </head>
+        <body>
+          ${blocksHtml}
+        </body>
+      </html>
+    `;
+  }
+
   /**
    * HTML receipt tailored for thermal printers (58mm / 80mm paper widths)
    */
   public generateReceiptHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): string {
+    const customTemplate = this.resolveActiveCustomTemplate(options);
+    if (customTemplate) {
+      return this.generateCustomReceiptHtml(data, customTemplate, paperWidth, options);
+    }
+
     const template = this.resolveActiveTemplate(options);
     const widthPx = paperWidth === '58mm' ? '260px' : '360px';
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
@@ -1998,6 +2371,24 @@ class ThermalPrinterServiceManager {
               } catch (qrErr) {
                 console.warn('UPI QR print failed (non-fatal):', qrErr);
               }
+            }
+
+            // A scannable Digital Bill PDF QR code if enabled
+            try {
+              const { usePrinterStore } = require('../store/usePrinterStore');
+              const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+              const billPdfUrl = buildBillPdfUrl(data);
+              if (shouldPrintBillQr && billPdfUrl && typeof NativeEscposPrinter.printQRCode === 'function') {
+                if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                  await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
+                }
+                await NativeEscposPrinter.printQRCode(billPdfUrl, 180, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                  await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+                }
+              }
+            } catch (billQrErr) {
+              console.warn('Digital Bill QR print error (non-fatal):', billQrErr);
             }
 
             // Force extra physical paper feed (ESC J) beyond the text's own line breaks, so the
