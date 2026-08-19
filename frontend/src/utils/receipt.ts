@@ -357,9 +357,9 @@ export const generateReceiptHTML = ({
     text-align:left;
     overflow:hidden;
   ">
-${effectiveLogo ? `<div style="text-align:center;margin-bottom:6px;padding-bottom:4px;"><img src="${effectiveLogo}" alt="Logo" style="max-height:48px;max-width:160px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+${effectiveLogo ? `<div style="text-align:center;margin:0 auto 8px auto;padding-bottom:4px;border-bottom:1px dashed #000;display:block;"><img src="${effectiveLogo}" alt="Store Logo" style="max-height:56px;max-width:180px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
 ${rawLinesHtml}
-${effectivePaymentQR ? `<div style="text-align:center;margin-top:8px;padding:6px 0;border-top:1px dashed #000;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;">SCAN TO PAY (UPI / QR)</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:120px;height:120px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA QR / UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:130px;height:130px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
 }
 
@@ -389,6 +389,7 @@ export const printReceipt = (
     @media print {
       @page { size: ${paperWidth} auto; margin: ${pageMargin}; }
       html, body { width: 100%; margin: 0; padding: 0; }
+      img { max-width: 100% !important; display: block !important; visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -399,6 +400,7 @@ export const printReceipt = (
       print-color-adjust: exact;
     }
     #receipt { width: 100%; margin: 0; padding: 0; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; image-rendering: auto; }
   </style>
 </head>
 <body>
@@ -415,18 +417,57 @@ export const printReceipt = (
     'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:none;visibility:hidden'
   document.body.appendChild(iframe)
 
+  const executePrint = () => {
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } finally {
+      setTimeout(() => {
+        iframe.remove()
+        onDone?.()
+      }, 2000)
+    }
+  }
+
   iframe.onload = () => {
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      } finally {
-        setTimeout(() => {
-          iframe.remove()
-          onDone?.()
-        }, 2000)
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) {
+      setTimeout(executePrint, 400)
+      return
+    }
+
+    const images = Array.from(doc.images || [])
+    if (images.length === 0) {
+      setTimeout(executePrint, 200)
+      return
+    }
+
+    let remaining = images.length
+    let printed = false
+    const checkDone = () => {
+      remaining--
+      if (remaining <= 0 && !printed) {
+        printed = true
+        setTimeout(executePrint, 250)
       }
-    }, 300)
+    }
+
+    images.forEach(img => {
+      if (img.complete && img.naturalHeight !== 0) {
+        checkDone()
+      } else {
+        img.addEventListener('load', checkDone)
+        img.addEventListener('error', checkDone)
+      }
+    })
+
+    // Safeguard timeout in case image events don't fire
+    setTimeout(() => {
+      if (!printed) {
+        printed = true
+        executePrint()
+      }
+    }, 1500)
   }
 
   iframe.srcdoc = fullHTML

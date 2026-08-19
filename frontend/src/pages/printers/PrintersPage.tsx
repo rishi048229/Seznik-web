@@ -23,7 +23,7 @@ import {
   resolveElementText,
   type LabelData,
 } from '@/utils/labelPrint'
-import { generateReceiptEscPos } from '@/utils/receipt'
+import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { compileReceiptTextLines } from '@/utils/receiptEngine'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
@@ -396,29 +396,39 @@ export const PrintersPage = () => {
   // specifically for that output, so cross-firing them would print garbage.
   const handleTestPrint = async () => {
     trackUserAction('feature_test_print', { tab: activeTab, mode: config.labelPrinterMode })
-    if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
-      try {
-        if (activeTab === 'receipt') {
-          const testSale: Sale = {
-            id: 'test_sale',
-            invoiceNumber: 'INV-TEST01',
-            items: [
-              { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, discount: 0, taxRate: 18, taxAmount: 135.00, total: 885.00 }
-            ],
-            subtotal: 750.00,
-            totalDiscount: 0,
-            totalTax: 135.00,
-            grandTotal: 885.00,
-            paymentMethod: 'cash',
-            amountPaid: 1000.00,
-            changeReturned: 115.00,
-            isQuickBill: false,
-            createdAt: new Date().toISOString(),
 
-          }
+    const effectiveReceiptConfig = {
+      ...receiptConfig,
+      showLogo: config.showLogo,
+      logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
+      showPaymentQR: receiptConfig.showPaymentQR ?? false,
+      paymentQrURL: receiptConfig.paymentQrURL || '',
+    }
+
+    if (activeTab === 'receipt') {
+      const testSale: Sale = {
+        id: 'test_sale',
+        invoiceNumber: 'INV-TEST01',
+        items: [
+          { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, discount: 0, taxRate: 18, taxAmount: 135.00, total: 885.00 },
+          { productId: 'p2', productName: 'USB-C Cable 1m', quantity: 2, sellingPrice: 200.00, discount: 0, taxRate: 18, taxAmount: 72.00, total: 472.00 },
+        ],
+        subtotal: 1150.00,
+        totalDiscount: 0,
+        totalTax: 207.00,
+        grandTotal: 1357.00,
+        paymentMethod: 'cash',
+        amountPaid: 1500.00,
+        changeReturned: 143.00,
+        isQuickBill: false,
+        createdAt: new Date().toISOString(),
+      }
+
+      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+        try {
           const bytes = generateReceiptEscPos({
             sale: testSale,
-            receiptConfig,
+            receiptConfig: effectiveReceiptConfig,
             paperSize: config.paperSize,
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
@@ -426,9 +436,30 @@ export const PrintersPage = () => {
           await printEscPos(bytes)
           toast.success('Test receipt sent to Bluetooth printer!')
           return
+        } catch (err) {
+          console.error('BLE Print error:', err)
+          toast.error('BLE print error. Falling back to browser print.')
         }
-        if (activeTab === 'label') {
-          const mode = config.labelPrinterMode || 'tspl'
+      }
+
+      const receiptHTML = generateReceiptHTML({
+        sale: testSale,
+        receiptConfig: effectiveReceiptConfig,
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        customerName: 'Sample Customer',
+        width: config.paperSize === '80mm' ? '80mm' : '50mm',
+        logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
+        settingsTaxName: 'GST',
+      })
+      printReceipt(receiptHTML, config.paperSize === '80mm' ? '80mm' : '50mm', 'Test Receipt')
+      return
+    }
+
+    if (activeTab === 'label') {
+      const mode = config.labelPrinterMode || 'tspl'
+      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+        try {
           const bytes = mode === 'tspl'
             ? generateLabelTspl(
                 config.labelTemplate,
@@ -446,105 +477,57 @@ export const PrintersPage = () => {
           await printEscPos(bytes)
           toast.success(`Label sent to printer in ${mode.toUpperCase()} mode!`)
           return
+        } catch (err) {
+          console.error('BLE Print error:', err)
+          toast.error('BLE print error. Falling back to browser print.')
         }
-        // Invoice tab falls through to the browser dialog below — no thermal
-        // printer can render an A4 sheet.
-      } catch (err) {
-        console.error('BLE Print error:', err)
-        toast.error('BLE print error. Falling back to browser print.')
       }
-    }
 
-    // Fallback: Browser Print Dialog
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      toast.error('Please allow popups to test printing')
+      // Browser label fallback
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        toast.error('Please allow popups to test printing')
+        return
+      }
+      const htmlContent = renderLabelHtml()
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+      setTimeout(() => {
+        printWindow.focus()
+        printWindow.print()
+      }, 500)
       return
     }
 
-    let htmlContent = ''
-    if (activeTab === 'receipt') {
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Test Receipt Print</title>
-          <style>
-            body { font-family: monospace; width: ${config.paperSize === '58mm' ? '58mm' : '80mm'}; margin: 0 auto; padding: 10px; }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .line { border-top: 1px dashed #000; margin: 8px 0; }
-            .row { display: flex; justify-content: space-between; }
-          </style>
-        </head>
-        <body>
-          <div class="center bold" style="font-size: 16px;">${receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}</div>
-          ${config.showGSTIN && receiptConfig.gstin ? `<div class="center">GSTIN: ${receiptConfig.gstin}</div>` : ''}
-          <div class="line"></div>
-          <div class="row"><span>Inv #: TEST-001</span><span>Date: ${new Date().toLocaleDateString()}</span></div>
-          ${config.showCustomerDetails ? `<div class="row"><span>Customer: John Doe</span><span>Phone: 9876543210</span></div>` : ''}
-          <div class="line"></div>
-          <div class="row bold"><span>Item</span><span>Qty</span><span>Amt</span></div>
-          <div class="row"><span>Wireless Mouse</span><span>1</span><span>₹750.00</span></div>
-          <div class="row"><span>USB-C Hub</span><span>2</span><span>₹1,800.00</span></div>
-          <div class="line"></div>
-          <div class="row bold"><span>Grand Total</span><span>₹2,550.00</span></div>
-          <div class="line"></div>
-          <div class="center">${receiptConfig.footerMessage}</div>
-          ${config.showBarcode ? `<div class="center" style="margin-top:10px; font-weight:bold;">||||||||||||||||||||||||||</div><div class="center" style="font-size:10px;">TEST-001</div>` : ''}
-        </body>
-        </html>
-      `
-    } else if (activeTab === 'label') {
-      htmlContent = renderLabelHtml()
-    } else {
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Test A4 Invoice</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0a0a2e; padding-bottom: 20px; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .table th, .table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-            .table th { background: #0a0a2e; color: #fff; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <h1 style="color:#0a0a2e; margin:0;">${receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}</h1>
-              <p style="margin:5px 0;">Retail & Wholesale Inventory Solutions</p>
-            </div>
-            <div style="text-align:right;">
-              <h2>INVOICE</h2>
-              <p>Invoice #: INV-2026-0089</p>
-              <p>Date: ${new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-          <table class="table">
-            <thead>
-              <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Tax</th><th>Total</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Seznik POS Terminal Machine</td><td>1</td><td>₹25,000.00</td><td>18%</td><td>₹29,500.00</td></tr>
-              <tr><td>Thermal Paper Roll 80mm (Pack of 10)</td><td>5</td><td>₹450.00</td><td>18%</td><td>₹2,655.00</td></tr>
-            </tbody>
-          </table>
-          <h3 style="text-align:right; margin-top:20px;">Grand Total: ₹32,155.00</h3>
-        </body>
-        </html>
-      `
+    // Invoice Tab
+    const testInvoiceSale: Sale = {
+      id: 'test_invoice',
+      invoiceNumber: 'INV-2026-0089',
+      items: [
+        { productId: 'p1', productName: 'Seznik POS Terminal Machine', quantity: 1, sellingPrice: 25000.00, discount: 0, taxRate: 18, taxAmount: 4500.00, total: 29500.00 },
+        { productId: 'p2', productName: 'Thermal Paper Roll 80mm (Pack of 10)', quantity: 5, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 405.00, total: 2655.00 },
+      ],
+      subtotal: 27250.00,
+      totalDiscount: 0,
+      totalTax: 4905.00,
+      grandTotal: 32155.00,
+      paymentMethod: 'cash',
+      amountPaid: 32155.00,
+      changeReturned: 0,
+      isQuickBill: false,
+      createdAt: new Date().toISOString(),
     }
-
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
+    const invoiceHTML = generateReceiptHTML({
+      sale: testInvoiceSale,
+      receiptConfig: effectiveReceiptConfig,
+      businessName: settings?.businessName,
+      businessAddress: settings?.businessAddress,
+      customerName: 'Sample Corporate Client',
+      width: '210mm',
+      logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
+      settingsTaxName: 'GST',
+    })
+    printReceipt(invoiceHTML, '210mm', 'Test Invoice')
   }
 
   if (isLoading) {
