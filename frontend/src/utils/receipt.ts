@@ -110,9 +110,10 @@ export const generateReceiptHTML = ({
   // ══════════════════════════════════════════════════════════════════════════
   // A4 INVOICE HTML
   // ══════════════════════════════════════════════════════════════════════════
-  if (!isThermal) {
-    const effectiveLogo = logoURL || receiptConfig?.logoURL || ''
+  const effectiveLogo = (receiptConfig?.showLogo ?? true) ? (logoURL || receiptConfig?.logoURL || '') : ''
+  const effectivePaymentQR = (receiptConfig?.showPaymentQR ?? false) ? (receiptConfig?.paymentQrURL || '') : ''
 
+  if (!isThermal) {
     // Items table rows for A4 — larger font sizes to fill A4 page
     const a4ItemRows = saleItems.map((item: SaleItem, index: number) => {
       const lineSubtotal = item.sellingPrice * item.quantity
@@ -218,11 +219,16 @@ export const generateReceiptHTML = ({
 
   <!-- ── TOTALS + WORDS ── -->
   <div style="display:flex;border-top:2px solid #374151;border-bottom:1px solid #374151;">
-    <!-- Left: words + notes -->
+    <!-- Left: words + notes + payment QR -->
     <div style="flex:1;padding:10px 14px;border-right:1px solid #374151;">
       <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">Total In Words</div>
       <div style="font-size:12px;font-weight:700;font-style:italic;">${totalInWords}</div>
       ${footerMessage ? `<div style="font-size:11px;margin-top:8px;color:#374151;"><span style="font-weight:600;">Notes</span><br/>${footerMessage}</div>` : ''}
+      ${effectivePaymentQR ? `
+      <div style="margin-top:12px;padding-top:8px;border-top:1px dashed #cbd5e1;">
+        <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Scan &amp; Pay via UPI / QR:</div>
+        <img src="${effectivePaymentQR}" alt="Payment QR" style="width:110px;height:110px;object-fit:contain;display:block;" />
+      </div>` : ''}
     </div>
     <!-- Right: summary -->
     <div style="width:260px;flex-shrink:0;padding:10px 14px;">
@@ -313,7 +319,9 @@ export const generateReceiptHTML = ({
     text-align:left;
     overflow:hidden;
   ">
+${effectiveLogo ? `<div style="text-align:center;margin-bottom:6px;padding-bottom:4px;"><img src="${effectiveLogo}" alt="Logo" style="max-height:48px;max-width:160px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
 ${rawLinesHtml}
+${effectivePaymentQR ? `<div style="text-align:center;margin-top:8px;padding:6px 0;border-top:1px dashed #000;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;">SCAN TO PAY (UPI / QR)</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:120px;height:120px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
 }
 

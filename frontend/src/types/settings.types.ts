@@ -20,6 +20,7 @@ export interface ReceiptConfig {
   termsLine2: string
   termsLine3: string
   compactMode?: boolean
+  showLogo?: boolean
   showCompanyHeader?: boolean
   showAddress?: boolean
   showPhone?: boolean
@@ -31,6 +32,8 @@ export interface ReceiptConfig {
   showFooterMessage?: boolean
   showTerms?: boolean
   showBarcode?: boolean
+  showPaymentQR?: boolean
+  paymentQrURL?: string
 }
 
 export interface PersonalInfo {

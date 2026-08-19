@@ -37,6 +37,7 @@ import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { ImageUpload } from '@/components/forms/ImageUpload'
 import {
   Printer,
   QrCode,
@@ -60,6 +61,7 @@ import {
   Sparkles,
   Zap,
   Check,
+  Image as ImageIcon,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
@@ -213,7 +215,11 @@ export const PrintersPage = () => {
       setConfig(merged)
     }
 
-    setReceiptConfig({ ...defaultReceiptConfig, ...settings.receiptConfig })
+    const mergedReceipt = { ...defaultReceiptConfig, ...settings.receiptConfig }
+    if (!mergedReceipt.logoURL && settings.businessLogoURL) {
+      mergedReceipt.logoURL = settings.businessLogoURL
+    }
+    setReceiptConfig(mergedReceipt)
   }, [settings])
 
   // Save configuration to Database — writes printerConfig AND receiptConfig
@@ -228,7 +234,7 @@ export const PrintersPage = () => {
       businessAddress: settings?.businessAddress ?? '',
       businessPhone: settings?.businessPhone ?? '',
       businessGSTIN: settings?.businessGSTIN ?? '',
-      businessLogoURL: settings?.businessLogoURL ?? '',
+      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
       personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
       invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
       notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
@@ -891,8 +897,49 @@ export const PrintersPage = () => {
                 </div>
               </div>
 
+              {/* Store Logo Graphic Section */}
+              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                      <ImageIcon size={16} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Store Logo Graphic</span>
+                      <p className="text-[11px] text-gray-500">Print business logo image at the top of receipts & invoices</p>
+                    </div>
+                  </div>
+                  <Switch
+                    label="Enable Store Logo Graphic"
+                    checked={config.showLogo}
+                    onChange={v => {
+                      setConfig(prev => ({ ...prev, showLogo: v }))
+                      setReceiptConfig(prev => ({ ...prev, showLogo: v }))
+                    }}
+                    info={<FieldInfo textKey="tip.printer.showLogo" />}
+                  />
+                </div>
+                {config.showLogo && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                    <ImageUpload
+                      label="Store Logo Image (PNG / JPG / WebP)"
+                      value={receiptConfig.logoURL || settings?.businessLogoURL || ''}
+                      onChange={(url) => {
+                        setReceiptConfig(prev => ({ ...prev, logoURL: url, showLogo: true }))
+                        setConfig(prev => ({ ...prev, showLogo: true }))
+                      }}
+                      previewSize="md"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    />
+                    <p className="text-[11px] text-gray-400">
+                      Upload your high-contrast brand logo. It will appear at the top of all thermal and full-sheet invoices.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Content & Information Toggles */}
               <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
-                <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo graphic" info={<FieldInfo textKey="tip.printer.showLogo" />} />
                 <Switch
                   checked={receiptConfig.showCompanyHeader ?? true}
                   onChange={v => setReceiptConfig(prev => ({ ...prev, showCompanyHeader: v }))}
@@ -957,9 +1004,50 @@ export const PrintersPage = () => {
                     setReceiptConfig(prev => ({ ...prev, showBarcode: v }))
                     setConfig(prev => ({ ...prev, showBarcode: v }))
                   }}
-                  label="Bottom Invoice Barcode / QR graphic"
+                  label="Bottom Invoice Barcode / Identifier graphic"
                   info={<FieldInfo textKey="tip.printer.showBarcode" />}
                 />
+              </div>
+
+              {/* Payment QR Code (UPI / QR Pay) Section */}
+              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <QrCode size={16} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Payment QR Code (UPI / QR Pay)</span>
+                      <p className="text-[11px] text-gray-500">Print UPI QR code image on bills for direct customer payments</p>
+                    </div>
+                  </div>
+                  <Switch
+                    label="Enable Payment QR Code on Bills"
+                    checked={receiptConfig.showPaymentQR ?? false}
+                    onChange={v => {
+                      setReceiptConfig(prev => ({ ...prev, showPaymentQR: v }))
+                      setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))
+                    }}
+                  />
+                </div>
+                {receiptConfig.showPaymentQR && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                    <ImageUpload
+                      label="Upload Payment QR Code Image (PNG / JPG)"
+                      value={receiptConfig.paymentQrURL || ''}
+                      onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
+                      previewSize="md"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                    />
+                    <p className="text-[11px] text-gray-400">
+                      Upload your Google Pay, PhonePe, Paytm, BHIM, or Bank UPI QR code PNG/JPG image.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Hardware Actions */}
+              <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
                 <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
                 <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
                 <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
@@ -986,6 +1074,17 @@ export const PrintersPage = () => {
                 }`}
                 style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.12)' }}
               >
+                {/* Live Store Logo Preview */}
+                {config.showLogo && (receiptConfig.logoURL || settings?.businessLogoURL) && (
+                  <div className="flex justify-center mb-3 pb-2 border-b border-dashed border-gray-300">
+                    <img
+                      src={receiptConfig.logoURL || settings?.businessLogoURL}
+                      alt="Store Logo"
+                      className="max-h-12 max-w-[160px] object-contain"
+                    />
+                  </div>
+                )}
+
                 <pre className="whitespace-pre font-mono text-[11px] leading-[1.3] text-gray-900 overflow-x-auto no-scrollbar">
                   {compileReceiptTextLines({
                     sale: {
@@ -1015,6 +1114,18 @@ export const PrintersPage = () => {
                     paperSize: config.paperSize === '80mm' ? '80mm' : '58mm',
                   }).join('\n')}
                 </pre>
+
+                {/* Live Payment QR Code Preview */}
+                {receiptConfig.showPaymentQR && receiptConfig.paymentQrURL && (
+                  <div className="mt-3 pt-3 border-t border-dashed border-gray-300 text-center flex flex-col items-center">
+                    <span className="text-[10px] font-bold tracking-wider text-gray-800 mb-1">SCAN TO PAY (UPI / QR)</span>
+                    <img
+                      src={receiptConfig.paymentQrURL}
+                      alt="Payment QR Code"
+                      className="w-28 h-28 object-contain border border-gray-200 rounded p-1 bg-white"
+                    />
+                  </div>
+                )}
               </div>
               <div
                 className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[280px]' : 'w-[360px]'} max-w-full rounded-b-sm`}
