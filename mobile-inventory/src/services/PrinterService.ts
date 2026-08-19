@@ -479,25 +479,26 @@ class ThermalPrinterServiceManager {
     const upiStr = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : '';
 
     return text
-      .replace(/\{\{store_name\}\}/g, (data.storeName || 'Your Store').toUpperCase())
-      .replace(/\{\{store_address\}\}/g, data.storeAddress || '')
-      .replace(/\{\{store_phone\}\}/g, data.storePhone || '')
-      .replace(/\{\{store_gstin\}\}/g, data.storeGstin || '')
-      .replace(/\{\{invoice_no\}\}/g, data.invoiceNumber || 'INV-0000')
-      .replace(/\{\{date\}\}/g, dateStr)
-      .replace(/\{\{time\}\}/g, timeStr)
-      .replace(/\{\{customer_name\}\}/g, data.customerName || 'Walk-in')
-      .replace(/\{\{customer_phone\}\}/g, data.customerPhone || '')
-      .replace(/\{\{subtotal\}\}/g, `Rs.${data.subtotal.toFixed(2)}`)
-      .replace(/\{\{discount\}\}/g, `Rs.${data.totalDiscount.toFixed(2)}`)
-      .replace(/\{\{tax\}\}/g, `Rs.${data.totalTax.toFixed(2)}`)
-      .replace(/\{\{grand_total\}\}/g, `Rs.${data.grandTotal.toFixed(2)}`)
-      .replace(/\{\{paid_amount\}\}/g, `Rs.${(data.amountPaid !== undefined ? data.amountPaid : data.grandTotal).toFixed(2)}`)
-      .replace(/\{\{change_returned\}\}/g, `Rs.${(data.changeReturned !== undefined ? data.changeReturned : 0).toFixed(2)}`)
-      .replace(/\{\{payment_method\}\}/g, (data.paymentMethod || 'CASH').toUpperCase())
-      .replace(/\{\{upi_qr\}\}/g, upiStr)
-      .replace(/\{\{bill_pdf_url\}\}/g, billPdfUrl)
-      .replace(/\{\{footer_message\}\}/g, 'Thank you for your business!');
+      .replace(/\{\{store_name\}\}/gi, data.storeName || 'Your Store')
+      .replace(/\{\{store_address\}\}/gi, data.storeAddress || '')
+      .replace(/\{\{store_phone\}\}/gi, data.storePhone || '')
+      .replace(/\{\{store_gstin\}\}/gi, data.storeGstin || '')
+      .replace(/\{\{invoice_no\}\}/gi, data.invoiceNumber || 'INV-0000')
+      .replace(/\{\{date\}\}/gi, dateStr)
+      .replace(/\{\{time\}\}/gi, timeStr)
+      .replace(/\{\{customer_name\}\}/gi, data.customerName || 'Walk-in')
+      .replace(/\{\{customer_phone\}\}/gi, data.customerPhone || '')
+      .replace(/\{\{subtotal\}\}/gi, `₹${data.subtotal.toFixed(2)}`)
+      .replace(/\{\{discount\}\}/gi, `₹${data.totalDiscount.toFixed(2)}`)
+      .replace(/\{\{total_tax\}\}/gi, `₹${data.totalTax.toFixed(2)}`)
+      .replace(/\{\{tax\}\}/gi, `₹${data.totalTax.toFixed(2)}`)
+      .replace(/\{\{grand_total\}\}/gi, `₹${data.grandTotal.toFixed(2)}`)
+      .replace(/\{\{paid_amount\}\}/gi, `₹${(data.amountPaid !== undefined ? data.amountPaid : data.grandTotal).toFixed(2)}`)
+      .replace(/\{\{change_returned\}\}/gi, `₹${(data.changeReturned !== undefined ? data.changeReturned : 0).toFixed(2)}`)
+      .replace(/\{\{payment_method\}\}/gi, data.paymentMethod || 'CASH')
+      .replace(/\{\{upi_qr\}\}/gi, upiStr)
+      .replace(/\{\{bill_pdf_url\}\}/gi, billPdfUrl)
+      .replace(/\{\{footer_message\}\}/gi, 'Thank you for your business!');
   }
 
   public formatCustomReceiptText(
@@ -1051,7 +1052,7 @@ class ThermalPrinterServiceManager {
             if (!uri) return '';
             const align = entry.align || 'center';
             const widthPct = entry.widthPercent || 40;
-            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-width: ${widthPct}%; max-height: 80px; object-fit: contain; border-radius: 4px;" /></div>`;
+            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-width: ${widthPct}%; max-height: 80px; object-fit: contain; filter: grayscale(100%) contrast(250%) brightness(85%); -webkit-filter: grayscale(100%) contrast(250%) brightness(85%);" /></div>`;
           }
 
           case 'text_special': {
@@ -1127,17 +1128,24 @@ class ThermalPrinterServiceManager {
           }
 
           case 'barcode': {
-            const rawVal = this.interpolateReceiptVariables(entry.value, data);
+            let rawVal = this.interpolateReceiptVariables(entry.value, data);
+            if (!rawVal || rawVal === '{{bill_pdf_url}}') {
+              rawVal = billPdfUrl;
+            } else if (rawVal === '{{upi_qr}}') {
+              rawVal = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : billPdfUrl;
+            } else if (rawVal === '{{invoice_no}}') {
+              rawVal = data.invoiceNumber || 'INV-0000';
+            }
+
             const align = entry.align || 'center';
             const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
             const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 70 : 95;
 
             if (isQr) {
-              const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(rawVal || billPdfUrl)}`;
+              const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize * 2}x${qrSize * 2}&data=${encodeURIComponent(rawVal)}&margin=0`;
               return `
                 <div style="text-align: ${align}; margin: 8px 0;">
-                  <img src="${qrApiUrl}" width="${qrSize}" height="${qrSize}" alt="QR Code" style="display: inline-block;" />
-                  ${entry.showText ? `<div style="font-size: 0.8em; margin-top: 2px;">${rawVal}</div>` : ''}
+                  <img src="${qrApiUrl}" width="${qrSize}" height="${qrSize}" alt="QR Code" style="display: inline-block; image-rendering: pixelated;" />
                 </div>`;
             } else {
               return `
@@ -2324,15 +2332,18 @@ class ThermalPrinterServiceManager {
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
+          const customTemplate = this.resolveActiveCustomTemplate(options);
+          if (customTemplate) {
+            for (let i = 0; i < copies; i++) {
+              await this.printCustomReceiptEscpos(data, customTemplate, paperWidth, options);
+            }
+            return true;
+          }
+
           // sanitizeForThermalPrint strips/normalizes anything the GBK-default native printText()
           // can't render (emoji, em/en dashes, curly quotes, ...) — without this, free-text fields
           // like footerMessage (e.g. "...stopping by — see you tomorrow!") print as garbled bytes.
           const textContent = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
-          // fontSize maps to real ESC/POS GS! scale commands (widthtimes/heigthtimes) —
-          // 'small'/'medium' print at normal size (thermal printers have no smaller-than-default
-          // scale), 'large' doubles it. Cut is handled manually below (after any logo/QR) instead
-          // of via printText's own `cut` option, since that would fire immediately after the text
-          // block and before the QR code gets a chance to print.
           const scale = options.fontSize === 'large' ? 1 : 0;
           const printOptions = { widthtimes: scale, heigthtimes: scale, cut: false };
 
@@ -2426,6 +2437,211 @@ class ThermalPrinterServiceManager {
     } catch (error: any) {
       console.error('Print error:', error);
       throw error;
+    }
+  }
+
+  private async printCustomReceiptEscpos(
+    data: PrintSaleData,
+    customTemplate: CustomReceiptTemplate,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: ReceiptPrintOptions = {}
+  ): Promise<void> {
+    const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
+    const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
+    const widthCols = paperWidth === '58mm' ? 30 : 44;
+
+    const padLine = (left: string, right: string) => {
+      const leftStr = String(left ?? '');
+      const rightStr = String(right ?? '');
+      const available = widthCols - leftStr.length - rightStr.length;
+      if (available <= 0) {
+        const maxLeft = Math.max(1, widthCols - rightStr.length - 1);
+        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
+      }
+      return leftStr + ' '.repeat(available) + rightStr;
+    };
+
+    const alignCode = (align?: 'left' | 'center' | 'right') => {
+      if (align === 'center') return NativeEscposPrinter.ALIGN?.CENTER ?? 1;
+      if (align === 'right') return NativeEscposPrinter.ALIGN?.RIGHT ?? 2;
+      return NativeEscposPrinter.ALIGN?.LEFT ?? 0;
+    };
+
+    for (const entry of customTemplate.entries) {
+      if (!entry.enabled) continue;
+
+      switch (entry.type) {
+        case 'image': {
+          const uri = entry.imageUri || entry.imageBase64 || data.storeLogoUrl;
+          if (uri && typeof NativeEscposPrinter.printPic === 'function') {
+            try {
+              const base64 = await this.uriToBase64(uri);
+              if (base64) {
+                const widthPct = (entry.widthPercent || 40) / 100;
+                const logoWidthDots = Math.round(paperWidthDots * widthPct);
+                NativeEscposPrinter.printPic(base64, {
+                  width: logoWidthDots,
+                  center: entry.align !== 'left',
+                  autoCut: false,
+                  paperSize: paperSizeDots,
+                });
+              }
+            } catch (err) {
+              console.warn('Custom receipt image print error:', err);
+            }
+          }
+          break;
+        }
+
+        case 'text':
+        case 'text_special': {
+          const rawText = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.text, data));
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(alignCode(entry.align));
+          }
+          let scaleW = 0;
+          let scaleH = 0;
+          if (entry.type === 'text') {
+            if (entry.size === 'large') {
+              scaleW = 1;
+              scaleH = 1;
+            } else if (entry.size === 'double_width') {
+              scaleW = 1;
+              scaleH = 0;
+            } else if (entry.size === 'double_height') {
+              scaleW = 0;
+              scaleH = 1;
+            }
+          } else if (entry.type === 'text_special') {
+            if ((entry.fontSizePt || 14) >= 18) {
+              scaleW = 1;
+              scaleH = 1;
+            }
+          }
+          await NativeEscposPrinter.printText(rawText + '\n', { widthtimes: scaleW, heigthtimes: scaleH, cut: false });
+          break;
+        }
+
+        case 'horizontal_line': {
+          const char = entry.lineStyle === 'double' ? '=' : entry.lineStyle === 'dotted' ? '.' : '-';
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+          }
+          await NativeEscposPrinter.printText(char.repeat(widthCols) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          break;
+        }
+
+        case 'left_right_text': {
+          const left = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.left, data));
+          const right = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.right, data));
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+          }
+          await NativeEscposPrinter.printText(padLine(left, right) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          break;
+        }
+
+        case 'table': {
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+          }
+          const itemCol = entry.columnHeaders?.item || 'Item';
+          const totalCol = entry.columnHeaders?.total || 'Total';
+          await NativeEscposPrinter.printText(padLine(itemCol, totalCol) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          await NativeEscposPrinter.printText('-'.repeat(widthCols) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+
+          for (let idx = 0; idx < data.items.length; idx++) {
+            const item = data.items[idx];
+            const namePrefix = `${idx + 1}. `;
+            const rawName = String(item.productName || 'Item');
+            if (namePrefix.length + rawName.length <= widthCols) {
+              await NativeEscposPrinter.printText(namePrefix + rawName + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            } else {
+              const maxFirst = Math.max(1, widthCols - namePrefix.length);
+              await NativeEscposPrinter.printText(namePrefix + rawName.slice(0, maxFirst) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              const rem = rawName.slice(maxFirst);
+              if (rem) await NativeEscposPrinter.printText('   ' + rem.slice(0, Math.max(1, widthCols - 3)) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            }
+
+            if (entry.showTaxColumn && item.gstRate) {
+              await NativeEscposPrinter.printText(`   ${item.gstRate.toFixed(1)}% GST\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
+            }
+
+            await NativeEscposPrinter.printText(
+              padLine(`   ${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}`, item.total.toFixed(2)) + '\n',
+              { widthtimes: 0, heigthtimes: 0, cut: false }
+            );
+          }
+          break;
+        }
+
+        case 'multi_format': {
+          const joined = entry.segments
+            .map((seg) => this.sanitizeForThermalPrint(this.interpolateReceiptVariables(seg.text, data)))
+            .filter(Boolean)
+            .join(' ');
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(alignCode(entry.align));
+          }
+          await NativeEscposPrinter.printText(joined + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          break;
+        }
+
+        case 'barcode': {
+          let rawVal = this.interpolateReceiptVariables(entry.value, data);
+          if (!rawVal || rawVal === '{{bill_pdf_url}}') {
+            rawVal = buildBillPdfUrl(data);
+          } else if (rawVal === '{{upi_qr}}') {
+            rawVal = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : buildBillPdfUrl(data);
+          } else if (rawVal === '{{invoice_no}}') {
+            rawVal = data.invoiceNumber || 'INV-0000';
+          }
+
+          const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(alignCode(entry.align));
+          }
+          if (isQr && typeof NativeEscposPrinter.printQRCode === 'function') {
+            const qrDots = entry.size === 'large' ? (paperWidth === '80mm' ? 240 : 200) : entry.size === 'small' ? (paperWidth === '80mm' ? 140 : 120) : (paperWidth === '80mm' ? 190 : 160);
+            await NativeEscposPrinter.printQRCode(rawVal, qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+            if (entry.showText) {
+              await NativeEscposPrinter.printText(rawVal + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            } else {
+              await NativeEscposPrinter.printText('\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            }
+          } else {
+            await NativeEscposPrinter.printText(`* ${rawVal} *\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
+            if (entry.showText) {
+              await NativeEscposPrinter.printText(rawVal + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            }
+          }
+          break;
+        }
+
+        case 'files_note': {
+          if (typeof NativeEscposPrinter.printerAlign === 'function') {
+            await NativeEscposPrinter.printerAlign(alignCode(entry.align));
+          }
+          if (entry.title) {
+            await NativeEscposPrinter.printText(this.sanitizeForThermalPrint(entry.title) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          }
+          const content = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.content, data));
+          for (const l of content.split('\n')) {
+            await NativeEscposPrinter.printText(l + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          }
+          break;
+        }
+      }
+    }
+
+    if (typeof NativeEscposPrinter.printerAlign === 'function') {
+      await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+    }
+    if (typeof NativeEscposPrinter.printAndFeed === 'function') {
+      await NativeEscposPrinter.printAndFeed(60);
+    }
+    if (options.autoCut && typeof NativeEscposPrinter.cutOnePoint === 'function') {
+      await NativeEscposPrinter.cutOnePoint();
     }
   }
 

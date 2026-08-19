@@ -37,7 +37,6 @@ import {
   Table as TableIcon,
   FileCode,
   FileText,
-  MoreVertical,
   X,
   Check,
   AlignLeft,
@@ -49,6 +48,17 @@ import {
   Share2,
   Camera,
   Layers,
+  Store,
+  MapPin,
+  Phone,
+  Calendar,
+  User,
+  CreditCard,
+  Tag,
+  Sliders,
+  Edit3,
+  Upload,
+  Sparkles,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -75,6 +85,7 @@ import {
 import { BRAND_COLORS } from '@/constants/theme';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 
 interface DraggableEntryRowProps {
   entry: CustomReceiptEntry;
@@ -86,11 +97,10 @@ interface DraggableEntryRowProps {
   onDelete: (id: string) => void;
   onMove: (idx: number, dir: 'up' | 'down') => void;
   onReorder: (from: number, to: number) => void;
-  getIcon: (type: ReceiptEntryType) => React.ReactNode;
-  getSummary: (entry: CustomReceiptEntry) => string;
+  getTileInfo: (entry: CustomReceiptEntry) => { title: string; subtitle: string; icon: React.ReactNode };
 }
 
-const DRAG_ROW_HEIGHT = 64;
+const DRAG_ROW_HEIGHT = 74;
 
 function DraggableEntryRow({
   entry,
@@ -102,16 +112,17 @@ function DraggableEntryRow({
   onDelete,
   onMove,
   onReorder,
-  getIcon,
-  getSummary,
+  getTileInfo,
 }: DraggableEntryRowProps) {
   const [isDragging, setIsDragging] = useState(false);
   const panY = useRef(new Animated.Value(0)).current;
 
+  const tile = getTileInfo(entry);
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 3,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 6,
       onPanResponderGrant: () => {
         setIsDragging(true);
       },
@@ -151,7 +162,7 @@ function DraggableEntryRow({
           backgroundColor: theme.cardBg,
           borderColor: isDragging ? '#2563EB' : entry.enabled ? theme.borderColor : '#E2E8F0',
           borderWidth: isDragging ? 2 : 1,
-          opacity: entry.enabled ? 1 : 0.6,
+          opacity: entry.enabled ? 1 : 0.55,
           zIndex: isDragging ? 999 : 1,
           transform: [{ translateY: panY }, { scale: isDragging ? 1.02 : 1 }],
           shadowColor: '#000',
@@ -162,7 +173,7 @@ function DraggableEntryRow({
         },
       ]}
     >
-      {/* Interactive Drag Handle */}
+      {/* Drag Grip Handle */}
       <View {...panResponder.panHandlers} style={styles.dragGripHandle}>
         <GripVertical size={20} color={isDragging ? '#2563EB' : theme.textSecondary} />
       </View>
@@ -185,26 +196,29 @@ function DraggableEntryRow({
         </TouchableOpacity>
       </View>
 
-      {/* Entry Icon */}
+      {/* Tile Icon */}
       <View style={[styles.entryIconWrap, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
-        {getIcon(entry.type)}
+        {tile.icon}
       </View>
 
-      {/* Entry Content info */}
+      {/* Tile Title & Value info (Tap to Edit) */}
       <TouchableOpacity
         style={styles.entryContentCol}
         activeOpacity={0.7}
         onPress={() => onSelect(entry)}
       >
-        <Text style={[styles.entryTypeName, { color: theme.isDark ? '#94A3B8' : '#64748B' }]}>
-          {entry.type.toUpperCase().replace('_', ' ')}
-        </Text>
-        <Text style={[styles.entrySummaryText, { color: theme.textPrimary }]} numberOfLines={2}>
-          {getSummary(entry)}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[styles.entryTypeName, { color: theme.textPrimary }]} numberOfLines={1}>
+            {tile.title}
+          </Text>
+          <Edit3 size={12} color={theme.textSecondary} />
+        </View>
+        <Text style={[styles.entrySummaryText, { color: theme.textSecondary }]} numberOfLines={1}>
+          {tile.subtitle}
         </Text>
       </TouchableOpacity>
 
-      {/* Controls right */}
+      {/* Toggle & Delete */}
       <View style={styles.entryRightActions}>
         <Switch
           value={entry.enabled}
@@ -272,7 +286,7 @@ export default function ReceiptEditorScreen() {
     storeName: settings?.businessName || 'SEZNIK SUPERSTORE',
     storeAddress: settings?.businessAddress || '123 Market Road, City Centre',
     storePhone: settings?.businessPhone || '+91 98765 43210',
-    storeGstin: settings?.businessGSTIN || '27AAAAA0000A1Z5',
+    storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || '27AAAAA0000A1Z5',
     storeLogoUrl: settings?.businessLogoURL || undefined,
     upiId: settings?.upiId || 'seznik@upi',
     invoiceNumber: 'INV-2026-0042',
@@ -319,35 +333,43 @@ export default function ReceiptEditorScreen() {
     const list = [...template.entries];
     const [removed] = list.splice(index, 1);
     list.splice(targetIdx, 0, removed);
-    setTemplate((prev) => ({ ...prev, entries: list }));
+    setTemplate({ ...template, entries: list });
   };
 
   const handleReorderEntries = (fromIndex: number, toIndex: number) => {
-    const boundedTo = Math.max(0, Math.min(template.entries.length - 1, toIndex));
-    if (fromIndex === boundedTo) return;
+    if (fromIndex === toIndex) return;
+    const clampedTo = Math.max(0, Math.min(toIndex, template.entries.length - 1));
     const list = [...template.entries];
-    const [moved] = list.splice(fromIndex, 1);
-    list.splice(boundedTo, 0, moved);
-    setTemplate((prev) => ({ ...prev, entries: list }));
+    const [movedItem] = list.splice(fromIndex, 1);
+    list.splice(clampedTo, 0, movedItem);
+    setTemplate({ ...template, entries: list });
   };
 
-  const handleDeleteEntry = (entryId: string) => {
+  const handleToggleEntry = (id: string, enabled: boolean) => {
     setTemplate((prev) => ({
       ...prev,
-      entries: prev.entries.filter((e) => e.id !== entryId),
+      entries: prev.entries.map((e) => (e.id === id ? { ...e, enabled } : e)),
     }));
   };
 
-  const handleToggleEntry = (entryId: string, val: boolean) => {
-    setTemplate((prev) => ({
-      ...prev,
-      entries: prev.entries.map((e) => (e.id === entryId ? { ...e, enabled: val } : e)),
-    }));
+  const handleDeleteEntry = (id: string) => {
+    Alert.alert('Remove Section', 'Are you sure you want to remove this section from the receipt?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          setTemplate((prev) => ({
+            ...prev,
+            entries: prev.entries.filter((e) => e.id !== id),
+          }));
+        },
+      },
+    ]);
   };
 
   const handleAddNewEntryType = (type: ReceiptEntryType) => {
-    setShowAddEntrySheet(false);
-    const newId = `entry-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newId = `entry-${Date.now()}`;
     let entry: CustomReceiptEntry;
 
     switch (type) {
@@ -356,7 +378,7 @@ export default function ReceiptEditorScreen() {
           id: newId,
           type: 'text',
           enabled: true,
-          text: 'New Text Entry',
+          text: '{{store_name}}',
           size: 'medium',
           bold: false,
           underline: false,
@@ -378,7 +400,7 @@ export default function ReceiptEditorScreen() {
           id: newId,
           type: 'text_special',
           enabled: true,
-          text: 'Special Text Line',
+          text: 'Special Header Line',
           fontSizePt: 14,
           bold: true,
           italic: false,
@@ -412,9 +434,9 @@ export default function ReceiptEditorScreen() {
           id: newId,
           type: 'left_right_text',
           enabled: true,
-          left: 'Item Name',
-          right: 'Rs.0.00',
-          bold: false,
+          left: 'Total Amount:',
+          right: '{{grand_total}}',
+          bold: true,
           size: 'small',
         };
         break;
@@ -452,7 +474,11 @@ export default function ReceiptEditorScreen() {
         break;
     }
 
-    setTemplate((prev) => ({ ...prev, entries: [...prev.entries, entry] }));
+    setTemplate((prev) => ({
+      ...prev,
+      entries: [...prev.entries, entry],
+    }));
+    setShowAddEntrySheet(false);
     setEditingEntry(entry);
   };
 
@@ -489,6 +515,15 @@ export default function ReceiptEditorScreen() {
     }
   };
 
+  const handleApplyEditingEntry = () => {
+    if (!editingEntry) return;
+    setTemplate((prev) => ({
+      ...prev,
+      entries: prev.entries.map((e) => (e.id === editingEntry.id ? editingEntry : e)),
+    }));
+    setEditingEntry(null);
+  };
+
   const handleTestPrint = async () => {
     setIsPrinting(true);
     try {
@@ -508,72 +543,149 @@ export default function ReceiptEditorScreen() {
 
   const handleSharePdf = async () => {
     try {
-      const html = ThermalPrinterService.generateCustomReceiptHtml(
-        samplePrintData,
-        template,
-        template.paperWidth || globalPaperWidth
-      );
+      const html = ThermalPrinterService.generateReceiptHtml(samplePrintData, template.paperWidth || globalPaperWidth, {
+        customTemplate: template,
+        includeBillQr: enableBillQrCode,
+      });
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Receipt - ${template.name}`,
-        });
+        await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      } else {
+        Alert.alert('PDF Created', `Saved to: ${uri}`);
       }
     } catch (e: any) {
-      Alert.alert('PDF Export Error', e?.message || 'Could not share PDF receipt.');
+      Alert.alert('Error', e?.message || 'Could not generate PDF');
     }
   };
 
-  const getEntryIcon = (type: ReceiptEntryType) => {
-    switch (type) {
-      case 'text':
-        return <Type size={18} color="#2563EB" />;
-      case 'image':
-        return <ImageIcon size={18} color="#16A34A" />;
-      case 'text_special':
-        return <PlusSquare size={18} color="#0D9488" />;
-      case 'horizontal_line':
-        return <Minus size={18} color="#64748B" />;
-      case 'barcode':
-        return <BarcodeIcon size={18} color="#6366F1" />;
-      case 'left_right_text':
-        return <ArrowLeftRight size={18} color="#EA580C" />;
-      case 'table':
-        return <TableIcon size={18} color="#0284C7" />;
-      case 'multi_format':
-        return <FileCode size={18} color="#9333EA" />;
-      case 'files_note':
-        return <FileText size={18} color="#4F46E5" />;
-    }
-  };
-
-  const getEntrySummary = (entry: CustomReceiptEntry): string => {
+  // Helper to get human friendly titles, subtitles and icons for tiles (No Emojis)
+  const getTileInfo = (entry: CustomReceiptEntry): { title: string; subtitle: string; icon: React.ReactNode } => {
     switch (entry.type) {
-      case 'text':
-        return `${entry.text.replace(/\n/g, ' ')} • (${entry.size}, ${entry.align || 'left'})`;
+      case 'text': {
+        const text = entry.text || '';
+        let title = 'Custom Text';
+        if (text.includes('{{store_name}}')) title = 'Store Name Header';
+        else if (text.includes('{{store_address}}')) title = 'Store Address & Contact';
+        else if (text.includes('{{store_gstin}}')) title = 'GSTIN Number';
+        else if (text.toLowerCase().includes('thank')) title = 'Thank You Message';
+
+        const readable = text
+          .replace(/{{store_name}}/gi, samplePrintData.storeName || 'Store Name')
+          .replace(/{{store_address}}/gi, '123 Market St')
+          .replace(/{{store_phone}}/gi, '+91 9876543210')
+          .replace(/{{store_gstin}}/gi, '27AAAAA0000A1Z5')
+          .replace(/{{invoice_no}}/gi, 'INV-1024')
+          .replace(/\n/g, ' • ');
+
+        return {
+          title,
+          subtitle: `${readable || '(Empty)'} • ${entry.size || 'medium'} • ${entry.align || 'left'}`,
+          icon: <Type size={18} color="#2563EB" />,
+        };
+      }
+
       case 'image':
-        return `Image Logo (${entry.widthPercent || 40}% width, ${entry.align || 'center'})`;
-      case 'text_special':
-        return `${entry.text} • (${entry.fontSizePt}pt, ${entry.bold ? 'Bold, ' : ''}${entry.align || 'center'})`;
+        return {
+          title: 'Shop Logo',
+          subtitle: `Size: ${entry.widthPercent || 40}% • Position: ${entry.align || 'center'}`,
+          icon: <ImageIcon size={18} color="#16A34A" />,
+        };
+
+      case 'text_special': {
+        const text = entry.text || '';
+        let title = 'Styled Header';
+        if (text.includes('{{store_name}}')) title = 'Main Store Title';
+
+        return {
+          title,
+          subtitle: `${text} • ${entry.fontSizePt || 14}pt • ${entry.bold ? 'Bold • ' : ''}${entry.align || 'center'}`,
+          icon: <PlusSquare size={18} color="#0D9488" />,
+        };
+      }
+
       case 'horizontal_line':
-        return `Line: ${entry.lineStyle}`;
-      case 'barcode':
-        return `${entry.codeType === 'qr_code' ? 'QR Code' : 'Barcode'}: ${entry.value}`;
-      case 'left_right_text':
-        return `${entry.left} ⇄ ${entry.right}`;
+        return {
+          title: 'Divider Line',
+          subtitle: `Style: ${entry.lineStyle ? entry.lineStyle.toUpperCase() : 'DASHED'}`,
+          icon: <Minus size={18} color="#64748B" />,
+        };
+
+      case 'barcode': {
+        if (entry.value.includes('bill_pdf_url')) {
+          return {
+            title: 'Digital Bill QR Code',
+            subtitle: 'Scan to download digital tax invoice PDF',
+            icon: <QrCode size={18} color="#6366F1" />,
+          };
+        }
+        if (entry.value.includes('upi_qr')) {
+          return {
+            title: 'UPI Payment QR Code',
+            subtitle: 'Scan with PhonePe, GPay, Paytm to pay',
+            icon: <QrCode size={18} color="#6366F1" />,
+          };
+        }
+        if (entry.value.includes('invoice_no')) {
+          return {
+            title: 'Invoice Barcode (1D)',
+            subtitle: 'Scannable barcode of invoice number',
+            icon: <BarcodeIcon size={18} color="#6366F1" />,
+          };
+        }
+        return {
+          title: entry.codeType === 'qr_code' ? 'QR Code' : 'Barcode',
+          subtitle: entry.value,
+          icon: <QrCode size={18} color="#6366F1" />,
+        };
+      }
+
+      case 'left_right_text': {
+        const left = entry.left || '';
+        let title = 'Two-Column Row';
+        if (left.toLowerCase().includes('inv')) title = 'Invoice Number & Date';
+        else if (left.toLowerCase().includes('cust')) title = 'Customer Details';
+        else if (left.toLowerCase().includes('sub')) title = 'Subtotal Amount';
+        else if (left.toLowerCase().includes('tax')) title = 'Tax Breakdown';
+        else if (left.toLowerCase().includes('total')) title = 'Grand Total Amount';
+        else if (left.toLowerCase().includes('pay')) title = 'Payment Method';
+        else if (left.toLowerCase().includes('disc')) title = 'Discount Row';
+
+        return {
+          title,
+          subtitle: `${left}  ⇄  ${entry.right}`,
+          icon: <ArrowLeftRight size={18} color="#EA580C" />,
+        };
+      }
+
       case 'table':
-        return `Items Table (${entry.tableType}${entry.showTaxColumn ? ', Tax' : ''})`;
+        return {
+          title: 'Products Table',
+          subtitle: `Format: ${entry.tableType === 'advanced' ? 'Detailed (with rates)' : 'Simple'}${entry.showTaxColumn ? ' • Tax Column' : ''}`,
+          icon: <TableIcon size={18} color="#0284C7" />,
+        };
+
       case 'multi_format':
-        return entry.segments.map((s) => s.text).join(' ');
+        return {
+          title: 'Combined Text Line',
+          subtitle: (entry.segments || []).map((s) => s.text).join(' '),
+          icon: <FileCode size={18} color="#9333EA" />,
+        };
+
       case 'files_note':
-        return `${entry.title || 'Note'}: ${entry.content.slice(0, 30)}…`;
+        return {
+          title: entry.title || 'Store Policy / Note',
+          subtitle: (entry.content || '').slice(0, 36) + '…',
+          icon: <FileText size={18} color="#4F46E5" />,
+        };
     }
   };
+
+  // Find if logo tile already exists
+  const existingLogoEntry = template.entries.find((e) => e.type === 'image') as ImageReceiptEntry | undefined;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: topPadding }]}>
-      {/* Top Header Bar */}
+      {/* Top Navigation Bar */}
       <View style={[styles.header, { borderBottomColor: theme.borderColor }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <ArrowLeft size={22} color={theme.textPrimary} />
@@ -591,21 +703,24 @@ export default function ReceiptEditorScreen() {
             />
           ) : (
             <TouchableOpacity onPress={() => setIsNameEditing(true)} activeOpacity={0.7}>
-              <Text style={[styles.titleText, { color: theme.textPrimary }]} numberOfLines={1}>
-                {templateName}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.titleText, { color: theme.textPrimary }]} numberOfLines={1}>
+                  {templateName}
+                </Text>
+                <Edit3 size={14} color={theme.textSecondary} />
+              </View>
               <Text style={[styles.subText, { color: theme.textSecondary }]}>
-                Tap name to edit • {template.paperWidth || '58mm'} Roll
+                {template.paperWidth || '58mm'} Thermal Roll • {template.entries.length} Sections
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Top Actions */}
-        <View style={styles.headerActions}>
+        {/* Header Action Buttons */}
+        <View style={styles.headerRightActions}>
           <TouchableOpacity
             onPress={() => setShowPreviewModal(true)}
-            style={[styles.headerIconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            style={[styles.iconBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}
             activeOpacity={0.7}
           >
             <Eye size={18} color={theme.textPrimary} />
@@ -617,96 +732,282 @@ export default function ReceiptEditorScreen() {
             style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
             activeOpacity={0.8}
           >
-            {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Save size={16} color="#FFF" />}
-            <Text style={styles.saveBtnText}>Save</Text>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Save size={16} color="#FFFFFF" />
+                <Text style={styles.saveBtnText}>Save</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Paper Width Selector Switch */}
-      <View style={[styles.paperWidthBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
-        <Text style={[styles.paperWidthLabel, { color: theme.textSecondary }]}>Paper Size:</Text>
-        <View style={styles.paperWidthPills}>
-          {(['58mm', '80mm'] as const).map((pw) => {
-            const isSel = (template.paperWidth || '58mm') === pw;
-            return (
-              <TouchableOpacity
-                key={pw}
-                onPress={() => setTemplate((prev) => ({ ...prev, paperWidth: pw }))}
-                style={[
-                  styles.paperWidthPill,
-                  {
-                    backgroundColor: isSel ? BRAND_COLORS.navyInk : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={[styles.paperWidthPillText, { color: isSel ? '#FFF' : theme.textPrimary }]}>
-                  {pw}
+      {/* Main Builder Scrollview */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* SHOP LOGO SECTION CARD */}
+        <View style={[styles.logoCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={styles.logoCardHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.entryIconWrap, { backgroundColor: theme.isDark ? '#1E293B' : '#F0FDF4' }]}>
+                <ImageIcon size={18} color="#16A34A" />
+              </View>
+              <View>
+                <Text style={[styles.logoCardTitle, { color: theme.textPrimary }]}>Store Logo on Receipt</Text>
+                <Text style={[styles.logoCardSub, { color: theme.textSecondary }]}>
+                  {existingLogoEntry?.enabled ? 'Logo is active on receipt header' : 'Logo is disabled'}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
+              </View>
+            </View>
+
+            <Switch
+              value={existingLogoEntry?.enabled || false}
+              onValueChange={(val) => {
+                if (!existingLogoEntry) {
+                  // Add a new logo entry at the very top
+                  const newLogo: ImageReceiptEntry = {
+                    id: `logo-${Date.now()}`,
+                    type: 'image',
+                    enabled: val,
+                    imageUri: settings?.businessLogoURL || undefined,
+                    align: 'center',
+                    widthPercent: 40,
+                  };
+                  setTemplate((prev) => ({
+                    ...prev,
+                    entries: [newLogo, ...prev.entries],
+                  }));
+                } else {
+                  handleToggleEntry(existingLogoEntry.id, val);
+                }
+              }}
+              trackColor={{ false: '#CBD5E1', true: '#86EFAC' }}
+              thumbColor={existingLogoEntry?.enabled ? '#16A34A' : '#F1F5F9'}
+            />
+          </View>
+
+          {existingLogoEntry?.enabled && (
+            <View style={styles.logoCardBody}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                {existingLogoEntry.imageUri ? (
+                  <View style={{ alignItems: 'center' }}>
+                    <Image
+                      source={{ uri: existingLogoEntry.imageUri }}
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 8,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        resizeMode: 'contain',
+                        ...(Platform.OS === 'web' ? ({ filter: 'grayscale(100%) contrast(250%) brightness(85%)' } as any) : {}),
+                      }}
+                    />
+                    <Text style={{ fontSize: 9, color: '#64748B', marginTop: 2, fontWeight: '600' }}>B&W POS</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.logoEmptyBox, { borderColor: theme.borderColor }]}>
+                    <Upload size={20} color={theme.textSecondary} />
+                    <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>No Image</Text>
+                  </View>
+                )}
+
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (status !== 'granted') {
+                          Alert.alert('Permission Denied', 'Gallery access is needed.');
+                          return;
+                        }
+                        const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
+                        if (!res.canceled && res.assets?.[0]?.uri) {
+                          setTemplate((prev) => ({
+                            ...prev,
+                            entries: prev.entries.map((e) =>
+                              e.id === existingLogoEntry.id ? { ...e, imageUri: res.assets[0].uri } : e
+                            ),
+                          }));
+                        }
+                      }}
+                      style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
+                    >
+                      <Upload size={14} color="#2563EB" />
+                      <Text style={[styles.smallActionBtnText, { color: '#2563EB' }]}>Pick Image</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                        if (status !== 'granted') {
+                          Alert.alert('Permission Denied', 'Camera access is needed.');
+                          return;
+                        }
+                        const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+                        if (!res.canceled && res.assets?.[0]?.uri) {
+                          setTemplate((prev) => ({
+                            ...prev,
+                            entries: prev.entries.map((e) =>
+                              e.id === existingLogoEntry.id ? { ...e, imageUri: res.assets[0].uri } : e
+                            ),
+                          }));
+                        }
+                      }}
+                      style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
+                    >
+                      <Camera size={14} color="#2563EB" />
+                      <Text style={[styles.smallActionBtnText, { color: '#2563EB' }]}>Camera</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Size chips */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>Size:</Text>
+                    {[30, 40, 50, 70, 100].map((sz) => {
+                      const isSel = (existingLogoEntry.widthPercent || 40) === sz;
+                      return (
+                        <TouchableOpacity
+                          key={sz}
+                          onPress={() => {
+                            setTemplate((prev) => ({
+                              ...prev,
+                              entries: prev.entries.map((e) =>
+                                e.id === existingLogoEntry.id ? { ...e, widthPercent: sz } : e
+                              ),
+                            }));
+                          }}
+                          style={[
+                            styles.logoSizeChip,
+                            {
+                              backgroundColor: isSel ? '#2563EB' : theme.isDark ? '#1E293B' : '#F1F5F9',
+                              borderColor: isSel ? '#2563EB' : theme.borderColor,
+                            },
+                          ]}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: isSel ? '#FFFFFF' : theme.textPrimary }}>
+                            {sz}%
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
-        <TouchableOpacity onPress={handleTestPrint} style={styles.quickPrintBtn} activeOpacity={0.7}>
-          <Printer size={16} color="#2563EB" />
-          <Text style={styles.quickPrintBtnText}>Test Print</Text>
-        </TouchableOpacity>
-      </View>
+        {/* SECTION TILES LIST */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={[styles.sectionHeading, { color: theme.textPrimary }]}>Receipt Layout & Sections</Text>
+            <Text style={[styles.sectionSub, { color: theme.textSecondary }]}>
+              Drag to reorder • Tap section to customize values
+            </Text>
+          </View>
 
-      {/* Main Body: Entries List (Matching Screenshot 2) */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
-        <View style={styles.listHeader}>
-          <Text style={[styles.listHeaderTitle, { color: theme.textPrimary }]}>
-            Add an entry to start printing
-          </Text>
-          <Text style={[styles.listHeaderSub, { color: theme.textSecondary }]}>
-            #Entry Type#: #Description#
-          </Text>
+          <TouchableOpacity
+            onPress={() => setShowAddEntrySheet(true)}
+            style={[styles.addSectionBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+            activeOpacity={0.8}
+          >
+            <Plus size={16} color="#FFFFFF" />
+            <Text style={styles.addSectionBtnText}>Add Section</Text>
+          </TouchableOpacity>
         </View>
 
         {template.entries.length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No entries yet</Text>
+          <View style={[styles.emptyContainer, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
+            <Layers size={36} color={theme.textSecondary} style={{ marginBottom: 8 }} />
+            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No Sections in Receipt</Text>
             <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
-              Tap the "+ Entry" button below to add header text, logos, items tables, horizontal dividers, or QR codes.
+              Tap "Add Section" below to add store info, items table, totals, or QR code.
             </Text>
           </View>
         ) : (
-          <View style={{ gap: 10 }}>
-            {template.entries.map((entry, idx) => (
+          <View style={{ gap: 8 }}>
+            {template.entries.map((entry, index) => (
               <DraggableEntryRow
                 key={entry.id}
                 entry={entry}
-                index={idx}
+                index={index}
                 totalCount={template.entries.length}
                 theme={theme}
-                onSelect={(e) => setEditingEntry(e)}
+                onSelect={(ent) => setEditingEntry(ent)}
                 onToggle={handleToggleEntry}
                 onDelete={handleDeleteEntry}
                 onMove={handleMoveEntry}
                 onReorder={handleReorderEntries}
-                getIcon={getEntryIcon}
-                getSummary={getEntrySummary}
+                getTileInfo={getTileInfo}
               />
             ))}
           </View>
         )}
+
+        {/* Paper Width Roll Setting */}
+        <View style={[styles.paperWidthCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <Text style={[styles.paperWidthTitle, { color: theme.textPrimary }]}>Thermal Paper Roll Width</Text>
+          <View style={styles.paperOptionsRow}>
+            {(['58mm', '80mm'] as const).map((pw) => {
+              const isSel = (template.paperWidth || '58mm') === pw;
+              return (
+                <TouchableOpacity
+                  key={pw}
+                  onPress={() => setTemplate({ ...template, paperWidth: pw })}
+                  style={[
+                    styles.paperOptionChip,
+                    {
+                      backgroundColor: isSel ? '#2563EB' : theme.isDark ? '#1E293B' : '#F8FAFC',
+                      borderColor: isSel ? '#2563EB' : theme.borderColor,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontWeight: '700', fontSize: 13 }}>
+                    {pw} Roll
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Bottom Test & Actions Bar */}
+        <View style={styles.bottomActionBar}>
+          <TouchableOpacity
+            onPress={handleTestPrint}
+            disabled={isPrinting}
+            style={[styles.actionBtn, { backgroundColor: '#16A34A' }]}
+            activeOpacity={0.8}
+          >
+            {isPrinting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Printer size={18} color="#FFFFFF" />
+                <Text style={styles.actionBtnText}>Test Thermal Print</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleSharePdf}
+            style={[styles.actionBtn, { backgroundColor: '#2563EB' }]}
+            activeOpacity={0.8}
+          >
+            <Share2 size={18} color="#FFFFFF" />
+            <Text style={styles.actionBtnText}>Share PDF</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Floating Action Button (Matching Screenshot 2 "+ Entry") */}
-      <View style={styles.fabContainer}>
-        <TouchableOpacity
-          style={[styles.fabBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
-          onPress={() => setShowAddEntrySheet(true)}
-          activeOpacity={0.85}
-        >
-          <Plus size={20} color="#FFF" style={{ marginRight: 6 }} />
-          <Text style={styles.fabText}>Entry</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Bottom Sheet Modal: Add Entry To Receipt (Matching Screenshot 1) */}
+      {/* ADD SECTION BOTTOM SHEET (No Emojis) */}
       <Modal
         visible={showAddEntrySheet}
         transparent={true}
@@ -719,69 +1020,66 @@ export default function ReceiptEditorScreen() {
           onPress={() => setShowAddEntrySheet(false)}
         >
           <View style={[styles.sheetContainer, { backgroundColor: theme.cardBg }]}>
-            {/* Sheet Handle */}
             <View style={styles.sheetHandle} />
-
-            {/* Sheet Title */}
             <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>
-              Add Entry To Receipt
+              Add Section to Receipt
             </Text>
 
             <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
               {[
                 {
                   type: 'text' as const,
-                  title: 'Text',
-                  sub: 'Basic format, size, alignment etc.',
-                  icon: <Type size={22} color="#2563EB" />,
+                  title: 'Store Text & Details',
+                  sub: 'Store name, address, phone, GSTIN, or custom note',
+                  icon: <Type size={20} color="#2563EB" />,
                 },
                 {
                   type: 'image' as const,
-                  title: 'Image',
-                  sub: 'Camera / Gallery',
-                  icon: <ImageIcon size={22} color="#16A34A" />,
+                  title: 'Shop Logo / Graphic',
+                  sub: 'Add your business logo from camera or gallery',
+                  icon: <ImageIcon size={20} color="#16A34A" />,
                 },
                 {
                   type: 'text_special' as const,
-                  title: 'Text Special',
-                  sub: 'Custom font, size, format etc.',
-                  icon: <PlusSquare size={22} color="#0D9488" />,
+                  title: 'Styled Big Header',
+                  sub: 'Prominent header, store slogans, or large thank you line',
+                  icon: <PlusSquare size={20} color="#0D9488" />,
                 },
                 {
                   type: 'horizontal_line' as const,
-                  title: 'Horizontal line',
-                  sub: 'Custom Horizontal line with format',
-                  icon: <Minus size={22} color="#64748B" />,
+                  title: 'Divider Line',
+                  sub: 'Dashed, solid, or double separator rule',
+                  icon: <Minus size={20} color="#64748B" />,
                 },
                 {
                   type: 'barcode' as const,
-                  title: 'Barcode',
-                  sub: 'Barcode > QR Code',
-                  icon: <BarcodeIcon size={22} color="#6366F1" />,
+                  title: 'QR Code & Barcode',
+                  sub: 'Digital Bill link QR, UPI payment QR, or invoice barcode',
+                  icon: <BarcodeIcon size={20} color="#6366F1" />,
                 },
                 {
                   type: 'left_right_text' as const,
-                  title: 'Left Right Text',
-                  sub: 'Left Right text with basic format, size etc.',
-                  icon: <ArrowLeftRight size={22} color="#EA580C" />,
+                  title: 'Two-Column Row (Total / Info)',
+                  sub: 'Grand Total, Subtotal, Invoice No, Bill Date, or Tax',
+                  icon: <ArrowLeftRight size={20} color="#EA580C" />,
                 },
                 {
                   type: 'table' as const,
-                  title: 'Table',
-                  sub: 'Simple > Advanced',
-                  icon: <TableIcon size={22} color="#0284C7" />,
+                  title: 'Products & Items Table',
+                  sub: 'Print purchased item names, quantities, and prices',
+                  icon: <TableIcon size={20} color="#0284C7" />,
                 },
                 {
                   type: 'multi_format' as const,
-                  title: 'Multi Format',
-                  sub: 'Multiple texts with basic format, size etc. on the same line',
-                  icon: <FileCode size={22} color="#9333EA" />,
+                  title: 'Combined Text Line',
+                  sub: 'Combine multiple bold and normal texts on one line',
+                  icon: <FileCode size={20} color="#9333EA" />,
                 },
                 {
                   type: 'files_note' as const,
-                  title: 'Files',
-                  sub: 'PDF > Notepad',
-                  icon: <FileText size={22} color="#4F46E5" />,
+                  title: 'Store Policy & Note',
+                  sub: 'Return policy, warranty terms, or footer note',
+                  icon: <FileText size={20} color="#4F46E5" />,
                 },
               ].map((item, idx) => (
                 <TouchableOpacity
@@ -793,7 +1091,9 @@ export default function ReceiptEditorScreen() {
                   onPress={() => handleAddNewEntryType(item.type)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.sheetItemIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>{item.icon}</View>
+                  <View style={[styles.sheetItemIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+                    {item.icon}
+                  </View>
                   <View style={{ flex: 1, marginLeft: 14 }}>
                     <Text style={[styles.sheetItemTitle, { color: theme.textPrimary }]}>
                       {item.title}
@@ -810,7 +1110,7 @@ export default function ReceiptEditorScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Entry Configuration Modal */}
+      {/* SECTION TILE CONFIGURATION & VALUE EDITOR MODAL */}
       {editingEntry && (
         <Modal
           visible={true}
@@ -821,55 +1121,109 @@ export default function ReceiptEditorScreen() {
           <View style={styles.configOverlay}>
             <View style={[styles.configContainer, { backgroundColor: theme.bg }]}>
               <View style={[styles.configHeader, { borderBottomColor: theme.borderColor }]}>
-                <Text style={[styles.configHeaderTitle, { color: theme.textPrimary }]}>
-                  Configure {editingEntry.type.toUpperCase().replace('_', ' ')}
-                </Text>
+                <View>
+                  <Text style={[styles.configHeaderTitle, { color: theme.textPrimary }]}>
+                    Customize Section
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                    {getTileInfo(editingEntry).title}
+                  </Text>
+                </View>
                 <TouchableOpacity onPress={() => setEditingEntry(null)} style={{ padding: 6 }}>
                   <X size={22} color={theme.textPrimary} />
                 </TouchableOpacity>
               </View>
 
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
-                {/* Entry specific forms */}
+                {/* 1. TEXT SECTION */}
                 {editingEntry.type === 'text' && (
                   <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Text Content:</Text>
-                    <TextInput
-                      style={[styles.textAreaInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                      value={editingEntry.text}
-                      onChangeText={(t) => setEditingEntry({ ...editingEntry, text: t })}
-                      multiline
-                      numberOfLines={3}
-                    />
+                    <View>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Text Content / Value:</Text>
+                      <TextInput
+                        style={[styles.textAreaInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                        value={editingEntry.text}
+                        onChangeText={(t) => setEditingEntry({ ...editingEntry, text: t })}
+                        placeholder="e.g. {{store_name}}"
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={3}
+                      />
+                    </View>
 
-                    {/* Variable suggestions */}
-                    <Text style={[styles.subFieldLabel, { color: theme.textSecondary }]}>Insert Dynamic Variables:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                      {TEMPLATE_VARIABLES.slice(0, 8).map((v) => (
-                        <TouchableOpacity
-                          key={v.key}
-                          onPress={() => setEditingEntry({ ...editingEntry, text: `${editingEntry.text} ${v.key}` })}
-                          style={[
-                            styles.varChip,
-                            {
-                              backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF',
-                              borderColor: theme.isDark ? '#3B82F6' : '#BFDBFE',
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.varChipText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>{v.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                    {/* Live preview box */}
+                    <View style={{ backgroundColor: theme.isDark ? '#0F172A' : '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: theme.textSecondary, marginBottom: 2 }}>
+                        PRINT PREVIEW:
+                      </Text>
+                      <Text style={{ fontFamily: 'monospace', fontSize: 12, color: theme.textPrimary }}>
+                        {samplePrintData.storeName ? editingEntry.text
+                          .replace(/{{store_name}}/gi, samplePrintData.storeName || 'SEZNIK STORE')
+                          .replace(/{{store_address}}/gi, samplePrintData.storeAddress || '123 Market St')
+                          .replace(/{{store_phone}}/gi, samplePrintData.storePhone || '+91 9876543210')
+                          .replace(/{{store_gstin}}/gi, samplePrintData.storeGstin || '27AAAAA0000A1Z5')
+                          .replace(/{{invoice_no}}/gi, samplePrintData.invoiceNumber || 'INV-1024')
+                          .replace(/{{date}}/gi, samplePrintData.date || '19/08/2026')
+                          .replace(/{{customer_name}}/gi, samplePrintData.customerName || 'Aarav Sharma')
+                          .replace(/{{grand_total}}/gi, `₹${samplePrintData.grandTotal?.toFixed(2) || '1,080.50'}`)
+                          : editingEntry.text || '(Empty text)'}
+                      </Text>
+                    </View>
+
+                    {/* Clean Field Pickers (No Emojis) */}
+                    <View>
+                      <Text style={[styles.subFieldLabel, { color: theme.textSecondary, marginBottom: 6 }]}>
+                        Tap to Insert Field:
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                        {[
+                          { label: 'Store Name', tag: '{{store_name}}' },
+                          { label: 'Store Address', tag: '{{store_address}}' },
+                          { label: 'Phone Number', tag: '{{store_phone}}' },
+                          { label: 'GSTIN', tag: '{{store_gstin}}' },
+                          { label: 'Invoice No', tag: '{{invoice_no}}' },
+                          { label: 'Bill Date', tag: '{{date}}' },
+                          { label: 'Customer Name', tag: '{{customer_name}}' },
+                          { label: 'Grand Total', tag: '{{grand_total}}' },
+                          { label: 'Thank You Note', tag: 'Thank you! Visit again.' },
+                        ].map((field) => (
+                          <TouchableOpacity
+                            key={field.tag}
+                            onPress={() => {
+                              const current = editingEntry.text.trim();
+                              const newText = current ? `${current}\n${field.tag}` : field.tag;
+                              setEditingEntry({ ...editingEntry, text: newText });
+                            }}
+                            style={[
+                              styles.varChip,
+                              {
+                                backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF',
+                                borderColor: theme.isDark ? '#3B82F6' : '#BFDBFE',
+                              },
+                            ]}
+                          >
+                            <Text style={[styles.varChipText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>
+                              + {field.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
 
                     <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Font Size:</Text>
                     <View style={styles.optionsRow}>
-                      {(['small', 'medium', 'large', 'double_width', 'double_height'] as const).map((sz) => {
-                        const isSel = editingEntry.size === sz;
+                      {[
+                        { id: 'small', label: 'Small' },
+                        { id: 'medium', label: 'Normal' },
+                        { id: 'large', label: 'Large' },
+                        { id: 'double_width', label: 'Extra Wide' },
+                        { id: 'double_height', label: 'Double Height' },
+                      ].map((sz) => {
+                        const isSel = editingEntry.size === sz.id;
                         return (
                           <TouchableOpacity
-                            key={sz}
-                            onPress={() => setEditingEntry({ ...editingEntry, size: sz })}
+                            key={sz.id}
+                            onPress={() => setEditingEntry({ ...editingEntry, size: sz.id as any })}
                             style={[
                               styles.optionChip,
                               {
@@ -878,8 +1232,8 @@ export default function ReceiptEditorScreen() {
                               },
                             ]}
                           >
-                            <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600', textTransform: 'capitalize' }}>
-                              {sz.replace('_', ' ')}
+                            <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600' }}>
+                              {sz.label}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -922,36 +1276,21 @@ export default function ReceiptEditorScreen() {
                   </View>
                 )}
 
+                {/* 2. TEXT SPECIAL */}
                 {editingEntry.type === 'text_special' && (
                   <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Special Text Content:</Text>
-                    <TextInput
-                      style={[styles.textAreaInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                      value={editingEntry.text}
-                      onChangeText={(t) => setEditingEntry({ ...editingEntry, text: t })}
-                      multiline
-                      numberOfLines={3}
-                    />
-
-                    {/* Variable suggestions */}
-                    <Text style={[styles.subFieldLabel, { color: theme.textSecondary }]}>Insert Dynamic Variables:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                      {TEMPLATE_VARIABLES.slice(0, 8).map((v) => (
-                        <TouchableOpacity
-                          key={v.key}
-                          onPress={() => setEditingEntry({ ...editingEntry, text: `${editingEntry.text} ${v.key}` })}
-                          style={[
-                            styles.varChip,
-                            {
-                              backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF',
-                              borderColor: theme.isDark ? '#3B82F6' : '#BFDBFE',
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.varChipText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>{v.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                    <View>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Header Text Value:</Text>
+                      <TextInput
+                        style={[styles.textAreaInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                        value={editingEntry.text}
+                        onChangeText={(t) => setEditingEntry({ ...editingEntry, text: t })}
+                        placeholder="e.g. {{store_name}}"
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={3}
+                      />
+                    </View>
 
                     <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Font Size (Points):</Text>
                     <View style={styles.optionsRow}>
@@ -1010,32 +1349,13 @@ export default function ReceiptEditorScreen() {
                         thumbColor={editingEntry.bold ? '#16A34A' : '#F1F5F9'}
                       />
                     </View>
-
-                    <View style={styles.switchRow}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Italic Style</Text>
-                      <Switch
-                        value={editingEntry.italic || false}
-                        onValueChange={(i) => setEditingEntry({ ...editingEntry, italic: i })}
-                        trackColor={{ false: '#CBD5E1', true: '#86EFAC' }}
-                        thumbColor={editingEntry.italic ? '#16A34A' : '#F1F5F9'}
-                      />
-                    </View>
-
-                    <View style={styles.switchRow}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Underline</Text>
-                      <Switch
-                        value={editingEntry.underline || false}
-                        onValueChange={(u) => setEditingEntry({ ...editingEntry, underline: u })}
-                        trackColor={{ false: '#CBD5E1', true: '#86EFAC' }}
-                        thumbColor={editingEntry.underline ? '#16A34A' : '#F1F5F9'}
-                      />
-                    </View>
                   </View>
                 )}
 
+                {/* 3. SHOP LOGO */}
                 {editingEntry.type === 'image' && (
                   <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Logo / Receipt Image:</Text>
+                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Logo Graphic:</Text>
                     {editingEntry.imageUri ? (
                       <View style={{ alignItems: 'center', marginVertical: 10 }}>
                         <Image
@@ -1044,7 +1364,10 @@ export default function ReceiptEditorScreen() {
                         />
                       </View>
                     ) : (
-                      <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No image selected</Text>
+                      <View style={{ alignItems: 'center', padding: 20, backgroundColor: theme.cardBg, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor, borderStyle: 'dashed' }}>
+                        <ImageIcon size={32} color={theme.textSecondary} style={{ marginBottom: 6 }} />
+                        <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No logo selected</Text>
+                      </View>
                     )}
 
                     <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1065,7 +1388,7 @@ export default function ReceiptEditorScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Image Width on Receipt (%):</Text>
+                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Logo Size on Receipt (%):</Text>
                     <View style={styles.optionsRow}>
                       {[30, 40, 50, 70, 100].map((pct) => {
                         const isSel = (editingEntry.widthPercent || 40) === pct;
@@ -1091,26 +1414,35 @@ export default function ReceiptEditorScreen() {
                   </View>
                 )}
 
+                {/* 4. HORIZONTAL LINE */}
                 {editingEntry.type === 'horizontal_line' && (
                   <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Line Style:</Text>
-                    <View style={styles.optionsRow}>
-                      {(['dashed', 'double', 'single', 'dotted'] as const).map((st) => {
-                        const isSel = editingEntry.lineStyle === st;
+                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Choose Divider Line Style:</Text>
+                    <View style={{ gap: 10 }}>
+                      {[
+                        { id: 'dashed', title: 'Dashed Line (Standard)', preview: '- - - - - - - - - - - - - - - - - - -' },
+                        { id: 'double', title: 'Double Line (Totals & Emphasis)', preview: '=====================================' },
+                        { id: 'single', title: 'Single Solid Line', preview: '─────────────────────────────────────' },
+                        { id: 'dotted', title: 'Dotted Line', preview: '· · · · · · · · · · · · · · · · · · ·' },
+                      ].map((st) => {
+                        const isSel = editingEntry.lineStyle === st.id;
                         return (
                           <TouchableOpacity
-                            key={st}
-                            onPress={() => setEditingEntry({ ...editingEntry, lineStyle: st })}
-                            style={[
-                              styles.optionChip,
-                              {
-                                backgroundColor: isSel ? '#2563EB' : theme.cardBg,
-                                borderColor: isSel ? '#2563EB' : theme.borderColor,
-                              },
-                            ]}
+                            key={st.id}
+                            onPress={() => setEditingEntry({ ...editingEntry, lineStyle: st.id as any })}
+                            style={{
+                              backgroundColor: isSel ? (theme.isDark ? '#1E293B' : '#EFF6FF') : theme.cardBg,
+                              borderColor: isSel ? '#2563EB' : theme.borderColor,
+                              borderWidth: isSel ? 2 : 1,
+                              borderRadius: 10,
+                              padding: 12,
+                            }}
                           >
-                            <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600', textTransform: 'capitalize' }}>
-                              {st}
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: isSel ? '#2563EB' : theme.textPrimary }}>
+                              {st.title}
+                            </Text>
+                            <Text style={{ fontSize: 12, fontFamily: 'monospace', color: isSel ? '#2563EB' : theme.textSecondary, marginTop: 4 }}>
+                              {st.preview}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -1119,58 +1451,110 @@ export default function ReceiptEditorScreen() {
                   </View>
                 )}
 
+                {/* 5. BARCODE & QR CODE */}
                 {editingEntry.type === 'barcode' && (
                   <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Code Type:</Text>
-                    <View style={styles.optionsRow}>
+                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Select Code Type & Purpose:</Text>
+                    <View style={{ gap: 10 }}>
                       {[
-                        { id: 'qr_code', label: 'QR Code' },
-                        { id: 'barcode_1d', label: '1D Barcode (Code128)' },
-                      ].map((ct) => {
-                        const isSel = editingEntry.codeType === ct.id;
+                        {
+                          id: 'digital_bill',
+                          title: 'Digital Bill Download QR Code',
+                          sub: 'Customers scan with phone camera to download digital tax invoice PDF',
+                          val: '{{bill_pdf_url}}',
+                          codeType: 'qr_code' as const,
+                        },
+                        {
+                          id: 'upi',
+                          title: 'UPI Payment QR Code',
+                          sub: 'Customers scan with PhonePe, GPay, Paytm to pay bill amount instantly',
+                          val: '{{upi_qr}}',
+                          codeType: 'qr_code' as const,
+                        },
+                        {
+                          id: 'invoice_bar',
+                          title: 'Invoice Number Barcode (1D)',
+                          sub: 'Prints a 1D barcode of invoice number for POS inventory scanners',
+                          val: '{{invoice_no}}',
+                          codeType: 'barcode_1d' as const,
+                        },
+                        {
+                          id: 'custom',
+                          title: 'Custom Website or Link',
+                          sub: 'Enter your custom website URL, review link, or promo text',
+                          val: editingEntry.value.includes('{{') ? 'https://yourstore.com' : editingEntry.value,
+                          codeType: editingEntry.codeType || 'qr_code',
+                        },
+                      ].map((preset) => {
+                        const isSel =
+                          (preset.id === 'digital_bill' && editingEntry.value === '{{bill_pdf_url}}') ||
+                          (preset.id === 'upi' && editingEntry.value === '{{upi_qr}}') ||
+                          (preset.id === 'invoice_bar' && editingEntry.value === '{{invoice_no}}') ||
+                          (preset.id === 'custom' && !editingEntry.value.includes('{{bill_pdf_url}}') && !editingEntry.value.includes('{{upi_qr}}') && !editingEntry.value.includes('{{invoice_no}}'));
+
                         return (
                           <TouchableOpacity
-                            key={ct.id}
+                            key={preset.id}
                             onPress={() =>
                               setEditingEntry({
                                 ...editingEntry,
-                                codeType: ct.id as any,
-                                format: ct.id === 'qr_code' ? 'qr' : 'code128',
+                                value: preset.val,
+                                codeType: preset.codeType,
+                                format: preset.codeType === 'qr_code' ? 'qr' : 'code128',
                               })
                             }
-                            style={[
-                              styles.optionChip,
-                              {
-                                backgroundColor: isSel ? '#2563EB' : theme.cardBg,
-                                borderColor: isSel ? '#2563EB' : theme.borderColor,
-                              },
-                            ]}
+                            style={{
+                              backgroundColor: isSel ? (theme.isDark ? '#1E293B' : '#EFF6FF') : theme.cardBg,
+                              borderColor: isSel ? '#2563EB' : theme.borderColor,
+                              borderWidth: isSel ? 2 : 1,
+                              borderRadius: 10,
+                              padding: 12,
+                            }}
                           >
-                            <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600' }}>
-                              {ct.label}
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: isSel ? '#2563EB' : theme.textPrimary }}>
+                              {preset.title}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: isSel ? (theme.isDark ? '#93C5FD' : '#1E40AF') : theme.textSecondary, marginTop: 3 }}>
+                              {preset.sub}
                             </Text>
                           </TouchableOpacity>
                         );
                       })}
                     </View>
 
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>QR / Barcode Value / Template:</Text>
-                    <TextInput
-                      style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                      value={editingEntry.value}
-                      onChangeText={(v) => setEditingEntry({ ...editingEntry, value: v })}
-                    />
+                    {/* Custom text input */}
+                    {!editingEntry.value.includes('{{bill_pdf_url}}') && !editingEntry.value.includes('{{upi_qr}}') && !editingEntry.value.includes('{{invoice_no}}') && (
+                      <View style={{ marginTop: 6 }}>
+                        <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Custom Link or Code Value:</Text>
+                        <TextInput
+                          style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                          value={editingEntry.value}
+                          onChangeText={(v) => setEditingEntry({ ...editingEntry, value: v })}
+                          placeholder="e.g. https://yourstore.com/review"
+                          placeholderTextColor="#94A3B8"
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
 
-                    <Text style={[styles.subFieldLabel, { color: theme.textSecondary }]}>Presets:</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {/* 6. TWO-COLUMN ROW (LEFT-RIGHT) */}
+                {editingEntry.type === 'left_right_text' && (
+                  <View style={{ gap: 14 }}>
+                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Quick Row Presets:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                       {[
-                        { label: 'Digital Bill PDF URL', val: '{{bill_pdf_url}}' },
-                        { label: 'UPI Payment String', val: '{{upi_qr}}' },
-                        { label: 'Invoice No Barcode', val: '{{invoice_no}}' },
-                      ].map((p) => (
+                        { label: 'Invoice No & Date', left: 'Invoice No:', right: '{{invoice_no}}' },
+                        { label: 'Subtotal Amount', left: 'Sub Total:', right: '{{subtotal}}' },
+                        { label: 'Tax Total (GST)', left: 'Total Tax:', right: '{{total_tax}}' },
+                        { label: 'Grand Total Amount', left: 'Total Amount:', right: '{{grand_total}}' },
+                        { label: 'Payment Mode', left: 'Paid Via:', right: '{{payment_method}}' },
+                        { label: 'Customer Name', left: 'Customer:', right: '{{customer_name}}' },
+                        { label: 'Discount Row', left: 'Discount:', right: '{{discount}}' },
+                      ].map((preset) => (
                         <TouchableOpacity
-                          key={p.val}
-                          onPress={() => setEditingEntry({ ...editingEntry, value: p.val })}
+                          key={preset.label}
+                          onPress={() => setEditingEntry({ ...editingEntry, left: preset.left, right: preset.right, bold: preset.left.includes('Total') })}
                           style={[
                             styles.varChip,
                             {
@@ -1179,31 +1563,61 @@ export default function ReceiptEditorScreen() {
                             },
                           ]}
                         >
-                          <Text style={[styles.varChipText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>{p.label}</Text>
+                          <Text style={[styles.varChipText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>
+                            {preset.label}
+                          </Text>
                         </TouchableOpacity>
                       ))}
+                    </ScrollView>
+
+                    {/* Live Row Preview */}
+                    <View style={{ backgroundColor: theme.isDark ? '#0F172A' : '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: theme.textSecondary, marginBottom: 4 }}>
+                        ROW PREVIEW:
+                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: editingEntry.bold ? '800' : '600', color: theme.textPrimary }}>
+                          {editingEntry.left
+                            .replace(/{{invoice_no}}/gi, 'INV-1024')
+                            .replace(/{{customer_name}}/gi, 'John Doe') || 'Label'}
+                        </Text>
+                        <Text style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: editingEntry.bold ? '800' : '600', color: theme.textPrimary }}>
+                          {editingEntry.right
+                            .replace(/{{grand_total}}/gi, '₹1,080.50')
+                            .replace(/{{subtotal}}/gi, '₹1,040.00')
+                            .replace(/{{total_tax}}/gi, '₹40.50')
+                            .replace(/{{discount}}/gi, '₹50.00')
+                            .replace(/{{invoice_no}}/gi, 'INV-1024')
+                            .replace(/{{payment_method}}/gi, 'UPI')
+                            .replace(/{{date}}/gi, '19/08/2026') || 'Value'}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                )}
 
-                {editingEntry.type === 'left_right_text' && (
-                  <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Left Label / Variable:</Text>
-                    <TextInput
-                      style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                      value={editingEntry.left}
-                      onChangeText={(l) => setEditingEntry({ ...editingEntry, left: l })}
-                    />
+                    <View>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Left Label Name (e.g. "Bill No", "Total Amount"):</Text>
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                        value={editingEntry.left}
+                        onChangeText={(l) => setEditingEntry({ ...editingEntry, left: l })}
+                        placeholder="e.g. Total Amount:"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
 
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Right Value / Variable:</Text>
-                    <TextInput
-                      style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                      value={editingEntry.right}
-                      onChangeText={(r) => setEditingEntry({ ...editingEntry, right: r })}
-                    />
+                    <View>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Right Value Name:</Text>
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                        value={editingEntry.right}
+                        onChangeText={(r) => setEditingEntry({ ...editingEntry, right: r })}
+                        placeholder="e.g. {{grand_total}}"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
 
                     <View style={styles.switchRow}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Bold Text</Text>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Bold Text (Highlighted)</Text>
                       <Switch
                         value={editingEntry.bold || false}
                         onValueChange={(b) => setEditingEntry({ ...editingEntry, bold: b })}
@@ -1214,26 +1628,41 @@ export default function ReceiptEditorScreen() {
                   </View>
                 )}
 
+                {/* 7. PRODUCTS TABLE */}
                 {editingEntry.type === 'table' && (
                   <View style={{ gap: 14 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Table Style:</Text>
-                    <View style={styles.optionsRow}>
-                      {(['simple', 'advanced'] as const).map((ts) => {
-                        const isSel = editingEntry.tableType === ts;
+                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Table Format:</Text>
+                    <View style={{ gap: 10 }}>
+                      {[
+                        {
+                          id: 'simple' as const,
+                          title: 'Simple Table',
+                          sub: 'Product Name • Quantity • Total Amount',
+                        },
+                        {
+                          id: 'advanced' as const,
+                          title: 'Detailed Table',
+                          sub: 'Product Name • Unit Price Rate • Quantity • Total Amount',
+                        },
+                      ].map((t) => {
+                        const isSel = editingEntry.tableType === t.id;
                         return (
                           <TouchableOpacity
-                            key={ts}
-                            onPress={() => setEditingEntry({ ...editingEntry, tableType: ts })}
-                            style={[
-                              styles.optionChip,
-                              {
-                                backgroundColor: isSel ? '#2563EB' : theme.cardBg,
-                                borderColor: isSel ? '#2563EB' : theme.borderColor,
-                              },
-                            ]}
+                            key={t.id}
+                            onPress={() => setEditingEntry({ ...editingEntry, tableType: t.id })}
+                            style={{
+                              backgroundColor: isSel ? (theme.isDark ? '#1E293B' : '#EFF6FF') : theme.cardBg,
+                              borderColor: isSel ? '#2563EB' : theme.borderColor,
+                              borderWidth: isSel ? 2 : 1,
+                              borderRadius: 10,
+                              padding: 12,
+                            }}
                           >
-                            <Text style={{ color: isSel ? '#FFFFFF' : theme.textPrimary, fontSize: 12, fontWeight: isSel ? '700' : '600', textTransform: 'capitalize' }}>
-                              {ts} Table
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: isSel ? '#2563EB' : theme.textPrimary }}>
+                              {t.title}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: isSel ? (theme.isDark ? '#93C5FD' : '#1E40AF') : theme.textSecondary, marginTop: 2 }}>
+                              {t.sub}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -1241,7 +1670,7 @@ export default function ReceiptEditorScreen() {
                     </View>
 
                     <View style={styles.switchRow}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Show Tax (GST%) per item</Text>
+                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Show Tax (GST%) Column per item</Text>
                       <Switch
                         value={editingEntry.showTaxColumn || false}
                         onValueChange={(st) => setEditingEntry({ ...editingEntry, showTaxColumn: st })}
@@ -1252,6 +1681,7 @@ export default function ReceiptEditorScreen() {
                   </View>
                 )}
 
+                {/* 8. MULTI FORMAT */}
                 {editingEntry.type === 'multi_format' && (
                   <View style={{ gap: 14 }}>
                     <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Multi-Format Line Segments:</Text>
@@ -1297,6 +1727,7 @@ export default function ReceiptEditorScreen() {
                   </View>
                 )}
 
+                {/* 9. STORE POLICY / RETURN NOTE */}
                 {editingEntry.type === 'files_note' && (
                   <View style={{ gap: 14 }}>
                     <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Section Title (Optional):</Text>
@@ -1304,7 +1735,7 @@ export default function ReceiptEditorScreen() {
                       style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
                       value={editingEntry.title || ''}
                       onChangeText={(t) => setEditingEntry({ ...editingEntry, title: t })}
-                      placeholder="e.g. Store Return Policy"
+                      placeholder="e.g. Terms & Return Policy"
                       placeholderTextColor="#94A3B8"
                     />
 
@@ -1315,19 +1746,30 @@ export default function ReceiptEditorScreen() {
                       onChangeText={(c) => setEditingEntry({ ...editingEntry, content: c })}
                       multiline
                       numberOfLines={4}
+                      placeholder="e.g. 1. Goods once sold cannot be returned without bill."
+                      placeholderTextColor="#94A3B8"
                     />
                   </View>
                 )}
               </ScrollView>
 
-              {/* Save Entry Config */}
-              <View style={[styles.configFooter, { borderTopColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
+              {/* Modal Action Footer */}
+              <View style={[styles.configModalFooter, { borderTopColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
                 <TouchableOpacity
+                  onPress={() => setEditingEntry(null)}
+                  style={[styles.configCancelBtn, { borderColor: theme.borderColor }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: theme.textSecondary, fontWeight: '700', fontSize: 13 }}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleApplyEditingEntry}
                   style={[styles.configSaveBtn, { backgroundColor: '#2563EB' }]}
-                  onPress={() => handleUpdateEntry(editingEntry)}
+                  activeOpacity={0.8}
                 >
-                  <Check size={18} color="#FFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.configSaveBtnText}>Apply Changes</Text>
+                  <Check size={16} color="#FFFFFF" />
+                  <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>Save Changes</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1335,78 +1777,49 @@ export default function ReceiptEditorScreen() {
         </Modal>
       )}
 
-      {/* Live Preview Modal */}
-      {showPreviewModal && (
-        <Modal
-          visible={true}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowPreviewModal(false)}
-        >
-          <View style={styles.previewModalOverlay}>
-            <View style={[styles.previewModalContainer, { backgroundColor: theme.bg }]}>
-              <View style={[styles.previewHeader, { borderBottomColor: theme.borderColor }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.previewTitle, { color: theme.textPrimary }]}>
-                    {template.name}
-                  </Text>
-                  <Text style={[styles.previewSub, { color: theme.textSecondary }]}>
-                    Thermal Receipt Live Output ({template.paperWidth || '58mm'})
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setShowPreviewModal(false)}
-                  style={{ padding: 6 }}
-                >
-                  <X size={22} color={theme.textPrimary} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
-                <View
-                  style={[
-                    styles.thermalPaperRoll,
-                    {
-                      width: template.paperWidth === '80mm' ? 340 : 280,
-                    },
-                  ]}
-                >
-                  <Text style={styles.thermalPaperMono}>
-                    {ThermalPrinterService.formatCustomReceiptText(
-                      samplePrintData,
-                      template,
-                      template.paperWidth || '58mm'
-                    )}
-                  </Text>
-                </View>
-              </ScrollView>
-
-              <View style={[styles.previewFooter, { borderTopColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
-                <TouchableOpacity
-                  style={[styles.previewFooterBtn, { backgroundColor: '#F1F5F9' }]}
-                  onPress={handleSharePdf}
-                >
-                  <Share2 size={18} color="#334155" style={{ marginRight: 6 }} />
-                  <Text style={[styles.previewFooterBtnText, { color: '#334155' }]}>Share PDF</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.previewFooterBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
-                  onPress={handleTestPrint}
-                  disabled={isPrinting}
-                >
-                  {isPrinting ? (
-                    <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 6 }} />
-                  ) : (
-                    <Printer size={18} color="#FFF" style={{ marginRight: 6 }} />
-                  )}
-                  <Text style={[styles.previewFooterBtnText, { color: '#FFF' }]}>Print Sample</Text>
-                </TouchableOpacity>
-              </View>
+      {/* FULL THERMAL RECEIPT PREVIEW MODAL */}
+      <Modal
+        visible={showPreviewModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPreviewModal(false)}
+      >
+        <View style={styles.previewOverlay}>
+          <View style={[styles.previewModalContainer, { backgroundColor: theme.bg }]}>
+            <View style={[styles.configHeader, { borderBottomColor: theme.borderColor }]}>
+              <Text style={[styles.configHeaderTitle, { color: theme.textPrimary }]}>
+                Thermal Receipt Preview
+              </Text>
+              <TouchableOpacity onPress={() => setShowPreviewModal(false)} style={{ padding: 6 }}>
+                <X size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
             </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center', width: '100%' }}>
+              <CustomReceiptMockup
+                template={template}
+                storeName={samplePrintData.storeName || ''}
+                storeAddress={samplePrintData.storeAddress}
+                storePhone={samplePrintData.storePhone}
+                storeGstin={samplePrintData.storeGstin}
+                invoiceNumber={samplePrintData.invoiceNumber}
+                date={samplePrintData.date}
+                customerName={samplePrintData.customerName}
+                customerPhone={samplePrintData.customerPhone}
+                items={samplePrintData.items}
+                subtotal={samplePrintData.subtotal}
+                totalDiscount={samplePrintData.totalDiscount}
+                totalTax={samplePrintData.totalTax}
+                grandTotal={samplePrintData.grandTotal}
+                amountPaid={samplePrintData.amountPaid}
+                changeReturned={samplePrintData.changeReturned}
+                paymentMethod={samplePrintData.paymentMethod}
+                paperWidth={template.paperWidth || '58mm'}
+              />
+            </ScrollView>
           </View>
-        </Modal>
-      )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1426,109 +1839,145 @@ const styles = StyleSheet.create({
     padding: 6,
     marginRight: 6,
   },
+  titleInput: {
+    fontSize: 16,
+    fontWeight: '700',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
   titleText: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   subText: {
     fontSize: 11,
     marginTop: 2,
   },
-  titleInput: {
-    fontSize: 15,
-    fontWeight: '700',
-    borderBottomWidth: 1.5,
-    paddingVertical: 2,
-  },
-  headerActions: {
+  headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  headerIconBtn: {
+  iconBtn: {
     padding: 8,
     borderRadius: 8,
-    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    gap: 6,
     paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 8,
-    gap: 4,
   },
   saveBtnText: {
-    color: '#FFF',
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontSize: 13,
-    fontWeight: '700',
   },
-  paperWidthBar: {
+  scrollContent: {
+    padding: 16,
+    gap: 16,
+  },
+  logoCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+  },
+  logoCardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
+    alignItems: 'center',
   },
-  paperWidthLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  paperWidthPills: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(100, 116, 139, 0.12)',
-    borderRadius: 8,
-    padding: 2,
-  },
-  paperWidthPill: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  paperWidthPillText: {
-    fontSize: 12,
+  logoCardTitle: {
+    fontSize: 14,
     fontWeight: '700',
   },
-  quickPrintBtn: {
+  logoCardSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  logoCardBody: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  logoEmptyBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  smallActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    padding: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
   },
-  quickPrintBtnText: {
-    color: '#2563EB',
+  smallActionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  logoSizeChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  sectionSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  addSectionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addSectionBtnText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
-  listHeader: {
-    marginBottom: 14,
-  },
-  listHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  listHeaderSub: {
-    fontSize: 12,
-    marginTop: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  emptyBox: {
+  emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 30,
+    padding: 28,
     borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    marginTop: 20,
+    marginTop: 10,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   emptySub: {
-    fontSize: 13,
+    fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -1558,53 +2007,70 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   entryContentCol: {
     flex: 1,
+    justifyContent: 'center',
   },
   entryTypeName: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '700',
   },
   entrySummaryText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 11,
     marginTop: 2,
   },
   entryRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    marginLeft: 6,
   },
   deleteEntryBtn: {
     padding: 6,
   },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
+  paperWidthCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
   },
-  fabBtn: {
+  paperWidthTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  paperOptionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  paperOptionChip: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  bottomActionBar: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 6,
+    borderRadius: 10,
   },
-  fabText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '800',
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   sheetOverlay: {
     flex: 1,
@@ -1612,24 +2078,25 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheetContainer: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: 36,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+    paddingTop: 12,
   },
   sheetHandle: {
     width: 40,
     height: 4,
-    borderRadius: 2,
     backgroundColor: '#CBD5E1',
+    borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   sheetTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 16,
   },
   sheetItemRow: {
     flexDirection: 'row',
@@ -1639,8 +2106,7 @@ const styles = StyleSheet.create({
   sheetItemIconBox: {
     width: 40,
     height: 40,
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1649,36 +2115,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sheetItemSub: {
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 2,
   },
   configOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
   configContainer: {
-    flex: 1,
-    marginTop: 40,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
   },
   configHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 16,
     borderBottomWidth: 1,
   },
   configHeaderTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
+    marginBottom: 6,
   },
   subFieldLabel: {
     fontSize: 11,
@@ -1689,25 +2153,25 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 13,
   },
   textAreaInput: {
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
-    textAlignVertical: 'top',
+    fontSize: 13,
+    minHeight: 70,
   },
   varChip: {
-    borderWidth: 1,
-    borderRadius: 16,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
   },
   varChipText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   optionsRow: {
     flexDirection: 'row',
@@ -1715,109 +2179,78 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   optionChip: {
-    borderWidth: 1,
-    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   switchRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    alignItems: 'center',
+    paddingVertical: 4,
   },
   imagePickBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 10,
+    gap: 6,
     paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   imagePickBtnText: {
     fontSize: 13,
     fontWeight: '700',
   },
-  configFooter: {
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
     padding: 16,
+  },
+  previewModalContainer: {
+    borderRadius: 16,
+    maxHeight: '90%',
+    overflow: 'hidden',
+  },
+  paperReceiptPreviewWrap: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  receiptPaper: {
+    width: 280,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  configModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderTopWidth: 1,
+  },
+  configCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   configSaveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  configSaveBtnText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  previewModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-  },
-  previewModalContainer: {
-    flex: 1,
-    marginTop: 50,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 6,
+    paddingVertical: 10,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  previewTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  previewSub: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  thermalPaperRoll: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  thermalPaperMono: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 12,
-    lineHeight: 16,
-    color: '#000000',
-  },
-  previewFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 16,
-    borderTopWidth: 1,
-  },
-  previewFooterBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  previewFooterBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
   },
 });

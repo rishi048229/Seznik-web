@@ -766,6 +766,7 @@ export default function PrintersScreen() {
                             invoiceNumber="INV-1024"
                             date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                             customerName="Walk-in Customer"
+                            paperWidth={ct.paperWidth || '58mm'}
                           />
 
                           {/* Quick Action to Edit in Builder */}

@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
-import { QrCode as QrIcon, Barcode as BarcodeIcon, Image as ImageIcon } from 'lucide-react-native';
+import { View, Text, StyleSheet, Image, Platform } from 'react-native';
+import QRCodeSVG from 'react-native-qrcode-svg';
+import { Image as ImageIcon } from 'lucide-react-native';
 import { CustomReceiptTemplate, CustomReceiptEntry } from '@/types/customReceipt';
+import { buildBillPdfUrl } from '@/utils/billQrService';
 
 interface CustomReceiptMockupProps {
   template: CustomReceiptTemplate;
@@ -11,46 +13,77 @@ interface CustomReceiptMockupProps {
   storeGstin?: string;
   invoiceNumber?: string;
   date?: string;
+  time?: string;
   customerName?: string;
+  customerPhone?: string;
+  items?: { productName: string; quantity: number; unitPrice: number; total: number; unit?: string; gstRate?: number }[];
   subtotal?: number;
+  totalDiscount?: number;
   totalTax?: number;
   grandTotal?: number;
+  amountPaid?: number;
+  changeReturned?: number;
+  paymentMethod?: string;
+  paperWidth?: '58mm' | '80mm';
 }
 
-const SAMPLE_ITEMS = [
-  { name: 'Cold Brew Coffee', qty: 1, price: 180, total: 180, taxPct: 5 },
-  { name: 'Almond Croissant', qty: 2, price: 155, total: 310, taxPct: 5 },
+const DEFAULT_SAMPLE_ITEMS = [
+  { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
+  { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Btl', gstRate: 5 },
+  { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
 ];
 
 export function CustomReceiptMockup({
   template,
   storeName,
-  storeAddress = '123 Commercial Street, Suite 4',
+  storeAddress = '123 Market Road, City Centre',
   storePhone = '+91 98765 43210',
-  storeGstin = '29ABCDE1234F1Z5',
-  invoiceNumber = 'INV-1024',
-  date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-  customerName = 'Walk-in Customer',
-  subtotal = 490,
-  totalTax = 24.5,
-  grandTotal = 514.5,
+  storeGstin = '27AAAAA0000A1Z5',
+  invoiceNumber = 'INV-2026-0042',
+  date = new Date().toLocaleDateString('en-GB'),
+  time = '12:45 PM',
+  customerName = 'Aarav Sharma',
+  customerPhone = '+91 99887 76655',
+  items = DEFAULT_SAMPLE_ITEMS,
+  subtotal = 1090,
+  totalDiscount = 50,
+  totalTax = 40.5,
+  grandTotal = 1080.5,
+  amountPaid = 1100,
+  changeReturned = 19.5,
+  paymentMethod = 'UPI',
+  paperWidth,
 }: CustomReceiptMockupProps) {
+  const activePaperWidth = paperWidth || template.paperWidth || '58mm';
+  const is80mm = activePaperWidth === '80mm';
+  const paperMaxWidth = is80mm ? 360 : 280;
+
+  const sampleBillPdfUrl = buildBillPdfUrl({ invoiceNumber: invoiceNumber || 'INV-2026-0042' });
+  const sampleUpiStr = `upi://pay?pa=store@upi&pn=${encodeURIComponent(storeName || 'Store')}&am=${grandTotal.toFixed(2)}&cu=INR`;
+
   const replaceVars = (str?: string): string => {
     if (!str) return '';
     return str
-      .replace(/{{store_name}}/gi, storeName || 'MY STORE')
+      .replace(/{{store_name}}/gi, storeName || 'SEZNIK SUPERSTORE')
       .replace(/{{store_address}}/gi, storeAddress)
       .replace(/{{store_phone}}/gi, storePhone)
       .replace(/{{store_gstin}}/gi, storeGstin)
       .replace(/{{invoice_no}}/gi, invoiceNumber)
       .replace(/{{date}}/gi, date)
-      .replace(/{{time}}/gi, '14:30')
+      .replace(/{{time}}/gi, time)
       .replace(/{{customer_name}}/gi, customerName)
+      .replace(/{{customer_phone}}/gi, customerPhone)
       .replace(/{{grand_total}}/gi, `₹${grandTotal.toFixed(2)}`)
       .replace(/{{subtotal}}/gi, `₹${subtotal.toFixed(2)}`)
+      .replace(/{{tax}}/gi, `₹${totalTax.toFixed(2)}`)
       .replace(/{{total_tax}}/gi, `₹${totalTax.toFixed(2)}`)
-      .replace(/{{bill_pdf_url}}/gi, `https://seznik.com/b/${invoiceNumber}`)
-      .replace(/{{upi_qr}}/gi, `upi://pay?pa=store@upi&pn=${encodeURIComponent(storeName)}&am=${grandTotal.toFixed(2)}`);
+      .replace(/{{discount}}/gi, `₹${totalDiscount.toFixed(2)}`)
+      .replace(/{{paid_amount}}/gi, `₹${amountPaid.toFixed(2)}`)
+      .replace(/{{change_returned}}/gi, `₹${changeReturned.toFixed(2)}`)
+      .replace(/{{payment_method}}/gi, paymentMethod)
+      .replace(/{{bill_pdf_url}}/gi, sampleBillPdfUrl)
+      .replace(/{{upi_qr}}/gi, sampleUpiStr)
+      .replace(/{{footer_message}}/gi, 'Thank you! Visit again.');
   };
 
   const renderEntry = (entry: CustomReceiptEntry, idx: number) => {
@@ -74,7 +107,8 @@ export function CustomReceiptMockup({
                   textAlign: align,
                   fontSize,
                   fontWeight: entry.bold || entry.size === 'double_width' || entry.size === 'double_height' ? '800' : '500',
-                  color: '#0F172A',
+                  color: '#000000',
+                  lineHeight: fontSize + 4,
                 },
               ]}
             >
@@ -86,7 +120,7 @@ export function CustomReceiptMockup({
 
       case 'text_special': {
         const align = entry.align || 'center';
-        const fontSize = Math.min(Math.max(entry.fontSizePt || 14, 10), 20);
+        const fontSize = Math.min(Math.max(entry.fontSizePt || 14, 10), 22);
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
             <Text
@@ -98,7 +132,8 @@ export function CustomReceiptMockup({
                   fontWeight: entry.bold ? '800' : '600',
                   fontStyle: entry.italic ? 'italic' : 'normal',
                   textDecorationLine: entry.underline ? 'underline' : 'none',
-                  color: '#0F172A',
+                  color: '#000000',
+                  lineHeight: fontSize + 4,
                 },
               ]}
             >
@@ -111,16 +146,38 @@ export function CustomReceiptMockup({
       case 'image': {
         const widthPct = `${Math.min(entry.widthPercent || 40, 100)}%` as any;
         return (
-          <View key={entry.id || idx} style={[styles.entryBlock, { alignItems: 'center', marginVertical: 4 }]}>
+          <View
+            key={entry.id || idx}
+            style={[
+              styles.entryBlock,
+              {
+                alignItems: entry.align === 'left' ? 'flex-start' : entry.align === 'right' ? 'flex-end' : 'center',
+                marginVertical: 4,
+              },
+            ]}
+          >
             {entry.imageUri ? (
               <Image
                 source={{ uri: entry.imageUri }}
-                style={{ width: widthPct, height: 48, resizeMode: 'contain' }}
+                style={[
+                  styles.thermalLogoImage,
+                  {
+                    width: widthPct,
+                    height: 52,
+                    resizeMode: 'contain',
+                    ...(Platform.OS === 'web'
+                      ? ({
+                          filter: 'grayscale(100%) contrast(250%) brightness(85%)',
+                          WebkitFilter: 'grayscale(100%) contrast(250%) brightness(85%)',
+                        } as any)
+                      : {}),
+                  },
+                ]}
               />
             ) : (
               <View style={styles.imagePlaceholder}>
-                <ImageIcon size={18} color="#64748B" />
-                <Text style={styles.imagePlaceholderText}>LOGO ({entry.widthPercent || 40}%)</Text>
+                <ImageIcon size={18} color="#000000" />
+                <Text style={styles.imagePlaceholderText}>STORE LOGO ({entry.widthPercent || 40}%)</Text>
               </View>
             )}
           </View>
@@ -132,47 +189,85 @@ export function CustomReceiptMockup({
         if (style === 'double') {
           return (
             <View key={entry.id || idx} style={styles.entryBlock}>
-              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#334155', marginBottom: 2 }]} />
-              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#334155' }]} />
+              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#000000', marginBottom: 2 }]} />
+              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#000000' }]} />
             </View>
           );
         }
         if (style === 'single') {
           return (
             <View key={entry.id || idx} style={styles.entryBlock}>
-              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#334155' }]} />
+              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#000000' }]} />
             </View>
           );
         }
         if (style === 'dotted') {
           return (
             <View key={entry.id || idx} style={styles.entryBlock}>
-              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#334155', borderStyle: 'dotted' }]} />
+              <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#000000', borderStyle: 'dotted' }]} />
             </View>
           );
         }
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
-            <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#475569', borderStyle: 'dashed' }]} />
+            <View style={[styles.line, { borderBottomWidth: 1, borderColor: '#000000', borderStyle: 'dashed' }]} />
           </View>
         );
       }
 
       case 'barcode': {
         const isQr = entry.codeType === 'qr_code' || entry.format === 'qr';
+        let rawVal = replaceVars(entry.value);
+        if (!rawVal || rawVal === '{{bill_pdf_url}}') {
+          rawVal = sampleBillPdfUrl;
+        } else if (rawVal === '{{upi_qr}}') {
+          rawVal = sampleUpiStr;
+        } else if (rawVal === '{{invoice_no}}') {
+          rawVal = invoiceNumber || 'INV-2026-0042';
+        }
+
+        const qrSize = entry.size === 'large' ? (is80mm ? 130 : 110) : entry.size === 'small' ? 75 : 95;
+
         return (
-          <View key={entry.id || idx} style={[styles.entryBlock, { alignItems: 'center', marginVertical: 6 }]}>
+          <View
+            key={entry.id || idx}
+            style={[
+              styles.entryBlock,
+              {
+                alignItems: entry.align === 'left' ? 'flex-start' : entry.align === 'right' ? 'flex-end' : 'center',
+                marginVertical: 6,
+              },
+            ]}
+          >
             {isQr ? (
-              <View style={styles.qrBox}>
-                <QrIcon size={34} color="#0F172A" />
-                <Text style={styles.barcodeValueText} numberOfLines={1}>
-                  {replaceVars(entry.value) || 'Scan to view Bill'}
-                </Text>
+              <View style={styles.qrWrapper}>
+                <View style={styles.qrContainer}>
+                  <QRCodeSVG
+                    value={rawVal || sampleBillPdfUrl}
+                    size={qrSize}
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
+                    ecl="M"
+                    quietZone={2}
+                  />
+                </View>
               </View>
             ) : (
-              <View style={styles.barcodeBox}>
-                <BarcodeIcon size={42} color="#0F172A" />
-                <Text style={styles.barcodeValueText}>{replaceVars(entry.value) || invoiceNumber}</Text>
+              <View style={styles.barcodeWrapper}>
+                <View style={styles.barcodeBarsRow}>
+                  {[1, 2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2].map((w, bIdx) => (
+                    <View
+                      key={bIdx}
+                      style={{
+                        width: w * 2,
+                        height: 32,
+                        backgroundColor: bIdx % 2 === 0 ? '#000000' : 'transparent',
+                        marginRight: 1,
+                      }}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.thermalText, styles.barcodeLabelText]}>* {rawVal} *</Text>
               </View>
             )}
           </View>
@@ -182,10 +277,10 @@ export function CustomReceiptMockup({
       case 'left_right_text': {
         return (
           <View key={entry.id || idx} style={[styles.entryBlock, styles.rowBetween]}>
-            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '600', color: '#1E293B' }]}>
+            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>
               {replaceVars(entry.left)}
             </Text>
-            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '600', color: '#1E293B' }]}>
+            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>
               {replaceVars(entry.right)}
             </Text>
           </View>
@@ -195,41 +290,36 @@ export function CustomReceiptMockup({
       case 'table': {
         const isAdv = entry.tableType === 'advanced';
         const showTax = entry.showTaxColumn;
+        const itemHeader = entry.columnHeaders?.item || 'Item';
+        const totalHeader = entry.columnHeaders?.total || 'Total';
 
         return (
           <View key={entry.id || idx} style={[styles.entryBlock, { marginVertical: 4 }]}>
-            {/* Header */}
-            <View style={[styles.rowBetween, { borderBottomWidth: 1, borderColor: '#334155', paddingBottom: 2, marginBottom: 4 }]}>
-              <Text style={[styles.tableColHeader, { flex: 2 }]}>ITEM</Text>
-              <Text style={[styles.tableColHeader, { flex: 1, textAlign: 'center' }]}>QTY</Text>
-              {showTax ? <Text style={[styles.tableColHeader, { flex: 1, textAlign: 'center' }]}>TAX</Text> : null}
-              <Text style={[styles.tableColHeader, { flex: 1.2, textAlign: 'right' }]}>AMT (₹)</Text>
+            {/* Table Header */}
+            <View style={[styles.rowBetween, { borderBottomWidth: 1, borderColor: '#000000', borderStyle: 'dashed', paddingBottom: 3, marginBottom: 4 }]}>
+              <Text style={[styles.tableColHeader, { flex: 2 }]}>{itemHeader}</Text>
+              <Text style={[styles.tableColHeader, { flex: 1.2, textAlign: 'right' }]}>{totalHeader}</Text>
             </View>
 
-            {/* Items */}
-            {SAMPLE_ITEMS.map((it, sIdx) => (
-              <View key={sIdx} style={[styles.rowBetween, { paddingVertical: 2 }]}>
-                <View style={{ flex: 2 }}>
-                  <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#0F172A' }]}>
-                    {it.name}
-                  </Text>
-                  {isAdv ? (
-                    <Text style={{ fontSize: 9, color: '#64748B' }}>
-                      Rate: ₹{it.price}
-                    </Text>
-                  ) : null}
-                </View>
-                <Text style={[styles.thermalText, { flex: 1, textAlign: 'center', fontSize: 11, color: '#334155' }]}>
-                  {it.qty}
+            {/* Table Items */}
+            {items.map((it, sIdx) => (
+              <View key={sIdx} style={{ marginVertical: 2.5 }}>
+                <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
+                  {sIdx + 1}. {it.productName}
                 </Text>
-                {showTax ? (
-                  <Text style={[styles.thermalText, { flex: 1, textAlign: 'center', fontSize: 10, color: '#64748B' }]}>
-                    {it.taxPct}%
+                {showTax && it.gstRate ? (
+                  <Text style={[styles.thermalText, { fontSize: 9, color: '#333333', marginLeft: 12 }]}>
+                    {it.gstRate}% GST
                   </Text>
                 ) : null}
-                <Text style={[styles.thermalText, { flex: 1.2, textAlign: 'right', fontSize: 11, fontWeight: '700', color: '#0F172A' }]}>
-                  {it.total.toFixed(2)}
-                </Text>
+                <View style={[styles.rowBetween, { paddingLeft: 12 }]}>
+                  <Text style={[styles.thermalText, { fontSize: 10, color: '#222222' }]}>
+                    {it.quantity} {it.unit || 'Pc'} x {it.unitPrice.toFixed(2)}
+                  </Text>
+                  <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
+                    {it.total.toFixed(2)}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
@@ -247,7 +337,7 @@ export function CustomReceiptMockup({
                   {
                     fontSize: 11,
                     fontWeight: seg.bold ? '800' : '500',
-                    color: '#0F172A',
+                    color: '#000000',
                     marginRight: 4,
                   },
                 ]}
@@ -261,13 +351,13 @@ export function CustomReceiptMockup({
 
       case 'files_note': {
         return (
-          <View key={entry.id || idx} style={[styles.entryBlock, styles.noteContainer]}>
+          <View key={entry.id || idx} style={[styles.entryBlock, { marginVertical: 4 }]}>
             {entry.title ? (
-              <Text style={[styles.thermalText, { fontSize: 10, fontWeight: '800', color: '#334155', marginBottom: 2 }]}>
+              <Text style={[styles.thermalText, { fontSize: 10, fontWeight: '800', color: '#000000', marginBottom: 2 }]}>
                 {replaceVars(entry.title)}
               </Text>
             ) : null}
-            <Text style={[styles.thermalText, { fontSize: 10, color: '#475569', lineHeight: 14 }]}>
+            <Text style={[styles.thermalText, { fontSize: 10, color: '#333333', lineHeight: 14 }]}>
               {replaceVars(entry.content)}
             </Text>
           </View>
@@ -283,10 +373,10 @@ export function CustomReceiptMockup({
 
   return (
     <View style={styles.paperContainer}>
-      <View style={styles.paper}>
+      <View style={[styles.paper, { maxWidth: paperMaxWidth }]}>
         {enabledEntries.length === 0 ? (
-          <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', paddingVertical: 12 }}>
-            No active blocks in this custom receipt.
+          <Text style={{ fontSize: 11, color: '#666666', textAlign: 'center', paddingVertical: 12, fontFamily: 'monospace' }}>
+            No active sections in this custom receipt.
           </Text>
         ) : (
           enabledEntries.map((entry, idx) => renderEntry(entry, idx))
@@ -300,24 +390,31 @@ const styles = StyleSheet.create({
   paperContainer: {
     width: '100%',
     alignItems: 'center',
+    paddingVertical: 4,
   },
   paper: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
     width: '100%',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 4,
+    borderTopWidth: 3,
+    borderTopColor: '#E2E8F0',
+    borderBottomWidth: 3,
+    borderBottomColor: '#CBD5E1',
   },
   entryBlock: {
     width: '100%',
-    marginVertical: 2,
+    marginVertical: 1.5,
   },
   thermalText: {
     fontFamily: 'monospace',
+    letterSpacing: -0.2,
   },
   rowBetween: {
     flexDirection: 'row',
@@ -327,19 +424,22 @@ const styles = StyleSheet.create({
   },
   line: {
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 3,
   },
   tableColHeader: {
     fontSize: 10,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontWeight: '800',
+    color: '#000000',
     fontFamily: 'monospace',
+  },
+  thermalLogoImage: {
+    opacity: 0.95,
   },
   imagePlaceholder: {
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#94A3B8',
     borderStyle: 'dashed',
-    borderRadius: 6,
+    borderRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 16,
     alignItems: 'center',
@@ -348,40 +448,38 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   imagePlaceholderText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-    fontFamily: 'monospace',
-  },
-  qrBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 6,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    width: 140,
-  },
-  barcodeBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-  },
-  barcodeValueText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#334155',
+    color: '#000000',
     fontFamily: 'monospace',
-    marginTop: 4,
-    textAlign: 'center',
   },
-  noteContainer: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 6,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  qrWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
     marginVertical: 4,
+  },
+  qrContainer: {
+    padding: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  barcodeWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 4,
+  },
+  barcodeBarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  barcodeLabelText: {
+    fontSize: 9,
+    color: '#333333',
+    marginTop: 3,
+    textAlign: 'center',
   },
 });
