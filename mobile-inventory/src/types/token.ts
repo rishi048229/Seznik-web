@@ -14,6 +14,7 @@ export interface Token {
   id: string;
   dailyNumber: number;
   dailySequence?: number;
+  note?: string | null;
   saleId?: string | null;
   tokenTypeId?: string | null;
   tokenType?: TokenType | null;

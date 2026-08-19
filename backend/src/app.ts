@@ -18,6 +18,8 @@ import reportRoutes from './routes/reportRoutes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import tokenTypeRoutes from './routes/tokenTypeRoutes';
 import tokenRoutes from './routes/tokenRoutes';
+import restaurantTableRoutes from './routes/restaurantTableRoutes';
+import kotOrderRoutes from './routes/kotOrderRoutes';
 import { routeTelemetryMiddleware } from './middlewares/routeTelemetry';
 
 dotenv.config();
@@ -100,6 +102,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/token-types', tokenTypeRoutes);
 app.use('/api/tokens', tokenRoutes);
+app.use('/api/restaurant-tables', restaurantTableRoutes);
+app.use('/api/kot-orders', kotOrderRoutes);
 
 // 6. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {

@@ -86,30 +86,21 @@ export default function QuickTokensScreen() {
     }
 
     try {
-      await ThermalPrinterService.printSaleReceipt({
+      await ThermalPrinterService.printTokenSlip({
         storeName: settings?.businessName || 'SEZNIK TOKEN',
         storeAddress: settings?.businessAddress || '',
         storePhone: settings?.businessPhone || '',
-        invoiceNumber: `TOKEN #${seq}`,
-        date: new Date(token.createdAt).toLocaleDateString('en-GB') + ' ' + new Date(token.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        customerName: `TOKEN #${seq} • ${typeName}`,
-        items: [
-          {
-            productName: typeName,
-            quantity: 1,
-            unitPrice: price,
-            total: price,
-          },
-        ],
-        subtotal: price,
-        totalTax: 0,
-        totalDiscount: 0,
-        grandTotal: price,
-        amountPaid: price,
-        changeReturned: 0,
-        paymentMethod: 'CASH (Token)',
+        tokenNumber: seq,
+        typeName,
+        quantity: 1,
+        price,
+        totalAmount: price,
+        paymentMethod: 'CASH',
+        date: new Date(token.createdAt).toLocaleDateString('en-GB'),
+        time: new Date(token.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        note: token.note || undefined,
       });
-      Alert.alert('Token Printed! 🖨️', `Token #${seq} printed successfully.`);
+      Alert.alert('Token Printed! 🖨️', `Token #${seq} slip printed successfully.`);
     } catch (err: any) {
       Alert.alert('Print Error', err?.message || 'Failed to print token');
     }
@@ -133,31 +124,22 @@ export default function QuickTokensScreen() {
 
       const nextSeq = tokens.length + 1;
 
-      // Auto-print thermal token if printer is connected
+      // Auto-print compact thermal token slip if printer is connected
       if (connectionState === 'connected') {
         try {
-          await ThermalPrinterService.printSaleReceipt({
+          await ThermalPrinterService.printTokenSlip({
             storeName: settings?.businessName || 'SEZNIK TOKEN',
             storeAddress: settings?.businessAddress || '',
             storePhone: settings?.businessPhone || '',
-            invoiceNumber: `TOKEN #${nextSeq}`,
-            date: new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            customerName: `TOKEN #${nextSeq} • ${selectedType.name}`,
-            items: [
-              {
-                productName: selectedType.name,
-                quantity: qty,
-                unitPrice: priceVal,
-                total: totalAmount,
-              },
-            ],
-            subtotal: totalAmount,
-            totalTax: 0,
-            totalDiscount: 0,
-            grandTotal: totalAmount,
-            amountPaid: totalAmount,
-            changeReturned: 0,
-            paymentMethod: 'CASH (Token)',
+            tokenNumber: nextSeq,
+            typeName: selectedType.name,
+            quantity: qty,
+            price: priceVal,
+            totalAmount,
+            paymentMethod: 'CASH',
+            date: new Date().toLocaleDateString('en-GB'),
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            note: note.trim() || undefined,
           });
         } catch (printErr) {
           console.warn('Auto print token failed:', printErr);

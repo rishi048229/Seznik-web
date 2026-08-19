@@ -58,6 +58,22 @@ export interface PrintKotData {
   items: { productName: string; quantity: number; notes?: string; modifiers?: string[] }[];
 }
 
+/** Dedicated compact counter token slip data */
+export interface PrintTokenData {
+  storeName?: string;
+  storeAddress?: string;
+  storePhone?: string;
+  tokenNumber: number | string;
+  typeName: string;
+  quantity?: number;
+  price?: number;
+  totalAmount?: number;
+  paymentMethod?: string;
+  date?: string;
+  time?: string;
+  note?: string;
+}
+
 /** Calibration/personalization options threaded through the receipt print pipeline — sourced from usePrinterStore. */
 export interface ReceiptPrintOptions {
   template?: ReceiptTemplate;
@@ -621,6 +637,146 @@ class ThermalPrinterServiceManager {
         ${data.notes ? `<hr style="border: none; border-top: 2px solid #000; margin: 8px 0;"><div><b>ORDER NOTE:</b> ${data.notes}</div>` : ''}
       </body></html>
     `;
+  }
+
+  /**
+   * Compact Counter Token Slip — super small, paper-efficient slip (under 8cm length)
+   * with prominent centered TOKEN #X header, concise item line, and counter note.
+   */
+  public formatTokenSlipText(data: PrintTokenData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+    const width = paperWidth === '58mm' ? 32 : 48;
+    const divider = '='.repeat(width);
+    const thinDivider = '-'.repeat(width);
+
+    const centerLine = (str: string) => {
+      const trimmed = str.trim();
+      if (trimmed.length >= width) return trimmed.slice(0, width);
+      const padLeft = Math.floor((width - trimmed.length) / 2);
+      return ' '.repeat(padLeft) + trimmed;
+    };
+
+    const padLine = (left: string, right: string) => {
+      const available = width - left.length - right.length;
+      if (available <= 0) {
+        return left.slice(0, width - right.length - 1) + ' ' + right;
+      }
+      return left + ' '.repeat(available) + right;
+    };
+
+    const lines: string[] = [];
+    const storeName = (data.storeName || 'SEZNIK TOKEN').toUpperCase();
+    lines.push(centerLine(storeName));
+    if (data.storePhone) lines.push(centerLine(`Ph: ${data.storePhone}`));
+    lines.push(divider);
+
+    lines.push(centerLine(`*** TOKEN #${data.tokenNumber} ***`));
+    lines.push(divider);
+
+    const qty = data.quantity || 1;
+    const total = (data.totalAmount !== undefined ? data.totalAmount : (data.price || 0) * qty).toFixed(2);
+    lines.push(padLine(`${qty} x ${data.typeName}`, `Rs.${total}`));
+
+    if (data.note) {
+      lines.push(thinDivider);
+      lines.push(`Note: ${data.note}`);
+    }
+
+    lines.push(thinDivider);
+    lines.push(padLine('TOTAL PAID:', `Rs.${total}`));
+    lines.push(padLine(data.date || new Date().toLocaleDateString('en-GB'), data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
+    lines.push(divider);
+    lines.push(centerLine('* Please show token at counter *'));
+    lines.push('');
+
+    return lines.join('\n');
+  }
+
+  /** HTML representation for small compact token slip fallback */
+  public generateTokenSlipHtml(data: PrintTokenData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+    const widthPx = paperWidth === '58mm' ? '260px' : '340px';
+    const qty = data.quantity || 1;
+    const total = (data.totalAmount !== undefined ? data.totalAmount : (data.price || 0) * qty).toFixed(2);
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @page { margin: 0; size: auto; }
+            body {
+              width: ${widthPx};
+              margin: 0 auto;
+              padding: 8px;
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 13px;
+              color: #000;
+              background: #fff;
+              text-align: center;
+            }
+            .bold { font-weight: 900; }
+            .token-box {
+              border: 2px solid #000;
+              padding: 8px;
+              margin: 6px 0;
+              font-size: 20px;
+              font-weight: 900;
+            }
+            .divider { border-bottom: 1px dashed #000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; font-size: 13px; margin: 4px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="bold" style="font-size: 15px;">${(data.storeName || 'SEZNIK TOKEN').toUpperCase()}</div>
+          ${data.storePhone ? `<div style="font-size: 11px;">Ph: ${data.storePhone}</div>` : ''}
+          <div class="token-box">TOKEN #${data.tokenNumber}</div>
+          <div class="divider"></div>
+          <div class="row bold">
+            <span>${qty} x ${data.typeName}</span>
+            <span>Rs.${total}</span>
+          </div>
+          ${data.note ? `<div style="text-align: left; font-size: 11px; margin: 4px 0;">Note: ${data.note}</div>` : ''}
+          <div class="divider"></div>
+          <div class="row bold" style="font-size: 14px;">
+            <span>TOTAL (${(data.paymentMethod || 'CASH').toUpperCase()})</span>
+            <span>Rs.${total}</span>
+          </div>
+          <div class="row" style="font-size: 10px; color: #555;">
+            <span>${data.date || new Date().toLocaleDateString('en-GB')}</span>
+            <span>${data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div class="divider"></div>
+          <div style="font-size: 11px; font-weight: bold; margin-top: 4px;">* Please show token at counter *</div>
+        </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Direct in-app thermal printing for compact counter token slip.
+   * Prints a short, paper-efficient slip with large bold token header.
+   */
+  public async printTokenSlip(data: PrintTokenData, paperWidth: '58mm' | '80mm' = '58mm'): Promise<boolean> {
+    try {
+      if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        const textContent = this.sanitizeForThermalPrint(this.formatTokenSlipText(data, paperWidth));
+        await NativeEscposPrinter.printText(textContent, { widthtimes: 0, heigthtimes: 0, cut: false });
+        if (typeof NativeEscposPrinter.printAndFeed === 'function') {
+          try {
+            await NativeEscposPrinter.printAndFeed(25);
+          } catch (e) {
+            // non-fatal
+          }
+        }
+        return true;
+      }
+      const html = this.generateTokenSlipHtml(data, paperWidth);
+      await Print.printAsync({ html });
+      return true;
+    } catch (err) {
+      console.error('printTokenSlip error:', err);
+      return false;
+    }
   }
 
   /**
