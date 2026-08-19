@@ -40,7 +40,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { settingsApi } from '@/api/settings';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useLanguageStore, useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -54,7 +54,7 @@ const SUPPORT_EMAIL = 'tech_support@seznik.in';
 export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { currentLanguage, setLanguage, t } = useLanguageStore();
+  const { currentLanguage, setLanguage, t } = useTranslation();
   const { settings } = useSettings();
   const queryClient = useQueryClient();
 
@@ -207,7 +207,7 @@ export default function SettingsScreen() {
             /* Help & Support Section */
             <View>
               <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 14 }}>
-                Need help with Seznik POS? Reach us any of these ways:
+                {t('needHelp', 'Need help with Seznik POS? Reach us any of these ways:')}
               </Text>
               <TouchableOpacity
                 onPress={() => Linking.openURL(`tel:${SUPPORT_PHONE}`)}
@@ -217,7 +217,7 @@ export default function SettingsScreen() {
                   <Phone size={20} color="#10B981" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>Call Support</Text>
+                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>{t('callSupport', 'Call Support')}</Text>
                   <Text style={[styles.menuSub, { color: theme.textSecondary }]}>{SUPPORT_PHONE}</Text>
                 </View>
                 <ChevronRight size={18} color={theme.textSecondary} />
@@ -231,7 +231,7 @@ export default function SettingsScreen() {
                   <MessageCircle size={20} color="#10B981" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>WhatsApp Support</Text>
+                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>{t('whatsappSupport', 'WhatsApp Support')}</Text>
                   <Text style={[styles.menuSub, { color: theme.textSecondary }]}>{SUPPORT_PHONE}</Text>
                 </View>
                 <ChevronRight size={18} color={theme.textSecondary} />
@@ -245,7 +245,7 @@ export default function SettingsScreen() {
                   <Mail size={20} color={BRAND_COLORS.blue600} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>Email Support</Text>
+                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>{t('emailSupport', 'Email Support')}</Text>
                   <Text style={[styles.menuSub, { color: theme.textSecondary }]}>{SUPPORT_EMAIL}</Text>
                 </View>
                 <ChevronRight size={18} color={theme.textSecondary} />
@@ -259,8 +259,8 @@ export default function SettingsScreen() {
                   <FileText size={20} color="#F59E0B" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>Suggest a Feature / Report a Bug</Text>
-                  <Text style={[styles.menuSub, { color: theme.textSecondary }]}>Rate the app & leave feedback</Text>
+                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>{t('suggestFeature', 'Suggest a Feature / Report a Bug')}</Text>
+                  <Text style={[styles.menuSub, { color: theme.textSecondary }]}>{t('rateApp', 'Rate the app & leave feedback')}</Text>
                 </View>
                 <ChevronRight size={18} color={theme.textSecondary} />
               </TouchableOpacity>
@@ -268,9 +268,9 @@ export default function SettingsScreen() {
           ) : activeSection === 'profile' ? (
             /* Business Profile Section */
             <View>
-              <Text style={[styles.label, { color: theme.textPrimary, marginTop: 0 }]}>Business Logo</Text>
+              <Text style={[styles.label, { color: theme.textPrimary, marginTop: 0 }]}>{t('businessLogo', 'Business Logo')}</Text>
               <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 8 }}>
-                Prints at the top of every thermal receipt
+                {t('businessLogoSub', 'Prints at the top of every thermal receipt')}
               </Text>
               <TouchableOpacity onPress={handlePickLogo} style={styles.logoPicker}>
                 {logoUri ? (
@@ -278,33 +278,33 @@ export default function SettingsScreen() {
                 ) : (
                   <View style={[styles.logoPlaceholder, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                     <ImageIcon size={22} color={theme.textSecondary} />
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4, fontWeight: '700' }}>Tap to Upload Logo</Text>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4, fontWeight: '700' }}>{t('tapToUploadLogo', 'Tap to Upload Logo')}</Text>
                   </View>
                 )}
               </TouchableOpacity>
 
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Store / Business Name</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>{t('businessName', 'Store / Business Name')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storeName}
                 onChangeText={setStoreName}
               />
 
-              <Text style={[styles.label, { color: theme.textPrimary }]}>GSTIN Number</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>{t('taxIdGstin', 'GSTIN Number')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storeGstin}
                 onChangeText={setStoreGstin}
               />
 
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Support Phone</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>{t('businessPhone', 'Store Phone Number')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storePhone}
                 onChangeText={setStorePhone}
               />
 
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Store Address</Text>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>{t('businessAddress', 'Store Address')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storeAddress}

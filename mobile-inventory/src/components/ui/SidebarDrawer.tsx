@@ -32,7 +32,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
 
@@ -50,7 +50,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { user, logout } = useAuth();
-  const { currentLanguage, setLanguage, t } = useLanguageStore();
+  const { currentLanguage, setLanguage, t } = useTranslation();
 
   const theme = isDark
     ? {

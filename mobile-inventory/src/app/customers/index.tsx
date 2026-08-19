@@ -43,7 +43,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { ContactImportModal } from '@/components/customers/ContactImportModal';
 import { CustomersListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 // Module-level (not inline in the component) so the React Compiler's purity check doesn't flag
 // the Date.now() call — it only analyzes code written directly inside a component/hook body.
@@ -58,7 +58,7 @@ const computeOverdueCustomerIds = (customers: Customer[]): Set<string> => {
 
 export default function CustomersScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const { customers, isLoading, createCustomer, updateCustomer, bulkCreateCustomers, refetch } = useCustomers();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,17 +193,17 @@ export default function CustomersScreen() {
           {/* CONTROL PANEL METRICS CARDS */}
           <View style={styles.metricsGrid}>
             <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Total Outstanding</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{t('totalDueBalance', 'Total Outstanding')}</Text>
               <Text style={[styles.metricValue, { color: totalCreditDue > 0 ? '#EF4444' : '#10B981' }]}>
                 ₹{totalCreditDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </Text>
-              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>{creditDueCount} Accounts Due</Text>
+              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>{creditDueCount} {t('credit', 'Accounts Due')}</Text>
             </View>
 
             <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Overdue Risk (&gt;30d)</Text>
               <Text style={[styles.metricValue, { color: overdueCount > 0 ? '#B91C1C' : '#10B981' }]}>
-                {overdueCount} Accounts
+                {overdueCount} {t('customers', 'Accounts')}
               </Text>
               <Text style={[styles.metricSub, { color: theme.textSecondary }]}>High Priority Follow-ups</Text>
             </View>
@@ -233,7 +233,7 @@ export default function CustomersScreen() {
               style={[styles.filterChip, { borderColor: theme.borderColor }, activeTab === 'all' && styles.filterChipActive]}
             >
               <Text style={[styles.filterChipText, { color: theme.textSecondary }, activeTab === 'all' && styles.filterChipTextActive]}>
-                All ({totalCustomers})
+                {t('all', 'All')} ({totalCustomers})
               </Text>
             </TouchableOpacity>
 
@@ -242,7 +242,7 @@ export default function CustomersScreen() {
               style={[styles.filterChip, { borderColor: theme.borderColor }, activeTab === 'due' && styles.filterChipActive]}
             >
               <Text style={[styles.filterChipText, { color: theme.textSecondary }, activeTab === 'due' && styles.filterChipTextActive]}>
-                Credit Due ({creditDueCount})
+                {t('credit', 'Credit Due')} ({creditDueCount})
               </Text>
             </TouchableOpacity>
 
@@ -251,7 +251,7 @@ export default function CustomersScreen() {
               style={[styles.filterChip, { borderColor: theme.borderColor }, activeTab === 'settled' && styles.filterChipActive]}
             >
               <Text style={[styles.filterChipText, { color: theme.textSecondary }, activeTab === 'settled' && styles.filterChipTextActive]}>
-                Settled ({totalCustomers - creditDueCount})
+                {t('all', 'Settled')} ({totalCustomers - creditDueCount})
               </Text>
             </TouchableOpacity>
           </View>

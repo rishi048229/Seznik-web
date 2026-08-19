@@ -33,6 +33,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { useTranslation } from '@/store/useLanguageStore';
 
 // Mirrors UserPermissions (src/types/auth.ts) and useAuthStore.hasPermission's gating exactly —
 // keep these two in sync if a new permission key is ever added.
@@ -57,6 +58,7 @@ const EMPTY_PERMISSIONS: UserPermissions = {
 export default function StaffScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { t, currentLanguage } = useTranslation();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
   const { staff, isLoading, createStaff, isCreating, updateStaff, removeStaff, isSyncing } = useManagedUsers();
@@ -91,22 +93,18 @@ export default function StaffScreen() {
     setShowModal(true);
   };
 
-  const handleTogglePerm = (key: keyof UserPermissions) => {
-    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const handleSaveStaff = async () => {
     if (!email.trim()) {
       Alert.alert('Validation', 'Email is required');
       return;
     }
     if (!editingStaff && !password.trim()) {
-      Alert.alert('Validation', 'Temporary Password is required for new staff');
+      Alert.alert('Validation', 'Password is required for new accounts');
       return;
     }
 
+    setSubmitting(true);
     try {
-      setSubmitting(true);
       if (editingStaff) {
         await updateStaff(editingStaff.uid, {
           displayName: displayName.trim() || editingStaff.displayName,
@@ -115,7 +113,7 @@ export default function StaffScreen() {
         });
       } else {
         await createStaff({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password: password.trim(),
           displayName: displayName.trim() || email.split('@')[0] || 'Staff',
           role,
@@ -124,17 +122,18 @@ export default function StaffScreen() {
       }
       setShowModal(false);
     } catch (e: any) {
-      Alert.alert('Save Failed', e?.message || 'Please check your connection and try again.');
+      Alert.alert('Save Failed', e?.message || 'Could not save staff account.');
     } finally {
       setSubmitting(false);
     }
   };
 
+
   const handleDeleteStaff = (member: ManagedUser) => {
     Alert.alert('Remove Staff', `Are you sure you want to delete ${member.displayName || member.email}?`, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel', 'Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('delete', 'Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -165,16 +164,16 @@ export default function StaffScreen() {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={theme.textSecondary} />
-              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
+              <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
               <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.addBtnText}>Add Staff</Text>
+              <Text style={styles.addBtnText}>{t('addStaff', 'Add Staff')}</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.title, { color: theme.textPrimary }]}>Staff & Permissions</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>{t('staffAccounts', 'Staff & Permissions')}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {staff.length} staff sub-account{staff.length === 1 ? '' : 's'} under this admin
           </Text>
@@ -190,7 +189,7 @@ export default function StaffScreen() {
                 <View style={{ alignItems: 'center', marginTop: 40 }}>
                   <UserCog size={32} color={theme.textSecondary} style={{ marginBottom: 8 }} />
                   <Text style={{ color: theme.textSecondary, fontSize: 13, textAlign: 'center' }}>
-                    No staff accounts yet. Tap &quot;Add Staff&quot; to give a cashier or team member their own login.
+                    {t('noStaffAccounts', 'No staff accounts yet. Tap "Add Staff" to give a team member their login.')}
                   </Text>
                 </View>
               }

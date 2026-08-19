@@ -39,11 +39,11 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function SuppliersScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const { suppliers, isLoading, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,7 +74,7 @@ export default function SuppliersScreen() {
       gstRegistered: suppliers.filter((s) => !!s.gstin).length,
       totalPurchaseValue: suppliers.reduce((sum, s) => sum + s.totalPurchaseValue, 0),
     };
-  }, [suppliers]);
+  }, [suppliers, currentLanguage]);
 
   const handleOpenAdd = () => {
     setEditingSupplier(null);
@@ -179,7 +179,7 @@ export default function SuppliersScreen() {
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>{t('suppliersPageTitle', 'Suppliers Directory')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Vendor contacts, GSTIN records & purchase history
+          {t('suppliersSubtitle', 'Vendor contacts, GSTIN records & purchase history')}
         </Text>
 
         {/* Summary stats */}
@@ -187,19 +187,19 @@ export default function SuppliersScreen() {
           <View style={[styles.summaryTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Users size={14} color={BRAND_COLORS.blue600} />
             <Text style={[styles.summaryValue, { color: theme.textPrimary }]}>{summary.total}</Text>
-            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Suppliers</Text>
+            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('suppliers', 'Suppliers')}</Text>
           </View>
           <View style={[styles.summaryTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Building size={14} color={BRAND_COLORS.blue600} />
             <Text style={[styles.summaryValue, { color: theme.textPrimary }]}>{summary.gstRegistered}</Text>
-            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>GST Registered</Text>
+            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('gstRegistered', 'GST Registered')}</Text>
           </View>
           <View style={[styles.summaryTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Wallet size={14} color={BRAND_COLORS.blue600} />
             <Text style={[styles.summaryValue, { color: theme.textPrimary, fontSize: 13 }]}>
               ₹{summary.totalPurchaseValue.toFixed(0)}
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Total Purchased</Text>
+            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('totalPurchased', 'Total Purchased')}</Text>
           </View>
         </View>
 
@@ -220,7 +220,7 @@ export default function SuppliersScreen() {
           <View style={styles.emptyState}>
             <Building size={32} color={theme.textSecondary} />
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              {suppliers.length === 0 ? 'No suppliers yet — add your first vendor.' : 'No suppliers match your search.'}
+              {suppliers.length === 0 ? t('noSuppliersTitle', 'No suppliers yet — add your first vendor.') : t('noSuppliersSub', 'No suppliers match your search.')}
             </Text>
           </View>
         ) : (
@@ -300,23 +300,23 @@ export default function SuppliersScreen() {
           <ScrollView style={{ flex: 1, padding: 16 }}>
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>
-                {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
+                {editingSupplier ? t('editSupplier', 'Edit Supplier') : t('addNewSupplier', 'Add New Supplier')}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
                 <X size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.label, { color: theme.textPrimary }]}>Supplier / Business Name *</Text>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>{`${t('supplierName', 'Supplier / Business Name')} *`}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
               value={name}
               onChangeText={setName}
-              placeholder="e.g. Metro Wholesale Pvt Ltd"
+              placeholder="e.g. Metro Cash & Carry"
               placeholderTextColor="#94A3B8"
             />
 
-            <Text style={[styles.label, { color: theme.textPrimary }]}>Phone Number *</Text>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>{`${t('phone', 'Phone Number')} *`}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
               value={phone}
@@ -326,7 +326,7 @@ export default function SuppliersScreen() {
               placeholderTextColor="#94A3B8"
             />
 
-            <Text style={[styles.label, { color: theme.textPrimary }]}>Email Address</Text>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>{t('email', 'Email Address')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
               value={email}
@@ -337,7 +337,7 @@ export default function SuppliersScreen() {
               placeholderTextColor="#94A3B8"
             />
 
-            <Text style={[styles.label, { color: theme.textPrimary }]}>GSTIN Number</Text>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>{t('gstin', 'GSTIN Number')}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
               value={gstin}
@@ -347,7 +347,7 @@ export default function SuppliersScreen() {
               placeholderTextColor="#94A3B8"
             />
 
-            <Text style={[styles.label, { color: theme.textPrimary }]}>Address</Text>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>{t('address', 'Address')}</Text>
             <TextInput
               style={[styles.input, styles.multilineInput, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
               value={address}
@@ -368,7 +368,7 @@ export default function SuppliersScreen() {
 
             <TouchableOpacity onPress={handleSaveSupplier} disabled={submitting} style={styles.submitBtn}>
               {submitting && <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />}
-              <Text style={styles.submitBtnText}>Save Supplier</Text>
+              <Text style={styles.submitBtnText}>{t('saveSupplier', 'Save Supplier')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>

@@ -82,7 +82,7 @@ import { DashboardSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 
 export default function DashboardScreen() {
@@ -90,7 +90,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { settings } = useSettings();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const {
     stats,
     paymentModes,
@@ -667,14 +667,14 @@ export default function DashboardScreen() {
                         <View style={[styles.statusPill, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
                           <View style={[styles.statusDot, { backgroundColor: connectionState === 'connected' ? '#10B981' : '#EF4444' }]} />
                           <Text style={[styles.statusPillText, { color: connectionState === 'connected' ? '#10B981' : '#EF4444' }]}>
-                            {connectionState === 'connected' ? (activeDevice?.name || 'Connected') : 'Disconnected'}
+                            {connectionState === 'connected' ? (activeDevice?.name || t('connected', 'Connected')) : t('disconnected', 'Disconnected')}
                           </Text>
                         </View>
                       </View>
                       <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
                         {connectionState === 'connected' 
-                          ? `${activeDevice?.name || 'Bluetooth/USB'} • ${paperWidth} Paper Ready` 
-                          : 'Tap Scan & Connect to link Bluetooth/USB receipt printer'}
+                          ? `${activeDevice?.name || 'Bluetooth/USB'} • ${paperWidth} ${t('printerReady', 'Paper Ready')}` 
+                          : t('noBluetoothFound', 'Tap Scan & Connect to link Bluetooth/USB receipt printer')}
                       </Text>
                     </View>
                   </View>
@@ -689,7 +689,7 @@ export default function DashboardScreen() {
                   >
                     <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
                     <Text style={styles.printerConnectBtnText}>
-                      {connectionState === 'connected' ? 'Change / Reconnect' : 'Scan & Connect'}
+                      {connectionState === 'connected' ? t('changeReconnect', 'Change / Reconnect') : t('scanAndConnect', 'Scan & Connect')}
                     </Text>
                   </TouchableOpacity>
 
@@ -700,7 +700,7 @@ export default function DashboardScreen() {
                       activeOpacity={0.8}
                     >
                       <Zap size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 4 }} />
-                      <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]}>Test Print</Text>
+                      <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]}>{t('testPrint', 'Test Print')}</Text>
                     </TouchableOpacity>
                   ) : null}
 
@@ -1125,7 +1125,7 @@ export default function DashboardScreen() {
           <View style={{ flex: 1, backgroundColor: '#000' }}>
             <View style={styles.scannerHeader}>
               <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '800' }}>
-                {scanMode === 'bill' ? 'Scan Product Barcode to Bill' : 'Scan Barcode to Add Stock'}
+                {scanMode === 'bill' ? t('scanStockToBill', 'Scan Product Barcode to Bill') : t('scanStockToAdd', 'Scan Barcode to Add Stock')}
               </Text>
               <TouchableOpacity onPress={() => setShowScanModal(false)}>
                 <X size={24} color="#FFF" />
@@ -1141,9 +1141,9 @@ export default function DashboardScreen() {
               />
             ) : (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <Text style={{ color: '#FFF', textAlign: 'center', marginBottom: 12 }}>Camera permission required</Text>
+                <Text style={{ color: '#FFF', textAlign: 'center', marginBottom: 12 }}>{t('permissionRequired', 'Camera permission required')}</Text>
                 <TouchableOpacity onPress={requestPermission} style={{ backgroundColor: BRAND_COLORS.blue600, padding: 12, borderRadius: 10 }}>
-                  <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Grant Permission</Text>
+                  <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{t('grantPermission', 'Grant Permission')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1158,7 +1158,7 @@ export default function DashboardScreen() {
               <View style={styles.sheetHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Mic size={20} color="#EF4444" />
-                  <Text style={[styles.sheetTitle, { color: theme.textPrimary, marginLeft: 8 }]}>Voice AI Add Product</Text>
+                  <Text style={[styles.sheetTitle, { color: theme.textPrimary, marginLeft: 8 }]}>{t('voiceAiAddTitle', 'Voice AI Add Product')}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowVoiceModal(false)}>
                   <X size={22} color={theme.textSecondary} />
@@ -1166,19 +1166,19 @@ export default function DashboardScreen() {
               </View>
 
               <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 12 }}>
-                Speak item name and price (e.g. &quot;Amul Butter 100 rupees&quot;) or type below:
+                {t('voiceAiAddSubtitle', 'Speak item name and price (e.g. "Amul Butter 100 rupees") or type below:')}
               </Text>
 
               <TextInput
                 style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={voiceText}
                 onChangeText={setVoiceText}
-                placeholder="Say or type product details..."
+                placeholder={t('voiceAiPlaceholder', 'Say or type product details...')}
                 placeholderTextColor="#94A3B8"
               />
 
               <TouchableOpacity onPress={handleVoiceAddProduct} style={[styles.instantBillBtn, { backgroundColor: '#EF4444' }]}>
-                <Text style={styles.instantBillBtnText}>Add Product to Bill</Text>
+                <Text style={styles.instantBillBtnText}>{t('addProductToBill', 'Add Product to Bill')}</Text>
               </TouchableOpacity>
             </View>
           </View>

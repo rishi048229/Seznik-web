@@ -29,7 +29,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 interface MoreMenuModalProps {
   visible: boolean;
@@ -40,7 +40,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useAppTheme();
-  const { t } = useLanguageStore();
+  const { t } = useTranslation();
 
   const menuItems = [
     {

@@ -75,9 +75,11 @@ const ageingBucketFor = (days: number): AgeingBucket => {
   return '30+';
 };
 
+import { useTranslation } from '@/store/useLanguageStore';
+
 export default function CreditsDaybookScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -129,7 +131,7 @@ export default function CreditsDaybookScreen() {
         return { ...c, daysOverdue, ageingBucket: c.oldestUnpaidSince ? ageingBucketFor(daysOverdue) : null };
       })
       .sort((a, b) => b.creditBalance - a.creditBalance);
-  }, [customers, searchQuery]);
+  }, [customers, searchQuery, currentLanguage]);
 
   const handleRecordPayment = async () => {
     if (!payCustomerModal || !payAmount.trim()) return;

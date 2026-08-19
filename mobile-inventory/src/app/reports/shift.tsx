@@ -7,11 +7,13 @@ import { ArrowLeft, Printer, Calendar, Wallet, CreditCard, Banknote, FileText } 
 import { Colors } from '@/constants/theme';
 import { useBillStore } from '@/store/useBillStore';
 import { Card } from '@/components/ui/card';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function ShiftSummaryScreen() {
   const router = useRouter();
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  const { t, currentLanguage } = useTranslation();
 
   const { bills, loadBills } = useBillStore();
 
@@ -55,7 +57,7 @@ export default function ShiftSummaryScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <ArrowLeft size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Shift Summary</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('shiftSummary', 'Shift Summary')}</Text>
         </View>
         <TouchableOpacity style={styles.iconBtn}>
           <Printer size={20} color={colors.primary} />
@@ -70,23 +72,23 @@ export default function ShiftSummaryScreen() {
 
         <View style={styles.mainMetrics}>
           <Card style={styles.metricCard}>
-            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Total Collection</Text>
+            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{t('totalCollection', 'Total Collection')}</Text>
             <Text style={[styles.metricValue, { color: colors.success }]}>₹{totalSales.toFixed(2)}</Text>
           </Card>
           <Card style={styles.metricCard}>
-            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Bills Generated</Text>
+            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{t('billsGenerated', 'Bills Generated')}</Text>
             <Text style={[styles.metricValue, { color: colors.primary }]}>{totalBills}</Text>
           </Card>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Breakdown</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('paymentBreakdown', 'Payment Breakdown')}</Text>
         <Card style={styles.breakdownCard}>
           <View style={[styles.breakdownRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
             <View style={styles.breakdownLeft}>
               <View style={[styles.iconBox, { backgroundColor: colors.success + '20' }]}>
                 <Banknote size={16} color={colors.success} />
               </View>
-              <Text style={[styles.breakdownLabel, { color: colors.text }]}>Cash</Text>
+              <Text style={[styles.breakdownLabel, { color: colors.text }]}>{t('cash', 'Cash')}</Text>
             </View>
             <Text style={[styles.breakdownAmount, { color: colors.text }]}>₹{paymentBreakdown.cash.toFixed(2)}</Text>
           </View>
@@ -96,17 +98,17 @@ export default function ShiftSummaryScreen() {
               <View style={[styles.iconBox, { backgroundColor: '#8B5CF620' }]}>
                 <Wallet size={16} color="#8B5CF6" />
               </View>
-              <Text style={[styles.breakdownLabel, { color: colors.text }]}>UPI / Digital</Text>
+              <Text style={[styles.breakdownLabel, { color: colors.text }]}>{t('upi', 'UPI / Digital')}</Text>
             </View>
             <Text style={[styles.breakdownAmount, { color: colors.text }]}>₹{paymentBreakdown.upi.toFixed(2)}</Text>
           </View>
           
           <View style={styles.breakdownRow}>
             <View style={styles.breakdownLeft}>
-              <View style={[styles.iconBox, { backgroundColor: colors.primary + '20' }]}>
-                <CreditCard size={16} color={colors.primary} />
+              <View style={[styles.iconBox, { backgroundColor: '#3B82F620' }]}>
+                <CreditCard size={16} color="#3B82F6" />
               </View>
-              <Text style={[styles.breakdownLabel, { color: colors.text }]}>Card / Other</Text>
+              <Text style={[styles.breakdownLabel, { color: colors.text }]}>{t('card', 'Card / Other')}</Text>
             </View>
             <Text style={[styles.breakdownAmount, { color: colors.text }]}>
               ₹{(paymentBreakdown.card + paymentBreakdown.other).toFixed(2)}
@@ -115,10 +117,10 @@ export default function ShiftSummaryScreen() {
         </Card>
 
         {/* Placeholder for expenses - Phase 12 if we do it */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Shift Notes & Expenses</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('shiftNotesExpenses', 'Shift Notes & Expenses')}</Text>
         <Card style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
           <FileText size={32} color={colors.neutral} />
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No expenses logged for this shift.</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('noExpensesLogged', 'No expenses logged for this shift.')}</Text>
         </Card>
 
       </ScrollView>

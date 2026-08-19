@@ -5,6 +5,7 @@ import { useCustomers } from '@/hooks/useCustomers';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useTranslation } from '@/store/useLanguageStore';
 
 interface CustomerPickerModalProps {
   visible: boolean;
@@ -20,6 +21,7 @@ interface CustomerPickerModalProps {
  */
 export function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPickerModalProps) {
   const theme = useAppTheme();
+  const { t, currentLanguage } = useTranslation();
   const { customers, isLoading, createCustomer, isCreating } = useCustomers();
   const [query, setQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -65,7 +67,7 @@ export function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPick
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>Select Customer</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>{t('selectCustomer', 'Select Customer')}</Text>
             <TouchableOpacity onPress={onClose}>
               <X size={22} color={theme.textSecondary} />
             </TouchableOpacity>
@@ -75,7 +77,7 @@ export function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPick
             <Search size={15} color={theme.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.textPrimary }]}
-              placeholder="Search by name or phone..."
+              placeholder={t('searchCustomers', 'Search by name or phone...')}
               placeholderTextColor="#94A3B8"
               value={query}
               onChangeText={setQuery}
@@ -90,11 +92,12 @@ export function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPick
               <UserCircle2 size={20} color={theme.textSecondary} />
             </View>
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>Walk-in Customer</Text>
+              <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>{t('walkInCustomer', 'Walk-in Customer')}</Text>
               <Text style={[styles.rowSub, { color: theme.textSecondary }]}>No account attached — fastest option</Text>
             </View>
             <ChevronRight size={16} color={theme.textSecondary} />
           </TouchableOpacity>
+
 
           {isLoading ? (
             <ActivityIndicator size="small" color={BRAND_COLORS.blue600} style={{ marginTop: 20 }} />

@@ -7,12 +7,14 @@ import { ArrowLeft, Save, User, Phone, MapPin, CheckCircle2 } from 'lucide-react
 import { Colors } from '@/constants/theme';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { Input } from '@/components/ui/input';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function CustomerAddEditScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  const { t, currentLanguage } = useTranslation();
 
   const { customers, addCustomer, updateCustomer } = useCustomerStore();
 
@@ -37,7 +39,7 @@ export default function CustomerAddEditScreen() {
   const handleSave = async () => {
     setError('');
     if (!name.trim()) {
-      setError('Name is required');
+      setError(t('required', 'Name is required'));
       return;
     }
     if (phone.length < 10) {
@@ -81,7 +83,7 @@ export default function CustomerAddEditScreen() {
             <ArrowLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>
-            {isEditing ? 'Edit Customer' : 'Add Customer'}
+            {isEditing ? t('edit', 'Edit Customer') : t('addNewCustomer', 'Add Customer')}
           </Text>
           <View style={{ width: 32 }} />
         </View>
@@ -95,7 +97,7 @@ export default function CustomerAddEditScreen() {
 
           <View style={styles.formGroup}>
             <Input
-              label="Full Name *"
+              label={`${t('customerName', 'Full Name')} *`}
               value={name}
               onChangeText={setName}
               placeholder="e.g. Rahul Sharma"
@@ -105,7 +107,7 @@ export default function CustomerAddEditScreen() {
 
           <View style={styles.formGroup}>
             <Input
-              label="Phone Number *"
+              label={`${t('phone', 'Phone Number')} *`}
               value={phone}
               onChangeText={setPhone}
               placeholder="e.g. 9876543210"
@@ -116,7 +118,7 @@ export default function CustomerAddEditScreen() {
 
           <View style={styles.formGroup}>
             <Input
-              label="Address (Optional)"
+              label={`${t('address', 'Address')} (${t('optional', 'Optional')})`}
               value={address}
               onChangeText={setAddress}
               placeholder="City, Locality or Full Address"
@@ -134,13 +136,14 @@ export default function CustomerAddEditScreen() {
             disabled={!name || phone.length < 10}
           >
             <CheckCircle2 size={20} color="#FFF" />
-            <Text style={styles.saveBtnText}>Save Customer</Text>
+            <Text style={styles.saveBtnText}>{t('save', 'Save Customer')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },

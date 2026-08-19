@@ -23,6 +23,7 @@ import {
 import { usePrinterStore, PhoneBluetoothDevice } from '@/store/usePrinterStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useTranslation } from '@/store/useLanguageStore';
 
 interface DirectPrinterConnectModalProps {
   visible: boolean;
@@ -39,11 +40,14 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   visible,
   onClose,
   onConnected,
-  title = 'Connect Thermal Printer',
-  subtitle = 'No printer connected. Select or scan a Bluetooth receipt/label printer below to print.',
+  title,
+  subtitle,
   showContinueWithoutPrinter = true,
   onContinueWithoutPrinter,
 }) => {
+  const { t, currentLanguage } = useTranslation();
+  const modalTitle = title || t('connectPrinter', 'Connect Thermal Printer');
+  const modalSubtitle = subtitle || t('connectPrinterSub', 'No printer connected. Select or scan a Bluetooth receipt/label printer below to print.');
   const {
     connectionState,
     activeDevice,
@@ -57,6 +61,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
 
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const theme = useAppTheme();
+
 
   // Auto scan when modal opens if no paired printers or disconnected
   useEffect(() => {

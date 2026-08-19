@@ -36,6 +36,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
 import { generateEAN13Barcode } from '@/utils/barcodeGenerator';
+import { useTranslation } from '@/store/useLanguageStore';
 
 let ImageManipulator: any = null;
 try {
@@ -63,6 +64,7 @@ interface Props {
 
 export function AiProductImportModal({ visible, onClose, onSuccessImport }: Props) {
   const theme = useAppTheme();
+  const { t, currentLanguage } = useTranslation();
   const { aiExtractProducts, bulkCreateProducts } = useProducts();
 
   const [step, setStep] = useState<'select' | 'analyzing' | 'review'>('select');
@@ -70,6 +72,7 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
   const [loadingMsg, setLoadingMsg] = useState('Analyzing document with Gemini AI...');
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
 
   const resetState = () => {
     setStep('select');

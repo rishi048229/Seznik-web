@@ -40,11 +40,11 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function PurchasesScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const { purchases, isLoading, isRefetching, refetch, deletePurchase } = usePurchases();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,12 +69,12 @@ export default function PurchasesScreen() {
 
   const handleDeletePurchase = (p: Purchase) => {
     Alert.alert(
-      'Delete Purchase Record',
-      `Delete purchase ${p.invoiceNumber}? Note: Inventory stock will not be reverted.`,
+      t('deletePurchase', 'Delete Record'),
+      `${t('delete', 'Delete')} ${p.invoiceNumber}? Note: Inventory stock will not be reverted.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Delete Record',
+          text: t('delete', 'Delete Record'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -97,7 +97,7 @@ export default function PurchasesScreen() {
         .map((i) => `• ${i.productName}: ${i.quantity} pcs @ ₹${i.costPrice} = ₹${i.total}`)
         .join('\n');
 
-      const message = `📦 PURCHASE INVOICE: ${p.invoiceNumber}\nSupplier: ${p.supplier?.name || p.supplierName || 'General Supplier'}\nDate: ${new Date(p.createdAt).toLocaleDateString()}\nMode: ${p.paymentMethod.toUpperCase()}\n\nItems Purchased:\n${itemsText || 'Standard stock replenishment'}\n\nGrand Total: ₹${p.grandTotal.toFixed(2)}\n\nRecorded via Seznik Inventory`;
+      const message = `📦 ${t('newPurchaseOrder', 'PURCHASE INVOICE')}: ${p.invoiceNumber}\n${t('supplierInfo', 'Supplier')}: ${p.supplier?.name || p.supplierName || t('generalSupplier', 'General Supplier')}\nDate: ${new Date(p.createdAt).toLocaleDateString()}\nMode: ${p.paymentMethod.toUpperCase()}\n\nItems Purchased:\n${itemsText || 'Standard stock replenishment'}\n\nGrand Total: ₹${p.grandTotal.toFixed(2)}\n\nRecorded via Seznik Inventory`;
 
       await Share.share({ message });
     } catch {
@@ -146,7 +146,7 @@ export default function PurchasesScreen() {
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[styles.title, { color: theme.textPrimary }]}>{t('purchasesPageTitle', 'Stock Purchases')}</Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                Supplier invoices & inventory purchase history
+                {t('purchasesSubtitle', 'Supplier invoices & inventory purchase history')}
               </Text>
             </View>
           </View>
@@ -154,19 +154,19 @@ export default function PurchasesScreen() {
           {/* Summary KPI Strip */}
           <View style={styles.metricsGrid}>
             <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Total Purchases</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{t('totalPurchases', 'Total Purchases')}</Text>
               <Text style={[styles.metricValue, { color: theme.textPrimary }]}>
                 ₹{totalPurchasesAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </Text>
-              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>{totalInvoicesCount} Invoices Total</Text>
+              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>{totalInvoicesCount} {t('invoicesTotal', 'Invoices Total')}</Text>
             </View>
 
             <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Active Invoices</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{t('activeInvoices', 'Active Invoices')}</Text>
               <Text style={[styles.metricValue, { color: BRAND_COLORS.blue600 }]}>
                 {filteredPurchases.length}
               </Text>
-              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>Filtered Records</Text>
+              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>{t('filteredRecords', 'Filtered Records')}</Text>
             </View>
           </View>
 
@@ -191,10 +191,10 @@ export default function PurchasesScreen() {
           <View style={styles.filterRow}>
             {[
               { label: t('all', 'All'), value: null },
-              { label: 'Cash', value: 'cash' },
-              { label: 'UPI', value: 'upi' },
-              { label: 'Bank Transfer', value: 'bank_transfer' },
-              { label: 'Credit', value: 'credit' },
+              { label: t('cash', 'Cash'), value: 'cash' },
+              { label: t('upi', 'UPI'), value: 'upi' },
+              { label: t('bankTransfer', 'Bank Transfer'), value: 'bank_transfer' },
+              { label: t('credit', 'Credit'), value: 'credit' },
             ].map((f) => {
               const active = selectedPaymentMethod === f.value;
               return (
@@ -232,16 +232,16 @@ export default function PurchasesScreen() {
                   <View style={[styles.emptyLogoCircle, { backgroundColor: 'rgba(2, 132, 199, 0.12)' }]}>
                     <ShoppingBag size={38} color={BRAND_COLORS.blue600} />
                   </View>
-                  <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No Purchases Recorded Yet</Text>
+                  <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>{t('noPurchasesTitle', 'No Purchases Recorded Yet')}</Text>
                   <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
-                    Record supplier purchases to automatically restock products and update cost valuation.
+                    {t('noPurchasesSub', 'Record supplier purchases to automatically restock products and update cost valuation.')}
                   </Text>
                   <TouchableOpacity
                     onPress={() => router.push('/purchases/new' as any)}
                     style={styles.emptyAddBtn}
                   >
                     <Plus size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyAddBtnText}>Record First Purchase</Text>
+                    <Text style={styles.emptyAddBtnText}>{t('recordFirstPurchase', 'Record First Purchase')}</Text>
                   </TouchableOpacity>
                 </View>
               }
@@ -265,10 +265,10 @@ export default function PurchasesScreen() {
                       </View>
                     </View>
                     <Text style={[styles.supplierText, { color: BRAND_COLORS.sky500 }]} numberOfLines={1}>
-                      {item.supplier?.name || item.supplierName || 'General Supplier'}
+                      {item.supplier?.name || item.supplierName || t('generalSupplier', 'General Supplier')}
                     </Text>
                     <Text style={[styles.dateText, { color: theme.textSecondary }]}>
-                      {new Date(item.createdAt).toLocaleDateString()} · {(item.items || []).length} items
+                      {new Date(item.createdAt).toLocaleDateString()} · {(item.items || []).length} {t('items', 'items')}
                     </Text>
                   </View>
 
@@ -306,7 +306,7 @@ export default function PurchasesScreen() {
                         {selectedPurchase.invoiceNumber}
                       </Text>
                       <Text style={[styles.detailSupplier, { color: BRAND_COLORS.blue600 }]}>
-                        {selectedPurchase.supplier?.name || selectedPurchase.supplierName || 'General Supplier'}
+                        {selectedPurchase.supplier?.name || selectedPurchase.supplierName || t('generalSupplier', 'General Supplier')}
                       </Text>
                     </View>
                   </View>
@@ -320,7 +320,7 @@ export default function PurchasesScreen() {
                 </View>
 
                 <ScrollView style={{ maxHeight: 320, marginVertical: 12 }}>
-                  <Text style={[styles.itemsHeader, { color: theme.textSecondary }]}>PURCHASED ITEMS</Text>
+                  <Text style={[styles.itemsHeader, { color: theme.textSecondary }]}>{t('addInventoryItems', 'PURCHASED ITEMS')}</Text>
                   {(selectedPurchase.items || []).map((item, idx) => (
                     <View
                       key={idx}
@@ -340,21 +340,21 @@ export default function PurchasesScreen() {
 
                   <View style={styles.summaryBox}>
                     <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Subtotal</Text>
+                      <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('subtotal', 'Subtotal')}</Text>
                       <Text style={[styles.summaryVal, { color: theme.textPrimary }]}>
                         ₹{selectedPurchase.subtotal.toFixed(2)}
                       </Text>
                     </View>
                     {selectedPurchase.totalTax > 0 && (
                       <View style={styles.summaryRow}>
-                        <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Tax (GST)</Text>
+                        <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{t('taxGst', 'Tax (GST)')}</Text>
                         <Text style={[styles.summaryVal, { color: theme.textPrimary }]}>
                           +₹{selectedPurchase.totalTax.toFixed(2)}
                         </Text>
                       </View>
                     )}
                     <View style={[styles.summaryRow, { borderTopWidth: 1, borderTopColor: theme.borderColor, paddingTop: 6, marginTop: 4 }]}>
-                      <Text style={[styles.summaryTotalLabel, { color: theme.textPrimary }]}>Grand Total</Text>
+                      <Text style={[styles.summaryTotalLabel, { color: theme.textPrimary }]}>{t('grandTotal', 'Grand Total')}</Text>
                       <Text style={[styles.summaryTotalVal, { color: BRAND_COLORS.blue600 }]}>
                         ₹{selectedPurchase.grandTotal.toFixed(2)}
                       </Text>
@@ -369,7 +369,7 @@ export default function PurchasesScreen() {
                     style={[styles.modalActionBtn, { backgroundColor: '#10B981', flex: 1, marginRight: 8 }]}
                   >
                     <Share2 size={16} color="#FFFFFF" />
-                    <Text style={styles.modalActionText}>Share Receipt</Text>
+                    <Text style={styles.modalActionText}>{t('sharePurchase', 'Share Receipt')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity

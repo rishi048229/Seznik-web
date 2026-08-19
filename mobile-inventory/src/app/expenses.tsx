@@ -87,9 +87,11 @@ const resolveExpenseDate = (e: Expense): Date => {
   return raw ? new Date(raw) : new Date(0);
 };
 
+import { useTranslation } from '@/store/useLanguageStore';
+
 export default function ExpensesScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const { expenses, isLoading, createExpense, updateExpense, deleteExpense } = useExpenses();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,7 +147,7 @@ export default function ExpensesScreen() {
     return Array.from(totals.entries())
       .map(([label, amt]) => ({ def: getCategoryDef(label), amount: amt, percent: periodTotal > 0 ? Math.round((amt / periodTotal) * 100) : 0 }))
       .sort((a, b) => b.amount - a.amount);
-  }, [periodExpenses, periodTotal]);
+  }, [periodExpenses, periodTotal, currentLanguage]);
 
   const paymentModeBreakdown = useMemo(() => {
     const totals = new Map<string, number>();
@@ -154,7 +156,7 @@ export default function ExpensesScreen() {
       totals.set(method, (totals.get(method) || 0) + e.amount);
     });
     return PAYMENT_METHODS.map((m) => ({ ...m, amount: totals.get(m.id) || 0 }));
-  }, [periodExpenses]);
+  }, [periodExpenses, currentLanguage]);
 
   const resetForm = () => {
     setEditingExpense(null);
@@ -266,7 +268,7 @@ export default function ExpensesScreen() {
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>{t('expensesPageTitle', 'Expense Tracker')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Categorized spending, payment split & camera receipts
+          {t('expensesSubtitle', 'Categorized spending, payment split & camera receipts')}
         </Text>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -287,7 +289,7 @@ export default function ExpensesScreen() {
 
           {/* Total Expense Banner */}
           <View style={[styles.totalBanner, { backgroundColor: BRAND_COLORS.navyInk }]}>
-            <Text style={styles.totalBannerLabel}>Total Spend · {PERIODS.find((p) => p.id === period)?.label}</Text>
+            <Text style={styles.totalBannerLabel}>{t('total', 'Total Spend')} · {PERIODS.find((p) => p.id === period)?.label}</Text>
             <Text style={styles.totalBannerValue}>₹{periodTotal.toFixed(2)}</Text>
             {hasComparison && deltaPct !== null ? (
               <View style={styles.deltaRow}>
@@ -300,7 +302,7 @@ export default function ExpensesScreen() {
           </View>
 
           {/* Payment Mode Split */}
-          <Text style={styles.sectionHeader}>PAYMENT MODE SPLIT</Text>
+          <Text style={styles.sectionHeader}>{t('paymentModeSplit', 'PAYMENT MODE SPLIT')}</Text>
           <View style={styles.paymentSplitRow}>
             {paymentModeBreakdown.map((m) => (
               <View key={m.id} style={[styles.paymentTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -314,7 +316,7 @@ export default function ExpensesScreen() {
           {/* Category Breakdown */}
           {categoryBreakdown.length > 0 ? (
             <>
-              <Text style={styles.sectionHeader}>CATEGORY BREAKDOWN</Text>
+              <Text style={styles.sectionHeader}>{t('categoryBreakdown', 'CATEGORY BREAKDOWN')}</Text>
               <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 16 }]}>
                 {categoryBreakdown.map((row) => (
                   <View key={row.def.label} style={styles.breakdownRow}>
@@ -337,7 +339,7 @@ export default function ExpensesScreen() {
           ) : null}
 
           {/* Category Filter Chips */}
-          <Text style={styles.sectionHeader}>FILTER BY CATEGORY</Text>
+          <Text style={styles.sectionHeader}>{t('filterByCategory', 'FILTER BY CATEGORY')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
             <TouchableOpacity
               onPress={() => setSelectedCategory(null)}
@@ -346,7 +348,7 @@ export default function ExpensesScreen() {
                 { borderColor: theme.borderColor, backgroundColor: !selectedCategory ? BRAND_COLORS.blue600 : theme.cardBg },
               ]}
             >
-              <Text style={[styles.catChipText, { color: !selectedCategory ? '#FFFFFF' : theme.textSecondary }]}>All Categories</Text>
+              <Text style={[styles.catChipText, { color: !selectedCategory ? '#FFFFFF' : theme.textSecondary }]}>{t('allCategories', 'All Categories')}</Text>
             </TouchableOpacity>
             {EXPENSE_CATEGORIES.map((cat) => {
               const selected = selectedCategory === cat.label;

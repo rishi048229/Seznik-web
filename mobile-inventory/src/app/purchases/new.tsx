@@ -19,9 +19,11 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function NewPurchaseScreen() {
   const router = useRouter();
+  const { t, currentLanguage } = useTranslation();
 
   const { createPurchase, isCreating } = usePurchases();
   const { suppliers } = useSuppliers();
@@ -43,7 +45,7 @@ export default function NewPurchaseScreen() {
   const handleAddItem = () => {
     const prod = products.find((p) => p.id === selectedProdId);
     if (!prod) {
-      Alert.alert('Select Product', 'Please choose a product from your inventory.');
+      Alert.alert(t('chooseInventoryProduct', 'Select Product'), 'Please choose a product from your inventory.');
       return;
     }
     const cost = parseFloat(costInput) || prod.costPrice || prod.sellingPrice * 0.7;
@@ -108,14 +110,14 @@ export default function NewPurchaseScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Cancel</Text>
+            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('cancel', 'Cancel')}</Text>
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>New Purchase Order</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('newPurchaseOrder', 'New Purchase Order')}</Text>
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
           {/* Supplier Picker */}
-          <Text style={[styles.label, { color: theme.textPrimary }]}>Select Supplier</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{t('selectSupplier', 'Select Supplier')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <TouchableOpacity
               onPress={() => setSelectedSupplierId(null)}
@@ -127,8 +129,9 @@ export default function NewPurchaseScreen() {
                 },
               ]}
             >
-              <Text style={[styles.chipText, !selectedSupplierId && { color: '#FFFFFF' }]}>General Supplier</Text>
+              <Text style={[styles.chipText, !selectedSupplierId && { color: '#FFFFFF' }]}>{t('generalSupplier', 'General Supplier')}</Text>
             </TouchableOpacity>
+
 
             {suppliers.map((s) => {
               const selected = selectedSupplierId === s.id;
@@ -151,13 +154,13 @@ export default function NewPurchaseScreen() {
           </ScrollView>
 
           {/* Payment Method Selector */}
-          <Text style={[styles.label, { color: theme.textPrimary }]}>Payment Mode</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{t('paymentMode', 'Payment Mode')}</Text>
           <View style={styles.paymentRow}>
             {[
-              { id: 'cash', label: 'Cash' },
-              { id: 'upi', label: 'UPI' },
-              { id: 'card', label: 'Card' },
-              { id: 'credit', label: 'Pay Later (Credit)' },
+              { id: 'cash', label: t('cash', 'Cash') },
+              { id: 'upi', label: t('upi', 'UPI') },
+              { id: 'card', label: t('card', 'Card') },
+              { id: 'credit', label: t('credit', 'Pay Later (Credit)') },
             ].map((m) => {
               const selected = paymentMethod === m.id;
               return (
@@ -181,9 +184,9 @@ export default function NewPurchaseScreen() {
           </View>
 
           {/* Add Product Line Item */}
-          <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>ADD INVENTORY ITEMS</Text>
+          <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>{t('addInventoryItems', 'ADD INVENTORY ITEMS')}</Text>
           <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Text style={[styles.label, { color: theme.textPrimary }]}>Choose Inventory Product</Text>
+            <Text style={[styles.label, { color: theme.textPrimary }]}>{t('chooseInventoryProduct', 'Choose Inventory Product')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               {products.map((p) => {
                 const selected = selectedProdId === p.id;
@@ -210,7 +213,7 @@ export default function NewPurchaseScreen() {
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
               <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={[styles.label, { color: theme.textPrimary }]}>Unit Cost (₹)</Text>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>{t('unitCost', 'Unit Cost (₹)')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                   value={costInput}
@@ -222,7 +225,7 @@ export default function NewPurchaseScreen() {
               </View>
 
               <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={[styles.label, { color: theme.textPrimary }]}>Restock Quantity</Text>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>{t('restockQuantity', 'Restock Quantity')}</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                   value={qtyInput}
@@ -236,13 +239,13 @@ export default function NewPurchaseScreen() {
 
             <TouchableOpacity onPress={handleAddItem} style={styles.addLineBtn}>
               <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.addLineBtnText}>Add Item to Purchase</Text>
+              <Text style={styles.addLineBtnText}>{t('addItemToPurchase', 'Add Item to Purchase')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Line Items List */}
           <Text style={[styles.sectionHeader, { color: theme.textSecondary, marginTop: 16 }]}>
-            ORDER LINE ITEMS ({purchaseItems.length})
+            {t('items', 'ORDER LINE ITEMS')} ({purchaseItems.length})
           </Text>
           {purchaseItems.map((item, idx) => (
             <View key={idx} style={[styles.lineCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -265,17 +268,18 @@ export default function NewPurchaseScreen() {
         {/* Sticky Footer Bar with Running Total */}
         <View style={[styles.footerBar, { backgroundColor: BRAND_COLORS.navyInk }]}>
           <View>
-            <Text style={styles.footerLabel}>Total Purchase Cost</Text>
+            <Text style={styles.footerLabel}>{t('total', 'Total Purchase Cost')}</Text>
             <Text style={styles.footerPrice}>₹{grandTotal.toFixed(2)}</Text>
           </View>
           <TouchableOpacity onPress={handleSavePurchase} disabled={isCreating} style={styles.saveBtn}>
             {isCreating && <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />}
-            <Text style={styles.saveBtnText}>Record Purchase</Text>
+            <Text style={styles.saveBtnText}>{t('recordPurchase', 'Record Purchase')}</Text>
           </TouchableOpacity>
         </View>
       </View>
       </KeyboardAvoidingWrapper>
     </SafeAreaView>
+
     </ScreenBackground>
   );
 }

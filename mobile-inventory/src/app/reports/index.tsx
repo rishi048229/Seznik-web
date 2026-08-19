@@ -31,11 +31,11 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ReportsSkeleton } from '@/components/ui/ScreenSkeleton';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function ReportsScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<'sales' | 'pnl' | 'tax'>('sales');
   const [period, setPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
@@ -76,13 +76,13 @@ export default function ReportsScreen() {
 
             <TouchableOpacity onPress={handleShareReport} style={styles.shareBtn}>
               <Share2 size={14} color="#FFFFFF" />
-              <Text style={styles.shareBtnText}>Share Report</Text>
+              <Text style={styles.shareBtnText}>{t('shareReport', 'Share Report')}</Text>
             </TouchableOpacity>
           </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>{t('reportsPageTitle', 'Financial Reports')}</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          P&L, Sales trends & GST tax liability summaries
+          {t('reportsSubtitle', 'P&L, Sales trends & GST tax liability summaries')}
         </Text>
 
         {/* 3-Way Segmented Control */}
@@ -96,7 +96,7 @@ export default function ReportsScreen() {
                 style={[styles.segBtn, selected && styles.segBtnActive]}
               >
                 <Text style={[styles.segText, selected && styles.segTextActive]}>
-                  {tab === 'sales' ? 'Sales Trend' : tab === 'pnl' ? 'P & L Summary' : 'GST Tax Slab'}
+                  {tab === 'sales' ? t('sales', 'Sales Trend') : tab === 'pnl' ? t('grossMargin', 'P & L Summary') : t('taxGst', 'GST Tax Slab')}
                 </Text>
               </TouchableOpacity>
             );

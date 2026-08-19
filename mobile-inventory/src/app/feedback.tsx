@@ -18,7 +18,7 @@ import { useFeedback } from '@/hooks/useFeedback';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 // Mirrors VALID_AREAS in backend/src/controllers/feedbackController.ts exactly — anything outside
 // this list gets silently normalized to "general" server-side, so keep these in sync.
@@ -42,7 +42,7 @@ const AREAS: { value: string; label: string }[] = [
 
 export default function FeedbackScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -88,10 +88,10 @@ export default function FeedbackScreen() {
 
           <Text style={[styles.title, { color: theme.textPrimary }]}>{t('feedbackPageTitle', 'Feedback & Suggestions')}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Found a bug or have an idea? Let the team know.
+            {t('feedbackSubtitle', 'Found a bug or have an idea? Let the team know.')}
           </Text>
 
-          <Text style={[styles.label, { color: theme.textPrimary }]}>Which area is this about?</Text>
+          <Text style={[styles.label, { color: theme.textPrimary }]}>{t('feedbackArea', 'Which area is this about?')}</Text>
           <View style={styles.chipWrap}>
             {AREAS.map((a) => (
               <TouchableOpacity
@@ -110,7 +110,7 @@ export default function FeedbackScreen() {
             ))}
           </View>
 
-          <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>Rating (optional)</Text>
+          <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>{t('feedbackRating', 'Rating (optional)')}</Text>
           <View style={{ flexDirection: 'row', marginBottom: 4 }}>
             {[1, 2, 3, 4, 5].map((n) => (
               <TouchableOpacity key={n} onPress={() => setRating(rating === n ? null : n)} style={{ marginRight: 6 }}>
@@ -123,7 +123,7 @@ export default function FeedbackScreen() {
             ))}
           </View>
 
-          <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>Your Feedback *</Text>
+          <Text style={[styles.label, { color: theme.textPrimary, marginTop: 16 }]}>{`${t('feedbackComments', 'Your Feedback')} *`}</Text>
           <TextInput
             style={[styles.textArea, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
             value={message}
@@ -137,16 +137,16 @@ export default function FeedbackScreen() {
 
           <TouchableOpacity onPress={handleSubmit} disabled={isSubmitting} style={styles.submitBtn}>
             {isSubmitting ? <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} /> : <Send size={16} color="#FFFFFF" style={{ marginRight: 8 }} />}
-            <Text style={styles.submitBtnText}>Submit Feedback</Text>
+            <Text style={styles.submitBtnText}>{t('submitFeedback', 'Submit Feedback')}</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>YOUR PAST FEEDBACK</Text>
+          <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>{t('pastFeedback', 'YOUR PAST FEEDBACK')}</Text>
           {isLoading ? (
             <ActivityIndicator color={BRAND_COLORS.blue600} style={{ marginTop: 16 }} />
           ) : feedback.length === 0 ? (
             <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 30 }}>
               <MessageSquare size={26} color={theme.textSecondary} style={{ marginBottom: 6 }} />
-              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>No feedback submitted yet.</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{t('noPastFeedback', 'No feedback submitted yet.')}</Text>
             </View>
           ) : (
             feedback.map((f) => (
@@ -175,6 +175,7 @@ export default function FeedbackScreen() {
     </ScreenBackground>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { create } from 'zustand';
 import { LanguageCode, SUPPORTED_LANGUAGES, TRANSLATIONS } from '@/constants/translations';
 import { getStoredLanguage, setStoredLanguage } from '@/services/secureStore';
@@ -44,9 +45,34 @@ export const useLanguageStore = create<LanguageState>((set, get) => ({
     if (enDict && enDict[key]) {
       return enDict[key];
     }
-    return fallback || key;
+    return fallback !== undefined ? fallback : key;
   },
 }));
 
+// Custom hook ensuring components always re-render whenever language changes
+export function useTranslation() {
+  const currentLanguage = useLanguageStore((state) => state.currentLanguage);
+  const isHydrated = useLanguageStore((state) => state.isHydrated);
+  const setLanguage = useLanguageStore((state) => state.setLanguage);
+
+  const t = useCallback(
+    (key: string, fallback?: string): string => {
+      const currentDict = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+      if (currentDict && currentDict[key]) {
+        return currentDict[key];
+      }
+      const enDict = TRANSLATIONS.en;
+      if (enDict && enDict[key]) {
+        return enDict[key];
+      }
+      return fallback !== undefined ? fallback : key;
+    },
+    [currentLanguage]
+  );
+
+  return { t, currentLanguage, setLanguage, isHydrated };
+}
+
 // Automatically trigger language hydration on load
 useLanguageStore.getState().initializeLanguage();
+

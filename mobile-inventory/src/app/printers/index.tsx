@@ -43,11 +43,11 @@ import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { RECEIPT_TEMPLATES, getTemplateById } from '@/constants/receiptTemplates';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function PrintersScreen() {
   const router = useRouter();
-  const { t } = useLanguageStore();
+  const { t, currentLanguage } = useTranslation();
   const { settings } = useSettings();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -418,7 +418,7 @@ export default function PrintersScreen() {
                 style={[styles.segBtn, selected && styles.segBtnActive]}
               >
                 <Text style={[styles.segText, selected && styles.segTextActive]}>
-                  {tab.toUpperCase()}
+                  {tab === 'receipt' ? t('thermalPrinter', 'Receipt') : tab === 'label' ? t('labelStudio', 'Label') : t('receiptTemplates', 'Templates')}
                 </Text>
               </TouchableOpacity>
             );

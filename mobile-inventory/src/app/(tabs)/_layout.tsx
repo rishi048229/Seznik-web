@@ -5,14 +5,13 @@ import { LayoutDashboard, ShoppingBag, Calculator, Package, Menu } from 'lucide-
 import { useCartStore } from '@/store/useCartStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
-import { useLanguageStore } from '@/store/useLanguageStore';
+import { useTranslation } from '@/store/useLanguageStore';
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const currentLanguage = useLanguageStore((state) => state.currentLanguage);
-  const t = useLanguageStore((state) => state.t);
+  const { t, currentLanguage } = useTranslation();
   const cartItemsCount = useCartStore((state) =>
     state.items.reduce((sum, item) => sum + item.quantity, 0)
   );
