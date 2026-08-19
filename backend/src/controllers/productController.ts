@@ -22,14 +22,13 @@ const GEMINI_MODEL_FALLBACK_LIST = [
   'gemini-3.6-flash',
   'gemini-flash-latest',
   'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
 ];
 
 /**
  * Calls Gemini with each model in GEMINI_MODEL_FALLBACK_LIST until one succeeds and returns
- * parseable content, or throws with the *real* underlying error from the last attempt — never a
- * generic "something went wrong". Silently swallowing that error (as both AI endpoints used to)
- * is exactly what made a bad API key or invalid model name indistinguishable from "the document
- * genuinely had no products in it" from the client's point of view.
+ * parseable content, or throws with the *real* underlying error from the last attempt.
  */
 async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extraConfig: Record<string, any> = {}): Promise<string> {
   let lastErr: Error = new Error('No Gemini model attempted');
@@ -41,7 +40,7 @@ async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extr
         config: { responseMimeType: 'application/json', ...extraConfig },
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
+        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 16000)
       );
       const response: any = await Promise.race([generatePromise, timeoutPromise]);
       const text = response?.text || '';
@@ -557,11 +556,21 @@ RULES:
       });
     }
     
-    // Fetch existing barcodes for this user to avoid duplicates
+    // Fetch all existing products for this user to check for catalog duplicates & manage barcodes
     const existingProducts = await prisma.product.findMany({
       where: { userId: rawUserId },
-      select: { barcode: true }
+      select: {
+        id: true,
+        name: true,
+        barcode: true,
+        currentStock: true,
+        sellingPrice: true,
+        costPrice: true,
+        unit: true,
+        category: { select: { name: true } }
+      }
     });
+
     const existingBarcodeSet = new Set(existingProducts.map(p => p.barcode).filter(Boolean));
 
     // Ensure strictly valid barcodes and SKUs
@@ -574,31 +583,51 @@ RULES:
     };
 
     const sanitizedProducts = rawList.map((item: any, idx: number) => {
-      let finalBarcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
-      if (!finalBarcode || existingBarcodeSet.has(finalBarcode)) {
-        finalBarcode = generateEAN13Barcode();
+      const rawBarcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
+      const rawName = String(item.name || 'Extracted Product').trim();
+
+      // Check if product already exists in user catalog (by barcode OR by name)
+      const matchedExisting = existingProducts.find(
+        (p) =>
+          (rawBarcode && p.barcode && p.barcode.toLowerCase() === rawBarcode.toLowerCase()) ||
+          p.name.toLowerCase().trim() === rawName.toLowerCase()
+      );
+
+      let finalBarcode = rawBarcode;
+      if (!matchedExisting) {
+        if (!finalBarcode || existingBarcodeSet.has(finalBarcode)) {
+          finalBarcode = generateEAN13Barcode();
+        }
+        existingBarcodeSet.add(finalBarcode);
+      } else {
+        finalBarcode = matchedExisting.barcode || finalBarcode || generateEAN13Barcode();
       }
-      existingBarcodeSet.add(finalBarcode);
 
       const finalSku = item.sku ? String(item.sku).trim() : `SKU-${Date.now().toString().slice(-6)}-${idx + 1}`;
 
       return {
         id: `temp-${Date.now()}-${idx}`,
-        name: String(item.name || 'Extracted Product').trim(),
+        name: rawName,
         sellingPrice: parseFloat(String(item.sellingPrice)) || 0,
         costPrice: parseFloat(String(item.costPrice || item.sellingPrice)) || 0,
-        categoryName: String(item.categoryName || 'General').trim(),
+        categoryName: String(item.categoryName || matchedExisting?.category?.name || 'General').trim(),
         barcode: finalBarcode,
         sku: finalSku,
         barcodeType: 'CODE128',
         isExistingBarcode: !!item.barcode,
         taxRate: parseFloat(String(item.taxRate)) || 0,
         currentStock: parseInt(String(item.currentStock)) || 10,
-        unit: String(item.unit || 'piece').trim(),
+        unit: String(item.unit || matchedExisting?.unit || 'piece').trim(),
         lowStockThreshold: 5,
         priceIncludesGst: false,
         selected: true,
-        userId: rawUserId
+        userId: rawUserId,
+        // Existing product duplicate detection metadata
+        isAlreadyListed: !!matchedExisting,
+        matchedProductId: matchedExisting ? matchedExisting.id : null,
+        matchedProductName: matchedExisting ? matchedExisting.name : null,
+        currentCatalogStock: matchedExisting ? matchedExisting.currentStock : null,
+        importAction: matchedExisting ? 'update_stock' : 'create_new',
       };
     });
 
@@ -689,67 +718,121 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No items provided for bulk import.' });
     }
 
-    // 1. Get or create categories
-    const categoryNames = Array.from(new Set(items.map((i: any) => String(i.categoryName || 'General').trim())));
-    const existingCategories = await prisma.category.findMany({
-      where: { userId: rawUserId }
-    });
-    
-    const categoryMap = new Map<string, string>();
-    existingCategories.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
+    // Filter items based on user choice: update stock vs create new vs skip
+    const validItems = items.filter((i: any) => i.importAction !== 'skip' && i.action !== 'skip');
+    const updateStockItems = validItems.filter(
+      (i: any) => (i.importAction === 'update_stock' || i.action === 'update_stock') && (i.matchedProductId || i.existingProductId || i.id?.length === 36)
+    );
+    const createNewItems = validItems.filter(
+      (i: any) => !( (i.importAction === 'update_stock' || i.action === 'update_stock') && (i.matchedProductId || i.existingProductId || i.id?.length === 36) )
+    );
 
-    for (const catName of categoryNames) {
-      const lower = catName.toLowerCase();
-      if (!categoryMap.has(lower)) {
-        const newCat = await prisma.category.create({
-          data: { name: catName, userId: rawUserId, isActive: true }
+    let updatedCount = 0;
+    const updatedProductList: any[] = [];
+
+    // 1. Process Stock Updates for already-listed products
+    for (const item of updateStockItems) {
+      const pid = item.matchedProductId || item.existingProductId || item.id;
+      const qtyToAdd = Number(item.currentStock) || Number(item.quantity) || 1;
+
+      try {
+        const updated = await prisma.product.update({
+          where: { id: pid },
+          data: {
+            currentStock: { increment: qtyToAdd },
+            ...(item.costPrice ? { costPrice: Number(item.costPrice) } : {}),
+            ...(item.sellingPrice ? { sellingPrice: Number(item.sellingPrice) } : {}),
+          },
+          include: { category: true }
         });
-        categoryMap.set(lower, newCat.id);
+
+        await prisma.stockHistory.create({
+          data: {
+            productId: pid,
+            change: qtyToAdd,
+            reason: `AI Document Import - Stock Restock (+${qtyToAdd})`,
+            userId: rawUserId,
+          },
+        });
+
+        updatedProductList.push(updated);
+        updatedCount++;
+      } catch (stockErr) {
+        console.warn(`Could not update stock for product ${pid}:`, stockErr);
       }
     }
 
-    // 2. Prepare product rows
-    const createData = items.map((item: any, idx: number) => {
-      const catId = categoryMap.get(String(item.categoryName || 'General').toLowerCase().trim())!;
-      const sku = item.sku || `SKU-AI-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
-      const barcode = item.barcode ? String(item.barcode).trim() : `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    // 2. Process New Products creation
+    let createdCount = 0;
+    let createdProducts: any[] = [];
 
-      return {
-        name: String(item.name).trim(),
-        sku,
-        barcode,
-        barcodeType: item.barcodeType || 'CODE128',
-        categoryId: catId,
-        costPrice: Number(item.costPrice) || 0,
-        sellingPrice: Number(item.sellingPrice) || 0,
-        taxRate: Number(item.taxRate) || 0,
-        priceIncludesGst: Boolean(item.priceIncludesGst),
-        currentStock: Number(item.currentStock) || 0,
-        lowStockThreshold: Number(item.lowStockThreshold) || 5,
-        unit: String(item.unit || 'piece').toLowerCase().trim(),
-        isActive: true,
-        userId: rawUserId
-      };
-    });
+    if (createNewItems.length > 0) {
+      const categoryNames = Array.from(new Set(createNewItems.map((i: any) => String(i.categoryName || 'General').trim())));
+      const existingCategories = await prisma.category.findMany({
+        where: { userId: rawUserId }
+      });
+      
+      const categoryMap = new Map<string, string>();
+      existingCategories.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
 
-    const result = await prisma.product.createMany({
-      data: createData,
-      skipDuplicates: true
-    });
+      for (const catName of categoryNames) {
+        const lower = catName.toLowerCase();
+        if (!categoryMap.has(lower)) {
+          const newCat = await prisma.category.create({
+            data: { name: catName, userId: rawUserId, isActive: true }
+          });
+          categoryMap.set(lower, newCat.id);
+        }
+      }
 
-    // Fetch the created/matched products from DB so the frontend gets full Product objects with actual database IDs
-    const createdProducts = await prisma.product.findMany({
-      where: {
-        userId: rawUserId,
-        barcode: { in: createData.map((p) => p.barcode).filter(Boolean) },
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+      const createData = createNewItems.map((item: any, idx: number) => {
+        const catId = categoryMap.get(String(item.categoryName || 'General').toLowerCase().trim())!;
+        const sku = item.sku || `SKU-AI-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
+        const barcode = item.barcode ? String(item.barcode).trim() : `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+
+        return {
+          name: String(item.name).trim(),
+          sku,
+          barcode,
+          barcodeType: item.barcodeType || 'CODE128',
+          categoryId: catId,
+          costPrice: Number(item.costPrice) || 0,
+          sellingPrice: Number(item.sellingPrice) || 0,
+          taxRate: Number(item.taxRate) || 0,
+          priceIncludesGst: Boolean(item.priceIncludesGst),
+          currentStock: Number(item.currentStock) || 0,
+          lowStockThreshold: Number(item.lowStockThreshold) || 5,
+          unit: String(item.unit || 'piece').toLowerCase().trim(),
+          isActive: true,
+          userId: rawUserId
+        };
+      });
+
+      await prisma.product.createMany({
+        data: createData,
+        skipDuplicates: true
+      });
+
+      createdProducts = await prisma.product.findMany({
+        where: {
+          userId: rawUserId,
+          barcode: { in: createData.map((p) => p.barcode).filter(Boolean) },
+        },
+        include: { category: true },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      createdCount = createdProducts.length;
+    }
+
+    const allResultProducts = [...updatedProductList, ...createdProducts];
 
     res.json({
       success: true,
-      count: result.count || createdProducts.length,
-      products: createdProducts.length > 0 ? createdProducts : createData
+      count: updatedCount + createdCount,
+      updatedCount,
+      createdCount,
+      products: allResultProducts
     });
   } catch (error) {
     console.error('bulkImportProducts error:', error);

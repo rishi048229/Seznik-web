@@ -23,10 +23,13 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   Search,
   Barcode,
   RefreshCw,
+  PackagePlus,
+  PackageCheck,
+  Ban,
+  Layers,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -46,6 +49,7 @@ try {
 }
 
 export interface ExtractedProductItem {
+  id?: string;
   name: string;
   sellingPrice: number | string;
   costPrice: number | string;
@@ -54,6 +58,11 @@ export interface ExtractedProductItem {
   categoryName: string;
   barcode?: string;
   sku?: string;
+  isAlreadyListed?: boolean;
+  matchedProductId?: string | null;
+  matchedProductName?: string | null;
+  currentCatalogStock?: number | null;
+  importAction?: 'update_stock' | 'create_new' | 'skip';
 }
 
 interface Props {
@@ -64,7 +73,7 @@ interface Props {
 
 export function AiProductImportModal({ visible, onClose, onSuccessImport }: Props) {
   const theme = useAppTheme();
-  const { t, currentLanguage } = useTranslation();
+  const { t } = useTranslation();
   const { aiExtractProducts, bulkCreateProducts } = useProducts();
 
   const [step, setStep] = useState<'select' | 'analyzing' | 'review'>('select');
@@ -72,7 +81,6 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
   const [loadingMsg, setLoadingMsg] = useState('Analyzing document with Gemini AI...');
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
 
   const resetState = () => {
     setStep('select');
@@ -124,12 +132,14 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
       });
 
       if (res.success && Array.isArray(res.products) && res.products.length > 0) {
-        // Auto-generate scannable barcodes ONLY for products whose barcode is not present
         const sanitized: ExtractedProductItem[] = res.products.map((item: any, idx: number) => {
           const existingBarcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
           const finalBarcode = existingBarcode.length > 0 ? existingBarcode : generateEAN13Barcode();
           const finalSku = item.sku ? String(item.sku).trim() : `SKU-${Date.now().toString().slice(-6)}-${idx + 1}`;
+          const isListed = Boolean(item.isAlreadyListed);
+
           return {
+            id: item.id || `item-${idx}`,
             name: String(item.name || 'Product').trim(),
             sellingPrice: item.sellingPrice !== undefined ? item.sellingPrice : 0,
             costPrice: item.costPrice !== undefined ? item.costPrice : 0,
@@ -138,6 +148,11 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
             categoryName: String(item.categoryName || 'General').trim(),
             barcode: finalBarcode,
             sku: finalSku,
+            isAlreadyListed: isListed,
+            matchedProductId: item.matchedProductId || null,
+            matchedProductName: item.matchedProductName || null,
+            currentCatalogStock: item.currentCatalogStock !== undefined ? item.currentCatalogStock : null,
+            importAction: item.importAction || (isListed ? 'update_stock' : 'create_new'),
           };
         });
 
@@ -222,10 +237,19 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
     setExtractedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleSetGlobalActionForExisting = (action: 'update_stock' | 'create_new' | 'skip') => {
+    setExtractedItems((prev) =>
+      prev.map((item) =>
+        item.isAlreadyListed ? { ...item, importAction: action } : item
+      )
+    );
+  };
+
   const handleAddItemRow = () => {
     setExtractedItems((prev) => [
       ...prev,
       {
+        id: `item-${prev.length}`,
         name: 'New Product',
         sellingPrice: 100,
         costPrice: 80,
@@ -234,19 +258,23 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
         categoryName: 'General',
         barcode: generateEAN13Barcode(),
         sku: `SKU-${Date.now().toString().slice(-6)}-${prev.length + 1}`,
+        isAlreadyListed: false,
+        importAction: 'create_new',
       },
     ]);
   };
 
   const handleConfirmImport = async () => {
-    if (extractedItems.length === 0) {
-      Alert.alert('No Items', 'There are no product entries to save.');
+    const itemsToProcess = extractedItems.filter((i) => i.importAction !== 'skip');
+
+    if (itemsToProcess.length === 0) {
+      Alert.alert('No Items Selected', 'All items are currently set to Skip. Please select at least one item to import or update stock.');
       return;
     }
 
     setSubmitting(true);
     try {
-      const payload = extractedItems.map((p, idx) => {
+      const payload = itemsToProcess.map((p, idx) => {
         const cleanBar = p.barcode ? String(p.barcode).trim() : '';
         const finalBar = cleanBar.length > 0 ? cleanBar : generateEAN13Barcode();
         return {
@@ -258,30 +286,48 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
           categoryName: (p.categoryName || 'General').trim(),
           barcode: finalBar,
           sku: p.sku ? String(p.sku).trim() : `SKU-${Date.now().toString().slice(-6)}-${idx + 1}`,
+          importAction: p.importAction || (p.isAlreadyListed ? 'update_stock' : 'create_new'),
+          matchedProductId: p.matchedProductId || undefined,
         };
       });
 
-      await bulkCreateProducts(payload);
+      const res: any = await bulkCreateProducts(payload);
 
-      Alert.alert(
-        '🎉 Import Successful!',
-        `Successfully imported ${payload.length} products with valid scannable barcodes to your inventory.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (onSuccessImport) onSuccessImport();
-              handleClose();
-            },
+      const updatedCount = res?.updatedCount || 0;
+      const createdCount = res?.createdCount || (payload.length - updatedCount);
+
+      let msg = `Successfully processed ${payload.length} products.`;
+      if (updatedCount > 0 && createdCount > 0) {
+        msg = `Restocked ${updatedCount} existing catalog items and created ${createdCount} new products!`;
+      } else if (updatedCount > 0) {
+        msg = `Added stock to ${updatedCount} existing catalog products!`;
+      } else {
+        msg = `Created ${createdCount} new products in your inventory!`;
+      }
+
+      Alert.alert('🎉 Import Successful!', msg, [
+        {
+          text: 'View Inventory',
+          onPress: () => {
+            if (onSuccessImport) onSuccessImport();
+            handleClose();
           },
-        ]
-      );
+        },
+      ]);
     } catch (err: any) {
       Alert.alert('Import Failed', err?.message || 'Failed to save imported products to database.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const existingItemsCount = extractedItems.filter((i) => i.isAlreadyListed).length;
+  const filteredList = extractedItems.filter(
+    (i) =>
+      i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (i.categoryName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (i.barcode || '').includes(searchQuery)
+  );
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
@@ -295,7 +341,7 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
               </View>
               <View style={{ marginLeft: 10 }}>
                 <Text style={[styles.title, { color: theme.textPrimary }]}>AI Smart Product Import</Text>
-                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Powered by Gemini AI Multimodal OCR</Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Fast Gemini OCR & Smart Restock</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -314,7 +360,7 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
               <View style={[styles.infoBanner, { backgroundColor: 'rgba(37, 99, 235, 0.08)', borderColor: 'rgba(37, 99, 235, 0.2)' }]}>
                 <AlertCircle size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 10 }} />
                 <Text style={[styles.infoText, { color: theme.textPrimary }]}>
-                  Upload supplier invoices, handwritten bills, product price tags, Excel sheets, or PDFs. Gemini AI will automatically extract prices, stock quantities, and generate scannable barcodes!
+                  Upload supplier bills, invoices, product lists, or Excel sheets. Gemini AI will extract item details and automatically detect if items already exist in your catalog to update their stock!
                 </Text>
               </View>
 
@@ -328,7 +374,7 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
                   <Camera size={24} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Text style={[styles.optionTitle, { color: theme.textPrimary }]}>Take Bill / Tag Photo</Text>
+                  <Text style={[styles.optionTitle, { color: theme.textPrimary }]}>Take Bill / Invoice Photo</Text>
                   <Text style={[styles.optionSub, { color: theme.textSecondary }]}>Snap a direct photo of a printed bill or handwritten list</Text>
                 </View>
               </TouchableOpacity>
@@ -376,14 +422,54 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
           {/* STEP 3: REVIEW & EDIT EXTRACTED PRODUCTS */}
           {step === 'review' && (
             <View style={{ flex: 1 }}>
+              {/* Banner */}
               <View style={[styles.reviewBanner, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
                 <CheckCircle2 size={18} color="#10B981" />
                 <Text style={[styles.reviewBannerText, { color: theme.textPrimary }]}>
-                  Gemini AI extracted {extractedItems.length} products! All missing barcodes have been auto-generated with valid EAN-13 codes.
+                  Extracted {extractedItems.length} products!
+                  {existingItemsCount > 0 ? ` (${existingItemsCount} already in your catalog)` : ''}
                 </Text>
               </View>
 
-              <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6 }}>
+              {/* Global Batch Action Bar for Existing Products */}
+              {existingItemsCount > 0 && (
+                <View style={[styles.batchActionBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                    <Layers size={14} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                    <Text style={[styles.batchActionTitle, { color: theme.textPrimary }]}>
+                      {existingItemsCount} items already exist in your catalog:
+                    </Text>
+                  </View>
+                  <View style={styles.batchActionBtnsRow}>
+                    <TouchableOpacity
+                      onPress={() => handleSetGlobalActionForExisting('update_stock')}
+                      style={[styles.batchChip, { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' }]}
+                    >
+                      <PackageCheck size={12} color="#10B981" />
+                      <Text style={[styles.batchChipText, { color: '#10B981' }]}>Update Stock All</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleSetGlobalActionForExisting('create_new')}
+                      style={[styles.batchChip, { backgroundColor: 'rgba(37, 99, 235, 0.15)', borderColor: BRAND_COLORS.blue600 }]}
+                    >
+                      <PackagePlus size={12} color={BRAND_COLORS.blue600} />
+                      <Text style={[styles.batchChipText, { color: BRAND_COLORS.blue600 }]}>Create As New All</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleSetGlobalActionForExisting('skip')}
+                      style={[styles.batchChip, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444' }]}
+                    >
+                      <Ban size={12} color="#EF4444" />
+                      <Text style={[styles.batchChipText, { color: '#EF4444' }]}>Skip All</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Search Box */}
+              <View style={{ paddingHorizontal: 14, paddingTop: 6, paddingBottom: 6 }}>
                 <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <Search size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
                   <TextInput
@@ -402,22 +488,18 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
               </View>
 
               <FlatList
-                data={extractedItems.filter(
-                  (i) =>
-                    i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (i.categoryName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (i.barcode || '').includes(searchQuery)
-                )}
-                keyExtractor={(_, index) => `item-${index}`}
+                data={filteredList}
+                keyExtractor={(item, index) => item.id || `item-${index}`}
                 initialNumToRender={20}
                 maxToRenderPerBatch={25}
                 windowSize={7}
                 removeClippedSubviews={true}
                 contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 100 }}
                 renderItem={({ item, index }) => (
-                  <View style={[styles.itemCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <View style={[styles.itemCard, { backgroundColor: theme.cardBg, borderColor: item.isAlreadyListed ? BRAND_COLORS.blue600 : theme.borderColor }]}>
+                    {/* Header with item name */}
                     <View style={styles.itemHeader}>
-                      <View style={styles.itemBadge}>
+                      <View style={[styles.itemBadge, { backgroundColor: item.isAlreadyListed ? '#10B981' : BRAND_COLORS.blue600 }]}>
                         <Text style={styles.itemBadgeText}>#{index + 1}</Text>
                       </View>
                       <TextInput
@@ -431,6 +513,65 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
                         <Trash2 size={16} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
+
+                    {/* Already Listed Banner & Action Switcher */}
+                    {item.isAlreadyListed && (
+                      <View style={[styles.matchAlertBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                        <Text style={[styles.matchAlertText, { color: theme.textPrimary }]}>
+                          📦 Listed in catalog as <Text style={{ fontWeight: '800' }}>{item.matchedProductName || item.name}</Text> (Current Stock: <Text style={{ fontWeight: '800', color: BRAND_COLORS.blue600 }}>{item.currentCatalogStock || 0}</Text>)
+                        </Text>
+
+                        <View style={styles.actionPillRow}>
+                          <TouchableOpacity
+                            onPress={() => handleUpdateItem(index, 'importAction', 'update_stock')}
+                            style={[
+                              styles.actionPill,
+                              {
+                                backgroundColor: item.importAction === 'update_stock' ? '#10B981' : 'transparent',
+                                borderColor: item.importAction === 'update_stock' ? '#10B981' : theme.borderColor,
+                              },
+                            ]}
+                          >
+                            <PackageCheck size={11} color={item.importAction === 'update_stock' ? '#FFF' : theme.textSecondary} />
+                            <Text style={[styles.actionPillText, { color: item.importAction === 'update_stock' ? '#FFF' : theme.textSecondary }]}>
+                              + Add Stock ({item.currentStock})
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={() => handleUpdateItem(index, 'importAction', 'create_new')}
+                            style={[
+                              styles.actionPill,
+                              {
+                                backgroundColor: item.importAction === 'create_new' ? BRAND_COLORS.blue600 : 'transparent',
+                                borderColor: item.importAction === 'create_new' ? BRAND_COLORS.blue600 : theme.borderColor,
+                              },
+                            ]}
+                          >
+                            <PackagePlus size={11} color={item.importAction === 'create_new' ? '#FFF' : theme.textSecondary} />
+                            <Text style={[styles.actionPillText, { color: item.importAction === 'create_new' ? '#FFF' : theme.textSecondary }]}>
+                              Create As New
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={() => handleUpdateItem(index, 'importAction', 'skip')}
+                            style={[
+                              styles.actionPill,
+                              {
+                                backgroundColor: item.importAction === 'skip' ? '#EF4444' : 'transparent',
+                                borderColor: item.importAction === 'skip' ? '#EF4444' : theme.borderColor,
+                              },
+                            ]}
+                          >
+                            <Ban size={11} color={item.importAction === 'skip' ? '#FFF' : theme.textSecondary} />
+                            <Text style={[styles.actionPillText, { color: item.importAction === 'skip' ? '#FFF' : theme.textSecondary }]}>
+                              Skip
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
 
                     {/* Price & Cost Grid */}
                     <View style={styles.fieldGrid}>
@@ -458,7 +599,9 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
                     {/* Stock, Unit & Category Grid */}
                     <View style={styles.fieldGrid}>
                       <View style={styles.fieldCol}>
-                        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Initial Stock</Text>
+                        <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                          {item.importAction === 'update_stock' ? 'Stock to Add' : 'Initial Stock'}
+                        </Text>
                         <TextInput
                           style={[styles.fieldInput, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                           value={String(item.currentStock)}
@@ -539,7 +682,7 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
                     <CheckCircle2 size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                   )}
                   <Text style={styles.submitText}>
-                    Confirm & Import ({extractedItems.length}) Products
+                    Confirm & Save ({extractedItems.filter((i) => i.importAction !== 'skip').length}) Products
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -619,6 +762,26 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   reviewBannerText: { fontSize: 12, fontWeight: '800', marginLeft: 8, flex: 1 },
+  batchActionBar: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 14,
+    marginBottom: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  batchActionTitle: { fontSize: 12, fontWeight: '800' },
+  batchActionBtnsRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  batchChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+  },
+  batchChipText: { fontSize: 10, fontWeight: '800' },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -629,10 +792,8 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 13, fontWeight: '600', padding: 0 },
   itemCard: { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 12 },
-
-  itemHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  itemHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   itemBadge: {
-    backgroundColor: BRAND_COLORS.blue600,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -641,6 +802,24 @@ const styles = StyleSheet.create({
   itemBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
   itemNameInput: { flex: 1, fontSize: 14, fontWeight: '800', paddingVertical: 4 },
   deleteRowBtn: { padding: 6 },
+  matchAlertBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 8,
+    marginBottom: 8,
+  },
+  matchAlertText: { fontSize: 11, marginBottom: 6 },
+  actionPillRow: { flexDirection: 'row', gap: 6 },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 3,
+  },
+  actionPillText: { fontSize: 10, fontWeight: '800' },
   fieldGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   fieldCol: { flex: 1, marginHorizontal: 3 },
   fieldLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4 },
