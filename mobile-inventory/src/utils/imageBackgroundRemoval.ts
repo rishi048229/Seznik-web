@@ -9,7 +9,7 @@ try {
 }
 
 /* ========================================================================== */
-/* Fast, Robust Pure TypeScript Base64 Encoder / Decoder (No atob/btoa quirks) */
+/* Fast Pure TypeScript Base64 Encoder / Decoder                              */
 /* ========================================================================== */
 
 const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -91,7 +91,6 @@ function adler32(data: Uint8Array): number {
 /* ========================================================================== */
 
 export function encodeRgbaToPng(pixels: Uint8Array, width: number, height: number): Uint8Array {
-  // Raw scanline format: 1 filter byte (0 = None) + 4 bytes per pixel (RGBA)
   const bytesPerScanline = 1 + width * 4;
   const rawData = new Uint8Array(height * bytesPerScanline);
 
@@ -102,13 +101,11 @@ export function encodeRgbaToPng(pixels: Uint8Array, width: number, height: numbe
     rawData.set(pixels.subarray(pixelRowOffset, pixelRowOffset + width * 4), rawOffset + 1);
   }
 
-  // Zlib stream with uncompressed DEFLATE blocks (RFC 1951 BTYPE=00)
   const MAX_BLOCK_LEN = 32768;
   const numBlocks = Math.ceil(rawData.length / MAX_BLOCK_LEN) || 1;
   const zlibLen = 2 + numBlocks * 5 + rawData.length + 4;
   const zlibData = new Uint8Array(zlibLen);
 
-  // Zlib header (CMF: deflate 32k window, FLG: check bits)
   zlibData[0] = 0x78;
   zlibData[1] = 0x01;
   let zPos = 2;
@@ -118,7 +115,7 @@ export function encodeRgbaToPng(pixels: Uint8Array, width: number, height: numbe
     const blockLen = Math.min(MAX_BLOCK_LEN, rawData.length - i);
     const nBlockLen = (~blockLen) & 0xffff;
 
-    zlibData[zPos++] = isLast ? 0x01 : 0x00; // BFINAL + BTYPE(00)
+    zlibData[zPos++] = isLast ? 0x01 : 0x00;
     zlibData[zPos++] = blockLen & 0xff;
     zlibData[zPos++] = (blockLen >> 8) & 0xff;
     zlibData[zPos++] = nBlockLen & 0xff;
@@ -128,51 +125,44 @@ export function encodeRgbaToPng(pixels: Uint8Array, width: number, height: numbe
     zPos += blockLen;
   }
 
-  // Adler-32
   const adler = adler32(rawData);
   zlibData[zPos++] = (adler >> 24) & 0xff;
   zlibData[zPos++] = (adler >> 16) & 0xff;
   zlibData[zPos++] = (adler >> 8) & 0xff;
   zlibData[zPos++] = adler & 0xff;
 
-  // Build PNG chunks (Signature + IHDR + IDAT + IEND)
   const totalPngLen = 8 + (12 + 13) + (12 + zlibLen) + (12 + 0);
   const png = new Uint8Array(totalPngLen);
   let pos = 0;
 
   // Signature
-  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], pos);
-  pos += 8;
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], pos); pos += 8;
 
-  // IHDR Chunk
-  const ihdrLen = 13;
-  writeUint32(png, pos, ihdrLen); pos += 4;
+  // IHDR
+  writeUint32(png, pos, 13); pos += 4;
   const ihdrStart = pos;
   writeString(png, pos, 'IHDR'); pos += 4;
   writeUint32(png, pos, width); pos += 4;
   writeUint32(png, pos, height); pos += 4;
-  png[pos++] = 8; // Bit depth: 8
-  png[pos++] = 6; // Color type: 6 (RGBA)
-  png[pos++] = 0; // Compression
-  png[pos++] = 0; // Filter
-  png[pos++] = 0; // Interlace
-  const ihdrCrc = crc32(png, ihdrStart, 17);
-  writeUint32(png, pos, ihdrCrc); pos += 4;
+  png[pos++] = 8; // 8-bit
+  png[pos++] = 6; // RGBA
+  png[pos++] = 0;
+  png[pos++] = 0;
+  png[pos++] = 0;
+  writeUint32(png, pos, crc32(png, ihdrStart, 17)); pos += 4;
 
-  // IDAT Chunk
+  // IDAT
   writeUint32(png, pos, zlibLen); pos += 4;
   const idatStart = pos;
   writeString(png, pos, 'IDAT'); pos += 4;
   png.set(zlibData, pos); pos += zlibLen;
-  const idatCrc = crc32(png, idatStart, 4 + zlibLen);
-  writeUint32(png, pos, idatCrc); pos += 4;
+  writeUint32(png, pos, crc32(png, idatStart, 4 + zlibLen)); pos += 4;
 
-  // IEND Chunk
+  // IEND
   writeUint32(png, pos, 0); pos += 4;
   const iendStart = pos;
   writeString(png, pos, 'IEND'); pos += 4;
-  const iendCrc = crc32(png, iendStart, 4);
-  writeUint32(png, pos, iendCrc); pos += 4;
+  writeUint32(png, pos, crc32(png, iendStart, 4)); pos += 4;
 
   return png;
 }
@@ -191,7 +181,7 @@ function writeString(buf: Uint8Array, offset: number, str: string) {
 }
 
 /* ========================================================================== */
-/* Pure TypeScript Micro-Inflate (RFC 1951 DEFLATE decompressor)              */
+/* Robust RFC 1950 / RFC 1951 Deflate Decompressor                            */
 /* ========================================================================== */
 
 function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
@@ -213,9 +203,12 @@ function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
     return val;
   };
 
-  // Skip zlib header if present (78 01 / 78 9c / 78 da)
-  if (input[0] === 0x78 && (input[1] === 0x01 || input[1] === 0x9c || input[1] === 0xda)) {
+  // Correct RFC 1950 zlib header detection (any compression level 0..9, with or without dictionary)
+  if (input.length >= 2 && (input[0] & 0x0f) === 8 && ((input[0] * 256 + input[1]) % 31 === 0)) {
     inPos = 2;
+    if ((input[1] & 0x20) !== 0) {
+      inPos += 4; // Skip DICTID
+    }
   }
 
   let isLastBlock = false;
@@ -224,7 +217,7 @@ function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
     const btype = readBits(2);
 
     if (btype === 0) {
-      // Uncompressed block
+      // Uncompressed block: discard padding bits to align with byte boundary
       bitBuf = 0;
       bitLen = 0;
       if (inPos + 4 > input.length) break;
@@ -235,15 +228,14 @@ function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
       inPos += copyLen;
       outPos += copyLen;
     } else if (btype === 1 || btype === 2) {
-      // Huffman compressed block (Fixed or Dynamic)
       const { litLenTree, distTree } = btype === 1 ? getFixedTrees() : readDynamicTrees(readBits);
       while (outPos < expectedSize) {
         const symbol = decodeSymbol(readBits, litLenTree);
         if (symbol < 256) {
           output[outPos++] = symbol;
         } else if (symbol === 256) {
-          break; // End of block
-        } else {
+          break;
+        } else if (symbol <= 285) {
           const len = decodeLength(symbol, readBits);
           const distCode = decodeSymbol(readBits, distTree);
           const dist = decodeDistance(distCode, readBits);
@@ -251,6 +243,8 @@ function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
           for (let k = 0; k < len && outPos < expectedSize; k++) {
             output[outPos++] = output[from++];
           }
+        } else {
+          break;
         }
       }
     } else {
@@ -375,12 +369,12 @@ function decodeDistance(sym: number, readBits: (n: number) => number): number {
 }
 
 /* ========================================================================== */
-/* Pure TypeScript PNG Decoder (RGB/RGBA to Raw 32-bit RGBA)                  */
+/* Pure TypeScript PNG Decoder                                                */
 /* ========================================================================== */
 
 export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; width: number; height: number } | null {
   try {
-    if (pngBytes[0] !== 0x89 || pngBytes[1] !== 0x50 || pngBytes[2] !== 0x4e || pngBytes[3] !== 0x47) {
+    if (pngBytes.length < 8 || pngBytes[0] !== 0x89 || pngBytes[1] !== 0x50 || pngBytes[2] !== 0x4e || pngBytes[3] !== 0x47) {
       return null;
     }
 
@@ -489,13 +483,15 @@ export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; wid
 }
 
 /* ========================================================================== */
-/* Intelligent Background Removal Algorithm                                   */
+/* Intelligent Background Removal & Color Inversion Engine                    */
 /* ========================================================================== */
 
 export interface BackgroundRemovalOptions {
-  tolerance?: number; // Color distance tolerance (default: 38)
-  softness?: number; // Feathering softness on edges (default: 16)
-  trimPadding?: boolean; // Auto-crop empty transparent border (default: true)
+  mode?: 'transparent' | 'white_clean'; // transparent PNG vs pure white #FFFFFF background
+  tolerance?: number; // Color distance tolerance (default: 45)
+  softness?: number; // Edge feathering (default: 16)
+  trimPadding?: boolean; // Auto crop (default: true)
+  invert?: boolean; // Invert colors (Black <-> White)
 }
 
 export function processPixelsRemoveBackground(
@@ -504,29 +500,29 @@ export function processPixelsRemoveBackground(
   height: number,
   options: BackgroundRemovalOptions = {}
 ): { pixels: Uint8Array; width: number; height: number } {
-  const tolerance = options.tolerance ?? 40;
-  const softness = options.softness ?? 18;
+  const tolerance = options.tolerance ?? 45;
+  const softness = options.softness ?? 16;
+  const isWhiteClean = options.mode === 'white_clean';
+  const invert = Boolean(options.invert);
 
-  // 1. Sample perimeter / corners to detect background color
+  // 1. Sample perimeter to detect background color
   let rSum = 0;
   let gSum = 0;
   let bSum = 0;
   let count = 0;
 
-  const samplePoints = [
-    // 4 corners
-    0,
-    (width - 1) * 4,
-    (height - 1) * width * 4,
-    ((height - 1) * width + (width - 1)) * 4,
-    // Midpoints
-    Math.floor(width / 2) * 4,
-    ((height - 1) * width + Math.floor(width / 2)) * 4,
-    Math.floor(height / 2) * width * 4,
-    (Math.floor(height / 2) * width + (width - 1)) * 4,
-  ];
+  const sampleIndices: number[] = [];
+  // Sample all 4 outer borders
+  for (let x = 0; x < width; x += Math.max(1, Math.floor(width / 16))) {
+    sampleIndices.push(x * 4); // top
+    sampleIndices.push(((height - 1) * width + x) * 4); // bottom
+  }
+  for (let y = 1; y < height - 1; y += Math.max(1, Math.floor(height / 16))) {
+    sampleIndices.push((y * width) * 4); // left
+    sampleIndices.push((y * width + (width - 1)) * 4); // right
+  }
 
-  for (const idx of samplePoints) {
+  for (const idx of sampleIndices) {
     if (idx < pixels.length - 3) {
       rSum += pixels[idx];
       gSum += pixels[idx + 1];
@@ -572,24 +568,21 @@ export function processPixelsRemoveBackground(
     const a = pixels[pxIdx + 3];
 
     if (a < 10) {
-      // Already transparent: ensure clean white RGB (255, 255, 255) so non-alpha decoders see pure white
       pixels[pxIdx] = 255;
       pixels[pxIdx + 1] = 255;
       pixels[pxIdx + 2] = 255;
-      pixels[pxIdx + 3] = 0;
+      pixels[pxIdx + 3] = isWhiteClean ? 255 : 0;
       continue;
     }
 
     const dist = getColorDist(r, g, b);
 
     if (dist <= tolerance) {
-      // Pure background: set alpha to 0 AND RGB to 255, 255, 255 (WHITE).
-      // Setting RGB to 255,255,255 is CRITICAL so that if Android Bitmap RGB_565 or thermal
-      // printer dithering ignores alpha, the background is treated as pure WHITE, NEVER black.
+      // Background pixel
       pixels[pxIdx] = 255;
       pixels[pxIdx + 1] = 255;
       pixels[pxIdx + 2] = 255;
-      pixels[pxIdx + 3] = 0;
+      pixels[pxIdx + 3] = isWhiteClean ? 255 : 0;
 
       const x = p % width;
       const y = Math.floor(p / width);
@@ -598,14 +591,28 @@ export function processPixelsRemoveBackground(
       if (x < width - 1 && !visited[p + 1]) queue.push(p + 1);
       if (y > 0 && !visited[p - width]) queue.push(p - width);
       if (y < height - 1 && !visited[p + width]) queue.push(p + width);
-    } else if (dist <= tolerance + softness) {
-      // Soft anti-aliased edge
+    } else if (dist <= tolerance + softness && !isWhiteClean) {
+      // Soft transition
       const alphaRatio = (dist - tolerance) / softness;
       pixels[pxIdx + 3] = Math.round(Math.min(a, 255 * alphaRatio));
     }
   }
 
-  // 3. Optional auto-crop to bounding box of content with 8px margin
+  // 3. If Invert Colors is requested (swap dark <-> bright foreground)
+  if (invert) {
+    for (let p = 0; p < width * height; p++) {
+      const idx = p * 4;
+      const a = pixels[idx + 3];
+      // Only invert non-background elements
+      if (a > 20) {
+        pixels[idx] = 255 - pixels[idx];
+        pixels[idx + 1] = 255 - pixels[idx + 1];
+        pixels[idx + 2] = 255 - pixels[idx + 2];
+      }
+    }
+  }
+
+  // 4. Auto-crop to content bounding box
   if (options.trimPadding) {
     let minX = width;
     let minY = height;
@@ -615,8 +622,15 @@ export function processPixelsRemoveBackground(
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const a = pixels[(y * width + x) * 4 + 3];
-        if (a > 15) {
+        const pIdx = (y * width + x) * 4;
+        const a = pixels[pIdx + 3];
+        const r = pixels[pIdx];
+        const g = pixels[pIdx + 1];
+        const b = pixels[pIdx + 2];
+
+        // Content is either non-transparent or non-white
+        const isBg = (a < 20) || (r > 245 && g > 245 && b > 245);
+        if (!isBg) {
           hasContent = true;
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
@@ -627,7 +641,7 @@ export function processPixelsRemoveBackground(
     }
 
     if (hasContent && minX <= maxX && minY <= maxY) {
-      const pad = 8;
+      const pad = 10;
       const cropX = Math.max(0, minX - pad);
       const cropY = Math.max(0, minY - pad);
       const cropW = Math.min(width - cropX, maxX - minX + 1 + pad * 2);
@@ -648,7 +662,7 @@ export function processPixelsRemoveBackground(
 }
 
 /* ========================================================================== */
-/* High-Level Universal removeImageBackground API                             */
+/* High-Level removeImageBackground API                                       */
 /* ========================================================================== */
 
 export async function removeImageBackground(
@@ -660,7 +674,7 @@ export async function removeImageBackground(
       return await removeBackgroundWeb(imageUri, options);
     }
 
-    // Native Implementation (iOS / Android)
+    // Native Android / iOS Implementation
     let pngBase64 = '';
     if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
       try {
@@ -671,7 +685,7 @@ export async function removeImageBackground(
         );
         pngBase64 = manip.base64 || '';
       } catch (err) {
-        console.warn('ImageManipulator resize failed, reading raw file:', err);
+        console.warn('ImageManipulator resize error:', err);
       }
     }
 
@@ -683,7 +697,7 @@ export async function removeImageBackground(
 
     const pngBytes = base64ToUint8Array(pngBase64);
     const decoded = decodePngToRgba(pngBytes);
-    if (!decoded) {
+    if (!decoded || !decoded.pixels || decoded.pixels.length === 0) {
       return { uri: imageUri };
     }
 
@@ -691,7 +705,7 @@ export async function removeImageBackground(
     const encodedPng = encodeRgbaToPng(processed.pixels, processed.width, processed.height);
     const finalBase64 = uint8ArrayToBase64(encodedPng);
 
-    const outPath = `${FileSystem.cacheDirectory || ''}logo_nobg_${Date.now()}.png`;
+    const outPath = `${FileSystem.cacheDirectory || ''}logo_clean_${Date.now()}.png`;
     await FileSystem.writeAsStringAsync(outPath, finalBase64, {
       encoding: FileSystem.EncodingType.Base64,
     });
