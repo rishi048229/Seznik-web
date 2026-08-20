@@ -117,8 +117,7 @@ export default function SettingsScreen() {
       allowsEditing: true,
     });
     if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
-      setRawPickedLogo(pickerResult.assets[0].uri);
-      setShowLogoBgModal(true);
+      setLogoUri(pickerResult.assets[0].uri);
     }
   };
 

@@ -849,14 +849,13 @@ export default function ReceiptEditorScreen() {
                         }
                         const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
                         if (!res.canceled && res.assets?.[0]?.uri) {
-                          openLogoBgOption(res.assets[0].uri, (finalUri) => {
-                            setTemplate((prev) => ({
-                              ...prev,
-                              entries: prev.entries.map((e) =>
-                                e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
-                              ),
-                            }));
-                          });
+                          const pickedUri = res.assets[0].uri;
+                          setTemplate((prev) => ({
+                            ...prev,
+                            entries: prev.entries.map((e) =>
+                              e.id === existingLogoEntry.id ? { ...e, imageUri: pickedUri } : e
+                            ),
+                          }));
                         }
                       }}
                       style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
@@ -874,14 +873,13 @@ export default function ReceiptEditorScreen() {
                         }
                         const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
                         if (!res.canceled && res.assets?.[0]?.uri) {
-                          openLogoBgOption(res.assets[0].uri, (finalUri) => {
-                            setTemplate((prev) => ({
-                              ...prev,
-                              entries: prev.entries.map((e) =>
-                                e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
-                              ),
-                            }));
-                          });
+                          const pickedUri = res.assets[0].uri;
+                          setTemplate((prev) => ({
+                            ...prev,
+                            entries: prev.entries.map((e) =>
+                              e.id === existingLogoEntry.id ? { ...e, imageUri: pickedUri } : e
+                            ),
+                          }));
                         }
                       }}
                       style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}

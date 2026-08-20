@@ -215,16 +215,14 @@ export default function LabelStudioScreen() {
 
       if (!result.canceled && result.assets[0]?.uri) {
         const uri = result.assets[0].uri;
-        openLogoBgOption(uri, (finalUri) => {
-          if (elementId) {
-            updateElementProps(elementId, { uri: finalUri } as Partial<LabelImageElement>);
-          } else {
-            const base = { id: newId(), xMm: Math.max(2, template.widthMm / 2 - 10), yMm: Math.max(2, template.heightMm / 2 - 10) };
-            const el: LabelElement = { ...base, type: 'image', uri: finalUri, widthMm: 20, heightMm: 20 };
-            setTemplate((prev) => ({ ...prev, elements: [...prev.elements, el] }));
-            setSelectedId(el.id);
-          }
-        });
+        if (elementId) {
+          updateElementProps(elementId, { uri } as Partial<LabelImageElement>);
+        } else {
+          const base = { id: newId(), xMm: Math.max(2, template.widthMm / 2 - 10), yMm: Math.max(2, template.heightMm / 2 - 10) };
+          const el: LabelElement = { ...base, type: 'image', uri, widthMm: 20, heightMm: 20 };
+          setTemplate((prev) => ({ ...prev, elements: [...prev.elements, el] }));
+          setSelectedId(el.id);
+        }
       }
     } catch (err: any) {
       Alert.alert('Image Picker Error', err?.message || 'Failed to select image.');
@@ -406,7 +404,6 @@ export default function LabelStudioScreen() {
                 width: '100%',
                 height: '100%',
                 resizeMode: 'contain',
-                ...(el.invert ? { tintColor: '#000000' } : {}),
               }}
             />
           ) : (
