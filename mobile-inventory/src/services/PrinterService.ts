@@ -138,6 +138,33 @@ class ThermalPrinterServiceManager {
     this.disconnectStaleNativeConnection();
   }
 
+  /**
+   * Sends ESC @ (initialize printer) + sets left alignment to reset any stale
+   * state (alignment, character size, line spacing) from a previous print job.
+   * Without this, the printer can carry over double-width mode, center alignment,
+   * or custom line spacing from the last job, causing tilted/shifted output.
+   */
+  private async initPrinter(): Promise<void> {
+    try {
+      // ESC @ = \x1B\x40 — resets the printer to its default state
+      if (typeof NativeEscposPrinter.printRawData === 'function') {
+        await NativeEscposPrinter.printRawData('\x1B\x40');
+      } else if (typeof NativeEscposPrinter.printText === 'function') {
+        // Some native bridges don't expose printRawData; sending an empty
+        // printText with scale 0 at least resets the text formatting state.
+        await NativeEscposPrinter.printText('', { widthtimes: 0, heigthtimes: 0, cut: false });
+      }
+      // Force left alignment so nothing is offset from a previous center/right alignment
+      if (typeof NativeEscposPrinter.printerAlign === 'function') {
+        await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+      }
+    } catch (e) {
+      // Non-fatal — some printers/bridges may not support raw data, but the
+      // print will still proceed with whatever state the printer is in.
+      console.warn('initPrinter reset failed (non-fatal):', e);
+    }
+  }
+
   /** Whether the native Bluetooth Classic module is actually linked into this build (false in Expo Go / a build without the dev client rebuild). */
   public isNativeModuleAvailable(): boolean {
     return !!(NativeBluetoothManager && typeof NativeBluetoothManager.scanDevices === 'function');
@@ -1000,6 +1027,9 @@ class ThermalPrinterServiceManager {
   public async printTokenSlip(data: PrintTokenData, paperWidth: '58mm' | '80mm' = '58mm'): Promise<boolean> {
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        // Reset printer state before token slip print
+        await this.initPrinter();
+
         const textContent = this.sanitizeForThermalPrint(this.formatTokenSlipText(data, paperWidth));
         await NativeEscposPrinter.printText(textContent, { widthtimes: 0, heigthtimes: 0, cut: false });
         if (typeof NativeEscposPrinter.printAndFeed === 'function') {
@@ -2080,6 +2110,9 @@ class ThermalPrinterServiceManager {
     const truncatedName = product.name.trim().length > maxNameLen ? `${product.name.trim().slice(0, maxNameLen - 1)}…` : product.name.trim();
 
     try {
+      // Reset printer state before label print
+      await this.initPrinter();
+
       for (let i = 0; i < Math.max(1, copies); i++) {
         if (typeof NativeEscposPrinter.printerAlign === 'function') {
           await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
@@ -2208,6 +2241,9 @@ class ThermalPrinterServiceManager {
 
     try {
       for (let i = 0; i < Math.max(1, copies); i++) {
+        // Reset printer state at start of each label copy
+        await this.initPrinter();
+
         for (const el of orderedElements) {
           if (el.type === 'text') {
             let value = this.sanitizeForThermalPrint(resolveTextValue(el));
@@ -2349,6 +2385,9 @@ class ThermalPrinterServiceManager {
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
+          // Reset printer state before every job to prevent tilted/shifted output
+          await this.initPrinter();
+
           const customTemplate = this.resolveActiveCustomTemplate(options);
           if (customTemplate) {
             for (let i = 0; i < copies; i++) {
@@ -2463,6 +2502,9 @@ class ThermalPrinterServiceManager {
     paperWidth: '58mm' | '80mm' = '58mm',
     options: ReceiptPrintOptions = {}
   ): Promise<void> {
+    // Reset printer state before custom template print
+    await this.initPrinter();
+
     const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
     const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
     const widthCols = paperWidth === '58mm' ? 32 : 48;
@@ -2672,6 +2714,9 @@ class ThermalPrinterServiceManager {
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
+          // Reset printer state before KOT print
+          await this.initPrinter();
+
           const textContent = this.sanitizeForThermalPrint(this.formatKotText(data, paperWidth));
           const printOptions = { widthtimes: 1, heigthtimes: 1, cut: false };
 
