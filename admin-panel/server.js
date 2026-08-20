@@ -334,8 +334,8 @@ async function computeRealHeatmapData(pool, timeRange = '24h') {
   const statsRes = await pool.query(`
     ${eventsCte}
     SELECT 
-      COUNT(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as requests_today,
-      COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('hour', CURRENT_TIMESTAMP))::int as requests_this_hour,
+      COUNT(*) FILTER (WHERE ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)::int as requests_today,
+      COUNT(*) FILTER (WHERE ("createdAt" AT TIME ZONE 'Asia/Kolkata') >= date_trunc('hour', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'))::int as requests_this_hour,
       COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as requests_in_window,
       COUNT(*)::int as total_all_time
     FROM events
@@ -354,8 +354,8 @@ async function computeRealHeatmapData(pool, timeRange = '24h') {
   const heatmapRes = await pool.query(`
     ${eventsCte}
     SELECT 
-      TRIM(to_char("createdAt", 'Dy')) as day,
-      EXTRACT(HOUR FROM "createdAt")::int as hour,
+      TRIM(to_char("createdAt" AT TIME ZONE 'Asia/Kolkata', 'Dy')) as day,
+      EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'Asia/Kolkata'))::int as hour,
       COUNT(*)::int as count,
       COUNT(DISTINCT "userId")::int as unique_users
     FROM events
@@ -463,8 +463,8 @@ app.get('/api/admin/metrics', async (req, res) => {
 
     const topFeature = topFeatures[0] || {
       sectionName: 'Products & Inventory Catalog',
-      percentageShare: 89.8,
-      trendPercent: 22.1,
+      percentageShare: 0,
+      trendPercent: 0,
     };
 
     res.json({
@@ -518,6 +518,9 @@ app.get('/api/admin/users', async (req, res) => {
         u.role, 
         u."emailVerified", 
         u."onboardingCompleted", 
+        COALESCE(u."isBanned", false) as "isBanned",
+        u."banReason",
+        u."bannedAt",
         u."createdAt", 
         u."updatedAt"
       FROM "User" u
@@ -535,6 +538,9 @@ app.get('/api/admin/users', async (req, res) => {
       role: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
       emailVerified: Boolean(u.emailVerified),
       onboardingCompleted: Boolean(u.onboardingCompleted),
+      isBanned: Boolean(u.isBanned),
+      banReason: u.banReason || '',
+      bannedAt: u.bannedAt || undefined,
       createdAt: u.createdAt,
       lastLoginAt: u.updatedAt || u.createdAt,
     }));
@@ -543,6 +549,63 @@ app.get('/api/admin/users', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/admin/users:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// POST /api/admin/users/:id/ban
+app.post('/api/admin/users/:id/ban', async (req, res) => {
+  const targetId = req.params.id;
+  const reason = req.body?.reason || 'Account suspended by system administrator';
+
+  try {
+    const updateRes = await pool.query(
+      `UPDATE "User" 
+       SET "isBanned" = true, "banReason" = $1, "bannedAt" = CURRENT_TIMESTAMP 
+       WHERE id = $2 OR uid = $2
+       RETURNING id, email, "displayName", "isBanned", "banReason", "bannedAt"`,
+      [reason, targetId]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'User banned successfully',
+      user: updateRes.rows[0],
+    });
+  } catch (err) {
+    console.error('Error banning user:', err);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+// POST /api/admin/users/:id/unban
+app.post('/api/admin/users/:id/unban', async (req, res) => {
+  const targetId = req.params.id;
+
+  try {
+    const updateRes = await pool.query(
+      `UPDATE "User" 
+       SET "isBanned" = false, "banReason" = NULL, "bannedAt" = NULL 
+       WHERE id = $1 OR uid = $1
+       RETURNING id, email, "displayName", "isBanned", "banReason", "bannedAt"`,
+      [targetId]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'User unbanned successfully',
+      user: updateRes.rows[0],
+    });
+  } catch (err) {
+    console.error('Error unbanning user:', err);
+    res.status(500).json({ error: 'Failed to unban user' });
   }
 });
 

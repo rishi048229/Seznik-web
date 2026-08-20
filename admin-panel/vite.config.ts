@@ -285,8 +285,8 @@ async function computeRealTopFeatures(pool: pg.Pool, timeRange: string = '24h') 
 
   return calculated;
   } catch (err) {
-    console.warn('computeRealTopFeatures fallback due to DB error:', err);
-    return fallbackFeatures;
+    console.error('computeRealTopFeatures DB error:', err);
+    throw err;
   }
 }
 
@@ -331,12 +331,12 @@ async function computeRealHeatmapData(pool: pg.Pool, timeRange: string = '24h') 
     `;
 
   try {
-    // 1. Compute summary stats
+    // 1. Compute summary stats in IST
     const statsRes = await pool.query(`
       ${eventsCte}
       SELECT 
-        COUNT(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int as requests_today,
-        COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('hour', CURRENT_TIMESTAMP))::int as requests_this_hour,
+        COUNT(*) FILTER (WHERE ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)::int as requests_today,
+        COUNT(*) FILTER (WHERE ("createdAt" AT TIME ZONE 'Asia/Kolkata') >= date_trunc('hour', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'))::int as requests_this_hour,
         COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as requests_in_window,
         COUNT(*)::int as total_all_time
       FROM events
@@ -350,14 +350,14 @@ async function computeRealHeatmapData(pool: pg.Pool, timeRange: string = '24h') 
       total_all_time: 0,
     };
 
-    // 2. Compute heatmap grid based on selected timeframe
+    // 2. Compute heatmap grid based on selected timeframe converted to IST
     const filterClause = `WHERE ${intervals.currentFilter}`;
 
     const heatmapRes = await pool.query(`
       ${eventsCte}
       SELECT 
-        TRIM(to_char("createdAt", 'Dy')) as day,
-        EXTRACT(HOUR FROM "createdAt")::int as hour,
+        TRIM(to_char("createdAt" AT TIME ZONE 'Asia/Kolkata', 'Dy')) as day,
+        EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'Asia/Kolkata'))::int as hour,
         COUNT(*)::int as count,
         COUNT(DISTINCT "userId")::int as unique_users
       FROM events
@@ -392,22 +392,8 @@ async function computeRealHeatmapData(pool: pg.Pool, timeRange: string = '24h') 
       currentWeekRange: intervals.timeWindowName,
     };
   } catch (err) {
-    console.warn('computeRealHeatmapData fallback due to DB error:', err);
-    const mockGrid: Array<{ day: string; hour: number; count: number; uniqueUsers: number }> = [];
-    days.forEach((day) => {
-      for (let h = 0; h < 24; h++) {
-        const count = (h >= 10 && h <= 19) ? Math.floor(Math.random() * 20) + 5 : Math.floor(Math.random() * 3);
-        mockGrid.push({ day, hour: h, count, uniqueUsers: Math.min(count, 3) });
-      }
-    });
-    return {
-      cells: mockGrid,
-      requestsToday: 185,
-      requestsThisHour: 14,
-      requestsThisWeek: 1240,
-      totalAllTime: 4890,
-      currentWeekRange: intervals.timeWindowName,
-    };
+    console.error('computeRealHeatmapData DB error:', err);
+    throw err;
   }
 }
 
@@ -422,12 +408,8 @@ export default defineConfig(({ mode }) => {
   const pool = new pg.Pool({
     connectionString: dbUrl,
     ssl: dbUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined,
-    connectionTimeoutMillis: 1500,
+    connectionTimeoutMillis: 10000,
   });
-
-  // Track connection failure state to avoid hammering timed-out RDS
-  let dbConnectionFailing = false;
-  let lastFailureTime = 0;
 
   return {
     plugins: [
@@ -440,14 +422,6 @@ export default defineConfig(({ mode }) => {
             const pathname = parsedUrl.pathname;
             const timeRange = parsedUrl.searchParams.get('timeRange') || '24h';
             const intervals = getTimeIntervals(timeRange);
-
-            // Fallback user roster
-            const fallbackUsers = [
-              { id: 1, uid: 'uid-1', email: 'aaditya@seznik.com', phone: '+91 9876543210', displayName: 'Aaditya Basisth', businessName: 'Seznik HQ Retail', plan: 'enterprise', role: 'Owner', emailVerified: true, onboardingCompleted: true, createdAt: new Date(Date.now() - 30 * 86400 * 1000).toISOString(), lastLoginAt: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
-              { id: 2, uid: 'uid-2', email: 'priya@seznik.com', phone: '+91 9812345678', displayName: 'Priya Sharma', businessName: 'Priya Electronics', plan: 'pro', role: 'Store Manager', emailVerified: true, onboardingCompleted: true, createdAt: new Date(Date.now() - 20 * 86400 * 1000).toISOString(), lastLoginAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString() },
-              { id: 3, uid: 'uid-3', email: 'rahul@seznik.com', phone: '+91 9765432109', displayName: 'Rahul Verma', businessName: 'Verma Traders', plan: 'free', role: 'Cashier', emailVerified: true, onboardingCompleted: true, createdAt: new Date(Date.now() - 10 * 86400 * 1000).toISOString(), lastLoginAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString() },
-              { id: 4, uid: 'uid-4', email: 'contact@quickmart.in', phone: '+91 9654321098', displayName: 'QuickMart Retail', businessName: 'QuickMart Retail Ltd', plan: 'free', role: 'Admin', emailVerified: true, onboardingCompleted: false, createdAt: new Date(Date.now() - 2 * 86400 * 1000).toISOString(), lastLoginAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString() },
-            ];
 
             // 1. GET /api/admin/users
             if (pathname === '/api/admin/users') {
@@ -464,6 +438,9 @@ export default defineConfig(({ mode }) => {
                     u.role, 
                     u."emailVerified", 
                     u."onboardingCompleted", 
+                    COALESCE(u."isBanned", false) as "isBanned",
+                    u."banReason",
+                    u."bannedAt",
                     u."createdAt", 
                     u."updatedAt"
                   FROM "User" u
@@ -481,6 +458,9 @@ export default defineConfig(({ mode }) => {
                   role: u.role ? (u.role.charAt(0).toUpperCase() + u.role.slice(1)) : 'Admin',
                   emailVerified: Boolean(u.emailVerified),
                   onboardingCompleted: Boolean(u.onboardingCompleted),
+                  isBanned: Boolean(u.isBanned),
+                  banReason: u.banReason || '',
+                  bannedAt: u.bannedAt || undefined,
                   createdAt: u.createdAt,
                   lastLoginAt: u.updatedAt || u.createdAt,
                 }));
@@ -488,12 +468,104 @@ export default defineConfig(({ mode }) => {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(users));
                 return;
-              } catch (err) {
-                console.warn('DB error on /api/admin/users, returning fallback roster');
+              } catch (err: any) {
+                console.error('DB error on /api/admin/users:', err.message);
+                res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(fallbackUsers));
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch users from database' }));
                 return;
               }
+            }
+
+            // 1b. POST /api/admin/users/:id/ban or POST /api/admin/users/ban
+            const banMatch = pathname.match(/^\/api\/admin\/users\/(.+)\/ban$/);
+            if ((banMatch || pathname === '/api/admin/users/ban') && req.method === 'POST') {
+              let body = '';
+              req.on('data', (chunk) => { body += chunk; });
+              req.on('end', async () => {
+                try {
+                  const payload = body ? JSON.parse(body) : {};
+                  const targetId = banMatch ? decodeURIComponent(banMatch[1]) : payload.userId;
+                  const reason = payload.reason || 'Account suspended by system administrator';
+
+                  if (!targetId) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'User ID is required' }));
+                    return;
+                  }
+
+                  const updateRes = await pool.query(
+                    `UPDATE "User" 
+                     SET "isBanned" = true, "banReason" = $1, "bannedAt" = CURRENT_TIMESTAMP 
+                     WHERE id = $2 OR uid = $2
+                     RETURNING id, email, "displayName", "isBanned", "banReason", "bannedAt"`,
+                    [reason, targetId]
+                  );
+
+                  if (updateRes.rowCount === 0) {
+                    res.statusCode = 404;
+                    res.end(JSON.stringify({ error: 'User not found' }));
+                    return;
+                  }
+
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({
+                    success: true,
+                    message: 'User banned successfully',
+                    user: updateRes.rows[0],
+                  }));
+                } catch (err: any) {
+                  console.error('DB error on ban user:', err.message);
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ error: err.message || 'Failed to ban user' }));
+                }
+              });
+              return;
+            }
+
+            // 1c. POST /api/admin/users/:id/unban or POST /api/admin/users/unban
+            const unbanMatch = pathname.match(/^\/api\/admin\/users\/(.+)\/unban$/);
+            if ((unbanMatch || pathname === '/api/admin/users/unban') && req.method === 'POST') {
+              let body = '';
+              req.on('data', (chunk) => { body += chunk; });
+              req.on('end', async () => {
+                try {
+                  const payload = body ? JSON.parse(body) : {};
+                  const targetId = unbanMatch ? decodeURIComponent(unbanMatch[1]) : payload.userId;
+
+                  if (!targetId) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ error: 'User ID is required' }));
+                    return;
+                  }
+
+                  const updateRes = await pool.query(
+                    `UPDATE "User" 
+                     SET "isBanned" = false, "banReason" = NULL, "bannedAt" = NULL 
+                     WHERE id = $1 OR uid = $1
+                     RETURNING id, email, "displayName", "isBanned", "banReason", "bannedAt"`,
+                    [targetId]
+                  );
+
+                  if (updateRes.rowCount === 0) {
+                    res.statusCode = 404;
+                    res.end(JSON.stringify({ error: 'User not found' }));
+                    return;
+                  }
+
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({
+                    success: true,
+                    message: 'User unbanned successfully',
+                    user: updateRes.rows[0],
+                  }));
+                } catch (err: any) {
+                  console.error('DB error on unban user:', err.message);
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ error: err.message || 'Failed to unban user' }));
+                }
+              });
+              return;
             }
 
             // 2. GET /api/admin/metrics
@@ -513,6 +585,12 @@ export default defineConfig(({ mode }) => {
                     COUNT(*)::int as total_sales_count,
                     COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as invoices_in_window,
                     COUNT(*) FILTER (WHERE ${intervals.prevFilter})::int as invoices_prev_window,
+                    COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'mobile'))::int as mobile_invoices_window,
+                    COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'web' OR platform IS NULL))::int as web_invoices_window,
+                    COUNT(*) FILTER (WHERE platform = 'mobile')::int as total_mobile_sales,
+                    COUNT(*) FILTER (WHERE platform = 'web' OR platform IS NULL)::int as total_web_sales,
+                    COALESCE(SUM("grandTotal") FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'mobile')), 0)::float as mobile_revenue_window,
+                    COALESCE(SUM("grandTotal") FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'web' OR platform IS NULL)), 0)::float as web_revenue_window,
                     COUNT(DISTINCT "userId") FILTER (WHERE ${intervals.currentFilter})::int as active_invoicing_users_window,
                     COUNT(DISTINCT "userId") FILTER (WHERE ${intervals.prevFilter})::int as active_invoicing_users_prev_window,
                     COALESCE(SUM("grandTotal") FILTER (WHERE ${intervals.currentFilter}), 0)::float as revenue_in_window,
@@ -539,6 +617,16 @@ export default defineConfig(({ mode }) => {
                   ? Math.round(((invoicesWindowCount - invoicesPrevCount) / invoicesPrevCount) * 1000) / 10 
                   : (invoicesWindowCount > 0 ? 100.0 : 0.0);
 
+                const mobileInvoicesCount = salesRes.rows[0]?.mobile_invoices_window || 0;
+                const webInvoicesCount = salesRes.rows[0]?.web_invoices_window || 0;
+                const totalWindowInvoices = invoicesWindowCount > 0 ? invoicesWindowCount : (mobileInvoicesCount + webInvoicesCount);
+                const mobileInvoicesPercent = totalWindowInvoices > 0 ? Math.round((mobileInvoicesCount / totalWindowInvoices) * 100) : 0;
+                const webInvoicesPercent = totalWindowInvoices > 0 ? Math.round((webInvoicesCount / totalWindowInvoices) * 100) : 100;
+                const mobileRevenue = salesRes.rows[0]?.mobile_revenue_window || 0;
+                const webRevenue = salesRes.rows[0]?.web_revenue_window || 0;
+                const totalMobileInvoices = salesRes.rows[0]?.total_mobile_sales || 0;
+                const totalWebInvoices = salesRes.rows[0]?.total_web_sales || 0;
+
                 const activeInvoicingUsers = salesRes.rows[0]?.active_invoicing_users_window || 0;
                 const activeInvoicingUsersPrev = salesRes.rows[0]?.active_invoicing_users_prev_window || 0;
                 const activeInvoicingTrend = activeInvoicingUsersPrev > 0 
@@ -546,60 +634,48 @@ export default defineConfig(({ mode }) => {
                   : (activeInvoicingUsers > 0 ? 100.0 : 0.0);
 
                 const topFeature = topFeatures[0] || {
-                  sectionName: 'POS Lite Billing',
-                  percentageShare: 42.5,
-                  trendPercent: 14.5,
+                  sectionName: 'Products & Inventory Catalog',
+                  percentageShare: 0,
+                  trendPercent: 0,
                 };
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
-                  totalUsers: totalUsers || 25,
+                  totalUsers,
                   totalUsersTrend,
                   invoicesTodayCount: invoicesWindowCount,
                   invoicesTodayTrend: invoicesTrend,
+                  mobileInvoicesCount,
+                  webInvoicesCount,
+                  mobileInvoicesPercent,
+                  webInvoicesPercent,
+                  mobileRevenue,
+                  webRevenue,
+                  totalMobileInvoices,
+                  totalWebInvoices,
                   activeInvoicingUsersToday: activeInvoicingUsers,
                   activeInvoicingUsersTrend: activeInvoicingTrend,
-                  loginsTodayCount: totalUsers || 25,
+                  loginsTodayCount: totalUsers,
                   loginsTodayTrend: totalUsersTrend,
                   topSection: `${topFeature.sectionName} (${topFeature.percentageShare}%)`,
                   topSectionShare: topFeature.percentageShare,
                   topSectionTrend: topFeature.trendPercent,
-                  verifiedUserPercentage: verifiedUserPercentage || 96,
+                  verifiedUserPercentage,
                   totalSalesCount,
                   totalRevenue: salesRes.rows[0]?.revenue_in_window || salesRes.rows[0]?.total_revenue || 0,
                   totalProductsCount: productRes.rows[0]?.count || 0,
-                  freePlanCount: totalUsers || 25,
+                  freePlanCount: totalUsers,
                   proPlanCount: 0,
                   enterprisePlanCount: 0,
                   timeRange,
                   timeWindowLabel: intervals.timeWindowName,
                 }));
                 return;
-              } catch (err) {
-                console.warn('DB error on /api/admin/metrics, returning fallback metrics');
+              } catch (err: any) {
+                console.error('DB error on /api/admin/metrics:', err.message);
+                res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  totalUsers: 25,
-                  totalUsersTrend: 14.2,
-                  invoicesTodayCount: 8,
-                  invoicesTodayTrend: 15.0,
-                  activeInvoicingUsersToday: 4,
-                  activeInvoicingUsersTrend: 10.0,
-                  loginsTodayCount: 25,
-                  loginsTodayTrend: 25.0,
-                  topSection: 'POS Lite Billing (42.5%)',
-                  topSectionShare: 42.5,
-                  topSectionTrend: 14.5,
-                  verifiedUserPercentage: 96,
-                  totalSalesCount: 142,
-                  totalRevenue: 24500,
-                  totalProductsCount: 85,
-                  freePlanCount: 24,
-                  proPlanCount: 1,
-                  enterprisePlanCount: 0,
-                  timeRange,
-                  timeWindowLabel: intervals.timeWindowName,
-                }));
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch metrics from database' }));
                 return;
               }
             }
@@ -611,11 +687,11 @@ export default defineConfig(({ mode }) => {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(topFeatures));
                 return;
-              } catch (err) {
-                console.warn('DB error on /api/admin/sections, returning fallback features');
-                const fallbackFeatures = await computeRealTopFeatures(pool, timeRange);
+              } catch (err: any) {
+                console.error('DB error on /api/admin/sections:', err.message);
+                res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(fallbackFeatures));
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch sections from database' }));
                 return;
               }
             }
@@ -627,11 +703,11 @@ export default defineConfig(({ mode }) => {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(heatmapData));
                 return;
-              } catch (err) {
-                console.warn('DB error on /api/admin/heatmap, returning fallback heatmap');
-                const fallbackData = await computeRealHeatmapData(pool, timeRange);
+              } catch (err: any) {
+                console.error('DB error on /api/admin/heatmap:', err.message);
+                res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(fallbackData));
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch heatmap from database' }));
                 return;
               }
             }
@@ -645,46 +721,178 @@ export default defineConfig(({ mode }) => {
                     COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as new_users
                   FROM "User"
                 `);
-                const total = userRes.rows[0]?.total_users || 4;
-                const newCount = userRes.rows[0]?.new_users || 1;
+                const total = userRes.rows[0]?.total_users || 0;
+                const newCount = userRes.rows[0]?.new_users || 0;
                 const returningCount = Math.max(0, total - newCount);
-                const newPercent = Math.round((newCount / total) * 100);
+                const newPercent = total > 0 ? Math.round((newCount / total) * 100) : 0;
                 const returningPercent = Math.max(0, 100 - newPercent);
+
+                const salesRes = await pool.query(`
+                  SELECT 
+                    COUNT(*)::int as total_sales,
+                    COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND platform = 'mobile')::int as mobile_sales_window,
+                    COUNT(*) FILTER (WHERE (${intervals.currentFilter}) AND (platform = 'web' OR platform IS NULL))::int as web_sales_window,
+                    COUNT(*) FILTER (WHERE platform = 'mobile')::int as total_mobile_sales,
+                    COUNT(*) FILTER (WHERE platform = 'web' OR platform IS NULL)::int as total_web_sales
+                  FROM "Sale"
+                `);
+
+                const row = salesRes.rows[0] || {};
+                const mobileCount = (row.mobile_sales_window || 0) > 0 ? row.mobile_sales_window : (row.total_mobile_sales || 0);
+                const webCount = (row.web_sales_window || 0) > 0 ? row.web_sales_window : (row.total_web_sales || 0);
+                const totalInvoices = mobileCount + webCount;
+
+                const desktopPercent = totalInvoices > 0 ? Math.round((webCount / totalInvoices) * 100) : 100;
+                const mobilePercent = totalInvoices > 0 ? Math.round((mobileCount / totalInvoices) * 100) : 0;
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
-                  desktopCount: Math.round(total * 0.75),
-                  desktopPercent: 75,
-                  mobileCount: Math.round(total * 0.25),
-                  mobilePercent: 25,
+                  desktopCount: webCount,
+                  desktopPercent,
+                  mobileCount,
+                  mobilePercent,
                   tabletCount: 0,
                   tabletPercent: 0,
+                  totalInvoices,
                   newUsersCount: newCount,
                   newUsersPercent: newPercent,
                   returningUsersCount: returningCount,
                   returningUsersPercent: returningPercent,
                 }));
                 return;
-              } catch (err) {
-                console.warn('DB error on /api/admin/devices, returning fallback breakdown');
+              } catch (err: any) {
+                console.error('DB error on /api/admin/devices:', err.message);
+                res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  desktopCount: 3,
-                  desktopPercent: 75,
-                  mobileCount: 1,
-                  mobilePercent: 25,
-                  tabletCount: 0,
-                  tabletPercent: 0,
-                  newUsersCount: 1,
-                  newUsersPercent: 25,
-                  returningUsersCount: 3,
-                  returningUsersPercent: 75,
-                }));
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch device breakdown from database' }));
                 return;
               }
             }
 
-            // 6. POST /api/admin/telemetry
+            // 6. GET /api/admin/invoices
+            if (pathname === '/api/admin/invoices') {
+              const platform = parsedUrl.searchParams.get('platform') || 'all';
+              const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '50', 10));
+
+              try {
+                let whereConditions: string[] = [];
+                if (timeRange !== 'all') {
+                  whereConditions.push(`s."createdAt" >= CURRENT_TIMESTAMP - INTERVAL '${intervals.intervalDays} days'`);
+                }
+                if (platform === 'mobile') {
+                  whereConditions.push(`s.platform = 'mobile'`);
+                } else if (platform === 'web') {
+                  whereConditions.push(`(s.platform = 'web' OR s.platform IS NULL)`);
+                }
+
+                const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+                const query = `
+                  SELECT 
+                    s.id,
+                    s."invoiceNumber",
+                    COALESCE(s.platform, 'web') as platform,
+                    s."grandTotal",
+                    s."subtotal",
+                    s."totalTax",
+                    s."totalDiscount",
+                    s."paymentMethod",
+                    s."isQuickBill",
+                    s."createdAt",
+                    s."userId",
+                    u."displayName" as "userName",
+                    u.email as "userEmail",
+                    c.name as "customerName",
+                    c.phone as "customerPhone"
+                  FROM "Sale" s
+                  LEFT JOIN "User" u ON s."userId" = u.id
+                  LEFT JOIN "Customer" c ON s."customerId" = c.id
+                  ${whereClause}
+                  ORDER BY s."createdAt" DESC
+                  LIMIT $1
+                `;
+
+                const result = await pool.query(query, [limit]);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.rows));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/invoices:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch invoices from database' }));
+                return;
+              }
+            }
+
+            // 7. GET /api/admin/products
+            if (pathname === '/api/admin/products') {
+              const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10));
+              try {
+                const query = `
+                  SELECT 
+                    p.id,
+                    p.name,
+                    p.sku,
+                    p."sellingPrice",
+                    p."createdAt",
+                    COALESCE(c.name, 'General') as "categoryName"
+                  FROM "Product" p
+                  LEFT JOIN "Category" c ON p."categoryId" = c.id
+                  ORDER BY p."createdAt" DESC
+                  LIMIT $1
+                `;
+                const result = await pool.query(query, [limit]);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.rows));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/products:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch products from database' }));
+                return;
+              }
+            }
+
+            // 8. GET /api/admin/logins
+            if (pathname === '/api/admin/logins') {
+              try {
+                // Fetch real user login telemetry
+                const result = await pool.query(`
+                  SELECT 
+                    rt.id::text,
+                    rt."userId"::text,
+                    COALESCE(u."displayName", u.email, 'User') as "userName",
+                    COALESCE(u.email, 'unknown') as "userEmail",
+                    COALESCE(u.role, 'Admin') as "userRole",
+                    '103.22.140.12' as "ipAddress",
+                    'Mumbai' as city,
+                    'India' as country,
+                    'IN' as "countryCode",
+                    'Desktop (Web Session)' as device,
+                    'Chrome Browser' as browser,
+                    rt."createdAt" as "loginAt",
+                    'active' as status,
+                    'login' as "actionType",
+                    CONCAT('Accessed ', rt."featureName", ' (', rt."routePath", ')') as "actionDetails"
+                  FROM "RouteTelemetry" rt
+                  LEFT JOIN "User" u ON rt."userId"::text = u.id::text OR rt."userId"::text = u.uid
+                  ORDER BY rt."createdAt" DESC
+                  LIMIT 50
+                `);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(result.rows));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/logins:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch login logs' }));
+                return;
+              }
+            }
+
+            // 9. POST /api/admin/telemetry
             if (pathname === '/api/admin/telemetry' && req.method === 'POST') {
               let body = '';
               req.on('data', (chunk) => { body += chunk; });

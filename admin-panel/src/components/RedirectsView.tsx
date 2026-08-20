@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Calendar, Search } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Search, AlertTriangle, RefreshCw } from 'lucide-react';
+import { fetchProducts } from '../services/api';
+import type { AdminProduct } from '../types/admin';
 
 type TimeFrame = '24h' | '7d' | '30d' | 'all' | 'custom';
 
@@ -17,65 +19,6 @@ interface ProductRedirectItem {
   };
 }
 
-const INITIAL_DATA: ProductRedirectItem[] = [
-  {
-    id: '1',
-    name: 'Classic Banarasi Silk Sari',
-    sku: 'SAR-001',
-    category: 'Apparel',
-    redirects: { '24h': 18, '7d': 124, '30d': 480, all: 1850, custom: 290 },
-  },
-  {
-    id: '2',
-    name: 'Leather Bifold Slim Wallet',
-    sku: 'WAL-004',
-    category: 'Accessories',
-    redirects: { '24h': 12, '7d': 89, '30d': 320, all: 1240, custom: 195 },
-  },
-  {
-    id: '3',
-    name: 'Wireless Noise Cancelling Earbuds',
-    sku: 'EAR-102',
-    category: 'Electronics',
-    redirects: { '24h': 24, '7d': 165, '30d': 610, all: 2410, custom: 380 },
-  },
-  {
-    id: '4',
-    name: 'Organic Assam Green Tea (250g)',
-    sku: 'TEA-088',
-    category: 'Grocery',
-    redirects: { '24h': 8, '7d': 45, '30d': 190, all: 780, custom: 110 },
-  },
-  {
-    id: '5',
-    name: 'Ergonomic Mesh Office Chair',
-    sku: 'CHR-501',
-    category: 'Furniture',
-    redirects: { '24h': 15, '7d': 98, '30d': 410, all: 1620, custom: 240 },
-  },
-  {
-    id: '6',
-    name: 'Handcrafted Terracotta Clay Pot',
-    sku: 'POT-012',
-    category: 'Home & Decor',
-    redirects: { '24h': 6, '7d': 38, '30d': 145, all: 590, custom: 85 },
-  },
-  {
-    id: '7',
-    name: 'Stainless Steel Insulated Flask (1L)',
-    sku: 'FLK-009',
-    category: 'Kitchenware',
-    redirects: { '24h': 21, '7d': 142, '30d': 530, all: 2100, custom: 310 },
-  },
-  {
-    id: '8',
-    name: 'Smart Fitness Tracker Band V2',
-    sku: 'FIT-204',
-    category: 'Electronics',
-    redirects: { '24h': 31, '7d': 210, '30d': 840, all: 3150, custom: 490 },
-  },
-];
-
 const TIMEFRAMES: { id: TimeFrame; label: string }[] = [
   { id: '24h', label: 'Today / 24 Hours' },
   { id: '7d', label: '7 Days' },
@@ -87,6 +30,9 @@ const TIMEFRAMES: { id: TimeFrame; label: string }[] = [
 export const RedirectsView: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('7d');
   const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const fourteenDaysAgoStr = useMemo(() => {
@@ -98,8 +44,43 @@ export const RedirectsView: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState<string>(fourteenDaysAgoStr);
   const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
 
+  const loadProducts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchProducts(100);
+      setProducts(data);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to load products for redirects:', err);
+      setError(err?.message || 'Failed to fetch products from database');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const redirectItems: ProductRedirectItem[] = useMemo(() => {
+    return products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku || 'N/A',
+      category: p.categoryName || 'General',
+      redirects: {
+        '24h': 0,
+        '7d': 0,
+        '30d': 0,
+        all: 0,
+        custom: 0,
+      },
+    }));
+  }, [products]);
+
   const filteredData = useMemo(() => {
-    let result = INITIAL_DATA;
+    let result = redirectItems;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -109,15 +90,61 @@ export const RedirectsView: React.FC = () => {
           item.category.toLowerCase().includes(q)
       );
     }
-    return [...result].sort((a, b) => b.redirects[timeFrame] - a.redirects[timeFrame]);
-  }, [searchQuery, timeFrame]);
+    return [...result];
+  }, [redirectItems, searchQuery]);
 
   const totalRedirects = useMemo(() => {
-    return filteredData.reduce((sum, item) => sum + item.redirects[timeFrame], 0);
+    return filteredData.reduce((sum, item) => sum + (item.redirects[timeFrame] || 0), 0);
   }, [filteredData, timeFrame]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+      {/* Error Banner */}
+      {error && (
+        <div
+          style={{
+            padding: '12px 18px',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={20} color="#EF4444" />
+            <div>
+              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#EF4444' }}>
+                Catalog / Redirects Database Error
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {error}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={loadProducts}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              color: '#fff',
+              background: '#EF4444',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Header & Timeframe Bar */}
       <div className="glass-card" style={{ padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>

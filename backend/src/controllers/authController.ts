@@ -336,6 +336,14 @@ export const login = async (req: Request, res: Response) => {
     if (user && user.password) {
       const isMatch = await bcrypt.compare(password, user.password);
       if (isMatch) {
+        if ((user as any).isBanned) {
+          return res.status(403).json({
+            error: `Your account has been suspended by system administrator. Reason: ${(user as any).banReason || 'Policy violation'}. Please contact support.`,
+            isBanned: true,
+            banReason: (user as any).banReason,
+          });
+        }
+
         const token = generateToken(user.id, user.role || 'admin');
         return res.json({
           user: {

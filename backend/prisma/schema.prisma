@@ -22,6 +22,10 @@ model User {
   role                String?
   permissions         Json?
   
+  isBanned            Boolean   @default(false)
+  banReason           String?
+  bannedAt            DateTime?
+  
   // Relations for managed users (if needed in backend, otherwise stored as JSON)
   // To keep it 1:1 with Firestore subcollections, we can create a separate ManagedUser model
   managedUsers        ManagedUser[]

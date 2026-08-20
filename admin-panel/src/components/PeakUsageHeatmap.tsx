@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Activity, Clock, Zap, Users, Calendar, Sparkles, Flame, Palette } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
 import { EmptyState } from './EmptyState';
@@ -205,6 +205,45 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
 
   const activeHours = viewFilter === 'business' ? businessHours : fullHours;
 
+  // Calculate calendar dates for each day of the current week (Monday to Sunday)
+  const weekDates = useMemo(() => {
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 is Sun, 1 is Mon...
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + distanceToMonday);
+
+    const dayMap: Record<string, { dayNum: number; shortDate: string; fullDate: string; isToday: boolean }> = {};
+    const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    dayKeys.forEach((key, index) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + index);
+      const isToday = d.toDateString() === now.toDateString();
+      const monthShort = d.toLocaleDateString([], { month: 'short' });
+      const dayNum = d.getDate();
+      const fullDate = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+
+      dayMap[key] = {
+        dayNum,
+        shortDate: `${monthShort} ${dayNum}`,
+        fullDate,
+        isToday,
+      };
+    });
+
+    return dayMap;
+  }, []);
+
+  const weekDateRangeStr = useMemo(() => {
+    const mon = weekDates['Mon'];
+    const sun = weekDates['Sun'];
+    if (mon && sun) {
+      return `${mon.shortDate} – ${sun.shortDate}, ${new Date().getFullYear()}`;
+    }
+    return currentWeekRange;
+  }, [weekDates, currentWeekRange]);
+
   const getCellData = (day: string, hour: number) => {
     const cell = cells.find((c) => c.day === day && c.hour === hour);
     return {
@@ -284,7 +323,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
                 }}
               >
                 <Calendar size={11} />
-                {currentWeekRange}
+                {weekDateRangeStr}
               </span>
             </div>
           </div>
@@ -445,7 +484,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `38px repeat(${activeHours.length}, minmax(0, 1fr))`,
+              gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
               gap: '3px',
               marginBottom: '4px',
               flexShrink: 0,
@@ -469,60 +508,95 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
           </div>
 
           {/* Days Grid Rows (Distributing evenly across available height) */}
-          {days.map((day) => (
-            <div
-              key={day}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `38px repeat(${activeHours.length}, minmax(0, 1fr))`,
-                gap: '3px',
-                alignItems: 'stretch',
-                flex: 1,
-                minHeight: '25px',
-                margin: '2px 0',
-              }}
-            >
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', userSelect: 'none', display: 'flex', alignItems: 'center' }}>
-                {day}
-              </span>
-              {activeHours.map((h) => {
-                const { count, uniqueUsers } = getCellData(day, h);
-                const styleObj = activePalette.getIntensity(count, maxCount);
-                const isHovered = hoveredCell?.day === day && hoveredCell?.hour === h;
-
-                return (
-                  <div
-                    key={h}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredCell({
-                        day,
-                        hour: h,
-                        count,
-                        uniqueUsers,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top,
-                      });
-                    }}
-                    onMouseLeave={() => setHoveredCell(null)}
+          {days.map((day) => {
+            const dateInfo = weekDates[day];
+            return (
+              <div
+                key={day}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
+                  gap: '3px',
+                  alignItems: 'stretch',
+                  flex: 1,
+                  minHeight: '25px',
+                  margin: '2px 0',
+                }}
+              >
+                {/* Sleek Single-Line Day + Date Indicator */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '2px 6px',
+                    borderRadius: '5px',
+                    background: dateInfo?.isToday ? 'rgba(59, 130, 246, 0.16)' : 'transparent',
+                    border: dateInfo?.isToday ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent',
+                    userSelect: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  title={dateInfo?.fullDate}
+                >
+                  <span
                     style={{
-                      height: '100%',
-                      minHeight: '25px',
-                      borderRadius: '4px',
-                      ...styleObj,
-                      transform: isHovered ? 'scale(1.22)' : 'scale(1)',
-                      zIndex: isHovered ? 20 : 1,
-                      outline: isHovered ? '2px solid #FFFFFF' : 'none',
-                      transition: 'all 0.12s ease',
-                      cursor: 'pointer',
-                      width: '100%',
-                      boxSizing: 'border-box',
+                      fontSize: '0.73rem',
+                      fontWeight: 700,
+                      color: dateInfo?.isToday ? '#38BDF8' : 'var(--text-main)',
                     }}
-                  />
-                );
-              })}
-            </div>
-          ))}
+                  >
+                    {day}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.70rem',
+                      color: dateInfo?.isToday ? '#38BDF8' : 'var(--text-muted)',
+                      fontWeight: dateInfo?.isToday ? 700 : 500,
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    {dateInfo?.dayNum}
+                  </span>
+                </div>
+                {activeHours.map((h) => {
+                  const { count, uniqueUsers } = getCellData(day, h);
+                  const styleObj = activePalette.getIntensity(count, maxCount);
+                  const isHovered = hoveredCell?.day === day && hoveredCell?.hour === h;
+
+                  return (
+                    <div
+                      key={h}
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setHoveredCell({
+                          day,
+                          hour: h,
+                          count,
+                          uniqueUsers,
+                          x: rect.left + rect.width / 2,
+                          y: rect.top,
+                        });
+                      }}
+                      onMouseLeave={() => setHoveredCell(null)}
+                      style={{
+                        height: '100%',
+                        minHeight: '25px',
+                        borderRadius: '4px',
+                        ...styleObj,
+                        transform: isHovered ? 'scale(1.22)' : 'scale(1)',
+                        zIndex: isHovered ? 20 : 1,
+                        outline: isHovered ? '2px solid #FFFFFF' : 'none',
+                        transition: 'all 0.12s ease',
+                        cursor: 'pointer',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -541,12 +615,12 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
             padding: '10px 14px',
             zIndex: 9999,
             pointerEvents: 'none',
-            minWidth: '170px',
+            minWidth: '180px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
             <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {dayFullNames[hoveredCell.day] || hoveredCell.day} • {formatHourLabel(hoveredCell.hour)}
+              {weekDates[hoveredCell.day]?.fullDate || dayFullNames[hoveredCell.day] || hoveredCell.day} • {formatHourLabel(hoveredCell.hour)}
             </span>
           </div>
 

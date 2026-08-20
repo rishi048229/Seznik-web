@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Smartphone,
   Globe,
@@ -7,6 +7,8 @@ import {
   Calendar,
   Zap,
   TrendingUp,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -19,7 +21,8 @@ import {
   Legend,
 } from 'recharts';
 import type { TrafficTimeFrame } from '../types/appTraffic';
-import { fetchInvoiceTrafficLogs } from '../services/appTrafficService';
+import type { InvoiceRecord } from '../types/admin';
+import { fetchInvoices } from '../services/api';
 
 const TIMEFRAMES: { id: TrafficTimeFrame; label: string }[] = [
   { id: '24h', label: 'Today / 24 Hours' },
@@ -31,6 +34,9 @@ const TIMEFRAMES: { id: TrafficTimeFrame; label: string }[] = [
 
 export const TrafficView: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<TrafficTimeFrame>('7d');
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Custom date range state pre-filled with past 14 days to today
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -43,7 +49,24 @@ export const TrafficView: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState<string>(fourteenDaysAgoStr);
   const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
 
-  const rawLogs = useMemo(() => fetchInvoiceTrafficLogs(), []);
+  const loadInvoices = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchInvoices(timeFrame, 'all', 200);
+      setInvoices(data);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to load traffic invoices:', err);
+      setError(err?.message || 'Failed to fetch invoice traffic telemetry from database');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInvoices();
+  }, [timeFrame]);
 
   // Timeframe limit calculation including custom date range
   const timeframeFilteredLogs = useMemo(() => {
@@ -53,35 +76,26 @@ export const TrafficView: React.FC = () => {
       const startMs = new Date(`${customStartDate}T00:00:00`).getTime();
       const endMs = new Date(`${customEndDate}T23:59:59`).getTime();
 
-      return rawLogs.filter((log) => {
-        const logMs = new Date(log.timestamp).getTime();
+      return invoices.filter((log) => {
+        const logMs = new Date(log.createdAt).getTime();
         return logMs >= startMs && logMs <= endMs;
       });
     }
 
-    let hoursLimit = 7 * 24;
-    if (timeFrame === '24h') hoursLimit = 24;
-    if (timeFrame === '7d') hoursLimit = 7 * 24;
-    if (timeFrame === '30d') hoursLimit = 30 * 24;
-    if (timeFrame === 'all') hoursLimit = 365 * 24 * 10;
-
-    return rawLogs.filter((log) => {
-      const diffHours = (now - new Date(log.timestamp).getTime()) / (3600 * 1000);
-      return diffHours <= hoursLimit;
-    });
-  }, [rawLogs, timeFrame, customStartDate, customEndDate]);
+    return invoices;
+  }, [invoices, timeFrame, customStartDate, customEndDate]);
 
   // Compute 3 Top Cards Metrics (Total, Mobile App, Web App)
   const metrics = useMemo(() => {
     const mobileLogs = timeframeFilteredLogs.filter((l) => l.platform === 'mobile');
-    const webLogs = timeframeFilteredLogs.filter((l) => l.platform === 'web');
+    const webLogs = timeframeFilteredLogs.filter((l) => l.platform === 'web' || !l.platform);
 
     const mobileCount = mobileLogs.length;
     const webCount = webLogs.length;
     const totalCount = timeframeFilteredLogs.length;
 
     const mobileShare = totalCount > 0 ? Math.round((mobileCount / totalCount) * 100) : 0;
-    const webShare = totalCount > 0 ? Math.round((webCount / totalCount) * 100) : 0;
+    const webShare = totalCount > 0 ? Math.round((webCount / totalCount) * 100) : (totalCount > 0 ? 100 : 0);
 
     return {
       totalCount,
@@ -105,11 +119,11 @@ export const TrafficView: React.FC = () => {
 
         let mobile = 0;
         let web = 0;
-        rawLogs.forEach((log) => {
-          const dt = new Date(log.timestamp);
+        invoices.forEach((log) => {
+          const dt = new Date(log.createdAt);
           if (dt >= slotStart && dt <= slotEnd) {
             if (log.platform === 'mobile') mobile++;
-            if (log.platform === 'web') web++;
+            else web++;
           }
         });
         points.push({ label, mobile, web, total: mobile + web });
@@ -127,11 +141,11 @@ export const TrafficView: React.FC = () => {
 
         let mobile = 0;
         let web = 0;
-        rawLogs.forEach((log) => {
-          const dt = new Date(log.timestamp);
+        invoices.forEach((log) => {
+          const dt = new Date(log.createdAt);
           if (dt >= dayStart && dt <= dayEnd) {
             if (log.platform === 'mobile') mobile++;
-            if (log.platform === 'web') web++;
+            else web++;
           }
         });
         points.push({ label, mobile, web, total: mobile + web });
@@ -147,11 +161,11 @@ export const TrafficView: React.FC = () => {
 
         let mobile = 0;
         let web = 0;
-        rawLogs.forEach((log) => {
-          const dt = new Date(log.timestamp);
+        invoices.forEach((log) => {
+          const dt = new Date(log.createdAt);
           if (dt >= dayStart && dt <= dayEnd) {
             if (log.platform === 'mobile') mobile++;
-            if (log.platform === 'web') web++;
+            else web++;
           }
         });
         points.push({ label, mobile, web, total: mobile + web });
@@ -159,7 +173,7 @@ export const TrafficView: React.FC = () => {
     }
 
     return points;
-  }, [rawLogs, timeFrame, customStartDate, customEndDate]);
+  }, [invoices, timeFrame, customStartDate, customEndDate]);
 
   const activeTimeframeLabel = useMemo(() => {
     if (timeFrame === 'custom') {
@@ -170,6 +184,52 @@ export const TrafficView: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+      {/* Error Banner */}
+      {error && (
+        <div
+          style={{
+            padding: '12px 18px',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={20} color="#EF4444" />
+            <div>
+              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#EF4444' }}>
+                Traffic Telemetry Error
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {error}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={loadInvoices}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              color: '#fff',
+              background: '#EF4444',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={13} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Header Card */}
       <div className="glass-card" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>

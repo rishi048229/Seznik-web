@@ -7,6 +7,8 @@ import type {
   HeatmapCell,
   DeviceSessionBreakdownData,
   SecurityAnomalyData,
+  InvoiceRecord,
+  AdminProduct,
 } from '../types/admin';
 
 const getApiBaseUrl = () => {
@@ -455,13 +457,19 @@ async function fetchAdminEndpoint<T>(path: string): Promise<T> {
   const localUrl = `/api/admin${path}`;
   const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}${path}` : null;
 
-  // 1. If running on localhost / dev, local dev server middleware is instant & connected to RDS
+  // 1. If running on localhost / dev, local dev server middleware is connected to RDS
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     try {
       const res = await fetch(localUrl);
       if (res.ok) return (await res.json()) as T;
-    } catch {
-      // fallback to remote if local fails
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
+    } catch (err: any) {
+      if (remoteUrl) {
+        // fallback to remote if local fails
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -469,139 +477,128 @@ async function fetchAdminEndpoint<T>(path: string): Promise<T> {
   if (remoteUrl) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(remoteUrl, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) return (await res.json()) as T;
-    } catch {
-      // continue
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.error || `Remote server error (${res.status}) on ${path}`);
+    } catch (err: any) {
+      throw new Error(err.message || `Failed to connect to backend server on ${path}`);
     }
   }
 
   // 3. Fallback to local route
-  try {
-    const res = await fetch(localUrl);
-    if (res.ok) return (await res.json()) as T;
-  } catch {}
-
-  throw new Error(`Failed to fetch ${path}`);
+  const res = await fetch(localUrl);
+  if (res.ok) return (await res.json()) as T;
+  const errData = await res.json().catch(() => null);
+  throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
 }
 
 export async function fetchDashboardMetrics(timeRange: string = '24h'): Promise<DashboardMetrics> {
-  try {
-    const data = await fetchAdminEndpoint<any>(`/metrics?timeRange=${encodeURIComponent(timeRange)}`);
-    return {
-      totalUsers: data.totalUsers ?? 25,
-      totalUsersTrend: data.totalUsersTrend ?? 14.2,
-      invoicesTodayCount: data.invoicesTodayCount ?? 0,
-      invoicesTodayTrend: data.invoicesTodayTrend ?? 15.0,
-      activeInvoicingUsersToday: data.activeInvoicingUsersToday ?? 0,
-      activeInvoicingUsersTrend: data.activeInvoicingUsersTrend ?? 10.0,
-      loginsTodayCount: data.loginsTodayCount ?? 25,
-      loginsTodayTrend: data.loginsTodayTrend ?? 25.0,
-      topSection: data.topSection || 'Products & Inventory Catalog (89.8%)',
-      topSectionShare: data.topSectionShare ?? 89.8,
-      topSectionTrend: data.topSectionTrend ?? 22.1,
-      verifiedUserPercentage: data.verifiedUserPercentage ?? 96,
-      freePlanCount: data.freePlanCount ?? 25,
-      proPlanCount: 0,
-      enterprisePlanCount: 0,
-    };
-  } catch (err) {
-    console.warn('Falling back to direct DB fetch or mock for metrics:', err);
-    return {
-      totalUsers: 25,
-      totalUsersTrend: 14.2,
-      invoicesTodayCount: 0,
-      invoicesTodayTrend: 15.0,
-      activeInvoicingUsersToday: 0,
-      activeInvoicingUsersTrend: 10.0,
-      loginsTodayCount: 25,
-      loginsTodayTrend: 25.0,
-      topSection: 'Products & Inventory Catalog (89.8%)',
-      topSectionShare: 89.8,
-      topSectionTrend: 22.1,
-      verifiedUserPercentage: 96,
-      freePlanCount: 25,
-      proPlanCount: 0,
-      enterprisePlanCount: 0,
-    };
-  }
+  const data = await fetchAdminEndpoint<any>(`/metrics?timeRange=${encodeURIComponent(timeRange)}`);
+  return {
+    totalUsers: data.totalUsers ?? 0,
+    totalUsersTrend: data.totalUsersTrend ?? 0,
+    invoicesTodayCount: data.invoicesTodayCount ?? 0,
+    invoicesTodayTrend: data.invoicesTodayTrend ?? 0,
+    activeInvoicingUsersToday: data.activeInvoicingUsersToday ?? 0,
+    activeInvoicingUsersTrend: data.activeInvoicingUsersTrend ?? 0,
+    loginsTodayCount: data.loginsTodayCount ?? 0,
+    loginsTodayTrend: data.loginsTodayTrend ?? 0,
+    topSection: data.topSection || 'N/A (0%)',
+    topSectionShare: data.topSectionShare ?? 0,
+    topSectionTrend: data.topSectionTrend ?? 0,
+    verifiedUserPercentage: data.verifiedUserPercentage ?? 0,
+    freePlanCount: data.freePlanCount ?? 0,
+    proPlanCount: data.proPlanCount ?? 0,
+    enterprisePlanCount: data.enterprisePlanCount ?? 0,
+    timeRange: data.timeRange || timeRange,
+    timeWindowLabel: data.timeWindowLabel,
+    webInvoicesCount: data.webInvoicesCount,
+    mobileInvoicesCount: data.mobileInvoicesCount,
+    webInvoicesPercent: data.webInvoicesPercent,
+    mobileInvoicesPercent: data.mobileInvoicesPercent,
+    mobileRevenue: data.mobileRevenue,
+    webRevenue: data.webRevenue,
+  };
 }
 
 export async function fetchUserRecords(timeRange: string = '24h'): Promise<UserRecord[]> {
-  try {
-    return await fetchAdminEndpoint<UserRecord[]>(`/users?timeRange=${encodeURIComponent(timeRange)}`);
-  } catch (err) {
-    console.warn('Falling back for user records:', err);
-    return MOCK_USERS;
-  }
+  return await fetchAdminEndpoint<UserRecord[]>(`/users?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
 export async function fetchLoginLogs(): Promise<UserLoginLog[]> {
-  try {
-    return await fetchAdminEndpoint<UserLoginLog[]>('/logins');
-  } catch (err) {
-    console.warn('Falling back for login logs:', err);
-    return MOCK_LOGIN_LOGS;
-  }
+  return await fetchAdminEndpoint<UserLoginLog[]>('/logins');
 }
 
 export async function fetchSectionUsage(timeRange: string = '24h'): Promise<SectionUsage[]> {
-  try {
-    return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
-  } catch (err) {
-    console.warn('Falling back for section usage:', err);
-    return MOCK_SECTION_USAGE;
-  }
+  return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
 export async function fetchHeatmapData(timeRange: string = '24h'): Promise<HeatmapResponse> {
-  try {
-    const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}`);
-    if (Array.isArray(res)) {
-      const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
-      return {
-        cells: res,
-        requestsToday: 0,
-        requestsThisHour: 0,
-        requestsThisWeek: total,
-        totalAllTime: total,
-        currentWeekRange: 'Current Week',
-      };
-    }
-    return res;
-  } catch (err) {
-    console.warn('Falling back for heatmap data:', err);
+  const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}`);
+  if (Array.isArray(res)) {
+    const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
     return {
-      cells: MOCK_HEATMAP,
+      cells: res,
       requestsToday: 0,
       requestsThisHour: 0,
-      requestsThisWeek: 2029,
-      totalAllTime: 2175,
+      requestsThisWeek: total,
+      totalAllTime: total,
       currentWeekRange: 'Current Week',
     };
   }
+  return res;
 }
 
 export async function fetchDeviceSessionBreakdown(timeRange: string = '24h'): Promise<DeviceSessionBreakdownData> {
-  try {
-    return await fetchAdminEndpoint<DeviceSessionBreakdownData>(`/devices?timeRange=${encodeURIComponent(timeRange)}`);
-  } catch (err) {
-    return MOCK_DEVICE_BREAKDOWN;
-  }
+  return await fetchAdminEndpoint<DeviceSessionBreakdownData>(`/devices?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
-export async function fetchInvoices(timeRange: string = '24h', platform: string = 'all', limit: number = 50): Promise<InvoiceRecord[]> {
-  try {
-    return await fetchAdminEndpoint<InvoiceRecord[]>(`/invoices?timeRange=${encodeURIComponent(timeRange)}&platform=${encodeURIComponent(platform)}&limit=${limit}`);
-  } catch (err) {
-    return [];
+export async function fetchProducts(limit: number = 100): Promise<AdminProduct[]> {
+  return await fetchAdminEndpoint<AdminProduct[]>(`/products?limit=${limit}`);
+}
+
+export async function fetchInvoices(timeRange: string = '24h', platform: string = 'all', limit: number = 100): Promise<InvoiceRecord[]> {
+  return await fetchAdminEndpoint<InvoiceRecord[]>(`/invoices?timeRange=${encodeURIComponent(timeRange)}&platform=${encodeURIComponent(platform)}&limit=${limit}`);
+}
+
+export async function banUser(userId: string | number, reason: string): Promise<any> {
+  const url = `${API_BASE_URL}/users/${encodeURIComponent(String(userId))}/ban`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to ban user (HTTP ${response.status})`);
   }
+  return await response.json();
+}
+
+export async function unbanUser(userId: string | number): Promise<any> {
+  const url = `${API_BASE_URL}/users/${encodeURIComponent(String(userId))}/unban`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to unban user (HTTP ${response.status})`);
+  }
+  return await response.json();
 }
 
 export async function fetchSecurityAnomalyData(): Promise<SecurityAnomalyData> {
-  return MOCK_SECURITY_ANOMALY;
+  return {
+    failedLoginCount: 0,
+    failedLoginTrend: 0,
+    anomalousLoginCount: 0,
+    anomalousLoginTrend: 0,
+    recentFlaggedEvents: [],
+  };
 }
 
 

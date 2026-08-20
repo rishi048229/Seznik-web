@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, ChevronDown } from 'lucide-react';
+import { LayoutGrid, ChevronDown, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { KPICards } from './components/KPICards';
 import { SectionUsageChart } from './components/SectionUsageChart';
@@ -52,6 +52,7 @@ export const App: React.FC = () => {
   const [selectedUserEmailForLogs, setSelectedUserEmailForLogs] = useState<string | null>(null);
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0); // 0 = Off (Manual), 10s, 30s, 60s, 300s
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const setActiveTab = (tab: string) => {
     const targetTab = VALID_TABS.includes(tab) ? tab : 'overview';
@@ -69,7 +70,6 @@ export const App: React.FC = () => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsCommandPaletteOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -105,6 +105,7 @@ export const App: React.FC = () => {
 
   const loadAllData = async (activeRange = timeRange) => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const [m, u, l, s, heat, dev, sec] = await Promise.all([
         fetchDashboardMetrics(activeRange),
@@ -124,8 +125,10 @@ export const App: React.FC = () => {
       setDeviceData(dev);
       setSecurityData(sec);
       setLastRefreshedAt(new Date().toLocaleTimeString());
-    } catch (err) {
+      setErrorMessage(null);
+    } catch (err: any) {
       console.error('Failed to load admin analytics:', err);
+      setErrorMessage(err?.message || 'Database connection error or failed request');
     } finally {
       setLoading(false);
     }
@@ -172,6 +175,54 @@ export const App: React.FC = () => {
 
       {/* Main Container */}
       <main style={{ flex: 1, minHeight: 0, padding: '16px 24px', maxWidth: '1600px', margin: '0 auto', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        {/* Prominent Error Banner */}
+        {errorMessage && (
+          <div
+            style={{
+              marginBottom: '14px',
+              padding: '12px 18px',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertTriangle size={20} color="#EF4444" />
+              <div>
+                <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#EF4444' }}>
+                  Database / Telemetry Error (Fallback Disabled)
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  {errorMessage}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleGlobalRefresh}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: '#fff',
+                background: '#EF4444',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              <RefreshCw size={13} /> Retry
+            </button>
+          </div>
+        )}
+
         {loading && !metrics ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
             <div className="pulse-dot" style={{ width: '16px', height: '16px' }} />
@@ -239,8 +290,8 @@ export const App: React.FC = () => {
             {activeTab === 'users' && (
               <UserManagementView
                 users={users}
-                selectedUserEmail={selectedUserForProfile}
-                onClearSelectedUser={() => setSelectedUserForProfile(null)}
+                initialSearchTerm={selectedUserForProfile}
+                onRefreshUsers={loadAllData}
               />
             )}
 

@@ -21,19 +21,24 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import type { UserRecord } from '../types/admin';
+import { banUser, unbanUser } from '../services/api';
 
 interface UserManagementViewProps {
   users: UserRecord[];
   initialSearchTerm?: string | null;
   onBanUser?: (userId: string | number, reason: string) => void;
+  onRefreshUsers?: () => void;
 }
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({
   users,
   initialSearchTerm,
   onBanUser,
+  onRefreshUsers,
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
   const [viewMode, setViewMode] = useState<'paginated' | 'scroll'>('paginated');
@@ -58,36 +63,64 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [selectedReason, setSelectedReason] = useState<string>('Suspicious activity or unauthorized access');
   const [customReason, setCustomReason] = useState<string>('');
 
-  // Local state for banned status mapping
-  const [bannedMap, setBannedMap] = useState<Record<string | number, { banned: boolean; reason: string }>>({
-    4: { banned: true, reason: 'Excessive failed security authentications' }, // Seed sample
-  });
+  // Local state for tracking real-time ban overrides
+  const [bannedMap, setBannedMap] = useState<Record<string | number, { banned: boolean; reason: string }>>({});
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const handleConfirmBan = () => {
+  const handleConfirmBan = async () => {
     if (!selectedUserForBan) return;
     const finalReason = selectedReason === 'Custom Reason' ? customReason : selectedReason;
+    const userId = selectedUserForBan.id;
 
-    setBannedMap((prev) => ({
-      ...prev,
-      [selectedUserForBan.id]: {
-        banned: true,
-        reason: finalReason || 'Account suspended by system administrator',
-      },
-    }));
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await banUser(userId, finalReason || 'Account suspended by system administrator');
+      setBannedMap((prev) => ({
+        ...prev,
+        [userId]: {
+          banned: true,
+          reason: finalReason || 'Account suspended by system administrator',
+        },
+      }));
 
-    if (onBanUser) {
-      onBanUser(selectedUserForBan.id, finalReason);
+      if (onBanUser) {
+        onBanUser(userId, finalReason);
+      }
+      if (onRefreshUsers) {
+        onRefreshUsers();
+      }
+
+      setSelectedUserForBan(null);
+      setCustomReason('');
+    } catch (err: any) {
+      console.error('Error banning user:', err);
+      setActionError(err?.message || 'Failed to ban user on database');
+    } finally {
+      setActionLoading(false);
     }
-
-    setSelectedUserForBan(null);
-    setCustomReason('');
   };
 
-  const handleUnban = (userId: string | number) => {
-    setBannedMap((prev) => ({
-      ...prev,
-      [userId]: { banned: false, reason: '' },
-    }));
+  const handleUnban = async (userId: string | number) => {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await unbanUser(userId);
+      setBannedMap((prev) => ({
+        ...prev,
+        [userId]: { banned: false, reason: '' },
+      }));
+
+      if (onRefreshUsers) {
+        onRefreshUsers();
+      }
+    } catch (err: any) {
+      console.error('Error unbanning user:', err);
+      setActionError(err?.message || 'Failed to unban user on database');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const filteredUsers = users.filter((u) => {
@@ -921,10 +954,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
             )}
 
+            {/* Action Error Alert */}
+            {actionError && (
+              <div style={{ marginBottom: '16px', padding: '8px 12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '8px', color: '#EF4444', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={14} />
+                <span>{actionError}</span>
+              </div>
+            )}
+
             {/* Modal Actions */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
               <button
                 onClick={() => setSelectedUserForBan(null)}
+                disabled={actionLoading}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
@@ -933,7 +975,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   color: 'var(--text-muted)',
                   fontSize: '0.8rem',
                   fontWeight: 600,
-                  cursor: 'pointer',
+                  cursor: actionLoading ? 'not-allowed' : 'pointer',
+                  opacity: actionLoading ? 0.6 : 1,
                 }}
               >
                 Cancel
@@ -941,6 +984,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
               <button
                 onClick={handleConfirmBan}
+                disabled={actionLoading}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
@@ -949,11 +993,16 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   color: '#FFFFFF',
                   fontSize: '0.8rem',
                   fontWeight: 700,
-                  cursor: 'pointer',
+                  cursor: actionLoading ? 'not-allowed' : 'pointer',
                   boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+                  opacity: actionLoading ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                Confirm &amp; Ban Account
+                {actionLoading && <RefreshCw size={12} className="animate-spin" />}
+                {actionLoading ? 'Banning User...' : 'Confirm & Ban Account'}
               </button>
             </div>
           </div>

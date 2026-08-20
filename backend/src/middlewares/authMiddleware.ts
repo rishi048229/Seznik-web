@@ -29,6 +29,20 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
       const decoded = verifyToken(token);
       (req as any).user = decoded;
+
+      if (decoded?.id) {
+        const checkUser = await prisma.user.findUnique({
+          where: { id: decoded.id },
+          select: { isBanned: true, banReason: true },
+        });
+        if (checkUser?.isBanned) {
+          return res.status(403).json({
+            error: `Your account has been suspended by system administrator. Reason: ${checkUser.banReason || 'Policy violation'}.`,
+            isBanned: true,
+          });
+        }
+      }
+
       return next();
     } catch (error) {
       return res.status(401).json({ error: 'Not authorized, token failed' });

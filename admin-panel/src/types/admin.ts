@@ -161,3 +161,12 @@ export interface SecurityAnomalyData {
   recentFlaggedEvents: FlaggedSecurityEvent[];
 }
 
+export interface AdminProduct {
+  id: string;
+  name: string;
+  sku: string;
+  sellingPrice: number;
+  categoryName: string;
+  createdAt: string;
+}
+
