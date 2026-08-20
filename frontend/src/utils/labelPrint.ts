@@ -19,7 +19,7 @@ export const defaultLabelTemplate: LabelElement[] = [
   { id: 'el-product', type: 'productName', align: 'center', bold: false, fontSize: 'small' },
   { id: 'el-barcode', type: 'barcode', align: 'center', bold: false },
   { id: 'el-mrp-hdr', type: 'mrpHeader', align: 'center', bold: false, fontSize: 'small', prefix: 'MRP (Incl. of all taxes)' },
-  { id: 'el-price', type: 'price', align: 'center', bold: true, fontSize: 'large', prefix: 'Rs. ' },
+  { id: 'el-price', type: 'price', align: 'center', bold: true, fontSize: 'medium', prefix: 'Rs. ' },
 ]
 
 export const PRESET_RETAIL_DUAL_CODE: LabelElement[] = [
@@ -34,7 +34,7 @@ export const PRESET_CENTERED_STANDARD: LabelElement[] = [
   { id: 'el-1', type: 'businessName', align: 'center', bold: true, fontSize: 'medium' },
   { id: 'el-2', type: 'productName', align: 'center', bold: true, fontSize: 'medium' },
   { id: 'el-3', type: 'barcode', align: 'center', bold: false },
-  { id: 'el-4', type: 'price', align: 'center', bold: true, fontSize: 'large', prefix: 'Rs. ' },
+  { id: 'el-4', type: 'price', align: 'center', bold: true, fontSize: 'medium', prefix: 'Rs. ' },
 ]
 
 export const PRESET_MINIMAL_TAG: LabelElement[] = [
@@ -84,7 +84,7 @@ export function generateLabelEscPos(
   data: LabelData
 ): Uint8Array {
   const builder = new EscPosBuilder()
-  builder.init()
+  builder.init('58mm')
 
   const safeData: LabelData = {
     businessName: cleanTextForPrinter(data.businessName),
@@ -107,9 +107,8 @@ export function generateLabelEscPos(
       if (el.type === 'qrCode' || barcodeType === 'QR') {
         builder.qr(safeData.barcodeValue, 3)
       } else {
-        builder.barcode(barcodeType, safeData.barcodeValue, 40)
+        builder.barcode(barcodeType, safeData.barcodeValue, 32)
       }
-      builder.newline()
       continue
     }
 
@@ -126,7 +125,6 @@ export function generateLabelEscPos(
     builder.doubleSize(false)
   }
 
-  builder.feed(1)
   return builder.toBytes()
 }
 
@@ -165,16 +163,8 @@ export function generateLabelTspl(
   labelHeight = 30,
   offsetX = 0,
   offsetY = 0,
-  barcodeHeight = 38,
-  // 0 = normal, 1 = rotated 180°. Which one is "right side up" depends on how
-  // the sticker roll is loaded into the printer, so this is caller-configurable
-  // instead of a fixed constant (see PrinterConfig.labelDirection).
+  barcodeHeight = 32,
   direction: 0 | 1 = 0,
-  // mm — extra rightward nudge applied only to centered barcodes. The estimated
-  // module width above doesn't always match how a given printer firmware
-  // actually renders CODE128, so different hardware needs different amounts of
-  // correction; exposed as a live-tunable setting (PrinterConfig.labelBarcodeOffsetX)
-  // instead of a fixed guess.
   barcodeCenterOffsetMm = 4
 ): Uint8Array {
   const encoder = new TextEncoder()
@@ -197,7 +187,7 @@ export function generateLabelTspl(
   tspl += `DIRECTION ${direction}\r\n`
   tspl += `CLS\r\n`
 
-  let y = Math.max(10, 16 + offsetYDots)
+  let y = Math.max(4, 8 + offsetYDots)
 
   for (const el of template) {
     const align = el.align || 'center'
@@ -206,7 +196,7 @@ export function generateLabelTspl(
       const startX = Math.max(5, 15 + offsetXDots)
       const lineLen = Math.max(20, widthDots - 30)
       tspl += `BAR ${startX},${y},${lineLen},2\r\n`
-      y += 10
+      y += 8
       continue
     }
 
@@ -219,36 +209,34 @@ export function generateLabelTspl(
       const barWidthDots = estimateTsplCode128Dots(barcodeStr, moduleWidth)
       const xBar = Math.max(5, Math.floor((leftHalfDots - barWidthDots) / 2) + offsetXDots)
 
-      const qrSizeDots = 70 // ~8.7mm QR size
+      const qrSizeDots = 64 // ~8mm QR size
       const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrSizeDots) / 2) + offsetXDots)
 
-      y += 6
-      tspl += `BARCODE ${xBar},${y},"128M",34,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
+      y += 4
+      tspl += `BARCODE ${xBar},${y},"128M",28,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
       tspl += `QRCODE ${xQr},${y},L,3,A,0,"${barcodeStr}"\r\n`
 
-      y += 64
+      y += 52
       continue
     }
 
     if (el.type === 'barcode' || el.type === 'qrCode') {
       const barcodeStr = safeData.barcodeValue || '0000000000'
       if (el.type === 'qrCode' || barcodeType === 'QR') {
-        const qrSizeDots = 84 // ~10.5mm QR size
+        const qrSizeDots = 72 // ~9mm QR size
         const x = align === 'left'
           ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
           ? Math.max(16, widthDots - qrSizeDots - 16 + offsetXDots)
           : Math.max(16, Math.floor((widthDots - qrSizeDots) / 2) + offsetXDots)
 
-        y += 6
+        y += 4
         tspl += `QRCODE ${x},${y},L,4,A,0,"${barcodeStr}"\r\n`
-        y += 94
+        y += 78
       } else {
-        const h = barcodeHeight || 42 // 42 dots = 5.25mm bar height
-        // Calculate max printable width with 18-dot safety margins on left & right
+        const h = barcodeHeight || 30 // 30 dots = ~3.75mm bar height
         const maxPrintableWidth = Math.max(100, widthDots - 36)
         const rawWidthAt2 = estimateTsplCode128Dots(barcodeStr, 2)
-        // If barcode at moduleWidth 2 exceeds printable width, use moduleWidth 1 so it never clips or skips lines
         const moduleWidth = rawWidthAt2 > maxPrintableWidth ? 1 : 2
         const barcodeWidthDots = estimateTsplCode128Dots(barcodeStr, moduleWidth)
         const wideRatio = moduleWidth * 2
@@ -259,12 +247,11 @@ export function generateLabelTspl(
           ? Math.max(16, widthDots - barcodeWidthDots - 16 + offsetXDots)
           : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + barcodeCenterOffsetDots + offsetXDots)
 
-        // Top margin gap before barcode so preceding text (e.g. "Burger") never overlaps top edge of bars
-        y += 8
+        y += 4
 
-        // TSPL BARCODE x, y, "128", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
-        tspl += `BARCODE ${x},${y},"128",${h},2,0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
-        y += h + 30
+        // TSPL BARCODE x, y, "128M", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
+        tspl += `BARCODE ${x},${y},"128M",${h},2,0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
+        y += h + 20
       }
       continue
     }
@@ -272,35 +259,34 @@ export function generateLabelTspl(
     const text = resolveElementText(el, safeData)
     if (!text) continue
 
-    // Shift price element down towards the bottom of the sticker, with a
-    // clear gap from whatever's above it (usually the barcode).
+    // Gentle separation for price without overflowing the 30mm sticker
     if (el.type === 'price') {
-      y += 20
+      y += 4
     }
 
     const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
     let font = '"2"'
     let charWidth = 12
-    let advanceY = 26
+    let advanceY = 22
     let mulX = 1
     let mulY = 1
 
     if (sizeKey === 'small') {
       font = '"1"'
       charWidth = 8
-      advanceY = 20
+      advanceY = 16
     } else if (sizeKey === 'medium') {
       font = '"2"'
       charWidth = 12
-      advanceY = 26
+      advanceY = 22
     } else if (sizeKey === 'large') {
       font = '"3"'
       charWidth = 16
-      advanceY = 32
+      advanceY = 26
     } else if (sizeKey === 'xlarge') {
       font = '"4"'
       charWidth = 24
-      advanceY = 40
+      advanceY = 32
     }
 
     const textWidthDots = text.length * charWidth * mulX
