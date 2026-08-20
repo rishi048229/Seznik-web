@@ -7,6 +7,7 @@ import { UserManagementView } from './components/UserManagementView';
 import { PeakUsageHeatmap } from './components/PeakUsageHeatmap';
 import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
 import { RegisteredUsersRoster } from './components/RegisteredUsersRoster';
+import { LoginAuditTable } from './components/LoginAuditTable';
 import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
 import { 
@@ -14,19 +15,17 @@ import {
   fetchUserRecords, 
   fetchLoginLogs, 
   fetchSectionUsage, 
-  fetchHeatmapData,
+  fetchHeatmapData, 
   fetchDeviceSessionBreakdown,
-  fetchSecurityAnomalyData,
 } from './services/api';
 import type { 
   DashboardMetrics, 
   UserRecord, 
   UserLoginLog, 
   SectionUsage, 
-  HeatmapCell,
-  HeatmapResponse,
+  HeatmapCell, 
+  HeatmapResponse, 
   DeviceSessionBreakdownData,
-  SecurityAnomalyData,
 } from './types/admin';
 
 const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'logins'];
@@ -100,21 +99,19 @@ export const App: React.FC = () => {
   const [sectionUsage, setSectionUsage] = useState<SectionUsage[]>([]);
   const [heatmapData, setHeatmapData] = useState<HeatmapResponse | HeatmapCell[] | undefined>(undefined);
   const [deviceData, setDeviceData] = useState<DeviceSessionBreakdownData | undefined>(undefined);
-  const [securityData, setSecurityData] = useState<SecurityAnomalyData | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(true);
 
   const loadAllData = async (activeRange = timeRange) => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [m, u, l, s, heat, dev, sec] = await Promise.all([
+      const [m, u, l, s, heat, dev] = await Promise.all([
         fetchDashboardMetrics(activeRange),
         fetchUserRecords(activeRange),
         fetchLoginLogs(),
         fetchSectionUsage(activeRange),
         fetchHeatmapData(activeRange),
         fetchDeviceSessionBreakdown(activeRange),
-        fetchSecurityAnomalyData(),
       ]);
 
       setMetrics(m);
@@ -123,7 +120,6 @@ export const App: React.FC = () => {
       setSectionUsage(s);
       setHeatmapData(heat);
       setDeviceData(dev);
-      setSecurityData(sec);
       setLastRefreshedAt(new Date().toLocaleTimeString());
       setErrorMessage(null);
     } catch (err: any) {
@@ -296,9 +292,9 @@ export const App: React.FC = () => {
             )}
 
             {activeTab === 'logins' && (
-              <RegisteredUsersRoster
+              <LoginAuditTable
                 logs={loginLogs}
-                selectedEmail={selectedUserEmailForLogs}
+                filterUserEmail={selectedUserEmailForLogs}
                 onSelectUser={(email) => {
                   setSelectedUserForProfile(email);
                   setActiveTab('users');

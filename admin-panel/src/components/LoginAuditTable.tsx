@@ -54,11 +54,8 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({
       !term ||
       log.userName.toLowerCase().includes(term) ||
       log.userEmail.toLowerCase().includes(term) ||
-      log.ipAddress.toLowerCase().includes(term) ||
-      log.city.toLowerCase().includes(term) ||
-      log.country.toLowerCase().includes(term) ||
-      log.device.toLowerCase().includes(term) ||
-      log.browser.toLowerCase().includes(term) ||
+      (log.device && log.device.toLowerCase().includes(term)) ||
+      (log.browser && log.browser.toLowerCase().includes(term)) ||
       (log.actionDetails && log.actionDetails.toLowerCase().includes(term));
 
     const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
@@ -269,8 +266,6 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({
               <tr>
                 <th>User Details</th>
                 <th>Activity / Event</th>
-                <th>IP Address</th>
-                <th>Location</th>
                 <th>Device / Browser</th>
                 <th>Timestamp</th>
                 <th>Status</th>
@@ -279,13 +274,13 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({
             <tbody>
               {displayedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                     No login logs or user events match your filters.
                   </td>
                 </tr>
               ) : (
                 displayedLogs.map((log) => {
-                  const isMobile = log.device.toLowerCase().includes('mobile') || log.device.toLowerCase().includes('tablet');
+                  const isMobile = (log.device || '').toLowerCase().includes('mobile') || (log.device || '').toLowerCase().includes('tablet');
                   const DeviceIcon = isMobile ? Smartphone : Laptop;
 
                   return (
@@ -332,25 +327,14 @@ export const LoginAuditTable: React.FC<LoginAuditTableProps> = ({
                         </div>
                       </td>
                       <td>
-                        <code style={{ fontSize: '0.8rem', color: '#2563EB', background: 'rgba(37, 99, 235, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                          {log.ipAddress}
-                        </code>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--text-main)' }}>
-                          <MapPin size={12} color="#EF4444" />
-                          <span>{log.city}, {log.country}</span>
-                        </div>
-                      </td>
-                      <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           <DeviceIcon size={14} color="#8B5CF6" />
-                          <span>{log.device} • {log.browser}</span>
+                          <span>{log.device || 'Web Browser'} {log.browser ? `• ${log.browser}` : ''}</span>
                         </div>
                       </td>
                       <td>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 500 }}>
-                          {new Date(log.loginAt).toLocaleString()}
+                          {new Date(log.loginAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                         </span>
                       </td>
                       <td>

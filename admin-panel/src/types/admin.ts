@@ -27,12 +27,8 @@ export interface UserLoginLog {
   userName: string;
   userEmail: string;
   userRole: string;
-  ipAddress: string;
-  city: string;
-  country: string;
-  countryCode: string;
-  device: string;
-  browser: string;
+  device?: string;
+  browser?: string;
   loginAt: string;
   status: 'success' | 'failed' | 'active';
   actionType?: 'login' | 'module_access' | 'billing' | 'export' | 'security_flag';
@@ -50,17 +46,6 @@ export interface SectionUsage {
   percentageShare: number;
   trend: 'up' | 'down' | 'neutral';
   trendPercent: number;
-}
-
-export interface LocationMetric {
-  country: string;
-  countryCode: string;
-  state?: string;
-  city: string;
-  userCount: number;
-  activeSessions: number;
-  percentageShare: number;
-  flagEmoji?: string;
 }
 
 export interface DashboardMetrics {
@@ -142,23 +127,6 @@ export interface DeviceSessionBreakdownData {
   newUsersPercent: number;
   returningUsersCount: number;
   returningUsersPercent: number;
-}
-
-export interface FlaggedSecurityEvent {
-  id: string;
-  timestamp: string;
-  location: string;
-  ipAddress: string;
-  reason: string;
-  severity: 'warning' | 'critical';
-}
-
-export interface SecurityAnomalyData {
-  failedLoginCount: number;
-  failedLoginTrend: number;
-  anomalousLoginCount: number;
-  anomalousLoginTrend: number;
-  recentFlaggedEvents: FlaggedSecurityEvent[];
 }
 
 export interface AdminProduct {

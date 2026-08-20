@@ -742,6 +742,58 @@ app.get('/api/admin/invoices', async (req, res) => {
   }
 });
 
+// GET /api/admin/products
+app.get('/api/admin/products', async (req, res) => {
+  const limit = Math.min(200, parseInt(req.query.limit || '100', 10));
+  try {
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        COALESCE(p.barcode, p.sku, 'N/A') as sku,
+        p.price as "sellingPrice",
+        COALESCE(c.name, 'General') as "categoryName",
+        p."createdAt"
+      FROM "Product" p
+      LEFT JOIN "Category" c ON p."categoryId" = c.id
+      ORDER BY p."createdAt" DESC
+      LIMIT $1
+    `, [limit]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error in /api/admin/products:', err);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+// GET /api/admin/logins
+app.get('/api/admin/logins', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        rt.id::text,
+        rt."userId"::text,
+        COALESCE(u."displayName", u.email, 'User') as "userName",
+        COALESCE(u.email, 'unknown') as "userEmail",
+        COALESCE(u.role, 'Admin') as "userRole",
+        'Desktop (Web Session)' as device,
+        'Chrome Browser' as browser,
+        rt."createdAt" as "loginAt",
+        'active' as status,
+        'login' as "actionType",
+        CONCAT('Accessed ', rt."featureName", ' (', rt."routePath", ')') as "actionDetails"
+      FROM "RouteTelemetry" rt
+      LEFT JOIN "User" u ON rt."userId"::text = u.id::text OR rt."userId"::text = u.uid
+      ORDER BY rt."createdAt" DESC
+      LIMIT 50
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error in /api/admin/logins:', err);
+    res.status(500).json({ error: 'Failed to fetch login telemetry' });
+  }
+});
+
 // POST /api/admin/telemetry
 app.post('/api/admin/telemetry', async (req, res) => {
   try {
