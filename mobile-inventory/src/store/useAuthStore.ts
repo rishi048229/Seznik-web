@@ -15,9 +15,10 @@ interface AuthState {
 }
 
 const defaultDevUser: UserProfile = {
-  id: 'dev-store-owner',
+  id: '6f183b3c-2753-4144-b723-dd366eb53526',
   email: 'owner@seznik.com',
-  displayName: 'Seznik POS Admin',
+  displayName: 'Seznik Owner',
+  businessName: 'Seznik POS Store',
   role: 'admin',
   onboardingCompleted: true,
   accountType: 'user',

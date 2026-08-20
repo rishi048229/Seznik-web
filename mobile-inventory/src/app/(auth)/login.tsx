@@ -298,9 +298,10 @@ export default function LoginScreen() {
                 onPress={async () => {
                   const { setAuth } = useAuthStore.getState();
                   await setAuth('dev-token-bypass', {
-                    id: 'ce3d6fd8-ef6c-4b82-b5dd-77e1ae664305',
-                    email: 'ykapse07@gmail.com',
-                    displayName: 'yash kapse (Dev)',
+                    id: '6f183b3c-2753-4144-b723-dd366eb53526',
+                    email: 'owner@seznik.com',
+                    displayName: 'Seznik Owner',
+                    businessName: 'Seznik POS Store',
                     role: 'admin',
                     onboardingCompleted: true,
                     accountType: 'user',

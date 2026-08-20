@@ -9,17 +9,26 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     try {
       token = req.headers.authorization.split(' ')[1];
 
-      // Support dev mode token bypass seamlessly for testing
+      // Support dev mode token bypass seamlessly for testing - consistently routes to owner@seznik.com
       if (token === 'dev-token-bypass') {
-        let devUser = await prisma.user.findFirst();
+        let devUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: 'owner@seznik.com' },
+              { uid: 'ownerseznik' },
+            ],
+          },
+        });
         if (!devUser) {
           devUser = await prisma.user.create({
             data: {
-              email: 'admin@seznik.com',
-              displayName: 'Seznik Admin',
-              uid: 'dev-admin-uid',
+              email: 'owner@seznik.com',
+              displayName: 'Seznik Owner',
+              uid: 'ownerseznik',
+              businessName: 'Seznik POS Store',
               role: 'admin',
               onboardingCompleted: true,
+              plan: 'premium',
             },
           });
         }

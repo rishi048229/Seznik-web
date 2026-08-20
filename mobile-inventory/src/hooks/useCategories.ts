@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { productsApi } from '@/api/products';
+import { useAuthStore } from '@/store/useAuthStore';
 import { CreateCategoryPayload } from '@/types/category';
 
 export function useCategories() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
+  const userId = user?.id || 'guest';
 
   const categoriesQuery = useQuery({
-    queryKey: ['categories'],
+    queryKey: ['categories', userId],
     queryFn: productsApi.getCategories,
   });
 

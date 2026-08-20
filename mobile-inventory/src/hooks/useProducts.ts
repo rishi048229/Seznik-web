@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { productsApi } from '@/api/products';
+import { useAuthStore } from '@/store/useAuthStore';
 import { CreateProductPayload, Product, StockAdjustmentPayload } from '@/types/product';
 
 const SAMPLE_PRODUCTS: Product[] = [
@@ -85,9 +86,11 @@ const SAMPLE_PRODUCTS: Product[] = [
 
 export function useProducts() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
+  const userId = user?.id || 'guest';
 
   const productsQuery = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', userId],
     queryFn: async () => {
       try {
         const data = await productsApi.getProducts();
@@ -103,7 +106,7 @@ export function useProducts() {
   });
 
   const lowStockQuery = useQuery({
-    queryKey: ['products', 'low-stock'],
+    queryKey: ['products', 'low-stock', userId],
     queryFn: async () => {
       try {
         return await productsApi.getLowStockProducts();

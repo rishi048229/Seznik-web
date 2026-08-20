@@ -1,8 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import prisma from './config/db';
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
@@ -22,7 +22,6 @@ import restaurantTableRoutes from './routes/restaurantTableRoutes';
 import kotOrderRoutes from './routes/kotOrderRoutes';
 import { routeTelemetryMiddleware } from './middlewares/routeTelemetry';
 
-dotenv.config();
 
 const app = express();
 

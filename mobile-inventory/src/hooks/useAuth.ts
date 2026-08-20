@@ -17,6 +17,7 @@ export function useAuth() {
   const loginMutation = useMutation({
     mutationFn: (payload: LoginPayload) => authApi.login(payload),
     onSuccess: async (data) => {
+      queryClient.clear();
       await setAuth(data.token, data.user);
       queryClient.setQueryData(['auth', 'profile'], data.user);
     },
@@ -25,6 +26,7 @@ export function useAuth() {
   const registerMutation = useMutation({
     mutationFn: (payload: RegisterPayload) => authApi.register(payload),
     onSuccess: async (data) => {
+      queryClient.clear();
       await setAuth(data.token, data.user);
       queryClient.setQueryData(['auth', 'profile'], data.user);
     },
