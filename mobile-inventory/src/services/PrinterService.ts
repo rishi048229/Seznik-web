@@ -139,28 +139,42 @@ class ThermalPrinterServiceManager {
   }
 
   /**
-   * Sends ESC @ (initialize printer) + sets left alignment to reset any stale
-   * state (alignment, character size, line spacing) from a previous print job.
-   * Without this, the printer can carry over double-width mode, center alignment,
-   * or custom line spacing from the last job, causing tilted/shifted output.
+   * Fully resets the printer to factory defaults before every print job using
+   * the native module's own ESC/POS commands:
+   *   - printerInit()       → sends ESC @ (resets character size, line spacing, alignment, etc.)
+   *   - printerLeftSpace(0) → zeroes left margin (GS L) — prevents stale non-zero margins
+   *   - printerLineSpace(0) → restores default line spacing (ESC 2 / ESC 3)
+   *   - printerAlign(LEFT)  → ensures left justification (ESC a)
+   *   - setWidth(dots)      → tells the SDK the paper width so column calculations match
+   *
+   * Without this sequence the printer carries over stale state (e.g. center alignment
+   * from a QR code, or doubled character width from a KOT ticket) which makes subsequent
+   * receipt text appear tilted/shifted.
    */
-  private async initPrinter(): Promise<void> {
+  private async initPrinter(paperWidth: '58mm' | '80mm' = '58mm'): Promise<void> {
     try {
-      // ESC @ = \x1B\x40 — resets the printer to its default state
-      if (typeof NativeEscposPrinter.printRawData === 'function') {
-        await NativeEscposPrinter.printRawData('\x1B\x40');
-      } else if (typeof NativeEscposPrinter.printText === 'function') {
-        // Some native bridges don't expose printRawData; sending an empty
-        // printText with scale 0 at least resets the text formatting state.
-        await NativeEscposPrinter.printText('', { widthtimes: 0, heigthtimes: 0, cut: false });
+      // 1. ESC @ — full hardware reset to default state
+      if (typeof NativeEscposPrinter.printerInit === 'function') {
+        await NativeEscposPrinter.printerInit();
       }
-      // Force left alignment so nothing is offset from a previous center/right alignment
+      // 2. Set the SDK's internal deviceWidth so printColumn's maxLen math is correct
+      if (typeof NativeEscposPrinter.setWidth === 'function') {
+        NativeEscposPrinter.setWidth(paperWidth === '80mm' ? 576 : 384);
+      }
+      // 3. Zero left margin — a previous job may have set a non-zero left space
+      if (typeof NativeEscposPrinter.printerLeftSpace === 'function') {
+        await NativeEscposPrinter.printerLeftSpace(0);
+      }
+      // 4. Default line spacing — a previous job may have altered it
+      if (typeof NativeEscposPrinter.printerLineSpace === 'function') {
+        await NativeEscposPrinter.printerLineSpace(0);
+      }
+      // 5. Force left alignment
       if (typeof NativeEscposPrinter.printerAlign === 'function') {
         await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
       }
     } catch (e) {
-      // Non-fatal — some printers/bridges may not support raw data, but the
-      // print will still proceed with whatever state the printer is in.
+      // Non-fatal — the print will still proceed with whatever state the printer is in
       console.warn('initPrinter reset failed (non-fatal):', e);
     }
   }
@@ -1028,7 +1042,7 @@ class ThermalPrinterServiceManager {
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         // Reset printer state before token slip print
-        await this.initPrinter();
+        await this.initPrinter(paperWidth);
 
         const textContent = this.sanitizeForThermalPrint(this.formatTokenSlipText(data, paperWidth));
         await NativeEscposPrinter.printText(textContent, { widthtimes: 0, heigthtimes: 0, cut: false });
@@ -2111,7 +2125,7 @@ class ThermalPrinterServiceManager {
 
     try {
       // Reset printer state before label print
-      await this.initPrinter();
+      await this.initPrinter(paperWidth);
 
       for (let i = 0; i < Math.max(1, copies); i++) {
         if (typeof NativeEscposPrinter.printerAlign === 'function') {
@@ -2242,7 +2256,7 @@ class ThermalPrinterServiceManager {
     try {
       for (let i = 0; i < Math.max(1, copies); i++) {
         // Reset printer state at start of each label copy
-        await this.initPrinter();
+        await this.initPrinter(paperWidth);
 
         for (const el of orderedElements) {
           if (el.type === 'text') {
@@ -2386,7 +2400,7 @@ class ThermalPrinterServiceManager {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
           // Reset printer state before every job to prevent tilted/shifted output
-          await this.initPrinter();
+          await this.initPrinter(paperWidth);
 
           const customTemplate = this.resolveActiveCustomTemplate(options);
           if (customTemplate) {
@@ -2503,7 +2517,7 @@ class ThermalPrinterServiceManager {
     options: ReceiptPrintOptions = {}
   ): Promise<void> {
     // Reset printer state before custom template print
-    await this.initPrinter();
+    await this.initPrinter(paperWidth);
 
     const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
     const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
@@ -2715,7 +2729,7 @@ class ThermalPrinterServiceManager {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
           // Reset printer state before KOT print
-          await this.initPrinter();
+          await this.initPrinter(paperWidth);
 
           const textContent = this.sanitizeForThermalPrint(this.formatKotText(data, paperWidth));
           const printOptions = { widthtimes: 1, heigthtimes: 1, cut: false };
