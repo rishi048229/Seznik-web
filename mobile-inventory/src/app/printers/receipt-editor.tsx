@@ -61,6 +61,7 @@ import {
   Upload,
   Sparkles,
 } from 'lucide-react-native';
+import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -271,6 +272,13 @@ export default function ReceiptEditorScreen() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
+  const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
+
+  const openLogoBgOption = (uri: string, onSelected: (finalUri: string) => void) => {
+    setLogoBgModalUri(uri);
+    setLogoBgCallback(() => onSelected);
+  };
 
   useEffect(() => {
     if (id) {
@@ -505,15 +513,24 @@ export default function ReceiptEditorScreen() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets?.[0]?.uri && editingEntry && editingEntry.type === 'image') {
-        setEditingEntry({ ...editingEntry, imageUri: result.assets[0].uri });
+        openLogoBgOption(result.assets[0].uri, (finalUri) => {
+          setEditingEntry((prev) => (prev && prev.type === 'image' ? { ...prev, imageUri: finalUri } : prev));
+        });
       }
     } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Gallery access is needed.');
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: true,
         quality: 0.8,
       });
       if (!result.canceled && result.assets?.[0]?.uri && editingEntry && editingEntry.type === 'image') {
-        setEditingEntry({ ...editingEntry, imageUri: result.assets[0].uri });
+        openLogoBgOption(result.assets[0].uri, (finalUri) => {
+          setEditingEntry((prev) => (prev && prev.type === 'image' ? { ...prev, imageUri: finalUri } : prev));
+        });
       }
     }
   };
@@ -823,7 +840,7 @@ export default function ReceiptEditorScreen() {
                 )}
 
                 <View style={{ flex: 1, gap: 6 }}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     <TouchableOpacity
                       onPress={async () => {
                         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -833,17 +850,19 @@ export default function ReceiptEditorScreen() {
                         }
                         const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
                         if (!res.canceled && res.assets?.[0]?.uri) {
-                          setTemplate((prev) => ({
-                            ...prev,
-                            entries: prev.entries.map((e) =>
-                              e.id === existingLogoEntry.id ? { ...e, imageUri: res.assets[0].uri } : e
-                            ),
-                          }));
+                          openLogoBgOption(res.assets[0].uri, (finalUri) => {
+                            setTemplate((prev) => ({
+                              ...prev,
+                              entries: prev.entries.map((e) =>
+                                e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
+                              ),
+                            }));
+                          });
                         }
                       }}
                       style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
                     >
-                      <Upload size={14} color="#2563EB" />
+                      <Upload size={13} color="#2563EB" />
                       <Text style={[styles.smallActionBtnText, { color: '#2563EB' }]}>Pick Image</Text>
                     </TouchableOpacity>
 
@@ -856,19 +875,42 @@ export default function ReceiptEditorScreen() {
                         }
                         const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
                         if (!res.canceled && res.assets?.[0]?.uri) {
-                          setTemplate((prev) => ({
-                            ...prev,
-                            entries: prev.entries.map((e) =>
-                              e.id === existingLogoEntry.id ? { ...e, imageUri: res.assets[0].uri } : e
-                            ),
-                          }));
+                          openLogoBgOption(res.assets[0].uri, (finalUri) => {
+                            setTemplate((prev) => ({
+                              ...prev,
+                              entries: prev.entries.map((e) =>
+                                e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
+                              ),
+                            }));
+                          });
                         }
                       }}
                       style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
                     >
-                      <Camera size={14} color="#2563EB" />
+                      <Camera size={13} color="#2563EB" />
                       <Text style={[styles.smallActionBtnText, { color: '#2563EB' }]}>Camera</Text>
                     </TouchableOpacity>
+
+                    {existingLogoEntry.imageUri ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (existingLogoEntry.imageUri) {
+                            openLogoBgOption(existingLogoEntry.imageUri, (finalUri) => {
+                              setTemplate((prev) => ({
+                                ...prev,
+                                entries: prev.entries.map((e) =>
+                                  e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
+                                ),
+                              }));
+                            });
+                          }
+                        }}
+                        style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#FEF3C7', borderColor: '#FDE68A' }]}
+                      >
+                        <Sparkles size={13} color="#D97706" />
+                        <Text style={[styles.smallActionBtnText, { color: '#D97706' }]}>Background</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
 
                   {/* Size chips */}
@@ -1927,6 +1969,20 @@ export default function ReceiptEditorScreen() {
           </View>
         </View>
       </Modal>
+
+      <LogoBackgroundModal
+        visible={Boolean(logoBgModalUri)}
+        imageUri={logoBgModalUri}
+        onApply={(finalUri) => {
+          if (logoBgCallback) logoBgCallback(finalUri);
+          setLogoBgModalUri(null);
+          setLogoBgCallback(null);
+        }}
+        onCancel={() => {
+          setLogoBgModalUri(null);
+          setLogoBgCallback(null);
+        }}
+      />
     </View>
   );
 }

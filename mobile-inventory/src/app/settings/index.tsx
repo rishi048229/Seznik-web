@@ -35,6 +35,8 @@ import {
   Phone,
   MessageCircle,
   Mail,
+  Sparkles,
+  Trash2,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,6 +45,7 @@ import { settingsApi } from '@/api/settings';
 import { useLanguageStore, useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
+import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
@@ -95,6 +98,9 @@ export default function SettingsScreen() {
     canManageUsers: false,
   });
 
+  const [rawPickedLogo, setRawPickedLogo] = useState<string | null>(null);
+  const [showLogoBgModal, setShowLogoBgModal] = useState<boolean>(false);
+
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -107,12 +113,12 @@ export default function SettingsScreen() {
     }
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.7,
+      quality: 0.8,
       allowsEditing: true,
-      aspect: [1, 1],
     });
     if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
-      setLogoUri(pickerResult.assets[0].uri);
+      setRawPickedLogo(pickerResult.assets[0].uri);
+      setShowLogoBgModal(true);
     }
   };
 
@@ -272,16 +278,46 @@ export default function SettingsScreen() {
               <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 8 }}>
                 {t('businessLogoSub', 'Prints at the top of every thermal receipt')}
               </Text>
-              <TouchableOpacity onPress={handlePickLogo} style={styles.logoPicker}>
-                {logoUri ? (
-                  <Image source={{ uri: logoUri }} style={styles.logoPreview} />
-                ) : (
+              {logoUri ? (
+                <View style={styles.logoContainer}>
+                  <Image source={{ uri: logoUri }} style={styles.logoPreview} resizeMode="contain" />
+                  <View style={styles.logoActions}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setRawPickedLogo(logoUri);
+                        setShowLogoBgModal(true);
+                      }}
+                      style={[styles.logoActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: BRAND_COLORS.blue600 }]}
+                    >
+                      <Sparkles size={13} color={BRAND_COLORS.blue600} />
+                      <Text style={[styles.logoActionText, { color: BRAND_COLORS.blue600 }]}>Background Options</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handlePickLogo}
+                      style={[styles.logoActionBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                    >
+                      <ImageIcon size={13} color={theme.textPrimary} />
+                      <Text style={[styles.logoActionText, { color: theme.textPrimary }]}>Replace</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => setLogoUri('')}
+                      style={[styles.logoActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
+                    >
+                      <Trash2 size={13} color="#EF4444" />
+                      <Text style={[styles.logoActionText, { color: "#EF4444" }]}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={handlePickLogo} style={styles.logoPicker}>
                   <View style={[styles.logoPlaceholder, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                     <ImageIcon size={22} color={theme.textSecondary} />
                     <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4, fontWeight: '700' }}>{t('tapToUploadLogo', 'Tap to Upload Logo')}</Text>
                   </View>
-                )}
-              </TouchableOpacity>
+                </TouchableOpacity>
+              )}
 
               <Text style={[styles.label, { color: theme.textPrimary }]}>{t('businessName', 'Store / Business Name')}</Text>
               <TextInput
@@ -384,6 +420,16 @@ export default function SettingsScreen() {
         </ScrollView>
       </View>
       </KeyboardAvoidingWrapper>
+
+      <LogoBackgroundModal
+        visible={showLogoBgModal}
+        imageUri={rawPickedLogo}
+        onApply={(finalUri) => {
+          setLogoUri(finalUri);
+          setShowLogoBgModal(false);
+        }}
+        onCancel={() => setShowLogoBgModal(false)}
+      />
     </View>
     </ScreenBackground>
   );
@@ -404,7 +450,20 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 10 },
   input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14, marginBottom: 10 },
   logoPicker: { alignSelf: 'flex-start', marginBottom: 4 },
-  logoPreview: { width: 88, height: 88, borderRadius: 16 },
+  logoContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  logoPreview: { width: 84, height: 84, borderRadius: 14, backgroundColor: '#FFFFFF' },
+  logoActions: { gap: 6, flex: 1 },
+  logoActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  logoActionText: { fontSize: 11, fontWeight: '700' },
   logoPlaceholder: { width: 88, height: 88, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: 8 },
   saveBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
   saveBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },

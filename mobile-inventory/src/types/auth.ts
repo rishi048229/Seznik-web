@@ -13,6 +13,7 @@ export interface UserProfile {
   id: string;
   email: string;
   displayName?: string | null;
+  businessName?: string | null;
   phone?: string | null;
   role: 'admin' | 'agent' | string;
   onboardingCompleted?: boolean;

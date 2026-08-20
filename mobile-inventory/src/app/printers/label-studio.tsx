@@ -48,6 +48,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import ThermalPrinterService from '@/services/PrinterService';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal';
 import {
   LabelTemplate,
   LabelElement,
@@ -176,6 +177,14 @@ export default function LabelStudioScreen() {
     return Math.max(4, Math.min(8, Math.floor(maxAvailableCanvasWidth / template.widthMm)));
   }, [maxAvailableCanvasWidth, template.widthMm]);
 
+  const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
+  const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
+
+  const openLogoBgOption = (uri: string, onSelected: (finalUri: string) => void) => {
+    setLogoBgModalUri(uri);
+    setLogoBgCallback(() => onSelected);
+  };
+
   const selectedElement = template.elements.find((e) => e.id === selectedId) || null;
 
   const updateElement = (id: string, box: ElementBox) => {
@@ -206,14 +215,16 @@ export default function LabelStudioScreen() {
 
       if (!result.canceled && result.assets[0]?.uri) {
         const uri = result.assets[0].uri;
-        if (elementId) {
-          updateElementProps(elementId, { uri } as Partial<LabelImageElement>);
-        } else {
-          const base = { id: newId(), xMm: Math.max(2, template.widthMm / 2 - 10), yMm: Math.max(2, template.heightMm / 2 - 10) };
-          const el: LabelElement = { ...base, type: 'image', uri, widthMm: 20, heightMm: 20 };
-          setTemplate((prev) => ({ ...prev, elements: [...prev.elements, el] }));
-          setSelectedId(el.id);
-        }
+        openLogoBgOption(uri, (finalUri) => {
+          if (elementId) {
+            updateElementProps(elementId, { uri: finalUri } as Partial<LabelImageElement>);
+          } else {
+            const base = { id: newId(), xMm: Math.max(2, template.widthMm / 2 - 10), yMm: Math.max(2, template.heightMm / 2 - 10) };
+            const el: LabelElement = { ...base, type: 'image', uri: finalUri, widthMm: 20, heightMm: 20 };
+            setTemplate((prev) => ({ ...prev, elements: [...prev.elements, el] }));
+            setSelectedId(el.id);
+          }
+        });
       }
     } catch (err: any) {
       Alert.alert('Image Picker Error', err?.message || 'Failed to select image.');
@@ -810,14 +821,31 @@ export default function LabelStudioScreen() {
 
                       {selectedElement.type === 'image' ? (
                         <>
-                          <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 8 }]}>Logo / Image Source</Text>
-                          <TouchableOpacity
-                            onPress={() => handlePickImageForElement(selectedElement.id)}
-                            style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.blue600, marginTop: 6, paddingVertical: 10 }]}
-                          >
-                            <ImageIcon size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                            <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 12 }}>Change / Upload Image</Text>
-                          </TouchableOpacity>
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                            <TouchableOpacity
+                              onPress={() => handlePickImageForElement(selectedElement.id)}
+                              style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.blue600, flex: 1, paddingVertical: 10, marginLeft: 0 }]}
+                            >
+                              <ImageIcon size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>Replace</Text>
+                            </TouchableOpacity>
+
+                            {selectedElement.uri ? (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  if (selectedElement.uri) {
+                                    openLogoBgOption(selectedElement.uri, (finalUri) => {
+                                      updateElementProps(selectedElement.id, { uri: finalUri } as Partial<LabelImageElement>);
+                                    });
+                                  }
+                                }}
+                                style={[styles.saveBtn, { backgroundColor: '#D97706', flex: 1.2, paddingVertical: 10, marginLeft: 0 }]}
+                              >
+                                <Sparkles size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                                <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>Background</Text>
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
 
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, justifyContent: 'space-between' }}>
                             <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Invert Colors (B/W)</Text>
@@ -961,6 +989,20 @@ export default function LabelStudioScreen() {
       <AiBillToReceiptModal
         visible={showAiBillModal}
         onClose={() => setShowAiBillModal(false)}
+      />
+
+      <LogoBackgroundModal
+        visible={Boolean(logoBgModalUri)}
+        imageUri={logoBgModalUri}
+        onApply={(finalUri) => {
+          if (logoBgCallback) logoBgCallback(finalUri);
+          setLogoBgModalUri(null);
+          setLogoBgCallback(null);
+        }}
+        onCancel={() => {
+          setLogoBgModalUri(null);
+          setLogoBgCallback(null);
+        }}
       />
     </ScreenBackground>
   );
