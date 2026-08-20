@@ -150,7 +150,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           {/* Thermal Paper Scroll Container */}
           <ScrollView
             style={styles.paperScrollView}
-            contentContainerStyle={{ paddingVertical: 12, alignItems: 'center' }}
+            contentContainerStyle={{ paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}
             keyboardShouldPersistTaps="handled"
           >
             {activeCustomTemplate ? (

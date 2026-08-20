@@ -122,7 +122,25 @@ export function ReceiptTemplateMockup({
 }
 
 const styles = StyleSheet.create({
-  paper: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, alignItems: 'center', width: '100%' },
+  paper: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 3,
+    borderTopWidth: 3,
+    borderTopColor: '#E2E8F0',
+    borderBottomWidth: 3,
+    borderBottomColor: '#CBD5E1',
+  },
   iconBadge: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   iconEmoji: { fontSize: 22, lineHeight: 26 },
   storeName: { fontSize: 15, fontWeight: '900', color: '#0F172A', textAlign: 'center' },

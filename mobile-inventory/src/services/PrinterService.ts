@@ -513,7 +513,7 @@ class ThermalPrinterServiceManager {
     paperWidth: '58mm' | '80mm' = '58mm',
     options: ReceiptPrintOptions = {}
   ): string {
-    const width = paperWidth === '58mm' ? 30 : 44;
+    const width = paperWidth === '58mm' ? 32 : 48;
     const lines: string[] = [];
 
     // Top margin
@@ -652,9 +652,9 @@ class ThermalPrinterServiceManager {
     }
 
     const template = this.resolveActiveTemplate(options);
-    // 58mm paper rolls have a 48mm printable head (384 dots). With hardware margins, safe character width is 30 cols.
-    // 80mm rolls have a 72mm printable head, safe character width is 44 cols.
-    const width = paperWidth === '58mm' ? 30 : 44;
+    // 58mm paper rolls have a 48mm printable head (384 dots). Standard Font A is 32 cols.
+    // 80mm rolls have a 72mm printable head (576 dots). Standard Font A is 48 cols.
+    const width = paperWidth === '58mm' ? 32 : 48;
     const divider = template.dividerChar.repeat(width);
     const doubleDivider = '='.repeat(width);
 
@@ -1186,10 +1186,14 @@ class ThermalPrinterServiceManager {
           <meta charset="utf-8">
           <style>
             @page { margin: 0; size: auto; }
+            * { box-sizing: border-box; }
             body {
               width: ${widthPx};
-              margin: ${topMarginPx}px auto 0;
-              padding: 10px;
+              margin: ${topMarginPx}px auto 0 auto;
+              padding-left: 16px;
+              padding-right: 16px;
+              padding-top: 10px;
+              padding-bottom: 10px;
               font-family: 'Courier New', Courier, monospace;
               font-size: ${fontSize};
               color: #000;
@@ -1209,43 +1213,44 @@ class ThermalPrinterServiceManager {
     `;
   }
 
-  /**
-   * HTML receipt tailored for thermal printers (58mm / 80mm paper widths)
-   */
-  public generateReceiptHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): string {
-    const customTemplate = this.resolveActiveCustomTemplate(options);
+  /** HTML fallback for standard receipt printing (no active custom template). */
+  public generateReceiptHtml(
+    data: PrintSaleData,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: ReceiptPrintOptions = {}
+  ): string {
+    const customTemplate = options.customTemplate !== undefined ? options.customTemplate : this.resolveActiveCustomTemplate(options);
     if (customTemplate) {
       return this.generateCustomReceiptHtml(data, customTemplate, paperWidth, options);
     }
 
     const template = this.resolveActiveTemplate(options);
-    const widthPx = paperWidth === '58mm' ? '260px' : '360px';
+    const widthPx = paperWidth === '58mm' ? '280px' : '380px';
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
 
+    const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
+    const halfTax = data.totalTax / 2;
+    const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
+    const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
+    const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
+    const balance = data.changeReturned !== undefined ? data.changeReturned : 0;
+
     const itemsHtml = data.items
       .map(
-        (item, idx) => `
-        <div style="margin-bottom: 6px;">
-          <div><b>${idx + 1}. ${item.productName}</b></div>
-          ${template.showTaxBreakdown && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${item.gstRate.toFixed(2)}% GST</div>` : ''}
-          <div style="display: flex; justify-content: space-between;">
-            <span>&nbsp;&nbsp;${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}</span>
-            <span>${item.total.toFixed(2)}</span>
-          </div>
+        (item) => `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+          <span>${item.productName}</span>
+          <span class="right">Rs.${item.total.toFixed(2)}</span>
         </div>
-      `
+        <div style="font-size: 0.85em; color: #555; margin-bottom: 4px;">
+          ${item.quantity} ${item.unit || 'Pc'} x Rs.${item.unitPrice.toFixed(2)}
+        </div>`
       )
       .join('');
 
     const totalsHtml = template.showTaxBreakdown
       ? (() => {
-          const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
-          const halfTax = data.totalTax / 2;
-          const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
-          const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
-          const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
-          const balance = data.changeReturned !== undefined ? data.changeReturned : 0;
           return `
           <table>
             <tr><td>Sub Total</td><td class="right">Rs.${data.subtotal.toFixed(2)}</td></tr>
@@ -1278,14 +1283,19 @@ class ThermalPrinterServiceManager {
           <meta charset="utf-8">
           <style>
             @page { margin: 0; size: auto; }
+            * { box-sizing: border-box; }
             body {
               width: ${widthPx};
-              margin: ${topMarginPx}px auto 0;
-              padding: 6px;
+              margin: ${topMarginPx}px auto 0 auto;
+              padding-left: 16px;
+              padding-right: 16px;
+              padding-top: 10px;
+              padding-bottom: 10px;
               font-family: 'Courier New', Courier, monospace;
               font-size: ${fontSize};
               color: #000;
               background: #fff;
+              box-sizing: border-box;
             }
             .center { text-align: center; }
             .right { text-align: right; }
@@ -2455,7 +2465,7 @@ class ThermalPrinterServiceManager {
   ): Promise<void> {
     const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
     const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
-    const widthCols = paperWidth === '58mm' ? 30 : 44;
+    const widthCols = paperWidth === '58mm' ? 32 : 48;
 
     const padLine = (left: string, right: string) => {
       const leftStr = String(left ?? '');

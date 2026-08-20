@@ -31,6 +31,7 @@ const queryClient = new QueryClient({
 });
 
 import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
+import { usePrinterStore } from '@/store/usePrinterStore';
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -40,7 +41,14 @@ function RootLayoutNav() {
 
   useEffect(() => {
     initializeAuth();
+    usePrinterStore.getState().hydrateFromSettings().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      usePrinterStore.getState().hydrateFromSettings().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isLoading) return;

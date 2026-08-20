@@ -310,6 +310,16 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     const updated = idx >= 0 ? existing.map((t, i) => (i === idx ? template : t)) : [...existing, template];
     set({ customTemplates: updated });
     await setStoredCustomReceiptTemplates(updated);
+    try {
+      await settingsApi.updateReceiptConfig({
+        customTemplates: updated,
+        activeCustomTemplateId: get().activeCustomTemplateId,
+        templateId: get().activeTemplateId,
+        enableBillQrCode: get().enableBillQrCode,
+      });
+    } catch (e) {
+      console.warn('Could not sync custom templates to server, persisted locally:', e);
+    }
   },
 
   deleteCustomTemplate: async (id) => {
@@ -319,6 +329,16 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await setStoredCustomReceiptTemplates(customTemplates);
     if (get().activeCustomTemplateId === id) {
       await setStoredActiveCustomReceiptTemplate(null);
+    }
+    try {
+      await settingsApi.updateReceiptConfig({
+        customTemplates,
+        activeCustomTemplateId,
+        templateId: get().activeTemplateId,
+        enableBillQrCode: get().enableBillQrCode,
+      });
+    } catch (e) {
+      console.warn('Could not sync template deletion to server, persisted locally:', e);
     }
   },
 
@@ -344,11 +364,31 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   setActiveCustomTemplate: async (id) => {
     set({ activeCustomTemplateId: id });
     await setStoredActiveCustomReceiptTemplate(id);
+    try {
+      await settingsApi.updateReceiptConfig({
+        activeCustomTemplateId: id,
+        templateId: get().activeTemplateId,
+        customTemplates: get().customTemplates,
+        enableBillQrCode: get().enableBillQrCode,
+      });
+    } catch (e) {
+      console.warn('Could not sync active custom template to server, persisted locally:', e);
+    }
   },
 
   setEnableBillQrCode: async (enabled) => {
     set({ enableBillQrCode: enabled });
     await setStoredEnableBillQr(enabled);
+    try {
+      await settingsApi.updateReceiptConfig({
+        enableBillQrCode: enabled,
+        activeCustomTemplateId: get().activeCustomTemplateId,
+        templateId: get().activeTemplateId,
+        customTemplates: get().customTemplates,
+      });
+    } catch (e) {
+      console.warn('Could not sync QR setting to server, persisted locally:', e);
+    }
   },
 
   savePrinterCalibration: async (config) => {
@@ -372,7 +412,12 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await setStoredActiveTemplate(templateId);
     await setStoredActiveCustomReceiptTemplate(null);
     try {
-      await settingsApi.updateReceiptConfig({ templateId });
+      await settingsApi.updateReceiptConfig({
+        templateId,
+        activeCustomTemplateId: null,
+        customTemplates: get().customTemplates,
+        enableBillQrCode: get().enableBillQrCode,
+      });
     } catch (e) {
       console.warn('Could not sync template config to server, persisted locally:', e);
     }
@@ -412,9 +457,28 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           ? receiptConfig.templateId
           : localTemplateId || get().activeTemplateId;
 
+      const effectiveCustomTemplates = Array.isArray(receiptConfig.customTemplates) && receiptConfig.customTemplates.length > 0
+        ? receiptConfig.customTemplates
+        : initialTemplates;
+
+      const effectiveActiveCustomId =
+        receiptConfig.activeCustomTemplateId !== undefined
+          ? receiptConfig.activeCustomTemplateId
+          : localActiveCustomId;
+
+      const effectiveEnableBillQr =
+        typeof receiptConfig.enableBillQrCode === 'boolean'
+          ? receiptConfig.enableBillQrCode
+          : localEnableBillQr;
+
       if (effectiveTemplateId) {
         await setStoredActiveTemplate(effectiveTemplateId);
       }
+      if (effectiveCustomTemplates) {
+        await setStoredCustomReceiptTemplates(effectiveCustomTemplates);
+      }
+      await setStoredActiveCustomReceiptTemplate(effectiveActiveCustomId);
+      await setStoredEnableBillQr(effectiveEnableBillQr);
 
       set({
         paperWidth: printerConfig.paperWidth === '80mm' ? '80mm' : get().paperWidth,
@@ -428,6 +492,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         labelHeightMm: typeof printerConfig.labelHeightMm === 'number' ? printerConfig.labelHeightMm : get().labelHeightMm,
         labelGapMm: typeof printerConfig.labelGapMm === 'number' ? printerConfig.labelGapMm : get().labelGapMm,
         activeTemplateId: effectiveTemplateId,
+        customTemplates: effectiveCustomTemplates,
+        activeCustomTemplateId: effectiveActiveCustomId,
+        enableBillQrCode: effectiveEnableBillQr,
         labelTemplates: Array.isArray(labelConfig.templates) ? labelConfig.templates : get().labelTemplates,
         activeLabelTemplateId:
           typeof labelConfig.activeTemplateId === 'string' || labelConfig.activeTemplateId === null
@@ -456,3 +523,6 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       connectionState: prev.activeDevice?.id === deviceId ? 'disconnected' : prev.connectionState,
     })),
 }));
+
+// Eagerly trigger hydration on store initialization so active template is available immediately
+usePrinterStore.getState().hydrateFromSettings().catch(() => {});
