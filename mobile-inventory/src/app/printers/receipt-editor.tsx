@@ -827,7 +827,6 @@ export default function ReceiptEditorScreen() {
                         borderWidth: 1,
                         borderColor: '#E2E8F0',
                         resizeMode: 'contain',
-                        ...(Platform.OS === 'web' ? ({ filter: 'grayscale(100%) contrast(250%) brightness(85%)' } as any) : {}),
                       }}
                     />
                     <Text style={{ fontSize: 9, color: '#64748B', marginTop: 2, fontWeight: '600' }}>B&W POS</Text>

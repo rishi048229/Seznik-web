@@ -1102,7 +1102,7 @@ class ThermalPrinterServiceManager {
             if (!uri) return '';
             const align = entry.align || 'center';
             const widthPct = entry.widthPercent || 40;
-            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-width: ${widthPct}%; max-height: 80px; object-fit: contain; filter: grayscale(100%) contrast(250%) brightness(85%); -webkit-filter: grayscale(100%) contrast(250%) brightness(85%);" /></div>`;
+            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-width: ${widthPct}%; max-height: 80px; object-fit: contain;" /></div>`;
           }
 
           case 'text_special': {
@@ -2786,13 +2786,36 @@ class ThermalPrinterServiceManager {
    */
   private async uriToBase64(uri: string): Promise<string | null> {
     try {
+      // 1. Flatten transparent alpha onto a solid white background (JPEG)
+      // This is crucial for ESC/POS thermal printers because Android's native Bitmap.Config.RGB_565
+      // converts transparent pixels (alpha 0) to black (0x000000), causing transparent/no-bg logos
+      // to print as solid black blocks. Converting to high-quality JPEG guarantees the background is pure white (#FFFFFF).
+      try {
+        let ImageManipulator: any = null;
+        try {
+          ImageManipulator = require('expo-image-manipulator');
+        } catch {}
+        if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
+          const result = await ImageManipulator.manipulateAsync(
+            uri,
+            [],
+            { format: 'jpeg', compress: 0.95, base64: true }
+          );
+          if (result.base64) {
+            return result.base64;
+          }
+        }
+      } catch (manipErr) {
+        console.warn('ImageManipulator JPEG flatten fallback:', manipErr);
+      }
+
+      // 2. Fallback: fetch + FileReader
       const response = await fetch(uri);
       const blob = await response.blob();
       return await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
           const result = reader.result as string;
-          // Strip the "data:image/...;base64," prefix — printPic wants raw base64 only.
           resolve(result.split(',')[1] || '');
         };
         reader.onerror = () => reject(new Error('Failed to read logo image'));

@@ -167,12 +167,6 @@ export function CustomReceiptMockup({
                     width: widthPct,
                     height: 52,
                     resizeMode: 'contain',
-                    ...(Platform.OS === 'web'
-                      ? ({
-                          filter: 'grayscale(100%) contrast(250%) brightness(85%)',
-                          WebkitFilter: 'grayscale(100%) contrast(250%) brightness(85%)',
-                        } as any)
-                      : {}),
                   },
                 ]}
               />

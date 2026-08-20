@@ -9,7 +9,54 @@ try {
 }
 
 /* ========================================================================== */
-/* CRC-32 & Adler-32 checksums for standard PNG encoding                      */
+/* Fast, Robust Pure TypeScript Base64 Encoder / Decoder (No atob/btoa quirks) */
+/* ========================================================================== */
+
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const B64_LOOKUP = new Uint8Array(256);
+for (let i = 0; i < B64_CHARS.length; i++) {
+  B64_LOOKUP[B64_CHARS.charCodeAt(i)] = i;
+}
+
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let res = '';
+  const len = bytes.length;
+  for (let i = 0; i < len; i += 3) {
+    const b0 = bytes[i];
+    const b1 = i + 1 < len ? bytes[i + 1] : 0;
+    const b2 = i + 2 < len ? bytes[i + 2] : 0;
+
+    res += B64_CHARS[b0 >> 2];
+    res += B64_CHARS[((b0 & 3) << 4) | (b1 >> 4)];
+    res += i + 1 < len ? B64_CHARS[((b1 & 15) << 2) | (b2 >> 6)] : '=';
+    res += i + 2 < len ? B64_CHARS[b2 & 63] : '=';
+  }
+  return res;
+}
+
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const clean = base64.replace(/[^A-Za-z0-9+/]/g, '');
+  const len = clean.length;
+  if (len === 0) return new Uint8Array(0);
+  const byteLen = Math.floor((len * 3) / 4) - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
+  const bytes = new Uint8Array(byteLen);
+
+  let p = 0;
+  for (let i = 0; i < len; i += 4) {
+    const c0 = B64_LOOKUP[clean.charCodeAt(i)];
+    const c1 = B64_LOOKUP[clean.charCodeAt(i + 1)];
+    const c2 = B64_LOOKUP[clean.charCodeAt(i + 2)];
+    const c3 = B64_LOOKUP[clean.charCodeAt(i + 3)];
+
+    if (p < byteLen) bytes[p++] = (c0 << 2) | (c1 >> 4);
+    if (p < byteLen) bytes[p++] = ((c1 & 15) << 4) | (c2 >> 2);
+    if (p < byteLen) bytes[p++] = ((c2 & 3) << 6) | c3;
+  }
+  return bytes;
+}
+
+/* ========================================================================== */
+/* CRC-32 & Adler-32 Checksums                                                */
 /* ========================================================================== */
 
 const CRC_TABLE = new Uint32Array(256);
@@ -148,7 +195,6 @@ function writeString(buf: Uint8Array, offset: number, str: string) {
 /* ========================================================================== */
 
 function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
-  // Check if DecompressionStream is available in the runtime
   const output = new Uint8Array(expectedSize);
   let inPos = 0;
   let outPos = 0;
@@ -183,14 +229,13 @@ function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
       bitLen = 0;
       if (inPos + 4 > input.length) break;
       const len = input[inPos] | (input[inPos + 1] << 8);
-      inPos += 4; // Skip LEN and NLEN
+      inPos += 4;
       const copyLen = Math.min(len, expectedSize - outPos, input.length - inPos);
       output.set(input.subarray(inPos, inPos + copyLen), outPos);
       inPos += copyLen;
       outPos += copyLen;
     } else if (btype === 1 || btype === 2) {
       // Huffman compressed block (Fixed or Dynamic)
-      // Decode with standard DEFLATE length/dist tables
       const { litLenTree, distTree } = btype === 1 ? getFixedTrees() : readDynamicTrees(readBits);
       while (outPos < expectedSize) {
         const symbol = decodeSymbol(readBits, litLenTree);
@@ -216,7 +261,6 @@ function inflateRaw(input: Uint8Array, expectedSize: number): Uint8Array {
   return output;
 }
 
-// Tree structures for RFC 1951 Huffman
 interface HuffmanTree {
   counts: Uint16Array;
   symbols: Uint16Array;
@@ -241,7 +285,6 @@ function buildTree(lengths: Uint8Array | number[]): HuffmanTree {
     const len = lengths[i];
     if (len > 0) {
       const c = nextCode[len]++;
-      // Reverse bits for lookup
       let rev = 0;
       for (let b = 0; b < len; b++) rev = (rev << 1) | ((c >>> b) & 1);
       const step = 1 << len;
@@ -255,7 +298,6 @@ function buildTree(lengths: Uint8Array | number[]): HuffmanTree {
 }
 
 function decodeSymbol(readBits: (n: number) => number, tree: HuffmanTree): number {
-  // Read bit by bit up to max 15
   let code = 0;
   for (let bits = 1; bits <= 15; bits++) {
     code |= (readBits(1) << (bits - 1));
@@ -338,7 +380,6 @@ function decodeDistance(sym: number, readBits: (n: number) => number): number {
 
 export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; width: number; height: number } | null {
   try {
-    // Validate signature
     if (pngBytes[0] !== 0x89 || pngBytes[1] !== 0x50 || pngBytes[2] !== 0x4e || pngBytes[3] !== 0x47) {
       return null;
     }
@@ -366,12 +407,11 @@ export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; wid
       } else if (type === 'IEND') {
         break;
       }
-      pos += chunkLen + 4; // Skip data + CRC
+      pos += chunkLen + 4;
     }
 
     if (!width || !height || idatChunks.length === 0) return null;
 
-    // Concatenate IDAT chunks
     const totalIdatLen = idatChunks.reduce((acc, c) => acc + c.length, 0);
     const combinedIdat = new Uint8Array(totalIdatLen);
     let idatPos = 0;
@@ -380,7 +420,6 @@ export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; wid
       idatPos += chunk.length;
     }
 
-    // Bytes per pixel in raw scanline
     const bpp = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 0 ? 1 : 4;
     const scanlineLen = 1 + width * bpp;
     const expectedRawSize = height * scanlineLen;
@@ -388,7 +427,6 @@ export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; wid
     const rawInflated = inflateRaw(combinedIdat, expectedRawSize);
     const pixels = new Uint8Array(width * height * 4);
 
-    // PNG Scanline Filter reconstruction
     const prevRow = new Uint8Array(width * bpp);
     const currRow = new Uint8Array(width * bpp);
 
@@ -418,7 +456,6 @@ export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; wid
         currRow[x] = recon & 0xff;
       }
 
-      // Convert scanline bytes to 32-bit RGBA
       const outRowOffset = y * width * 4;
       for (let x = 0; x < width; x++) {
         const outIdx = outRowOffset + x * 4;
@@ -502,12 +539,10 @@ export function processPixelsRemoveBackground(
   const bgG = count > 0 ? Math.round(gSum / count) : 255;
   const bgB = count > 0 ? Math.round(bSum / count) : 255;
 
-  // Distance helper
   const getColorDist = (r: number, g: number, b: number) => {
     const dr = r - bgR;
     const dg = g - bgG;
     const db = b - bgB;
-    // Standard perceptual Euclidean color distance
     return Math.sqrt(0.299 * dr * dr + 0.587 * dg * dg + 0.114 * db * db);
   };
 
@@ -515,15 +550,13 @@ export function processPixelsRemoveBackground(
   const visited = new Uint8Array(width * height);
   const queue: number[] = [];
 
-  // Enqueue top & bottom borders
   for (let x = 0; x < width; x++) {
-    queue.push(x); // top
-    queue.push((height - 1) * width + x); // bottom
+    queue.push(x);
+    queue.push((height - 1) * width + x);
   }
-  // Enqueue left & right borders
   for (let y = 1; y < height - 1; y++) {
-    queue.push(y * width); // left
-    queue.push(y * width + (width - 1)); // right
+    queue.push(y * width);
+    queue.push(y * width + (width - 1));
   }
 
   let head = 0;
@@ -538,18 +571,26 @@ export function processPixelsRemoveBackground(
     const b = pixels[pxIdx + 2];
     const a = pixels[pxIdx + 3];
 
-    // If already transparent, pass through
     if (a < 10) {
+      // Already transparent: ensure clean white RGB (255, 255, 255) so non-alpha decoders see pure white
+      pixels[pxIdx] = 255;
+      pixels[pxIdx + 1] = 255;
+      pixels[pxIdx + 2] = 255;
+      pixels[pxIdx + 3] = 0;
       continue;
     }
 
     const dist = getColorDist(r, g, b);
 
     if (dist <= tolerance) {
-      // Full background transparency
+      // Pure background: set alpha to 0 AND RGB to 255, 255, 255 (WHITE).
+      // Setting RGB to 255,255,255 is CRITICAL so that if Android Bitmap RGB_565 or thermal
+      // printer dithering ignores alpha, the background is treated as pure WHITE, NEVER black.
+      pixels[pxIdx] = 255;
+      pixels[pxIdx + 1] = 255;
+      pixels[pxIdx + 2] = 255;
       pixels[pxIdx + 3] = 0;
 
-      // Expand to 4-connected neighbors
       const x = p % width;
       const y = Math.floor(p / width);
 
@@ -558,7 +599,7 @@ export function processPixelsRemoveBackground(
       if (y > 0 && !visited[p - width]) queue.push(p - width);
       if (y < height - 1 && !visited[p + width]) queue.push(p + width);
     } else if (dist <= tolerance + softness) {
-      // Soft antialiased edge falloff
+      // Soft anti-aliased edge
       const alphaRatio = (dist - tolerance) / softness;
       pixels[pxIdx + 3] = Math.round(Math.min(a, 255 * alphaRatio));
     }
@@ -615,13 +656,11 @@ export async function removeImageBackground(
   options: BackgroundRemovalOptions = {}
 ): Promise<{ uri: string; base64?: string }> {
   try {
-    // 1. Web Implementation: Uses offscreen HTML5 Canvas
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       return await removeBackgroundWeb(imageUri, options);
     }
 
-    // 2. Native Implementation (iOS / Android)
-    // Step A: Downscale cleanly with expo-image-manipulator to max 512px for crispness & speed
+    // Native Implementation (iOS / Android)
     let pngBase64 = '';
     if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
       try {
@@ -642,32 +681,15 @@ export async function removeImageBackground(
       });
     }
 
-    // Step B: Decode base64 PNG to raw RGBA
-    const binaryString = atob(pngBase64);
-    const pngBytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      pngBytes[i] = binaryString.charCodeAt(i);
-    }
-
+    const pngBytes = base64ToUint8Array(pngBase64);
     const decoded = decodePngToRgba(pngBytes);
     if (!decoded) {
-      // Fallback: return original URI if decode failed
       return { uri: imageUri };
     }
 
-    // Step C: Run intelligent background removal
     const processed = processPixelsRemoveBackground(decoded.pixels, decoded.width, decoded.height, options);
-
-    // Step D: Encode processed RGBA to transparent PNG
     const encodedPng = encodeRgbaToPng(processed.pixels, processed.width, processed.height);
-
-    // Step E: Write output to cache directory
-    let outBase64 = '';
-    const CHUNK_SIZE = 0x8000;
-    for (let i = 0; i < encodedPng.length; i += CHUNK_SIZE) {
-      outBase64 += String.fromCharCode.apply(null, encodedPng.subarray(i, i + CHUNK_SIZE) as any);
-    }
-    const finalBase64 = btoa(outBase64);
+    const finalBase64 = uint8ArrayToBase64(encodedPng);
 
     const outPath = `${FileSystem.cacheDirectory || ''}logo_nobg_${Date.now()}.png`;
     await FileSystem.writeAsStringAsync(outPath, finalBase64, {
@@ -677,7 +699,6 @@ export async function removeImageBackground(
     return { uri: outPath, base64: finalBase64 };
   } catch (error) {
     console.error('removeImageBackground error:', error);
-    // Graceful fallback to original image
     return { uri: imageUri };
   }
 }
@@ -715,7 +736,7 @@ function removeBackgroundWeb(
 
         ctx.drawImage(img, 0, 0, w, h);
         const imgData = ctx.getImageData(0, 0, w, h);
-        const pixels = new Uint8Array(imgData.data.buffer);
+        const pixels = new Uint8Array(imgData.data);
 
         const processed = processPixelsRemoveBackground(pixels, w, h, options);
 
