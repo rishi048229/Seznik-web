@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Sparkles, Image as ImageIcon, Check, X, Wand2, Receipt, SunMedium, Sliders, RefreshCw } from 'lucide-react-native';
+import { Image as ImageIcon, Check, X, Wand2, Receipt, SunMedium, Sliders, RefreshCw } from 'lucide-react-native';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { removeImageBackground } from '@/utils/imageBackgroundRemoval';
@@ -19,7 +19,7 @@ import { useTranslation } from '@/store/useLanguageStore';
 export interface LogoBackgroundModalProps {
   visible: boolean;
   imageUri: string | null;
-  onApply: (finalUri: string, removedBg: boolean) => void;
+  onApply: (finalUri: string, isProcessed: boolean) => void;
   onCancel: () => void;
 }
 
@@ -32,14 +32,14 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
   const theme = useAppTheme();
   const { t } = useTranslation();
 
-  const [selectedMode, setSelectedMode] = useState<'transparent' | 'white_clean' | 'keep_bg'>('transparent');
+  const [selectedMode, setSelectedMode] = useState<'white_clean' | 'keep_bg'>('white_clean');
   const [invertColors, setInvertColors] = useState<boolean>(false);
   const [tolerance, setTolerance] = useState<number>(45);
   const [processedUri, setProcessedUri] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [previewTheme, setPreviewTheme] = useState<'receipt' | 'transparent'>('receipt');
+  const [previewTheme, setPreviewTheme] = useState<'receipt' | 'canvas'>('receipt');
 
-  const reprocess = (uri: string, mode: 'transparent' | 'white_clean' | 'keep_bg', inv: boolean, tol: number) => {
+  const reprocess = (uri: string, mode: 'white_clean' | 'keep_bg', inv: boolean, tol: number) => {
     if (mode === 'keep_bg') {
       setProcessedUri(uri);
       setIsProcessing(false);
@@ -48,7 +48,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
     setIsProcessing(true);
     removeImageBackground(uri, {
-      mode: mode === 'white_clean' ? 'white_clean' : 'transparent',
+      mode: 'white_clean',
       tolerance: tol,
       softness: 16,
       trimPadding: true,
@@ -59,7 +59,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
         setIsProcessing(false);
       })
       .catch((err) => {
-        console.warn('Background removal error:', err);
+        console.warn('Background clean error:', err);
         setProcessedUri(uri);
         setIsProcessing(false);
       });
@@ -67,10 +67,10 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
   useEffect(() => {
     if (visible && imageUri) {
-      setSelectedMode('transparent');
+      setSelectedMode('white_clean');
       setInvertColors(false);
       setTolerance(45);
-      reprocess(imageUri, 'transparent', false, 45);
+      reprocess(imageUri, 'white_clean', false, 45);
     }
   }, [visible, imageUri]);
 
@@ -78,7 +78,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
   const currentPreviewUri = selectedMode === 'keep_bg' ? imageUri : (processedUri || imageUri);
 
-  const handleModeChange = (mode: 'transparent' | 'white_clean' | 'keep_bg') => {
+  const handleModeChange = (mode: 'white_clean' | 'keep_bg') => {
     setSelectedMode(mode);
     reprocess(imageUri, mode, invertColors, tolerance);
   };
@@ -127,41 +127,9 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
-            {/* Options Selector Cards */}
+            {/* 2 Options Selector Cards */}
             <View style={styles.optionsRow}>
-              {/* Option 1: Transparent */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => handleModeChange('transparent')}
-                style={[
-                  styles.optionCard,
-                  {
-                    backgroundColor: theme.isDark ? '#1E293B' : '#F8FAFC',
-                    borderColor: selectedMode === 'transparent' ? BRAND_COLORS.blue600 : theme.borderColor,
-                  },
-                  selectedMode === 'transparent' && styles.optionCardActive,
-                ]}
-              >
-                <View style={styles.optionHeader}>
-                  <View style={[styles.badgeIcon, { backgroundColor: selectedMode === 'transparent' ? BRAND_COLORS.blue600 : '#94A3B8' }]}>
-                    <Sparkles size={13} color="#FFFFFF" />
-                  </View>
-                  <View style={[styles.radioCircle, selectedMode === 'transparent' && { borderColor: BRAND_COLORS.blue600 }]}>
-                    {selectedMode === 'transparent' && <View style={[styles.radioDot, { backgroundColor: BRAND_COLORS.blue600 }]} />}
-                  </View>
-                </View>
-                <Text style={[styles.optionTitle, { color: theme.textPrimary }]}>
-                  {t('removeBackground', 'Remove Background')}
-                </Text>
-                <Text style={[styles.optionSub, { color: theme.textSecondary }]}>
-                  Transparent cut • High contrast
-                </Text>
-                <View style={styles.recommendBadge}>
-                  <Text style={styles.recommendText}>✨ Best</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Option 2: Clean White */}
+              {/* Option 1: Clean White Background */}
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => handleModeChange('white_clean')}
@@ -176,21 +144,24 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
               >
                 <View style={styles.optionHeader}>
                   <View style={[styles.badgeIcon, { backgroundColor: selectedMode === 'white_clean' ? '#10B981' : '#94A3B8' }]}>
-                    <SunMedium size={13} color="#FFFFFF" />
+                    <SunMedium size={14} color="#FFFFFF" />
                   </View>
                   <View style={[styles.radioCircle, selectedMode === 'white_clean' && { borderColor: BRAND_COLORS.blue600 }]}>
                     {selectedMode === 'white_clean' && <View style={[styles.radioDot, { backgroundColor: BRAND_COLORS.blue600 }]} />}
                   </View>
                 </View>
                 <Text style={[styles.optionTitle, { color: theme.textPrimary }]}>
-                  Clean White
+                  Clean White Background
                 </Text>
                 <Text style={[styles.optionSub, { color: theme.textSecondary }]}>
-                  Pure white background (#FFF)
+                  Pure white background (#FFF) • Best for thermal receipts
                 </Text>
+                <View style={styles.recommendBadge}>
+                  <Text style={styles.recommendText}>✨ Recommended</Text>
+                </View>
               </TouchableOpacity>
 
-              {/* Option 3: Keep Background */}
+              {/* Option 2: Keep Original Background */}
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => handleModeChange('keep_bg')}
@@ -205,7 +176,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
               >
                 <View style={styles.optionHeader}>
                   <View style={[styles.badgeIcon, { backgroundColor: selectedMode === 'keep_bg' ? BRAND_COLORS.blue600 : '#94A3B8' }]}>
-                    <ImageIcon size={13} color="#FFFFFF" />
+                    <ImageIcon size={14} color="#FFFFFF" />
                   </View>
                   <View style={[styles.radioCircle, selectedMode === 'keep_bg' && { borderColor: BRAND_COLORS.blue600 }]}>
                     {selectedMode === 'keep_bg' && <View style={[styles.radioDot, { backgroundColor: BRAND_COLORS.blue600 }]} />}
@@ -215,7 +186,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                   {t('keepBackground', 'Keep Original')}
                 </Text>
                 <Text style={[styles.optionSub, { color: theme.textSecondary }]}>
-                  Original photo as-is
+                  Keep full original photo as-is
                 </Text>
               </TouchableOpacity>
             </View>
@@ -284,10 +255,10 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                     <Text style={[styles.previewToggleText, { color: theme.textPrimary }]}>Receipt</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => setPreviewTheme('transparent')}
+                    onPress={() => setPreviewTheme('canvas')}
                     style={[
                       styles.previewToggleBtn,
-                      previewTheme === 'transparent' && { backgroundColor: theme.isDark ? '#334155' : '#E2E8F0' },
+                      previewTheme === 'canvas' && { backgroundColor: theme.isDark ? '#334155' : '#E2E8F0' },
                     ]}
                   >
                     <Text style={[styles.previewToggleText, { color: theme.textPrimary }]}>Canvas</Text>
@@ -307,7 +278,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                   <View style={styles.loadingBox}>
                     <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
                     <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-                      {t('processingImage', 'Removing background & isolating logo...')}
+                      {t('processingImage', 'Cleaning background to pure white...')}
                     </Text>
                   </View>
                 ) : (
@@ -436,8 +407,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   badgeIcon: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
