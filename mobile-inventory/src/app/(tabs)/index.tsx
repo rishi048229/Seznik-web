@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -62,7 +62,7 @@ import {
   ChefHat,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useDashboard, useRevenueTrend } from '@/hooks/useDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
@@ -102,7 +102,14 @@ export default function DashboardScreen() {
     refetch,
   } = useDashboard();
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const { trend, isLoading: isTrendLoading } = useRevenueTrend(timeframe);
+  const { trend, isLoading: isTrendLoading, refetch: refetchTrend } = useRevenueTrend(timeframe);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      refetchTrend();
+    }, [refetch, refetchTrend])
+  );
   const {
     connectionState,
     activeDevice,
@@ -188,11 +195,11 @@ export default function DashboardScreen() {
     (p: Product) => (p.currentStock || 0) <= (p.lowStockThreshold ?? 5)
   );
 
-  // Inventory valuation
-  const totalCatalogValue = (products || []).reduce(
-    (acc, p) => acc + ((p.sellingPrice || 0) * (p.currentStock || 0)),
-    0
-  );
+  // Inventory valuation — prefer server-side cost-based total; fall back to local active products
+  const localCatalogValue = (products || [])
+    .filter((p: Product) => p.isActive !== false)
+    .reduce((acc, p) => acc + ((p.costPrice || p.sellingPrice || 0) * (p.currentStock || 0)), 0);
+  const totalCatalogValue = stats.totalStockValue ?? localCatalogValue;
 
   const handleQuickBill = async () => {
     const validItems = quickBillItems
@@ -457,6 +464,7 @@ export default function DashboardScreen() {
               refreshing={isRefetching}
               onRefresh={() => {
                 refetch();
+                refetchTrend();
                 refetchProducts();
                 refetchCustomers();
               }}
@@ -1023,7 +1031,7 @@ export default function DashboardScreen() {
                 <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   {stats.recentSales.length === 0 ? (
                     <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                      {t('noSalesToday', 'No sales recorded today yet. Start a POS sale!')}
+                      {t('noRecentSales', 'No sales recorded yet. Complete a POS sale to see transactions here.')}
                     </Text>
                   ) : (
                     stats.recentSales.slice(0, 4).map((sale) => (
@@ -1031,7 +1039,7 @@ export default function DashboardScreen() {
                         <View>
                           <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>{sale.invoiceNumber}</Text>
                           <Text style={[styles.itemSub, { color: theme.textSecondary }]}>
-                            {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t('todaySales', 'Completed Invoice')}
+                            {new Date(sale.createdAt).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </Text>
                         </View>
                         <Text style={[styles.itemValue, { color: theme.textPrimary }]}>

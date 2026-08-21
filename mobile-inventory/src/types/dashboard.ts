@@ -17,6 +17,7 @@ export interface DashboardStats {
   todayInvoices: number;
   todayGrossProfit: number;
   totalCustomers: number;
+  totalStockValue?: number;
   lowStockCount: number;
   lowStockProducts: LowStockProductItem[];
   recentSales: RecentSaleItem[];

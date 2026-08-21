@@ -16,6 +16,7 @@ export function useSales() {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['reports', 'trend'] });
       // A sale can create/grow a customer's credit (paymentMethod: 'credit') and always affects
       // today's cashflow — without these, a fresh credit bill wouldn't show up on the Daybook or
       // that customer's account page until something else happened to trigger a refetch.
@@ -31,6 +32,7 @@ export function useSales() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['reports', 'trend'] });
       queryClient.invalidateQueries({ queryKey: ['daybook'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customerLedger'] });

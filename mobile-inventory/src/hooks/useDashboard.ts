@@ -1,11 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reportsApi } from '@/api/reports';
 
 export function useDashboard() {
+  const queryClient = useQueryClient();
+
   const dashboardQuery = useQuery({
     queryKey: ['reports', 'dashboard'],
     queryFn: reportsApi.getDashboardStats,
-    staleTime: 1000 * 15,
+    staleTime: 1000 * 10,
+    retry: 2,
   });
 
   const paymentModesQuery = useQuery({
@@ -31,6 +34,7 @@ export function useDashboard() {
     paymentModesQuery.refetch();
     expenseQuery.refetch();
     topCustomersQuery.refetch();
+    queryClient.invalidateQueries({ queryKey: ['reports', 'trend'] });
   };
 
   return {
@@ -39,6 +43,7 @@ export function useDashboard() {
       todayInvoices: 0,
       todayGrossProfit: 0,
       totalCustomers: 0,
+      totalStockValue: 0,
       lowStockCount: 0,
       lowStockProducts: [],
       recentSales: [],
@@ -48,6 +53,7 @@ export function useDashboard() {
     topCustomers: topCustomersQuery.data || [],
     isLoading: !dashboardQuery.data && dashboardQuery.isLoading,
     isRefetching: dashboardQuery.isRefetching || paymentModesQuery.isRefetching,
+    isError: dashboardQuery.isError,
     refetch: refetchAll,
   };
 }
@@ -57,11 +63,13 @@ export function useRevenueTrend(period: 'daily' | 'weekly' | 'monthly') {
   const trendQuery = useQuery({
     queryKey: ['reports', 'trend', period],
     queryFn: () => reportsApi.getRevenueTrend(period),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 15,
+    retry: 2,
   });
 
   return {
     trend: trendQuery.data || { labels: [], revenue: [], profit: [] },
     isLoading: trendQuery.isLoading,
+    refetch: trendQuery.refetch,
   };
 }

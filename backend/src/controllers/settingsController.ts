@@ -1,17 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-
-const getOwnerUserId = async (rawUserId: string): Promise<string> => {
-  if (!rawUserId) return rawUserId;
-
-  const user = await prisma.user.findUnique({ where: { id: rawUserId } });
-  if (user) return user.id;
-
-  const managedUser = await prisma.managedUser.findUnique({ where: { id: rawUserId } });
-  if (managedUser && managedUser.adminId) return managedUser.adminId;
-
-  return rawUserId;
-};
+import { getOwnerUserId } from '../utils/getOwnerUserId';
 
 export const getSettings = async (req: Request, res: Response) => {
   try {

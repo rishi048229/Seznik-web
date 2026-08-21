@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { subDays, startOfDay, endOfDay } from 'date-fns';
+import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth } from 'date-fns';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { computeSaleGrossProfit } from '../utils/saleMetrics';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -10,47 +12,67 @@ const parseDate = (d: any, defaultDate: Date) => {
 
 const parseRangeEnd = (d: any, defaultDate: Date) => endOfDay(parseDate(d, defaultDate));
 
+const localDateKey = (date: Date) => format(date, 'yyyy-MM-dd');
+
+const buildProductCostMap = (products: { id: string; costPrice: number }[]) => {
+  const map = new Map<string, number>();
+  products.forEach((p) => map.set(p.id, p.costPrice));
+  return map;
+};
+
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const todayStart = startOfDay(new Date());
 
-    const todaySales = await prisma.sale.findMany({
-      where: {
-        userId,
-        createdAt: { gte: todayStart }
-      }
-    });
+    const [todaySales, activeProducts, recentSales, totalCustomers, allProducts] = await Promise.all([
+      prisma.sale.findMany({
+        where: { userId, createdAt: { gte: todayStart } },
+      }),
+      prisma.product.findMany({ where: { userId, isActive: true } }),
+      prisma.sale.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      prisma.customer.count({ where: { userId } }),
+      prisma.product.findMany({ where: { userId, isActive: true }, select: { costPrice: true, sellingPrice: true, currentStock: true } }),
+    ]);
 
-    const activeProducts = await prisma.product.findMany({
-      where: { userId, isActive: true }
-    });
+    const productCosts = buildProductCostMap(activeProducts);
     const lowStockProducts = activeProducts
-      .filter(p => p.currentStock <= p.lowStockThreshold)
+      .filter((p) => p.currentStock <= p.lowStockThreshold)
       .slice(0, 20);
 
-    const recentSales = await prisma.sale.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 5
-    });
+    const todayRevenue = todaySales.reduce((s, sale) => s + sale.grandTotal, 0);
+    const todayGrossProfit = todaySales.reduce(
+      (s, sale) => s + computeSaleGrossProfit(sale, productCosts),
+      0
+    );
+    const totalStockValue = allProducts.reduce(
+      (sum, p) => sum + (p.costPrice || p.sellingPrice || 0) * p.currentStock,
+      0
+    );
 
     res.json({
-      todayRevenue: todaySales.reduce((s, sale) => s + sale.grandTotal, 0),
+      todayRevenue,
       todayInvoices: todaySales.length,
+      todayGrossProfit,
+      totalCustomers,
+      totalStockValue,
       lowStockCount: lowStockProducts.length,
-      lowStockProducts: lowStockProducts.map(p => ({
+      lowStockProducts: lowStockProducts.map((p) => ({
         id: p.id,
         name: p.name,
         currentStock: p.currentStock,
-        threshold: p.lowStockThreshold
+        threshold: p.lowStockThreshold,
       })),
-      recentSales: recentSales.map(s => ({
+      recentSales: recentSales.map((s) => ({
         id: s.id,
         invoiceNumber: s.invoiceNumber,
         grandTotal: s.grandTotal,
-        createdAt: s.createdAt.getTime()
-      }))
+        createdAt: s.createdAt.getTime(),
+      })),
     });
   } catch (error) {
     console.error(error);
@@ -60,7 +82,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
 export const getSalesReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { start, end } = req.query;
 
     const sales = await prisma.sale.findMany({
@@ -75,7 +97,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
     const dayMap = new Map<string, { revenue: number; count: number }>();
     sales.forEach(sale => {
-      const key = sale.createdAt.toISOString().split('T')[0];
+      const key = localDateKey(sale.createdAt);
       const existing = dayMap.get(key) ?? { revenue: 0, count: 0 };
       existing.revenue += sale.grandTotal;
       existing.count += 1;
@@ -97,7 +119,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
 export const getPLReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { start, end } = req.query;
 
     const sales = await prisma.sale.findMany({
@@ -136,7 +158,7 @@ export const getPLReport = async (req: Request, res: Response) => {
 
 export const getTaxReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { start, end } = req.query;
 
     const sales = await prisma.sale.findMany({
@@ -162,53 +184,67 @@ export const getTaxReport = async (req: Request, res: Response) => {
 
 export const getRevenueTrend = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const { days } = req.query;
-    const numDays = Number(days) || 7;
+    const userId = await getOwnerUserId((req as any).user.id);
+    const period = (req.query.period as string) || 'daily';
+    const numDays = Number(req.query.days) || (period === 'monthly' ? 90 : period === 'weekly' ? 28 : 7);
     const startDate = startOfDay(subDays(new Date(), numDays - 1));
 
-    const sales = await prisma.sale.findMany({
-      where: {
-        userId,
-        createdAt: { gte: startDate }
-      }
-    });
+    const [sales, products] = await Promise.all([
+      prisma.sale.findMany({
+        where: { userId, createdAt: { gte: startDate } },
+      }),
+      prisma.product.findMany({ where: { userId } }),
+    ]);
+    const productCosts = buildProductCostMap(products);
 
-    const products = await prisma.product.findMany({ where: { userId } });
-    const productCosts = new Map<string, number>();
-    products.forEach(p => productCosts.set(p.id, p.costPrice));
+    const bucketMap = new Map<string, { revenue: number; profit: number }>();
+    const bucketKey = (date: Date): string => {
+      if (period === 'weekly') return format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      if (period === 'monthly') return format(startOfMonth(date), 'yyyy-MM');
+      return localDateKey(date);
+    };
 
-    const dayMap = new Map<string, { revenue: number; count: number; profit: number }>();
-    sales.forEach(sale => {
-      const key = sale.createdAt.toISOString().split('T')[0];
-      const existing = dayMap.get(key) ?? { revenue: 0, count: 0, profit: 0 };
+    sales.forEach((sale) => {
+      const key = bucketKey(sale.createdAt);
+      const existing = bucketMap.get(key) ?? { revenue: 0, profit: 0 };
       existing.revenue += sale.grandTotal;
-      existing.count += 1;
-
-      let totalCost = 0;
-      const items: any = sale.items;
-      if (items && Array.isArray(items)) {
-        items.forEach(item => {
-          if (item.productId) {
-            totalCost += (productCosts.get(item.productId) ?? 0) * item.quantity;
-          }
-        });
-      }
-      existing.profit += sale.grandTotal - sale.totalTax - totalCost;
-      dayMap.set(key, existing);
+      existing.profit += computeSaleGrossProfit(sale, productCosts);
+      bucketMap.set(key, existing);
     });
 
     const labels: string[] = [];
     const revenue: number[] = [];
     const profit: number[] = [];
-    for (let i = 0; i < numDays; i++) {
-      const date = subDays(new Date(), numDays - 1 - i);
-      const key = date.toISOString().split('T')[0];
-      const dayLabel = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-      labels.push(dayLabel);
-      const data = dayMap.get(key);
-      revenue.push(data?.revenue ?? 0);
-      profit.push(data?.profit ?? 0);
+
+    if (period === 'monthly') {
+      const monthCount = Math.max(1, Math.ceil(numDays / 30));
+      for (let i = monthCount - 1; i >= 0; i--) {
+        const date = startOfMonth(subDays(new Date(), i * 30));
+        const key = format(date, 'yyyy-MM');
+        labels.push(format(date, 'MMM yy'));
+        const data = bucketMap.get(key);
+        revenue.push(data?.revenue ?? 0);
+        profit.push(data?.profit ?? 0);
+      }
+    } else if (period === 'weekly') {
+      const weekCount = Math.max(1, Math.ceil(numDays / 7));
+      for (let i = weekCount - 1; i >= 0; i--) {
+        const date = startOfWeek(subDays(new Date(), i * 7), { weekStartsOn: 1 });
+        const key = format(date, 'yyyy-MM-dd');
+        labels.push(format(date, 'dd MMM'));
+        const data = bucketMap.get(key);
+        revenue.push(data?.revenue ?? 0);
+        profit.push(data?.profit ?? 0);
+      }
+    } else {
+      for (let i = 0; i < numDays; i++) {
+        const date = subDays(new Date(), numDays - 1 - i);
+        const key = localDateKey(date);
+        labels.push(format(date, 'dd MMM'));
+        const data = bucketMap.get(key);
+        revenue.push(data?.revenue ?? 0);
+        profit.push(data?.profit ?? 0);
+      }
     }
 
     res.json({ labels, revenue, profit });
@@ -220,7 +256,7 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
 
 export const getTopCustomers = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const limit = Number(req.query.limit) || 10;
 
     const sales = await prisma.sale.findMany({
@@ -260,7 +296,7 @@ export const getTopCustomers = async (req: Request, res: Response) => {
 
 export const getPaymentModeBreakdown = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const sales = await prisma.sale.findMany({ where: { userId } });
 
     const totals = new Map<string, { amount: number; count: number }>();
@@ -291,7 +327,7 @@ export const getPaymentModeBreakdown = async (req: Request, res: Response) => {
 
 export const getProfitBreakdown = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
 
     const [sales, products] = await Promise.all([
       prisma.sale.findMany({ where: { userId } }),
@@ -328,7 +364,7 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
 
 export const getTopProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const limit = Number(req.query.limit) || 5;
 
     const sales = await prisma.sale.findMany({ where: { userId } });
@@ -363,7 +399,7 @@ export const getTopProducts = async (req: Request, res: Response) => {
 
 export const getTopCategories = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const limit = Number(req.query.limit) || 3;
 
     const [sales, products] = await Promise.all([
@@ -404,7 +440,7 @@ export const getTopCategories = async (req: Request, res: Response) => {
 
 export const getExpenseSummary = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const now = new Date();
     const todayStart = startOfDay(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

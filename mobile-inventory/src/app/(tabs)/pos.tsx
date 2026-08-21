@@ -329,7 +329,7 @@ export default function PosScreen() {
         changeReturned: saleData.changeReturned,
         customerId: selectedCustomerId || undefined,
         isQuickBill: false,
-      }).catch(() => ({ invoiceNumber: fallbackInv }));
+      });
 
       const finalInv = (sale as any)?.invoiceNumber || fallbackInv;
       saleData.invoiceNumber = finalInv;
@@ -341,12 +341,10 @@ export default function PosScreen() {
       setBillDiscountInput('');
       clearCart();
     } catch (err: any) {
-      setPreviewSaleData(saleData);
-      setShowReceiptPreviewModal(true);
-      setCheckoutModalOpen(false);
-      setCreditAmountReceivedInput('0');
-      setBillDiscountInput('');
-      clearCart();
+      Alert.alert(
+        t('saleFailed', 'Sale Not Saved'),
+        err?.message || t('saleFailedHint', 'Could not save this sale to the server. Dashboard and stock will not update until the sale is saved.')
+      );
     }
   };
 
