@@ -12,6 +12,7 @@ import {
   StatusBar,
   Vibration,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -31,6 +32,11 @@ import {
   Package,
   Mic,
   MicOff,
+  Printer,
+  Minus,
+  Flashlight,
+  FlashlightOff,
+  AlertCircle,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -77,6 +83,8 @@ export default function PosLiteScreen() {
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [scanToast, setScanToast] = useState<{ message: string; isError?: boolean } | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string | null>(null);
@@ -96,11 +104,11 @@ export default function PosLiteScreen() {
   const theme = useAppTheme();
   const isDark = theme.isDark;
 
-  // Handle Instant Scan-to-Cart for POS Lite
+  // Handle Instant Scan-to-Cart for Split-Screen Live Camera
   const handleBarCodeScannedToCart = async ({ data }: { data: string }) => {
     if (data === lastScannedCode) return;
     setLastScannedCode(data);
-    Vibration.vibrate(100);
+    Vibration.vibrate(60);
 
     const raw = String(data || '').trim();
 
@@ -119,12 +127,13 @@ export default function PosLiteScreen() {
 
     if (matched) {
       addItem(matched, 1);
-      Alert.alert('Item Added to Cart!', `${matched.name} (₹${matched.sellingPrice.toFixed(2)}) added.`);
+      setScanToast({ message: `+1 ${matched.name} (₹${matched.sellingPrice.toFixed(2)})` });
     } else {
-      Alert.alert('Unrecognized Barcode', `No product found matching barcode ${raw}.`);
+      setScanToast({ message: `Unrecognized: "${raw.length > 20 ? raw.slice(0, 20) + '...' : raw}"`, isError: true });
     }
 
-    setTimeout(() => setLastScannedCode(null), 1500);
+    setTimeout(() => setLastScannedCode(null), 1000);
+    setTimeout(() => setScanToast(null), 2200);
   };
 
   const handleAddManualItem = () => {
@@ -394,26 +403,206 @@ export default function PosLiteScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* SCAN-TO-CART CAMERA SCANNER MODAL */}
-      <Modal visible={showScanner} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
-          <View style={styles.scannerHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Barcode size={20} color="#10B981" />
-              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 16, marginLeft: 8 }}>
-                Scan Barcode to Add Cart
-              </Text>
+      {/* SPLIT-SCREEN CAMERA SCANNER + LIVE CHECKOUT MODAL */}
+      <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)}>
+        <View style={[styles.splitScannerContainer, { backgroundColor: '#000000' }]}>
+          <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
+          {/* TOP HALF: LIVE CAMERA SCANNER (46% HEIGHT) */}
+          <View style={styles.scannerTopSection}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              enableTorch={isTorchOn}
+              onBarcodeScanned={handleBarCodeScannedToCart}
+              barcodeScannerSettings={{
+                barcodeTypes: [
+                  'qr',
+                  'ean13',
+                  'ean8',
+                  'code128',
+                  'code39',
+                  'upc_a',
+                  'upc_e',
+                  'itf14',
+                  'codabar',
+                  'pdf417',
+                  'aztec',
+                  'datamatrix',
+                ],
+              }}
+            />
+
+            {/* Viewfinder Reticle Overlay */}
+            <View style={styles.viewfinderOverlay} pointerEvents="none">
+              <View style={styles.reticleFrame}>
+                <View style={[styles.reticleCorner, styles.reticleTopLeft]} />
+                <View style={[styles.reticleCorner, styles.reticleTopRight]} />
+                <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
+                <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
+                <View style={styles.reticleLaserLine} />
+              </View>
             </View>
-            <TouchableOpacity onPress={() => setShowScanner(false)}>
-              <X size={24} color="#FFFFFF" />
-            </TouchableOpacity>
+
+            {/* Top Toolbar Overlay */}
+            <SafeAreaView edges={['top']} style={styles.scannerTopToolbar}>
+              <View style={styles.scannerTitleBox}>
+                <Barcode size={18} color="#10B981" />
+                <Text style={styles.scannerTitleText}>Live POS Scanner</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setIsTorchOn((prev) => !prev)}
+                  style={[styles.scannerToolBtn, isTorchOn && { backgroundColor: '#F59E0B' }]}
+                >
+                  {isTorchOn ? <Flashlight size={16} color="#000" /> : <FlashlightOff size={16} color="#FFF" />}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setShowScanner(false)}
+                  style={[styles.scannerToolBtn, { backgroundColor: 'rgba(239, 68, 68, 0.85)' }]}
+                >
+                  <X size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+
+            {/* Floating Scan Toast Banner */}
+            {scanToast && (
+              <View style={[styles.scanToastPill, { backgroundColor: scanToast.isError ? 'rgba(239, 68, 68, 0.95)' : 'rgba(16, 185, 129, 0.95)' }]}>
+                {scanToast.isError ? (
+                  <AlertCircle size={14} color="#FFF" style={{ marginRight: 6 }} />
+                ) : (
+                  <CheckCircle2 size={14} color="#FFF" style={{ marginRight: 6 }} />
+                )}
+                <Text style={styles.scanToastText} numberOfLines={1}>
+                  {scanToast.message}
+                </Text>
+              </View>
+            )}
           </View>
-          <CameraView
-            style={{ flex: 1 }}
-            onBarcodeScanned={handleBarCodeScannedToCart}
-            barcodeScannerSettings={{ barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'upc_a'] }}
-          />
-        </SafeAreaView>
+
+          {/* BOTTOM HALF: LIVE CART & INSTANT CHECKOUT (54% HEIGHT) */}
+          <View style={[styles.scannerBottomSection, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+            {/* Header: Item count & Clear Cart */}
+            <View style={[styles.scannerCartHeader, { borderBottomColor: theme.borderColor }]}>
+              <Text style={[styles.scannerCartHeaderTitle, { color: theme.textPrimary }]}>
+                Cart ({cartItems.length} items)
+              </Text>
+              {cartItems.length > 0 && (
+                <TouchableOpacity onPress={clearCart} style={styles.scannerClearBtn}>
+                  <Trash2 size={14} color="#EF4444" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Scrollable Live Cart Items */}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 12, paddingBottom: 10 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {cartItems.length === 0 ? (
+                <View style={styles.scannerEmptyCartBox}>
+                  <Barcode size={32} color={theme.textSecondary} />
+                  <Text style={[styles.scannerEmptyTitle, { color: theme.textPrimary }]}>Ready to Scan</Text>
+                  <Text style={[styles.scannerEmptySub, { color: theme.textSecondary }]}>
+                    Point camera at products to add them to cart instantly.
+                  </Text>
+                </View>
+              ) : (
+                cartItems.map((item) => (
+                  <View
+                    key={item.product.id}
+                    style={[styles.scannerCartItemRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                  >
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={[styles.scannerCartItemName, { color: theme.textPrimary }]} numberOfLines={1}>
+                        {item.product.name}
+                      </Text>
+                      <Text style={[styles.scannerCartItemPrice, { color: theme.textSecondary }]}>
+                        ₹{item.product.sellingPrice.toFixed(2)} × {item.quantity} = <Text style={{ fontWeight: '900', color: BRAND_COLORS.blue600 }}>₹{(item.product.sellingPrice * item.quantity).toFixed(2)}</Text>
+                      </Text>
+                    </View>
+
+                    <View style={styles.scannerQtyStepper}>
+                      <TouchableOpacity
+                        onPress={() => updateQuantity(item.product.id, item.quantity - 1)}
+                        style={[styles.scannerStepBtn, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}
+                      >
+                        {item.quantity === 1 ? <Trash2 size={12} color="#EF4444" /> : <Minus size={12} color={theme.textPrimary} />}
+                      </TouchableOpacity>
+                      <Text style={[styles.scannerQtyNumber, { color: theme.textPrimary }]}>{item.quantity}</Text>
+                      <TouchableOpacity
+                        onPress={() => addItem(item.product, 1)}
+                        style={[styles.scannerStepBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                      >
+                        <Plus size={12} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Bottom Checkout Controls */}
+            <View style={[styles.scannerCheckoutFooter, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+              {/* Payment Mode Selector */}
+              <View style={styles.scannerPayPillsRow}>
+                {(['cash', 'upi', 'card', 'credit'] as const).map((mode) => {
+                  const active = paymentMethod === mode;
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      onPress={() => setPaymentMethod(mode)}
+                      style={[
+                        styles.scannerPayChip,
+                        {
+                          backgroundColor: active ? BRAND_COLORS.navyInk : theme.bg,
+                          borderColor: active ? BRAND_COLORS.navyInk : theme.borderColor,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.scannerPayChipText, { color: active ? '#FFF' : theme.textSecondary }]}>
+                        {mode.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Total & 1-Tap Print Button */}
+              <View style={styles.scannerActionMainRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.scannerFooterTotalLabel, { color: theme.textSecondary }]}>TOTAL</Text>
+                  <Text style={[styles.scannerFooterTotalPrice, { color: BRAND_COLORS.blue600 }]}>
+                    ₹{getGrandTotal().toFixed(2)}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleCompleteSale}
+                  disabled={cartItems.length === 0 || isCreating}
+                  style={[
+                    styles.scannerPrintChargeBtn,
+                    { backgroundColor: BRAND_COLORS.navyInk },
+                    (cartItems.length === 0 || isCreating) && { opacity: 0.5 },
+                  ]}
+                >
+                  {isCreating ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Printer size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.scannerPrintChargeBtnText}>PRINT BILL & CHARGE</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Manual Item Add Sheet */}
@@ -559,4 +748,44 @@ const styles = StyleSheet.create({
   successCard: { borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1, marginHorizontal: 20, marginBottom: 100 },
   successTitle: { fontSize: 20, fontWeight: '900', marginTop: 10 },
   successSub: { fontSize: 12, marginBottom: 16 },
+
+  // Split-Screen POS Scanner Styles
+  splitScannerContainer: { flex: 1 },
+  scannerTopSection: { height: '46%', width: '100%', position: 'relative', overflow: 'hidden' },
+  viewfinderOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  reticleFrame: { width: 220, height: 130, position: 'relative', justifyContent: 'center', alignItems: 'center' },
+  reticleCorner: { position: 'absolute', width: 22, height: 22, borderColor: '#10B981' },
+  reticleTopLeft: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
+  reticleTopRight: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
+  reticleBottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
+  reticleBottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  reticleLaserLine: { width: '90%', height: 2, backgroundColor: '#EF4444', opacity: 0.85, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 6, elevation: 6 },
+  scannerTopToolbar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, zIndex: 20 },
+  scannerTitleBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  scannerTitleText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13, marginLeft: 6 },
+  scannerToolBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  scanToastPill: { position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, elevation: 8, zIndex: 30 },
+  scanToastText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
+  scannerBottomSection: { height: '54%', width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, overflow: 'hidden' },
+  scannerCartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
+  scannerCartHeaderTitle: { fontSize: 14, fontWeight: '800' },
+  scannerClearBtn: { padding: 6 },
+  scannerEmptyCartBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28 },
+  scannerEmptyTitle: { fontSize: 15, fontWeight: '800', marginTop: 10 },
+  scannerEmptySub: { fontSize: 12, marginTop: 4, textAlign: 'center', paddingHorizontal: 20 },
+  scannerCartItemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  scannerCartItemName: { fontSize: 13, fontWeight: '800' },
+  scannerCartItemPrice: { fontSize: 11, marginTop: 2 },
+  scannerQtyStepper: { flexDirection: 'row', alignItems: 'center' },
+  scannerStepBtn: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  scannerQtyNumber: { fontSize: 13, fontWeight: '900', marginHorizontal: 8, minWidth: 16, textAlign: 'center' },
+  scannerCheckoutFooter: { paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1 },
+  scannerPayPillsRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  scannerPayChip: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  scannerPayChipText: { fontSize: 10, fontWeight: '800' },
+  scannerActionMainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  scannerFooterTotalLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  scannerFooterTotalPrice: { fontSize: 19, fontWeight: '900' },
+  scannerPrintChargeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, paddingHorizontal: 16, borderRadius: 12 },
+  scannerPrintChargeBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
 });

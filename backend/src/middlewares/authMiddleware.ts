@@ -40,7 +40,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       (req as any).user = decoded;
 
       if (decoded?.id) {
-        const checkUser = await prisma.user.findUnique({
+        const checkUser: any = await (prisma.user as any).findUnique({
           where: { id: decoded.id },
           select: { isBanned: true, banReason: true },
         });
