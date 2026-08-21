@@ -39,6 +39,7 @@ import {
   AlertCircle,
   Flashlight,
   FlashlightOff,
+  QrCode,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
@@ -62,6 +63,7 @@ import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
+import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
 
 export default function PosScreen() {
   const insets = useSafeAreaInsets();
@@ -121,6 +123,7 @@ export default function PosScreen() {
   // Receipt Preview Modal State
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
+  const [showUpiModal, setShowUpiModal] = useState(false);
 
   // Hold Orders State
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
@@ -205,6 +208,8 @@ export default function PosScreen() {
     // Credit has to belong to somebody — prompt for a customer right away if still Walk-in.
     if (method === 'credit' && !selectedCustomerId) {
       setShowCustomerPicker(true);
+    } else if (method === 'upi' && cartItems.length > 0) {
+      setShowUpiModal(true);
     }
   };
 
@@ -660,9 +665,9 @@ export default function PosScreen() {
           ))}
         </View>
 
-        {/* Total + PRINT — with Discount Savings Badge */}
+        {/* Total + PRINT — with QR Pay and Discount Savings Badge */}
         <View style={styles.footerMainRow}>
-          <TouchableOpacity onPress={() => setShowCartModal(true)} style={{ flex: 1, marginRight: 12 }}>
+          <TouchableOpacity onPress={() => setShowCartModal(true)} style={{ flex: 1, marginRight: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.tenderTotalLabel}>
                 {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
@@ -674,6 +679,22 @@ export default function PosScreen() {
               ) : null}
             </View>
             <Text style={styles.tenderTotalPrice}>₹{grandTotalNow.toFixed(2)}</Text>
+          </TouchableOpacity>
+
+          {/* 1-Tap Dynamic UPI Payment QR Button */}
+          <TouchableOpacity
+            onPress={() => {
+              setPaymentMethod('upi');
+              setShowUpiModal(true);
+            }}
+            disabled={cartItems.length === 0}
+            style={[
+              styles.qrPayQuickBtn,
+              cartItems.length === 0 && { opacity: 0.4 },
+            ]}
+          >
+            <QrCode size={16} color="#FFFFFF" />
+            <Text style={styles.qrPayQuickBtnText}>QR PAY</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -872,7 +893,7 @@ export default function PosScreen() {
                 })}
               </View>
 
-              {/* Total & 1-Tap Print Button */}
+              {/* Total & 1-Tap Print Button with QR Code button */}
               <View style={styles.scannerActionMainRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.scannerFooterTotalLabel, { color: theme.textSecondary }]}>{t('total', 'TOTAL PAYABLE')}</Text>
@@ -880,6 +901,21 @@ export default function PosScreen() {
                     ₹{grandTotalNow.toFixed(2)}
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setPaymentMethod('upi');
+                    setShowUpiModal(true);
+                  }}
+                  disabled={cartItems.length === 0}
+                  style={[
+                    styles.scannerQrBtn,
+                    cartItems.length === 0 && { opacity: 0.4 },
+                  ]}
+                >
+                  <QrCode size={16} color="#FFFFFF" />
+                  <Text style={styles.scannerQrBtnText}>QR</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={handlePrintCheckout}
@@ -1407,6 +1443,15 @@ export default function PosScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* DYNAMIC UPI PAYMENT MODAL */}
+      <DynamicUpiPaymentModal
+        visible={showUpiModal}
+        onClose={() => setShowUpiModal(false)}
+        amount={grandTotalNow}
+        customerName={selectedCustomerName || undefined}
+        onPaymentConfirmed={handlePrintCheckout}
+      />
+
       {/* DIRECT PRINTER CONNECT MODAL */}
       <DirectPrinterConnectModal
         visible={showDirectPrinterModal}
@@ -1569,4 +1614,8 @@ const styles = StyleSheet.create({
   scannerFooterTotalPrice: { fontSize: 19, fontWeight: '900' },
   scannerPrintChargeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, paddingHorizontal: 16, borderRadius: 12 },
   scannerPrintChargeBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
+  qrPayQuickBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, marginRight: 8 },
+  qrPayQuickBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11, marginLeft: 4 },
+  scannerQrBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingVertical: 11, paddingHorizontal: 12, borderRadius: 12, marginRight: 8 },
+  scannerQrBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11, marginLeft: 4 },
 });

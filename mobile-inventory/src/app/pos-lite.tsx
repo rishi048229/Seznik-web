@@ -56,6 +56,7 @@ import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
+import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
 
 export default function PosLiteScreen() {
   const router = useRouter();
@@ -92,6 +93,7 @@ export default function PosLiteScreen() {
   // Receipt Preview Modal State
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
+  const [showUpiModal, setShowUpiModal] = useState(false);
 
   // Quick Manual Item Form
   const [itemName, setItemName] = useState('');
@@ -391,9 +393,21 @@ export default function PosLiteScreen() {
               <Text style={styles.footerLabel}>Total Amount</Text>
               <Text style={styles.footerPrice}>₹{getGrandTotal().toFixed(2)}</Text>
             </View>
-            <TouchableOpacity onPress={() => setShowPaymentModal(true)} style={styles.checkoutBtn}>
-              <Text style={styles.checkoutBtnText}>Checkout</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setPaymentMethod('upi');
+                  setShowUpiModal(true);
+                }}
+                style={styles.qrPayQuickBtn}
+              >
+                <QrCode size={16} color="#FFFFFF" />
+                <Text style={styles.qrPayQuickBtnText}>QR PAY</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowPaymentModal(true)} style={styles.checkoutBtn}>
+                <Text style={styles.checkoutBtnText}>Checkout</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
@@ -582,6 +596,21 @@ export default function PosLiteScreen() {
                 </View>
 
                 <TouchableOpacity
+                  onPress={() => {
+                    setPaymentMethod('upi');
+                    setShowUpiModal(true);
+                  }}
+                  disabled={cartItems.length === 0}
+                  style={[
+                    styles.scannerQrBtn,
+                    cartItems.length === 0 && { opacity: 0.4 },
+                  ]}
+                >
+                  <QrCode size={16} color="#FFFFFF" />
+                  <Text style={styles.scannerQrBtnText}>QR</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   onPress={handleCompleteSale}
                   disabled={cartItems.length === 0 || isCreating}
                   style={[
@@ -696,6 +725,14 @@ export default function PosLiteScreen() {
         </View>
       </Modal>
 
+      {/* DYNAMIC UPI PAYMENT MODAL */}
+      <DynamicUpiPaymentModal
+        visible={showUpiModal}
+        onClose={() => setShowUpiModal(false)}
+        amount={getGrandTotal()}
+        onPaymentConfirmed={handleCompleteSale}
+      />
+
       {/* LIVE THERMAL RECEIPT PREVIEW MODAL */}
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
@@ -788,4 +825,8 @@ const styles = StyleSheet.create({
   scannerFooterTotalPrice: { fontSize: 19, fontWeight: '900' },
   scannerPrintChargeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, paddingHorizontal: 16, borderRadius: 12 },
   scannerPrintChargeBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
+  qrPayQuickBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12 },
+  qrPayQuickBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11, marginLeft: 4 },
+  scannerQrBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingVertical: 11, paddingHorizontal: 12, borderRadius: 12, marginRight: 8 },
+  scannerQrBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11, marginLeft: 4 },
 });
