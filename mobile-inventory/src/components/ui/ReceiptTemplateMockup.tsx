@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { ReceiptTemplate } from '@/constants/receiptTemplates';
 
 interface MockupItem {
@@ -16,6 +16,7 @@ interface ReceiptTemplateMockupProps {
   storeName: string;
   storeAddress?: string;
   storePhone?: string;
+  storeLogoUrl?: string;
   items?: MockupItem[];
   subtotal?: number;
   totalDiscount?: number;
@@ -36,6 +37,7 @@ export function ReceiptTemplateMockup({
   storeName,
   storeAddress,
   storePhone,
+  storeLogoUrl,
   items: propItems,
   subtotal: propSubtotal,
   totalDiscount = 0,
@@ -61,9 +63,13 @@ export function ReceiptTemplateMockup({
 
   return (
     <View style={styles.paper}>
-      <View style={[styles.iconBadge, { backgroundColor: template.accentColor }]}>
-        <Text style={styles.iconEmoji}>{template.emoji}</Text>
-      </View>
+      {storeLogoUrl ? (
+        <Image source={{ uri: storeLogoUrl }} style={styles.storeLogo} resizeMode="contain" />
+      ) : (
+        <View style={[styles.iconBadge, { backgroundColor: template.accentColor }]}>
+          <Text style={styles.iconEmoji}>{template.emoji}</Text>
+        </View>
+      )}
       <Text style={styles.storeName}>{storeName.toUpperCase()}</Text>
       {template.tagline ? <Text style={[styles.tagline, { color: template.accentColor }]}>{template.tagline}</Text> : null}
       {storeAddress ? <Text style={styles.contactLine}>{storeAddress}</Text> : null}
@@ -157,6 +163,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#CBD5E1',
   },
   iconBadge: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  storeLogo: { width: 72, height: 72, borderRadius: 12, marginBottom: 8, backgroundColor: '#FFFFFF' },
   iconEmoji: { fontSize: 22, lineHeight: 26 },
   storeName: { fontSize: 15, fontWeight: '900', color: '#0F172A', textAlign: 'center' },
   tagline: { fontSize: 11, fontWeight: '700', marginTop: 2, textAlign: 'center' },

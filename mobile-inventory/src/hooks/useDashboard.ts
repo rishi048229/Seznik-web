@@ -59,7 +59,7 @@ export function useDashboard() {
 }
 
 /** Drives the dashboard's Revenue Trend chart — real data bucketed by day/week/month from the backend. */
-export function useRevenueTrend(period: 'daily' | 'weekly' | 'monthly') {
+export function useRevenueTrend(period: 'month' | 'daily' | 'weekly' | 'monthly') {
   const trendQuery = useQuery({
     queryKey: ['reports', 'trend', period],
     queryFn: () => reportsApi.getRevenueTrend(period),

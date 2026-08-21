@@ -33,7 +33,8 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
-import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ListScreenSkeleton, KotOrdersListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import ThermalPrinterService from '@/services/PrinterService';
 
 export default function KotOrdersScreen() {
@@ -225,7 +226,11 @@ export default function KotOrdersScreen() {
 
           {/* Orders List */}
           {isLoading ? (
-            <ListScreenSkeleton count={5} />
+            <ScreenLoadingState
+              message="Loading kitchen orders..."
+              hint="Fetching active KOT tickets and order status"
+              skeleton={<KotOrdersListSkeleton count={4} />}
+            />
           ) : (
             <FlatList
               data={filteredOrders}

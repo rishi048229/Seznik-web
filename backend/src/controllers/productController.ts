@@ -2,6 +2,29 @@ import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
 import prisma from '../config/db';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
+
+const PRODUCT_LIST_SELECT = {
+  id: true,
+  name: true,
+  sku: true,
+  barcode: true,
+  barcodeType: true,
+  categoryId: true,
+  supplierId: true,
+  imageURL: true,
+  costPrice: true,
+  sellingPrice: true,
+  taxRate: true,
+  priceIncludesGst: true,
+  currentStock: true,
+  lowStockThreshold: true,
+  unit: true,
+  isActive: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 // Tried in order for every AI document/invoice call — keeping this in one place means a bad
 // model name never silently kills a whole feature: later entries still get a chance.
@@ -159,13 +182,15 @@ function robustParseProductJson(rawText: string): any[] {
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const products = await prisma.product.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      select: PRODUCT_LIST_SELECT,
     });
     res.json(products);
   } catch (error) {
+    console.error('getProducts failed:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
   }
 };
@@ -378,20 +403,28 @@ export const batchBarcodeStockUpdate = async (req: Request, res: Response) => {
 
 export const getLowStockProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const { threshold } = req.query;
-    
+    const userId = await getOwnerUserId((req as any).user.id);
+    const thresholdOverride = Number(req.query.threshold);
+
     const products = await prisma.product.findMany({
       where: {
         userId,
         isActive: true,
-        currentStock: { lte: Number(threshold) || 0 }
       },
+      select: PRODUCT_LIST_SELECT,
       orderBy: { currentStock: 'asc' },
     });
-    
-    res.json(products);
+
+    const lowStock = products.filter((p) => {
+      const threshold = Number.isFinite(thresholdOverride)
+        ? thresholdOverride
+        : (p.lowStockThreshold ?? 0);
+      return p.currentStock <= threshold;
+    });
+
+    res.json(lowStock);
   } catch (error) {
+    console.error('getLowStockProducts failed:', error);
     res.status(500).json({ error: 'Failed to fetch low stock products' });
   }
 };

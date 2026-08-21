@@ -17,6 +17,7 @@ interface CustomReceiptMockupProps {
   storeAddress?: string;
   storePhone?: string;
   storeGstin?: string;
+  storeLogoUrl?: string;
   invoiceNumber?: string;
   date?: string;
   time?: string;
@@ -46,6 +47,7 @@ export function CustomReceiptMockup({
   storeAddress = '123 Market Road, City Centre',
   storePhone = '+91 98765 43210',
   storeGstin = '27AAAAA0000A1Z5',
+  storeLogoUrl,
   invoiceNumber = 'INV-2026-0042',
   date = new Date().toLocaleDateString('en-GB'),
   time = '12:45 PM',
@@ -164,9 +166,9 @@ export function CustomReceiptMockup({
               },
             ]}
           >
-            {entry.imageUri ? (
+            {(entry.imageUri || storeLogoUrl) ? (
               <Image
-                source={{ uri: entry.imageUri }}
+                source={{ uri: entry.imageUri || storeLogoUrl }}
                 style={[
                   styles.thermalLogoImage,
                   {
@@ -388,10 +390,16 @@ export function CustomReceiptMockup({
     template.entries.filter((e) => e.enabled),
     totalDiscount
   );
+  const hasImageEntry = enabledEntries.some((entry) => entry.type === 'image');
 
   return (
     <View style={styles.paperContainer}>
       <View style={[styles.paper, { maxWidth: paperMaxWidth }]}>
+        {!hasImageEntry && storeLogoUrl ? (
+          <View style={[styles.entryBlock, { alignItems: 'center', marginVertical: 4 }]}>
+            <Image source={{ uri: storeLogoUrl }} style={[styles.thermalLogoImage, { width: '40%', height: 52 }]} resizeMode="contain" />
+          </View>
+        ) : null}
         {enabledEntries.length === 0 ? (
           <Text style={{ fontSize: 11, color: '#666666', textAlign: 'center', paddingVertical: 12, fontFamily: 'monospace' }}>
             No active sections in this custom receipt.

@@ -42,6 +42,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { settingsApi } from '@/api/settings';
+import { persistBusinessLogo } from '@/utils/businessLogoStorage';
 import { useLanguageStore, useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -79,9 +80,9 @@ export default function SettingsScreen() {
   // changes") rather than in a useEffect, so it doesn't trigger a redundant extra render.
   const [hasSeededProfile, setHasSeededProfile] = useState(false);
   if (settings && !hasSeededProfile) {
-    setStoreName(settings.businessName || '');
+    setStoreName(settings.businessName || user?.businessName || user?.displayName || '');
     setStoreGstin(settings.businessGSTIN || '');
-    setStorePhone(settings.businessPhone || '');
+    setStorePhone(settings.businessPhone || user?.phone || '');
     setStoreAddress(settings.businessAddress || '');
     setLogoUri(settings.businessLogoURL || null);
     setUpiId(settings.upiId || '');
@@ -130,12 +131,17 @@ export default function SettingsScreen() {
 
     try {
       setIsSavingProfile(true);
+      let persistedLogo: string | null = logoUri;
+      if (logoUri) {
+        persistedLogo = await persistBusinessLogo(logoUri);
+        setLogoUri(persistedLogo);
+      }
       const payload = {
         businessName: storeName.trim() || undefined,
         businessGSTIN: storeGstin.trim() || undefined,
         businessPhone: storePhone.trim() || undefined,
         businessAddress: storeAddress,
-        businessLogoURL: logoUri || undefined,
+        businessLogoURL: persistedLogo ?? null,
         upiId: upiId || undefined,
       };
       if (settings?.id) {

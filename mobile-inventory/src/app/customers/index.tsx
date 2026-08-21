@@ -42,6 +42,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ContactImportModal } from '@/components/customers/ContactImportModal';
 import { CustomersListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 
@@ -257,7 +258,11 @@ export default function CustomersScreen() {
           </View>
 
           {isLoading ? (
-            <CustomersListSkeleton count={6} />
+            <ScreenLoadingState
+              message={t('loadingCustomers', 'Loading customers...')}
+              hint={t('loadingCustomersHint', 'Fetching customer accounts and credit balances')}
+              skeleton={<CustomersListSkeleton count={6} />}
+            />
           ) : (
             <FlatList
               data={filteredCustomers}

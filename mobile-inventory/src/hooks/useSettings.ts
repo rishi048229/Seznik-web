@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi, SettingsPayload } from '@/api/settings';
+import { resolveBusinessLogoUri } from '@/utils/businessLogoStorage';
 
 /**
  * Real business Settings (name/address/phone/GSTIN etc.), used anywhere a receipt/invoice
@@ -10,7 +11,15 @@ export function useSettings() {
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
-    queryFn: settingsApi.getSettings,
+    queryFn: async () => {
+      const settings = await settingsApi.getSettings();
+      if (!settings) return null;
+      if (settings.businessLogoURL) {
+        const resolved = await resolveBusinessLogoUri(settings.businessLogoURL);
+        return { ...settings, businessLogoURL: resolved };
+      }
+      return settings;
+    },
     staleTime: 1000 * 60 * 5,
   });
 

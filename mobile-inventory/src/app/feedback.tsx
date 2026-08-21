@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Star, Send, MessageSquare } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useFeedback } from '@/hooks/useFeedback';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { FeedbackListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
@@ -142,7 +144,11 @@ export default function FeedbackScreen() {
 
           <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>{t('pastFeedback', 'YOUR PAST FEEDBACK')}</Text>
           {isLoading ? (
-            <ActivityIndicator color={BRAND_COLORS.blue600} style={{ marginTop: 16 }} />
+            <ScreenLoadingState
+              message={t('loadingFeedback', 'Loading feedback...')}
+              hint={t('loadingFeedbackHint', 'Fetching your past submissions')}
+              skeleton={<FeedbackListSkeleton count={3} />}
+            />
           ) : feedback.length === 0 ? (
             <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 30 }}>
               <MessageSquare size={26} color={theme.textSecondary} style={{ marginBottom: 6 }} />

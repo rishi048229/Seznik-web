@@ -473,6 +473,299 @@ export function ListScreenSkeleton({
   );
 }
 
+/** KOT order list cards — badge, meta, item preview box, footer total */
+export function KotOrdersListSkeleton({ count = 4 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View style={{ paddingTop: 4 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.kotOrderCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={styles.rowBetween}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <SkeletonBlock width={42} height={22} borderRadius={8} />
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <SkeletonBlock width="55%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                <SkeletonBlock width="40%" height={10} borderRadius={3} />
+              </View>
+            </View>
+            <SkeletonBlock width={64} height={20} borderRadius={8} />
+          </View>
+          <View style={[styles.kotItemsPreview, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+            {[1, 2].map((row) => (
+              <View key={row} style={[styles.rowBetween, { marginBottom: 6 }]}>
+                <SkeletonBlock width="62%" height={11} borderRadius={3} />
+                <SkeletonBlock width={48} height={11} borderRadius={3} />
+              </View>
+            ))}
+          </View>
+          <View style={[styles.rowBetween, { marginTop: 8 }]}>
+            <SkeletonBlock width={70} height={10} borderRadius={3} />
+            <SkeletonBlock width={80} height={16} borderRadius={4} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Restaurant dining tables — 2-column grid cards */
+export function KotTablesGridSkeleton({ count = 6 }: { count?: number }) {
+  const theme = useAppTheme();
+  const tileWidth = (width - 32 - 10) / 2;
+  return (
+    <View style={styles.kotTablesGrid}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View
+          key={i}
+          style={[styles.kotTableTile, { width: tileWidth, backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+        >
+          <View style={styles.rowBetween}>
+            <SkeletonBlock width={36} height={36} borderRadius={10} />
+            <SkeletonBlock width={20} height={20} borderRadius={6} />
+          </View>
+          <SkeletonBlock width="70%" height={14} borderRadius={4} style={{ marginTop: 10 }} />
+          <SkeletonBlock width="50%" height={11} borderRadius={3} style={{ marginTop: 8 }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** KOT order detail — header strip, info card, item rows, settle button */
+export function KotOrderDetailSkeleton() {
+  const theme = useAppTheme();
+  return (
+    <View style={{ paddingTop: 4 }}>
+      <View style={[styles.rowBetween, { marginBottom: 14 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <SkeletonBlock width={40} height={40} borderRadius={12} />
+          <View style={{ marginLeft: 10, flex: 1 }}>
+            <SkeletonBlock width={90} height={10} borderRadius={3} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="55%" height={18} borderRadius={5} />
+          </View>
+        </View>
+        <SkeletonBlock width={88} height={34} borderRadius={10} />
+      </View>
+      <View style={[styles.chartCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+        <View style={styles.rowBetween}>
+          <View style={{ flex: 1 }}>
+            <SkeletonBlock width="45%" height={16} borderRadius={4} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="60%" height={11} borderRadius={3} />
+          </View>
+          <SkeletonBlock width={72} height={22} borderRadius={8} />
+        </View>
+      </View>
+      <View style={[styles.chartCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginTop: 12 }]}>
+        <SkeletonBlock width={120} height={14} borderRadius={4} style={{ marginBottom: 10 }} />
+        {[1, 2, 3, 4].map((row) => (
+          <View key={row} style={[styles.rowBetween, { marginBottom: 10, paddingBottom: 8, borderBottomWidth: row < 4 ? 1 : 0, borderBottomColor: theme.borderColor }]}>
+            <SkeletonBlock width="58%" height={12} borderRadius={3} />
+            <SkeletonBlock width={56} height={12} borderRadius={3} />
+          </View>
+        ))}
+        <View style={[styles.rowBetween, { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.borderColor }]}>
+          <SkeletonBlock width={100} height={14} borderRadius={4} />
+          <SkeletonBlock width={72} height={18} borderRadius={5} />
+        </View>
+      </View>
+      <SkeletonBlock width="100%" height={48} borderRadius={14} style={{ marginTop: 14 }} />
+    </View>
+  );
+}
+
+/** Customer ledger detail — profile, stat tiles, balance, transaction rows */
+export function CustomerLedgerSkeleton() {
+  const theme = useAppTheme();
+  return (
+    <View style={{ paddingTop: 4 }}>
+      <View style={[styles.customerProfileCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+        <SkeletonBlock width={52} height={52} borderRadius={26} />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <SkeletonBlock width="55%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+          <SkeletonBlock width="40%" height={11} borderRadius={3} style={{ marginBottom: 4 }} />
+          <SkeletonBlock width="65%" height={11} borderRadius={3} />
+        </View>
+        <SkeletonBlock width={36} height={36} borderRadius={18} />
+      </View>
+      <View style={styles.customerStatsGrid}>
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={[styles.customerStatTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <SkeletonBlock width={18} height={18} borderRadius={9} style={{ marginBottom: 6 }} />
+            <SkeletonBlock width="70%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="80%" height={9} borderRadius={3} />
+          </View>
+        ))}
+      </View>
+      <View style={[styles.chartCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginTop: 12 }]}>
+        <SkeletonBlock width={120} height={10} borderRadius={3} style={{ marginBottom: 6 }} />
+        <SkeletonBlock width={100} height={24} borderRadius={6} style={{ marginBottom: 8 }} />
+        <SkeletonBlock width="75%" height={11} borderRadius={3} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 14 }}>
+        {[1, 2, 3].map((i) => (
+          <SkeletonBlock key={i} width={(width - 48) / 3} height={36} borderRadius={10} />
+        ))}
+      </View>
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={[styles.saleCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={{ flex: 1 }}>
+            <SkeletonBlock width="50%" height={13} borderRadius={4} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="35%" height={10} borderRadius={3} />
+          </View>
+          <SkeletonBlock width={64} height={16} borderRadius={4} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Feedback history cards */
+export function FeedbackListSkeleton({ count = 3 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.feedbackCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={styles.rowBetween}>
+            <SkeletonBlock width={80} height={12} borderRadius={4} />
+            <SkeletonBlock width={70} height={12} borderRadius={4} />
+          </View>
+          <SkeletonBlock width="95%" height={12} borderRadius={3} style={{ marginTop: 8 }} />
+          <SkeletonBlock width="88%" height={12} borderRadius={3} style={{ marginTop: 4 }} />
+          <SkeletonBlock width={60} height={10} borderRadius={3} style={{ marginTop: 8 }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Credit reminder rows with action button */
+export function RemindersListSkeleton({ count = 4 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View>
+      <SkeletonBlock width="100%" height={42} borderRadius={12} style={{ marginBottom: 10 }} />
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.reminderRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <SkeletonBlock width="45%" height={13} borderRadius={4} />
+              <SkeletonBlock width={36} height={16} borderRadius={6} style={{ marginLeft: 8 }} />
+            </View>
+            <SkeletonBlock width="55%" height={10} borderRadius={3} />
+          </View>
+          <SkeletonBlock width={96} height={32} borderRadius={10} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Category tree cards with parent header and subcategory rows */
+export function CategoriesTreeSkeleton({ count = 3 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View style={{ paddingTop: 4 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.categoryTreeCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={styles.rowBetween}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <SkeletonBlock width={36} height={36} borderRadius={10} />
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <SkeletonBlock width="50%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                <SkeletonBlock width="70%" height={10} borderRadius={3} />
+              </View>
+            </View>
+            <SkeletonBlock width={44} height={28} borderRadius={8} />
+          </View>
+          {[1, 2].map((sub) => (
+            <View key={sub} style={[styles.categorySubRow, { borderTopColor: theme.borderColor }]}>
+              <SkeletonBlock width={14} height={14} borderRadius={4} />
+              <SkeletonBlock width="40%" height={12} borderRadius={3} style={{ marginLeft: 10, flex: 1 }} />
+              <SkeletonBlock width={36} height={24} borderRadius={6} />
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Quick service token ticket rows */
+export function QuickTokensListSkeleton({ count = 4 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View style={{ paddingTop: 4 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.tokenTicketCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <SkeletonBlock width={44} height={44} borderRadius={12} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <SkeletonBlock width="55%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="45%" height={10} borderRadius={3} />
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <SkeletonBlock width={56} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <SkeletonBlock width={28} height={28} borderRadius={8} />
+              <SkeletonBlock width={28} height={28} borderRadius={8} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Expense transaction rows with colored icon box */
+export function ExpensesListSkeleton({ count = 5 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.expenseCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <SkeletonBlock width={38} height={38} borderRadius={10} />
+          <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+            <SkeletonBlock width="50%" height={13} borderRadius={4} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="65%" height={10} borderRadius={3} />
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <SkeletonBlock width={64} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <SkeletonBlock width={24} height={24} borderRadius={6} />
+              <SkeletonBlock width={24} height={24} borderRadius={6} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Staff account cards with role badge */
+export function StaffListSkeleton({ count = 4 }: { count?: number }) {
+  const theme = useAppTheme();
+  return (
+    <View style={{ paddingTop: 4 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.staffCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <SkeletonBlock width="40%" height={14} borderRadius={4} />
+              <SkeletonBlock width={48} height={18} borderRadius={6} style={{ marginLeft: 8 }} />
+            </View>
+            <SkeletonBlock width="55%" height={10} borderRadius={3} style={{ marginBottom: 4 }} />
+            <SkeletonBlock width="75%" height={10} borderRadius={3} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <SkeletonBlock width={32} height={32} borderRadius={8} />
+            <SkeletonBlock width={32} height={32} borderRadius={8} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   rowBetween: {
     flexDirection: 'row',
@@ -594,5 +887,99 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  kotOrderCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  kotItemsPreview: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginTop: 10,
+  },
+  kotTablesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingTop: 4,
+  },
+  kotTableTile: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    minHeight: 108,
+  },
+  customerProfileCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  customerStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  customerStatTile: {
+    width: (width - 32 - 8) / 2,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
+  },
+  feedbackCard: {
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  reminderRow: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryTreeCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 10,
+  },
+  categorySubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 10,
+    marginTop: 10,
+    borderTopWidth: 1,
+  },
+  tokenTicketCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  expenseCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  staffCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
   },
 });

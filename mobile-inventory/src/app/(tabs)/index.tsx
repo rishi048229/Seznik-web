@@ -80,11 +80,12 @@ import { AiProductImportModal } from '@/components/products/AiProductImportModal
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { DashboardSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
 import { useTranslation } from '@/store/useLanguageStore';
-import { matchProductByCode } from '@/utils/productBarcodeMatch';
+import { RevenueTrendChart } from '@/components/dashboard/RevenueTrendChart';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -101,7 +102,7 @@ export default function DashboardScreen() {
     isRefetching,
     refetch,
   } = useDashboard();
-  const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [timeframe, setTimeframe] = useState<'month' | 'daily' | 'monthly'>('month');
   const { trend, isLoading: isTrendLoading, refetch: refetchTrend } = useRevenueTrend(timeframe);
 
   useFocusEffect(
@@ -473,7 +474,11 @@ export default function DashboardScreen() {
           }
         >
           {isLoading ? (
-            <DashboardSkeleton />
+            <ScreenLoadingState
+              message={t('loadingDashboard', 'Loading dashboard...')}
+              hint={t('loadingDashboardHint', 'Fetching today’s sales, stock alerts, and store metrics')}
+              skeleton={<DashboardSkeleton />}
+            />
           ) : (
             <>
               {/* 2. APP LAUNCHER — Primary 4 Tools with Show More Menu */}
@@ -971,53 +976,17 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* 8. REVENUE TREND CHART */}
-              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 20 }]}>
-                <View style={styles.chartHeader}>
-                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('revenueTrend', 'Revenue Trend')}</Text>
-                  <View style={[styles.timeframeRow, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-                    {(['daily', 'weekly', 'monthly'] as const).map((tMode) => (
-                      <TouchableOpacity
-                        key={tMode}
-                        onPress={() => setTimeframe(tMode)}
-                        style={[styles.timeChip, timeframe === tMode && { backgroundColor: BRAND_COLORS.blue600 }]}
-                      >
-                        <Text style={[styles.timeChipText, timeframe === tMode ? { color: '#FFFFFF' } : { color: theme.textSecondary }]}>
-                          {tMode.charAt(0).toUpperCase() + tMode.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {isTrendLoading ? (
-                  <View style={[styles.barChartContainer, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
-                  </View>
-                ) : trend.revenue.every((v) => v === 0) ? (
-                  <View style={[styles.barChartContainer, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <Text style={{ fontSize: 12, color: theme.textSecondary }}>{t('noSalesToday', 'No sales recorded in this period yet.')}</Text>
-                  </View>
-                ) : (
-                  <View style={styles.barChartContainer}>
-                    {(() => {
-                      const maxRevenue = Math.max(1, ...trend.revenue);
-                      return trend.revenue.map((revenue, idx) => {
-                        const heightPct = Math.max(4, Math.round((revenue / maxRevenue) * 100));
-                        const isLast = idx === trend.revenue.length - 1;
-                        return (
-                          <View key={idx} style={styles.barCol}>
-                            <View style={[styles.barFill, { height: `${heightPct}%`, backgroundColor: isLast ? BRAND_COLORS.sky500 : BRAND_COLORS.navyInk }]} />
-                            <Text style={[styles.barLabel, { color: theme.textSecondary }]} numberOfLines={1}>
-                              {trend.labels[idx] || ''}
-                            </Text>
-                          </View>
-                        );
-                      });
-                    })()}
-                  </View>
-                )}
-              </View>
+              <RevenueTrendChart
+                timeframe={timeframe}
+                onTimeframeChange={setTimeframe}
+                trend={trend}
+                isLoading={isTrendLoading}
+                textPrimary={theme.textPrimary}
+                textSecondary={theme.textSecondary}
+                cardBg={theme.cardBg}
+                borderColor={theme.borderColor}
+                surfaceBg={theme.bg}
+              />
 
               {/* 9. RECENT SALES FEED */}
               <View style={styles.sectionContainer}>
@@ -1449,14 +1418,6 @@ const styles = StyleSheet.create({
   progressBarFill: { height: '100%', borderRadius: 2 },
 
   card: { borderRadius: 18, padding: 16, borderWidth: 1, overflow: 'hidden' },
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  timeframeRow: { flexDirection: 'row', padding: 2, borderRadius: 10, borderWidth: 1 },
-  timeChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  timeChipText: { fontSize: 10, fontWeight: '700' },
-  barChartContainer: { height: 110, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: 10 },
-  barCol: { width: 36, height: '100%', justifyContent: 'flex-end', alignItems: 'center' },
-  barFill: { width: 16, borderRadius: 6, marginBottom: 6 },
-  barLabel: { fontSize: 9, fontWeight: '700' },
 
   sectionContainer: { marginBottom: 18 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },

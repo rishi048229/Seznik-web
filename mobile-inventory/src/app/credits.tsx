@@ -51,7 +51,8 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
-import { DaybookSkeleton } from '@/components/ui/ScreenSkeleton';
+import { DaybookSkeleton, RemindersListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 type AgeingBucket = '0-7' | '8-15' | '16-30' | '30+';
@@ -263,7 +264,11 @@ export default function CreditsDaybookScreen() {
 
         {activeTab === 'daybook' ? (
           isDaybookLoading ? (
-            <DaybookSkeleton />
+            <ScreenLoadingState
+              message="Loading daybook..."
+              hint="Fetching cash in, cash out, and register activity"
+              skeleton={<DaybookSkeleton />}
+            />
           ) : (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
             <Text style={styles.sectionHeader}>CASHFLOW METRICS</Text>
@@ -401,7 +406,11 @@ export default function CreditsDaybookScreen() {
             </View>
 
             {isRemindersLoading ? (
-              <ActivityIndicator size="small" color={BRAND_COLORS.blue600} style={{ marginBottom: 16 }} />
+              <ScreenLoadingState
+                message="Loading reminders..."
+                hint="Checking overdue customer credit balances"
+                skeleton={<RemindersListSkeleton count={4} />}
+              />
             ) : remindersDue.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.textSecondary, marginBottom: 16 }]}>
                 No one is overdue for a reminder right now 🎉

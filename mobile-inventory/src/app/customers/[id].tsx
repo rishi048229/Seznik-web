@@ -43,6 +43,8 @@ import type { CustomerBill } from '@/api/credits';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { CustomerLedgerSkeleton } from '@/components/ui/ScreenSkeleton';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 
 const AGEING_COLORS: Record<string, string> = {
@@ -195,11 +197,12 @@ export default function CustomerAccountScreen() {
 
   if (isLoading || !ledger) {
     return (
-      <ScreenBackground color={theme.bg}>
-        <SafeAreaView style={[styles.container, { backgroundColor: 'transparent', justifyContent: 'center' }]}>
-          <ActivityIndicator size="large" color={BRAND_COLORS.blue600} />
-        </SafeAreaView>
-      </ScreenBackground>
+      <ScreenLoadingState
+        message="Loading customer ledger..."
+        hint="Fetching credit history, bills, and account details"
+        skeleton={<CustomerLedgerSkeleton />}
+        fullScreen
+      />
     );
   }
 

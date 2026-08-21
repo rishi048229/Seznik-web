@@ -24,6 +24,7 @@ const ALLOWED_SETTINGS_FIELDS = [
   'businessPhone',
   'businessGSTIN',
   'businessLogoURL',
+  'upiId',
   'personalInfo',
   'invoiceConfig',
   'notificationConfig',

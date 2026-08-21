@@ -33,6 +33,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function SalesHistoryTabScreen() {
@@ -141,7 +142,11 @@ export default function SalesHistoryTabScreen() {
 
         {/* Sales List */}
         {isLoading ? (
-          <SalesListSkeleton count={6} />
+          <ScreenLoadingState
+            message={t('loadingSales', 'Loading sales...')}
+            hint={t('loadingSalesHint', 'Fetching recent bills and transactions')}
+            skeleton={<SalesListSkeleton count={6} />}
+          />
         ) : (
           <FlatList
             data={filteredSales}

@@ -41,9 +41,10 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
-import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
@@ -52,7 +53,7 @@ import { buildBillReceiptHtml } from '@/utils/shareBillReceipt';
 export default function SalesHistoryScreen() {
   const router = useRouter();
   const { t } = useLanguageStore();
-  const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
   const { connectionState } = usePrinterStore();
   const { sales, isLoading, isRefetching, refetch, deleteSale } = useSales();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -101,10 +102,12 @@ export default function SalesHistoryScreen() {
       }));
 
       await ThermalPrinterService.printSaleReceipt({
-        storeName: settings?.businessName || 'SEZNIK STORE',
-        storeAddress: settings?.businessAddress || '',
-        storePhone: settings?.businessPhone || '',
-        storeGstin: settings?.businessGSTIN || '',
+        storeName: storeProfile.storeName,
+        storeAddress: storeProfile.storeAddress,
+        storePhone: storeProfile.storePhone,
+        storeGstin: storeProfile.storeGstin,
+        storeLogoUrl: storeProfile.storeLogoUrl,
+        upiId: storeProfile.upiId,
         invoiceNumber: sale.invoiceNumber,
         date: new Date(sale.createdAt).toLocaleDateString('en-GB') + ' ' + new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         customerName: sale.customerName || 'Walk-in Customer',
@@ -137,7 +140,7 @@ export default function SalesHistoryScreen() {
       }));
 
       const html = buildBillReceiptHtml(
-        settings,
+        storeProfile.settings,
         sale.customerName || 'Walk-in Customer',
         {
           invoiceNumber: sale.invoiceNumber,
@@ -177,10 +180,11 @@ export default function SalesHistoryScreen() {
       }));
 
       await ThermalPrinterService.printA4Invoice({
-        storeName: settings?.businessName || 'SEZNIK STORE',
-        storeAddress: settings?.businessAddress || '',
-        storePhone: settings?.businessPhone || '',
-        storeGstin: settings?.businessGSTIN || '',
+        storeName: storeProfile.storeName,
+        storeAddress: storeProfile.storeAddress,
+        storePhone: storeProfile.storePhone,
+        storeGstin: storeProfile.storeGstin,
+        storeLogoUrl: storeProfile.storeLogoUrl,
         invoiceNumber: sale.invoiceNumber,
         date: new Date(sale.createdAt).toLocaleDateString('en-GB'),
         customerName: sale.customerName || 'Walk-in Customer',
@@ -203,7 +207,7 @@ export default function SalesHistoryScreen() {
       .map((it: any) => `• ${it.quantity}x ${it.productName || 'Item'} - ₹${(it.total || 0).toFixed(2)}`)
       .join('\n');
 
-    const text = `*Invoice Receipt: ${sale.invoiceNumber}*\nStore: *${settings?.businessName || 'Our Store'}*\nDate: ${new Date(
+    const text = `*Invoice Receipt: ${sale.invoiceNumber}*\nStore: *${storeProfile.storeName || 'Our Store'}*\nDate: ${new Date(
       sale.createdAt
     ).toLocaleDateString('en-GB')}\n\n*Items:*\n${itemsSummary}\n\n*Total Amount: ₹${sale.grandTotal.toFixed(
       2
@@ -357,7 +361,11 @@ export default function SalesHistoryScreen() {
 
           {/* Sales List */}
           {isLoading ? (
-            <SalesListSkeleton count={6} />
+            <ScreenLoadingState
+              message="Loading sales..."
+              hint="Fetching recent bills and transactions"
+              skeleton={<SalesListSkeleton count={6} />}
+            />
           ) : (
             <FlatList
               data={filteredSales}

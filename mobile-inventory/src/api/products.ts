@@ -10,13 +10,13 @@ const normalizeProduct = (raw: any): Product => ({
 
 export const productsApi = {
   getProducts: async (): Promise<Product[]> => {
-    const raw = await fetchApi<any>('/products');
+    const raw = await fetchApi<any>('/products', { timeoutMs: 120000 });
     const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.products) ? raw.products : []);
     return list.map(normalizeProduct);
   },
 
   getLowStockProducts: async (): Promise<Product[]> => {
-    const raw = await fetchApi<any>('/products/low-stock');
+    const raw = await fetchApi<any>('/products/low-stock', { timeoutMs: 60000 });
     const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.products) ? raw.products : []);
     return list.map(normalizeProduct);
   },

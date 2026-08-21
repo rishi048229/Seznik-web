@@ -33,7 +33,8 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
-import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ListScreenSkeleton, QuickTokensListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useSettings } from '@/hooks/useSettings';
@@ -339,7 +340,11 @@ export default function QuickTokensScreen() {
           </View>
 
           {isLoadingTokens ? (
-            <ListScreenSkeleton hasSearch={false} hasStats={false} count={4} />
+            <ScreenLoadingState
+              message="Loading tokens..."
+              hint="Fetching service tokens and queue tickets"
+              skeleton={<QuickTokensListSkeleton count={4} />}
+            />
           ) : (
             <FlatList
               data={tokens}

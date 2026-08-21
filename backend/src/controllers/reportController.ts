@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth } from 'date-fns';
+import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth, addDays, differenceInCalendarDays, subMonths } from 'date-fns';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { computeSaleGrossProfit } from '../utils/saleMetrics';
 
@@ -185,9 +185,12 @@ export const getTaxReport = async (req: Request, res: Response) => {
 export const getRevenueTrend = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
-    const period = (req.query.period as string) || 'daily';
-    const numDays = Number(req.query.days) || (period === 'monthly' ? 90 : period === 'weekly' ? 28 : 7);
-    const startDate = startOfDay(subDays(new Date(), numDays - 1));
+    const period = (req.query.period as string) || 'month';
+    const numDays = Number(req.query.days) || (period === 'monthly' ? 90 : period === 'weekly' ? 28 : period === 'month' ? 0 : 7);
+    const startDate =
+      period === 'month'
+        ? startOfDay(startOfMonth(new Date()))
+        : startOfDay(subDays(new Date(), (numDays || 7) - 1));
 
     const [sales, products] = await Promise.all([
       prisma.sale.findMany({
@@ -217,11 +220,23 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
     const profit: number[] = [];
 
     if (period === 'monthly') {
-      const monthCount = Math.max(1, Math.ceil(numDays / 30));
+      const monthCount = Math.max(1, Math.ceil((numDays || 90) / 30));
       for (let i = monthCount - 1; i >= 0; i--) {
-        const date = startOfMonth(subDays(new Date(), i * 30));
+        const date = startOfMonth(subMonths(new Date(), i));
         const key = format(date, 'yyyy-MM');
         labels.push(format(date, 'MMM yy'));
+        const data = bucketMap.get(key);
+        revenue.push(data?.revenue ?? 0);
+        profit.push(data?.profit ?? 0);
+      }
+    } else if (period === 'month') {
+      const monthStart = startOfMonth(new Date());
+      const dayCount = differenceInCalendarDays(new Date(), monthStart) + 1;
+      for (let i = 0; i < dayCount; i++) {
+        const date = addDays(monthStart, i);
+        const key = localDateKey(date);
+        const isToday = i === dayCount - 1;
+        labels.push(isToday ? 'Today' : format(date, 'd'));
         const data = bucketMap.get(key);
         revenue.push(data?.revenue ?? 0);
         profit.push(data?.profit ?? 0);
@@ -231,7 +246,7 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
       for (let i = weekCount - 1; i >= 0; i--) {
         const date = startOfWeek(subDays(new Date(), i * 7), { weekStartsOn: 1 });
         const key = format(date, 'yyyy-MM-dd');
-        labels.push(format(date, 'dd MMM'));
+        labels.push(`Wk ${format(date, 'd MMM')}`);
         const data = bucketMap.get(key);
         revenue.push(data?.revenue ?? 0);
         profit.push(data?.profit ?? 0);
@@ -240,7 +255,8 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
       for (let i = 0; i < numDays; i++) {
         const date = subDays(new Date(), numDays - 1 - i);
         const key = localDateKey(date);
-        labels.push(format(date, 'dd MMM'));
+        const isToday = i === numDays - 1;
+        labels.push(isToday ? 'Today' : format(date, 'd MMM'));
         const data = bucketMap.get(key);
         revenue.push(data?.revenue ?? 0);
         profit.push(data?.profit ?? 0);

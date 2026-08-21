@@ -28,6 +28,8 @@ import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { RestaurantTable } from '@/types/kot';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { KotTablesGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 
@@ -125,9 +127,11 @@ export default function RestaurantTablesScreen() {
 
           {/* Tables Grid */}
           {isLoading ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={BRAND_COLORS.blue600} />
-            </View>
+            <ScreenLoadingState
+              message="Loading tables..."
+              hint="Fetching restaurant table layout and status"
+              skeleton={<KotTablesGridSkeleton count={6} />}
+            />
           ) : (
             <FlatList
               data={tables}

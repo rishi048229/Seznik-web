@@ -34,6 +34,8 @@ import { useKotOrder, useKotOrders } from '@/hooks/useKotOrders';
 import { KOTOrderStatus } from '@/types/kot';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { KotOrderDetailSkeleton } from '@/components/ui/ScreenSkeleton';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -163,14 +165,12 @@ export default function KotOrderDetailScreen() {
 
   if (isLoading || !order) {
     return (
-      <ScreenBackground color={theme.bg}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={BRAND_COLORS.blue600} />
-          <Text style={{ marginTop: 10, color: theme.textSecondary, fontSize: 13, fontWeight: '700' }}>
-            Loading KOT Order...
-          </Text>
-        </View>
-      </ScreenBackground>
+      <ScreenLoadingState
+        message="Loading kitchen order..."
+        hint="Fetching KOT items and preparation status"
+        skeleton={<KotOrderDetailSkeleton />}
+        fullScreen
+      />
     );
   }
 

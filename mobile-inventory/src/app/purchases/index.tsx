@@ -40,6 +40,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function PurchasesScreen() {
@@ -219,7 +220,11 @@ export default function PurchasesScreen() {
 
           {/* Purchases List */}
           {isLoading ? (
-            <ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />
+            <ScreenLoadingState
+              message="Loading purchases..."
+              hint="Fetching stock-in records and supplier bills"
+              skeleton={<ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />}
+            />
           ) : (
             <FlatList
               data={filteredPurchases}

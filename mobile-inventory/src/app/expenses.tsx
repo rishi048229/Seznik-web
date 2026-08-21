@@ -37,7 +37,8 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
-import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ListScreenSkeleton, ExpensesListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 type Period = 'today' | 'week' | 'month' | 'all';
@@ -386,7 +387,11 @@ export default function ExpensesScreen() {
 
           <Text style={styles.sectionHeader}>TRANSACTIONS ({filteredExpenses.length})</Text>
           {isLoading ? (
-            <ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />
+            <ScreenLoadingState
+              message={t('loadingExpenses', 'Loading expenses...')}
+              hint={t('loadingExpensesHint', 'Fetching cash outflows and expense records')}
+              skeleton={<ExpensesListSkeleton count={5} />}
+            />
           ) : filteredExpenses.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No expenses in this period.</Text>
           ) : (

@@ -65,6 +65,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ProductsListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 
@@ -75,6 +76,8 @@ export default function ProductsScreen() {
   const {
     products,
     isLoading,
+    isError,
+    error,
     createProduct,
     updateProduct,
     deleteProduct,
@@ -612,7 +615,26 @@ export default function ProductsScreen() {
 
         {/* Product Cards List */}
         {isLoading ? (
-          <ProductsListSkeleton count={6} />
+          <ScreenLoadingState
+            message={t('loadingProducts', 'Loading products...')}
+            hint={t('loadingProductsHint', 'Fetching your inventory from the server')}
+            skeleton={<ProductsListSkeleton count={6} />}
+          />
+        ) : isError ? (
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, textAlign: 'center' }}>
+              Could not load products from server
+            </Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
+              {(error as Error)?.message || 'Check that the backend is running and your phone is on the same network.'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => refetchProducts()}
+              style={{ marginTop: 16, backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <FlatList
             data={filteredProducts}

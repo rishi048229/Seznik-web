@@ -39,6 +39,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function SuppliersScreen() {
@@ -215,7 +216,11 @@ export default function SuppliersScreen() {
         </View>
 
         {isLoading ? (
-          <ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />
+          <ScreenLoadingState
+            message={t('loadingSuppliers', 'Loading suppliers...')}
+            hint={t('loadingSuppliersHint', 'Fetching vendor contacts and purchase partners')}
+            skeleton={<ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />}
+          />
         ) : filteredSuppliers.length === 0 ? (
           <View style={styles.emptyState}>
             <Building size={32} color={theme.textSecondary} />

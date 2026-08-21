@@ -2508,9 +2508,6 @@ class ThermalPrinterServiceManager {
 
           const logoBase64 = data.storeLogoUrl ? await this.uriToBase64(data.storeLogoUrl) : null;
           const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-          // printPic's native `width` defaults to the FULL paper width in dots (384/576) whenever
-          // it's omitted or 0 — that's why the logo was printing edge-to-edge, dominating the
-          // receipt. Cap it to ~40% of paper width for a normal header-logo size instead.
           const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
           const logoWidthDots = Math.round(paperWidthDots * 0.4);
           const upiString = data.upiId
@@ -2599,6 +2596,31 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  private async printStoreLogoBitmap(
+    storeLogoUrl: string | undefined,
+    paperWidth: '58mm' | '80mm',
+    widthPercent = 40
+  ): Promise<boolean> {
+    if (!storeLogoUrl || typeof NativeEscposPrinter.printPic !== 'function') return false;
+    try {
+      const base64 = await this.uriToBase64(storeLogoUrl);
+      if (!base64) return false;
+      const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
+      const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
+      const logoWidthDots = Math.round(paperWidthDots * (widthPercent / 100));
+      NativeEscposPrinter.printPic(base64, {
+        width: logoWidthDots,
+        center: true,
+        autoCut: false,
+        paperSize: paperSizeDots,
+      });
+      return true;
+    } catch (err) {
+      console.warn('Store logo print failed:', err);
+      return false;
+    }
+  }
+
   private async printCustomReceiptEscpos(
     data: PrintSaleData,
     customTemplate: CustomReceiptTemplate,
@@ -2634,13 +2656,21 @@ class ThermalPrinterServiceManager {
       data.totalDiscount || 0
     );
 
+    const hasEnabledImageEntry = receiptEntries.some((entry) => entry.type === 'image');
+    if (!hasEnabledImageEntry && data.storeLogoUrl) {
+      await this.printStoreLogoBitmap(data.storeLogoUrl, paperWidth, 40);
+    }
+
     for (const entry of receiptEntries) {
       switch (entry.type) {
         case 'image': {
           const uri = entry.imageUri || entry.imageBase64 || data.storeLogoUrl;
           if (uri && typeof NativeEscposPrinter.printPic === 'function') {
             try {
-              const base64 = await this.uriToBase64(uri);
+              let base64 = await this.uriToBase64(uri);
+              if (!base64 && data.storeLogoUrl && uri !== data.storeLogoUrl) {
+                base64 = await this.uriToBase64(data.storeLogoUrl);
+              }
               if (base64) {
                 const widthPct = (entry.widthPercent || 40) / 100;
                 const logoWidthDots = Math.round(paperWidthDots * widthPct);

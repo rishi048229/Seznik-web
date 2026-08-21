@@ -32,7 +32,8 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
-import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ListScreenSkeleton, StaffListSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 // Mirrors UserPermissions (src/types/auth.ts) and useAuthStore.hasPermission's gating exactly —
@@ -181,7 +182,11 @@ export default function StaffScreen() {
           </Text>
 
           {isLoading ? (
-            <ListScreenSkeleton hasSearch={false} hasStats={false} count={4} />
+            <ScreenLoadingState
+              message="Loading staff..."
+              hint="Fetching team members and access permissions"
+              skeleton={<StaffListSkeleton count={4} />}
+            />
           ) : (
             <FlatList
               data={staff}

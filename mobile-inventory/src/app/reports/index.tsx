@@ -31,6 +31,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ReportsSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function ReportsScreen() {
@@ -140,7 +141,11 @@ export default function ReportsScreen() {
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 50 }}>
           {isLoading ? (
-            <ReportsSkeleton />
+            <ScreenLoadingState
+              message="Loading reports..."
+              hint="Calculating sales, profit, and tax summaries"
+              skeleton={<ReportsSkeleton />}
+            />
           ) : (
             <>
               {/* Summary 2-Card Grid */}

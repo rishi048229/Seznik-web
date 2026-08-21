@@ -41,7 +41,8 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
-import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ListScreenSkeleton, CategoriesTreeSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function CategoriesScreen() {
@@ -208,7 +209,11 @@ export default function CategoriesScreen() {
         </View>
 
         {isLoading ? (
-          <ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />
+          <ScreenLoadingState
+            message="Loading categories..."
+            hint="Fetching product groups for your inventory"
+            skeleton={<CategoriesTreeSkeleton count={3} />}
+          />
         ) : categories.length === 0 ? (
           /* Central Empty State Card with prominent middle Add Category button! */
           <View style={[styles.emptyCentralCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>

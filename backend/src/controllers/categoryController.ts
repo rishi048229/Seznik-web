@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
 
 export const getCategories = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const categories = await prisma.category.findMany({
       where: { userId },
       orderBy: { name: 'asc' },

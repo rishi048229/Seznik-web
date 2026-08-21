@@ -45,7 +45,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
 import { useSales } from '@/hooks/useSales';
-import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useCartStore } from '@/store/useCartStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { PaymentMethod } from '@/types/sale';
@@ -61,6 +61,7 @@ import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterCo
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
+import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
@@ -72,10 +73,10 @@ const EMPTY_CART: CartItem[] = [];
 export default function PosScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
-  const { products, isLoading: loadingProducts, getByBarcode } = useProducts();
+  const { products, isInitialLoading: loadingProducts, isError: productsError, error: productsLoadError, refetch: refetchProducts, getByBarcode } = useProducts();
   const { categories } = useCategories();
   const { createSale, isCreating } = useSales();
-  const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
   const { activeDevice, connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -253,12 +254,12 @@ export default function PosScreen() {
     const halfTax = totalTax / 2;
 
     return {
-      storeName: settings?.businessName || 'Your Store Name',
-      storeAddress: settings?.businessAddress || '',
-      storePhone: settings?.businessPhone || '',
-      storeGstin: settings?.businessGSTIN || '',
-      storeLogoUrl: settings?.businessLogoURL || undefined,
-      upiId: settings?.upiId || undefined,
+      storeName: storeProfile.storeName,
+      storeAddress: storeProfile.storeAddress,
+      storePhone: storeProfile.storePhone,
+      storeGstin: storeProfile.storeGstin,
+      storeLogoUrl: storeProfile.storeLogoUrl,
+      upiId: storeProfile.upiId,
       invoiceNumber,
       date: new Date().toLocaleDateString('en-GB'),
       customerName,
@@ -294,7 +295,7 @@ export default function PosScreen() {
     getTotalTax,
     paymentMethod,
     selectedCustomerName,
-    settings,
+    storeProfile,
   ]);
 
   const handlePreviewBill = useCallback(() => {
@@ -401,7 +402,7 @@ export default function PosScreen() {
             <Menu size={20} color={theme.textPrimary} />
           </TouchableOpacity>
           <View style={{ marginLeft: 10 }}>
-            <Text style={styles.headerBadge}>{settings?.businessName || 'Point of Sale'}</Text>
+            <Text style={styles.headerBadge}>{storeProfile.storeName || 'Point of Sale'}</Text>
             <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('pos', 'Billing Counter')}</Text>
           </View>
         </View>
@@ -565,7 +566,26 @@ export default function PosScreen() {
       {/* Full-width Product Grid */}
       <View style={styles.productGridContainer}>
           {loadingProducts ? (
-            <PosGridSkeleton />
+            <ScreenLoadingState
+              message={t('loadingProducts', 'Loading products...')}
+              hint={t('loadingProductsHint', 'Fetching your store catalog from the server. Large inventories may take a moment.')}
+              skeleton={<PosGridSkeleton />}
+            />
+          ) : productsError ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+              <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, textAlign: 'center' }}>
+                Products could not be loaded
+              </Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
+                {(productsLoadError as Error)?.message || 'Ensure the backend is running and reachable from this device.'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => refetchProducts()}
+                style={{ marginTop: 16, backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <PosProductGrid
               products={filteredProducts}
