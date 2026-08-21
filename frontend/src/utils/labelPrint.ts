@@ -54,7 +54,14 @@ export function cleanTextForPrinter(str: string): string {
 // prefix/suffix is applied so "Rs. " never gets applied on top of another
 // "Rs. " / "₹" already present in the value — the cause of the duplicated
 // "Rs. Rs. 330.00" bug.
-const CURRENCY_MARKER_RE = /₹|\bRs\.?\b|\bINR\b/gi
+// No trailing \b after "Rs\.?" on purpose: with the period included, \b would
+// need a word/non-word transition right after the period, but the period
+// itself is non-word and is normally followed by a space (also non-word) —
+// so a trailing boundary silently fails to consume the period, leaving a
+// stray "." behind (this shipped once and produced "Rs. . 1,299.00" on a
+// real printer, since safeData.price already reads "Rs. 1,299.00" by the
+// time this runs — cleanTextForPrinter converts ₹ to "Rs. " upstream).
+const CURRENCY_MARKER_RE = /₹|\bRs\.?|\bINR\b/gi
 
 export const resolveElementText = (el: LabelElement, data: LabelData): string => {
   const pfx = el.prefix ?? ''
@@ -65,7 +72,11 @@ export const resolveElementText = (el: LabelElement, data: LabelData): string =>
     case 'businessName': val = data.businessName; break
     case 'productName': val = data.productName; break
     case 'price': val = data.price.replace(CURRENCY_MARKER_RE, '').trim(); break
-    case 'mrpHeader': val = el.text || 'MRP (Incl. of all taxes)'; break
+    // No hardcoded fallback text here: every built-in template already
+    // carries 'MRP (Incl. of all taxes)' as this element's `prefix`, so
+    // falling back to that same string for `val` when `el.text` is unset
+    // duplicated it ("MRP (Incl. of all taxes)MRP (Incl. of all taxes)").
+    case 'mrpHeader': val = el.text ?? ''; break
     case 'sku': val = data.sku || data.barcodeValue; break
     case 'category': val = data.category || ''; break
     case 'sequenceNo': val = data.sequenceNo || ''; break
@@ -136,7 +147,12 @@ export function generateLabelEscPos(
 }
 
 /**
- * Calculates exact Code 128 symbol width in dots in TSPL 128M Auto mode.
+ * Calculates exact Code 128 symbol width in dots for TSPL's "128" code type
+ * (automatic subset A/B/C switching — NOT "128M", which is manual switching
+ * and requires explicit "!nnn" control codes we don't emit; feeding it plain
+ * data with no control codes meant the printer wasn't applying Code C's
+ * digit-pair compression, so real barcodes printed far wider than this
+ * formula predicted and ran past the label's right edge).
  * Code 128 symbols are composed of:
  * - Start character: 11 modules
  * - Encoded data: 11 modules per character (or 11 modules per 2-digit numeric pair in Code C)
@@ -449,7 +465,7 @@ export function generateLabelTspl(
       const qrSizeDots = 64 // ~8mm QR size
       const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrSizeDots) / 2) + offsetXDots)
 
-      tspl += `BARCODE ${xBar},${y},"128M",28,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
+      tspl += `BARCODE ${xBar},${y},"128",28,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
       tspl += `QRCODE ${xQr},${y},L,3,A,0,"${barcodeStr}"\r\n`
       continue
     }
@@ -481,11 +497,16 @@ export function generateLabelTspl(
           : Math.round((widthDots - barcodeWidthDots) / 2) + offsetXDots
         const x = clampBarcodeX(rawX + barcodeNudgeDots, barcodeWidthDots)
 
-        // TSPL BARCODE x, y, "128M", height, human_readable (2 = centered below,
-        // 0 = suppressed on labels too short to fit the digit row without
-        // overlapping the element below it), rotation, narrow, wide, "data"
+        // TSPL BARCODE x, y, "128" (auto subset switching, so Code C's
+        // digit-pair compression actually applies and matches the width this
+        // module estimates — "128M" needs manual "!nnn" control codes we
+        // don't send, so it silently skipped that compression on real
+        // hardware and printed noticeably wider than expected), height,
+        // human_readable (2 = centered below, 0 = suppressed on labels too
+        // short to fit the digit row without overlapping the element below
+        // it), rotation, narrow, wide, "data"
         const humanReadable = plan.hriSuppressed ? 0 : 2
-        tspl += `BARCODE ${x},${y},"128M",${Math.round(barHeight)},${humanReadable},0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
+        tspl += `BARCODE ${x},${y},"128",${Math.round(barHeight)},${humanReadable},0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
       }
       continue
     }
