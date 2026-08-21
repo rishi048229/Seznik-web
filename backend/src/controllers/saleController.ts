@@ -75,15 +75,29 @@ export const createSale = async (req: Request, res: Response) => {
               where: { id: targetProductId, userId },
             });
             if (prod) {
-              await tx.product.update({
-                where: { id: targetProductId },
-                data: { currentStock: { decrement: item.quantity } },
-              });
+              // Multi-location inventory: a whole sale is billed from one
+              // location (data.locationId), so its stock decrement hits that
+              // location's own pool instead of the flat Product.currentStock.
+              // Falls back to the legacy flat-stock path when the feature is
+              // off (no locationId) or this line has no resolvable product.
+              if (data.locationId) {
+                await tx.productLocationStock.upsert({
+                  where: { productId_locationId: { productId: targetProductId, locationId: data.locationId } },
+                  update: { stock: { decrement: item.quantity } },
+                  create: { productId: targetProductId, locationId: data.locationId, userId, stock: -item.quantity },
+                });
+              } else {
+                await tx.product.update({
+                  where: { id: targetProductId },
+                  data: { currentStock: { decrement: item.quantity } },
+                });
+              }
               await tx.stockHistory.create({
                 data: {
                   change: -item.quantity,
                   reason: 'sale',
                   productId: targetProductId,
+                  locationId: data.locationId || null,
                   userId,
                   createdAt: saleDate,
                 },

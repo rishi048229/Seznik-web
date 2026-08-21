@@ -29,6 +29,7 @@ import reportRoutes from './routes/reportRoutes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import tokenTypeRoutes from './routes/tokenTypeRoutes';
 import tokenRoutes from './routes/tokenRoutes';
+import locationRoutes from './routes/locationRoutes';
 
 const app = express();
 
@@ -103,6 +104,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/token-types', tokenTypeRoutes);
 app.use('/api/tokens', tokenRoutes);
+app.use('/api/locations', locationRoutes);
 
 // 6. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {

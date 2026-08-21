@@ -18,6 +18,13 @@ export interface Product {
   lowStockThreshold: number
   unit: 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
   isActive: boolean
+  // Optional details — never required, purely informational when set.
+  // `| null` is allowed alongside `undefined` because clearing one of these
+  // in the edit form sends an explicit null so the backend actually clears
+  // the column, rather than the update silently omitting the field.
+  brand?: string | null
+  description?: string | null
+  expiryDate?: string | Date | null
   createdAt: Date
   updatedAt: Date
 }

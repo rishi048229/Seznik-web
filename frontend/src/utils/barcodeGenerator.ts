@@ -2,6 +2,7 @@
  * Code 128-B Barcode & QR Code Canvas Generator & PNG Exporter
  * Provides zero-dependency canvas rendering and PNG download utilities.
  */
+import QRCode from 'qrcode'
 
 // Code 128-B Character Set Patterns (107 patterns)
 const CODE128_PATTERNS: number[] = [
@@ -103,64 +104,27 @@ export function drawBarcodeToCanvas(
 }
 
 /**
- * Draws QR Code matrix on HTMLCanvasElement.
+ * Draws a real, independently-scannable QR code (ISO/IEC 18004 via the
+ * `qrcode` package) onto a canvas.
+ *
+ * This used to be a fake procedural pattern (finder squares + sine-noise
+ * "data modules" hashed from the text) that was never a valid QR encoding —
+ * it looked like a QR code but no scanner could read it. Replaced with a
+ * real encoder; returns a Promise since encoding is async, but every
+ * existing call site fires this without awaiting (a canvas ref mutated
+ * in place is fine to update a tick later), except `downloadBarcodePng`
+ * below, which now awaits it before reading the canvas back out.
  */
-export function drawQrCodeToCanvas(
+export async function drawQrCodeToCanvas(
   canvas: HTMLCanvasElement,
   text: string,
   size: number = 180
-): void {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  canvas.width = size
-  canvas.height = size
-
-  // Background
-  ctx.fillStyle = '#FFFFFF'
-  ctx.fillRect(0, 0, size, size)
-
-  // Fast procedural QR module matrix grid calculation based on text hash
-  const modules = 25
-  const cellSize = Math.floor((size - 24) / modules)
-  const offset = Math.floor((size - modules * cellSize) / 2)
-
-  ctx.fillStyle = '#0F172A'
-
-  // Finder Patterns (Top-Left, Top-Right, Bottom-Left)
-  const drawFinder = (x: number, y: number) => {
-    ctx.fillRect(offset + x * cellSize, offset + y * cellSize, 7 * cellSize, 7 * cellSize)
-    ctx.fillStyle = '#FFFFFF'
-    ctx.fillRect(offset + (x + 1) * cellSize, offset + (y + 1) * cellSize, 5 * cellSize, 5 * cellSize)
-    ctx.fillStyle = '#0F172A'
-    ctx.fillRect(offset + (x + 2) * cellSize, offset + (y + 2) * cellSize, 3 * cellSize, 3 * cellSize)
-  }
-
-  drawFinder(0, 0)
-  drawFinder(18, 0)
-  drawFinder(0, 18)
-
-  // Data modules (Hash payload deterministically)
-  let seed = 0
-  for (let i = 0; i < text.length; i++) {
-    seed = (seed << 5) - seed + text.charCodeAt(i)
-    seed |= 0
-  }
-
-  const pseudoRandom = (r: number, c: number) => {
-    const val = Math.sin(seed + r * 37 + c * 17) * 10000
-    return val - Math.floor(val) > 0.45
-  }
-
-  for (let r = 0; r < modules; r++) {
-    for (let c = 0; c < modules; c++) {
-      // Skip finders
-      if ((r < 8 && c < 8) || (r < 8 && c >= 17) || (r >= 17 && c < 8)) continue
-      if (pseudoRandom(r, c)) {
-        ctx.fillRect(offset + c * cellSize, offset + r * cellSize, cellSize, cellSize)
-      }
-    }
-  }
+): Promise<void> {
+  await QRCode.toCanvas(canvas, text || ' ', {
+    width: size,
+    margin: 1,
+    color: { dark: '#0F172A', light: '#FFFFFF' },
+  })
 }
 
 /**
@@ -179,10 +143,10 @@ export function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string)
 /**
  * Utility to generate & download a barcode/QR image as PNG directly.
  */
-export function downloadBarcodePng(productName: string, text: string, type: 'CODE128' | 'EAN13' | 'QR' = 'CODE128'): void {
+export async function downloadBarcodePng(productName: string, text: string, type: 'CODE128' | 'EAN13' | 'QR' = 'CODE128'): Promise<void> {
   const tempCanvas = document.createElement('canvas')
   if (type === 'QR') {
-    drawQrCodeToCanvas(tempCanvas, text, 200)
+    await drawQrCodeToCanvas(tempCanvas, text, 200)
   } else {
     drawBarcodeToCanvas(tempCanvas, text, { height: 90 })
   }

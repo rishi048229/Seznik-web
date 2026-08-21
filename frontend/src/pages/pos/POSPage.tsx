@@ -8,6 +8,9 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
+import { useLocationStock } from '@/hooks/useLocations'
+import { LocationSelector } from '@/components/common/LocationSelector'
+import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
@@ -117,11 +120,35 @@ export const POSPage = () => {
     return acc
   }, {})
 
+  // Multi-location inventory: when a location is selected, stock/price
+  // resolve through that location's own ProductLocationStock row instead of
+  // the product's flat totals. A product with no stock row at the selected
+  // location is 0 available there — it does NOT fall back to the flat
+  // total, since that's the entire point of per-location stock.
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
+  const locationStockMap = new Map(locationStockRows.map(r => [r.productId, r]))
+
+  const getEffectiveStock = (product: Product): number => {
+    if (!selectedLocationId) return product.currentStock
+    return locationStockMap.get(product.id)?.stock ?? 0
+  }
+  const getEffectivePrice = (product: Product): number => {
+    if (!selectedLocationId) return product.sellingPrice
+    const override = locationStockMap.get(product.id)?.priceOverride
+    return override ?? product.sellingPrice
+  }
+  /** The exact object to hand to addItem/cart logic so the cart line carries the location's price. */
+  const withEffectivePrice = (product: Product): Product => {
+    const price = getEffectivePrice(product)
+    return price === product.sellingPrice ? product : { ...product, sellingPrice: price }
+  }
+
   // Barcode scanner integration
   const handleBarcodeScan = (barcode: string) => {
     const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
     if (product) {
-      addItem(product)
+      addItem(withEffectivePrice(product))
       toast.success(`${product.name} ${t('pos.addedSuffix')}`)
     } else {
       toast.error(`${t('pos.productNotFoundPrefix')} ${barcode}`)
@@ -195,11 +222,11 @@ export const POSPage = () => {
 
   const handleProductClick = (product: Product) => {
     const reserved = cartReserved[product.id] || 0
-    const available = product.currentStock - reserved
+    const available = getEffectiveStock(product) - reserved
     if (available <= 0) {
-      toast.error(t('pos.errOutOfStock'))
+      toast.error(selectedLocationId ? `${t('pos.errOutOfStock')} at this location` : t('pos.errOutOfStock'))
     } else {
-      addItem(product)
+      addItem(withEffectivePrice(product))
     }
   }
 
@@ -208,7 +235,7 @@ export const POSPage = () => {
     if (!product) return
     const reserved = cartReserved[productId] || 0
     const otherQty = reserved - (items.find(i => i.productId === productId)?.quantity || 0)
-    const maxAllowed = product.currentStock - otherQty
+    const maxAllowed = getEffectiveStock(product) - otherQty
 
     if (newQty > maxAllowed) {
       toast.error(`Only ${maxAllowed} available in stock`)
@@ -256,6 +283,12 @@ export const POSPage = () => {
     // Only set customerId if a customer is selected (Firestore rejects undefined)
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
+    }
+    // Multi-location inventory: stamps which location's stock this whole
+    // sale decrements. Absent entirely when no location is selected, so the
+    // backend takes its legacy flat-stock path unchanged.
+    if (selectedLocationId) {
+      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
     createSale(saleData, {
@@ -569,6 +602,11 @@ export const POSPage = () => {
               {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
               {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
             </button>
+          </div>
+
+          {/* Billing location (only shown when multi-location inventory is enabled) */}
+          <div className="mt-3">
+            <LocationSelector onChange={setSelectedLocationId} />
           </div>
 
           {/* Barcode Scan Input Panel */}
@@ -976,6 +1014,15 @@ export const POSPage = () => {
                 </button>
               ))}
             </div>
+            {method === 'upi' && settings?.receiptConfig?.upiId && (
+              <div className="mt-3">
+                <UpiQrPanel
+                  upiId={settings.receiptConfig.upiId}
+                  payeeName={settings?.businessName || 'Store'}
+                  amount={finalTotal}
+                />
+              </div>
+            )}
           </div>
 
           {/* Amount Paid / Received Input */}

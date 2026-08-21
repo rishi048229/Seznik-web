@@ -105,7 +105,9 @@
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
       "Bash(npm run *)",
       "Bash(echo \"FRONTEND_EXIT:$?\")",
-      "Bash(echo \"BACKEND_EXIT:$?\")"
+      "Bash(echo \"BACKEND_EXIT:$?\")",
+      "Bash(awk 'NR==467,NR==700 {print NR\": \"$0}' src/pages/pos/POSPage.tsx)",
+      "Bash(npx vite *)"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk"

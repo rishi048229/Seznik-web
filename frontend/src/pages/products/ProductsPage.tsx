@@ -43,6 +43,7 @@ import type { LabelElement } from '@/types/settings.types'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
 import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
+import { isExpiringSoon, isExpired, daysUntilExpiry, formatExpiryMessage } from '@/utils/expiry'
 
 export interface LabelSizePreset {
   id: string
@@ -77,6 +78,10 @@ interface ProductFormState {
   lowStockThreshold: string
   unit: UnitType
   imageURL: string
+  // Optional details — never required, purely informational when filled in.
+  brand: string
+  description: string
+  expiryDate: string
 }
 
 const BARCODE_TYPE_OPTIONS = [
@@ -115,6 +120,9 @@ const defaultForm: ProductFormState = {
   lowStockThreshold: '10',
   unit: 'piece',
   imageURL: '',
+  brand: '',
+  description: '',
+  expiryDate: '',
 }
 
 const PAGE_SIZE = 8
@@ -309,6 +317,9 @@ export const ProductsPage = () => {
   const totalInventoryValue = activeProducts.reduce((sum, p) => sum + (p.costPrice * p.currentStock), 0)
   const lowStockProducts = activeProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.lowStockThreshold)
   const outOfStockProducts = activeProducts.filter(p => p.currentStock <= 0)
+  const expiringProducts = activeProducts
+    .filter(p => isExpiringSoon(p.expiryDate))
+    .sort((a, b) => (daysUntilExpiry(a.expiryDate) ?? 0) - (daysUntilExpiry(b.expiryDate) ?? 0))
 
   // Category distribution
   const categoryCounts = activeProducts.reduce<Record<string, number>>((acc, p) => {
@@ -547,6 +558,9 @@ export const ProductsPage = () => {
       lowStockThreshold: String(row.lowStockThreshold),
       unit: row.unit,
       imageURL: row.imageURL ?? '',
+      brand: row.brand ?? '',
+      description: row.description ?? '',
+      expiryDate: row.expiryDate ? new Date(row.expiryDate).toISOString().slice(0, 10) : '',
     })
     setEditId(row.id)
     setIsFormOpen(true)
@@ -580,6 +594,12 @@ export const ProductsPage = () => {
       unit: form.unit,
       imageURL: form.imageURL || '',
       isActive: true,
+      // Optional details — sent as null (not omitted) when cleared, so
+      // editing a product to remove a brand/description/expiry actually
+      // clears it server-side instead of leaving the old value in place.
+      brand: form.brand.trim() || null,
+      description: form.description.trim() || null,
+      expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
     }
 
     if (editId) {
@@ -930,10 +950,24 @@ export const ProductsPage = () => {
                                   )}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                                    {product.name}
-                                  </p>
-                                  <p className="text-[11px] text-gray-400">{product.unit}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                                      {product.name}
+                                    </p>
+                                    {isExpiringSoon(product.expiryDate) && (
+                                      <span
+                                        title={formatExpiryMessage(product.expiryDate)}
+                                        className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                                          isExpired(product.expiryDate)
+                                            ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                            : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                        }`}
+                                      >
+                                        {isExpired(product.expiryDate) ? t('products.expired') : t('products.expiringSoonBadge')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-gray-400">{product.unit}{product.brand ? ` · ${product.brand}` : ''}</p>
                                 </div>
                               </div>
                             </td>
@@ -1156,6 +1190,45 @@ export const ProductsPage = () => {
               )}
             </div>
           </Card>
+
+          {/* Expiring Soon */}
+          {expiringProducts.length > 0 && (
+            <Card className="p-6">
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
+                <AlertTriangle size={18} className="text-amber-500" />
+                {t('products.expiringSoon')}
+              </h4>
+              <div className="space-y-3">
+                {expiringProducts.slice(0, 3).map(product => {
+                  const expired = isExpired(product.expiryDate)
+                  return (
+                    <div
+                      key={product.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${
+                        expired ? 'bg-red-50 dark:bg-red-900/20 border-red-500' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-500'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                        <p className={`text-[10px] font-medium ${expired ? 'text-red-600' : 'text-amber-600'}`}>
+                          {formatExpiryMessage(product.expiryDate)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => openEdit(product)}
+                        className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                      >
+                        {t('action.edit')}
+                      </button>
+                    </div>
+                  )
+                })}
+                {expiringProducts.length > 3 && (
+                  <p className="text-[10px] text-gray-400 text-center">+{expiringProducts.length - 3} more</p>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Top Categories */}
           <Card className="p-6">
@@ -1490,6 +1563,50 @@ export const ProductsPage = () => {
               value={form.unit}
               onChange={e => setForm(prev => ({ ...prev, unit: e.target.value as UnitType }))}
             />
+          </div>
+
+          {/* Additional Details — entirely optional, never validated as required */}
+          <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
+              {t('products.additionalDetails')} <span className="font-normal">({t('common.optional')})</span>
+            </p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    {t('products.brand')}
+                  </label>
+                  <Input
+                    value={form.brand}
+                    onChange={e => setForm(prev => ({ ...prev, brand: e.target.value }))}
+                    placeholder={t('products.brandPlaceholder')}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    {t('products.expiryDate')}
+                    <FieldInfo textKey="tip.product.expiryDate" />
+                  </label>
+                  <Input
+                    type="date"
+                    value={form.expiryDate}
+                    onChange={e => setForm(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('products.description')}
+                </label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder={t('products.descriptionPlaceholder')}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm resize-none"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </Modal>

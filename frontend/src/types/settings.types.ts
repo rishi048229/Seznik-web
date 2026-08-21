@@ -34,6 +34,9 @@ export interface ReceiptConfig {
   showBarcode?: boolean
   showPaymentQR?: boolean
   paymentQrURL?: string
+  /** UPI VPA (e.g. "yourname@okhdfcbank") for a live, amount-encoded QR — distinct
+   * from paymentQrURL, which is a static uploaded image of the merchant's own QR. */
+  upiId?: string
 }
 
 export interface PersonalInfo {
@@ -118,6 +121,14 @@ export interface PrinterConfig {
   invoiceTermsText: string
   invoiceShowPaymentQR: boolean
   paymentQrURL?: string
+  upiId?: string
+}
+
+// Multi-location inventory feature flag. Purely opt-in — when `enabled` is
+// false/undefined, no location selector renders anywhere and stock/price
+// behave exactly as a single-location install always has.
+export interface LocationConfig {
+  enabled?: boolean
 }
 
 export interface UserSettings {
@@ -132,4 +143,5 @@ export interface UserSettings {
   notificationConfig: NotificationConfig
   receiptConfig: ReceiptConfig
   printerConfig?: PrinterConfig
+  locationConfig?: LocationConfig
 }

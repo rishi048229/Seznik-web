@@ -4,6 +4,10 @@ import { useCreateSale } from '@/hooks/useSales'
 
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
+import { useLocationStock } from '@/hooks/useLocations'
+import { LocationSelector } from '@/components/common/LocationSelector'
+import { UpiQrPanel } from '@/components/common/UpiQrPanel'
+import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
 import { useProducts } from '@/hooks/useProducts'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
@@ -101,6 +105,16 @@ export const POSLitePage = () => {
   const [productQty, setProductQty] = useState('1')
   const [productTaxRate, setProductTaxRate] = useState('0')
 
+  // Multi-location inventory: resolve this location's price override, if any
+  // (see LocationSelector/POSPage for the full explanation of the model).
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
+  const getEffectivePrice = (product: { id: string; sellingPrice: number }): number => {
+    if (!selectedLocationId) return product.sellingPrice
+    const override = locationStockRows.find(r => r.productId === product.id)?.priceOverride
+    return override ?? product.sellingPrice
+  }
+
   // Barcode scan: look up product from catalog and add directly to cart
   const handleBarcodeScan = (barcode: string) => {
     const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
@@ -108,6 +122,7 @@ export const POSLitePage = () => {
       toast.error(`${t('pos.noProductFoundBarcodePrefix')} ${barcode}`)
       return
     }
+    const effectivePrice = getEffectivePrice(product)
     const existing = items.find(i => i.id === product.id)
     if (existing) {
       setItems(prev => prev.map(i =>
@@ -120,14 +135,17 @@ export const POSLitePage = () => {
         id: product.id,
         productName: product.name,
         quantity: 1,
-        sellingPrice: product.sellingPrice,
+        sellingPrice: effectivePrice,
         discount: 0,
         taxRate: product.taxRate,
         priceIncludesGst: product.priceIncludesGst ?? false,
-        total: product.sellingPrice,
+        total: effectivePrice,
       }])
     }
     toast.success(`${product.name} ${t('pos.addedViaScanSuffix')}`)
+    if (isExpiringSoon(product.expiryDate)) {
+      toast(`⚠ ${product.name} — ${formatExpiryMessage(product.expiryDate)}`, { icon: '⏳' })
+    }
   }
 
   // Physical USB/Bluetooth barcode scanner — fires when no input is focused
@@ -286,6 +304,9 @@ export const POSLitePage = () => {
 
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
+    }
+    if (selectedLocationId) {
+      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
     createSale(saleData, {
@@ -475,6 +496,12 @@ export const POSLitePage = () => {
               {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
             </button>
           </div>
+
+          {/* Billing location (only shown when multi-location inventory is enabled) */}
+          <div className="mb-3">
+            <LocationSelector onChange={setSelectedLocationId} />
+          </div>
+
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             {t('pos.addProductManualHint')}
           </p>
@@ -813,6 +840,15 @@ export const POSLitePage = () => {
                 </button>
               ))}
             </div>
+            {method === 'upi' && settings?.receiptConfig?.upiId && (
+              <div className="mt-3">
+                <UpiQrPanel
+                  upiId={settings.receiptConfig.upiId}
+                  payeeName={settings?.businessName || 'Store'}
+                  amount={finalTotal}
+                />
+              </div>
+            )}
           </div>
 
           {/* Amount Paid / Received Input */}

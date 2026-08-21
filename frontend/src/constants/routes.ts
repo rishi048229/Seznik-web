@@ -24,4 +24,5 @@ export const ROUTES = {
   REPORTS_TAX: '/reports/tax',
   SETTINGS: '/settings',
   PRINTERS: '/printers',
+  LOCATIONS: '/locations',
 } as const

@@ -2,6 +2,7 @@ import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
 import { EscPosBuilder } from './escpos'
 import { compileReceiptTextLines } from './receiptEngine'
+import { buildUpiPayLink } from './upiQr'
 
 export const resolveEffectiveReceiptConfig = (
   settings?: Partial<UserSettings> | null,
@@ -36,6 +37,7 @@ export const resolveEffectiveReceiptConfig = (
     showBarcode: pConf?.showBarcode ?? rConf?.showBarcode ?? true,
     showPaymentQR: rConf?.showPaymentQR ?? pConf?.invoiceShowPaymentQR ?? false,
     paymentQrURL: rConf?.paymentQrURL || pConf?.paymentQrURL || '',
+    upiId: rConf?.upiId || pConf?.upiId || '',
     ...overrides,
   }
   return merged
@@ -514,14 +516,19 @@ export const generateReceiptEscPos = ({
     b.line(line)
   })
 
-  // Payment QR Code on ESC/POS Bluetooth receipt
-  if (receiptConfig?.showPaymentQR && (receiptConfig?.paymentQrURL || receiptConfig?.phone || businessName)) {
+  // Payment QR Code on ESC/POS Bluetooth receipt. Prefers a real UPI ID
+  // (proper VPA, e.g. "name@okhdfcbank") to build a correct upi://pay link —
+  // this used to fall back to the business's phone number as the VPA, which
+  // is not generally a valid UPI ID and would print an unpayable QR. Only
+  // falls back to the legacy paymentQrURL-as-payload behavior (for the
+  // static-uploaded-QR flow) when no upiId is configured.
+  if (receiptConfig?.showPaymentQR && (receiptConfig?.upiId || receiptConfig?.paymentQrURL)) {
     b.feed(1)
     b.align('center')
     b.line('SCAN TO PAY VIA QR')
-    const qrPayload = (receiptConfig.paymentQrURL?.startsWith('http') || receiptConfig.paymentQrURL?.startsWith('upi:'))
-      ? receiptConfig.paymentQrURL
-      : `upi://pay?pa=${receiptConfig.phone || '9876543210'}&pn=${encodeURIComponent(businessName || 'SEZNIK')}&am=${sale.grandTotal}&cu=INR`
+    const qrPayload = receiptConfig.upiId
+      ? buildUpiPayLink({ upiId: receiptConfig.upiId, payeeName: businessName || 'SEZNIK', amount: sale.grandTotal })
+      : receiptConfig.paymentQrURL!
     b.qr(qrPayload, paperSize === '80mm' ? 6 : 4)
   }
 

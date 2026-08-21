@@ -9,10 +9,12 @@ import {
   getProductByBarcode, 
   batchBarcodeStockUpdate, 
   getLowStockProducts,
+  getExpiringProducts,
   aiExtractFromDocument,
   bulkImportProducts,
   checkAiStatus
 } from '../controllers/productController';
+import { upsertProductLocationStock } from '../controllers/locationController';
 import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
@@ -27,6 +29,8 @@ router.post('/', createProduct);
 router.post('/ai-extract-document', aiExtractFromDocument);
 router.post('/bulk-import', bulkImportProducts);
 router.get('/low-stock', getLowStockProducts);
+router.get('/expiring', getExpiringProducts);
+router.put('/:productId/location-stock/:locationId', upsertProductLocationStock);
 router.post('/batch-stock-update', batchBarcodeStockUpdate);
 router.post('/bulk-delete', bulkSoftDeleteProducts);
 router.get('/barcode/:barcode', getProductByBarcode);

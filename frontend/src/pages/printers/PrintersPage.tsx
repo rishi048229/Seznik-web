@@ -1014,16 +1014,33 @@ export const PrintersPage = () => {
                   />
                 </div>
                 {receiptConfig.showPaymentQR && (
-                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1 block">
+                        UPI ID for live QR (recommended)
+                      </label>
+                      <input
+                        type="text"
+                        value={receiptConfig.upiId || ''}
+                        onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                        placeholder="yourname@okhdfcbank"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Generates a real QR encoding the exact bill amount, live at checkout and on every printed
+                        receipt — this is your actual UPI ID, not a phone number.
+                      </p>
+                    </div>
                     <ImageUpload
-                      label="Upload Payment QR Code Image (PNG / JPG)"
+                      label="Or upload a static Payment QR Code image (PNG / JPG)"
                       value={receiptConfig.paymentQrURL || ''}
                       onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
                       previewSize="md"
                       accept="image/png,image/jpeg,image/jpg,image/webp"
                     />
                     <p className="text-[11px] text-gray-400">
-                      Upload your Google Pay, PhonePe, Paytm, BHIM, or Bank UPI QR code PNG/JPG image.
+                      Used only as a fallback when no UPI ID is set above — a fixed image (e.g. a GPay/PhonePe QR
+                      screenshot) that doesn't encode the bill amount.
                     </p>
                   </div>
                 )}

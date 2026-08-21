@@ -224,6 +224,32 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
   }
 };
 
+// Products expiring within `days` (default 30), including already-expired
+// ones — powers the Products page "Expiring Soon" panel and the POS/Scan-to-
+// Bill add-to-cart warning. Products with no expiryDate are excluded
+// entirely (this feature is invisible until a user opts in per-product).
+export const getExpiringProducts = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const days = Number(req.query.days) || 30;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+
+    const products = await prisma.product.findMany({
+      where: {
+        userId,
+        isActive: true,
+        expiryDate: { not: null, lte: cutoff },
+      },
+      orderBy: { expiryDate: 'asc' },
+    });
+
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch expiring products' });
+  }
+};
+
 /**
  * A Gemini model this API key can actually call right now, with the real
  * output-token ceiling Google reports for it.
