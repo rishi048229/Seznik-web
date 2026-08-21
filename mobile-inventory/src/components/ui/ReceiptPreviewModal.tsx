@@ -107,11 +107,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   return (
     <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-        >
+      <View style={styles.overlay}>
+        <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
@@ -150,8 +148,11 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           {/* Thermal Paper Scroll Container */}
           <ScrollView
             style={styles.paperScrollView}
-            contentContainerStyle={{ paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}
+            contentContainerStyle={styles.paperScrollContent}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
+            bounces
           >
             {activeCustomTemplate ? (
               <CustomReceiptMockup
@@ -207,8 +208,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
               )}
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
 
     <DirectPrinterConnectModal
@@ -228,7 +229,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 440, maxHeight: '90%', borderRadius: 24, padding: 18, borderWidth: 1 },
+  overlayDismiss: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
+  modalCard: { width: '100%', maxWidth: 440, maxHeight: '90%', borderRadius: 24, padding: 18, borderWidth: 1, flexShrink: 1, zIndex: 1, elevation: 8 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   modalTitle: { fontSize: 16, fontWeight: '900' },
   closeBtn: {
@@ -241,7 +243,8 @@ const styles = StyleSheet.create({
   },
   printerStatusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, marginVertical: 8 },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
-  paperScrollView: { maxHeight: 420, marginVertical: 4 },
+  paperScrollView: { flexGrow: 1, flexShrink: 1, minHeight: 120, maxHeight: 460 },
+  paperScrollContent: { paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center' },
   paperReceiptCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
