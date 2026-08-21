@@ -136,7 +136,7 @@ export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: Qui
       }
     >
       {product && (
-        <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+        <div className="space-y-4 pb-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('products.productName')} *
