@@ -226,6 +226,15 @@ export const createDefaultReceiptTemplate = (name = 'Shop Custom Receipt'): Cust
         size: 'small',
       },
       {
+        id: `entry-9b-${Date.now()}`,
+        type: 'left_right_text',
+        enabled: true,
+        left: 'Discount',
+        right: '-{{discount}}',
+        size: 'small',
+        bold: true,
+      },
+      {
         id: `entry-10-${Date.now()}`,
         type: 'left_right_text',
         enabled: true,

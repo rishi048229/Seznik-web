@@ -8,6 +8,7 @@ interface MockupItem {
   unitPrice: number;
   total: number;
   unit?: string;
+  discount?: number;
 }
 
 interface ReceiptTemplateMockupProps {
@@ -89,6 +90,11 @@ export function ReceiptTemplateMockup({
             <Text style={styles.itemSub}>{item.quantity} {item.unit || 'Pc'} x ₹{item.unitPrice.toFixed(2)}</Text>
             <Text style={styles.itemAmount}>₹{item.total.toFixed(2)}</Text>
           </View>
+          {item.discount && item.discount > 0 ? (
+            <Text style={[styles.itemSub, { color: '#10B981', fontWeight: '700', marginLeft: 8 }]}>
+              Discount: -₹{item.discount.toFixed(2)}
+            </Text>
+          ) : null}
         </View>
       ))}
 

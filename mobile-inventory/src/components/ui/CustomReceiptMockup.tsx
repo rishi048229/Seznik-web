@@ -4,6 +4,12 @@ import QRCodeSVG from 'react-native-qrcode-svg';
 import { Image as ImageIcon } from 'lucide-react-native';
 import { CustomReceiptTemplate, CustomReceiptEntry } from '@/types/customReceipt';
 import { buildBillPdfUrl, buildUpiPayString } from '@/utils/billQrService';
+import {
+  enrichCustomReceiptEntries,
+  isDiscountReceiptEntry,
+  isTaxReceiptEntry,
+  shouldShowItemDiscount,
+} from '@/utils/receiptDiscount';
 
 interface CustomReceiptMockupProps {
   template: CustomReceiptTemplate;
@@ -16,7 +22,7 @@ interface CustomReceiptMockupProps {
   time?: string;
   customerName?: string;
   customerPhone?: string;
-  items?: { productName: string; quantity: number; unitPrice: number; total: number; unit?: string; gstRate?: number }[];
+  items?: { productName: string; quantity: number; unitPrice: number; total: number; unit?: string; gstRate?: number; discount?: number }[];
   subtotal?: number;
   totalDiscount?: number;
   totalTax?: number;
@@ -272,22 +278,19 @@ export function CustomReceiptMockup({
       }
 
       case 'left_right_text': {
-        const isDiscountEntry =
-          entry.left?.toLowerCase().includes('discount') ||
-          entry.right?.toLowerCase().includes('discount') ||
-          entry.left?.includes('{{discount}}') ||
-          entry.right?.includes('{{discount}}');
-
-        if (isDiscountEntry && (!totalDiscount || totalDiscount <= 0)) {
+        if (isDiscountReceiptEntry(entry) && (!totalDiscount || totalDiscount <= 0)) {
+          return null;
+        }
+        if (isTaxReceiptEntry(entry) && (!totalTax || totalTax <= 0)) {
           return null;
         }
 
         return (
           <View key={entry.id || idx} style={[styles.entryBlock, styles.rowBetween]}>
-            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>
+            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: isDiscountReceiptEntry(entry) ? '#10B981' : '#000000' }]}>
               {replaceVars(entry.left)}
             </Text>
-            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>
+            <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: isDiscountReceiptEntry(entry) ? '#10B981' : '#000000' }]}>
               {replaceVars(entry.right)}
             </Text>
           </View>
@@ -327,6 +330,11 @@ export function CustomReceiptMockup({
                     {it.total.toFixed(2)}
                   </Text>
                 </View>
+                {shouldShowItemDiscount(it.discount) ? (
+                  <Text style={[styles.thermalText, { fontSize: 9, color: '#10B981', marginLeft: 12, fontWeight: '700' }]}>
+                    Discount: -₹{it.discount!.toFixed(2)}
+                  </Text>
+                ) : null}
               </View>
             ))}
           </View>
@@ -376,7 +384,10 @@ export function CustomReceiptMockup({
     }
   };
 
-  const enabledEntries = template.entries.filter((e) => e.enabled);
+  const enabledEntries = enrichCustomReceiptEntries(
+    template.entries.filter((e) => e.enabled),
+    totalDiscount
+  );
 
   return (
     <View style={styles.paperContainer}>

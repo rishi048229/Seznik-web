@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -64,6 +64,10 @@ import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
+import { PosProductGrid } from '@/components/pos/PosProductGrid';
+import { CartItem } from '@/store/useCartStore';
+
+const EMPTY_CART: CartItem[] = [];
 
 export default function PosScreen() {
   const insets = useSafeAreaInsets();
@@ -77,29 +81,28 @@ export default function PosScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
 
-  const {
-    items: cartItems,
-    addItem,
-    removeItem,
-    updateQuantity,
-    clearCart,
-    discount: cartDiscount,
-    setDiscount: setCartDiscount,
-    toggleItemDiscount,
-    updateItemDiscount,
-    adjustItemDiscountValue,
-    getItemDiscount,
-    getTotalItemDiscount,
-    getBillDiscount,
-    getSubtotal,
-    getTotalDiscount,
-    getTotalTax,
-    getGrandTotal,
-    toSaleItems,
-    selectedCustomerId,
-    selectedCustomerName,
-    setCustomer,
-  } = useCartStore();
+  const addItem = useCartStore((s) => s.addItem);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const cartDiscount = useCartStore((s) => s.discount);
+  const setCartDiscount = useCartStore((s) => s.setDiscount);
+  const toggleItemDiscount = useCartStore((s) => s.toggleItemDiscount);
+  const updateItemDiscount = useCartStore((s) => s.updateItemDiscount);
+  const adjustItemDiscountValue = useCartStore((s) => s.adjustItemDiscountValue);
+  const getItemDiscount = useCartStore((s) => s.getItemDiscount);
+  const getTotalItemDiscount = useCartStore((s) => s.getTotalItemDiscount);
+  const getBillDiscount = useCartStore((s) => s.getBillDiscount);
+  const getSubtotal = useCartStore((s) => s.getSubtotal);
+  const getTotalDiscount = useCartStore((s) => s.getTotalDiscount);
+  const getTotalTax = useCartStore((s) => s.getTotalTax);
+  const getGrandTotal = useCartStore((s) => s.getGrandTotal);
+  const toSaleItems = useCartStore((s) => s.toSaleItems);
+  const selectedCustomerId = useCartStore((s) => s.selectedCustomerId);
+  const selectedCustomerName = useCartStore((s) => s.selectedCustomerName);
+  const setCustomer = useCartStore((s) => s.setCustomer);
+  const checkoutModalOpen = useCartStore((s) => s.checkoutModalOpen);
+  const setCheckoutModalOpen = useCartStore((s) => s.setCheckoutModalOpen);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,7 +116,6 @@ export default function PosScreen() {
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
 
   // Cart & Checkout State
-  const [showCartModal, setShowCartModal] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [creditAmountReceivedInput, setCreditAmountReceivedInput] = useState('0');
@@ -132,19 +134,43 @@ export default function PosScreen() {
   // Kept as a local alias — this screen references bare `isDark` in several inline styles below.
   const isDark = theme.isDark;
 
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = useMemo(() => products.filter((p) => {
     if (!p.isActive) return false;
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
     const q = searchQuery.trim().toLowerCase();
-    // One search box matches name, barcode, or SKU together — no need to know in advance
-    // whether you're typing a product name or scanning/typing a code.
     const matchesQuery = !q
       ? true
       : p.name.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
         (p.sku && p.sku.toLowerCase().includes(q));
     return matchesCategory && matchesQuery;
-  });
+  }), [products, selectedCategoryId, searchQuery]);
+
+  const cartItems = useCartStore((s) => (s.checkoutModalOpen ? s.items : EMPTY_CART));
+  const getCartItems = useCallback(() => useCartStore.getState().items, []);
+  const liveCartItems = useCartStore((s) => s.items);
+  const cartTotalCount = liveCartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const grandTotalNow = getGrandTotal();
+  const creditRemaining = Math.max(0, grandTotalNow - (parseFloat(creditAmountReceivedInput) || 0));
+
+  const handleClearCart = useCallback(() => {
+    Alert.alert(
+      t('clearCart', 'Clear Cart'),
+      t('clearCartConfirm', 'Remove all items from the cart?'),
+      [
+        { text: t('cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('clear', 'Clear'),
+          style: 'destructive',
+          onPress: () => {
+            clearCart();
+            setBillDiscountInput('');
+            setCreditAmountReceivedInput('0');
+          },
+        },
+      ]
+    );
+  }, [clearCart, t]);
 
   const filteredCategoriesForModal = categories.filter((cat) => {
     if (!cat.isActive) return false;
@@ -185,6 +211,7 @@ export default function PosScreen() {
   };
 
   const handleHoldOrder = () => {
+    const cartItems = getCartItems();
     if (cartItems.length === 0) return;
     const newHold = {
       id: `HOLD-${Date.now()}`,
@@ -213,37 +240,26 @@ export default function PosScreen() {
     }
   };
 
-  // Print button = the whole checkout. For Cash/UPI/Card this creates the sale and opens the
-  // receipt preview in one tap — no intermediate "Payment Method" or "Sale Completed" screens.
-  const handlePrintCheckout = async () => {
-    if (cartItems.length === 0) return;
-
-    if (paymentMethod === 'credit' && !selectedCustomerId) {
-      Alert.alert('Customer Required', 'Credit sales need a customer attached. Tap the Customer row to select or add one.');
-      setShowCustomerPicker(true);
-      return;
-    }
-
+  const buildSaleData = useCallback((invoiceNumber = `INV-${Math.floor(1000 + Math.random() * 9000)}`): PrintSaleData => {
+    const cartItems = getCartItems();
     const grandTotal = getGrandTotal();
-    const subtotal = getSubtotal();
     const totalDiscount = getTotalDiscount();
     const totalTax = getTotalTax();
+    const grossSubtotal = cartItems.reduce((sum, ci) => sum + ci.product.sellingPrice * ci.quantity, 0);
     const amountPaid = paymentMethod === 'credit' ? Math.max(0, Math.min(grandTotal, parseFloat(creditAmountReceivedInput) || 0)) : grandTotal;
     const changeReturned = Math.max(0, amountPaid - grandTotal);
-    const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
     const customerName = selectedCustomerName || 'Walk-in Customer';
-
-    const taxableAmt = Math.max(0, subtotal - totalDiscount);
+    const taxableAmt = Math.max(0, grossSubtotal - totalDiscount);
     const halfTax = totalTax / 2;
 
-    const saleData: PrintSaleData = {
+    return {
       storeName: settings?.businessName || 'Your Store Name',
       storeAddress: settings?.businessAddress || '',
       storePhone: settings?.businessPhone || '',
       storeGstin: settings?.businessGSTIN || '',
       storeLogoUrl: settings?.businessLogoURL || undefined,
       upiId: settings?.upiId || undefined,
-      invoiceNumber: fallbackInv,
+      invoiceNumber,
       date: new Date().toLocaleDateString('en-GB'),
       customerName,
       items: cartItems.map((ci) => {
@@ -255,31 +271,62 @@ export default function PosScreen() {
           total: Math.max(0, ci.product.sellingPrice * ci.quantity - itemDisc),
           unit: ci.product.unit || 'Pc',
           gstRate: ci.product.taxRate || 18,
-          discount: itemDisc,
+          discount: itemDisc > 0 ? itemDisc : undefined,
         };
       }),
-      subtotal,
+      subtotal: grossSubtotal,
       taxableAmt,
       sgst: halfTax,
       cgst: halfTax,
-      totalDiscount,
+      totalDiscount: totalDiscount > 0 ? totalDiscount : 0,
       totalTax,
       grandTotal,
       amountPaid,
       changeReturned,
       paymentMethod,
     };
+  }, [
+    getCartItems,
+    creditAmountReceivedInput,
+    getGrandTotal,
+    getItemDiscount,
+    getTotalDiscount,
+    getTotalTax,
+    paymentMethod,
+    selectedCustomerName,
+    settings,
+  ]);
+
+  const handlePreviewBill = useCallback(() => {
+    if (getCartItems().length === 0) return;
+    const saleData = buildSaleData('PREVIEW');
+    setPreviewSaleData(saleData);
+    setShowReceiptPreviewModal(true);
+  }, [buildSaleData, getCartItems]);
+
+  // Print button finalizes the sale, then opens receipt preview for print/share.
+  const handlePrintCheckout = async () => {
+    if (getCartItems().length === 0) return;
+
+    if (paymentMethod === 'credit' && !selectedCustomerId) {
+      Alert.alert('Customer Required', 'Credit sales need a customer attached. Tap the Customer row to select or add one.');
+      setShowCustomerPicker(true);
+      return;
+    }
+
+    const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const saleData = buildSaleData(fallbackInv);
 
     try {
       const sale = await createSale({
         items: toSaleItems(),
-        subtotal,
-        totalDiscount,
-        totalTax,
-        grandTotal,
+        subtotal: saleData.subtotal,
+        totalDiscount: saleData.totalDiscount,
+        totalTax: saleData.totalTax,
+        grandTotal: saleData.grandTotal,
         paymentMethod,
-        amountPaid,
-        changeReturned,
+        amountPaid: saleData.amountPaid,
+        changeReturned: saleData.changeReturned,
         customerId: selectedCustomerId || undefined,
         isQuickBill: false,
       }).catch(() => ({ invoiceNumber: fallbackInv }));
@@ -289,12 +336,14 @@ export default function PosScreen() {
 
       setPreviewSaleData(saleData);
       setShowReceiptPreviewModal(true);
+      setCheckoutModalOpen(false);
       setCreditAmountReceivedInput('0');
       setBillDiscountInput('');
       clearCart();
     } catch (err: any) {
       setPreviewSaleData(saleData);
       setShowReceiptPreviewModal(true);
+      setCheckoutModalOpen(false);
       setCreditAmountReceivedInput('0');
       setBillDiscountInput('');
       clearCart();
@@ -311,6 +360,7 @@ export default function PosScreen() {
       if (cmd.action === 'add') {
         addItem(product, cmd.quantity === Infinity ? 1 : cmd.quantity);
       } else if (cmd.action === 'remove') {
+        const cartItems = useCartStore.getState().items;
         const existing = cartItems.find((i) => i.product.id === product.id);
         if (!existing) return;
         if (cmd.quantity === Infinity) {
@@ -321,7 +371,7 @@ export default function PosScreen() {
       }
       Vibration.vibrate(60);
     },
-    [products, cartItems, addItem, removeItem, updateQuantity]
+    [products, addItem, removeItem, updateQuantity]
   );
 
   const voiceProducts = React.useMemo(() => products.map((p) => ({ id: p.id, name: p.name })), [products]);
@@ -336,10 +386,6 @@ export default function PosScreen() {
     setVoiceLang(VOICE_LANGUAGES[(idx + 1) % VOICE_LANGUAGES.length].code);
   };
   const currentVoiceLangLabel = VOICE_LANGUAGES.find((l) => l.code === voiceLang)?.short || 'EN';
-
-  const cartTotalCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const grandTotalNow = getGrandTotal();
-  const creditRemaining = Math.max(0, grandTotalNow - (parseFloat(creditAmountReceivedInput) || 0));
 
   return (
     <ScreenBackground color={theme.bg}>
@@ -523,98 +569,14 @@ export default function PosScreen() {
           {loadingProducts ? (
             <PosGridSkeleton />
           ) : (
-            <FlatList
-              data={filteredProducts}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
-              windowSize={7}
-              removeClippedSubviews={Platform.OS === 'android'}
-              columnWrapperStyle={{ justifyContent: 'space-between' }}
-              contentContainerStyle={{ paddingBottom: 150 }}
-              renderItem={({ item, index }) => {
-                const inCart = cartItems.find((i) => i.product.id === item.id);
-                const codeNumber = item.barcode ? item.barcode.slice(-4) : String(index + 101);
-
-                return (
-                  <TouchableOpacity
-                    onPress={() => addItem(item, 1)}
-                    activeOpacity={0.75}
-                    style={[
-                      styles.productTile,
-                      {
-                        backgroundColor: inCart ? 'rgba(37, 99, 235, 0.12)' : theme.cardBg,
-                        borderColor: inCart ? BRAND_COLORS.blue600 : theme.borderColor,
-                      },
-                    ]}
-                  >
-                    {/* Code shown as plain muted text (secondary detail); the stock badge only
-                        appears at all when it's actually a warning — a calm default, an
-                        attention-grabbing exception. */}
-                    <View style={styles.tileHeaderRow}>
-                      <Text style={[styles.codeTagText, { color: theme.textSecondary }]}>#{codeNumber}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        {item.discountValue && item.discountValue > 0 ? (
-                          <View style={[styles.stockBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                            <Text style={[styles.stockBadgeText, { color: '#10B981' }]}>
-                              {item.discountType === 'percent' ? `${item.discountValue}% OFF` : `₹${item.discountValue} OFF`}
-                            </Text>
-                          </View>
-                        ) : null}
-                        {item.currentStock <= item.lowStockThreshold ? (
-                          <View style={styles.stockBadge}>
-                            <Text style={styles.stockBadgeText}>{t('lowStock', 'Low')}: {item.currentStock}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-
-                    {/* Product Photo Image Container */}
-                    <View style={styles.tileImageWrapper}>
-                      {item.imageUrl ? (
-                        <Image source={{ uri: item.imageUrl }} style={styles.tileProductImage} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.tileImagePlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
-                          <Package size={22} color={theme.textSecondary} />
-                        </View>
-                      )}
-                    </View>
-
-                    <Text style={[styles.tileName, { color: theme.textPrimary }]} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-
-                    <View style={styles.tileFooterRow}>
-                      <Text style={styles.tilePrice}>₹{item.sellingPrice.toFixed(2)}</Text>
-
-                      {inCart ? (
-                        <View style={styles.inCartStepperRow}>
-                          <TouchableOpacity
-                            onPress={() => updateQuantity(item.id, inCart.quantity - 1)}
-                            style={styles.tileStepBtn}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
-                          >
-                            {inCart.quantity === 1 ? <Trash2 size={12} color="#FFFFFF" /> : <Minus size={12} color="#FFFFFF" />}
-                          </TouchableOpacity>
-                          <Text style={styles.inCartQtyText}>{inCart.quantity}</Text>
-                          <TouchableOpacity
-                            onPress={() => addItem(item, 1)}
-                            style={[styles.tileStepBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-                            hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
-                          >
-                            <Plus size={12} color="#FFFFFF" />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <View style={[styles.addCircle, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}>
-                          <Plus size={14} color={theme.textSecondary} />
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
+            <PosProductGrid
+              products={filteredProducts}
+              isDark={isDark}
+              cardBg={theme.cardBg}
+              borderColor={theme.borderColor}
+              textPrimary={theme.textPrimary}
+              textSecondary={theme.textSecondary}
+              lowStockLabel={t('lowStock', 'Low')}
             />
           )}
         </View>
@@ -646,8 +608,6 @@ export default function PosScreen() {
           </View>
         ) : null}
 
-        {/* Tender selection gets its own full-width row — bigger, evenly-spaced chips instead
-            of squeezed next to the total and PRINT button. */}
         <View style={styles.tenderPillsRow}>
           {(['cash', 'upi', 'card', 'credit'] as const).map((method) => (
             <TouchableOpacity
@@ -665,9 +625,8 @@ export default function PosScreen() {
           ))}
         </View>
 
-        {/* Total + PRINT — with QR Pay and Discount Savings Badge */}
         <View style={styles.footerMainRow}>
-          <TouchableOpacity onPress={() => setShowCartModal(true)} style={{ flex: 1, marginRight: 10 }}>
+          <TouchableOpacity onPress={() => setCheckoutModalOpen(true)} style={{ flex: 1, marginRight: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.tenderTotalLabel}>
                 {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
@@ -681,16 +640,15 @@ export default function PosScreen() {
             <Text style={styles.tenderTotalPrice}>₹{grandTotalNow.toFixed(2)}</Text>
           </TouchableOpacity>
 
-          {/* 1-Tap Dynamic UPI Payment QR Button */}
           <TouchableOpacity
             onPress={() => {
               setPaymentMethod('upi');
               setShowUpiModal(true);
             }}
-            disabled={cartItems.length === 0}
+            disabled={liveCartItems.length === 0}
             style={[
               styles.qrPayQuickBtn,
-              cartItems.length === 0 && { opacity: 0.4 },
+              liveCartItems.length === 0 && { opacity: 0.4 },
             ]}
           >
             <QrCode size={16} color="#FFFFFF" />
@@ -699,8 +657,8 @@ export default function PosScreen() {
 
           <TouchableOpacity
             onPress={handlePrintCheckout}
-            disabled={cartItems.length === 0 || isCreating}
-            style={[styles.checkoutActionBtn, (cartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
+            disabled={liveCartItems.length === 0 || isCreating}
+            style={[styles.checkoutActionBtn, (liveCartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
           >
             {isCreating ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -941,20 +899,74 @@ export default function PosScreen() {
         </View>
       </Modal>
 
-      {/* Cart Detail Modal — optional review step, no longer a mandatory part of checkout */}
-      <Modal visible={showCartModal} animationType="slide">
+      {checkoutModalOpen ? (
+      <Modal visible animationType="slide">
         <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: theme.bg }]}>
           <View style={{ flex: 1, padding: 16 }}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Cart Items ({cartTotalCount})
+                {t('reviewBill', 'Review Bill')} ({cartItems.reduce((sum, item) => sum + item.quantity, 0)})
               </Text>
-              <TouchableOpacity onPress={() => setShowCartModal(false)}>
-                <X size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {cartItems.length > 0 ? (
+                  <TouchableOpacity onPress={handleClearCart} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#EF4444' }}>{t('clearCart', 'Clear Cart')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={() => setCheckoutModalOpen(false)}>
+                  <X size={24} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <ScrollView style={{ flex: 1, marginBottom: 16 }}>
+            {/* Customer row */}
+            <TouchableOpacity
+              onPress={() => setShowCustomerPicker(true)}
+              style={[styles.checkoutCustomerRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            >
+              <UserCircle2 size={16} color={theme.textSecondary} />
+              <Text style={[styles.checkoutCustomerText, { color: theme.textPrimary }]} numberOfLines={1}>
+                {selectedCustomerName || t('walkInCustomer', 'Walk-in Customer')}
+              </Text>
+              <ChevronDown size={14} color={theme.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Payment method */}
+            <View style={styles.checkoutTenderRow}>
+              {(['cash', 'upi', 'card', 'credit'] as PaymentMethod[]).map((method) => (
+                <TouchableOpacity
+                  key={method}
+                  onPress={() => handleSelectPaymentMethod(method)}
+                  style={[
+                    styles.checkoutTenderChip,
+                    {
+                      backgroundColor: paymentMethod === method ? BRAND_COLORS.blue600 : theme.cardBg,
+                      borderColor: paymentMethod === method ? BRAND_COLORS.blue600 : theme.borderColor,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.checkoutTenderChipText, { color: paymentMethod === method ? '#FFFFFF' : theme.textPrimary }]}>
+                    {method === 'credit' ? t('credit', 'Credit') : method.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {paymentMethod === 'credit' ? (
+              <View style={[styles.checkoutCreditRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.checkoutCreditLabel, { color: theme.textSecondary }]}>{t('receivedNow', 'Received Now')} ₹</Text>
+                <TextInput
+                  style={[styles.checkoutCreditInput, { color: theme.textPrimary, borderColor: theme.borderColor }]}
+                  keyboardType="numeric"
+                  value={creditAmountReceivedInput}
+                  onChangeText={setCreditAmountReceivedInput}
+                  placeholder="0"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+            ) : null}
+
+            <ScrollView style={{ flex: 1, marginBottom: 16 }} keyboardShouldPersistTaps="handled">
               {cartItems.map((item) => {
                 const itemDiscAmount = getItemDiscount(item);
                 const isDiscActive = Boolean(item.discountApplied && (item.discountValue || 0) > 0);
@@ -1211,19 +1223,31 @@ export default function PosScreen() {
               ) : null}
             </ScrollView>
 
-            <TouchableOpacity
-              onPress={() => {
-                setShowCartModal(false);
-                handlePrintCheckout();
-              }}
-              disabled={cartItems.length === 0}
-              style={[styles.submitBtn, cartItems.length === 0 && { opacity: 0.5 }]}
-            >
-              <Text style={styles.submitBtnText}>Print Bill</Text>
-            </TouchableOpacity>
+            <View style={styles.checkoutActionRow}>
+              <TouchableOpacity
+                onPress={handlePreviewBill}
+                disabled={cartItems.length === 0}
+                style={[styles.previewBtn, { borderColor: theme.borderColor }, cartItems.length === 0 && { opacity: 0.5 }]}
+              >
+                <Text style={[styles.previewBtnText, { color: theme.textPrimary }]}>{t('previewBill', 'Preview Bill')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handlePrintCheckout}
+                disabled={cartItems.length === 0 || isCreating}
+                style={[styles.submitBtn, { flex: 1 }, (cartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
+              >
+                {isCreating ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>{t('printBill', 'Print Bill')}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
       </Modal>
+      ) : null}
 
       {/* Customer Picker — Walk-in by default, searchable known customers, quick-add */}
       <CustomerPickerModal
@@ -1529,8 +1553,57 @@ const styles = StyleSheet.create({
   qtyControls: { flexDirection: 'row', alignItems: 'center' },
   qtyBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   qtyText: { fontSize: 14, fontWeight: '800', paddingHorizontal: 8 },
-  submitBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', width: '100%' },
+  submitBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
   submitBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  checkoutCustomerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    gap: 8,
+  },
+  checkoutCustomerText: { flex: 1, fontSize: 13, fontWeight: '700' },
+  checkoutTenderRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  checkoutTenderChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  checkoutTenderChipText: { fontSize: 10, fontWeight: '800' },
+  checkoutCreditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  checkoutCreditLabel: { fontSize: 12, fontWeight: '700', marginRight: 8 },
+  checkoutCreditInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  checkoutActionRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  previewBtn: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewBtnText: { fontWeight: '800', fontSize: 14 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   categoryModalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, maxHeight: '80%' },
   catModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

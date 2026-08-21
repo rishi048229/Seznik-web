@@ -21,6 +21,7 @@ interface CartState {
   gstMode: 'inclusive' | 'exclusive';
   selectedCustomerId: string | null;
   selectedCustomerName: string | null;
+  checkoutModalOpen: boolean;
 
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
@@ -29,6 +30,7 @@ interface CartState {
   setDiscount: (type: 'flat' | 'percent', value: number) => void;
   setGstMode: (mode: 'inclusive' | 'exclusive') => void;
   setCustomer: (id: string | null, name: string | null) => void;
+  setCheckoutModalOpen: (open: boolean) => void;
 
   // Item-level discount actions
   toggleItemDiscount: (productId: string) => void;
@@ -53,16 +55,18 @@ export const useCartStore = create<CartState>((set, get) => ({
   gstMode: 'inclusive',
   selectedCustomerId: null,
   selectedCustomerName: null,
+  checkoutModalOpen: false,
 
   addItem: (product: Product, quantity = 1) => {
-    const { items } = get();
-    const existingIndex = items.findIndex((i) => i.product.id === product.id);
-
-    if (existingIndex > -1) {
-      const updated = [...items];
-      updated[existingIndex].quantity += quantity;
-      set({ items: updated });
-    } else {
+    set((state) => {
+      const existingIndex = state.items.findIndex((i) => i.product.id === product.id);
+      if (existingIndex > -1) {
+        return {
+          items: state.items.map((item, idx) =>
+            idx === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+          ),
+        };
+      }
       const hasProductDiscount = typeof product.discountValue === 'number' && product.discountValue > 0;
       const newItem: CartItem = {
         product,
@@ -71,8 +75,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         discountValue: hasProductDiscount ? product.discountValue : 0,
         discountApplied: hasProductDiscount,
       };
-      set({ items: [...items, newItem] });
-    }
+      return { items: [...state.items, newItem] };
+    });
   },
 
   removeItem: (productId: string) => {
@@ -110,6 +114,10 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   setCustomer: (id, name) => {
     set({ selectedCustomerId: id, selectedCustomerName: name });
+  },
+
+  setCheckoutModalOpen: (open) => {
+    set({ checkoutModalOpen: open });
   },
 
   toggleItemDiscount: (productId: string) => {

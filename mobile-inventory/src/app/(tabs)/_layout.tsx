@@ -5,6 +5,7 @@ import { LayoutDashboard, ShoppingBag, Calculator, Package, Menu } from 'lucide-
 import { useCartStore } from '@/store/useCartStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
+import { GlobalPosCartBar } from '@/components/pos/GlobalPosCartBar';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function TabsLayout() {
@@ -160,6 +161,7 @@ export default function TabsLayout() {
 
       {/* Floating Popover Card for More Actions */}
       <MoreMenuModal visible={isMoreOpen} onClose={() => setIsMoreOpen(false)} />
+      <GlobalPosCartBar />
     </>
   );
 }

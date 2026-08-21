@@ -7,6 +7,12 @@ import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
 import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
+import {
+  enrichCustomReceiptEntries,
+  isDiscountReceiptEntry,
+  isTaxReceiptEntry,
+  shouldShowItemDiscount,
+} from '../utils/receiptDiscount';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
@@ -587,9 +593,12 @@ class ThermalPrinterServiceManager {
       return trimmed;
     };
 
-    customTemplate.entries.forEach((entry) => {
-      if (!entry.enabled) return;
+    const receiptEntries = enrichCustomReceiptEntries(
+      customTemplate.entries.filter((entry) => entry.enabled),
+      data.totalDiscount || 0
+    );
 
+    receiptEntries.forEach((entry) => {
       switch (entry.type) {
         case 'text':
         case 'text_special': {
@@ -609,12 +618,10 @@ class ThermalPrinterServiceManager {
         }
 
         case 'left_right_text': {
-          const isDisc =
-            entry.left?.toLowerCase().includes('discount') ||
-            entry.right?.toLowerCase().includes('discount') ||
-            entry.left?.includes('{{discount}}') ||
-            entry.right?.includes('{{discount}}');
-          if (isDisc && (!data.totalDiscount || data.totalDiscount <= 0)) {
+          if (isDiscountReceiptEntry(entry) && (!data.totalDiscount || data.totalDiscount <= 0)) {
+            break;
+          }
+          if (isTaxReceiptEntry(entry) && (!data.totalTax || data.totalTax <= 0)) {
             break;
           }
           const left = this.interpolateReceiptVariables(entry.left, data);
@@ -651,6 +658,10 @@ class ThermalPrinterServiceManager {
                 item.total.toFixed(2)
               )
             );
+
+            if (shouldShowItemDiscount(item.discount)) {
+              lines.push(`   Disc: -Rs.${item.discount!.toFixed(2)}`);
+            }
           });
           break;
         }
@@ -802,6 +813,9 @@ class ThermalPrinterServiceManager {
           item.total.toFixed(2)
         )
       );
+      if (shouldShowItemDiscount(item.discount)) {
+        lines.push(`   Disc: -Rs.${item.discount!.toFixed(2)}`);
+      }
     });
 
     lines.push(divider);
@@ -1085,8 +1099,10 @@ class ThermalPrinterServiceManager {
     const topMarginPx = (options.topMargin || 0) * 10;
     const billPdfUrl = buildBillPdfUrl(data);
 
-    const blocksHtml = customTemplate.entries
-      .filter((e) => e.enabled)
+    const blocksHtml = enrichCustomReceiptEntries(
+      customTemplate.entries.filter((e) => e.enabled),
+      data.totalDiscount || 0
+    )
       .map((entry) => {
         switch (entry.type) {
           case 'text': {
@@ -1139,19 +1155,18 @@ class ThermalPrinterServiceManager {
           }
 
           case 'left_right_text': {
-            const isDisc =
-              entry.left?.toLowerCase().includes('discount') ||
-              entry.right?.toLowerCase().includes('discount') ||
-              entry.left?.includes('{{discount}}') ||
-              entry.right?.includes('{{discount}}');
-            if (isDisc && (!data.totalDiscount || data.totalDiscount <= 0)) {
+            if (isDiscountReceiptEntry(entry) && (!data.totalDiscount || data.totalDiscount <= 0)) {
+              return '';
+            }
+            if (isTaxReceiptEntry(entry) && (!data.totalTax || data.totalTax <= 0)) {
               return '';
             }
             const left = this.interpolateReceiptVariables(entry.left, data);
             const right = this.interpolateReceiptVariables(entry.right, data);
             const isBold = entry.bold ? 'font-weight: bold;' : '';
             const sizeStyle = entry.size === 'large' ? 'font-size: 1.15em;' : entry.size === 'small' ? 'font-size: 0.9em;' : '';
-            return `<div style="display: flex; justify-content: space-between; ${isBold} ${sizeStyle} margin: 2px 0;"><span>${left}</span><span>${right}</span></div>`;
+            const discountStyle = isDiscountReceiptEntry(entry) ? 'color: #059669; font-weight: bold;' : '';
+            return `<div style="display: flex; justify-content: space-between; ${isBold} ${sizeStyle} ${discountStyle} margin: 2px 0;"><span>${left}</span><span>${right}</span></div>`;
           }
 
           case 'table': {
@@ -1167,6 +1182,7 @@ class ThermalPrinterServiceManager {
                     <span>&nbsp;&nbsp;${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}</span>
                     <span>${item.total.toFixed(2)}</span>
                   </div>
+                  ${shouldShowItemDiscount(item.discount) ? `<div style="font-size: 0.85em; color: #059669; font-weight: bold; margin-left: 12px;">Discount: -₹${item.discount!.toFixed(2)}</div>` : ''}
                 </div>`
               )
               .join('');
@@ -2613,9 +2629,12 @@ class ThermalPrinterServiceManager {
       return NativeEscposPrinter.ALIGN?.LEFT ?? 0;
     };
 
-    for (const entry of customTemplate.entries) {
-      if (!entry.enabled) continue;
+    const receiptEntries = enrichCustomReceiptEntries(
+      customTemplate.entries.filter((entry) => entry.enabled),
+      data.totalDiscount || 0
+    );
 
+    for (const entry of receiptEntries) {
       switch (entry.type) {
         case 'image': {
           const uri = entry.imageUri || entry.imageBase64 || data.storeLogoUrl;
@@ -2678,12 +2697,10 @@ class ThermalPrinterServiceManager {
         }
 
         case 'left_right_text': {
-          const isDisc =
-            entry.left?.toLowerCase().includes('discount') ||
-            entry.right?.toLowerCase().includes('discount') ||
-            entry.left?.includes('{{discount}}') ||
-            entry.right?.includes('{{discount}}');
-          if (isDisc && (!data.totalDiscount || data.totalDiscount <= 0)) {
+          if (isDiscountReceiptEntry(entry) && (!data.totalDiscount || data.totalDiscount <= 0)) {
+            break;
+          }
+          if (isTaxReceiptEntry(entry) && (!data.totalTax || data.totalTax <= 0)) {
             break;
           }
           const left = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.left, data));
@@ -2725,6 +2742,13 @@ class ThermalPrinterServiceManager {
               padLine(`   ${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}`, item.total.toFixed(2)) + '\n',
               { widthtimes: 0, heigthtimes: 0, cut: false }
             );
+
+            if (shouldShowItemDiscount(item.discount)) {
+              await NativeEscposPrinter.printText(
+                `   Disc: -Rs.${item.discount!.toFixed(2)}\n`,
+                { widthtimes: 0, heigthtimes: 0, cut: false }
+              );
+            }
           }
           break;
         }
@@ -2856,6 +2880,7 @@ class ThermalPrinterServiceManager {
       .replace(/[“”]/g, '"')
       .replace(/[–—]/g, '-')
       .replace(/…/g, '...')
+      .replace(/₹/g, 'Rs.')
       .replace(/[^\x00-\x7E\n]/g, '');
   }
 
