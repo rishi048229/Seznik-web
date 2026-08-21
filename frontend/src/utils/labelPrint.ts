@@ -128,6 +128,15 @@ export function generateLabelEscPos(
   return builder.toBytes()
 }
 
+/**
+ * Calculates exact Code 128 symbol width in dots in TSPL 128M Auto mode.
+ * Code 128 symbols are composed of:
+ * - Start character: 11 modules
+ * - Encoded data: 11 modules per character (or 11 modules per 2-digit numeric pair in Code C)
+ * - Check digit: 11 modules
+ * - Stop character: 13 modules
+ * Total fixed symbol overhead = 11 + 11 + 13 = 35 modules.
+ */
 function estimateTsplCode128Dots(text: string, moduleWidth: number): number {
   let charCount = 0
   let i = 0
@@ -138,22 +147,21 @@ function estimateTsplCode128Dots(text: string, moduleWidth: number): number {
     }
     if (digitLen >= 4) {
       const pairs = Math.floor(digitLen / 2)
-      charCount += pairs + 1
+      charCount += pairs
       i += pairs * 2
     } else {
       charCount++
       i++
     }
   }
-  // Start (11) + Check (11) + Stop (13) + Quiet zones (20) = 55 modules
-  const totalModules = charCount * 11 + 55
+  const totalModules = charCount * 11 + 35
   return totalModules * moduleWidth
 }
 
 /**
  * Builds TSPL / TSPL2 command bytes for dedicated dual-mode label printers.
- * Emits exact SIZE, GAP, and coordinate placement so the printer hardware
- * gap sensor aligns every print to 1 physical sticker with all text & graphics.
+ * Automatically computes exact dead-center coordinates (both X and Y) and
+ * proportional spacing for any label dimensions (50x30mm, 50x25mm, 60x40mm, etc.).
  */
 export function generateLabelTspl(
   template: LabelElement[],
@@ -163,15 +171,15 @@ export function generateLabelTspl(
   labelHeight = 30,
   offsetX = 0,
   offsetY = 0,
-  barcodeHeight = 32,
+  barcodeHeight = 30,
   direction: 0 | 1 = 0,
-  barcodeCenterOffsetMm = 4
+  _barcodeCenterOffsetMm = 0
 ): Uint8Array {
   const encoder = new TextEncoder()
   const widthDots = Math.max(100, Math.round(labelWidth * 8)) // 8 dots/mm at 203 DPI
+  const heightDots = Math.max(80, Math.round(labelHeight * 8))
   const offsetXDots = Math.round((offsetX || 0) * 8)
   const offsetYDots = Math.round((offsetY || 0) * 8)
-  const barcodeCenterOffsetDots = Math.round((barcodeCenterOffsetMm || 0) * 8)
 
   const safeData: LabelData = {
     businessName: cleanTextForPrinter(data.businessName),
@@ -182,12 +190,36 @@ export function generateLabelTspl(
     category: cleanTextForPrinter(data.category || ''),
   }
 
+  // 1. Calculate total vertical height to center the entire label vertically on the sticker
+  let totalContentHeight = 0
+  for (const el of template) {
+    if (el.type === 'divider') {
+      totalContentHeight += 10
+    } else if (el.type === 'sideBySideBarcodeQr') {
+      totalContentHeight += 56
+    } else if (el.type === 'barcode' || el.type === 'qrCode') {
+      if (el.type === 'qrCode' || barcodeType === 'QR') {
+        totalContentHeight += 78
+      } else {
+        const h = barcodeHeight || 30
+        totalContentHeight += h + 22
+      }
+    } else {
+      const text = resolveElementText(el, safeData)
+      if (!text) continue
+      const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
+      const advance = sizeKey === 'small' ? 20 : sizeKey === 'large' ? 28 : sizeKey === 'xlarge' ? 34 : 24
+      totalContentHeight += advance
+    }
+  }
+
   let tspl = `SIZE ${labelWidth} mm, ${labelHeight} mm\r\n`
   tspl += `GAP 2 mm, 0 mm\r\n`
   tspl += `DIRECTION ${direction}\r\n`
   tspl += `CLS\r\n`
 
-  let y = Math.max(4, 8 + offsetYDots)
+  // Start Y dynamically centers all content with equal top & bottom margins
+  let y = Math.max(6, Math.round((heightDots - totalContentHeight) / 2) + offsetYDots)
 
   for (const el of template) {
     const align = el.align || 'center'
@@ -196,7 +228,7 @@ export function generateLabelTspl(
       const startX = Math.max(5, 15 + offsetXDots)
       const lineLen = Math.max(20, widthDots - 30)
       tspl += `BAR ${startX},${y},${lineLen},2\r\n`
-      y += 8
+      y += 10
       continue
     }
 
@@ -223,18 +255,18 @@ export function generateLabelTspl(
     if (el.type === 'barcode' || el.type === 'qrCode') {
       const barcodeStr = safeData.barcodeValue || '0000000000'
       if (el.type === 'qrCode' || barcodeType === 'QR') {
-        const qrSizeDots = 72 // ~9mm QR size
+        const qrSizeDots = 70 // ~8.75mm QR size
         const x = align === 'left'
           ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
           ? Math.max(16, widthDots - qrSizeDots - 16 + offsetXDots)
-          : Math.max(16, Math.floor((widthDots - qrSizeDots) / 2) + offsetXDots)
+          : Math.max(16, Math.round((widthDots - qrSizeDots) / 2) + offsetXDots)
 
         y += 4
         tspl += `QRCODE ${x},${y},L,4,A,0,"${barcodeStr}"\r\n`
-        y += 78
+        y += 74
       } else {
-        const h = barcodeHeight || 30 // 30 dots = ~3.75mm bar height
+        const h = barcodeHeight || 30 // 30 dots = 3.75mm bar height
         const maxPrintableWidth = Math.max(100, widthDots - 36)
         const rawWidthAt2 = estimateTsplCode128Dots(barcodeStr, 2)
         const moduleWidth = rawWidthAt2 > maxPrintableWidth ? 1 : 2
@@ -245,24 +277,19 @@ export function generateLabelTspl(
           ? Math.max(16, 16 + offsetXDots)
           : align === 'right'
           ? Math.max(16, widthDots - barcodeWidthDots - 16 + offsetXDots)
-          : Math.max(16, Math.floor((widthDots - barcodeWidthDots) / 2) + barcodeCenterOffsetDots + offsetXDots)
+          : Math.max(16, Math.round((widthDots - barcodeWidthDots) / 2) + offsetXDots)
 
         y += 4
 
         // TSPL BARCODE x, y, "128M", height, human_readable (2 = centered below), rotation, narrow, wide, "data"
         tspl += `BARCODE ${x},${y},"128M",${h},2,0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
-        y += h + 20
+        y += h + 22
       }
       continue
     }
 
     const text = resolveElementText(el, safeData)
     if (!text) continue
-
-    // Gentle separation for price without overflowing the 30mm sticker
-    if (el.type === 'price') {
-      y += 4
-    }
 
     const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
     let font = '"2"'
@@ -274,19 +301,19 @@ export function generateLabelTspl(
     if (sizeKey === 'small') {
       font = '"1"'
       charWidth = 8
-      advanceY = 16
+      advanceY = 18
     } else if (sizeKey === 'medium') {
       font = '"2"'
       charWidth = 12
-      advanceY = 22
+      advanceY = 24
     } else if (sizeKey === 'large') {
       font = '"3"'
       charWidth = 16
-      advanceY = 26
+      advanceY = 28
     } else if (sizeKey === 'xlarge') {
       font = '"4"'
       charWidth = 24
-      advanceY = 32
+      advanceY = 34
     }
 
     const textWidthDots = text.length * charWidth * mulX
@@ -294,7 +321,7 @@ export function generateLabelTspl(
       ? Math.max(5, 15 + offsetXDots)
       : align === 'right'
       ? Math.max(5, widthDots - textWidthDots - 15 + offsetXDots)
-      : Math.max(5, Math.floor((widthDots - textWidthDots) / 2) + offsetXDots)
+      : Math.max(5, Math.round((widthDots - textWidthDots) / 2) + offsetXDots)
 
     const safeText = text.replace(/"/g, '').replace(/[\r\n]+/g, ' ')
     tspl += `TEXT ${x},${y},${font},0,${mulX},${mulY},"${safeText}"\r\n`
@@ -313,4 +340,3 @@ export function generateGapCalibrationBytes(): Uint8Array {
   const encoder = new TextEncoder()
   return encoder.encode('GAPDETECT\r\nAUTO GAP\r\n')
 }
-
