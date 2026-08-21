@@ -182,6 +182,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                 customerName={saleData.customerName || 'Walk-in Customer'}
                 items={saleData.items}
                 subtotal={saleData.subtotal}
+                totalDiscount={saleData.totalDiscount}
                 totalTax={saleData.totalTax}
                 grandTotal={saleData.grandTotal}
               />

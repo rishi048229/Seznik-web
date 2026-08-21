@@ -5,6 +5,7 @@ import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } 
 import { CustomReceiptTemplate } from '../types/customReceipt';
 import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
 import { Product } from '../types/product';
+import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
@@ -607,6 +608,14 @@ class ThermalPrinterServiceManager {
         }
 
         case 'left_right_text': {
+          const isDisc =
+            entry.left?.toLowerCase().includes('discount') ||
+            entry.right?.toLowerCase().includes('discount') ||
+            entry.left?.includes('{{discount}}') ||
+            entry.right?.includes('{{discount}}');
+          if (isDisc && (!data.totalDiscount || data.totalDiscount <= 0)) {
+            break;
+          }
           const left = this.interpolateReceiptVariables(entry.left, data);
           const right = this.interpolateReceiptVariables(entry.right, data);
           lines.push(padLine(left, right));
@@ -1129,6 +1138,14 @@ class ThermalPrinterServiceManager {
           }
 
           case 'left_right_text': {
+            const isDisc =
+              entry.left?.toLowerCase().includes('discount') ||
+              entry.right?.toLowerCase().includes('discount') ||
+              entry.left?.includes('{{discount}}') ||
+              entry.right?.includes('{{discount}}');
+            if (isDisc && (!data.totalDiscount || data.totalDiscount <= 0)) {
+              return '';
+            }
             const left = this.interpolateReceiptVariables(entry.left, data);
             const right = this.interpolateReceiptVariables(entry.right, data);
             const isBold = entry.bold ? 'font-weight: bold;' : '';
@@ -2605,6 +2622,14 @@ class ThermalPrinterServiceManager {
         }
 
         case 'left_right_text': {
+          const isDisc =
+            entry.left?.toLowerCase().includes('discount') ||
+            entry.right?.toLowerCase().includes('discount') ||
+            entry.left?.includes('{{discount}}') ||
+            entry.right?.includes('{{discount}}');
+          if (isDisc && (!data.totalDiscount || data.totalDiscount <= 0)) {
+            break;
+          }
           const left = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.left, data));
           const right = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.right, data));
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
@@ -2786,10 +2811,19 @@ class ThermalPrinterServiceManager {
    */
   private async uriToBase64(uri: string): Promise<string | null> {
     try {
-      // 1. Flatten transparent alpha onto a solid white background (JPEG)
-      // This is crucial for ESC/POS thermal printers because Android's native Bitmap.Config.RGB_565
-      // converts transparent pixels (alpha 0) to black (0x000000), causing transparent/no-bg logos
-      // to print as solid black blocks. Converting to high-quality JPEG guarantees the background is pure white (#FFFFFF).
+      // Flatten transparent alpha onto solid white BEFORE the printer SDK sees the image.
+      // Android Bitmap.Config.RGB_565 (and JPEG conversion of premultiplied PNG alpha)
+      // turns transparent pixels into black — logos whose white background was "removed"
+      // then print as a solid black block.
+      try {
+        const flattened = await flattenImageOntoWhite(uri);
+        if (flattened.base64) {
+          return flattened.base64;
+        }
+      } catch (flattenErr) {
+        console.warn('Logo white-flatten failed, using JPEG fallback:', flattenErr);
+      }
+
       try {
         let ImageManipulator: any = null;
         try {
@@ -2809,7 +2843,7 @@ class ThermalPrinterServiceManager {
         console.warn('ImageManipulator JPEG flatten fallback:', manipErr);
       }
 
-      // 2. Fallback: fetch + FileReader
+      // Fallback: fetch + FileReader
       const response = await fetch(uri);
       const blob = await response.blob();
       return await new Promise<string>((resolve, reject) => {

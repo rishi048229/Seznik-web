@@ -24,6 +24,8 @@ export interface Product {
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
   createdAt?: string;
   updatedAt?: string;
   category?: Category | null;
@@ -45,6 +47,8 @@ export interface CreateProductPayload {
   unit: string;
   imageUrl?: string;
   isActive?: boolean;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
 }
 
 export interface StockAdjustmentPayload {

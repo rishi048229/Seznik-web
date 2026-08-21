@@ -17,6 +17,7 @@ interface ReceiptTemplateMockupProps {
   storePhone?: string;
   items?: MockupItem[];
   subtotal?: number;
+  totalDiscount?: number;
   totalTax?: number;
   grandTotal?: number;
   invoiceNumber?: string;
@@ -36,6 +37,7 @@ export function ReceiptTemplateMockup({
   storePhone,
   items: propItems,
   subtotal: propSubtotal,
+  totalDiscount = 0,
   totalTax: propTotalTax,
   grandTotal: propGrandTotal,
   invoiceNumber = 'INV-1024',
@@ -51,9 +53,9 @@ export function ReceiptTemplateMockup({
   const subtotal = propSubtotal !== undefined ? propSubtotal : calculatedSubtotal;
   const calculatedTax = template.showTaxBreakdown ? Math.round(subtotal * 0.18 * 100) / 100 : 0;
   const totalTax = propTotalTax !== undefined ? propTotalTax : calculatedTax;
-  const grandTotal = propGrandTotal !== undefined ? propGrandTotal : (subtotal + totalTax);
+  const grandTotal = propGrandTotal !== undefined ? propGrandTotal : Math.max(0, subtotal - totalDiscount + totalTax);
 
-  const taxable = subtotal;
+  const taxable = Math.max(0, subtotal - totalDiscount);
   const halfTax = totalTax / 2;
 
   return (
@@ -95,6 +97,9 @@ export function ReceiptTemplateMockup({
       {template.showTaxBreakdown ? (
         <>
           <View style={styles.row}><Text style={styles.metaText}>Sub Total</Text><Text style={styles.metaText}>₹{subtotal.toFixed(2)}</Text></View>
+          {totalDiscount > 0 ? (
+            <View style={styles.row}><Text style={[styles.metaText, { color: '#10B981', fontWeight: '800' }]}>Discount</Text><Text style={[styles.metaText, { color: '#10B981', fontWeight: '800' }]}>-₹{totalDiscount.toFixed(2)}</Text></View>
+          ) : null}
           <View style={styles.row}><Text style={styles.metaText}>Taxable Amt</Text><Text style={styles.metaText}>₹{taxable.toFixed(2)}</Text></View>
           <View style={styles.row}><Text style={styles.metaText}>SGST (9%)</Text><Text style={styles.metaText}>₹{halfTax.toFixed(2)}</Text></View>
           <View style={styles.row}><Text style={styles.metaText}>CGST (9%)</Text><Text style={styles.metaText}>₹{halfTax.toFixed(2)}</Text></View>
@@ -106,6 +111,10 @@ export function ReceiptTemplateMockup({
         </>
       ) : (
         <>
+          <View style={styles.row}><Text style={styles.metaText}>Sub Total</Text><Text style={styles.metaText}>₹{subtotal.toFixed(2)}</Text></View>
+          {totalDiscount > 0 ? (
+            <View style={styles.row}><Text style={[styles.metaText, { color: '#10B981', fontWeight: '800' }]}>Discount</Text><Text style={[styles.metaText, { color: '#10B981', fontWeight: '800' }]}>-₹{totalDiscount.toFixed(2)}</Text></View>
+          ) : null}
           {totalTax > 0 ? <View style={styles.row}><Text style={styles.metaText}>Tax</Text><Text style={styles.metaText}>₹{totalTax.toFixed(2)}</Text></View> : null}
           <View style={[styles.divider, styles.dividerDouble, { borderColor: template.accentColor }]} />
           <View style={styles.row}>

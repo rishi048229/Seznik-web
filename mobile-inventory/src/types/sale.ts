@@ -7,6 +7,10 @@ export interface SaleItem {
   costPrice?: number;
   taxRate?: number;
   taxAmount?: number;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
+  discountAmount?: number;
+  discountApplied?: boolean;
   total: number;
 }
 

@@ -33,6 +33,9 @@ import {
   Layers,
   Printer,
   Bluetooth,
+  Tag,
+  Percent,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
@@ -75,7 +78,16 @@ export default function PosScreen() {
     removeItem,
     updateQuantity,
     clearCart,
+    discount: cartDiscount,
+    setDiscount: setCartDiscount,
+    toggleItemDiscount,
+    updateItemDiscount,
+    adjustItemDiscountValue,
+    getItemDiscount,
+    getTotalItemDiscount,
+    getBillDiscount,
     getSubtotal,
+    getTotalDiscount,
     getTotalTax,
     getGrandTotal,
     toSaleItems,
@@ -98,6 +110,8 @@ export default function PosScreen() {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [creditAmountReceivedInput, setCreditAmountReceivedInput] = useState('0');
+  const [billDiscountType, setBillDiscountType] = useState<'flat' | 'percent'>('percent');
+  const [billDiscountInput, setBillDiscountInput] = useState('');
 
   // Receipt Preview Modal State
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
@@ -200,14 +214,15 @@ export default function PosScreen() {
     }
 
     const grandTotal = getGrandTotal();
+    const subtotal = getSubtotal();
+    const totalDiscount = getTotalDiscount();
+    const totalTax = getTotalTax();
     const amountPaid = paymentMethod === 'credit' ? Math.max(0, Math.min(grandTotal, parseFloat(creditAmountReceivedInput) || 0)) : grandTotal;
     const changeReturned = Math.max(0, amountPaid - grandTotal);
     const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
     const customerName = selectedCustomerName || 'Walk-in Customer';
 
-    const subtotal = getSubtotal();
-    const totalTax = getTotalTax();
-    const taxableAmt = subtotal;
+    const taxableAmt = Math.max(0, subtotal - totalDiscount);
     const halfTax = totalTax / 2;
 
     const saleData: PrintSaleData = {
@@ -220,20 +235,23 @@ export default function PosScreen() {
       invoiceNumber: fallbackInv,
       date: new Date().toLocaleDateString('en-GB'),
       customerName,
-      items: cartItems.map((ci) => ({
-        productName: ci.product.name,
-        quantity: ci.quantity,
-        unitPrice: ci.product.sellingPrice,
-        total: ci.product.sellingPrice * ci.quantity,
-        unit: ci.product.unit || 'Pc',
-        gstRate: ci.product.taxRate || 18,
-        discount: 0,
-      })),
+      items: cartItems.map((ci) => {
+        const itemDisc = getItemDiscount(ci);
+        return {
+          productName: ci.product.name,
+          quantity: ci.quantity,
+          unitPrice: ci.product.sellingPrice,
+          total: Math.max(0, ci.product.sellingPrice * ci.quantity - itemDisc),
+          unit: ci.product.unit || 'Pc',
+          gstRate: ci.product.taxRate || 18,
+          discount: itemDisc,
+        };
+      }),
       subtotal,
       taxableAmt,
       sgst: halfTax,
       cgst: halfTax,
-      totalDiscount: 0,
+      totalDiscount,
       totalTax,
       grandTotal,
       amountPaid,
@@ -244,9 +262,9 @@ export default function PosScreen() {
     try {
       const sale = await createSale({
         items: toSaleItems(),
-        subtotal: getSubtotal(),
-        totalDiscount: 0,
-        totalTax: getTotalTax(),
+        subtotal,
+        totalDiscount,
+        totalTax,
         grandTotal,
         paymentMethod,
         amountPaid,
@@ -261,11 +279,13 @@ export default function PosScreen() {
       setPreviewSaleData(saleData);
       setShowReceiptPreviewModal(true);
       setCreditAmountReceivedInput('0');
+      setBillDiscountInput('');
       clearCart();
     } catch (err: any) {
       setPreviewSaleData(saleData);
       setShowReceiptPreviewModal(true);
       setCreditAmountReceivedInput('0');
+      setBillDiscountInput('');
       clearCart();
     }
   };
@@ -523,11 +543,20 @@ export default function PosScreen() {
                         attention-grabbing exception. */}
                     <View style={styles.tileHeaderRow}>
                       <Text style={[styles.codeTagText, { color: theme.textSecondary }]}>#{codeNumber}</Text>
-                      {item.currentStock <= item.lowStockThreshold ? (
-                        <View style={styles.stockBadge}>
-                          <Text style={styles.stockBadgeText}>{t('lowStock', 'Low')}: {item.currentStock}</Text>
-                        </View>
-                      ) : null}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {item.discountValue && item.discountValue > 0 ? (
+                          <View style={[styles.stockBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                            <Text style={[styles.stockBadgeText, { color: '#10B981' }]}>
+                              {item.discountType === 'percent' ? `${item.discountValue}% OFF` : `₹${item.discountValue} OFF`}
+                            </Text>
+                          </View>
+                        ) : null}
+                        {item.currentStock <= item.lowStockThreshold ? (
+                          <View style={styles.stockBadge}>
+                            <Text style={styles.stockBadgeText}>{t('lowStock', 'Low')}: {item.currentStock}</Text>
+                          </View>
+                        ) : null}
+                      </View>
                     </View>
 
                     {/* Product Photo Image Container */}
@@ -625,13 +654,19 @@ export default function PosScreen() {
           ))}
         </View>
 
-        {/* Total + PRINT — the one unmistakable primary action. Print = the entire checkout,
-            in one tap. */}
+        {/* Total + PRINT — with Discount Savings Badge */}
         <View style={styles.footerMainRow}>
           <TouchableOpacity onPress={() => setShowCartModal(true)} style={{ flex: 1, marginRight: 12 }}>
-            <Text style={styles.tenderTotalLabel}>
-              {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.tenderTotalLabel}>
+                {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
+              </Text>
+              {getTotalDiscount() > 0 ? (
+                <View style={{ backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, marginLeft: 6 }}>
+                  <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>Save ₹{getTotalDiscount().toFixed(0)}</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.tenderTotalPrice}>₹{grandTotalNow.toFixed(2)}</Text>
           </TouchableOpacity>
 
@@ -685,49 +720,259 @@ export default function PosScreen() {
             </View>
 
             <ScrollView style={{ flex: 1, marginBottom: 16 }}>
-              {cartItems.map((item) => (
-                <View
-                  key={item.product.id}
-                  style={[styles.cartRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-                >
-                  {/* Item Image Thumbnail */}
-                  {item.product.imageUrl ? (
-                    <Image source={{ uri: item.product.imageUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} resizeMode="cover" />
-                  ) : (
-                    <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                      <Package size={18} color={theme.textSecondary} />
+              {cartItems.map((item) => {
+                const itemDiscAmount = getItemDiscount(item);
+                const isDiscActive = Boolean(item.discountApplied && (item.discountValue || 0) > 0);
+                const grossLineTotal = item.product.sellingPrice * item.quantity;
+                const netLineTotal = Math.max(0, grossLineTotal - itemDiscAmount);
+
+                return (
+                  <View
+                    key={item.product.id}
+                    style={[styles.cartRowCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {/* Item Image Thumbnail */}
+                      {item.product.imageUrl ? (
+                        <Image source={{ uri: item.product.imageUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                          <Package size={18} color={theme.textSecondary} />
+                        </View>
+                      )}
+
+                      <View style={{ flex: 1, marginRight: 10 }}>
+                        <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>{item.product.name}</Text>
+                        <Text style={[styles.itemSub, { color: theme.textSecondary }]}>
+                          ₹{item.product.sellingPrice.toFixed(2)} each
+                        </Text>
+                      </View>
+
+                      <View style={styles.qtyControls}>
+                        <TouchableOpacity
+                          onPress={() => updateQuantity(item.product.id, item.quantity - 1)}
+                          style={[styles.qtyBtn, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}
+                        >
+                          <Minus size={14} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{item.quantity}</Text>
+                        <TouchableOpacity
+                          onPress={() => updateQuantity(item.product.id, item.quantity + 1)}
+                          style={[styles.qtyBtn, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}
+                        >
+                          <Plus size={14} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => removeItem(item.product.id)} style={{ padding: 6, marginLeft: 6 }}>
+                          <Trash2 size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  )}
 
-                  <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>{item.product.name}</Text>
-                    <Text style={[styles.itemSub, { color: theme.textSecondary }]}>
-                      ₹{item.product.sellingPrice.toFixed(2)} each
-                    </Text>
-                  </View>
+                    {/* ITEM DISCOUNT ROW & CONTROLS */}
+                    <View style={[styles.itemDiscountControlRow, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
+                      {/* Toggle / Mark to Apply or Remove Discount */}
+                      <TouchableOpacity
+                        onPress={() => toggleItemDiscount(item.product.id)}
+                        style={[
+                          styles.itemDiscountToggleBtn,
+                          isDiscActive
+                            ? { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' }
+                            : { backgroundColor: theme.bg, borderColor: theme.borderColor }
+                        ]}
+                      >
+                        <Tag size={12} color={isDiscActive ? '#10B981' : theme.textSecondary} />
+                        <Text style={[styles.itemDiscountToggleText, { color: isDiscActive ? '#10B981' : theme.textSecondary }]}>
+                          {isDiscActive ? 'Discount Applied' : 'Add Discount'}
+                        </Text>
+                      </TouchableOpacity>
 
-                  <View style={styles.qtyControls}>
-                    <TouchableOpacity
-                      onPress={() => updateQuantity(item.product.id, item.quantity - 1)}
-                      style={[styles.qtyBtn, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}
-                    >
-                      <Minus size={14} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                    <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{item.quantity}</Text>
-                    <TouchableOpacity
-                      onPress={() => updateQuantity(item.product.id, item.quantity + 1)}
-                      style={[styles.qtyBtn, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}
-                    >
-                      <Plus size={14} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeItem(item.product.id)} style={{ padding: 6, marginLeft: 8 }}>
-                      <Trash2 size={16} color="#EF4444" />
-                    </TouchableOpacity>
+                      {/* Stepper / Type switcher to increase or decrease discount as per will */}
+                      {isDiscActive ? (
+                        <View style={styles.itemDiscountAdjustRow}>
+                          <TouchableOpacity
+                            onPress={() => updateItemDiscount(item.product.id, item.discountType === 'percent' ? 'flat' : 'percent', item.discountValue || 10)}
+                            style={[styles.miniTypeBtn, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}
+                          >
+                            <Text style={[styles.miniTypeBtnText, { color: theme.textPrimary }]}>
+                              {item.discountType === 'percent' ? '%' : '₹'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={() => adjustItemDiscountValue(item.product.id, -1)}
+                            style={[styles.miniStepBtn, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}
+                          >
+                            <Minus size={11} color={theme.textPrimary} />
+                          </TouchableOpacity>
+
+                          <Text style={[styles.miniStepValueText, { color: '#10B981' }]}>
+                            {item.discountType === 'percent' ? `${item.discountValue || 0}%` : `₹${item.discountValue || 0}`}
+                          </Text>
+
+                          <TouchableOpacity
+                            onPress={() => adjustItemDiscountValue(item.product.id, 1)}
+                            style={[styles.miniStepBtn, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}
+                          >
+                            <Plus size={11} color={theme.textPrimary} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+
+                      {/* Line Total Calculation */}
+                      <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
+                        {itemDiscAmount > 0 ? (
+                          <Text style={{ fontSize: 10, color: theme.textSecondary, textDecorationLine: 'line-through' }}>
+                            ₹{grossLineTotal.toFixed(2)}
+                          </Text>
+                        ) : null}
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: isDiscActive ? '#10B981' : theme.textPrimary }}>
+                          ₹{netLineTotal.toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
+
               {cartItems.length === 0 ? (
                 <Text style={{ textAlign: 'center', color: theme.textSecondary, marginTop: 40 }}>Cart is empty. Tap a product to add it.</Text>
+              ) : null}
+
+              {/* OVERALL BILL DISCOUNT SECTION */}
+              {cartItems.length > 0 ? (
+                <View style={[styles.overallDiscountCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Tag size={15} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                      <Text style={[styles.overallDiscountTitle, { color: theme.textPrimary }]}>Overall Bill Discount</Text>
+                    </View>
+                    {/* Segmented % vs ₹ */}
+                    <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 8, padding: 2, borderWidth: 1, borderColor: theme.borderColor }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setBillDiscountType('percent');
+                          setCartDiscount('percent', parseFloat(billDiscountInput) || 0);
+                        }}
+                        style={[styles.billTypeBtn, billDiscountType === 'percent' && { backgroundColor: BRAND_COLORS.blue600 }]}
+                      >
+                        <Text style={[styles.billTypeBtnText, { color: billDiscountType === 'percent' ? '#FFFFFF' : theme.textSecondary }]}>% Percent</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setBillDiscountType('flat');
+                          setCartDiscount('flat', parseFloat(billDiscountInput) || 0);
+                        }}
+                        style={[styles.billTypeBtn, billDiscountType === 'flat' && { backgroundColor: BRAND_COLORS.blue600 }]}
+                      >
+                        <Text style={[styles.billTypeBtnText, { color: billDiscountType === 'flat' ? '#FFFFFF' : theme.textSecondary }]}>₹ Flat (Rs.)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <TextInput
+                    style={[styles.overallDiscountInput, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                    value={billDiscountInput}
+                    onChangeText={(val) => {
+                      setBillDiscountInput(val);
+                      setCartDiscount(billDiscountType, parseFloat(val) || 0);
+                    }}
+                    keyboardType="numeric"
+                    placeholder={billDiscountType === 'percent' ? 'Enter overall discount in % (e.g. 5 or 10)' : 'Enter overall discount in ₹ (e.g. 50 or 100)'}
+                    placeholderTextColor="#94A3B8"
+                  />
+
+                  {/* Quick Preset Chips */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
+                    {(billDiscountType === 'percent' ? ['5', '10', '15', '20'] : ['20', '50', '100', '200']).map((preset) => (
+                      <TouchableOpacity
+                        key={preset}
+                        onPress={() => {
+                          setBillDiscountInput(preset);
+                          setCartDiscount(billDiscountType, parseFloat(preset));
+                        }}
+                        style={[
+                          styles.discountPresetChip,
+                          { backgroundColor: billDiscountInput === preset ? BRAND_COLORS.blue600 : theme.bg, borderColor: theme.borderColor }
+                        ]}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: billDiscountInput === preset ? '#FFFFFF' : theme.textPrimary }}>
+                          {billDiscountType === 'percent' ? `${preset}%` : `₹${preset}`}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    {billDiscountInput ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setBillDiscountInput('');
+                          setCartDiscount('percent', 0);
+                        }}
+                        style={[styles.discountPresetChip, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444' }]}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#EF4444' }}>Clear</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </ScrollView>
+                </View>
+              ) : null}
+
+              {/* BILL SUMMARY / END SECTION (After Subtotal and before Grand Total) */}
+              {cartItems.length > 0 ? (
+                <View style={[styles.billSummarySection, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.billSummaryHeader, { color: theme.textSecondary }]}>BILL BREAKDOWN</Text>
+
+                  {/* 1. Item Subtotal / Total */}
+                  <View style={styles.billSummaryRow}>
+                    <Text style={[styles.billSummaryLabel, { color: theme.textPrimary }]}>Item Subtotal (Total)</Text>
+                    <Text style={[styles.billSummaryValue, { color: theme.textPrimary }]}>₹{getSubtotal().toFixed(2)}</Text>
+                  </View>
+
+                  {/* 2. DISCOUNT SECTION (Added in the bill end, after total and before grand total) */}
+                  {getTotalDiscount() > 0 ? (
+                    <View style={[styles.discountBreakdownBox, { backgroundColor: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.25)' }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Tag size={13} color="#10B981" />
+                        <Text style={[styles.discountSectionTitle, { color: '#10B981', marginLeft: 4 }]}>
+                          Discounts Applied
+                        </Text>
+                      </View>
+
+                      {getTotalItemDiscount() > 0 ? (
+                        <View style={styles.discountSubRow}>
+                          <Text style={[styles.discountSubLabel, { color: theme.textSecondary }]}>• Product Discounts</Text>
+                          <Text style={[styles.discountSubValue, { color: '#10B981' }]}>-₹{getTotalItemDiscount().toFixed(2)}</Text>
+                        </View>
+                      ) : null}
+
+                      {getBillDiscount() > 0 ? (
+                        <View style={styles.discountSubRow}>
+                          <Text style={[styles.discountSubLabel, { color: theme.textSecondary }]}>
+                            • Overall Bill Discount ({cartDiscount.type === 'percent' ? `${cartDiscount.value}%` : `₹${cartDiscount.value}`})
+                          </Text>
+                          <Text style={[styles.discountSubValue, { color: '#10B981' }]}>-₹{getBillDiscount().toFixed(2)}</Text>
+                        </View>
+                      ) : null}
+
+                      <View style={[styles.discountSubRow, { borderTopWidth: 1, borderTopColor: 'rgba(16, 185, 129, 0.2)', paddingTop: 4, marginTop: 4 }]}>
+                        <Text style={[styles.discountTotalLabel, { color: '#10B981' }]}>Total Discount Savings</Text>
+                        <Text style={[styles.discountTotalValue, { color: '#10B981' }]}>-₹{getTotalDiscount().toFixed(2)}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* 3. Tax / GST */}
+                  {getTotalTax() > 0 ? (
+                    <View style={styles.billSummaryRow}>
+                      <Text style={[styles.billSummaryLabel, { color: theme.textSecondary }]}>GST / Taxes</Text>
+                      <Text style={[styles.billSummaryValue, { color: '#3B82F6' }]}>+₹{getTotalTax().toFixed(2)}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* 4. Grand Total */}
+                  <View style={[styles.billSummaryGrandRow, { borderTopColor: theme.borderColor }]}>
+                    <Text style={[styles.billGrandLabel, { color: theme.textPrimary }]}>Grand Total</Text>
+                    <Text style={[styles.billGrandValue, { color: BRAND_COLORS.blue600 }]}>₹{getGrandTotal().toFixed(2)}</Text>
+                  </View>
+                </View>
               ) : null}
             </ScrollView>
 
@@ -1053,4 +1298,34 @@ const styles = StyleSheet.create({
   catOptionName: { fontSize: 14 },
   catCountBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   catCountText: { fontSize: 11, fontWeight: '700' },
+  cartRowCard: { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 12 },
+  itemDiscountControlRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, flexWrap: 'wrap', gap: 6 },
+  itemDiscountToggleBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  itemDiscountToggleText: { fontSize: 11, fontWeight: '800', marginLeft: 4 },
+  itemDiscountAdjustRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, padding: 2 },
+  miniTypeBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, marginRight: 4 },
+  miniTypeBtnText: { fontSize: 10, fontWeight: '900' },
+  miniStepBtn: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  miniStepValueText: { fontSize: 11, fontWeight: '900', marginHorizontal: 6, minWidth: 26, textAlign: 'center' },
+  overallDiscountCard: { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 14 },
+  overallDiscountTitle: { fontSize: 13, fontWeight: '800' },
+  billTypeBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  billTypeBtnText: { fontSize: 10, fontWeight: '800' },
+  overallDiscountInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13 },
+  discountPresetChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  billSummarySection: { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 16 },
+  billSummaryHeader: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5, marginBottom: 8 },
+  billSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  billSummaryLabel: { fontSize: 13, fontWeight: '600' },
+  billSummaryValue: { fontSize: 13, fontWeight: '700' },
+  discountBreakdownBox: { borderRadius: 12, padding: 10, borderWidth: 1, marginVertical: 6 },
+  discountSectionTitle: { fontSize: 12, fontWeight: '800' },
+  discountSubRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 },
+  discountSubLabel: { fontSize: 11, fontWeight: '600' },
+  discountSubValue: { fontSize: 11, fontWeight: '800' },
+  discountTotalLabel: { fontSize: 12, fontWeight: '900' },
+  discountTotalValue: { fontSize: 12, fontWeight: '900' },
+  billSummaryGrandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
+  billGrandLabel: { fontSize: 15, fontWeight: '900' },
+  billGrandValue: { fontSize: 18, fontWeight: '900' },
 });

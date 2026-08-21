@@ -68,8 +68,10 @@ export default function PosLiteScreen() {
     updateQuantity,
     clearCart,
     getSubtotal,
+    getTotalDiscount,
     getTotalTax,
     getGrandTotal,
+    toSaleItems,
   } = useCartStore();
 
   const [showAddSheet, setShowAddSheet] = useState(false);
@@ -158,11 +160,12 @@ export default function PosLiteScreen() {
   const handleCompleteSale = async () => {
     if (cartItems.length === 0) return;
     const grandTotal = getGrandTotal();
+    const subtotal = getSubtotal();
+    const totalDiscount = getTotalDiscount();
+    const totalTax = getTotalTax();
     const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const subtotal = getSubtotal();
-    const totalTax = getTotalTax();
-    const taxableAmt = subtotal;
+    const taxableAmt = Math.max(0, subtotal - totalDiscount);
     const halfTax = totalTax / 2;
 
     const saleData = {
@@ -175,20 +178,23 @@ export default function PosLiteScreen() {
       invoiceNumber: fallbackInv,
       date: new Date().toLocaleDateString('en-GB'),
       customerName: 'Cash Sale',
-      items: cartItems.map((ci) => ({
-        productName: ci.product.name,
-        quantity: ci.quantity,
-        unitPrice: ci.product.sellingPrice,
-        total: ci.product.sellingPrice * ci.quantity,
-        unit: ci.product.unit || 'Pc',
-        gstRate: ci.product.taxRate || 18,
-        discount: 0,
-      })),
+      items: cartItems.map((ci) => {
+        const itemDisc = typeof ci.discountValue === 'number' && ci.discountApplied ? (ci.discountType === 'percent' ? (ci.product.sellingPrice * ci.quantity * ci.discountValue) / 100 : Math.min(ci.product.sellingPrice, ci.discountValue) * ci.quantity) : 0;
+        return {
+          productName: ci.product.name,
+          quantity: ci.quantity,
+          unitPrice: ci.product.sellingPrice,
+          total: Math.max(0, ci.product.sellingPrice * ci.quantity - itemDisc),
+          unit: ci.product.unit || 'Pc',
+          gstRate: ci.product.taxRate || 18,
+          discount: itemDisc,
+        };
+      }),
       subtotal,
       taxableAmt,
       sgst: halfTax,
       cgst: halfTax,
-      totalDiscount: 0,
+      totalDiscount,
       totalTax,
       grandTotal,
       amountPaid: grandTotal,
@@ -198,16 +204,10 @@ export default function PosLiteScreen() {
 
     try {
       const sale = await createSale({
-        items: cartItems.map((i) => ({
-          productId: i.product.id,
-          productName: i.product.name,
-          quantity: i.quantity,
-          unitPrice: i.product.sellingPrice,
-          total: i.product.sellingPrice * i.quantity,
-        })),
-        subtotal: getSubtotal(),
-        totalDiscount: 0,
-        totalTax: getTotalTax(),
+        items: toSaleItems(),
+        subtotal,
+        totalDiscount,
+        totalTax,
         grandTotal,
         paymentMethod,
         amountPaid: grandTotal,

@@ -850,12 +850,14 @@ export default function ReceiptEditorScreen() {
                         const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
                         if (!res.canceled && res.assets?.[0]?.uri) {
                           const pickedUri = res.assets[0].uri;
-                          setTemplate((prev) => ({
-                            ...prev,
-                            entries: prev.entries.map((e) =>
-                              e.id === existingLogoEntry.id ? { ...e, imageUri: pickedUri } : e
-                            ),
-                          }));
+                          openLogoBgOption(pickedUri, (finalUri) => {
+                            setTemplate((prev) => ({
+                              ...prev,
+                              entries: prev.entries.map((e) =>
+                                e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
+                              ),
+                            }));
+                          });
                         }
                       }}
                       style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
@@ -874,12 +876,14 @@ export default function ReceiptEditorScreen() {
                         const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
                         if (!res.canceled && res.assets?.[0]?.uri) {
                           const pickedUri = res.assets[0].uri;
-                          setTemplate((prev) => ({
-                            ...prev,
-                            entries: prev.entries.map((e) =>
-                              e.id === existingLogoEntry.id ? { ...e, imageUri: pickedUri } : e
-                            ),
-                          }));
+                          openLogoBgOption(pickedUri, (finalUri) => {
+                            setTemplate((prev) => ({
+                              ...prev,
+                              entries: prev.entries.map((e) =>
+                                e.id === existingLogoEntry.id ? { ...e, imageUri: finalUri } : e
+                              ),
+                            }));
+                          });
                         }
                       }}
                       style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF', borderColor: '#BFDBFE' }]}
@@ -905,7 +909,7 @@ export default function ReceiptEditorScreen() {
                         style={[styles.smallActionBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#FEF3C7', borderColor: '#FDE68A' }]}
                       >
                         <Sparkles size={13} color="#D97706" />
-                        <Text style={[styles.smallActionBtnText, { color: '#D97706' }]}>Background</Text>
+                        <Text style={[styles.smallActionBtnText, { color: '#D97706' }]}>White Background</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>
@@ -1418,7 +1422,7 @@ export default function ReceiptEditorScreen() {
                       </View>
                     )}
 
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                       <TouchableOpacity
                         onPress={() => handlePickImage(true)}
                         style={[styles.imagePickBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9', borderColor: theme.borderColor }]}
@@ -1434,6 +1438,22 @@ export default function ReceiptEditorScreen() {
                         <ImageIcon size={18} color={theme.isDark ? '#60A5FA' : '#2563EB'} />
                         <Text style={[styles.imagePickBtnText, { color: theme.isDark ? '#60A5FA' : '#2563EB' }]}>Gallery</Text>
                       </TouchableOpacity>
+
+                      {editingEntry.imageUri ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (editingEntry.imageUri) {
+                              openLogoBgOption(editingEntry.imageUri, (finalUri) => {
+                                setEditingEntry((prev) => (prev && prev.type === 'image' ? { ...prev, imageUri: finalUri } : prev));
+                              });
+                            }
+                          }}
+                          style={[styles.imagePickBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#FEF3C7', borderColor: '#FDE68A' }]}
+                        >
+                          <Sparkles size={18} color="#D97706" />
+                          <Text style={[styles.imagePickBtnText, { color: '#D97706' }]}>White Background</Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
 
                     <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Logo Size on Receipt (%):</Text>

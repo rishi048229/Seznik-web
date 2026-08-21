@@ -44,6 +44,7 @@ import {
   MinusCircle,
   ImageIcon,
   Sparkles,
+  Percent,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -139,6 +140,8 @@ export default function ProductsScreen() {
   const [priceIncludesGst, setPriceIncludesGst] = useState(true);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
+  const [discountType, setDiscountType] = useState<'flat' | 'percent'>('percent');
+  const [discountValue, setDiscountValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const theme = useAppTheme();
@@ -231,6 +234,8 @@ export default function ProductsScreen() {
     setPriceIncludesGst(Boolean(product.priceIncludesGst));
     setUnit(product.unit || 'Piece');
     setImageUrl(product.imageUrl || null);
+    setDiscountType(product.discountType || 'percent');
+    setDiscountValue(product.discountValue ? String(product.discountValue) : '');
     setShowProductModal(true);
   };
 
@@ -248,6 +253,8 @@ export default function ProductsScreen() {
     setPriceIncludesGst(false);
     setUnit('Piece');
     setImageUrl(null);
+    setDiscountType('percent');
+    setDiscountValue('');
     setShowProductModal(true);
   };
 
@@ -360,6 +367,8 @@ export default function ProductsScreen() {
     setPriceIncludesGst(true);
     setCategoryId(categories[0]?.id || null);
     setSupplierId(suppliers[0]?.id || null);
+    setDiscountType('percent');
+    setDiscountValue('');
     setShowProductModal(true);
   };
 
@@ -379,6 +388,8 @@ export default function ProductsScreen() {
     setPriceIncludesGst(p.priceIncludesGst);
     setCategoryId(p.categoryId || null);
     setSupplierId(p.supplierId || null);
+    setDiscountType(p.discountType || 'percent');
+    setDiscountValue(p.discountValue ? String(p.discountValue) : '');
     setShowProductModal(true);
   };
 
@@ -402,6 +413,7 @@ export default function ProductsScreen() {
     }
     setSubmitting(true);
     try {
+      const discVal = parseFloat(discountValue) || 0;
       const payload = {
         name: name.trim(),
         sellingPrice: parseFloat(sellingPrice) || 0,
@@ -415,6 +427,8 @@ export default function ProductsScreen() {
         priceIncludesGst,
         categoryId: categoryId || undefined,
         supplierId: supplierId || undefined,
+        discountType: discVal > 0 ? discountType : undefined,
+        discountValue: discVal > 0 ? discVal : undefined,
       };
 
       if (editingProduct) {
@@ -631,12 +645,20 @@ export default function ProductsScreen() {
                     <Text style={[styles.productMeta, { color: theme.textSecondary }]}>
                       Selling: ₹{item.sellingPrice.toFixed(2)} | Cost: ₹{(item.costPrice || 0).toFixed(2)}
                     </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
                       <View style={[styles.stockPill, { backgroundColor: isLowStock ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
                         <Text style={[styles.stockPillText, { color: isLowStock ? '#EF4444' : '#10B981' }]}>
                           Stock: {item.currentStock} {item.unit || 'pcs'}
                         </Text>
                       </View>
+                      {item.discountValue && item.discountValue > 0 ? (
+                        <View style={[styles.stockPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)', flexDirection: 'row', alignItems: 'center' }]}>
+                          <Tag size={10} color="#10B981" />
+                          <Text style={[styles.stockPillText, { color: '#10B981', marginLeft: 2 }]}>
+                            {item.discountType === 'percent' ? `${item.discountValue}% OFF` : `₹${item.discountValue} OFF`}
+                          </Text>
+                        </View>
+                      ) : null}
                       {item.barcode ? (
                         <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>| Barcode: {item.barcode}</Text>
                       ) : null}
@@ -850,6 +872,17 @@ export default function ProductsScreen() {
                       ₹{detailProduct.sellingPrice.toFixed(2)}
                     </Text>
                   </View>
+
+                  {detailProduct.discountValue && detailProduct.discountValue > 0 ? (
+                    <View style={styles.detailRow}>
+                      <Text style={[styles.detailLabel, { color: '#10B981' }]}>Default Discount</Text>
+                      <Text style={[styles.detailValue, { color: '#10B981', fontWeight: '900' }]}>
+                        {detailProduct.discountType === 'percent'
+                          ? `${detailProduct.discountValue}% (Net: ₹${(detailProduct.sellingPrice * (1 - detailProduct.discountValue / 100)).toFixed(2)})`
+                          : `₹${detailProduct.discountValue} (Net: ₹${Math.max(0, detailProduct.sellingPrice - detailProduct.discountValue).toFixed(2)})`}
+                      </Text>
+                    </View>
+                  ) : null}
 
                   <View style={styles.detailRow}>
                     <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Cost Price</Text>
@@ -1092,6 +1125,56 @@ export default function ProductsScreen() {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
+            </View>
+
+            {/* PRODUCT DISCOUNT CONFIGURATION SECTION */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, padding: 12 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Tag size={14} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                  <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]}>Fixed Product Discount (Optional)</Text>
+                </View>
+                {/* Segmented Type Picker */}
+                <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 8, padding: 2, borderWidth: 1, borderColor: theme.borderColor }}>
+                  <TouchableOpacity
+                    onPress={() => setDiscountType('percent')}
+                    style={[
+                      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+                      discountType === 'percent' && { backgroundColor: BRAND_COLORS.blue600 },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: discountType === 'percent' ? '#FFFFFF' : theme.textSecondary }}>% Percent</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setDiscountType('flat')}
+                    style={[
+                      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+                      discountType === 'flat' && { backgroundColor: BRAND_COLORS.blue600 },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: discountType === 'flat' ? '#FFFFFF' : theme.textSecondary }}>₹ Flat</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 6 }]}
+                value={discountValue}
+                onChangeText={setDiscountValue}
+                keyboardType="numeric"
+                placeholder={discountType === 'percent' ? 'e.g. 10 (for 10% discount)' : 'e.g. 50 (for ₹50 off)'}
+                placeholderTextColor="#94A3B8"
+              />
+
+              {parseFloat(discountValue) > 0 && parseFloat(sellingPrice) > 0 ? (
+                <View style={[styles.marginBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 0, marginTop: 4 }]}>
+                  <Text style={[styles.marginText, { color: '#10B981' }]}>
+                    {discountType === 'percent'
+                      ? `Effective Price: ₹${(parseFloat(sellingPrice) * (1 - Math.min(100, parseFloat(discountValue)) / 100)).toFixed(2)} (Save ₹${((parseFloat(sellingPrice) * Math.min(100, parseFloat(discountValue))) / 100).toFixed(2)})`
+                      : `Effective Price: ₹${Math.max(0, parseFloat(sellingPrice) - parseFloat(discountValue)).toFixed(2)} (Save ₹${Math.min(parseFloat(sellingPrice), parseFloat(discountValue)).toFixed(2)})`}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Stock & Threshold */}

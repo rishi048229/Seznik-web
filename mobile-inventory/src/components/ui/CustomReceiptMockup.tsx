@@ -272,6 +272,16 @@ export function CustomReceiptMockup({
       }
 
       case 'left_right_text': {
+        const isDiscountEntry =
+          entry.left?.toLowerCase().includes('discount') ||
+          entry.right?.toLowerCase().includes('discount') ||
+          entry.left?.includes('{{discount}}') ||
+          entry.right?.includes('{{discount}}');
+
+        if (isDiscountEntry && (!totalDiscount || totalDiscount <= 0)) {
+          return null;
+        }
+
         return (
           <View key={entry.id || idx} style={[styles.entryBlock, styles.rowBetween]}>
             <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>

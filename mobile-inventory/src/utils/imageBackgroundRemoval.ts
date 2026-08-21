@@ -486,12 +486,183 @@ export function decodePngToRgba(pngBytes: Uint8Array): { pixels: Uint8Array; wid
 /* Intelligent Background Removal & Color Inversion Engine                    */
 /* ========================================================================== */
 
+export type LogoProcessMode = 'transparent' | 'white_clean' | 'keep_bg';
+
 export interface BackgroundRemovalOptions {
   mode?: 'transparent' | 'white_clean'; // transparent PNG vs pure white #FFFFFF background
   tolerance?: number; // Color distance tolerance (default: 45)
   softness?: number; // Edge feathering (default: 16)
   trimPadding?: boolean; // Auto crop (default: true)
   invert?: boolean; // Invert colors (Black <-> White)
+}
+
+export interface LogoThermalAnalysis {
+  recommendedMode: LogoProcessMode;
+  recommendedInvert: boolean;
+  backgroundIsWhite: boolean;
+  backgroundIsDark: boolean;
+  foregroundIsLight: boolean;
+  hasUniformBackground: boolean;
+  hint: string;
+}
+
+function luma(r: number, g: number, b: number): number {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function colorDist(r: number, g: number, b: number, bgR: number, bgG: number, bgB: number): number {
+  const dr = r - bgR;
+  const dg = g - bgG;
+  const db = b - bgB;
+  return Math.sqrt(0.299 * dr * dr + 0.587 * dg * dg + 0.114 * db * db);
+}
+
+function sampleBorderBackground(pixels: Uint8Array, width: number, height: number) {
+  let rSum = 0;
+  let gSum = 0;
+  let bSum = 0;
+  let lumaSum = 0;
+  let lumaSqSum = 0;
+  let count = 0;
+
+  const sample = (idx: number) => {
+    if (idx > pixels.length - 4) return;
+    const r = pixels[idx];
+    const g = pixels[idx + 1];
+    const b = pixels[idx + 2];
+    const y = luma(r, g, b);
+    rSum += r;
+    gSum += g;
+    bSum += b;
+    lumaSum += y;
+    lumaSqSum += y * y;
+    count++;
+  };
+
+  const xStep = Math.max(1, Math.floor(width / 16));
+  const yStep = Math.max(1, Math.floor(height / 16));
+  for (let x = 0; x < width; x += xStep) {
+    sample(x * 4);
+    sample(((height - 1) * width + x) * 4);
+  }
+  for (let y = 1; y < height - 1; y += yStep) {
+    sample((y * width) * 4);
+    sample((y * width + (width - 1)) * 4);
+  }
+
+  const bgR = count > 0 ? Math.round(rSum / count) : 255;
+  const bgG = count > 0 ? Math.round(gSum / count) : 255;
+  const bgB = count > 0 ? Math.round(bSum / count) : 255;
+  const meanLuma = count > 0 ? lumaSum / count : 255;
+  const variance = count > 0 ? Math.max(0, lumaSqSum / count - meanLuma * meanLuma) : 0;
+
+  return {
+    bgR,
+    bgG,
+    bgB,
+    bgLuma: meanLuma,
+    hasUniformBackground: variance < 350,
+  };
+}
+
+/** Composite RGBA onto opaque white. Thermal printers treat transparent pixels as black. */
+export function flattenPixelsOntoWhite(pixels: Uint8Array): Uint8Array {
+  const out = new Uint8Array(pixels.length);
+  for (let i = 0; i < pixels.length; i += 4) {
+    const a = pixels[i + 3] / 255;
+    const inv = 1 - a;
+    out[i] = Math.round(pixels[i] * a + 255 * inv);
+    out[i + 1] = Math.round(pixels[i + 1] * a + 255 * inv);
+    out[i + 2] = Math.round(pixels[i + 2] * a + 255 * inv);
+    out[i + 3] = 255;
+  }
+  return out;
+}
+
+/**
+ * Pick the thermal-safe logo treatment so the merchant does not have to trial-and-error.
+ *
+ * White-background logos must NOT be "removed" to true transparency: ESC/POS RGB_565
+ * (and JPEG flattening of premultiplied alpha) turns those holes into a solid black block.
+ */
+export function analyzePixelsForThermal(
+  pixels: Uint8Array,
+  width: number,
+  height: number
+): LogoThermalAnalysis {
+  const { bgR, bgG, bgB, bgLuma, hasUniformBackground } = sampleBorderBackground(pixels, width, height);
+  const bgIsWhite = hasUniformBackground && bgLuma >= 232;
+  const bgIsDark = hasUniformBackground && bgLuma <= 60;
+
+  let fgLumaSum = 0;
+  let fgCount = 0;
+  let bgMatchCount = 0;
+  const tolerance = 45;
+  const total = width * height;
+
+  for (let p = 0; p < total; p++) {
+    const idx = p * 4;
+    if (pixels[idx + 3] < 10) {
+      bgMatchCount++;
+      continue;
+    }
+    if (colorDist(pixels[idx], pixels[idx + 1], pixels[idx + 2], bgR, bgG, bgB) <= tolerance) {
+      bgMatchCount++;
+    } else {
+      fgLumaSum += luma(pixels[idx], pixels[idx + 1], pixels[idx + 2]);
+      fgCount++;
+    }
+  }
+
+  const fgMeanLuma = fgCount > 0 ? fgLumaSum / fgCount : 128;
+  const foregroundIsLight = fgMeanLuma >= 175;
+  const bgCoverage = total > 0 ? bgMatchCount / total : 0;
+
+  if (!hasUniformBackground || bgCoverage < 0.08) {
+    return {
+      recommendedMode: 'keep_bg',
+      recommendedInvert: false,
+      backgroundIsWhite: bgIsWhite,
+      backgroundIsDark: bgIsDark,
+      foregroundIsLight,
+      hasUniformBackground,
+      hint: 'No clear backdrop detected. Keeping the original image is safest for thermal printing.',
+    };
+  }
+
+  if (bgIsWhite) {
+    return {
+      recommendedMode: fgCount > 0 && foregroundIsLight && fgMeanLuma >= 210 ? 'keep_bg' : 'white_clean',
+      recommendedInvert: false,
+      backgroundIsWhite: true,
+      backgroundIsDark: false,
+      foregroundIsLight,
+      hasUniformBackground,
+      hint: 'This logo already has a white background. Clean White is safest — Remove Background can print as a solid black block on a thermal printer.',
+    };
+  }
+
+  if (bgIsDark && foregroundIsLight) {
+    return {
+      recommendedMode: 'transparent',
+      recommendedInvert: true,
+      backgroundIsWhite: false,
+      backgroundIsDark: true,
+      foregroundIsLight: true,
+      hasUniformBackground,
+      hint: 'Light logo on a dark background. We will cut the backdrop and invert it so it prints in black.',
+    };
+  }
+
+  return {
+    recommendedMode: 'transparent',
+    recommendedInvert: foregroundIsLight,
+    backgroundIsWhite: false,
+    backgroundIsDark: bgIsDark,
+    foregroundIsLight,
+    hasUniformBackground,
+    hint: 'Colored background detected. Remove Background will cut it out so the logo prints crisp on white paper.',
+  };
 }
 
 export function processPixelsRemoveBackground(
@@ -504,43 +675,11 @@ export function processPixelsRemoveBackground(
   const softness = options.softness ?? 16;
   const isWhiteClean = options.mode === 'white_clean';
   const invert = Boolean(options.invert);
+  const original = new Uint8Array(pixels);
 
   // 1. Sample perimeter to detect background color
-  let rSum = 0;
-  let gSum = 0;
-  let bSum = 0;
-  let count = 0;
-
-  const sampleIndices: number[] = [];
-  // Sample all 4 outer borders
-  for (let x = 0; x < width; x += Math.max(1, Math.floor(width / 16))) {
-    sampleIndices.push(x * 4); // top
-    sampleIndices.push(((height - 1) * width + x) * 4); // bottom
-  }
-  for (let y = 1; y < height - 1; y += Math.max(1, Math.floor(height / 16))) {
-    sampleIndices.push((y * width) * 4); // left
-    sampleIndices.push((y * width + (width - 1)) * 4); // right
-  }
-
-  for (const idx of sampleIndices) {
-    if (idx < pixels.length - 3) {
-      rSum += pixels[idx];
-      gSum += pixels[idx + 1];
-      bSum += pixels[idx + 2];
-      count++;
-    }
-  }
-
-  const bgR = count > 0 ? Math.round(rSum / count) : 255;
-  const bgG = count > 0 ? Math.round(gSum / count) : 255;
-  const bgB = count > 0 ? Math.round(bSum / count) : 255;
-
-  const getColorDist = (r: number, g: number, b: number) => {
-    const dr = r - bgR;
-    const dg = g - bgG;
-    const db = b - bgB;
-    return Math.sqrt(0.299 * dr * dr + 0.587 * dg * dg + 0.114 * db * db);
-  };
+  const { bgR, bgG, bgB } = sampleBorderBackground(pixels, width, height);
+  const getColorDist = (r: number, g: number, b: number) => colorDist(r, g, b, bgR, bgG, bgB);
 
   // 2. Queue-based Flood Fill starting from all outer boundary pixels
   const visited = new Uint8Array(width * height);
@@ -596,6 +735,29 @@ export function processPixelsRemoveBackground(
       const alphaRatio = (dist - tolerance) / softness;
       pixels[pxIdx + 3] = Math.round(Math.min(a, 255 * alphaRatio));
     }
+  }
+
+  // If flood-fill ate the artwork (common with light logos on white), revert.
+  let originalFg = 0;
+  let remainingFg = 0;
+  const totalPx = width * height;
+  for (let p = 0; p < totalPx; p++) {
+    const idx = p * 4;
+    const origIsFg =
+      original[idx + 3] >= 10 &&
+      getColorDist(original[idx], original[idx + 1], original[idx + 2]) > tolerance;
+    if (origIsFg) originalFg++;
+
+    const outA = pixels[idx + 3];
+    const outR = pixels[idx];
+    const outG = pixels[idx + 1];
+    const outB = pixels[idx + 2];
+    const isBgNow = outA < 20 || (outR > 245 && outG > 245 && outB > 245);
+    if (!isBgNow) remainingFg++;
+  }
+  if (originalFg > 80 && remainingFg < Math.max(40, originalFg * 0.12)) {
+    pixels.set(original);
+    return { pixels, width, height };
   }
 
   // 3. If Invert Colors is requested (swap dark <-> bright foreground)
@@ -662,65 +824,12 @@ export function processPixelsRemoveBackground(
 }
 
 /* ========================================================================== */
-/* High-Level removeImageBackground API                                       */
+/* High-Level load / analyze / flatten / remove APIs                          */
 /* ========================================================================== */
 
-export async function removeImageBackground(
-  imageUri: string,
-  options: BackgroundRemovalOptions = {}
-): Promise<{ uri: string; base64?: string }> {
-  try {
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      return await removeBackgroundWeb(imageUri, options);
-    }
-
-    // Native Android / iOS Implementation
-    let pngBase64 = '';
-    if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
-      try {
-        const manip = await ImageManipulator.manipulateAsync(
-          imageUri,
-          [{ resize: { width: 512 } }],
-          { format: 'png', base64: true }
-        );
-        pngBase64 = manip.base64 || '';
-      } catch (err) {
-        console.warn('ImageManipulator resize error:', err);
-      }
-    }
-
-    if (!pngBase64) {
-      pngBase64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-    }
-
-    const pngBytes = base64ToUint8Array(pngBase64);
-    const decoded = decodePngToRgba(pngBytes);
-    if (!decoded || !decoded.pixels || decoded.pixels.length === 0) {
-      return { uri: imageUri };
-    }
-
-    const processed = processPixelsRemoveBackground(decoded.pixels, decoded.width, decoded.height, options);
-    const encodedPng = encodeRgbaToPng(processed.pixels, processed.width, processed.height);
-    const finalBase64 = uint8ArrayToBase64(encodedPng);
-
-    const outPath = `${FileSystem.cacheDirectory || ''}logo_clean_${Date.now()}.png`;
-    await FileSystem.writeAsStringAsync(outPath, finalBase64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    return { uri: outPath, base64: finalBase64 };
-  } catch (error) {
-    console.error('removeImageBackground error:', error);
-    return { uri: imageUri };
-  }
-}
-
-function removeBackgroundWeb(
-  imageUri: string,
-  options: BackgroundRemovalOptions = {}
-): Promise<{ uri: string; base64?: string }> {
+function loadImageRgbaWeb(
+  imageUri: string
+): Promise<{ pixels: Uint8Array; width: number; height: number } | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
@@ -741,40 +850,122 @@ function removeBackgroundWeb(
         }
         canvas.width = w;
         canvas.height = h;
-
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve({ uri: imageUri });
+          resolve(null);
           return;
         }
-
         ctx.drawImage(img, 0, 0, w, h);
         const imgData = ctx.getImageData(0, 0, w, h);
-        const pixels = new Uint8Array(imgData.data);
-
-        const processed = processPixelsRemoveBackground(pixels, w, h, options);
-
-        const outCanvas = document.createElement('canvas');
-        outCanvas.width = processed.width;
-        outCanvas.height = processed.height;
-        const outCtx = outCanvas.getContext('2d');
-        if (!outCtx) {
-          resolve({ uri: imageUri });
-          return;
-        }
-
-        const outImgData = outCtx.createImageData(processed.width, processed.height);
-        outImgData.data.set(processed.pixels);
-        outCtx.putImageData(outImgData, 0, 0);
-
-        const dataUrl = outCanvas.toDataURL('image/png');
-        resolve({ uri: dataUrl });
-      } catch (e) {
-        console.warn('Web background removal fallback:', e);
-        resolve({ uri: imageUri });
+        resolve({ pixels: new Uint8Array(imgData.data), width: w, height: h });
+      } catch {
+        resolve(null);
       }
     };
-    img.onerror = () => resolve({ uri: imageUri });
+    img.onerror = () => resolve(null);
     img.src = imageUri;
   });
+}
+
+async function loadImageRgba(
+  imageUri: string
+): Promise<{ pixels: Uint8Array; width: number; height: number } | null> {
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    return loadImageRgbaWeb(imageUri);
+  }
+
+  let pngBase64 = '';
+  if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
+    try {
+      const manip = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [{ resize: { width: 512 } }],
+        { format: 'png', base64: true }
+      );
+      pngBase64 = manip.base64 || '';
+    } catch (err) {
+      console.warn('ImageManipulator resize error:', err);
+    }
+  }
+
+  if (!pngBase64) {
+    pngBase64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
+
+  const pngBytes = base64ToUint8Array(pngBase64);
+  const decoded = decodePngToRgba(pngBytes);
+  if (!decoded || !decoded.pixels || decoded.pixels.length === 0) {
+    return null;
+  }
+  return decoded;
+}
+
+async function writeRgbaPng(
+  pixels: Uint8Array,
+  width: number,
+  height: number
+): Promise<{ uri: string; base64: string }> {
+  const encodedPng = encodeRgbaToPng(pixels, width, height);
+  const finalBase64 = uint8ArrayToBase64(encodedPng);
+
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    return { uri: `data:image/png;base64,${finalBase64}`, base64: finalBase64 };
+  }
+
+  const outPath = `${FileSystem.cacheDirectory || ''}logo_clean_${Date.now()}.png`;
+  await FileSystem.writeAsStringAsync(outPath, finalBase64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return { uri: outPath, base64: finalBase64 };
+}
+
+export async function analyzeLogoForThermal(imageUri: string): Promise<LogoThermalAnalysis | null> {
+  try {
+    const decoded = await loadImageRgba(imageUri);
+    if (!decoded) return null;
+    return analyzePixelsForThermal(decoded.pixels, decoded.width, decoded.height);
+  } catch (e) {
+    console.warn('analyzeLogoForThermal error:', e);
+    return null;
+  }
+}
+
+/** Flatten any remaining alpha onto white and return an opaque PNG. */
+export async function flattenImageOntoWhite(
+  imageUri: string
+): Promise<{ uri: string; base64?: string }> {
+  try {
+    const decoded = await loadImageRgba(imageUri);
+    if (!decoded) return { uri: imageUri };
+    const flat = flattenPixelsOntoWhite(decoded.pixels);
+    return await writeRgbaPng(flat, decoded.width, decoded.height);
+  } catch (e) {
+    console.warn('flattenImageOntoWhite error:', e);
+    return { uri: imageUri };
+  }
+}
+
+export async function removeImageBackground(
+  imageUri: string,
+  options: BackgroundRemovalOptions = {}
+): Promise<{ uri: string; base64?: string }> {
+  try {
+    const decoded = await loadImageRgba(imageUri);
+    if (!decoded) return { uri: imageUri };
+
+    const processed = processPixelsRemoveBackground(
+      decoded.pixels,
+      decoded.width,
+      decoded.height,
+      options
+    );
+    // Always composite onto white. Transparent holes become black on ESC/POS thermal printers.
+    const flat = flattenPixelsOntoWhite(processed.pixels);
+    return await writeRgbaPng(flat, processed.width, processed.height);
+  } catch (error) {
+    console.error('removeImageBackground error:', error);
+    return { uri: imageUri };
+  }
 }

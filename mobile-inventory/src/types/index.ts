@@ -75,6 +75,8 @@ export interface Product {
   reorderThreshold: number;
   vendorId?: string;
   imageUri?: string;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
   archived?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -120,6 +122,10 @@ export interface BillItem {
   qty: number;
   unitPrice: number;
   costPrice?: number;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
+  discountAmount?: number;
+  discountApplied?: boolean;
   lineTotal: number;
 }
 

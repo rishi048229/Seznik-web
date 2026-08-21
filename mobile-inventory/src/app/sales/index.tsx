@@ -447,21 +447,25 @@ export default function SalesHistoryScreen() {
                   </View>
 
                   <ScrollView style={{ maxHeight: 220, marginVertical: 8 }}>
-                    {selectedSale.items?.map((it: any, idx: number) => (
-                      <View key={idx} style={[styles.detailItemRow, { borderBottomColor: theme.borderColor }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.detailItemName, { color: theme.textPrimary }]}>
-                            {it.productName || it.name || `Item ${idx + 1}`}
-                          </Text>
-                          <Text style={[styles.detailItemSub, { color: theme.textSecondary }]}>
-                            {it.quantity} × {formatCurrency(it.unitPrice || 0)}
+                    {selectedSale.items?.map((it: any, idx: number) => {
+                      const itemDisc = it.discountAmount || it.discount || 0;
+                      return (
+                        <View key={idx} style={[styles.detailItemRow, { borderBottomColor: theme.borderColor }]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.detailItemName, { color: theme.textPrimary }]}>
+                              {it.productName || it.name || `Item ${idx + 1}`}
+                            </Text>
+                            <Text style={[styles.detailItemSub, { color: theme.textSecondary }]}>
+                              {it.quantity} × {formatCurrency(it.unitPrice || 0)}
+                              {itemDisc > 0 ? ` (Save -${formatCurrency(itemDisc)})` : ''}
+                            </Text>
+                          </View>
+                          <Text style={[styles.detailItemTotal, { color: theme.textPrimary }]}>
+                            {formatCurrency(it.total || (it.quantity || 1) * (it.unitPrice || 0))}
                           </Text>
                         </View>
-                        <Text style={[styles.detailItemTotal, { color: theme.textPrimary }]}>
-                          {formatCurrency(it.total || (it.quantity || 1) * (it.unitPrice || 0))}
-                        </Text>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </ScrollView>
 
                   <View style={[styles.detailSummary, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
