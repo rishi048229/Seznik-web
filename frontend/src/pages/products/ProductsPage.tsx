@@ -29,10 +29,37 @@ import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate, resolveElementText, type LabelData } from '@/utils/labelPrint'
+import {
+  generateLabelEscPos,
+  generateLabelTspl,
+  defaultLabelTemplate,
+  PRESET_CENTERED_STANDARD,
+  PRESET_RETAIL_DUAL_CODE,
+  PRESET_MINIMAL_TAG,
+  resolveElementText,
+  type LabelData
+} from '@/utils/labelPrint'
+import type { LabelElement } from '@/types/settings.types'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
 import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
+
+export interface LabelSizePreset {
+  id: string
+  label: string
+  width: number
+  height: number
+  description: string
+}
+
+export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
+  { id: '50x30', label: '50 × 30 mm', width: 50, height: 30, description: 'Standard' },
+  { id: '50x25', label: '50 × 25 mm', width: 50, height: 25, description: 'Compact' },
+  { id: '40x30', label: '40 × 30 mm', width: 40, height: 30, description: 'Small' },
+  { id: '40x20', label: '40 × 20 mm', width: 40, height: 20, description: 'Mini' },
+  { id: '60x40', label: '60 × 40 mm', width: 60, height: 40, description: 'Large' },
+  { id: 'custom', label: 'Custom', width: 50, height: 30, description: 'Manual' },
+]
 
 type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
 
@@ -126,8 +153,20 @@ export const ProductsPage = () => {
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
   const [labelQty, setLabelQty] = useState<number>(1)
   const [labelFormat, setLabelFormat] = useState<'CODE128' | 'EAN13' | 'QR'>('CODE128')
+  const [selectedLabelSizeId, setSelectedLabelSizeId] = useState<string>('50x30')
+  const [labelWidth, setLabelWidth] = useState<number>(50)
+  const [labelHeight, setLabelHeight] = useState<number>(30)
+  const [selectedLayoutPresetId, setSelectedLayoutPresetId] = useState<string>('standard')
   const [detailProduct, setDetailProduct] = useState<Product | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  const activeLabelTemplate = selectedLayoutPresetId === 'dual'
+    ? PRESET_RETAIL_DUAL_CODE
+    : selectedLayoutPresetId === 'minimal'
+    ? PRESET_MINIMAL_TAG
+    : selectedLayoutPresetId === 'custom_settings' && settings?.printerConfig?.labelTemplate
+    ? settings.printerConfig.labelTemplate
+    : PRESET_CENTERED_STANDARD
 
   const openDetail = (product: Product) => {
     setDetailProduct(product)
@@ -300,7 +339,28 @@ export const ProductsPage = () => {
     setLabelProduct(product)
     setLabelFormat((product.barcodeType as 'CODE128' | 'EAN13' | 'QR') || 'CODE128')
     setLabelQty(1)
+
+    const savedW = settings?.printerConfig?.labelWidth || 50
+    const savedH = settings?.printerConfig?.labelHeight || 30
+    const matched = LABEL_SIZE_PRESETS.find(p => p.id !== 'custom' && p.width === savedW && p.height === savedH)
+    if (matched) {
+      setSelectedLabelSizeId(matched.id)
+    } else {
+      setSelectedLabelSizeId('custom')
+    }
+    setLabelWidth(savedW)
+    setLabelHeight(savedH)
+    setSelectedLayoutPresetId(settings?.printerConfig?.labelTemplate ? 'custom_settings' : 'standard')
     setIsLabelModalOpen(true)
+  }
+
+  const handleSelectSizePreset = (presetId: string) => {
+    setSelectedLabelSizeId(presetId)
+    const preset = LABEL_SIZE_PRESETS.find(p => p.id === presetId)
+    if (preset && preset.id !== 'custom') {
+      setLabelWidth(preset.width)
+      setLabelHeight(preset.height)
+    }
   }
 
   const handlePrintToBlePrinter = async () => {
@@ -326,26 +386,26 @@ export const ProductsPage = () => {
     }
 
     try {
-      const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
+      const template = activeLabelTemplate
       const singleBytes = mode === 'tspl'
         ? generateLabelTspl(
             template,
             labelFormat,
             data,
-            settings?.printerConfig?.labelWidth || 50,
-            settings?.printerConfig?.labelHeight || 30,
+            labelWidth,
+            labelHeight,
             settings?.printerConfig?.labelOffsetX || 0,
             settings?.printerConfig?.labelOffsetY || 0,
             undefined,
             settings?.printerConfig?.labelDirection ?? 0,
-            settings?.printerConfig?.labelBarcodeOffsetX ?? 4
+            settings?.printerConfig?.labelBarcodeOffsetX ?? 0
           )
         : generateLabelEscPos(template, labelFormat, data)
 
       for (let i = 0; i < labelQty; i++) {
         await sendBleData(singleBytes)
       }
-      trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'ble' })
+      trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'ble', width: labelWidth, height: labelHeight })
       toast.success(`${labelQty} label(s) sent to ${bleDeviceName || 'Seznik Dev Printer'}!`)
     } catch (err) {
       console.error('BLE Print error:', err)
@@ -356,14 +416,14 @@ export const ProductsPage = () => {
 
   const handleBrowserPrintLabels = () => {
     if (!labelProduct) return
-    trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'browser' })
+    trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'browser', width: labelWidth, height: labelHeight })
     const printWin = window.open('', '_blank')
     if (!printWin) {
       toast.error('Please allow popups to print labels')
       return
     }
 
-    const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
+    const template = activeLabelTemplate
     const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
     const labelData: LabelData = {
       businessName: settings?.businessName || 'SEZNIK RETAIL',
@@ -373,12 +433,12 @@ export const ProductsPage = () => {
       sku: labelProduct.sku,
     }
 
-    const widthMm = settings?.printerConfig?.labelWidth || 50
-    const heightMm = settings?.printerConfig?.labelHeight || 30
+    const widthMm = labelWidth
+    const heightMm = labelHeight
     const offX = settings?.printerConfig?.labelOffsetX || 0
     const offY = settings?.printerConfig?.labelOffsetY || 0
 
-    const renderElementsHtml = template.map(el => {
+    const renderElementsHtml = template.map((el: LabelElement) => {
       const align = el.align || 'center'
       const weight = el.bold ? 'font-weight:700;' : 'font-weight:400;'
       const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
@@ -1565,6 +1625,104 @@ export const ProductsPage = () => {
               </div>
             </div>
 
+            {/* Label Dimensions Preset Selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag size={13} className="text-blue-500" />
+                  Label Sticker Size
+                </label>
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                  {labelWidth}mm × {labelHeight}mm
+                </span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {LABEL_SIZE_PRESETS.map(p => {
+                  const isSelected = selectedLabelSizeId === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelectSizePreset(p.id)}
+                      className={`p-2 rounded-xl border text-center transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{p.label}</div>
+                      <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>{p.description}</div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Custom Size Inputs (Shown when Custom is selected) */}
+              {selectedLabelSizeId === 'custom' && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50 mt-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                      Width (mm)
+                    </label>
+                    <Input
+                      type="number"
+                      min="20"
+                      max="110"
+                      value={String(labelWidth)}
+                      onChange={e => setLabelWidth(Math.max(10, parseInt(e.target.value) || 50))}
+                      placeholder="50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                      Height (mm)
+                    </label>
+                    <Input
+                      type="number"
+                      min="15"
+                      max="150"
+                      value={String(labelHeight)}
+                      onChange={e => setLabelHeight(Math.max(10, parseInt(e.target.value) || 30))}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Label Layout Template Preset Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers size={13} className="text-blue-500" />
+                Layout Template Preset
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'standard', label: 'Standard', desc: 'Store + Name + Barcode + Price' },
+                  { id: 'dual', label: 'Dual Code', desc: 'Barcode + QR Side-by-Side' },
+                  { id: 'minimal', label: 'Minimal', desc: 'Name + Barcode + Price' },
+                  { id: 'custom_settings', label: 'From Settings', desc: 'Custom Template' },
+                ].map(tmpl => {
+                  const isSelected = selectedLayoutPresetId === tmpl.id
+                  return (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => setSelectedLayoutPresetId(tmpl.id)}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-400/30 font-semibold'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{tmpl.label}</div>
+                      <div className="text-[10px] text-gray-400 dark:text-gray-400 mt-0.5 leading-tight line-clamp-1">{tmpl.desc}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* Interactive Settings Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -1599,14 +1757,15 @@ export const ProductsPage = () => {
 
             {/* Live Canvas Sticker Preview */}
             <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({settings?.printerConfig?.labelWidth || 50}mm × {settings?.printerConfig?.labelHeight || 30}mm)</span>
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({labelWidth}mm × {labelHeight}mm)</span>
               <div
                 className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
                 style={{
+                  minHeight: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
                   transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
                 }}
               >
-                {(settings?.printerConfig?.labelTemplate || defaultLabelTemplate).map(el => {
+                {activeLabelTemplate.map((el: LabelElement) => {
                   const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
                   const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
                   const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-blue-400' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
@@ -1652,7 +1811,7 @@ export const ProductsPage = () => {
                   }
                   const text = resolveElementText(el, labelData)
                   if (!text) return null
-                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1' : ''
+                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1 font-bold text-gray-900 dark:text-white' : ''
                   return (
                     <div
                       key={el.id}
