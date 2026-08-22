@@ -1782,7 +1782,11 @@ class ThermalPrinterServiceManager {
         case 'category':
           return product.category?.name || '';
         case 'custom':
+        case 'sequence':
         default:
+          // A 'sequence'-bound element should always be resolved by printLabelSequence before it
+          // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
+          // only guards against calling these print paths directly with an un-substituted template.
           return el.customText || '';
       }
     };
@@ -1926,7 +1930,11 @@ class ThermalPrinterServiceManager {
         case 'category':
           return product.category?.name || '';
         case 'custom':
+        case 'sequence':
         default:
+          // A 'sequence'-bound element should always be resolved by printLabelSequence before it
+          // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
+          // only guards against calling these print paths directly with an un-substituted template.
           return el.customText || '';
       }
     };
@@ -2246,7 +2254,11 @@ class ThermalPrinterServiceManager {
         case 'category':
           return product.category?.name || '';
         case 'custom':
+        case 'sequence':
         default:
+          // A 'sequence'-bound element should always be resolved by printLabelSequence before it
+          // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
+          // only guards against calling these print paths directly with an un-substituted template.
           return el.customText || '';
       }
     };

@@ -9,7 +9,7 @@
  * resolves the actual value against the live Product at print time.
  */
 
-export type LabelTextBinding = 'productName' | 'price' | 'sku' | 'barcodeText' | 'unit' | 'category' | 'custom';
+export type LabelTextBinding = 'productName' | 'price' | 'sku' | 'barcodeText' | 'unit' | 'category' | 'custom' | 'sequence';
 export type LabelCodeBinding = 'barcode' | 'sku' | 'custom';
 
 interface BaseLabelElement {
