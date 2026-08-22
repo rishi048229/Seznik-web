@@ -33,9 +33,16 @@ const getDynamicHostIp = () => {
   }
 
   // 4. Local Development: Dynamic Host IP auto-detected from Expo bundler (auto-detects laptop Wi-Fi IP)
-  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
+    (Constants as any).expoGoConfig?.debuggerHost ||
+    (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).experienceUrl;
+
+  if (hostUri && typeof hostUri === 'string') {
+    const cleanUri = hostUri.replace(/^[a-zA-Z0-9+.-]+:\/\//, '');
+    const ip = cleanUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
       return `http://${ip}:${DEFAULT_PORT}/api`;
     }
