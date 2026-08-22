@@ -13,7 +13,9 @@ export const getLocations = async (req: Request, res: Response) => {
     });
     res.json(locations);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch locations' });
+    console.error('Failed to fetch locations:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to fetch locations: ${detail}` });
   }
 };
 
@@ -31,7 +33,9 @@ export const createLocation = async (req: Request, res: Response) => {
     });
     res.status(201).json(location);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create location' });
+    console.error('Failed to create location:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to create location: ${detail}` });
   }
 };
 
@@ -60,7 +64,9 @@ export const updateLocation = async (req: Request, res: Response) => {
     const location = await prisma.location.updateMany({ where: { id: String(id), userId }, data });
     res.json({ success: true, count: location.count });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update location' });
+    console.error('Failed to update location:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to update location: ${detail}` });
   }
 };
 
@@ -73,7 +79,9 @@ export const toggleLocationActive = async (req: Request, res: Response) => {
     const location = await prisma.location.updateMany({ where: { id: String(id), userId }, data: { isActive } });
     res.json({ success: true, count: location.count });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to toggle location' });
+    console.error('Failed to toggle location:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to toggle location: ${detail}` });
   }
 };
 
@@ -85,7 +93,9 @@ export const deleteLocation = async (req: Request, res: Response) => {
     await prisma.location.deleteMany({ where: { id: String(id), userId } });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete location' });
+    console.error('Failed to delete location:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to delete location: ${detail}` });
   }
 };
 
@@ -107,7 +117,9 @@ export const getLocationStock = async (req: Request, res: Response) => {
     });
     res.json(stocks);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch location stock' });
+    console.error('Failed to fetch location stock:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to fetch location stock: ${detail}` });
   }
 };
 
@@ -130,7 +142,9 @@ export const getProductLocationStock = async (req: Request, res: Response) => {
     });
     res.json(stocks);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch product location stock' });
+    console.error('Failed to fetch product location stock:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to fetch product location stock: ${detail}` });
   }
 };
 
@@ -168,7 +182,9 @@ export const upsertProductLocationStock = async (req: Request, res: Response) =>
     });
     res.json(row);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update location stock' });
+    console.error('Failed to update location stock:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to update location stock: ${detail}` });
   }
 };
 
@@ -233,7 +249,9 @@ export const createStockTransfer = async (req: Request, res: Response) => {
     if (error instanceof Error && error.message === 'INSUFFICIENT_STOCK') {
       return res.status(400).json({ error: 'Not enough stock at the source location for this transfer' });
     }
-    res.status(500).json({ error: 'Failed to create stock transfer' });
+    console.error('Failed to create stock transfer:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to create stock transfer: ${detail}` });
   }
 };
 
@@ -252,6 +270,8 @@ export const getStockTransfers = async (req: Request, res: Response) => {
     });
     res.json(transfers);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch stock transfers' });
+    console.error('Failed to fetch stock transfers:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to fetch stock transfers: ${detail}` });
   }
 };
