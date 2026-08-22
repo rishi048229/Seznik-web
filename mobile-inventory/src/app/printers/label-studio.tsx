@@ -207,6 +207,11 @@ export default function LabelStudioScreen() {
   const pxPerMm = useMemo(() => {
     return Math.max(4, Math.min(8, Math.floor(maxAvailableCanvasWidth / template.widthMm)));
   }, [maxAvailableCanvasWidth, template.widthMm]);
+  // pxPerMm's floor of 4 can still produce a canvas wider than the screen for large label widths
+  // (up to 100mm via the stepper) — when that happens, the canvas must be horizontally scrollable
+  // or its right edge (and any resize handles there) becomes completely unreachable.
+  const canvasWidthPx = template.widthMm * pxPerMm;
+  const canvasOverflowsScreen = canvasWidthPx > maxAvailableCanvasWidth;
 
   const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
   const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
@@ -520,32 +525,37 @@ export default function LabelStudioScreen() {
           {/* Canvas Section */}
           {(isTablet || mobileMode === 'canvas') && (
             <ScrollView style={styles.canvasScroll} contentContainerStyle={styles.canvasScrollContent}>
-              <TouchableOpacity activeOpacity={1} onPress={() => setSelectedId(null)}>
-                <View
-                  style={[
-                    styles.canvas,
-                    { width: template.widthMm * pxPerMm, height: template.heightMm * pxPerMm, backgroundColor: template.backgroundColor || '#FFFFFF' },
-                  ]}
-                >
-                  {template.elements.map((el) => (
-                    <DraggableElement
-                      key={el.id}
-                      xMm={el.xMm}
-                      yMm={el.yMm}
-                      widthMm={el.widthMm}
-                      heightMm={el.heightMm}
-                      pxPerMm={pxPerMm}
-                      boundsWidthMm={template.widthMm}
-                      boundsHeightMm={template.heightMm}
-                      selected={selectedId === el.id}
-                      onSelect={() => setSelectedId(el.id)}
-                      onChange={(box) => updateElement(el.id, box)}
-                    >
-                      {renderElementContent(el)}
-                    </DraggableElement>
-                  ))}
-                </View>
-              </TouchableOpacity>
+              <ScrollView
+                horizontal={canvasOverflowsScreen}
+                contentContainerStyle={canvasOverflowsScreen ? { minWidth: canvasWidthPx } : undefined}
+              >
+                <TouchableOpacity activeOpacity={1} onPress={() => setSelectedId(null)}>
+                  <View
+                    style={[
+                      styles.canvas,
+                      { width: template.widthMm * pxPerMm, height: template.heightMm * pxPerMm, backgroundColor: template.backgroundColor || '#FFFFFF' },
+                    ]}
+                  >
+                    {template.elements.map((el) => (
+                      <DraggableElement
+                        key={el.id}
+                        xMm={el.xMm}
+                        yMm={el.yMm}
+                        widthMm={el.widthMm}
+                        heightMm={el.heightMm}
+                        pxPerMm={pxPerMm}
+                        boundsWidthMm={template.widthMm}
+                        boundsHeightMm={template.heightMm}
+                        selected={selectedId === el.id}
+                        onSelect={() => setSelectedId(el.id)}
+                        onChange={(box) => updateElement(el.id, box)}
+                      >
+                        {renderElementContent(el)}
+                      </DraggableElement>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </ScrollView>
               <Text style={[styles.canvasCaption, { color: theme.textSecondary }]}>
                 {template.widthMm}mm x {template.heightMm}mm — drag to move, corner handles to resize
               </Text>
