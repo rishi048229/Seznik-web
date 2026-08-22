@@ -215,7 +215,7 @@ export const QuickTokensPage = () => {
       }
       const receiptConfig = settings?.receiptConfig
       const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale: token.sale as Sale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',

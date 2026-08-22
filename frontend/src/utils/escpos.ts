@@ -128,7 +128,80 @@ export class EscPosBuilder {
     return this
   }
 
+  // Raster bit-image via the standard "GS v 0" command — the only way a
+  // logo can actually appear on a thermal receipt (there is no HTML/<img>
+  // on real hardware; the previous implementation only ever rendered the
+  // logo in the on-screen A4/browser preview and silently did nothing here,
+  // which is why it never showed up on an actual printed receipt).
+  // `packed` is 1-bit-per-pixel data (1 = black), MSB-first, each row
+  // padded out to a whole number of bytes — see rasterizeImageForEscPos().
+  image(packed: Uint8Array, widthBytes: number, heightDots: number): this {
+    this.push(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, heightDots & 0xff, (heightDots >> 8) & 0xff)
+    for (const b of packed) this.bytes.push(b)
+    return this
+  }
+
   toBytes(): Uint8Array {
     return new Uint8Array(this.bytes)
+  }
+}
+
+/**
+ * Loads an image (data: URI or http(s) URL) and converts it into 1bpp
+ * packed raster data ready for EscPosBuilder.image(), scaled to fit within
+ * maxWidthDots while preserving aspect ratio. Returns null if the image
+ * can't be loaded (bad URL, CORS-blocked remote host, etc.) — callers
+ * should just skip printing the logo in that case rather than fail the
+ * whole receipt.
+ */
+export async function rasterizeImageForEscPos(
+  src: string,
+  maxWidthDots: number
+): Promise<{ packed: Uint8Array; widthBytes: number; heightDots: number } | null> {
+  if (!src) return null
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      if (!src.startsWith('data:')) el.crossOrigin = 'anonymous'
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('Failed to load logo image'))
+      el.src = src
+    })
+
+    const scale = Math.min(1, maxWidthDots / img.width)
+    const widthDots = Math.max(8, Math.round(img.width * scale))
+    const heightDots = Math.max(1, Math.round(img.height * scale))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = widthDots
+    canvas.height = heightDots
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    // White background first — a transparent PNG logo composited straight
+    // onto a threshold pass would otherwise read transparent pixels as
+    // black (alpha=0 channels default to 0,0,0), inverting the logo.
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, widthDots, heightDots)
+    ctx.drawImage(img, 0, 0, widthDots, heightDots)
+
+    const { data } = ctx.getImageData(0, 0, widthDots, heightDots)
+    const widthBytes = Math.ceil(widthDots / 8)
+    const packed = new Uint8Array(widthBytes * heightDots)
+
+    for (let y = 0; y < heightDots; y++) {
+      for (let x = 0; x < widthDots; x++) {
+        const i = (y * widthDots + x) * 4
+        const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+        const isDark = luminance < 160
+        if (isDark) {
+          const byteIndex = y * widthBytes + (x >> 3)
+          packed[byteIndex] |= 0x80 >> (x & 7)
+        }
+      }
+    }
+
+    return { packed, widthBytes, heightDots }
+  } catch {
+    return null
   }
 }

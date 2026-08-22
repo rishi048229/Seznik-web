@@ -426,7 +426,7 @@ export const PrintersPage = () => {
 
       if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
         try {
-          const bytes = generateReceiptEscPos({
+          const bytes = await generateReceiptEscPos({
             sale: testSale,
             receiptConfig: effectiveReceiptConfig,
             paperSize: config.paperSize,

@@ -417,7 +417,7 @@ export const POSLitePage = () => {
       const customerName = lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
         : ''
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',

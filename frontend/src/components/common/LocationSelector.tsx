@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Warehouse } from 'lucide-react'
+import { Store } from 'lucide-react'
 import { useSettings } from '@/hooks/useSettings'
 import { useLocations } from '@/hooks/useLocations'
 
@@ -42,7 +42,7 @@ export function LocationSelector({ onChange }: { onChange: (locationId: string |
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Warehouse size={14} className="text-gray-400 shrink-0" />
+      <Store size={14} className="text-gray-400 shrink-0" />
       <div className="flex items-center gap-1 flex-wrap">
         {activeLocations.map(loc => (
           <button

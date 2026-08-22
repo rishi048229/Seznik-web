@@ -28,7 +28,8 @@ import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
-import { useLocations, useProductLocationStock, useUpsertProductLocationStock } from '@/hooks/useLocations'
+import { useLocations, useProductLocationStock, useUpsertProductLocationStock, useLocationStock } from '@/hooks/useLocations'
+import { LocationSelector } from '@/components/common/LocationSelector'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
   generateLabelEscPos,
@@ -161,6 +162,26 @@ export const ProductsPage = () => {
   const activeLocations = allLocations.filter(l => l.isActive)
   const { data: productLocationStock = [] } = useProductLocationStock(locationFeatureEnabled ? editId : null)
   const { mutate: upsertLocationStock } = useUpsertProductLocationStock()
+
+  // Store switcher — lets the owner browse/manage this catalog scoped to one
+  // store at a time (same shared selection as POS/Scan-to-Bill, via
+  // LocationSelector's localStorage key, so picking a store anywhere in the
+  // app stays consistent). Products can carry different stock/price per
+  // store, or be entirely absent from one — "browseStoreId" is null when the
+  // feature is off or no store is picked, which falls back to every
+  // product's flat currentStock/sellingPrice exactly as before.
+  const [browseStoreId, setBrowseStoreId] = useState<string | null>(null)
+  const [showOnlyThisStore, setShowOnlyThisStore] = useState(false)
+  const { data: browseStoreStock = [] } = useLocationStock(browseStoreId)
+  const browseStoreStockMap = new Map(browseStoreStock.map(r => [r.productId, r]))
+  const browseStoreName = allLocations.find(l => l.id === browseStoreId)?.name ?? ''
+
+  const getBrowseStock = (product: { id: string; currentStock: number }): number =>
+    browseStoreId ? (browseStoreStockMap.get(product.id)?.stock ?? 0) : product.currentStock
+  const getBrowsePrice = (product: { id: string; sellingPrice: number }): number =>
+    browseStoreId ? (browseStoreStockMap.get(product.id)?.priceOverride ?? product.sellingPrice) : product.sellingPrice
+  const isCarriedAtBrowseStore = (product: { id: string }): boolean =>
+    !browseStoreId || browseStoreStockMap.has(product.id)
   const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
@@ -287,11 +308,13 @@ export const ProductsPage = () => {
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !categoryFilter || p.categoryId === categoryFilter
+    const stockHere = getBrowseStock(p)
     const matchesStock = !stockFilter ||
-      (stockFilter === 'in-stock' && p.currentStock > p.lowStockThreshold) ||
-      (stockFilter === 'low-stock' && p.currentStock > 0 && p.currentStock <= p.lowStockThreshold) ||
-      (stockFilter === 'out-of-stock' && p.currentStock <= 0)
-    return matchesSearch && matchesCategory && matchesStock
+      (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
+      (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
+      (stockFilter === 'out-of-stock' && stockHere <= 0)
+    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p)
+    return matchesSearch && matchesCategory && matchesStock && matchesStoreScope
   })
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
@@ -833,6 +856,26 @@ export const ProductsPage = () => {
         </div>
       </div>
 
+      {/* Store switcher — browse/manage this catalog scoped to one store at a
+          time. Only rendered when multi-store inventory is enabled and at
+          least one active store exists. */}
+      {locationFeatureEnabled && activeLocations.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <LocationSelector onChange={setBrowseStoreId} />
+          {browseStoreId && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showOnlyThisStore}
+                onChange={e => setShowOnlyThisStore(e.target.checked)}
+                className="rounded"
+              />
+              Only show products carried at {browseStoreName}
+            </label>
+          )}
+        </div>
+      )}
+
       {/* Category Quick Filter Pills (Fully Horizontal Scrollable on Mobile, Tablet & Desktop) */}
       <div className="relative mb-4 group min-w-0">
         {canScrollLeft && (
@@ -928,9 +971,11 @@ export const ProductsPage = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {paginated.map(product => {
-                        const stockPercent = Math.min((product.currentStock / (product.lowStockThreshold * 3)) * 100, 100)
-                        const isLowStock = product.currentStock > 0 && product.currentStock <= product.lowStockThreshold
-                        const isOutOfStock = product.currentStock <= 0
+                        const storeStock = getBrowseStock(product)
+                        const storePrice = getBrowsePrice(product)
+                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3)) * 100, 100)
+                        const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
+                        const isOutOfStock = storeStock <= 0
                         return (
                           <tr
                             key={product.id}
@@ -996,8 +1041,11 @@ export const ProductsPage = () => {
                                 <span className={`text-sm font-semibold ${
                                   isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
                                 }`}>
-                                  {product.currentStock} Units
+                                  {storeStock} Units
                                 </span>
+                                {browseStoreId && (
+                                  <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
+                                )}
                                 <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
@@ -1009,7 +1057,10 @@ export const ProductsPage = () => {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
+                              <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
+                              {browseStoreId && storePrice !== product.sellingPrice && (
+                                <p className="text-[10px] text-gray-400 line-through">{formatINR(product.sellingPrice)}</p>
+                              )}
                             </td>
                             <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">

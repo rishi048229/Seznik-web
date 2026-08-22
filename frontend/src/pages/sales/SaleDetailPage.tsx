@@ -71,7 +71,7 @@ export const SaleDetailPage = () => {
       const customerName = sale.customerId
         ? customers?.find(c => c.id === sale.customerId)?.name
         : ''
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',

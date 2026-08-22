@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Switch } from '@/components/ui/Switch'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
+import { QuickAddProductModal } from '@/components/common/QuickAddProductModal'
 import {
   useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation, useToggleLocationActive,
   useLocationStock, useUpsertProductLocationStock, useCreateStockTransfer, useStockTransfers,
@@ -15,10 +16,15 @@ import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSe
 import { useProducts } from '@/hooks/useProducts'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Warehouse, Plus, Pencil, Trash2, ArrowRightLeft, Package, Search } from 'lucide-react'
+import { Store, Plus, Pencil, Trash2, ArrowRightLeft, Package, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Location } from '@/types/location.types'
 
+// "Store" is the user-facing word throughout this page — internally this is
+// still the Location model/API (see hooks/useLocations, types/location.types),
+// but "Location" read as a GPS/geo concept to shop owners testing this; "Store"
+// (or "Warehouse") is what they actually mean, so the UI text was renamed
+// without touching the underlying model/route names.
 export const LocationsPage = () => {
   const { t } = useLanguage()
   const { data: settings } = useSettings()
@@ -38,11 +44,13 @@ export const LocationsPage = () => {
 
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
   const [stockSearch, setStockSearch] = useState('')
+  const [showAllProducts, setShowAllProducts] = useState(true)
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferProductId, setTransferProductId] = useState('')
   const [transferFromId, setTransferFromId] = useState('')
   const [transferToId, setTransferToId] = useState('')
   const [transferQty, setTransferQty] = useState('')
+  const [addProductOpen, setAddProductOpen] = useState(false)
 
   const { data: locationStock = [], isLoading: isStockLoading } = useLocationStock(activeLocationId)
   const { mutate: upsertStock } = useUpsertProductLocationStock()
@@ -52,25 +60,15 @@ export const LocationsPage = () => {
   const enabled = settings?.locationConfig?.enabled ?? false
 
   const toggleFeature = (v: boolean) => {
-    // Surface the real backend error (e.g. "Unknown argument locationConfig"
-    // if the API server hasn't picked up the latest Prisma schema/client
-    // yet) instead of a generic message — this setting depends on a fresh
-    // migration + a restarted backend process, so the actual error matters.
     const onError = (err: unknown) => {
       const msg = err instanceof Error ? err.message : ''
       toast.error(msg ? `Failed to save setting: ${msg}` : 'Failed to save setting')
       console.error('locationConfig save failed:', err)
     }
     if (settings?.id) {
-      updateSettings(
-        { settingsId: settings.id, data: { locationConfig: { enabled: v } } },
-        { onError }
-      )
+      updateSettings({ settingsId: settings.id, data: { locationConfig: { enabled: v } } }, { onError })
     } else {
-      createSettings(
-        { ...(settings as any), locationConfig: { enabled: v } },
-        { onError }
-      )
+      createSettings({ ...(settings as any), locationConfig: { enabled: v } }, { onError })
     }
   }
 
@@ -88,18 +86,22 @@ export const LocationsPage = () => {
 
   const handleSave = () => {
     if (!formName.trim()) {
-      toast.error('Location name is required')
+      toast.error('Store name is required')
       return
     }
     if (editId) {
       updateLocation({ locationId: editId, name: formName.trim() }, {
-        onSuccess: () => { toast.success('Location updated'); setModalOpen(false) },
-        onError: () => toast.error('Failed to update location'),
+        onSuccess: () => { toast.success('Store updated'); setModalOpen(false) },
+        onError: () => toast.error('Failed to update store'),
       })
     } else {
       createLocation({ name: formName.trim(), sortOrder: locations.length }, {
-        onSuccess: () => { toast.success('Location added'); setModalOpen(false) },
-        onError: () => toast.error('Failed to add location'),
+        onSuccess: (created) => {
+          toast.success('Store added')
+          setModalOpen(false)
+          setActiveLocationId(created.id)
+        },
+        onError: () => toast.error('Failed to add store'),
       })
     }
   }
@@ -108,18 +110,18 @@ export const LocationsPage = () => {
     if (!confirm(`Delete "${loc.name}"? Its stock records will be removed too.`)) return
     deleteLocation(loc.id, {
       onSuccess: () => {
-        toast.success('Location deleted')
+        toast.success('Store deleted')
         if (activeLocationId === loc.id) setActiveLocationId(null)
       },
-      onError: () => toast.error('Failed to delete location — it may still have stock or sales history'),
+      onError: () => toast.error('Failed to delete store — it may still have stock or sales history'),
     })
   }
 
   const activeLocation = locations.find(l => l.id === activeLocationId)
   const stockByProductId = new Map(locationStock.map(s => [s.productId, s]))
-  const filteredProducts = (products ?? []).filter(p =>
-    p.isActive !== false && p.name.toLowerCase().includes(stockSearch.toLowerCase())
-  )
+  const filteredProducts = (products ?? [])
+    .filter(p => p.isActive !== false && p.name.toLowerCase().includes(stockSearch.toLowerCase()))
+    .filter(p => showAllProducts || (stockByProductId.get(p.id)?.stock ?? 0) > 0)
 
   const handleStockChange = (productId: string, field: 'stock' | 'priceOverride', value: string) => {
     if (!activeLocationId) return
@@ -130,7 +132,7 @@ export const LocationsPage = () => {
   const handleTransfer = () => {
     const qty = Number(transferQty)
     if (!transferProductId || !transferFromId || !transferToId || !qty || qty <= 0) {
-      toast.error('Fill in product, both locations, and a positive quantity')
+      toast.error('Fill in product, both stores, and a positive quantity')
       return
     }
     if (transferFromId === transferToId) {
@@ -153,10 +155,10 @@ export const LocationsPage = () => {
   return (
     <div>
       <PageHeader
-        title={t('page.locations') || 'Locations'}
+        title={t('page.locations') || 'Stores'}
         action={
           <Button onClick={openCreate} className="flex items-center gap-2">
-            <Plus size={16} /> {t('locations.addLocation') || 'Add Location'}
+            <Plus size={16} /> {t('locations.addLocation') || 'Add Store'}
           </Button>
         }
       />
@@ -166,35 +168,35 @@ export const LocationsPage = () => {
         <Switch
           checked={enabled}
           onChange={toggleFeature}
-          label={t('locations.enableFeature') || 'Enable Multi-Location Inventory'}
+          label={t('locations.enableFeature') || 'Enable Multi-Store Inventory'}
           description={
             t('locations.enableFeatureDesc') ||
-            'Track separate stock and (optionally) separate prices per warehouse/shop. When off, billing behaves exactly as a single-location install.'
+            'Track separate stock and (optionally) separate prices per store/warehouse. When off, billing behaves exactly as a single-store install.'
           }
         />
       </Card>
 
       {!enabled ? (
         <EmptyState
-          icon={<Warehouse size={40} />}
-          title={t('locations.disabledTitle') || 'Multi-location inventory is off'}
-          description={t('locations.disabledDesc') || 'Turn it on above to start adding locations like "Warehouse" and "Shop".'}
+          icon={<Store size={40} />}
+          title={t('locations.disabledTitle') || 'Multi-store inventory is off'}
+          description={t('locations.disabledDesc') || 'Turn it on above to start adding stores like "Main Store" and "Baner Store".'}
         />
       ) : isLoading ? (
         <TableSkeleton rows={3} columns={3} />
       ) : locations.length === 0 ? (
         <EmptyState
-          icon={<Warehouse size={40} />}
-          title={t('locations.emptyTitle') || 'No locations yet'}
-          description={t('locations.emptyDesc') || 'Add your first two locations, e.g. "Warehouse" and "Shop".'}
-          action={<Button onClick={openCreate}><Plus size={16} className="mr-1.5" />{t('locations.addLocation') || 'Add Location'}</Button>}
+          icon={<Store size={40} />}
+          title={t('locations.emptyTitle') || 'No stores yet'}
+          description={t('locations.emptyDesc') || 'Add your first two stores, e.g. "Main Store" and "Baner Store".'}
+          action={<Button onClick={openCreate}><Plus size={16} className="mr-1.5" />{t('locations.addLocation') || 'Add Store'}</Button>}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Location list */}
+          {/* Store list */}
           <Card className="p-4 lg:col-span-1 h-fit">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{t('locations.allLocations') || 'Locations'}</h3>
+              <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{t('locations.allLocations') || 'Stores'}</h3>
               <Button size="sm" variant="secondary" onClick={() => setTransferOpen(true)}>
                 <ArrowRightLeft size={14} className="mr-1" /> {t('locations.transfer') || 'Transfer'}
               </Button>
@@ -211,7 +213,7 @@ export const LocationsPage = () => {
                   } ${!loc.isActive ? 'opacity-50' : ''}`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Warehouse size={16} className="text-gray-400 shrink-0" />
+                    <Store size={16} className="text-gray-400 shrink-0" />
                     <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{loc.name}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -242,24 +244,40 @@ export const LocationsPage = () => {
             )}
           </Card>
 
-          {/* Stock table for the selected location */}
+          {/* Stock table for the selected store */}
           <Card className="p-4 lg:col-span-2">
             {!activeLocation ? (
-              <EmptyState icon={<Package size={32} />} title={t('locations.selectPrompt') || 'Select a location to view/edit its stock'} description="" />
+              <EmptyState icon={<Package size={32} />} title={t('locations.selectPrompt') || 'Select a store to view/edit its stock'} description="" />
             ) : (
               <>
-                <div className="flex items-center justify-between mb-3 gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
                   <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{activeLocation.name} — {t('locations.stock') || 'Stock'}</h3>
-                  <div className="relative w-48">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      value={stockSearch}
-                      onChange={e => setStockSearch(e.target.value)}
-                      placeholder={t('common.search') || 'Search...'}
-                      className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-40 sm:w-48">
+                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        value={stockSearch}
+                        onChange={e => setStockSearch(e.target.value)}
+                        placeholder={t('common.search') || 'Search products...'}
+                        className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                      />
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => setAddProductOpen(true)} className="whitespace-nowrap">
+                      <Plus size={14} className="mr-1" /> New Product
+                    </Button>
                   </div>
                 </div>
+
+                <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={showAllProducts}
+                    onChange={e => setShowAllProducts(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show all products (uncheck to see only what this store actually carries)
+                </label>
+
                 {isStockLoading ? (
                   <TableSkeleton rows={4} columns={3} />
                 ) : (
@@ -279,7 +297,7 @@ export const LocationsPage = () => {
                             <tr key={p.id}>
                               <td className="py-2 pr-2">
                                 <p className="font-medium text-gray-900 dark:text-gray-100">{p.name}</p>
-                                <p className="text-[10px] text-gray-400">Base: {formatINR(p.sellingPrice)}</p>
+                                <p className="text-[10px] text-gray-400">Base price: {formatINR(p.sellingPrice)}</p>
                               </td>
                               <td className="py-2 px-2">
                                 <input
@@ -301,6 +319,13 @@ export const LocationsPage = () => {
                             </tr>
                           )
                         })}
+                        {filteredProducts.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="py-6 text-center text-gray-400">
+                              {showAllProducts ? 'No products match your search.' : "This store doesn't carry any products yet — add stock above, or check \"Show all products\"."}
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -311,14 +336,14 @@ export const LocationsPage = () => {
         </div>
       )}
 
-      {/* Add/Edit location modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Edit Location' : 'Add Location'}>
+      {/* Add/Edit store modal */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Edit Store' : 'Add Store'}>
         <div className="space-y-4">
           <Input
-            label="Location name"
+            label="Store name"
             value={formName}
             onChange={e => setFormName(e.target.value)}
-            placeholder="e.g. Main Warehouse"
+            placeholder="e.g. Baner Store"
           />
           <Button onClick={handleSave} disabled={isCreating} className="w-full">
             {t('action.save') || 'Save'}
@@ -364,6 +389,18 @@ export const LocationsPage = () => {
           </Button>
         </div>
       </Modal>
+
+      {/* Quick-add a brand-new product, then immediately give it stock at the active store */}
+      <QuickAddProductModal
+        isOpen={addProductOpen}
+        onClose={() => setAddProductOpen(false)}
+        onProductCreated={(product) => {
+          if (activeLocationId) {
+            upsertStock({ productId: product.id, locationId: activeLocationId, data: { stock: 0 } })
+          }
+          toast.success(`${product.name} added — set its stock here below`)
+        }}
+      />
     </div>
   )
 }
