@@ -82,7 +82,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
         { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
         { id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' },
-        { id: 'sales', label: t('salesHistory', 'Sales History & Receipts'), icon: Receipt, route: '/sales' },
+        { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: Receipt, route: '/(tabs)/invoices' },
         { id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' },
       ],
     },

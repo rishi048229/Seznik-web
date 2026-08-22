@@ -18,9 +18,8 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
-  Package,
+  Receipt,
   Ticket,
-  UserCog,
   MessageSquarePlus,
   X,
 } from 'lucide-react-native';
@@ -44,11 +43,11 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
 
   const menuItems = [
     {
-      id: 'products',
-      title: t('products', 'Products & Inventory'),
-      icon: Package,
+      id: 'invoices',
+      title: t('invoices', 'Invoices'),
+      icon: Receipt,
       color: '#0284C7',
-      route: '/products',
+      route: '/(tabs)/invoices',
     },
     {
       id: 'quick-tokens',

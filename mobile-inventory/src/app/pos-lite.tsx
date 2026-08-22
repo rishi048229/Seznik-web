@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -94,6 +94,7 @@ export default function PosLiteScreen() {
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const checkoutLockRef = useRef(false);
 
   // Quick Manual Item Form
   const [itemName, setItemName] = useState('');
@@ -169,7 +170,11 @@ export default function PosLiteScreen() {
   };
 
   const handleCompleteSale = async () => {
-    if (cartItems.length === 0) return;
+    if (cartItems.length === 0 || checkoutLockRef.current || isCreating) return;
+
+    checkoutLockRef.current = true;
+    setShowPaymentModal(false);
+
     const grandTotal = getGrandTotal();
     const subtotal = getSubtotal();
     const totalDiscount = getTotalDiscount();
@@ -232,16 +237,11 @@ export default function PosLiteScreen() {
       setLastInvoiceNumber(finalInv);
       setPreviewSaleData(saleData);
       setShowReceiptPreviewModal(true);
-      setCheckoutSuccess(true);
-      setShowPaymentModal(false);
       clearCart();
     } catch (err: any) {
-      setLastInvoiceNumber(fallbackInv);
-      setPreviewSaleData(saleData);
-      setShowReceiptPreviewModal(true);
-      setCheckoutSuccess(true);
-      setShowPaymentModal(false);
-      clearCart();
+      checkoutLockRef.current = false;
+      setShowPaymentModal(true);
+      Alert.alert('Sale Failed', err?.message || 'Could not save this sale.');
     }
   };
 
@@ -715,9 +715,6 @@ export default function PosLiteScreen() {
             <CheckCircle2 size={40} color="#10B981" />
             <Text style={[styles.successTitle, { color: theme.textPrimary }]}>Quick Sale Completed!</Text>
             <Text style={[styles.successSub, { color: theme.textSecondary }]}>Invoice #{lastInvoiceNumber}</Text>
-            <TouchableOpacity onPress={() => setShowReceiptPreviewModal(true)} style={[styles.submitBtn, { backgroundColor: BRAND_COLORS.blue600, marginBottom: 8 }]}>
-              <Text style={styles.submitBtnText}>Preview & Print Bill</Text>
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => setCheckoutSuccess(false)} style={[styles.submitBtn, { backgroundColor: BRAND_COLORS.navyInk }]}>
               <Text style={styles.submitBtnText}>Done</Text>
             </TouchableOpacity>
@@ -737,7 +734,11 @@ export default function PosLiteScreen() {
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
-        onClose={() => setShowReceiptPreviewModal(false)}
+        onClose={() => {
+          setShowReceiptPreviewModal(false);
+          setPreviewSaleData(null);
+          checkoutLockRef.current = false;
+        }}
       />
     </View>
     </ScreenBackground>

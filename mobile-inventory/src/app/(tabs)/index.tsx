@@ -511,12 +511,12 @@ export default function DashboardScreen() {
                   theme={theme}
                 />
 
-                {/* 2. Products */}
+                {/* 2. Invoices */}
                 <FeatureGridTile
-                  label={t('products', 'Products')}
-                  icon={Package}
+                  label={t('invoices', 'Invoices')}
+                  icon={Receipt}
                   color="#0284C7"
-                  onPress={() => router.push('/(tabs)/products' as any)}
+                  onPress={() => router.push('/(tabs)/invoices' as any)}
                   theme={theme}
                 />
 
@@ -626,13 +626,6 @@ export default function DashboardScreen() {
                       icon={Calculator}
                       color="#6366F1"
                       onPress={() => router.push('/(tabs)/calculator' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('salesHistory', 'Sales History')}
-                      icon={Receipt}
-                      color={BRAND_COLORS.blue600}
-                      onPress={() => router.push('/sales' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
@@ -992,7 +985,7 @@ export default function DashboardScreen() {
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionHeader}>{t('recentSales', 'RECENT SALES TRANSACTIONS')}</Text>
-                  <TouchableOpacity onPress={() => router.push('/sales' as any)}>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/invoices' as any)}>
                     <Text style={styles.viewAllBtn}>{t('viewAll', 'View All ➔')}</Text>
                   </TouchableOpacity>
                 </View>

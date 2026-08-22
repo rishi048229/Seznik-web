@@ -88,6 +88,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     pos: 'POS',
     calculator: 'Calculator',
     products: 'Products',
+    invoices: 'Invoices',
     sales: 'Sales',
     more: 'More',
     brandTitle: 'Seznik',

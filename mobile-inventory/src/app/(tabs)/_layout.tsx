@@ -126,6 +126,12 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="invoices"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
           name="sales"
           options={{
             href: null,

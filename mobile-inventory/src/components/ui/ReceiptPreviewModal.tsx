@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { X, Printer, ExternalLink, FileText, CheckCircle2, Share2 } from 'lucide-react-native';
+import { X, Printer, ExternalLink, FileText, CheckCircle2 } from 'lucide-react-native';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { getTemplateById } from '@/constants/receiptTemplates';
@@ -25,12 +25,15 @@ interface ReceiptPreviewModalProps {
   visible: boolean;
   saleData: PrintSaleData | null;
   onClose: () => void;
+  /** POS checkout closes after print; invoice history keeps the preview open. */
+  autoCloseAfterPrint?: boolean;
 }
 
 export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   visible,
   saleData,
   onClose,
+  autoCloseAfterPrint = true,
 }) => {
   const {
     activeDevice,
@@ -46,8 +49,17 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     enableBillQrCode,
   } = usePrinterStore();
   const [isPrinting, setIsPrinting] = useState(false);
+  const [hasPrinted, setHasPrinted] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const theme = useAppTheme();
+
+  useEffect(() => {
+    if (visible) {
+      setHasPrinted(false);
+      setIsPrinting(false);
+      setShowConnectModal(false);
+    }
+  }, [visible, saleData?.invoiceNumber]);
 
   if (!saleData) return null;
 
@@ -70,9 +82,29 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     upiId: saleData.upiId,
   };
 
+  const finishAfterPrint = () => {
+    setHasPrinted(true);
+    if (autoCloseAfterPrint) {
+      onClose();
+    } else {
+      Alert.alert('Print Sent', 'Receipt sent to your thermal printer.');
+      setHasPrinted(false);
+    }
+  };
+
   const handlePrintThermal = async () => {
+    if (isPrinting) return;
+    if (hasPrinted && autoCloseAfterPrint) return;
+
     if (!activeDevice || connectionState !== 'connected') {
-      setShowConnectModal(true);
+      Alert.alert(
+        'No Printer Connected',
+        'Connect a Bluetooth thermal printer to print this receipt.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Connect Printer', onPress: () => setShowConnectModal(true) },
+        ]
+      );
       return;
     }
 
@@ -80,7 +112,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     try {
       const ok = await ThermalPrinterService.printReceipt(saleData, paperWidth, printOptions);
       if (ok) {
-        Alert.alert('Print Sent', 'Thermal receipt sent to printer.');
+        finishAfterPrint();
       }
     } catch (e: any) {
       Alert.alert('Print Error', e?.message || 'Could not print receipt.');
@@ -90,11 +122,19 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   };
 
   const handleSystemPrint = async () => {
+    if (isPrinting) return;
+    if (hasPrinted && autoCloseAfterPrint) return;
+
     setIsPrinting(true);
     try {
       const html = ThermalPrinterService.generateReceiptHtml(saleData, paperWidth, printOptions);
       const Print = require('expo-print');
       await Print.printAsync({ html });
+      if (autoCloseAfterPrint) {
+        finishAfterPrint();
+      } else {
+        Alert.alert('System Print', 'Print dialog opened for this receipt.');
+      }
     } catch (e: any) {
       Alert.alert('System Print Error', 'Could not open system print dialog.');
     } finally {
@@ -103,6 +143,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   };
 
   const activeTemplateName = activeCustomTemplate ? activeCustomTemplate.name : template.name;
+  const printDisabled = isPrinting || (hasPrinted && autoCloseAfterPrint);
 
   return (
     <>
@@ -136,7 +177,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           {/* Active Printer Pill - Tappable to connect directly */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setShowConnectModal(true)}
+            onPress={() => !hasPrinted && setShowConnectModal(true)}
             style={[styles.printerStatusPill, { backgroundColor: activeDevice && connectionState === 'connected' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)' }]}
           >
             <Printer size={13} color={activeDevice && connectionState === 'connected' ? '#10B981' : '#F59E0B'} />
@@ -192,38 +233,56 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
             )}
           </ScrollView>
 
-          {/* Action Row */}
-          <View style={styles.actionRow}>
-            <TouchableOpacity onPress={handleSystemPrint} disabled={isPrinting} style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.navyInk }]}>
-              <ExternalLink size={15} color="#FFFFFF" />
-              <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>System Print</Text>
-            </TouchableOpacity>
+          {hasPrinted && autoCloseAfterPrint ? (
+            <View style={[styles.printedBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+              <CheckCircle2 size={16} color="#10B981" />
+              <Text style={styles.printedBannerText}>Receipt sent — closing...</Text>
+            </View>
+          ) : (
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                onPress={handleSystemPrint}
+                disabled={printDisabled}
+                style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.navyInk }, printDisabled && styles.actionBtnDisabled]}
+              >
+                <ExternalLink size={15} color="#FFFFFF" />
+                <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>System Print</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity onPress={handlePrintThermal} disabled={isPrinting} style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}>
-              {isPrinting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Printer size={15} color="#FFFFFF" />
-                  <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Print Bill</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                onPress={handlePrintThermal}
+                disabled={printDisabled}
+                style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }, printDisabled && styles.actionBtnDisabled]}
+              >
+                {isPrinting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Printer size={15} color="#FFFFFF" />
+                    <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Print Bill</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
 
     <DirectPrinterConnectModal
-      visible={showConnectModal}
+      visible={showConnectModal && !hasPrinted}
       onClose={() => setShowConnectModal(false)}
       onConnected={() => {
+        setShowConnectModal(false);
         setTimeout(() => {
           handlePrintThermal();
         }, 400);
       }}
       showContinueWithoutPrinter={true}
-      onContinueWithoutPrinter={handleSystemPrint}
+      onContinueWithoutPrinter={() => {
+        setShowConnectModal(false);
+        handleSystemPrint();
+      }}
     />
     </>
   );
@@ -247,26 +306,18 @@ const styles = StyleSheet.create({
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
   paperScrollView: { flexGrow: 1, flexShrink: 1, minHeight: 120, maxHeight: 460 },
   paperScrollContent: { paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center' },
-  paperReceiptCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#0F172A',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    alignItems: 'center',
-  },
-  receiptMonoText: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 12,
-    lineHeight: 18,
-    color: '#000000',
-    fontWeight: '600',
-  },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 14 },
+  actionBtnDisabled: { opacity: 0.5 },
   actionBtnText: { fontSize: 13, fontWeight: '800', marginLeft: 6 },
+  printedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  printedBannerText: { fontSize: 13, fontWeight: '800', color: '#10B981' },
 });

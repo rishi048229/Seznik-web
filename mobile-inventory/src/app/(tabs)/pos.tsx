@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -127,6 +127,7 @@ export default function PosScreen() {
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const checkoutLockRef = useRef(false);
 
   // Hold Orders State
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
@@ -307,13 +308,16 @@ export default function PosScreen() {
 
   // Print button finalizes the sale, then opens receipt preview for print/share.
   const handlePrintCheckout = async () => {
-    if (getCartItems().length === 0) return;
+    if (getCartItems().length === 0 || checkoutLockRef.current || isCreating) return;
 
     if (paymentMethod === 'credit' && !selectedCustomerId) {
       Alert.alert('Customer Required', 'Credit sales need a customer attached. Tap the Customer row to select or add one.');
       setShowCustomerPicker(true);
       return;
     }
+
+    checkoutLockRef.current = true;
+    setCheckoutModalOpen(false);
 
     const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
     const saleData = buildSaleData(fallbackInv);
@@ -337,11 +341,12 @@ export default function PosScreen() {
 
       setPreviewSaleData(saleData);
       setShowReceiptPreviewModal(true);
-      setCheckoutModalOpen(false);
       setCreditAmountReceivedInput('0');
       setBillDiscountInput('');
       clearCart();
     } catch (err: any) {
+      checkoutLockRef.current = false;
+      setCheckoutModalOpen(true);
       Alert.alert(
         t('saleFailed', 'Sale Not Saved'),
         err?.message || t('saleFailedHint', 'Could not save this sale to the server. Dashboard and stock will not update until the sale is saved.')
@@ -1278,7 +1283,11 @@ export default function PosScreen() {
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
-        onClose={() => setShowReceiptPreviewModal(false)}
+        onClose={() => {
+          setShowReceiptPreviewModal(false);
+          setPreviewSaleData(null);
+          checkoutLockRef.current = false;
+        }}
       />
 
       {/* CATEGORY SEARCH & QUICK PICKER MODAL */}
