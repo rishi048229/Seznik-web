@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import prisma from './config/db';
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
@@ -61,36 +60,13 @@ app.use(
   })
 );
 
-const isDev = process.env.NODE_ENV !== 'production';
-
-// 3. Global Rate Limiter
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 3000,
-  skip: () => isDev,
-  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', globalLimiter);
-
-// 4. Auth Rate Limiter
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 100,
-  skip: () => isDev,
-  message: { error: 'Too many login/register attempts. Please try again after 15 minutes.' },
-});
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 5. Real-Time Route Telemetry Tracker
+// 3. Real-Time Route Telemetry Tracker
 app.use(routeTelemetryMiddleware);
 
-// 6. API Routes
+// 4. API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -108,7 +84,7 @@ app.use('/api/tokens', tokenRoutes);
 app.use('/api/restaurant-tables', restaurantTableRoutes);
 app.use('/api/kot-orders', kotOrderRoutes);
 
-// 6. Comprehensive Server & Database Health Check Endpoint
+// 5. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {
   try {
     const startTime = Date.now();
@@ -138,12 +114,12 @@ app.get(['/health', '/api/health'], async (req, res) => {
   }
 });
 
-// 7. 404 Route Handler
+// 6. 404 Route Handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// 8. Global Central Error Handler Middleware
+// 7. Global Central Error Handler Middleware
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled Server Error:', err);
   const message = err instanceof Error ? err.message : 'Internal Server Error';
@@ -151,4 +127,3 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 });
 
 export default app;
-
