@@ -61,20 +61,24 @@ app.use(
   })
 );
 
-// 3. Global Rate Limiter (300 requests / 15 minutes per IP)
+const isDev = process.env.NODE_ENV !== 'production';
+
+// 3. Global Rate Limiter
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: isDev ? 100000 : 3000,
+  skip: () => isDev,
   message: { error: 'Too many requests from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use('/api', globalLimiter);
 
-// 4. Auth Rate Limiter (20 requests / 15 minutes per IP for brute-force protection)
+// 4. Auth Rate Limiter
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: isDev ? 100000 : 100,
+  skip: () => isDev,
   message: { error: 'Too many login/register attempts. Please try again after 15 minutes.' },
 });
 app.use('/api/auth/login', authLimiter);
