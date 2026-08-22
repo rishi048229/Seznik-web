@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
+import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
@@ -27,6 +29,8 @@ interface ReceiptPreviewModalProps {
   onClose: () => void;
   /** POS checkout closes after print; invoice history keeps the preview open. */
   autoCloseAfterPrint?: boolean;
+  /** True while the sale is still being saved — disables print until the invoice is final. */
+  isSaleSaving?: boolean;
 }
 
 export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
@@ -34,6 +38,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   saleData,
   onClose,
   autoCloseAfterPrint = true,
+  isSaleSaving = false,
 }) => {
   const {
     activeDevice,
@@ -48,6 +53,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     activeCustomTemplateId,
     enableBillQrCode,
   } = usePrinterStore();
+  const storeProfile = useStoreProfile();
   const [isPrinting, setIsPrinting] = useState(false);
   const [hasPrinted, setHasPrinted] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -61,7 +67,20 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     }
   }, [visible, saleData?.invoiceNumber]);
 
-  if (!saleData) return null;
+  const resolvedSaleData = useMemo(() => {
+    if (!saleData) return null;
+    return applyStoreProfileToPrintData(saleData, storeProfile);
+  }, [
+    saleData,
+    storeProfile.storeName,
+    storeProfile.storeAddress,
+    storeProfile.storePhone,
+    storeProfile.storeGstin,
+    storeProfile.storeLogoUrl,
+    storeProfile.upiId,
+  ]);
+
+  if (!resolvedSaleData) return null;
 
   const activeCustomTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
   const template = getTemplateById(activeTemplateId);
@@ -74,12 +93,12 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     autoCut,
     fontSize,
     copies: printCopies,
-    storeName: saleData.storeName,
-    storeAddress: saleData.storeAddress,
-    storePhone: saleData.storePhone,
-    storeGstin: saleData.storeGstin,
-    storeLogoUrl: saleData.storeLogoUrl,
-    upiId: saleData.upiId,
+    storeName: resolvedSaleData.storeName,
+    storeAddress: resolvedSaleData.storeAddress,
+    storePhone: resolvedSaleData.storePhone,
+    storeGstin: resolvedSaleData.storeGstin,
+    storeLogoUrl: resolvedSaleData.storeLogoUrl,
+    upiId: resolvedSaleData.upiId,
   };
 
   const finishAfterPrint = () => {
@@ -110,7 +129,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
     setIsPrinting(true);
     try {
-      const ok = await ThermalPrinterService.printReceipt(saleData, paperWidth, printOptions);
+      const ok = await ThermalPrinterService.printReceipt(resolvedSaleData, paperWidth, printOptions);
       if (ok) {
         finishAfterPrint();
       }
@@ -127,7 +146,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
     setIsPrinting(true);
     try {
-      const html = ThermalPrinterService.generateReceiptHtml(saleData, paperWidth, printOptions);
+      const html = ThermalPrinterService.generateReceiptHtml(resolvedSaleData, paperWidth, printOptions);
       const Print = require('expo-print');
       await Print.printAsync({ html });
       if (autoCloseAfterPrint) {
@@ -143,7 +162,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   };
 
   const activeTemplateName = activeCustomTemplate ? activeCustomTemplate.name : template.name;
-  const printDisabled = isPrinting || (hasPrinted && autoCloseAfterPrint);
+  const printDisabled = isPrinting || isSaleSaving || (hasPrinted && autoCloseAfterPrint);
 
   return (
     <>
@@ -186,6 +205,13 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
             </Text>
           </TouchableOpacity>
 
+          {isSaleSaving ? (
+            <View style={[styles.savingBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+              <ActivityIndicator size="small" color="#D97706" />
+              <Text style={styles.savingBannerText}>Saving sale… invoice will be ready to print shortly</Text>
+            </View>
+          ) : null}
+
           {/* Thermal Paper Scroll Container */}
           <ScrollView
             style={styles.paperScrollView}
@@ -198,37 +224,37 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
             {activeCustomTemplate ? (
               <CustomReceiptMockup
                 template={activeCustomTemplate}
-                storeName={saleData.storeName || 'Your Store Name'}
-                storeAddress={saleData.storeAddress || ''}
-                storePhone={saleData.storePhone || ''}
-                storeGstin={saleData.storeGstin || ''}
-                storeLogoUrl={saleData.storeLogoUrl}
-                invoiceNumber={saleData.invoiceNumber}
-                date={saleData.date}
-                customerName={saleData.customerName || 'Walk-in Customer'}
-                items={saleData.items}
-                subtotal={saleData.subtotal}
-                totalDiscount={saleData.totalDiscount}
-                totalTax={saleData.totalTax}
-                grandTotal={saleData.grandTotal}
+                storeName={resolvedSaleData.storeName || 'Your Store Name'}
+                storeAddress={resolvedSaleData.storeAddress || ''}
+                storePhone={resolvedSaleData.storePhone || ''}
+                storeGstin={resolvedSaleData.storeGstin || ''}
+                storeLogoUrl={resolvedSaleData.storeLogoUrl}
+                invoiceNumber={resolvedSaleData.invoiceNumber}
+                date={resolvedSaleData.date}
+                customerName={resolvedSaleData.customerName || 'Walk-in Customer'}
+                items={resolvedSaleData.items}
+                subtotal={resolvedSaleData.subtotal}
+                totalDiscount={resolvedSaleData.totalDiscount}
+                totalTax={resolvedSaleData.totalTax}
+                grandTotal={resolvedSaleData.grandTotal}
                 paperWidth={paperWidth}
-                upiId={saleData.upiId || ''}
+                upiId={resolvedSaleData.upiId || ''}
               />
             ) : (
               <ReceiptTemplateMockup
                 template={template}
-                storeName={saleData.storeName || 'Your Store Name'}
-                storeAddress={saleData.storeAddress || ''}
-                storePhone={saleData.storePhone || ''}
-                storeLogoUrl={saleData.storeLogoUrl}
-                invoiceNumber={saleData.invoiceNumber}
-                date={saleData.date}
-                customerName={saleData.customerName || 'Walk-in Customer'}
-                items={saleData.items}
-                subtotal={saleData.subtotal}
-                totalDiscount={saleData.totalDiscount}
-                totalTax={saleData.totalTax}
-                grandTotal={saleData.grandTotal}
+                storeName={resolvedSaleData.storeName || 'Your Store Name'}
+                storeAddress={resolvedSaleData.storeAddress || ''}
+                storePhone={resolvedSaleData.storePhone || ''}
+                storeLogoUrl={resolvedSaleData.storeLogoUrl}
+                invoiceNumber={resolvedSaleData.invoiceNumber}
+                date={resolvedSaleData.date}
+                customerName={resolvedSaleData.customerName || 'Walk-in Customer'}
+                items={resolvedSaleData.items}
+                subtotal={resolvedSaleData.subtotal}
+                totalDiscount={resolvedSaleData.totalDiscount}
+                totalTax={resolvedSaleData.totalTax}
+                grandTotal={resolvedSaleData.grandTotal}
               />
             )}
           </ScrollView>
@@ -320,4 +346,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   printedBannerText: { fontSize: 13, fontWeight: '800', color: '#10B981' },
+  savingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  savingBannerText: { flex: 1, fontSize: 11, fontWeight: '700', color: '#B45309' },
 });

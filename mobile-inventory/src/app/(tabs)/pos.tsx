@@ -127,6 +127,7 @@ export default function PosScreen() {
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const [isSavingSalePreview, setIsSavingSalePreview] = useState(false);
   const checkoutLockRef = useRef(false);
 
   // Hold Orders State
@@ -322,6 +323,10 @@ export default function PosScreen() {
     const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
     const saleData = buildSaleData(fallbackInv);
 
+    setPreviewSaleData(saleData);
+    setShowReceiptPreviewModal(true);
+    setIsSavingSalePreview(true);
+
     try {
       const sale = await createSale({
         items: toSaleItems(),
@@ -337,20 +342,21 @@ export default function PosScreen() {
       });
 
       const finalInv = (sale as any)?.invoiceNumber || fallbackInv;
-      saleData.invoiceNumber = finalInv;
-
-      setPreviewSaleData(saleData);
-      setShowReceiptPreviewModal(true);
+      setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
       setCreditAmountReceivedInput('0');
       setBillDiscountInput('');
       clearCart();
     } catch (err: any) {
       checkoutLockRef.current = false;
+      setShowReceiptPreviewModal(false);
+      setPreviewSaleData(null);
       setCheckoutModalOpen(true);
       Alert.alert(
         t('saleFailed', 'Sale Not Saved'),
         err?.message || t('saleFailedHint', 'Could not save this sale to the server. Dashboard and stock will not update until the sale is saved.')
       );
+    } finally {
+      setIsSavingSalePreview(false);
     }
   };
 
@@ -1283,9 +1289,11 @@ export default function PosScreen() {
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
+        isSaleSaving={isSavingSalePreview}
         onClose={() => {
           setShowReceiptPreviewModal(false);
           setPreviewSaleData(null);
+          setIsSavingSalePreview(false);
           checkoutLockRef.current = false;
         }}
       />

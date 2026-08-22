@@ -28,6 +28,7 @@ import {
   Eye,
   Calendar,
   SlidersHorizontal,
+  Bluetooth,
 } from 'lucide-react-native';
 import { useSales } from '@/hooks/useSales';
 import { Sale } from '@/types/sale';
@@ -73,6 +74,7 @@ export default function InvoicesTabScreen() {
   const { t } = useTranslation();
   const storeProfile = useStoreProfile();
   const {
+    activeDevice,
     connectionState,
     paperWidth,
     topMargin,
@@ -148,11 +150,6 @@ export default function InvoicesTabScreen() {
 
     return list;
   }, [sales, searchQuery, selectedPaymentMethod, activeDateRange, sortBy]);
-
-  const filteredTotal = useMemo(
-    () => filteredSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0),
-    [filteredSales]
-  );
 
   const buildPrintOptions = useCallback(() => {
     const template = getTemplateById(activeTemplateId);
@@ -352,10 +349,28 @@ export default function InvoicesTabScreen() {
               <Text style={styles.headerBadge}>{t('billing', 'Billing')}</Text>
               <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('invoices', 'Invoices')}</Text>
             </View>
-            <View style={[styles.summaryPill, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.summaryPillCount, { color: theme.textPrimary }]}>{filteredSales.length}</Text>
-              <Text style={[styles.summaryPillLabel, { color: theme.textSecondary }]}>{formatCurrency(filteredTotal)}</Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => setShowPrinterModal(true)}
+              style={[
+                styles.printerStatusChip,
+                {
+                  backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                  borderColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                },
+              ]}
+            >
+              <Bluetooth size={14} color={connectionState === 'connected' ? '#10B981' : '#EF4444'} />
+              <Text
+                style={[
+                  styles.printerStatusText,
+                  { color: connectionState === 'connected' ? '#10B981' : '#EF4444' },
+                ]}
+              >
+                {connectionState === 'connected'
+                  ? activeDevice?.name || t('printerConnected', 'Printer Ready')
+                  : t('connectPrinter', 'Connect')}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -570,9 +585,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   headerBadge: { fontSize: 10, fontWeight: '800', color: BRAND_COLORS.sky500, textTransform: 'uppercase', letterSpacing: 0.5 },
   headerTitle: { fontSize: 22, fontWeight: '900' },
-  summaryPill: { alignItems: 'flex-end', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
-  summaryPillCount: { fontSize: 14, fontWeight: '900' },
-  summaryPillLabel: { fontSize: 10, fontWeight: '700', marginTop: 1 },
+  printerStatusChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1, maxWidth: '52%' },
+  printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 4, flexShrink: 1 },
   searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
   searchInput: { flex: 1, fontSize: 13, marginLeft: 8 },
   filtersPanel: {

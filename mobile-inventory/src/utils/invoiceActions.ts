@@ -11,6 +11,42 @@ type StoreProfileWithSettings = StoreProfile & { settings?: Settings | null };
 
 const INVOICE_PDF_DIR = `${FileSystem.documentDirectory || ''}invoices/`;
 
+/** Always overlay the latest saved store profile onto receipt data — sale records don't store header fields. */
+export function applyStoreProfileToPrintData(data: PrintSaleData, storeProfile: StoreProfile): PrintSaleData {
+  return {
+    ...data,
+    storeName: storeProfile.storeName,
+    storeAddress: storeProfile.storeAddress,
+    storePhone: storeProfile.storePhone,
+    storeGstin: storeProfile.storeGstin,
+    storeLogoUrl: storeProfile.storeLogoUrl,
+    upiId: storeProfile.upiId,
+  };
+}
+
+function receiptSettingsFromProfile(storeProfile: StoreProfileWithSettings): Settings | null | undefined {
+  if (!storeProfile.settings) {
+    return {
+      businessName: storeProfile.storeName,
+      businessAddress: storeProfile.storeAddress,
+      businessPhone: storeProfile.storePhone,
+      businessGSTIN: storeProfile.storeGstin,
+      businessLogoURL: storeProfile.storeLogoUrl,
+      upiId: storeProfile.upiId,
+    } as Settings;
+  }
+
+  return {
+    ...storeProfile.settings,
+    businessName: storeProfile.storeName,
+    businessAddress: storeProfile.storeAddress,
+    businessPhone: storeProfile.storePhone,
+    businessGSTIN: storeProfile.storeGstin,
+    businessLogoURL: storeProfile.storeLogoUrl ?? storeProfile.settings.businessLogoURL,
+    upiId: storeProfile.upiId ?? storeProfile.settings.upiId,
+  };
+}
+
 export function saleToPrintItems(sale: Sale) {
   return (sale.items || []).map((it: any) => ({
     productName: it.productName || it.name || 'Item',
@@ -29,28 +65,29 @@ export function saleToPrintSaleData(sale: Sale, storeProfile: StoreProfileWithSe
   const halfTax = totalTax / 2;
   const taxableAmt = Math.max(0, sale.subtotal - (sale.totalDiscount || 0));
 
-  return {
-    storeName: storeProfile.storeName,
-    storeAddress: storeProfile.storeAddress,
-    storePhone: storeProfile.storePhone,
-    storeGstin: storeProfile.storeGstin,
-    storeLogoUrl: storeProfile.storeLogoUrl,
-    upiId: storeProfile.upiId,
-    invoiceNumber: sale.invoiceNumber,
-    date: formatInvoiceDateTime(sale.createdAt),
-    customerName: sale.customerName || 'Walk-in Customer',
-    items: saleToPrintItems(sale),
-    subtotal: sale.subtotal,
-    taxableAmt,
-    sgst: halfTax,
-    cgst: halfTax,
-    totalDiscount: sale.totalDiscount || 0,
-    totalTax,
-    grandTotal: sale.grandTotal,
-    amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
-    changeReturned: sale.changeReturned || 0,
-    paymentMethod: (sale.paymentMethod || 'cash').toUpperCase(),
-  };
+  return applyStoreProfileToPrintData(
+    {
+      storeName: '',
+      storeAddress: '',
+      storePhone: '',
+      storeGstin: '',
+      invoiceNumber: sale.invoiceNumber,
+      date: formatInvoiceDateTime(sale.createdAt),
+      customerName: sale.customerName || 'Walk-in Customer',
+      items: saleToPrintItems(sale),
+      subtotal: sale.subtotal,
+      taxableAmt,
+      sgst: halfTax,
+      cgst: halfTax,
+      totalDiscount: sale.totalDiscount || 0,
+      totalTax,
+      grandTotal: sale.grandTotal,
+      amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
+      changeReturned: sale.changeReturned || 0,
+      paymentMethod: (sale.paymentMethod || 'cash').toUpperCase(),
+    },
+    storeProfile
+  );
 }
 
 export function formatInvoiceDateTime(createdAt: string) {
@@ -99,7 +136,7 @@ export async function saveInvoicePdfLocally(
   }));
 
   const html = buildBillReceiptHtml(
-    storeProfile.settings,
+    receiptSettingsFromProfile(storeProfile),
     sale.customerName || 'Walk-in Customer',
     {
       invoiceNumber: sale.invoiceNumber,

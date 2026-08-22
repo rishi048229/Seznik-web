@@ -44,6 +44,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { useProducts } from '@/hooks/useProducts';
 import { useSales } from '@/hooks/useSales';
 import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { PaymentMethod } from '@/types/sale';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -65,6 +66,7 @@ export default function PosLiteScreen() {
   const { products, getByBarcode } = useProducts();
   const { createSale, isCreating } = useSales();
   const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
   const { connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -94,6 +96,7 @@ export default function PosLiteScreen() {
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const [isSavingSalePreview, setIsSavingSalePreview] = useState(false);
   const checkoutLockRef = useRef(false);
 
   // Quick Manual Item Form
@@ -185,12 +188,12 @@ export default function PosLiteScreen() {
     const halfTax = totalTax / 2;
 
     const saleData = {
-      storeName: settings?.businessName || 'Your Store Name',
-      storeAddress: settings?.businessAddress || '',
-      storePhone: settings?.businessPhone || '',
-      storeGstin: settings?.businessGSTIN || '',
-      storeLogoUrl: settings?.businessLogoURL || undefined,
-      upiId: settings?.upiId || undefined,
+      storeName: storeProfile.storeName,
+      storeAddress: storeProfile.storeAddress,
+      storePhone: storeProfile.storePhone,
+      storeGstin: storeProfile.storeGstin,
+      storeLogoUrl: storeProfile.storeLogoUrl,
+      upiId: storeProfile.upiId,
       invoiceNumber: fallbackInv,
       date: new Date().toLocaleDateString('en-GB'),
       customerName: 'Cash Sale',
@@ -218,6 +221,10 @@ export default function PosLiteScreen() {
       paymentMethod,
     };
 
+    setPreviewSaleData(saleData);
+    setShowReceiptPreviewModal(true);
+    setIsSavingSalePreview(true);
+
     try {
       const sale = await createSale({
         items: toSaleItems(),
@@ -232,16 +239,17 @@ export default function PosLiteScreen() {
       }).catch(() => ({ invoiceNumber: fallbackInv }));
 
       const finalInv = (sale as any)?.invoiceNumber || fallbackInv;
-      saleData.invoiceNumber = finalInv;
-
+      setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
       setLastInvoiceNumber(finalInv);
-      setPreviewSaleData(saleData);
-      setShowReceiptPreviewModal(true);
       clearCart();
     } catch (err: any) {
       checkoutLockRef.current = false;
+      setShowReceiptPreviewModal(false);
+      setPreviewSaleData(null);
       setShowPaymentModal(true);
       Alert.alert('Sale Failed', err?.message || 'Could not save this sale.');
+    } finally {
+      setIsSavingSalePreview(false);
     }
   };
 
@@ -734,9 +742,11 @@ export default function PosLiteScreen() {
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
+        isSaleSaving={isSavingSalePreview}
         onClose={() => {
           setShowReceiptPreviewModal(false);
           setPreviewSaleData(null);
+          setIsSavingSalePreview(false);
           checkoutLockRef.current = false;
         }}
       />

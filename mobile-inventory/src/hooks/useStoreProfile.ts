@@ -1,5 +1,6 @@
 import { Settings } from '@/api/settings';
 import { UserProfile } from '@/types/auth';
+import { useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -17,6 +18,22 @@ export function resolveStoreProfile(
   settings: Settings | null | undefined,
   user: UserProfile | null | undefined
 ): StoreProfile {
+  const personalInfo =
+    settings?.personalInfo && typeof settings.personalInfo === 'object'
+      ? (settings.personalInfo as Record<string, unknown>)
+      : null;
+  const receiptConfig =
+    settings?.receiptConfig && typeof settings.receiptConfig === 'object'
+      ? (settings.receiptConfig as Record<string, unknown>)
+      : null;
+
+  const storePhone =
+    settings?.businessPhone?.trim() ||
+    String(personalInfo?.phone || personalInfo?.businessPhone || personalInfo?.mobile || '').trim() ||
+    String(receiptConfig?.storePhone || receiptConfig?.phone || '').trim() ||
+    user?.phone?.trim() ||
+    '';
+
   return {
     storeName:
       settings?.businessName?.trim() ||
@@ -24,7 +41,7 @@ export function resolveStoreProfile(
       user?.displayName?.trim() ||
       'Your Store Name',
     storeAddress: settings?.businessAddress?.trim() || '',
-    storePhone: settings?.businessPhone?.trim() || user?.phone?.trim() || '',
+    storePhone,
     storeGstin: settings?.businessGSTIN?.trim() || '',
     storeLogoUrl: settings?.businessLogoURL || undefined,
     upiId: settings?.upiId?.trim() || undefined,
@@ -39,8 +56,25 @@ export function useStoreProfile() {
   const { settings, isLoading } = useSettings();
   const { user } = useAuth();
 
+  const profile = useMemo(
+    () => resolveStoreProfile(settings, user),
+    [
+      settings?.businessName,
+      settings?.businessAddress,
+      settings?.businessPhone,
+      settings?.businessGSTIN,
+      settings?.businessLogoURL,
+      settings?.upiId,
+      settings?.personalInfo,
+      settings?.receiptConfig,
+      user?.businessName,
+      user?.displayName,
+      user?.phone,
+    ]
+  );
+
   return {
-    ...resolveStoreProfile(settings, user),
+    ...profile,
     settings,
     isLoading,
   };

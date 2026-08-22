@@ -138,6 +138,8 @@ class ThermalPrinterServiceManager {
   private eventSubscriptions: EmitterSubscription[] = [];
   /** Live callback wired up only while a scan is in-flight, used to stream devices to the UI as they're discovered. */
   private onDeviceDiscovered: ((device: BluetoothPrinterDevice, bonded: boolean) => void) | null = null;
+  /** Avoid re-processing the same logo URI on every receipt print/preview. */
+  private logoBase64Cache = new Map<string, string>();
 
   constructor() {
     this.activeDevice = null;
@@ -2921,15 +2923,36 @@ class ThermalPrinterServiceManager {
    * pulling in expo-file-system as a new dependency for one call site.
    */
   private async uriToBase64(uri: string): Promise<string | null> {
-    try {
-      // Flatten transparent alpha onto solid white BEFORE the printer SDK sees the image.
-      // Android Bitmap.Config.RGB_565 (and JPEG conversion of premultiplied PNG alpha)
-      // turns transparent pixels into black — logos whose white background was "removed"
-      // then print as a solid black block.
+    const trimmed = String(uri || '').trim();
+    if (!trimmed) return null;
+
+    const cached = this.logoBase64Cache.get(trimmed);
+    if (cached) return cached;
+
+    const cacheResult = (base64: string | null) => {
+      if (base64) this.logoBase64Cache.set(trimmed, base64);
+      return base64;
+    };
+
+    // Skip slow image pipelines when the local file was deleted (common with cache/logo_clean paths).
+    if (trimmed.startsWith('file://') || trimmed.startsWith('/')) {
       try {
-        const flattened = await flattenImageOntoWhite(uri);
+        const FileSystem = require('expo-file-system/legacy');
+        const info = await FileSystem.getInfoAsync(trimmed);
+        if (!info.exists) {
+          console.warn('Logo file missing, skipping bitmap conversion:', trimmed);
+          return null;
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    try {
+      try {
+        const flattened = await flattenImageOntoWhite(trimmed);
         if (flattened.base64) {
-          return flattened.base64;
+          return cacheResult(flattened.base64);
         }
       } catch (flattenErr) {
         console.warn('Logo white-flatten failed, using JPEG fallback:', flattenErr);
@@ -2941,23 +2964,22 @@ class ThermalPrinterServiceManager {
           ImageManipulator = require('expo-image-manipulator');
         } catch {}
         if (ImageManipulator && typeof ImageManipulator.manipulateAsync === 'function') {
-          const result = await ImageManipulator.manipulateAsync(
-            uri,
-            [],
-            { format: 'jpeg', compress: 0.95, base64: true }
-          );
+          const result = await ImageManipulator.manipulateAsync(trimmed, [], {
+            format: 'jpeg',
+            compress: 0.95,
+            base64: true,
+          });
           if (result.base64) {
-            return result.base64;
+            return cacheResult(result.base64);
           }
         }
       } catch (manipErr) {
         console.warn('ImageManipulator JPEG flatten fallback:', manipErr);
       }
 
-      // Fallback: fetch + FileReader
-      const response = await fetch(uri);
+      const response = await fetch(trimmed);
       const blob = await response.blob();
-      return await new Promise<string>((resolve, reject) => {
+      const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
           const result = reader.result as string;
@@ -2966,6 +2988,7 @@ class ThermalPrinterServiceManager {
         reader.onerror = () => reject(new Error('Failed to read logo image'));
         reader.readAsDataURL(blob);
       });
+      return cacheResult(base64 || null);
     } catch (e) {
       console.warn('Failed to convert logo image to base64 for printing:', e);
       return null;
