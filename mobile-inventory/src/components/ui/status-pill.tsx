@@ -21,20 +21,16 @@ export function StatusPill() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
-  const { connectionState, warningText, initListener } = usePrinterStore();
+  // The store subscription lives in the root layout, not here — printer drops have to be noticed
+  // whether or not this pill happens to be mounted.
+  const { connectionState, warningText, isAutoReconnecting } = usePrinterStore();
 
   const [pulseAnim] = useState(() => new Animated.Value(1));
-
-  // Initialize store listener for connection state changes
-  useEffect(() => {
-    const unsubscribe = initListener();
-    return () => unsubscribe();
-  }, [initListener]);
 
   // Set up pulsing animation for connecting state
   useEffect(() => {
     let animation: Animated.CompositeAnimation | null = null;
-    if (connectionState === 'connecting') {
+    if (connectionState === 'connecting' || isAutoReconnecting) {
       animation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -56,43 +52,49 @@ export function StatusPill() {
     return () => {
       if (animation) animation.stop();
     };
-  }, [connectionState, pulseAnim]);
+  }, [connectionState, isAutoReconnecting, pulseAnim]);
 
   // Determine styles and icons based on connectionState
   const getPillConfig = () => {
-    let backgroundColor: string = colors.neutral + '20';
-    let textColor: string = colors.textSecondary;
-    let icon = <BluetoothOff size={16} color={textColor} />;
-    let label = 'Printer Offline';
-
-    switch (connectionState) {
-      case 'disconnected':
-        backgroundColor = colors.neutral + '20';
-        textColor = colors.textSecondary;
-        icon = <BluetoothOff size={16} color={textColor} />;
-        label = 'Printer Offline';
-        break;
-      case 'connecting':
-        backgroundColor = colors.primary + '20';
-        textColor = colors.primary;
-        icon = <BluetoothSearching size={16} color={textColor} />;
-        label = 'Connecting…';
-        break;
-      case 'connected':
-        backgroundColor = colors.success + '15';
-        textColor = colors.success;
-        icon = <BluetoothConnected size={16} color={textColor} />;
-        label = 'Printer Ready';
-        break;
-      case 'warning':
-        backgroundColor = colors.warning + '15';
-        textColor = colors.warning;
-        icon = <AlertTriangle size={16} color={textColor} />;
-        label = warningText || 'Printer Warning';
-        break;
+    if (connectionState === 'connected') {
+      const textColor: string = colors.success;
+      return {
+        backgroundColor: colors.success + '15',
+        textColor,
+        icon: <BluetoothConnected size={16} color={textColor} />,
+        label: 'Printer Ready',
+      };
     }
 
-    return { backgroundColor, textColor, icon, label };
+    if (connectionState === 'connecting' || isAutoReconnecting) {
+      const textColor: string = colors.primary;
+      return {
+        backgroundColor: colors.primary + '20',
+        textColor,
+        icon: <BluetoothSearching size={16} color={textColor} />,
+        label: isAutoReconnecting ? 'Reconnecting…' : 'Connecting…',
+      };
+    }
+
+    // Disconnected with a reason to show. PrinterService never emits a 'warning' state — the warning
+    // rides alongside the state as text — so this has to be derived rather than switched on.
+    if (warningText) {
+      const textColor: string = colors.warning;
+      return {
+        backgroundColor: colors.warning + '15',
+        textColor,
+        icon: <AlertTriangle size={16} color={textColor} />,
+        label: warningText,
+      };
+    }
+
+    const textColor: string = colors.textSecondary;
+    return {
+      backgroundColor: colors.neutral + '20',
+      textColor,
+      icon: <BluetoothOff size={16} color={textColor} />,
+      label: 'Printer Offline',
+    };
   };
 
   const config = getPillConfig();
@@ -113,7 +115,7 @@ export function StatusPill() {
           styles.container,
           {
             backgroundColor: config.backgroundColor,
-            opacity: connectionState === 'connecting' ? pulseAnim : 1,
+            opacity: connectionState === 'connecting' || isAutoReconnecting ? pulseAnim : 1,
           },
         ]}>
         {config.icon}

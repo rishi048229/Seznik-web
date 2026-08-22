@@ -1237,7 +1237,10 @@ export default function DashboardScreen() {
           onClose={() => setShowDirectPrinterModal(false)}
           onConnected={() => {
             setShowDirectPrinterModal(false);
-            Alert.alert('Printer Linked! 🖨️', `Connected to ${activeDevice?.name || 'thermal printer'}. Ready for instant receipt printing.`);
+            // Read through the store: this fires in the same tick the connection lands, before the
+            // subscribed `activeDevice` in this closure has been re-rendered with the new printer.
+            const connected = usePrinterStore.getState().activeDevice;
+            Alert.alert('Printer Linked! 🖨️', `Connected to ${connected?.name || 'thermal printer'}. Ready for instant receipt printing.`);
           }}
         />
 

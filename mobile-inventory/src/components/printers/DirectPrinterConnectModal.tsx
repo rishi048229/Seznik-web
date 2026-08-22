@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Vibration,
   Platform,
+  Alert,
 } from 'react-native';
 import {
   X,
@@ -75,12 +76,22 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     try {
       await connectDevice(device.id, device.name);
       Vibration.vibrate(100);
-      setConnectingId(null);
       if (onConnected) {
         onConnected();
       }
       onClose();
-    } catch (e) {
+    } catch (e: any) {
+      // Stay open on failure. Closing here (and firing onConnected) is what previously told the
+      // caller a printer was ready when the socket had never opened.
+      Alert.alert(
+        t('connectionFailed', 'Connection Failed'),
+        e?.message || t('connectionFailedSub', 'Could not reach the printer. Check that it is switched on and in range.'),
+        [
+          { text: t('cancel', 'Cancel'), style: 'cancel' },
+          { text: t('retry', 'Retry'), onPress: () => handleConnect(device) },
+        ]
+      );
+    } finally {
       setConnectingId(null);
     }
   };
@@ -103,9 +114,9 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                 <Bluetooth size={20} color={BRAND_COLORS.blue600} />
               </View>
               <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={[styles.title, { color: theme.textPrimary }]}>{title}</Text>
+                <Text style={[styles.title, { color: theme.textPrimary }]}>{modalTitle}</Text>
                 <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={2}>
-                  {subtitle}
+                  {modalSubtitle}
                 </Text>
               </View>
             </View>

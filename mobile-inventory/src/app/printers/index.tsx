@@ -214,22 +214,60 @@ export default function PrintersScreen() {
 
   const activeTemplate = getTemplateById(activeTemplateId);
 
-  const handleAddManualPrinter = () => {
+  const handleAddManualPrinter = async () => {
     if (!manualName.trim()) {
       Alert.alert('Required Name', 'Please enter a printer name (e.g. PT-210 Receipt Printer).');
       return;
     }
+
+    const mac = manualMac.trim().toUpperCase();
+    // A MAC is the only thing that can actually be connected to, so it can't be defaulted. The
+    // previous placeholder address produced an entry that looked paired but could never print.
+    if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) {
+      Alert.alert(
+        'Valid MAC Address Required',
+        'Enter the printer\'s Bluetooth MAC address in the form 86:0A:7D:2E:3F:11. You can find it in the phone\'s Bluetooth settings after pairing the printer there.'
+      );
+      return;
+    }
+
+    // The MAC is the device identity on Android — a synthetic id would never resolve to a real device.
     const newDevice = {
-      id: `custom-${Date.now()}`,
+      id: mac,
       name: manualName.trim(),
-      macAddress: manualMac.trim() || '86:0A:7D:2E:3F:11',
+      macAddress: mac,
       type: (activeTab === 'label' ? 'label' : 'receipt') as any,
     };
-    addPairedPrinter(newDevice);
-    setManualName('');
-    setManualMac('');
-    setShowManualAdd(false);
-    Alert.alert('Printer Paired!', `${newDevice.name} connected & saved to your paired devices list.`);
+
+    try {
+      await addPairedPrinter(newDevice);
+      setManualName('');
+      setManualMac('');
+      setShowManualAdd(false);
+      Alert.alert('Printer Paired!', `${newDevice.name} connected & saved to your paired devices list.`);
+    } catch (e: any) {
+      // Saved to the list either way, so the user can retry without retyping the address.
+      Alert.alert(
+        'Saved, But Not Connected',
+        e?.message || `${newDevice.name} was saved but could not be reached. Check that it is switched on and in range, then tap Connect.`
+      );
+    }
+  };
+
+  /** connectDevice rejects on failure — surface it with a retry instead of leaving the row silent. */
+  const handleConnectDevice = async (deviceId: string, deviceName?: string) => {
+    try {
+      await connectDevice(deviceId, deviceName);
+    } catch (e: any) {
+      Alert.alert(
+        'Connection Failed',
+        e?.message || 'Could not reach the printer. Check that it is switched on and in range.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => handleConnectDevice(deviceId, deviceName) },
+        ]
+      );
+    }
   };
 
   const handleScanBluetooth = async () => {
@@ -1083,7 +1121,7 @@ export default function PrintersScreen() {
 
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <TouchableOpacity
-                            onPress={() => (isCurrent ? disconnectDevice() : connectDevice(dev.id, dev.name))}
+                            onPress={() => (isCurrent ? disconnectDevice() : handleConnectDevice(dev.id, dev.name))}
                             style={[
                               styles.connectChip,
                               { backgroundColor: isCurrent ? 'rgba(239, 68, 68, 0.15)' : BRAND_COLORS.blue600 },

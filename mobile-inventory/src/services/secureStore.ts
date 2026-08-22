@@ -244,5 +244,72 @@ export async function setStoredEnableBillQr(enabled: boolean): Promise<void> {
   }
 }
 
+const PAIRED_PRINTERS_KEY = 'seznik_paired_printers';
+const AUTO_CONNECT_KEY = 'seznik_printer_auto_connect';
+
+/**
+ * The paired-printer list is device-local (a MAC address only means anything to the phone that
+ * bonded it), so it lives here rather than in the synced backend Settings row. Without it every
+ * cold start begins with an empty list and forces a fresh ~15s discovery scan before the first bill.
+ */
+export async function getStoredPairedPrinters(): Promise<any[] | null> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(PAIRED_PRINTERS_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(PAIRED_PRINTERS_KEY);
+    }
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (error) {
+    console.error('Error reading paired printers:', error);
+    return null;
+  }
+}
+
+export async function setStoredPairedPrinters(printers: any[]): Promise<void> {
+  try {
+    const raw = JSON.stringify(printers);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(PAIRED_PRINTERS_KEY, raw);
+      }
+    } else {
+      await SecureStore.setItemAsync(PAIRED_PRINTERS_KEY, raw);
+    }
+  } catch (error) {
+    console.error('Error saving paired printers:', error);
+  }
+}
+
+export async function getStoredAutoConnect(): Promise<boolean> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(AUTO_CONNECT_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(AUTO_CONNECT_KEY);
+    }
+    return raw !== null ? raw === 'true' : true; // default true
+  } catch {
+    return true;
+  }
+}
+
+export async function setStoredAutoConnect(enabled: boolean): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(AUTO_CONNECT_KEY, enabled ? 'true' : 'false');
+      }
+    } else {
+      await SecureStore.setItemAsync(AUTO_CONNECT_KEY, enabled ? 'true' : 'false');
+    }
+  } catch (error) {
+    console.error('Error saving auto-connect setting:', error);
+  }
+}
+
 
 

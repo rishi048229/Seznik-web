@@ -23,6 +23,26 @@ const NativeTscPrinter = NativeModules.BluetoothTscPrinter;
 // the scan promise normally resolves on its own once discovery completes.
 const SCAN_SAFETY_TIMEOUT_MS = 16000;
 
+/**
+ * Ceiling on a single native connect() attempt. The native promise is only ever settled from a
+ * Bluetooth service state callback, so if that callback never arrives the promise hangs forever
+ * and pins the UI at "Connecting…" with no way out.
+ */
+const CONNECT_ATTEMPT_TIMEOUT_MS = 12000;
+
+/**
+ * Backoff between connect attempts. An RFCOMM socket to a thermal printer routinely fails on the
+ * first try when the printer has just woken from sleep, so a single attempt reports "printer
+ * unreachable" for a printer that is sitting right there and working fine.
+ */
+const CONNECT_RETRY_DELAYS_MS = [600, 1800];
+
+/**
+ * Guard for native probes that can never settle — notably isDeviceConnected(), which resolves no
+ * promise at all when the native BluetoothService happens to be null.
+ */
+const NATIVE_PROBE_TIMEOUT_MS = 3000;
+
 /** ESC/POS dot feed after receipt/KOT body so the tail clears the tear bar before auto-cut. */
 const RECEIPT_BOTTOM_FEED = 90;
 
@@ -143,12 +163,44 @@ class ThermalPrinterServiceManager {
   private onDeviceDiscovered: ((device: BluetoothPrinterDevice, bonded: boolean) => void) | null = null;
   /** Avoid re-processing the same logo URI on every receipt print/preview. */
   private logoBase64Cache = new Map<string, string>();
+  /**
+   * Resolves once the startup stale-connection sweep has finished. connect() awaits it so a tap in
+   * the first seconds of app life can't have its fresh socket torn down by the sweep's disconnect().
+   */
+  private startupCleanup: Promise<void>;
+  /**
+   * The in-flight scan, awaited before connecting. An active Android inquiry saturates the 2.4GHz
+   * radio and is the single most common cause of RFCOMM connects failing or crawling.
+   */
+  private scanInFlight: Promise<unknown> | null = null;
+  /** Dedupes overlapping connect() calls — a double-tap, or a screen reconnecting under the user. */
+  private connectInFlight: Promise<boolean> | null = null;
+  private connectInFlightId: string | null = null;
+  /**
+   * Fired only for unexpected drops (printer switched off, out of range, battery dead) — never for a
+   * user-initiated disconnect. That distinction is what keeps auto-reconnect from fighting the user.
+   */
+  private connectionLostListeners: (() => void)[] = [];
+  /** The device we last connected to, kept after a drop so auto-reconnect knows what to reach for. */
+  private lastConnectedDevice: BluetoothPrinterDevice | null = null;
 
   constructor() {
     this.activeDevice = null;
     this.connectionState = 'disconnected';
     this.attachNativeEventListeners();
-    this.disconnectStaleNativeConnection();
+    this.startupCleanup = this.disconnectStaleNativeConnection();
+  }
+
+  /** Resolves the fallback instead of hanging when a native call never settles its promise. */
+  private withProbeTimeout<T>(promise: Promise<T>, fallback: T, ms = NATIVE_PROBE_TIMEOUT_MS): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    ]);
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -165,6 +217,10 @@ class ThermalPrinterServiceManager {
    * receipt text appear tilted/shifted.
    */
   private async initPrinter(paperWidth: '58mm' | '80mm' = '58mm'): Promise<void> {
+    // Outside the try below on purpose: a dead socket must abort the job with an actionable message,
+    // not be swallowed as a non-fatal reset failure and then fail again deeper in the ESC/POS calls.
+    await this.ensureConnected();
+
     try {
       // 1. ESC @ — full hardware reset to default state
       if (typeof NativeEscposPrinter.printerInit === 'function') {
@@ -211,10 +267,7 @@ class ThermalPrinterServiceManager {
       // Guarded with a timeout: the native isDeviceConnected() implementation never resolves its
       // promise at all if its internal BluetoothService happens to be null, which would otherwise
       // hang app startup indefinitely.
-      const isConnected = await Promise.race([
-        NativeBluetoothManager.isDeviceConnected(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
-      ]);
+      const isConnected = await this.withProbeTimeout<boolean>(NativeBluetoothManager.isDeviceConnected(), false);
       if (!isConnected) return;
 
       const address =
@@ -279,9 +332,18 @@ class ThermalPrinterServiceManager {
 
       this.eventSubscriptions.push(
         this.eventEmitter.addListener('EVENT_CONNECTION_LOST', () => {
+          // Keep lastConnectedDevice — it's the target auto-reconnect will retry.
+          this.lastConnectedDevice = this.activeDevice || this.lastConnectedDevice;
           this.activeDevice = null;
-          this.warningText = 'Printer connection was lost. Please reconnect.';
+          this.warningText = 'Printer connection was lost. Reconnecting…';
           this.notifyStatusChange('disconnected');
+          this.connectionLostListeners.forEach((cb) => {
+            try {
+              cb();
+            } catch (cbErr) {
+              console.warn('Connection-lost listener threw:', cbErr);
+            }
+          });
         })
       );
 
@@ -320,32 +382,57 @@ class ThermalPrinterServiceManager {
     };
   }
 
+  /**
+   * Subscribe to *unexpected* connection drops only. A user-initiated disconnect() deliberately does
+   * not fire this, so an auto-reconnect driven off it won't immediately undo the user's own action.
+   */
+  public onConnectionLost(callback: () => void): () => void {
+    this.connectionLostListeners.push(callback);
+    return () => {
+      this.connectionLostListeners = this.connectionLostListeners.filter((cb) => cb !== callback);
+    };
+  }
+
+  public getLastConnectedDevice(): BluetoothPrinterDevice | null {
+    return this.activeDevice || this.lastConnectedDevice;
+  }
+
   private notifyStatusChange(state: 'connected' | 'disconnected' | 'connecting' | 'scanning') {
     this.connectionState = state;
     this.statusListeners.forEach((cb) => cb(state));
   }
 
   /**
-   * Request Android 12+ Bluetooth permissions at runtime
+   * Requests the runtime Bluetooth permissions that actually apply to this Android version.
+   *
+   * On API 31+ that's BLUETOOTH_SCAN/BLUETOOTH_CONNECT. On API 23–30 those constants don't exist and
+   * discovery instead depends on ACCESS_FINE_LOCATION — without it `ACTION_FOUND` never fires and a
+   * scan silently returns zero unpaired printers, which is what previously made scanning look broken
+   * on the Android 9/10 handhelds these printers are usually paired with.
    */
   public async requestPermissions(): Promise<boolean> {
-    if (Platform.OS === 'android' && Platform.Version >= 31) {
-      try {
+    if (Platform.OS !== 'android') return true;
+
+    try {
+      if (Number(Platform.Version) >= 31) {
         const granted = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         ]);
         return (
           granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED &&
           granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === PermissionsAndroid.RESULTS.GRANTED
         );
-      } catch (err) {
-        console.warn('Android Bluetooth permissions error:', err);
-        return false;
       }
+
+      const locationGranted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+      );
+      return locationGranted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      console.warn('Android Bluetooth permissions error:', err);
+      return false;
     }
-    return true;
   }
 
   /**
@@ -420,6 +507,11 @@ class ThermalPrinterServiceManager {
         });
       });
 
+      // Published so connect() can wait this out — see connect()'s comment on radio contention.
+      // Swallow rejections here so the shared handle never surfaces as an unhandled rejection;
+      // the real error is still handled by the await below.
+      this.scanInFlight = scanPromise.catch(() => undefined);
+
       const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, SCAN_SAFETY_TIMEOUT_MS));
       await Promise.race([scanPromise, timeoutPromise]);
 
@@ -431,7 +523,15 @@ class ThermalPrinterServiceManager {
       return Array.from(deviceMap.values());
     } finally {
       this.onDeviceDiscovered = null;
-      this.notifyStatusChange(this.activeDevice ? 'connected' : 'disconnected');
+      this.scanInFlight = null;
+      // A connect() started while this scan was running owns the status now — forcing the state
+      // here would wipe out its 'connecting' (or freshly 'connected') state. Still re-notify in
+      // that case so subscribers pick up the updated warningText.
+      if (this.connectInFlight) {
+        this.statusListeners.forEach((cb) => cb(this.connectionState));
+      } else {
+        this.notifyStatusChange(this.activeDevice ? 'connected' : 'disconnected');
+      }
     }
   }
 
@@ -452,27 +552,84 @@ class ThermalPrinterServiceManager {
     };
   }
 
+  /**
+   * Connects to a printer, deduping overlapping calls. Rejects with a human-readable message on
+   * failure — callers are expected to surface that, since a silently swallowed failure leaves the
+   * rest of the app believing a printer is ready.
+   */
   public async connect(deviceId: string, deviceName?: string): Promise<boolean> {
+    // Already connected to this exact printer — nothing to do.
+    if (this.connectionState === 'connected' && this.activeDevice?.id === deviceId) {
+      return true;
+    }
+
+    // A double-tap (or a screen reconnecting under the user) must not open two sockets. Join the
+    // existing attempt when it targets the same device; reject outright when it targets another,
+    // because two concurrent RFCOMM handshakes reliably fail both.
+    if (this.connectInFlight) {
+      if (this.connectInFlightId === deviceId) return this.connectInFlight;
+      throw new Error('Another printer connection is already in progress. Please wait for it to finish.');
+    }
+
+    this.connectInFlightId = deviceId;
+    this.connectInFlight = this.performConnect(deviceId, deviceName).finally(() => {
+      this.connectInFlight = null;
+      this.connectInFlightId = null;
+    });
+
+    return this.connectInFlight;
+  }
+
+  private async performConnect(deviceId: string, deviceName?: string): Promise<boolean> {
     this.notifyStatusChange('connecting');
 
     if (this.isNativeModuleAvailable()) {
-      try {
-        const connectedName = await NativeBluetoothManager.connect(deviceId);
-        this.activeDevice = {
-          id: deviceId,
-          name: deviceName || connectedName || `Bluetooth Printer (${deviceId.slice(-6)})`,
-          macAddress: deviceId,
-          type: 'receipt',
-          connected: true,
-        };
-        this.warningText = '';
-        this.notifyStatusChange('connected');
-        return true;
-      } catch (err: any) {
-        this.activeDevice = null;
-        this.notifyStatusChange('disconnected');
-        throw new Error(`Failed to connect to ${deviceName || deviceId}: ${err?.message || 'Printer unreachable'}`);
+      // The startup sweep force-closes any socket left open by a previous JS session. Connecting
+      // before it finishes means it can tear down the socket we're about to open.
+      await this.startupCleanup.catch(() => {});
+
+      // An Android inquiry hogs the radio, so a connect attempted mid-scan is slow and often fails
+      // outright. Waiting for the scan to settle is far cheaper than the retries it would cost.
+      if (this.scanInFlight) {
+        await Promise.race([this.scanInFlight, this.delay(SCAN_SAFETY_TIMEOUT_MS)]);
       }
+
+      let lastError: any = null;
+      const totalAttempts = CONNECT_RETRY_DELAYS_MS.length + 1;
+
+      for (let attempt = 0; attempt < totalAttempts; attempt++) {
+        if (attempt > 0) {
+          await this.delay(CONNECT_RETRY_DELAYS_MS[attempt - 1]);
+          // Re-assert 'connecting' — an EVENT_UNABLE_CONNECT from the failed attempt may have
+          // flipped listeners to 'disconnected' while we're still actively retrying.
+          this.notifyStatusChange('connecting');
+        }
+
+        try {
+          const connectedName = await this.connectWithTimeout(deviceId);
+          this.activeDevice = {
+            id: deviceId,
+            name: deviceName || connectedName || `Bluetooth Printer (${deviceId.slice(-6)})`,
+            macAddress: deviceId,
+            type: 'receipt',
+            connected: true,
+          };
+          this.lastConnectedDevice = this.activeDevice;
+          this.warningText = '';
+          this.notifyStatusChange('connected');
+          return true;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`Bluetooth connect attempt ${attempt + 1}/${totalAttempts} failed:`, err?.message || err);
+        }
+      }
+
+      this.activeDevice = null;
+      this.warningText = 'Unable to reach the printer. Check that it is switched on and in range.';
+      this.notifyStatusChange('disconnected');
+      throw new Error(
+        `Failed to connect to ${deviceName || deviceId} after ${totalAttempts} attempts: ${lastError?.message || 'Printer unreachable'}`
+      );
     }
 
     if (Platform.OS !== 'web') {
@@ -488,9 +645,92 @@ class ThermalPrinterServiceManager {
       type: 'receipt',
       connected: true,
     };
+    this.lastConnectedDevice = this.activeDevice;
     this.warningText = '';
     this.notifyStatusChange('connected');
     return true;
+  }
+
+  /**
+   * One native connect attempt, bounded. The native side only settles this promise from a Bluetooth
+   * service state callback, so without the ceiling a callback that never arrives hangs the attempt
+   * (and the UI) forever.
+   */
+  private connectWithTimeout(deviceId: string): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('Connection timed out'));
+      }, CONNECT_ATTEMPT_TIMEOUT_MS);
+
+      NativeBluetoothManager.connect(deviceId)
+        .then((name: string) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(name);
+        })
+        .catch((err: any) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(err instanceof Error ? err : new Error(String(err?.message || err || 'Printer unreachable')));
+        });
+    });
+  }
+
+  /**
+   * True when the native side still holds an open socket. Deliberately conservative: on anything
+   * unexpected it reports connected so a probe failure can't block an otherwise working print.
+   */
+  public async isSocketConnected(): Promise<boolean> {
+    if (!this.isNativeModuleAvailable() || typeof NativeBluetoothManager.isDeviceConnected !== 'function') {
+      return this.connectionState === 'connected';
+    }
+    try {
+      return await this.withProbeTimeout<boolean>(NativeBluetoothManager.isDeviceConnected(), true);
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Verifies the socket is really open right before a print job and silently reconnects if it isn't.
+   *
+   * Checking that the native module exists (which is all the print methods used to do) only proves
+   * the build has Bluetooth compiled in — not that a printer is on the other end. Without this a
+   * printer switched off mid-shift produces a raw native error instead of simply reconnecting.
+   */
+  public async ensureConnected(): Promise<void> {
+    if (!this.isNativeModuleAvailable() || Platform.OS === 'web') return;
+
+    if (await this.isSocketConnected()) return;
+
+    // Read the target before clearing state below, since that clears activeDevice.
+    const target = this.getLastConnectedDevice();
+
+    // The socket is gone even though our own state may still say 'connected' — a drop while the app
+    // was backgrounded doesn't reliably deliver EVENT_CONNECTION_LOST. Reset first, otherwise
+    // connect() sees 'connected' and short-circuits straight back into the same dead socket.
+    if (this.connectionState === 'connected') {
+      this.activeDevice = null;
+      this.notifyStatusChange('disconnected');
+    }
+
+    if (!target) {
+      throw new Error('Bluetooth thermal printer is not connected. Please connect your printer in Printers settings.');
+    }
+
+    try {
+      await this.connect(target.id, target.name);
+    } catch {
+      throw new Error(
+        `Lost connection to ${target.name || 'the printer'}. Check that it is switched on and in range, then try again.`
+      );
+    }
   }
 
   public async disconnect(): Promise<void> {
@@ -503,7 +743,12 @@ class ThermalPrinterServiceManager {
       }
     }
     this.activeDevice = null;
-    this.warningText = 'Printer Disconnected';
+    // Deliberately forget the reconnect target: disconnecting is an explicit user action, and
+    // auto-reconnect pulling the printer straight back would make the button look broken.
+    this.lastConnectedDevice = null;
+    // Not a warning — this is the expected outcome of the user tapping Disconnect, and putting text
+    // here renders it as a red error banner in the connect modal.
+    this.warningText = '';
     this.notifyStatusChange('disconnected');
   }
 
@@ -1787,6 +2032,9 @@ class ThermalPrinterServiceManager {
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
+    // TSPL label jobs never go through initPrinter(), so they need their own socket check.
+    await this.ensureConnected();
+
     const DOTS_PER_MM = 8;
     const FONT3_CHAR_W = 16;
     const toDots = (mm: number) => Math.round(mm * DOTS_PER_MM);
@@ -2118,6 +2366,8 @@ class ThermalPrinterServiceManager {
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
+        // TSPL label jobs never go through initPrinter(), so they need their own socket check.
+        await this.ensureConnected();
         try {
           const fields = this.buildTsplLabelFields(product, format, labelWidthMm, labelHeightMm);
 
@@ -2494,6 +2744,10 @@ class ThermalPrinterServiceManager {
 
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        // Outside the inner try so a connection problem surfaces with its own actionable wording
+        // instead of being re-wrapped as a generic "Thermal printer error".
+        await this.ensureConnected();
+
         try {
           // Reset printer state before every job to prevent tilted/shifted output
           await this.initPrinter(paperWidth);
@@ -3065,6 +3319,8 @@ class ThermalPrinterServiceManager {
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
+        // TSPL label jobs never go through initPrinter(), so they need their own socket check.
+        await this.ensureConnected();
         const fields = this.buildTsplLabelFields(item, format, labelWidthMm, labelHeightMm);
         await NativeTscPrinter.printLabel({
           width: fields.labelWidthMm,

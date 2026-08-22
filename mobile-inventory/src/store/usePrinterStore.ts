@@ -1,4 +1,3 @@
-import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { ConnectionState, PrinterDevice } from '../types';
 import PrinterService from '../services/PrinterService';
@@ -15,7 +14,15 @@ import {
   setStoredActiveCustomReceiptTemplate,
   getStoredEnableBillQr,
   setStoredEnableBillQr,
+  getStoredPairedPrinters,
+  setStoredPairedPrinters,
+  getStoredAutoConnect,
+  setStoredAutoConnect,
 } from '@/services/secureStore';
+
+/** Backoff for automatic reconnects after an unexpected drop. Deliberately finite — after this the
+ *  user is told to reconnect rather than the app retrying forever and draining the battery. */
+const AUTO_RECONNECT_DELAYS_MS = [1000, 3000, 8000];
 
 export interface PhoneBluetoothDevice extends PrinterDevice {
   statusTag?: 'Paired' | 'New';
@@ -74,11 +81,17 @@ interface PrinterState {
   /** True once hydrateFromSettings() has resolved (successfully or not) — lets screens avoid flashing default values before the real saved calibration loads. */
   isHydrated: boolean;
 
+  /** True while an automatic reconnect is being retried in the background after an unexpected drop. */
+  isAutoReconnecting: boolean;
+
   initListener: () => () => void;
   scanForDevices: () => Promise<void>;
+  /** Rejects when the printer can't be reached — callers must handle it rather than assuming success. */
   connectDevice: (deviceId: string, deviceName?: string) => Promise<void>;
   disconnectDevice: () => Promise<void>;
-  addPairedPrinter: (device: PrinterDevice) => void;
+  /** Reconnects to the default (or most recently used) saved printer. No-op when autoConnect is off. */
+  attemptAutoConnect: () => Promise<void>;
+  addPairedPrinter: (device: PrinterDevice) => Promise<void>;
   setPaperWidth: (width: '58mm' | '80mm') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setAutoConnect: (val: boolean) => void;
@@ -153,15 +166,20 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   labelTemplates: [],
   activeLabelTemplateId: null,
   isHydrated: false,
+  isAutoReconnecting: false,
 
   initListener: () => {
-    // Subscribe to changes in PrinterService
-    const unsubscribe = PrinterService.onStatusChange((state) => {
-      const warningText = (PrinterService as any).getWarningText ? (PrinterService as any).getWarningText() : '';
-      const activeDevice = (PrinterService as any).getActiveDevice ? (PrinterService as any).getActiveDevice() : null;
+    // Mirrors PrinterService into store state. Must be mounted once at app root: every screen gates
+    // printing on connectionState, so without this subscription a printer that is switched off or
+    // out of range still reads as "Ready" until the user manually disconnects.
+    const unsubscribeStatus = PrinterService.onStatusChange((state) => {
+      const warningText = PrinterService.getWarningText();
+      const activeDevice = PrinterService.getActiveDevice();
+
+      let pairedToPersist: PhoneBluetoothDevice[] | null = null;
 
       set((prev) => {
-        let updatedPaired = [...prev.pairedPrinters];
+        const updatedPaired = [...prev.pairedPrinters];
         if (activeDevice && state === 'connected') {
           const idx = updatedPaired.findIndex((d) => d.id === activeDevice.id);
           const nowStr = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -179,15 +197,32 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
               statusTag: 'Paired',
             });
           }
+          pairedToPersist = updatedPaired;
         }
         return { connectionState: state, warningText, activeDevice, pairedPrinters: updatedPaired };
       });
+
+      if (pairedToPersist) {
+        setStoredPairedPrinters(pairedToPersist).catch(() => {});
+      }
     });
-    return unsubscribe;
+
+    // Unexpected drops only (printer switched off / out of range), never a user-initiated disconnect.
+    const unsubscribeLost = PrinterService.onConnectionLost(() => {
+      if (!get().autoConnect) return;
+      get().attemptAutoConnect().catch(() => {});
+    });
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeLost();
+    };
   },
 
   scanForDevices: async () => {
-    set({ isScanning: true, scannedDevices: [], warningText: '' });
+    // Keep whatever is already on screen. Wiping the list meant a printer found seconds ago
+    // vanished the moment the user tapped "Scan Again"; re-discovery simply refreshes each entry.
+    set({ isScanning: true, warningText: '' });
 
     // Live-merge each device the moment the phone's Bluetooth adapter reports it,
     // instead of waiting for the whole ~12s discovery window to finish.
@@ -215,66 +250,134 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     }
   },
 
+  /**
+   * Throws when the printer can't be reached. That rejection is the contract callers rely on —
+   * swallowing it here previously let the connect modal report success, close itself, and leave the
+   * rest of the app printing into a socket that was never opened.
+   */
   connectDevice: async (deviceId: string, deviceName?: string) => {
-    try {
-      await PrinterService.connect(deviceId, deviceName);
-      const target =
-        get().pairedPrinters.find((p) => p.id === deviceId) ||
-        get().scannedDevices.find((p) => p.id === deviceId) || {
-          id: deviceId,
-          name: deviceName || `Bluetooth Printer (${deviceId.slice(-6)})`,
-          macAddress: deviceId,
-          type: 'receipt' as const,
-          statusTag: 'Paired' as const,
-        };
+    await PrinterService.connect(deviceId, deviceName);
 
-      set((prev) => {
-        const exists = prev.pairedPrinters.some((p) => p.id === deviceId);
-        const updatedPaired = exists
-          ? prev.pairedPrinters.map((p) => (p.id === deviceId ? { ...p, lastConnected: 'Active Now' } : p))
-          : [...prev.pairedPrinters, { ...target, isDefault: prev.pairedPrinters.length === 0, lastConnected: 'Active Now' }];
+    const target =
+      get().pairedPrinters.find((p) => p.id === deviceId) ||
+      get().scannedDevices.find((p) => p.id === deviceId) || {
+        id: deviceId,
+        name: deviceName || `Bluetooth Printer (${deviceId.slice(-6)})`,
+        macAddress: deviceId,
+        type: 'receipt' as const,
+        statusTag: 'Paired' as const,
+      };
 
-        return {
-          activeDevice: target,
-          connectionState: 'connected',
-          pairedPrinters: updatedPaired,
-          scannedDevices: prev.scannedDevices.map((d) => (d.id === deviceId ? { ...d, statusTag: 'Paired' } : d)),
-        };
-      });
-    } catch (e: any) {
-      set({ connectionState: 'disconnected', activeDevice: null });
-      Alert.alert('Bluetooth Connection Failed', e?.message || 'Could not connect to Bluetooth thermal printer.');
-    }
+    let pairedToPersist: PhoneBluetoothDevice[] = [];
+
+    set((prev) => {
+      const exists = prev.pairedPrinters.some((p) => p.id === deviceId);
+      const updatedPaired = exists
+        ? prev.pairedPrinters.map((p) => (p.id === deviceId ? { ...p, lastConnected: 'Active Now' } : p))
+        : [...prev.pairedPrinters, { ...target, isDefault: prev.pairedPrinters.length === 0, lastConnected: 'Active Now' }];
+
+      pairedToPersist = updatedPaired;
+
+      return {
+        activeDevice: target,
+        // Mirrors what PrinterService already reported; the status subscription remains the
+        // authority, this just avoids a frame of stale state for screens reading it immediately.
+        connectionState: PrinterService.getActiveDevice() ? 'connected' : prev.connectionState,
+        warningText: PrinterService.getWarningText(),
+        pairedPrinters: updatedPaired,
+        scannedDevices: prev.scannedDevices.map((d) => (d.id === deviceId ? { ...d, statusTag: 'Paired' } : d)),
+      };
+    });
+
+    await setStoredPairedPrinters(pairedToPersist);
   },
 
   disconnectDevice: async () => {
     try {
       await PrinterService.disconnect();
-      set({ activeDevice: null, connectionState: 'disconnected' });
+      set({ activeDevice: null, connectionState: 'disconnected', warningText: '', isAutoReconnecting: false });
     } catch (e) {
       // Ignored
     }
   },
 
-  addPairedPrinter: (device: PrinterDevice) => {
+  /**
+   * Reconnects to the saved default printer, retrying with backoff. Used both on app boot and after
+   * an unexpected drop, so a printer that browns out mid-shift comes back without the cashier
+   * having to open the Printers screen.
+   */
+  attemptAutoConnect: async () => {
+    const { autoConnect, pairedPrinters, isAutoReconnecting, connectionState, nativeModuleAvailable } = get();
+    if (!autoConnect || isAutoReconnecting || connectionState === 'connected') return;
+    // Nothing to reconnect to in Expo Go / a build without the native Bluetooth module — retrying
+    // would just log three guaranteed failures on every launch.
+    if (!nativeModuleAvailable) return;
+
+    const target =
+      PrinterService.getLastConnectedDevice() ||
+      pairedPrinters.find((p) => p.isDefault) ||
+      pairedPrinters[0];
+    if (!target) return;
+
+    set({ isAutoReconnecting: true });
+    try {
+      for (let attempt = 0; attempt < AUTO_RECONNECT_DELAYS_MS.length; attempt++) {
+        // The user may have connected manually (or deliberately disconnected) while we waited.
+        if (get().connectionState === 'connected' || !get().autoConnect) return;
+
+        await new Promise((resolve) => setTimeout(resolve, AUTO_RECONNECT_DELAYS_MS[attempt]));
+
+        if (get().connectionState === 'connected' || !get().autoConnect) return;
+
+        try {
+          await get().connectDevice(target.id, target.name);
+          return;
+        } catch (e) {
+          console.warn(`[usePrinterStore] auto-reconnect attempt ${attempt + 1} failed:`, e);
+        }
+      }
+      // Out of retries — leave the service's warning text in place so the UI can prompt the user.
+    } finally {
+      set({ isAutoReconnecting: false });
+    }
+  },
+
+  addPairedPrinter: async (device: PrinterDevice) => {
     const fullDev: PhoneBluetoothDevice = {
       ...device,
       macAddress: device.macAddress || device.id,
       statusTag: 'Paired',
     };
+
+    let pairedToPersist: PhoneBluetoothDevice[] = [];
+
     set((prev) => {
       const exists = prev.pairedPrinters.some((p) => p.id === device.id || p.macAddress === device.macAddress);
       const updated = exists
         ? prev.pairedPrinters
         : [...prev.pairedPrinters, { ...fullDev, isDefault: prev.pairedPrinters.length === 0, lastConnected: 'Just now' }];
-      return { pairedPrinters: updated, scannedDevices: [...prev.scannedDevices, fullDev] };
+      pairedToPersist = updated;
+      const alreadyScanned = prev.scannedDevices.some((d) => d.id === fullDev.id || d.macAddress === fullDev.macAddress);
+      return {
+        pairedPrinters: updated,
+        scannedDevices: alreadyScanned ? prev.scannedDevices : [...prev.scannedDevices, fullDev],
+      };
     });
-    get().connectDevice(device.id, device.name);
+
+    await setStoredPairedPrinters(pairedToPersist);
+    // Awaited (and allowed to reject) so callers can tell a real connection from a saved entry.
+    await get().connectDevice(device.id, device.name);
   },
 
   setPaperWidth: (paperWidth) => set({ paperWidth }),
   setFontSize: (fontSize) => set({ fontSize }),
-  setAutoConnect: (autoConnect) => set({ autoConnect }),
+  setAutoConnect: (autoConnect) => {
+    set({ autoConnect });
+    setStoredAutoConnect(autoConnect).catch(() => {});
+    if (autoConnect) {
+      get().attemptAutoConnect().catch(() => {});
+    }
+  },
   setPrintDensity: (printDensity) => set({ printDensity }),
   setAutoCut: (autoCut) => set({ autoCut }),
   setPrintCopies: (printCopies) => set({ printCopies }),
@@ -431,11 +534,20 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   hydrateFromSettings: async () => {
     try {
       // 1. First hydrate immediately from local storage for instant offline availability
-      const [localTemplateId, localCustomTemplates, localActiveCustomId, localEnableBillQr] = await Promise.all([
+      const [
+        localTemplateId,
+        localCustomTemplates,
+        localActiveCustomId,
+        localEnableBillQr,
+        localPairedPrinters,
+        localAutoConnect,
+      ] = await Promise.all([
         getStoredActiveTemplate(),
         getStoredCustomReceiptTemplates(),
         getStoredActiveCustomReceiptTemplate(),
         getStoredEnableBillQr(),
+        getStoredPairedPrinters(),
+        getStoredAutoConnect(),
       ]);
 
       const initialTemplates = localCustomTemplates && localCustomTemplates.length > 0
@@ -449,7 +561,18 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: initialTemplates,
         activeCustomTemplateId: localActiveCustomId,
         enableBillQrCode: localEnableBillQr,
+        autoConnect: localAutoConnect,
       });
+
+      // Restore the saved printers before anything else awaits the network, so the Printers screen
+      // and the connect modal show the shop's printer immediately instead of an empty list that
+      // only fills after a fresh ~15s discovery scan.
+      if (localPairedPrinters && localPairedPrinters.length > 0 && get().pairedPrinters.length === 0) {
+        set({ pairedPrinters: localPairedPrinters });
+        if (localAutoConnect) {
+          get().attemptAutoConnect().catch(() => {});
+        }
+      }
 
       // 2. Fetch server settings to sync cloud configuration
       const settings = await settingsApi.getSettings();
@@ -514,20 +637,35 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     }
   },
 
-  setDefaultPrinter: (deviceId) =>
-    set((prev) => ({
-      pairedPrinters: prev.pairedPrinters.map((p) => ({
+  setDefaultPrinter: (deviceId) => {
+    let pairedToPersist: PhoneBluetoothDevice[] = [];
+    set((prev) => {
+      pairedToPersist = prev.pairedPrinters.map((p) => ({
         ...p,
         isDefault: p.id === deviceId,
-      })),
-    })),
-  forgetPrinter: (deviceId) =>
-    set((prev) => ({
-      pairedPrinters: prev.pairedPrinters.filter((p) => p.id !== deviceId),
-      scannedDevices: prev.scannedDevices.filter((p) => p.id !== deviceId),
-      activeDevice: prev.activeDevice?.id === deviceId ? null : prev.activeDevice,
-      connectionState: prev.activeDevice?.id === deviceId ? 'disconnected' : prev.connectionState,
-    })),
+      }));
+      return { pairedPrinters: pairedToPersist };
+    });
+    setStoredPairedPrinters(pairedToPersist).catch(() => {});
+  },
+  forgetPrinter: (deviceId) => {
+    let pairedToPersist: PhoneBluetoothDevice[] = [];
+    set((prev) => {
+      pairedToPersist = prev.pairedPrinters.filter((p) => p.id !== deviceId);
+      return {
+        pairedPrinters: pairedToPersist,
+        scannedDevices: prev.scannedDevices.filter((p) => p.id !== deviceId),
+        activeDevice: prev.activeDevice?.id === deviceId ? null : prev.activeDevice,
+        connectionState: prev.activeDevice?.id === deviceId ? 'disconnected' : prev.connectionState,
+      };
+    });
+    setStoredPairedPrinters(pairedToPersist).catch(() => {});
+    // Forgetting the printer that is currently connected should also drop the physical socket,
+    // otherwise the printer stays bonded and the next print silently succeeds on a "forgotten" device.
+    if (deviceId === PrinterService.getActiveDevice()?.id) {
+      PrinterService.disconnect().catch(() => {});
+    }
+  },
 }));
 
 // Eagerly trigger hydration on store initialization so active template is available immediately

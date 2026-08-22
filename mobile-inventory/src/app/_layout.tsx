@@ -44,6 +44,14 @@ function RootLayoutNav() {
     usePrinterStore.getState().hydrateFromSettings().catch(() => {});
   }, []);
 
+  // Mounted at the root, for the whole app lifetime, because every screen gates printing on
+  // connectionState. Subscribing from a screen instead means printer drops go unnoticed whenever
+  // that screen isn't mounted, and the UI keeps reporting "Ready" for a printer that is switched off.
+  useEffect(() => {
+    const unsubscribe = usePrinterStore.getState().initListener();
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       usePrinterStore.getState().hydrateFromSettings().catch(() => {});
