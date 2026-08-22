@@ -8,18 +8,23 @@ datasource db {
 }
 
 model User {
-  id                  String  @id @default(uuid())
-  uid                 String  @unique // For migrating from firebase if needed
-  email               String? @unique
-  emailVerified       Boolean @default(false)
+  id                  String    @id @default(uuid())
+  uid                 String    @unique // For migrating from firebase if needed
+  email               String?   @unique
+  emailVerified       Boolean   @default(false)
   phone               String? // nullable for pre-existing rows; required at registration
   password            String?
   displayName         String?
-  photoURL            String? @db.Text
+  photoURL            String?   @db.Text
   businessName        String?
-  plan                String  @default("free")
-  onboardingCompleted Boolean @default(false)
+  plan                String    @default("free")
+  onboardingCompleted Boolean   @default(false)
   role                String?
+  // Belongs to the "dev" branch (see the CreditReminder/DayClose comment
+  // further down) — restored so `db push` doesn't drop real data.
+  isBanned            Boolean   @default(false)
+  banReason           String?
+  bannedAt            DateTime?
   permissions         Json?
 
   // Relations for managed users (if needed in backend, otherwise stored as JSON)
@@ -121,6 +126,8 @@ model Settings {
   // Belongs to the "dev" branch (see User model comment above) — restored so
   // `db push` doesn't drop the real row this database already has.
   labelConfig        Json?
+  // Multi-location inventory feature flag: { enabled: boolean }.
+  locationConfig     Json?
   userId             String   @unique
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt          DateTime @default(now())
@@ -292,6 +299,8 @@ model Sale {
   // Which location this whole sale was billed from (multi-location inventory
   // feature) — null when the feature is off or the location wasn't selected.
   locationId     String?
+  // Belongs to the "dev" branch — restored so `db push` doesn't drop real data.
+  platform       String    @default("web")
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   token          Token?
