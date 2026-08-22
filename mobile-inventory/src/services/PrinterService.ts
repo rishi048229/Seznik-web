@@ -6,6 +6,7 @@ import { CustomReceiptTemplate } from '../types/customReceipt';
 import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
 import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
+import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
