@@ -59,6 +59,7 @@ import {
   LabelTextBinding,
   LabelCodeBinding,
 } from '@/types/labelTemplate';
+import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 
 const newId = () => `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -689,7 +690,21 @@ export default function LabelStudioScreen() {
               {leftTab === 'design' ? (
                 <>
                   <Text style={[styles.panelLabel, { color: theme.textSecondary }]}>LABEL SIZE (MM)</Text>
-                  <View style={styles.dimRow}>
+                  <View style={styles.chipWrap}>
+                    {LABEL_SIZE_PRESETS.map((preset) => {
+                      const selected = template.widthMm === preset.widthMm && template.heightMm === preset.heightMm;
+                      return (
+                        <TouchableOpacity
+                          key={preset.label}
+                          onPress={() => setTemplate((p) => applyLabelSize(p, preset.widthMm, preset.heightMm))}
+                          style={[styles.chip, { borderColor: theme.borderColor }, selected && styles.chipActive]}
+                        >
+                          <Text style={[styles.chipText, { color: theme.textSecondary }, selected && styles.chipTextActive]}>{preset.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <View style={[styles.dimRow, { marginTop: 10 }]}>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Width</Text>
                       <View style={styles.stepperControls}>

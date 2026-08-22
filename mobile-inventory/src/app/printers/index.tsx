@@ -52,6 +52,7 @@ import {
   TemplateCategory,
   getTemplateById,
 } from '@/constants/receiptTemplates';
+import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -1223,6 +1224,24 @@ export default function PrintersScreen() {
                         for the wrong canvas and can overflow onto the next label. Check the
                         roll&apos;s packaging or measure a blank label to get this right.
                       </Text>
+
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                        {LABEL_SIZE_PRESETS.map((preset) => {
+                          const selected = labelWidthMm === preset.widthMm && labelHeightMm === preset.heightMm;
+                          return (
+                            <TouchableOpacity
+                              key={preset.label}
+                              onPress={() => {
+                                setLabelWidthMm(preset.widthMm);
+                                setLabelHeightMm(preset.heightMm);
+                              }}
+                              style={[styles.widthChip, selected && styles.widthChipActive]}
+                            >
+                              <Text style={[styles.widthChipText, selected && styles.widthChipTextActive]}>{preset.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
 
                       <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                         <View style={{ flex: 1, paddingRight: 8 }}>
