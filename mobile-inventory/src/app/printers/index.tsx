@@ -56,6 +56,23 @@ import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
+import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
+
+// Stable sample product for label test-prints — module-level so it isn't rebuilt every render;
+// same values printTestLabel's own internal default uses.
+const sampleTestProduct = {
+  id: 'sample-test-product',
+  name: 'Organic Basmati Rice 5kg',
+  sellingPrice: 480.0,
+  costPrice: 380.0,
+  currentStock: 0,
+  lowStockThreshold: 0,
+  unit: 'kg',
+  barcode: '8901234567890',
+  taxRate: 5,
+  priceIncludesGst: true,
+  isActive: true,
+};
 
 export default function PrintersScreen() {
   const router = useRouter();
@@ -100,11 +117,16 @@ export default function PrintersScreen() {
   } = usePrinterStore();
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
   const activeCustomTemplate = customTemplates.find((t) => t.id === activeCustomTemplateId) || null;
+  const hasSequenceElement =
+    activeLabelTemplate?.elements.some((el) => el.type === 'text' && el.binding === 'sequence') ?? false;
 
   const [activeTab, setActiveTab] = useState<'receipt' | 'label' | 'templates'>('receipt');
   // Note: A4 physical printer tab is hidden per user specification (only PDF invoice export is provided)
   const [isPrintingA4, setIsPrintingA4] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
+  const [showSequencePrompt, setShowSequencePrompt] = useState(false);
+  const [seqProgress, setSeqProgress] = useState(0);
+  const [isSeqPrinting, setIsSeqPrinting] = useState(false);
 
   // Template Search & Category Filter States
   const [templateSearch, setTemplateSearch] = useState('');
@@ -219,6 +241,34 @@ export default function PrintersScreen() {
       return;
     }
     await scanForDevices();
+  };
+
+  const handleSubmitSequence = async (startPattern: string, count: number) => {
+    if (!activeLabelTemplate) return;
+    const targetPaperWidth = paperWidthVal === 80 ? '80mm' : '58mm';
+    setIsSeqPrinting(true);
+    setSeqProgress(0);
+    try {
+      const result = await ThermalPrinterService.printLabelSequence(
+        sampleTestProduct,
+        activeLabelTemplate,
+        { startPattern, count, mode: labelPaperMode, paperWidth: targetPaperWidth, labelGapMm },
+        (done) => setSeqProgress(done)
+      );
+      if (result.ok) {
+        setShowSequencePrompt(false);
+        Alert.alert('Sequence Printed', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
+      } else if (result.printedCount === 0) {
+        Alert.alert('Invalid Pattern', 'The starting pattern must include at least one number to increment (e.g. "0001" or "A01").');
+      } else {
+        Alert.alert('Print Failed', `Stopped after ${result.printedCount} labels — could not reach the printer.`);
+      }
+    } catch (e: any) {
+      Alert.alert('Print Failed', e?.message || 'Could not print the sequence.');
+    } finally {
+      setIsSeqPrinting(false);
+      setSeqProgress(0);
+    }
   };
 
   const handleSelectSystemPrinter = async () => {
@@ -447,29 +497,20 @@ export default function PrintersScreen() {
             <TouchableOpacity
               onPress={async () => {
                 const targetPaperWidth = paperWidthVal === 80 ? '80mm' : '58mm';
+                if (activeLabelTemplate && hasSequenceElement) {
+                  setShowSequencePrompt(true);
+                  return;
+                }
                 if (activeLabelTemplate) {
                   // Test the actual saved Label Studio template (not the auto-layout) with sample
                   // product data — same sample values printTestLabel below uses. Which native
                   // pipeline it goes through depends on labelPaperMode: TSPL commands would print
                   // as gibberish text on the ESC/POS receipt printer, so 'continuous' routes through
                   // the ESC/POS sequential renderer instead.
-                  const sampleProduct = {
-                    id: 'sample-test-product',
-                    name: 'Organic Basmati Rice 5kg',
-                    sellingPrice: 480.0,
-                    costPrice: 380.0,
-                    currentStock: 0,
-                    lowStockThreshold: 0,
-                    unit: 'kg',
-                    barcode: '8901234567890',
-                    taxRate: 5,
-                    priceIncludesGst: true,
-                    isActive: true,
-                  };
                   const ok =
                     labelPaperMode === 'continuous'
-                      ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(sampleProduct, activeLabelTemplate, targetPaperWidth)
-                      : await ThermalPrinterService.printLabelFromTemplate(sampleProduct, activeLabelTemplate, 1, labelGapMm);
+                      ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(sampleTestProduct, activeLabelTemplate, targetPaperWidth)
+                      : await ThermalPrinterService.printLabelFromTemplate(sampleTestProduct, activeLabelTemplate, 1, labelGapMm);
                   if (ok) Alert.alert('Test Label Sent', `Printed using the "${activeLabelTemplate.name}" template.`);
                   else Alert.alert('Print Failed', 'Could not reach the connected printer.');
                 } else if (labelPaperMode === 'continuous') {
@@ -1328,6 +1369,14 @@ export default function PrintersScreen() {
       <AiBillToReceiptModal
         visible={showAiBillModal}
         onClose={() => setShowAiBillModal(false)}
+      />
+
+      <SequencePrintPrompt
+        visible={showSequencePrompt}
+        isPrinting={isSeqPrinting}
+        progress={seqProgress}
+        onSubmit={handleSubmitSequence}
+        onCancel={() => setShowSequencePrompt(false)}
       />
     </View>
   );

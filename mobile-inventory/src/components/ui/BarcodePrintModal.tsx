@@ -19,6 +19,7 @@ import ThermalPrinterService from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { generateCode128Barcode, generateEAN13Barcode } from '@/utils/barcodeGenerator';
+import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
 
 interface BarcodePrintModalProps {
   visible: boolean;
@@ -43,6 +44,11 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const [selectedFormat, setSelectedFormat] = useState<BarcodeFormat>('qr');
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showSequencePrompt, setShowSequencePrompt] = useState(false);
+  const [seqProgress, setSeqProgress] = useState(0);
+
+  const hasSequenceElement =
+    activeLabelTemplate?.elements.some((el) => el.type === 'text' && el.binding === 'sequence') ?? false;
 
   if (!product) return null;
 
@@ -86,6 +92,33 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       Alert.alert('Print Error', e?.message || 'Failed to print label.');
     } finally {
       setIsPrinting(false);
+    }
+  };
+
+  const handleSubmitSequence = async (startPattern: string, count: number) => {
+    if (!activeLabelTemplate) return;
+    setIsPrinting(true);
+    setSeqProgress(0);
+    try {
+      const result = await ThermalPrinterService.printLabelSequence(
+        product,
+        activeLabelTemplate,
+        { startPattern, count, mode: labelPaperMode, paperWidth, labelGapMm },
+        (done) => setSeqProgress(done)
+      );
+      if (result.ok) {
+        setShowSequencePrompt(false);
+        Alert.alert('Sequence Printed', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
+      } else if (result.printedCount === 0) {
+        Alert.alert('Invalid Pattern', 'The starting pattern must include at least one number to increment (e.g. "0001" or "A01").');
+      } else {
+        Alert.alert('Print Failed', `Stopped after ${result.printedCount} labels — could not reach the printer.`);
+      }
+    } catch (e: any) {
+      Alert.alert('Print Failed', e?.message || 'Could not print the sequence.');
+    } finally {
+      setIsPrinting(false);
+      setSeqProgress(0);
     }
   };
 
@@ -224,7 +257,11 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handlePrintLabel} disabled={isPrinting} style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}>
+            <TouchableOpacity
+              onPress={hasSequenceElement ? () => setShowSequencePrompt(true) : handlePrintLabel}
+              disabled={isPrinting}
+              style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+            >
               {isPrinting ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
@@ -243,6 +280,14 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
+
+      <SequencePrintPrompt
+        visible={showSequencePrompt}
+        isPrinting={isPrinting}
+        progress={seqProgress}
+        onSubmit={handleSubmitSequence}
+        onCancel={() => setShowSequencePrompt(false)}
+      />
     </Modal>
   );
 };

@@ -60,6 +60,7 @@ import {
   LabelCodeBinding,
 } from '@/types/labelTemplate';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
+import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
 
 const newId = () => `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -125,6 +126,8 @@ function resolveTextValue(el: LabelTextElement, product: Product | null): string
       return product?.unit || 'Pc';
     case 'category':
       return product?.category?.name || 'Category';
+    case 'sequence':
+      return '0001';
     case 'custom':
     default:
       return el.customText || 'Custom Text';
@@ -151,6 +154,7 @@ const TEXT_BINDING_OPTIONS: { value: LabelTextBinding; label: string }[] = [
   { value: 'unit', label: 'Unit' },
   { value: 'category', label: 'Category' },
   { value: 'custom', label: 'Custom Text' },
+  { value: 'sequence', label: 'Sequence Number' },
 ];
 
 const CODE_BINDING_OPTIONS: { value: LabelCodeBinding; label: string }[] = [
@@ -192,14 +196,12 @@ export default function LabelStudioScreen() {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
 
-  // Sequential Number Printing — e.g. "Tea 1", "Tea 2", ... "Tea 20", one label per number. Targets
-  // one existing text element on the canvas, temporarily overriding just its content per print —
-  // the saved template itself is never mutated by this.
-  const textElements = template.elements.filter((e): e is LabelTextElement => e.type === 'text');
-  const [seqElementId, setSeqElementId] = useState<string | null>(null);
-  const [seqBaseText, setSeqBaseText] = useState('Tea');
-  const [seqStart, setSeqStart] = useState(1);
-  const [seqEnd, setSeqEnd] = useState(10);
+  // Sequential Number Printing — e.g. "0001","0002",... or "A01","A02",..., one label per value.
+  // Driven by any text element bound to 'sequence' (see TEXT_BINDING_OPTIONS) — the starting
+  // pattern/count are supplied fresh per print run via SequencePrintPrompt, never stored on the
+  // template itself, and PrinterService.printLabelSequence does the actual per-copy substitution.
+  const hasSequenceElement = template.elements.some((e) => e.type === 'text' && e.binding === 'sequence');
+  const [showSequencePrompt, setShowSequencePrompt] = useState(false);
   const [isSeqPrinting, setIsSeqPrinting] = useState(false);
   const [seqProgress, setSeqProgress] = useState(0);
 
@@ -346,21 +348,15 @@ export default function LabelStudioScreen() {
     }
   };
 
-  const handlePrintSequence = async () => {
-    if (!seqElementId) {
-      Alert.alert('Pick an Element', 'Choose which text element on the label should get the number (e.g. the item name).');
+  const handleOpenSequencePrompt = () => {
+    if (!hasSequenceElement) {
+      Alert.alert('Add a Sequence Field', 'Set one of the label\'s text elements to bind to "Sequence Number" first (in the Bind To options under Selected Element).');
       return;
     }
-    if (seqEnd < seqStart) {
-      Alert.alert('Invalid Range', 'End number must be the same as or after the start number.');
-      return;
-    }
-    const count = seqEnd - seqStart + 1;
-    if (count > 200) {
-      Alert.alert('Too Many Labels', 'Please print in batches of 200 or fewer at a time.');
-      return;
-    }
+    setShowSequencePrompt(true);
+  };
 
+  const handleSubmitSequence = async (startPattern: string, count: number) => {
     const targetProduct = previewProduct || products[0] || {
       id: 'demo-1',
       name: 'Basmati Rice 5kg',
@@ -371,26 +367,20 @@ export default function LabelStudioScreen() {
     setIsSeqPrinting(true);
     setSeqProgress(0);
     try {
-      for (let n = seqStart; n <= seqEnd; n++) {
-        // Only the target element's content is overridden for this one print — the saved template
-        // in state is never touched, so the design itself is unaffected by running a sequence.
-        const seqTemplate: LabelTemplate = {
-          ...template,
-          elements: template.elements.map((el) =>
-            el.id === seqElementId ? ({ ...el, type: 'text', binding: 'custom', customText: `${seqBaseText} ${n}`.trim() } as LabelTextElement) : el
-          ),
-        };
-        const ok =
-          labelPaperMode === 'continuous'
-            ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, seqTemplate, paperWidth)
-            : await ThermalPrinterService.printLabelFromTemplate(targetProduct, seqTemplate);
-        if (!ok) {
-          Alert.alert('Print Failed', `Stopped at label ${n} of ${seqEnd} — could not reach the printer.`);
-          return;
-        }
-        setSeqProgress(n - seqStart + 1);
+      const result = await ThermalPrinterService.printLabelSequence(
+        targetProduct,
+        template,
+        { startPattern, count, mode: labelPaperMode, paperWidth, labelGapMm },
+        (done) => setSeqProgress(done)
+      );
+      if (result.ok) {
+        setShowSequencePrompt(false);
+        Alert.alert('Sequence Printed', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
+      } else if (result.printedCount === 0) {
+        Alert.alert('Invalid Pattern', 'The starting pattern must include at least one number to increment (e.g. "0001" or "A01").');
+      } else {
+        Alert.alert('Print Failed', `Stopped after ${result.printedCount} labels — could not reach the printer.`);
       }
-      Alert.alert('Sequence Printed', `Printed ${count} labels: "${seqBaseText} ${seqStart}" through "${seqBaseText} ${seqEnd}".`);
     } catch (e: any) {
       Alert.alert('Print Failed', e?.message || 'Could not print the sequence.');
     } finally {
@@ -582,94 +572,27 @@ export default function LabelStudioScreen() {
                 <Text style={styles.testPrintBtnText}>Test Print with Real Product Data</Text>
               </TouchableOpacity>
 
-              {/* Sequential Number Printing — "Tea 1", "Tea 2", ... one label per number */}
+              {/* Sequential Number Printing — driven by a text element bound to "Sequence Number" */}
               <View style={[styles.seqCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={styles.seqHeaderRow}>
                   <Hash size={15} color={BRAND_COLORS.blue600} />
                   <Text style={[styles.seqTitle, { color: theme.textPrimary }]}>Sequential Number Printing</Text>
                 </View>
                 <Text style={[styles.seqSub, { color: theme.textSecondary }]}>
-                  Print a run of labels with an increasing number, e.g. &quot;Tea 1&quot;, &quot;Tea 2&quot;, ... &quot;Tea {seqEnd}&quot;.
+                  Print a run of labels with an auto-incrementing number or code, e.g. &quot;0001&quot;, &quot;0002&quot;... or &quot;A01&quot;, &quot;A02&quot;...
                 </Text>
-
-                <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 10 }]}>Number this element</Text>
-                {textElements.length === 0 ? (
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4 }}>
-                    Add a Text element to the label first, then pick it here.
+                {!hasSequenceElement && (
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 8 }}>
+                    Select a text element on the canvas and set its &quot;Bind to&quot; option to &quot;Sequence Number&quot; first.
                   </Text>
-                ) : (
-                  <View style={styles.chipWrap}>
-                    {textElements.map((el, idx) => (
-                      <TouchableOpacity
-                        key={el.id}
-                        onPress={() => {
-                          setSeqElementId(el.id);
-                          if (el.binding === 'custom' && el.customText) setSeqBaseText(el.customText);
-                        }}
-                        style={[styles.chip, { borderColor: theme.borderColor }, seqElementId === el.id && styles.chipActive]}
-                      >
-                        <Text style={[styles.chipText, { color: theme.textSecondary }, seqElementId === el.id && styles.chipTextActive]}>
-                          {el.binding === 'custom' && el.customText ? el.customText : `Text ${idx + 1}`}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
                 )}
 
-                <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 10 }]}>Base Text</Text>
-                <TextInput
-                  value={seqBaseText}
-                  onChangeText={setSeqBaseText}
-                  style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor }]}
-                  placeholder="e.g. Tea"
-                  placeholderTextColor="#94A3B8"
-                />
-
-                <View style={styles.dimRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Start #</Text>
-                    <View style={styles.stepperControls}>
-                      <TouchableOpacity onPress={() => setSeqStart((v) => Math.max(1, v - 1))} style={styles.stepBtn}>
-                        <Minus size={14} color={theme.textPrimary} />
-                      </TouchableOpacity>
-                      <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{seqStart}</Text>
-                      <TouchableOpacity onPress={() => setSeqStart((v) => v + 1)} style={styles.stepBtn}>
-                        <Plus size={14} color={theme.textPrimary} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.dimSub, { color: theme.textSecondary }]}>End #</Text>
-                    <View style={styles.stepperControls}>
-                      <TouchableOpacity onPress={() => setSeqEnd((v) => Math.max(seqStart, v - 1))} style={styles.stepBtn}>
-                        <Minus size={14} color={theme.textPrimary} />
-                      </TouchableOpacity>
-                      <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{seqEnd}</Text>
-                      <TouchableOpacity onPress={() => setSeqEnd((v) => v + 1)} style={styles.stepBtn}>
-                        <Plus size={14} color={theme.textPrimary} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-
                 <TouchableOpacity
-                  onPress={handlePrintSequence}
-                  disabled={isSeqPrinting || textElements.length === 0}
-                  style={[styles.testPrintBtn, { marginTop: 14, opacity: textElements.length === 0 ? 0.5 : 1 }]}
+                  onPress={handleOpenSequencePrompt}
+                  style={[styles.testPrintBtn, { marginTop: 14, opacity: hasSequenceElement ? 1 : 0.5 }]}
                 >
-                  {isSeqPrinting ? (
-                    <>
-                      <ActivityIndicator size="small" color="#FFF" />
-                      <Text style={styles.testPrintBtnText}>
-                        Printing {seqProgress}/{seqEnd - seqStart + 1}...
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Hash size={16} color="#FFFFFF" />
-                      <Text style={styles.testPrintBtnText}>Print {seqEnd - seqStart + 1} Labels</Text>
-                    </>
-                  )}
+                  <Hash size={16} color="#FFFFFF" />
+                  <Text style={styles.testPrintBtnText}>Print a Sequence</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1070,6 +993,14 @@ export default function LabelStudioScreen() {
           setLogoBgModalUri(null);
           setLogoBgCallback(null);
         }}
+      />
+
+      <SequencePrintPrompt
+        visible={showSequencePrompt}
+        isPrinting={isSeqPrinting}
+        progress={seqProgress}
+        onSubmit={handleSubmitSequence}
+        onCancel={() => setShowSequencePrompt(false)}
       />
     </ScreenBackground>
   );

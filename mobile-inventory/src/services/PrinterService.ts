@@ -1915,6 +1915,49 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  /**
+   * Prints a run of labels where any text element bound to `'sequence'` gets an auto-incrementing
+   * value each copy — e.g. "0001","0002",... or "A01","A02",... (see parseSequencePattern). This is
+   * the one shared implementation every entry point (Label Studio's own screen, BarcodePrintModal,
+   * and the Printers page's Label test-print button) calls into, generalizing what used to be an
+   * ad-hoc "override one hand-picked element with a raw integer suffix" loop specific to Label Studio.
+   */
+  public async printLabelSequence(
+    product: Product,
+    template: LabelTemplate,
+    opts: { startPattern: string; count: number; mode: 'gap' | 'continuous'; paperWidth?: '58mm' | '80mm'; labelGapMm?: number },
+    onProgress?: (done: number, total: number) => void
+  ): Promise<{ ok: boolean; printedCount: number }> {
+    const parsed = parseSequencePattern(opts.startPattern);
+    if (!parsed) return { ok: false, printedCount: 0 };
+
+    const count = Math.min(MAX_SEQUENCE_COUNT, Math.max(1, Math.floor(opts.count) || 1));
+
+    for (let i = 0; i < count; i++) {
+      const value = formatSequenceValue(parsed, i);
+      // Same mechanic as the template only ever having its content overridden for one print, never
+      // mutated in saved state — just driven by the parser instead of a manually-picked element id.
+      const iterTemplate: LabelTemplate = {
+        ...template,
+        elements: template.elements.map((el) =>
+          el.type === 'text' && el.binding === 'sequence'
+            ? ({ ...el, binding: 'custom', customText: value } as LabelTextElement)
+            : el
+        ),
+      };
+
+      const ok =
+        opts.mode === 'continuous'
+          ? await this.printLabelTemplateOnReceiptPaper(product, iterTemplate, opts.paperWidth ?? '58mm')
+          : await this.printLabelFromTemplate(product, iterTemplate, 1, opts.labelGapMm ?? 2);
+
+      if (!ok) return { ok: false, printedCount: i };
+      onProgress?.(i + 1, count);
+    }
+
+    return { ok: true, printedCount: count };
+  }
+
   public generateLabelFromTemplateHtml(product: Product, template: LabelTemplate): string {
     const resolveTextValue = (el: LabelTextElement): string => {
       switch (el.binding) {
