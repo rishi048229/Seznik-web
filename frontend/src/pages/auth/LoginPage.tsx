@@ -10,7 +10,7 @@ import {
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
 } from '@/services/authService'
-import { CheckCircle2, XCircle, Eye, EyeOff } from 'lucide-react'
+import { CheckCircle2, XCircle, Eye, EyeOff, Video } from 'lucide-react'
 
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -18,12 +18,15 @@ import { Input } from '@/components/ui/Input'
 import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
 import { validatePassword } from '@/utils/password'
 import { trackUserAction } from '@/utils/analytics'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 
 type EmailVerifyStep = 'idle' | 'sending' | 'sent' | 'verifying' | 'verified'
 type ForgotStep = 'email' | 'otp' | 'new_password' | 'success'
 
 export const LoginPage = () => {
   const { loginWithEmail, registerWithEmail, loading } = useAuth()
+  const pageTutorial = usePageTutorial('login')
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [email, setEmail] = useState('')
@@ -345,15 +348,28 @@ export const LoginPage = () => {
 
         {/* Bottom / Right Panel — Form */}
         <div className="md:w-7/12 p-6 sm:p-10 md:p-12 flex flex-col justify-center">
-          <div className="mb-6 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-              {isRegistering ? 'Create Your Account' : 'Welcome Back'}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              {isRegistering
-                ? 'Fill in your details below to set up your business'
-                : 'Enter your credentials to access your terminal'}
-            </p>
+          <div className="flex items-center justify-between gap-3 mb-6 sm:mb-8">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {isRegistering ? 'Create Your Account' : 'Welcome Back'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                {isRegistering
+                  ? 'Fill in your details below to set up your business'
+                  : 'Enter your credentials to access your terminal'}
+              </p>
+            </div>
+            {pageTutorial.tutorialData && (
+              <button
+                onClick={pageTutorial.openTutorial}
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Watch Video Guide & Tutorial"
+              >
+                <Video size={14} className="animate-pulse" />
+                <span className="whitespace-nowrap">Video Guide</span>
+              </button>
+            )}
           </div>
 
           {error && (
@@ -739,6 +755,16 @@ export const LoginPage = () => {
           )}
         </div>
       </Modal>
+
+      {/* Video Tutorial Modal */}
+      {pageTutorial.tutorialData && (
+        <PageVideoTutorialModal
+          isOpen={pageTutorial.isTutorialOpen}
+          onClose={pageTutorial.closeTutorial}
+          tutorial={pageTutorial.tutorialData}
+          onStartTour={pageTutorial.startTour}
+        />
+      )}
     </div>
   )
 }

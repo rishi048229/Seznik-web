@@ -271,4 +271,26 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       { title: 'Cashier & Sub-Users Tab', description: 'Create cashier logins and manage access permissions for staff.', targetSelector: '[data-tour="settings-tab-permissions"]' },
     ],
   },
+  login: {
+    pageKey: 'login',
+    title: 'Login & Account Access Guide',
+    subtitle: 'Learn how to sign in, create a business account, verify email OTP, and reset forgotten passwords',
+    videoUrl: '/assets/videos/guide-login.mp4',
+    summary: 'Access your Seznik Inventory & POS workspace. Sign in with your registered email and password, register a new business account with instant 6-digit email OTP verification, or reset forgotten credentials.',
+    keyFeatures: [
+      { title: 'Secure Account Sign In', description: 'Log in securely with your registered email address and account password.' },
+      { title: 'New Business Registration', description: 'Create a new business workspace with instant 6-digit email OTP verification.' },
+      { title: 'Forgot Password Self-Reset', description: 'Reset your password securely via instant OTP sent to your registered email.' },
+      { title: 'Multi-Role Staff Access', description: 'Log in as Owner, Store Manager, or Cashier with pre-assigned permissions.' },
+    ],
+    proTips: [
+      'Use the Show/Hide password toggle to verify your password before submitting.',
+      'If you forget your password, click "Forgot Password?" to receive an instant 6-digit OTP.',
+    ],
+    tourSteps: [
+      { title: 'Email Address Field', description: 'Enter your registered email address to access your store.', targetSelector: '[data-tour="login-email"]' },
+      { title: 'Password Field', description: 'Enter your secure account password.', targetSelector: '[data-tour="login-password"]' },
+      { title: 'Sign In Button', description: 'Click to authenticate and open your store workspace.', targetSelector: '[data-tour="login-submit"]' },
+    ],
+  },
 }
