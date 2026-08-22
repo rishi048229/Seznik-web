@@ -23,6 +23,9 @@ const NativeTscPrinter = NativeModules.BluetoothTscPrinter;
 // the scan promise normally resolves on its own once discovery completes.
 const SCAN_SAFETY_TIMEOUT_MS = 16000;
 
+/** ESC/POS dot feed after receipt/KOT body so the tail clears the tear bar before auto-cut. */
+const RECEIPT_BOTTOM_FEED = 90;
+
 export interface PrintSaleData {
   storeName?: string;
   storeAddress?: string;
@@ -703,6 +706,7 @@ class ThermalPrinterServiceManager {
     });
 
     lines.push('');
+    lines.push('');
     return lines.join('\n');
   }
 
@@ -851,6 +855,7 @@ class ThermalPrinterServiceManager {
 
     // Footer
     wrapAndCenter(template.footerMessage);
+    lines.push('');
     lines.push('');
 
     return lines.join('\n');
@@ -2566,7 +2571,7 @@ class ThermalPrinterServiceManager {
             // merchant) come out as separate torn receipts rather than one long strip.
             if (typeof NativeEscposPrinter.printAndFeed === 'function') {
               try {
-                await NativeEscposPrinter.printAndFeed(60);
+                await NativeEscposPrinter.printAndFeed(RECEIPT_BOTTOM_FEED);
               } catch (feedErr) {
                 console.warn('printAndFeed failed (non-fatal):', feedErr);
               }
@@ -2849,7 +2854,7 @@ class ThermalPrinterServiceManager {
       await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
     }
     if (typeof NativeEscposPrinter.printAndFeed === 'function') {
-      await NativeEscposPrinter.printAndFeed(60);
+      await NativeEscposPrinter.printAndFeed(RECEIPT_BOTTOM_FEED);
     }
     if (options.autoCut && typeof NativeEscposPrinter.cutOnePoint === 'function') {
       await NativeEscposPrinter.cutOnePoint();
@@ -2875,7 +2880,7 @@ class ThermalPrinterServiceManager {
 
           if (typeof NativeEscposPrinter.printAndFeed === 'function') {
             try {
-              await NativeEscposPrinter.printAndFeed(60);
+              await NativeEscposPrinter.printAndFeed(RECEIPT_BOTTOM_FEED);
             } catch (feedErr) {
               console.warn('printAndFeed failed (non-fatal):', feedErr);
             }
