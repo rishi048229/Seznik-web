@@ -52,15 +52,24 @@ export const LocationsPage = () => {
   const enabled = settings?.locationConfig?.enabled ?? false
 
   const toggleFeature = (v: boolean) => {
+    // Surface the real backend error (e.g. "Unknown argument locationConfig"
+    // if the API server hasn't picked up the latest Prisma schema/client
+    // yet) instead of a generic message — this setting depends on a fresh
+    // migration + a restarted backend process, so the actual error matters.
+    const onError = (err: unknown) => {
+      const msg = err instanceof Error ? err.message : ''
+      toast.error(msg ? `Failed to save setting: ${msg}` : 'Failed to save setting')
+      console.error('locationConfig save failed:', err)
+    }
     if (settings?.id) {
       updateSettings(
         { settingsId: settings.id, data: { locationConfig: { enabled: v } } },
-        { onError: () => toast.error('Failed to save setting') }
+        { onError }
       )
     } else {
       createSettings(
         { ...(settings as any), locationConfig: { enabled: v } },
-        { onError: () => toast.error('Failed to save setting') }
+        { onError }
       )
     }
   }

@@ -111,6 +111,29 @@ export const getLocationStock = async (req: Request, res: Response) => {
   }
 };
 
+// The inverse of getLocationStock: one product's stock/price across every
+// location, keyed by locationId — powers the Products page's "Stock by
+// Location" section in the product edit form.
+export const getProductLocationStock = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { productId } = req.params;
+
+    const product = await prisma.product.findFirst({ where: { id: String(productId), userId } });
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const stocks = await prisma.productLocationStock.findMany({
+      where: { productId: String(productId), userId },
+      include: { location: { select: { id: true, name: true, isActive: true } } },
+    });
+    res.json(stocks);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch product location stock' });
+  }
+};
+
 // Upserts one product's stock/price/threshold at one location.
 export const upsertProductLocationStock = async (req: Request, res: Response) => {
   try {

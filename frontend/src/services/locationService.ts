@@ -34,6 +34,11 @@ export const getLocationStock = async (locationId: string): Promise<ProductLocat
   return await fetchApi(`/locations/${locationId}/stock`)
 }
 
+/** One product's stock/price across every location — for the Products page's "Stock by Location" section. */
+export const getProductLocationStock = async (productId: string): Promise<ProductLocationStock[]> => {
+  return await fetchApi(`/products/${productId}/location-stock`)
+}
+
 export const upsertProductLocationStock = async (
   productId: string,
   locationId: string,

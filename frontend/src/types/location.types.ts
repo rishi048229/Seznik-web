@@ -26,6 +26,7 @@ export interface ProductLocationStock {
     sellingPrice: number
     currentStock: number
   }
+  location?: { id: string; name: string; isActive: boolean }
 }
 
 export interface StockTransfer {

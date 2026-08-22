@@ -14,7 +14,7 @@ import {
   bulkImportProducts,
   checkAiStatus
 } from '../controllers/productController';
-import { upsertProductLocationStock } from '../controllers/locationController';
+import { upsertProductLocationStock, getProductLocationStock } from '../controllers/locationController';
 import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
@@ -30,6 +30,7 @@ router.post('/ai-extract-document', aiExtractFromDocument);
 router.post('/bulk-import', bulkImportProducts);
 router.get('/low-stock', getLowStockProducts);
 router.get('/expiring', getExpiringProducts);
+router.get('/:productId/location-stock', getProductLocationStock);
 router.put('/:productId/location-stock/:locationId', upsertProductLocationStock);
 router.post('/batch-stock-update', batchBarcodeStockUpdate);
 router.post('/bulk-delete', bulkSoftDeleteProducts);

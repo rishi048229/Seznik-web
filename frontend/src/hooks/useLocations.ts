@@ -57,6 +57,16 @@ export const useLocationStock = (locationId: string | null) => {
   })
 }
 
+/** One product's stock/price across every location — for the Products page's "Stock by Location" section. */
+export const useProductLocationStock = (productId: string | null) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.LOCATION_STOCK, 'product', productId],
+    queryFn: () => locationService.getProductLocationStock(productId!),
+    enabled: !!productId,
+    staleTime: 30 * 1000,
+  })
+}
+
 export const useUpsertProductLocationStock = () => {
   const qc = useQueryClient()
   return useMutation({

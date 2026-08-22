@@ -28,6 +28,7 @@ import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
+import { useLocations, useProductLocationStock, useUpsertProductLocationStock } from '@/hooks/useLocations'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
   generateLabelEscPos,
@@ -155,6 +156,11 @@ export const ProductsPage = () => {
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
+  const locationFeatureEnabled = settings?.locationConfig?.enabled ?? false
+  const { data: allLocations = [] } = useLocations()
+  const activeLocations = allLocations.filter(l => l.isActive)
+  const { data: productLocationStock = [] } = useProductLocationStock(locationFeatureEnabled ? editId : null)
+  const { mutate: upsertLocationStock } = useUpsertProductLocationStock()
   const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
@@ -1564,6 +1570,55 @@ export const ProductsPage = () => {
               onChange={e => setForm(prev => ({ ...prev, unit: e.target.value as UnitType }))}
             />
           </div>
+
+          {/* Stock by Location — only shown when multi-location inventory is enabled */}
+          {locationFeatureEnabled && activeLocations.length > 0 && (
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
+                {t('locations.stockAtLocation') || 'Stock by Location'}
+              </p>
+              {!editId ? (
+                <p className="text-xs text-gray-400 italic">
+                  Save this product first, then come back to set its stock per location.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {activeLocations.map(loc => {
+                    const row = productLocationStock.find(r => r.locationId === loc.id)
+                    return (
+                      <div key={loc.id} className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 w-28 truncate shrink-0">
+                          {loc.name}
+                        </span>
+                        <input
+                          type="number"
+                          defaultValue={row?.stock ?? 0}
+                          onBlur={e => upsertLocationStock({
+                            productId: editId,
+                            locationId: loc.id,
+                            data: { stock: Number(e.target.value) || 0 },
+                          })}
+                          placeholder="Stock"
+                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                        />
+                        <input
+                          type="number"
+                          defaultValue={row?.priceOverride ?? ''}
+                          onBlur={e => upsertLocationStock({
+                            productId: editId,
+                            locationId: loc.id,
+                            data: { priceOverride: e.target.value === '' ? null : Number(e.target.value) },
+                          })}
+                          placeholder={`Price (default ${form.sellingPrice || '0'})`}
+                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Additional Details — entirely optional, never validated as required */}
           <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
