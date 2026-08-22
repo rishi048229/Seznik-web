@@ -288,8 +288,13 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     const existing = get().labelTemplates;
     const idx = existing.findIndex((t) => t.id === template.id);
     const labelTemplates = idx >= 0 ? existing.map((t, i) => (i === idx ? template : t)) : [...existing, template];
-    set({ labelTemplates });
-    await settingsApi.updateLabelConfig({ templates: labelTemplates, activeTemplateId: get().activeLabelTemplateId });
+    // Auto-promote to Default the moment there's no default yet — otherwise a freshly designed
+    // template silently has zero effect on real prints until a separate "Set as Default" tap,
+    // which is easy to miss and is exactly what made customized labels print as the old generic
+    // layout in practice.
+    const activeLabelTemplateId = get().activeLabelTemplateId === null ? template.id : get().activeLabelTemplateId;
+    set({ labelTemplates, activeLabelTemplateId });
+    await settingsApi.updateLabelConfig({ templates: labelTemplates, activeTemplateId: activeLabelTemplateId });
   },
 
   deleteLabelTemplate: async (id) => {
@@ -504,6 +509,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       });
     } catch (e) {
       // Offline / not logged in yet — keep local defaults, just mark hydration attempted.
+      console.error('[usePrinterStore] hydrateFromSettings failed:', e);
       set({ isHydrated: true });
     }
   },
@@ -525,4 +531,4 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 }));
 
 // Eagerly trigger hydration on store initialization so active template is available immediately
-usePrinterStore.getState().hydrateFromSettings().catch(() => {});
+usePrinterStore.getState().hydrateFromSettings().catch((e) => console.error('[usePrinterStore] eager hydrate failed:', e));

@@ -62,6 +62,36 @@ import {
 
 const newId = () => `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// Every new element used to spawn at the exact same fixed point regardless of how many elements
+// already exist, so adding several of the same type stacked them perfectly on top of each other —
+// indistinguishable from "nothing happened". Cascading by count keeps each new element visibly
+// distinct and immediately draggable; wraps every 6 adds and stays clamped inside the label.
+function spawnPoint(widthMm: number, heightMm: number, count: number) {
+  const cx = Math.max(2, widthMm / 2 - 10);
+  const cy = Math.max(2, heightMm / 2 - 5);
+  const offset = (count % 6) * 4;
+  return { xMm: Math.min(widthMm - 5, cx + offset), yMm: Math.min(heightMm - 5, cy + offset) };
+}
+
+// Shrinking the label (steppers or a size preset) used to leave existing elements' boxes
+// untouched, stranding them outside the new smaller bounds (invisible since the canvas has
+// overflow:'visible'). Clamping every element back inside on every size change — used by both the
+// steppers and the size-preset chips — keeps the design always fully within the printable area.
+function applyLabelSize(prev: LabelTemplate, widthMm: number, heightMm: number): LabelTemplate {
+  const elements = prev.elements.map((e) => {
+    const clampedWidth = Math.min(e.widthMm, widthMm);
+    const clampedHeight = Math.min(e.heightMm, heightMm);
+    return {
+      ...e,
+      widthMm: clampedWidth,
+      heightMm: clampedHeight,
+      xMm: Math.min(e.xMm, Math.max(0, widthMm - clampedWidth)),
+      yMm: Math.min(e.yMm, Math.max(0, heightMm - clampedHeight)),
+    };
+  });
+  return { ...prev, widthMm, heightMm, elements };
+}
+
 function makeBlankTemplate(widthMm: number, heightMm: number): LabelTemplate {
   const now = new Date().toISOString();
   return {
@@ -71,7 +101,7 @@ function makeBlankTemplate(widthMm: number, heightMm: number): LabelTemplate {
     heightMm,
     orientation: widthMm >= heightMm ? 'landscape' : 'portrait',
     elements: [
-      { id: newId(), type: 'text', binding: 'productName', xMm: 4, yMm: 3, widthMm: widthMm - 8, heightMm: 6, fontSizePt: 3.5, align: 'center' },
+      { id: newId(), type: 'text', binding: 'productName', xMm: 4, yMm: 3, widthMm: widthMm - 8, heightMm: 6, fontSizePt: 3, align: 'center' },
       { id: newId(), type: 'text', binding: 'price', xMm: 4, yMm: 10, widthMm: widthMm - 8, heightMm: 5, fontSizePt: 3, bold: true, align: 'center' },
       { id: newId(), type: 'barcode', format: 'ean13', binding: 'barcode', xMm: 6, yMm: 17, widthMm: widthMm - 12, heightMm: heightMm - 20 },
     ],
@@ -144,6 +174,7 @@ export default function LabelStudioScreen() {
     setActiveLabelTemplate,
     labelWidthMm,
     labelHeightMm,
+    labelGapMm,
     labelPaperMode,
     paperWidth,
   } = usePrinterStore();
@@ -218,7 +249,7 @@ export default function LabelStudioScreen() {
         if (elementId) {
           updateElementProps(elementId, { uri } as Partial<LabelImageElement>);
         } else {
-          const base = { id: newId(), xMm: Math.max(2, template.widthMm / 2 - 10), yMm: Math.max(2, template.heightMm / 2 - 10) };
+          const base = { id: newId(), ...spawnPoint(template.widthMm, template.heightMm, template.elements.length) };
           const el: LabelElement = { ...base, type: 'image', uri, widthMm: 20, heightMm: 20 };
           setTemplate((prev) => ({ ...prev, elements: [...prev.elements, el] }));
           setSelectedId(el.id);
@@ -234,7 +265,7 @@ export default function LabelStudioScreen() {
       handlePickImageForElement();
       return;
     }
-    const base = { id: newId(), xMm: Math.max(2, template.widthMm / 2 - 10), yMm: Math.max(2, template.heightMm / 2 - 5) };
+    const base = { id: newId(), ...spawnPoint(template.widthMm, template.heightMm, template.elements.length) };
     let el: LabelElement;
     if (type === 'text') {
       el = { ...base, type: 'text', binding: 'custom', customText: 'New Text', widthMm: 20, heightMm: 5, fontSizePt: 3, align: 'center' };
@@ -271,12 +302,12 @@ export default function LabelStudioScreen() {
     }
   };
 
-  const handleSetActive = async () => {
+  const handleSetDefault = async () => {
     try {
       await setActiveLabelTemplate(template.id);
-      Alert.alert('Set as Active', 'New product label prints will use this template.');
+      Alert.alert('Set as Default', 'New product label prints will use this template.');
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not set this template as active.');
+      Alert.alert('Error', e?.message || 'Could not set this template as default.');
     }
   };
 
@@ -299,7 +330,7 @@ export default function LabelStudioScreen() {
       const ok =
         labelPaperMode === 'continuous'
           ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, template, paperWidth)
-          : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template);
+          : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template, 1, labelGapMm);
       if (ok) Alert.alert('Test Print Sent', `Printed "${template.name}" label.`);
       else Alert.alert('Print Failed', 'Could not send label to printer.');
     } catch (e: any) {
@@ -417,7 +448,7 @@ export default function LabelStudioScreen() {
     }
     return (
       <View style={styles.unsupportedBox}>
-        <Text style={styles.unsupportedText}>{el.type}{'\n'}(coming soon)</Text>
+        <Text style={styles.unsupportedText}>{el.type}{'\n'}(prints blank on label printers)</Text>
       </View>
     );
   };
@@ -456,12 +487,12 @@ export default function LabelStudioScreen() {
         {activeLabelTemplateId === template.id ? (
           <View style={styles.activeBanner}>
             <CheckCircle2 size={13} color="#10B981" />
-            <Text style={styles.activeBannerText}>Active — real label prints use this template</Text>
+            <Text style={styles.activeBannerText}>Default — real label prints use this template</Text>
           </View>
         ) : (
-          <TouchableOpacity onPress={handleSetActive} style={[styles.activeBanner, { backgroundColor: 'rgba(100,116,139,0.12)' }]}>
+          <TouchableOpacity onPress={handleSetDefault} style={[styles.activeBanner, { backgroundColor: 'rgba(100,116,139,0.12)' }]}>
             <Layers size={13} color="#64748B" />
-            <Text style={[styles.activeBannerText, { color: '#64748B' }]}>Tap to set as the active label template</Text>
+            <Text style={[styles.activeBannerText, { color: '#64748B' }]}>Tap to set as the default label template</Text>
           </TouchableOpacity>
         )}
 
@@ -504,6 +535,8 @@ export default function LabelStudioScreen() {
                       widthMm={el.widthMm}
                       heightMm={el.heightMm}
                       pxPerMm={pxPerMm}
+                      boundsWidthMm={template.widthMm}
+                      boundsHeightMm={template.heightMm}
                       selected={selectedId === el.id}
                       onSelect={() => setSelectedId(el.id)}
                       onChange={(box) => updateElement(el.id, box)}
@@ -650,11 +683,11 @@ export default function LabelStudioScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Width</Text>
                       <View style={styles.stepperControls}>
-                        <TouchableOpacity onPress={() => setTemplate((p) => ({ ...p, widthMm: Math.max(10, p.widthMm - 1) }))} style={styles.stepBtn}>
+                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, Math.max(10, p.widthMm - 1), p.heightMm))} style={styles.stepBtn}>
                           <Minus size={14} color={theme.textPrimary} />
                         </TouchableOpacity>
                         <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{template.widthMm}</Text>
-                        <TouchableOpacity onPress={() => setTemplate((p) => ({ ...p, widthMm: Math.min(100, p.widthMm + 1) }))} style={styles.stepBtn}>
+                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, Math.min(100, p.widthMm + 1), p.heightMm))} style={styles.stepBtn}>
                           <Plus size={14} color={theme.textPrimary} />
                         </TouchableOpacity>
                       </View>
@@ -662,11 +695,11 @@ export default function LabelStudioScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Height</Text>
                       <View style={styles.stepperControls}>
-                        <TouchableOpacity onPress={() => setTemplate((p) => ({ ...p, heightMm: Math.max(10, p.heightMm - 1) }))} style={styles.stepBtn}>
+                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.max(10, p.heightMm - 1)))} style={styles.stepBtn}>
                           <Minus size={14} color={theme.textPrimary} />
                         </TouchableOpacity>
                         <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{template.heightMm}</Text>
-                        <TouchableOpacity onPress={() => setTemplate((p) => ({ ...p, heightMm: Math.min(150, p.heightMm + 1) }))} style={styles.stepBtn}>
+                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.min(150, p.heightMm + 1)))} style={styles.stepBtn}>
                           <Plus size={14} color={theme.textPrimary} />
                         </TouchableOpacity>
                       </View>
@@ -733,16 +766,20 @@ export default function LabelStudioScreen() {
                           ) : null}
 
                           <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 10 }]}>Font Size</Text>
+                          {/* Steps by 3 (not 0.5) and stays on exact multiples of 3 — matches
+                              PrinterService.printLabelFromTemplate's TSPL scale quantization
+                              (Math.round(fontSizePt / 3)) exactly, so the on-screen preview never
+                              shows a size that snaps to something different once printed. */}
                           <View style={styles.stepperControls}>
                             <TouchableOpacity
-                              onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(1.5, selectedElement.fontSizePt - 0.5) } as Partial<LabelTextElement>)}
+                              onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(3, selectedElement.fontSizePt - 3) } as Partial<LabelTextElement>)}
                               style={styles.stepBtn}
                             >
                               <Minus size={14} color={theme.textPrimary} />
                             </TouchableOpacity>
                             <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{selectedElement.fontSizePt}</Text>
                             <TouchableOpacity
-                              onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(10, selectedElement.fontSizePt + 0.5) } as Partial<LabelTextElement>)}
+                              onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(9, selectedElement.fontSizePt + 3) } as Partial<LabelTextElement>)}
                               style={styles.stepBtn}
                             >
                               <Plus size={14} color={theme.textPrimary} />
@@ -864,7 +901,8 @@ export default function LabelStudioScreen() {
                             <Text style={{ fontSize: 11, color: theme.textPrimary, lineHeight: 16 }}>
                               • Thermal printers use <Text style={{ fontWeight: 'bold' }}>1-bit direct black/white paper</Text> (no color/grayscale).{'\n'}
                               • <Text style={{ fontWeight: 'bold' }}>Best Results</Text>: High contrast black logos with a transparent PNG background.{'\n'}
-                              • If an image prints as a solid black block, tap <Text style={{ fontWeight: 'bold' }}>Invert Colors</Text> or choose a clean line-art logo.
+                              • If an image prints as a solid black block, tap <Text style={{ fontWeight: 'bold' }}>Invert Colors</Text> or choose a clean line-art logo.{'\n'}
+                              • On a die-cut label printer (Gap mode), images currently print <Text style={{ fontWeight: 'bold' }}>blank</Text> — they only show up in this preview and when printing on the receipt roll (Continuous mode) or via System Print.
                             </Text>
                           </View>
                         </>
@@ -901,9 +939,16 @@ export default function LabelStudioScreen() {
                     labelTemplates.map((t) => (
                       <View key={t.id} style={[styles.templateRow, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
                         <TouchableOpacity style={{ flex: 1 }} onPress={() => { setTemplate(t); setSelectedId(null); }}>
-                          <Text style={[styles.templateName, { color: theme.textPrimary }]} numberOfLines={1}>{t.name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={[styles.templateName, { color: theme.textPrimary }]} numberOfLines={1}>{t.name}</Text>
+                            {activeLabelTemplateId === t.id ? (
+                              <View style={styles.defaultBadge}>
+                                <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+                              </View>
+                            ) : null}
+                          </View>
                           <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                            {t.widthMm}x{t.heightMm}mm{activeLabelTemplateId === t.id ? ' • Active' : ''}
+                            {t.widthMm}x{t.heightMm}mm
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -1062,6 +1107,8 @@ const styles = StyleSheet.create({
   productPickText: { fontSize: 12, fontWeight: '700', marginLeft: 8, flex: 1 },
   templateRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8 },
   templateName: { fontSize: 12, fontWeight: '800' },
+  defaultBadge: { backgroundColor: '#10B981', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1.5, marginLeft: 6 },
+  defaultBadgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
   newTemplateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BRAND_COLORS.navyInk, borderRadius: 10, paddingVertical: 10, marginTop: 8 },
   newTemplateBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 6 },
   modalSafeArea: { flex: 1 },

@@ -34,8 +34,7 @@ export const createSale = async (req: Request, res: Response) => {
     // Strip any fields the frontend sends that don't exist in the Sale Prisma model
     const { notes, id: _id, invoiceNumber: _inv, ...data } = req.body;
     
-    // Generate invoice number. In a real app, use a sequence or locked counter.
-    // Here we just count existing sales to generate a number.
+    // Generate invoice number
     const count = await prisma.sale.count({ where: { userId } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
     
@@ -57,54 +56,75 @@ export const createSale = async (req: Request, res: Response) => {
         },
       });
 
-      // Update product stock
+      // Update product stock safely (supports catalog products and manual quick-bill line items)
       if (data.items && Array.isArray(data.items)) {
         for (const item of data.items) {
-          if (item.productId) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { currentStock: { decrement: item.quantity } }
-            });
-            await tx.stockHistory.create({
-              data: {
-                change: -item.quantity,
-                reason: 'sale',
-                productId: item.productId,
-                userId,
-                createdAt: saleDate,
+          const pid = item.productId || item.id;
+          if (pid && !String(pid).startsWith('manual-')) {
+            try {
+              const existingProd = await tx.product.findFirst({
+                where: { id: String(pid), userId }
+              });
+              if (existingProd) {
+                const qty = Number(item.quantity) || 1;
+                await tx.product.update({
+                  where: { id: existingProd.id },
+                  data: { currentStock: { decrement: qty } }
+                });
+                await tx.stockHistory.create({
+                  data: {
+                    change: -qty,
+                    reason: 'sale',
+                    productId: existingProd.id,
+                    userId,
+                    createdAt: saleDate,
+                  }
+                });
               }
-            });
+            } catch (stockErr) {
+              console.warn('Could not update stock for sale item:', pid, stockErr);
+            }
           }
         }
       }
 
       // Update customer credit whenever there is an unpaid balance for a registered customer
-      const unpaid = data.grandTotal - (data.amountPaid || 0);
+      const unpaid = Number(data.grandTotal || 0) - Number(data.amountPaid || 0);
       if (unpaid > 0.01 && data.customerId) {
-        await tx.customer.update({
-          where: { id: data.customerId },
-          data: { creditBalance: { increment: unpaid } }
-        });
-        
-        await tx.creditTransaction.create({
-          data: {
-            customerId: data.customerId,
-            amount: unpaid,
-            type: 'credit',
-            referenceId: sale.id,
-            notes: `Credit for Sale ${invoiceNumber}`,
-            userId,
-            createdAt: saleDate,
+        try {
+          const cust = await tx.customer.findFirst({
+            where: { id: String(data.customerId), userId }
+          });
+          if (cust) {
+            await tx.customer.update({
+              where: { id: cust.id },
+              data: { creditBalance: { increment: unpaid } }
+            });
+            
+            await tx.creditTransaction.create({
+              data: {
+                customerId: cust.id,
+                amount: unpaid,
+                type: 'credit',
+                referenceId: sale.id,
+                notes: `Credit for Sale ${invoiceNumber}`,
+                userId,
+                createdAt: saleDate,
+              }
+            });
           }
-        });
+        } catch (custErr) {
+          console.warn('Could not update customer credit:', data.customerId, custErr);
+        }
       }
 
       return sale;
     });
 
     res.status(201).json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create sale' });
+  } catch (error: any) {
+    console.error('Failed to create sale error:', error?.message || error);
+    res.status(500).json({ error: error?.message || 'Failed to create sale' });
   }
 };
 

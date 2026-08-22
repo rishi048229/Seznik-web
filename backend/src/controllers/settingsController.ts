@@ -40,6 +40,7 @@ const ALLOWED_SETTINGS_FIELDS = [
   'notificationConfig',
   'receiptConfig',
   'printerConfig',
+  'labelConfig',
 ];
 
 const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {

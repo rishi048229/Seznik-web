@@ -21,6 +21,9 @@ interface DraggableElementProps extends ElementBox {
   onCommit?: () => void;
   minWidthMm?: number;
   minHeightMm?: number;
+  /** The label's own size — drag/resize clamp to keep the element fully on the printable area. */
+  boundsWidthMm: number;
+  boundsHeightMm: number;
   children: React.ReactNode;
 }
 
@@ -52,6 +55,8 @@ export function DraggableElement({
   onCommit,
   minWidthMm = 3,
   minHeightMm = 3,
+  boundsWidthMm,
+  boundsHeightMm,
   children,
 }: DraggableElementProps) {
   // Live offsets applied on top of the "resting" (committed) box below, driven purely on the UI
@@ -68,26 +73,6 @@ export function DraggableElement({
     onChange(next);
     onCommit?.();
   };
-
-  const moveGesture = Gesture.Pan()
-    .onBegin(() => {
-      runOnJS(onSelect)();
-    })
-    .onUpdate((e) => {
-      translateX.value = e.translationX;
-      translateY.value = e.translationY;
-    })
-    .onEnd((e) => {
-      const nextBox: ElementBox = {
-        xMm: Math.max(0, xMm + e.translationX / pxPerMm),
-        yMm: Math.max(0, yMm + e.translationY / pxPerMm),
-        widthMm,
-        heightMm,
-      };
-      translateX.value = 0;
-      translateY.value = 0;
-      runOnJS(commitBox)(nextBox);
-    });
 
   const makeResizeGesture = (corner: 'tl' | 'tr' | 'bl' | 'br') =>
     Gesture.Pan()
@@ -113,13 +98,15 @@ export function DraggableElement({
         const nextBox: ElementBox = { xMm, yMm, widthMm, heightMm };
 
         if (corner === 'br' || corner === 'tr') {
-          nextBox.widthMm = Math.max(minWidthMm, widthMm + dxMm);
+          // Growing rightward — xMm (left edge) stays put, only clamp the width against the
+          // label's right edge so the element can never resize past the printable area.
+          nextBox.widthMm = Math.max(minWidthMm, Math.min(widthMm + dxMm, boundsWidthMm - xMm));
         } else {
           nextBox.widthMm = Math.max(minWidthMm, widthMm - dxMm);
           nextBox.xMm = Math.max(0, xMm + (widthMm - nextBox.widthMm));
         }
         if (corner === 'bl' || corner === 'br') {
-          nextBox.heightMm = Math.max(minHeightMm, heightMm + dyMm);
+          nextBox.heightMm = Math.max(minHeightMm, Math.min(heightMm + dyMm, boundsHeightMm - yMm));
         } else {
           nextBox.heightMm = Math.max(minHeightMm, heightMm - dyMm);
           nextBox.yMm = Math.max(0, yMm + (heightMm - nextBox.heightMm));
@@ -136,6 +123,34 @@ export function DraggableElement({
   const trGesture = makeResizeGesture('tr');
   const blGesture = makeResizeGesture('bl');
   const brGesture = makeResizeGesture('br');
+
+  const moveGesture = Gesture.Pan()
+    // A touch that could still be claimed by a corner-resize handle must never also activate the
+    // whole-element move gesture — without this, dragging a corner handle also nudged/translated
+    // the whole element at the same time (both Pan recognizers observing the same touch stream).
+    .blocksExternalGesture(tlGesture, trGesture, blGesture, brGesture)
+    // Small dead-zone before a drag registers, so tiny accidental touches (and touches meant for
+    // the page/canvas scroll) don't immediately steal the gesture.
+    .activeOffsetX([-8, 8])
+    .activeOffsetY([-8, 8])
+    .onBegin(() => {
+      runOnJS(onSelect)();
+    })
+    .onUpdate((e) => {
+      translateX.value = e.translationX;
+      translateY.value = e.translationY;
+    })
+    .onEnd((e) => {
+      const nextBox: ElementBox = {
+        xMm: Math.max(0, Math.min(boundsWidthMm - widthMm, xMm + e.translationX / pxPerMm)),
+        yMm: Math.max(0, Math.min(boundsHeightMm - heightMm, yMm + e.translationY / pxPerMm)),
+        widthMm,
+        heightMm,
+      };
+      translateX.value = 0;
+      translateY.value = 0;
+      runOnJS(commitBox)(nextBox);
+    });
 
 
   const baseLeft = xMm * pxPerMm;

@@ -62,7 +62,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       let ok: boolean;
       let modeLabel: string;
       if (labelPaperMode === 'gap' && activeLabelTemplate) {
-        ok = await ThermalPrinterService.printLabelFromTemplate(product, activeLabelTemplate);
+        ok = await ThermalPrinterService.printLabelFromTemplate(product, activeLabelTemplate, 1, labelGapMm);
         modeLabel = `"${activeLabelTemplate.name}" template`;
       } else if (labelPaperMode === 'continuous' && activeLabelTemplate) {
         ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, activeLabelTemplate, paperWidth);

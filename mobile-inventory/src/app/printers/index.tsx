@@ -468,7 +468,7 @@ export default function PrintersScreen() {
                   const ok =
                     labelPaperMode === 'continuous'
                       ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(sampleProduct, activeLabelTemplate, targetPaperWidth)
-                      : await ThermalPrinterService.printLabelFromTemplate(sampleProduct, activeLabelTemplate);
+                      : await ThermalPrinterService.printLabelFromTemplate(sampleProduct, activeLabelTemplate, 1, labelGapMm);
                   if (ok) Alert.alert('Test Label Sent', `Printed using the "${activeLabelTemplate.name}" template.`);
                   else Alert.alert('Print Failed', 'Could not reach the connected printer.');
                 } else if (labelPaperMode === 'continuous') {
@@ -1179,7 +1179,7 @@ export default function PrintersScreen() {
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.labelStudioBtnTitle}>Open Label Studio</Text>
                       <Text style={styles.labelStudioBtnSub}>
-                        {activeLabelTemplate ? `Active: "${activeLabelTemplate.name}"` : 'Design a personalized label with your own layout'}
+                        {activeLabelTemplate ? `Default: "${activeLabelTemplate.name}"` : 'Design a personalized label with your own layout'}
                       </Text>
                     </View>
                     <ChevronRight size={18} color="rgba(255,255,255,0.7)" />

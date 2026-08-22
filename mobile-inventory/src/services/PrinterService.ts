@@ -1760,7 +1760,7 @@ class ThermalPrinterServiceManager {
    * via the native SDK's confirmed-working `image` field (see buildTsplLabelFields's doc comment
    * on addBitmap) once that editor support exists.
    */
-  public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1): Promise<boolean> {
+  public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
     const DOTS_PER_MM = 8;
@@ -1884,7 +1884,7 @@ class ThermalPrinterServiceManager {
             await NativeTscPrinter.printLabel({
               width: template.widthMm,
               height: template.heightMm,
-              gap: 2,
+              gap: labelGapMm,
               direction: NativeTscPrinter.DIRECTION?.FORWARD ?? 0,
               reference: [0, 0],
               tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
