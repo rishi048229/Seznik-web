@@ -2,19 +2,10 @@ import { create } from 'zustand';
 import { UserPermissions, UserProfile } from '@/types/auth';
 import { getAuthToken, getStoredUser, removeAuthToken, removeStoredUser, setAuthToken, setStoredUser } from '@/services/secureStore';
 
-interface AuthState {
-  token: string | null;
-  user: UserProfile | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  initializeAuth: () => Promise<void>;
-  setAuth: (token: string, user: UserProfile) => Promise<void>;
-  updateUser: (user: UserProfile) => Promise<void>;
-  logout: () => Promise<void>;
-  hasPermission: (permission: keyof UserPermissions) => boolean;
-}
+/** Shared dev bypass credentials — always the same store for every tester/device. */
+export const DEV_BYPASS_TOKEN = 'dev-token-bypass';
 
-const defaultDevUser: UserProfile = {
+export const DEV_BYPASS_USER: UserProfile = {
   id: '6f183b3c-2753-4144-b723-dd366eb53526',
   email: 'owner@seznik.com',
   displayName: 'Seznik Owner',
@@ -24,9 +15,22 @@ const defaultDevUser: UserProfile = {
   accountType: 'user',
 };
 
+interface AuthState {
+  token: string | null;
+  user: UserProfile | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  initializeAuth: () => Promise<void>;
+  setAuth: (token: string, user: UserProfile) => Promise<void>;
+  loginWithDevBypass: () => Promise<void>;
+  updateUser: (user: UserProfile) => Promise<void>;
+  logout: () => Promise<void>;
+  hasPermission: (permission: keyof UserPermissions) => boolean;
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: 'dev-token-bypass',
-  user: defaultDevUser,
+  token: DEV_BYPASS_TOKEN,
+  user: DEV_BYPASS_USER,
   isLoading: true,
   isAuthenticated: true, // Default to true to bypass login directly to dashboard for dev
 
@@ -47,8 +51,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else {
         // Bypass login for quick dev testing; fallback to default dev admin user
         set({
-          token: 'dev-token-bypass',
-          user: defaultDevUser,
+          token: DEV_BYPASS_TOKEN,
+          user: DEV_BYPASS_USER,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -56,8 +60,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (e) {
       console.error('Failed to initialize auth from SecureStore:', e);
       set({
-        token: 'dev-token-bypass',
-        user: defaultDevUser,
+        token: DEV_BYPASS_TOKEN,
+        user: DEV_BYPASS_USER,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -73,6 +77,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: true,
       isLoading: false,
     });
+  },
+
+  /** Wipe any prior login and always open the shared Seznik POS Store dev account. */
+  loginWithDevBypass: async () => {
+    await removeAuthToken();
+    await removeStoredUser();
+
+    await setAuthToken(DEV_BYPASS_TOKEN);
+    await setStoredUser(DEV_BYPASS_USER);
+    set({
+      token: DEV_BYPASS_TOKEN,
+      user: DEV_BYPASS_USER,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+
+    try {
+      const { authApi } = await import('@/api/auth');
+      const profile = await authApi.getProfile();
+      const syncedUser: UserProfile = {
+        ...profile,
+        id: profile.id,
+        email: DEV_BYPASS_USER.email,
+        displayName: DEV_BYPASS_USER.displayName,
+        businessName: DEV_BYPASS_USER.businessName,
+        role: 'admin',
+        onboardingCompleted: true,
+        accountType: 'user',
+      };
+      await setStoredUser(syncedUser);
+      set({ user: syncedUser });
+    } catch {
+      // Backend unreachable — local dev user is still usable for UI testing
+    }
   },
 
   updateUser: async (user: UserProfile) => {

@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -50,6 +51,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const theme = useAppTheme();
   const { t, currentLanguage, setLanguage } = useTranslation();
   const { login, isLoggingIn } = useAuth();
@@ -296,16 +298,9 @@ export default function LoginScreen() {
               {/* Dev Bypass Login Button */}
               <TouchableOpacity
                 onPress={async () => {
-                  const { setAuth } = useAuthStore.getState();
-                  await setAuth('dev-token-bypass', {
-                    id: '6f183b3c-2753-4144-b723-dd366eb53526',
-                    email: 'owner@seznik.com',
-                    displayName: 'Seznik Owner',
-                    businessName: 'Seznik POS Store',
-                    role: 'admin',
-                    onboardingCompleted: true,
-                    accountType: 'user',
-                  });
+                  await useAuthStore.getState().loginWithDevBypass();
+                  queryClient.clear();
+                  queryClient.setQueryData(['auth', 'profile'], useAuthStore.getState().user);
                   router.replace('/');
                 }}
                 style={styles.bypassButton}
