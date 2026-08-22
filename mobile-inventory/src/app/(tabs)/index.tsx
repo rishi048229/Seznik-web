@@ -73,6 +73,7 @@ import { useSales } from '@/hooks/useSales';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
+import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';

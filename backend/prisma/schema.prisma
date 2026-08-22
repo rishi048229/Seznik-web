@@ -113,6 +113,7 @@ model Settings {
   notificationConfig Json?
   receiptConfig      Json?
   printerConfig      Json?
+  locationConfig     Json?
   // Pre-existing columns not previously tracked in this file (restored from live DB
   // introspection so `db push` stays additive-only and never proposes dropping real data).
   upiId              String?

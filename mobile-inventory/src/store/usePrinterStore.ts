@@ -632,7 +632,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       });
     } catch (e) {
       // Offline / not logged in yet — keep local defaults, just mark hydration attempted.
-      console.error('[usePrinterStore] hydrateFromSettings failed:', e);
+      console.warn('[usePrinterStore] using offline settings fallback:', e);
       set({ isHydrated: true });
     }
   },
@@ -669,4 +669,4 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 }));
 
 // Eagerly trigger hydration on store initialization so active template is available immediately
-usePrinterStore.getState().hydrateFromSettings().catch((e) => console.error('[usePrinterStore] eager hydrate failed:', e));
+usePrinterStore.getState().hydrateFromSettings().catch((e) => console.warn('[usePrinterStore] eager hydrate fallback:', e));

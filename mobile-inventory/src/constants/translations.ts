@@ -228,7 +228,6 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     status: 'Status',
     connected: 'Connected',
     disconnected: 'Disconnected',
-    clear: 'Clear',
     quantity: 'Quantity',
     price: 'Price',
     taxGst: 'Tax / GST',

@@ -115,10 +115,18 @@
       "Bash(curl -s http://localhost:5001/api/settings -H 'Authorization: Bearer dev-token-bypass')",
       "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' -X POST http://localhost:5001/api/settings -H 'Authorization: Bearer dev-token-bypass' -H 'Content-Type: application/json' -d '{\"labelConfig\":{\"templates\":[{\"id\":\"test-label-1\",\"name\":\"Test Label\"}],\"activeTemplateId\":\"test-label-1\"}}')",
       "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' http://localhost:5001/api/settings -H 'Authorization: Bearer dev-token-bypass')",
-      "Bash(curl -s -X POST http://localhost:5001/api/settings -H 'Authorization: Bearer dev-token-bypass' -H 'Content-Type: application/json' -d '{\"labelConfig\":null}')"
+      "Bash(curl -s -X POST http://localhost:5001/api/settings -H 'Authorization: Bearer dev-token-bypass' -H 'Content-Type: application/json' -d '{\"labelConfig\":null}')",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //FO CSV)",
+      "Bash(curl -s http://localhost:8081/status)",
+      "Bash(curl -s -m 5 \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /dev/null -w \"HTTP:%{http_code} size:%{size_download}\\\\n\")",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=23636\")",
+      "Bash(SCRATCH=\"/c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-desktop-seznik-app/10dd505b-0c85-4d38-a25b-3435b7ff8fd4/scratchpad\" *)",
+      "PowerShell(Stop-Process -Id 23636 -Force -ErrorAction SilentlyContinue)",
+      "Read(//c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-desktop-seznik-app/10dd505b-0c85-4d38-a25b-3435b7ff8fd4/scratchpad/**)"
     ],
     "additionalDirectories": [
-      "C:\\tmp_extracted_apk"
+      "C:\\tmp_extracted_apk",
+      "C:\\Users\\rishi\\AppData\\Local\\Temp\\claude\\c--Users-rishi-desktop-seznik-app\\10dd505b-0c85-4d38-a25b-3435b7ff8fd4\\scratchpad"
     ]
   }
 }

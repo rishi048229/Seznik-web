@@ -316,7 +316,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  overlayDismiss: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
+  overlayDismiss: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
   modalCard: { width: '100%', maxWidth: 440, maxHeight: '90%', borderRadius: 24, padding: 18, borderWidth: 1, flexShrink: 1, zIndex: 1, elevation: 8 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   modalTitle: { fontSize: 16, fontWeight: '900' },

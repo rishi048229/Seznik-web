@@ -31,6 +31,8 @@ const ALLOWED_SETTINGS_FIELDS = [
   'receiptConfig',
   'printerConfig',
   'labelConfig',
+  'locationConfig',
+  'upiId',
 ];
 
 const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {
