@@ -10,13 +10,6 @@ import type {
   HealthCheckResult,
 } from '../types/admin';
 
-const getApiBaseUrl = () => {
-  const envUrl = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5005/api').trim().replace(/\/$/, '');
-  return envUrl.endsWith('/admin') ? envUrl : `${envUrl}/admin`;
-};
-
-const API_BASE_URL = getApiBaseUrl();
-
 function isLocalDev(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -24,45 +17,30 @@ function isLocalDev(): boolean {
   );
 }
 
+function usesSameOriginAdminApi(): boolean {
+  if (typeof window === 'undefined') return true;
+  if (isLocalDev()) return true;
+  // Vercel is HTTPS; talking to an HTTP EC2 IP would be mixed content.
+  return window.location.protocol === 'https:';
+}
+
+function getAdminApiBase(): string {
+  if (usesSameOriginAdminApi()) return '/api/admin';
+
+  const envUrl = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5005/api').trim().replace(/\/$/, '');
+  return envUrl.endsWith('/admin') ? envUrl : `${envUrl}/admin`;
+}
+
 async function fetchAdminEndpoint<T>(path: string): Promise<T> {
-  const localUrl = `/api/admin${path}`;
-  const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}${path}` : null;
-
-  // Dev: Vite middleware talks directly to RDS — never fall back to a remote URL
-  // (avoids masking local DB errors with an 8s timeout to an unrelated server).
-  if (isLocalDev()) {
-    const res = await fetch(localUrl);
-    if (res.ok) return (await res.json()) as T;
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
-  }
-
-  // Production: try configured remote admin API, then same-origin fallback
-  if (remoteUrl) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(remoteUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) return (await res.json()) as T;
-      const errData = await res.json().catch(() => null);
-      throw new Error(errData?.error || `Remote server error (${res.status}) on ${path}`);
-    } catch (err: any) {
-      throw new Error(err.message || `Failed to connect to backend server on ${path}`);
-    }
-  }
-
-  const res = await fetch(localUrl);
+  const url = `${getAdminApiBase()}${path}`;
+  const res = await fetch(url);
   if (res.ok) return (await res.json()) as T;
   const errData = await res.json().catch(() => null);
   throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
 }
 
 async function postAdminEndpoint<T>(path: string, body?: unknown): Promise<T> {
-  const localUrl = `/api/admin${path}`;
-  const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}${path}` : null;
-  const url = isLocalDev() ? localUrl : remoteUrl || localUrl;
-
+  const url = `${getAdminApiBase()}${path}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -150,9 +128,13 @@ export async function unbanUser(userId: string | number): Promise<any> {
   return postAdminEndpoint(`/users/${encodeURIComponent(String(userId))}/unban`);
 }
 
-function getBackendBaseUrl(): string {
+function getBackendHealthUrl(): string {
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return '/api/pos-health';
+  }
   const apiUrl = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5001/api').trim().replace(/\/$/, '');
-  return apiUrl.replace(/\/api$/, '');
+  const base = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+  return `${base}/health`;
 }
 
 async function fetchHealthEndpoint(url: string): Promise<HealthCheckResult> {
@@ -183,13 +165,9 @@ async function fetchHealthEndpoint(url: string): Promise<HealthCheckResult> {
 }
 
 export async function fetchAdminHealth(): Promise<HealthCheckResult> {
-  const localUrl = '/api/admin/health';
-  const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}/health` : null;
-  const url = isLocalDev() ? localUrl : remoteUrl || localUrl;
-  return fetchHealthEndpoint(url);
+  return fetchHealthEndpoint(`${getAdminApiBase()}/health`);
 }
 
 export async function fetchBackendHealth(): Promise<HealthCheckResult> {
-  const base = getBackendBaseUrl();
-  return fetchHealthEndpoint(`${base}/api/health`);
+  return fetchHealthEndpoint(getBackendHealthUrl());
 }
