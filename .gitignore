@@ -7,3 +7,4 @@ build/
 .expo/
 .vite/
 expo-env.d.ts
+.vercel
