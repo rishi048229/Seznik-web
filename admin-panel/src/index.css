@@ -457,6 +457,114 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+.heatmap-color-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 8px 12px;
+  background: var(--bg-main);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.heatmap-color-legend__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.heatmap-color-legend__title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.heatmap-color-legend__palette {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.heatmap-color-legend__steps {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.heatmap-color-legend__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+}
+
+.heatmap-color-legend__swatch {
+  width: 100%;
+  min-width: 36px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.heatmap-color-legend__label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.1;
+}
+
+.heatmap-color-legend__clock {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.heatmap-color-legend--compact {
+  padding: 6px 10px;
+  gap: 8px 10px;
+}
+
+.heatmap-color-legend--compact .heatmap-color-legend__head {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.heatmap-color-legend--compact .heatmap-color-legend__title::after {
+  content: '·';
+  margin-left: 6px;
+  color: var(--border-color);
+}
+
+.heatmap-color-legend--compact .heatmap-color-legend__steps {
+  gap: 4px;
+}
+
+.heatmap-color-legend--compact .heatmap-color-legend__step {
+  min-width: 34px;
+}
+
+.heatmap-color-legend--compact .heatmap-color-legend__swatch {
+  min-width: 28px;
+  height: 10px;
+}
+
+.heatmap-color-legend--compact .heatmap-color-legend__label {
+  font-size: 0.58rem;
+}
+
 .section-chart--compact {
   padding: 10px 16px !important;
   height: 100%;

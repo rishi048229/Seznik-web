@@ -57,9 +57,42 @@ interface PaletteOption {
   id: HeatmapPalette;
   name: string;
   swatches: [string, string, string, string, string];
+  legendLabels: [string, string, string, string, string];
   getIntensity: (count: number, maxCount: number) => { background: string; border: string; boxShadow: string };
   getStatusBadge: (count: number, maxCount: number) => { label: string; color: string };
 }
+
+const LEGEND_LABELS: [string, string, string, string, string] = ['Quiet', 'Low', 'Moderate', 'High', 'Peak'];
+
+const HeatmapColorLegend: React.FC<{
+  palette: PaletteOption;
+  istTime?: string;
+  compact?: boolean;
+}> = ({ palette, istTime, compact = false }) => (
+  <div className={`heatmap-color-legend${compact ? ' heatmap-color-legend--compact' : ''}`}>
+    <div className="heatmap-color-legend__head">
+      <span className="heatmap-color-legend__title">Color index</span>
+      <span className="heatmap-color-legend__palette">{palette.name}</span>
+    </div>
+    <div className="heatmap-color-legend__steps">
+      {palette.swatches.map((swatchColor, idx) => (
+        <div key={`${palette.id}-${idx}`} className="heatmap-color-legend__step" title={palette.legendLabels[idx]}>
+          <div
+            className="heatmap-color-legend__swatch"
+            style={{
+              background: swatchColor,
+              border: idx === 0 ? '1px solid var(--border-color)' : 'none',
+            }}
+          />
+          <span className="heatmap-color-legend__label">{palette.legendLabels[idx]}</span>
+        </div>
+      ))}
+    </div>
+    {istTime ? (
+      <span className="heatmap-color-legend__clock">Now {istTime} IST</span>
+    ) : null}
+  </div>
+);
 
 const PALETTES: Record<HeatmapPalette, PaletteOption> = {
   traffic: {
@@ -72,6 +105,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       'rgba(249, 115, 22, 0.9)',
       '#EF4444',
     ],
+    legendLabels: LEGEND_LABELS,
     getIntensity: (count, maxCount) => {
       if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
       const ratio = count / maxCount;
@@ -99,6 +133,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       'rgba(236, 72, 153, 0.9)',
       '#F59E0B',
     ],
+    legendLabels: LEGEND_LABELS,
     getIntensity: (count, maxCount) => {
       if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
       const ratio = count / maxCount;
@@ -126,6 +161,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       'rgba(99, 102, 241, 0.9)',
       '#8B5CF6',
     ],
+    legendLabels: LEGEND_LABELS,
     getIntensity: (count, maxCount) => {
       if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
       const ratio = count / maxCount;
@@ -153,6 +189,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       'rgba(21, 128, 61, 0.9)',
       '#4ADE80',
     ],
+    legendLabels: LEGEND_LABELS,
     getIntensity: (count, maxCount) => {
       if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
       const ratio = count / maxCount;
@@ -180,6 +217,7 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
       'rgba(244, 63, 94, 0.9)',
       '#DC2626',
     ],
+    legendLabels: LEGEND_LABELS,
     getIntensity: (count, maxCount) => {
       if (count === 0) return { background: 'rgba(255, 255, 255, 0.025)', border: '1px solid var(--border-color)', boxShadow: 'none' };
       const ratio = count / maxCount;
@@ -567,42 +605,11 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         </div>
       </div>
 
-      {!embedded ? (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '10px',
-          padding: '6px 12px',
-          background: 'var(--bg-main)',
-          borderRadius: '8px',
-          border: '1px solid var(--border-color)',
-          fontSize: '0.7rem',
-          color: 'var(--text-muted)',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontWeight: 600 }}>Quiet</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {activePalette.swatches.map((swatchColor, idx) => (
-            <div
-              key={idx}
-              style={{
-                width: '14px',
-                height: '14px',
-                borderRadius: '3px',
-                background: swatchColor,
-                border: idx === 0 ? '1px solid var(--border-color)' : 'none',
-              }}
-            />
-          ))}
-        </div>
-        <span style={{ fontWeight: 700, color: activePalette.swatches[4] }}>Peak</span>
-        <span style={{ opacity: 0.5 }}>|</span>
-        <span>Now {istClock.time} IST</span>
-      </div>
-      ) : null}
+      <HeatmapColorLegend
+        palette={activePalette}
+        istTime={embedded ? undefined : istClock.time}
+        compact={embedded}
+      />
 
       {(todayError && viewTodayOnly) || (rangeError && !viewTodayOnly) ? (
         <div style={{ fontSize: '0.75rem', color: '#EF4444' }}>
