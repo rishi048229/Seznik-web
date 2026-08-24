@@ -23,6 +23,15 @@ export function useAuth() {
     },
   });
 
+  const qrLoginMutation = useMutation({
+    mutationFn: (code: string) => authApi.loginWithQr(code),
+    onSuccess: async (data) => {
+      queryClient.clear();
+      await setAuth(data.token, data.user);
+      queryClient.setQueryData(['auth', 'profile'], data.user);
+    },
+  });
+
   const registerMutation = useMutation({
     mutationFn: (payload: RegisterPayload) => authApi.register(payload),
     onSuccess: async (data) => {
@@ -68,6 +77,9 @@ export function useAuth() {
     login: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,
     loginError: loginMutation.error,
+    loginWithQr: qrLoginMutation.mutateAsync,
+    isLoggingInWithQr: qrLoginMutation.isPending,
+    qrLoginError: qrLoginMutation.error,
     register: registerMutation.mutateAsync,
     isRegistering: registerMutation.isPending,
     sendEmailOtp: sendEmailOtpMutation.mutateAsync,

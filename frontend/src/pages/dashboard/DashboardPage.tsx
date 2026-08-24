@@ -46,6 +46,7 @@ import {
   Tag,
   ExternalLink,
 } from 'lucide-react'
+import { MobileLoginQrCard } from '@/components/dashboard/MobileLoginQrCard'
 
 const PRINTER_STATUS_KEY: Record<string, TranslationKey> = {
   unsupported: 'dashboard.printerNotSupported',
@@ -300,6 +301,8 @@ export const DashboardPage = () => {
           </p>
         </Card>
       </div>
+
+      <MobileLoginQrCard />
 
       {/* Receipt Printer */}
       <Card data-tour="printer-card" className="p-5 bg-white border border-gray-100 shadow-sm mb-6">

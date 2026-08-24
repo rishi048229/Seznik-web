@@ -19,4 +19,5 @@ export const QUERY_KEYS = {
   SETTINGS: 'settings',
   TOKEN_TYPES: 'token-types',
   TOKENS: 'tokens',
+  QR_LOGIN: 'qr-login',
 } as const

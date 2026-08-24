@@ -24,12 +24,12 @@ import {
   Lock,
   Mail,
   Server,
-  ShieldCheck,
   ArrowRight,
   Globe,
   Check,
   X,
   Zap,
+  QrCode,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -41,6 +41,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { getApiBaseUrl, setApiBaseUrl } from '@/api/client';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES } from '@/constants/translations';
+import { LoginQrScanner } from '@/components/auth/LoginQrScanner';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
@@ -54,12 +55,13 @@ export default function LoginScreen() {
   const queryClient = useQueryClient();
   const theme = useAppTheme();
   const { t, currentLanguage, setLanguage } = useTranslation();
-  const { login, isLoggingIn } = useAuth();
+  const { login, isLoggingIn, loginWithQr, isLoggingInWithQr } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showApiConfig, setShowApiConfig] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
   const [baseUrlInput, setBaseUrlInput] = useState(getApiBaseUrl());
 
   const [emailFocused, setEmailFocused] = useState(false);
@@ -87,6 +89,12 @@ export default function LoginScreen() {
       const msg = err?.message || 'Login failed. Please check your credentials.';
       setApiError(msg);
     }
+  };
+
+  const handleQrLogin = async (code: string) => {
+    setApiError(null);
+    await loginWithQr(code);
+    setShowQrScanner(false);
   };
 
   const handleSaveApiUrl = () => {
@@ -295,6 +303,32 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
+              <View style={styles.orRow}>
+                <View style={[styles.orLine, { backgroundColor: theme.borderColor }]} />
+                <Text style={[styles.orText, { color: theme.textSecondary }]}>
+                  {t('orDivider', 'or')}
+                </Text>
+                <View style={[styles.orLine, { backgroundColor: theme.borderColor }]} />
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowQrScanner(true)}
+                disabled={isLoggingIn || isLoggingInWithQr}
+                style={[
+                  styles.qrButton,
+                  { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                ]}
+                activeOpacity={0.85}
+              >
+                <QrCode size={18} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
+                <Text style={[styles.qrButtonText, { color: theme.textPrimary }]}>
+                  {t('scanDashboardQr', 'Scan dashboard QR')}
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.qrHint, { color: theme.textSecondary }]}>
+                {t('scanDashboardQrSub', 'Sign in with the QR on your web dashboard')}
+              </Text>
+
               {/* Dev Bypass Login Button */}
               <TouchableOpacity
                 onPress={async () => {
@@ -418,6 +452,13 @@ export default function LoginScreen() {
             </View>
           </View>
         </Modal>
+
+        <LoginQrScanner
+          visible={showQrScanner}
+          onClose={() => setShowQrScanner(false)}
+          onCodeScanned={handleQrLogin}
+          isSubmitting={isLoggingInWithQr}
+        />
       </SafeAreaView>
     </ScreenBackground>
   );
@@ -560,6 +601,42 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 4,
+    gap: 10,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  qrButton: {
+    marginTop: 8,
+    borderRadius: 14,
+    height: 52,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  qrHint: {
+    marginTop: 8,
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   bypassButton: {
     marginTop: 12,

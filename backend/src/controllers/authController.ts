@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
@@ -665,5 +666,228 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to sync managed users' });
+  }
+};
+
+// ── QR login (web dashboard → mobile scanner) ────────────────────────────────
+const QR_LOGIN_TTL_MS = 2 * 60 * 1000;
+export const QR_LOGIN_TYPE = 'seznik.qr-login';
+
+const hashQrLoginCode = (code: string) =>
+  crypto.createHash('sha256').update(code, 'utf8').digest('hex');
+
+const extractQrLoginCode = (body: unknown): string => {
+  if (!body || typeof body !== 'object') return '';
+  const payload = body as Record<string, unknown>;
+
+  const candidates: string[] = [];
+  for (const key of ['code', 'token', 'qrPayload'] as const) {
+    if (typeof payload[key] === 'string' && payload[key].trim()) {
+      candidates.push(payload[key].trim());
+    }
+  }
+
+  for (const raw of candidates) {
+    try {
+      const parsed = JSON.parse(raw) as { c?: unknown };
+      if (typeof parsed?.c === 'string' && parsed.c.trim()) return parsed.c.trim();
+    } catch {
+      // not JSON
+    }
+    try {
+      const url = new URL(raw);
+      const fromQuery = url.searchParams.get('c') || url.searchParams.get('code');
+      if (fromQuery?.trim()) return fromQuery.trim();
+    } catch {
+      // not a URL
+    }
+    if (raw) return raw;
+  }
+
+  return '';
+};
+
+const resolveAccountById = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user) return { type: 'user' as const, record: user };
+  const managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
+  if (managedUser) return { type: 'managed' as const, record: managedUser };
+  return null;
+};
+
+const buildAuthResponseForAccount = (
+  account: NonNullable<Awaited<ReturnType<typeof resolveAccountById>>>
+):
+  | { ok: true; payload: { user: Record<string, unknown>; token: string } }
+  | { ok: false; status: number; body: Record<string, unknown> } => {
+  if (account.type === 'user') {
+    const user = account.record;
+    if ((user as { isBanned?: boolean }).isBanned) {
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: `Your account has been suspended by system administrator. Reason: ${(user as { banReason?: string | null }).banReason || 'Policy violation'}. Please contact support.`,
+          isBanned: true,
+          banReason: (user as { banReason?: string | null }).banReason,
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      payload: {
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          role: user.role || 'admin',
+          onboardingCompleted: user.onboardingCompleted,
+          accountType: 'user',
+        },
+        token: generateToken(user.id, user.role || 'admin'),
+      },
+    };
+  }
+
+  const managedUser = account.record;
+  return {
+    ok: true,
+    payload: {
+      user: {
+        id: managedUser.id,
+        email: managedUser.email,
+        displayName: managedUser.displayName,
+        role: managedUser.role || 'agent',
+        onboardingCompleted: true,
+        permissions: managedUser.permissions,
+        accountType: 'managed',
+      },
+      token: generateToken(managedUser.id, managedUser.role || 'agent'),
+    },
+  };
+};
+
+export const generateQrLogin = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as { user?: { id?: string } }).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authorized' });
+    }
+
+    const account = await resolveAccountById(userId);
+    if (!account) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const auth = buildAuthResponseForAccount(account);
+    if (!auth.ok) {
+      return res.status(auth.status).json(auth.body);
+    }
+
+    await prisma.qrLoginSession.deleteMany({
+      where: {
+        OR: [
+          { userId, consumedAt: null },
+          { expiresAt: { lt: new Date() } },
+        ],
+      },
+    });
+
+    const code = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + QR_LOGIN_TTL_MS);
+
+    const session = await prisma.qrLoginSession.create({
+      data: {
+        tokenHash: hashQrLoginCode(code),
+        userId,
+        accountType: account.type,
+        expiresAt,
+      },
+    });
+
+    const qrPayload = JSON.stringify({ t: QR_LOGIN_TYPE, v: 1, c: code });
+
+    res.json({
+      sessionId: session.id,
+      qrPayload,
+      expiresAt: expiresAt.toISOString(),
+      expiresInSeconds: Math.round(QR_LOGIN_TTL_MS / 1000),
+    });
+  } catch (error) {
+    console.error('generateQrLogin error:', error);
+    res.status(500).json({ error: 'Failed to generate login QR code' });
+  }
+};
+
+export const getQrLoginStatus = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as { user?: { id?: string } }).user?.id;
+    const sessionId = String(req.params.sessionId || '').trim();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authorized' });
+    }
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session id is required' });
+    }
+
+    const session = await prisma.qrLoginSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.userId !== userId) {
+      return res.status(404).json({ error: 'QR session not found' });
+    }
+
+    if (session.consumedAt) {
+      return res.json({ status: 'consumed' });
+    }
+    if (session.expiresAt.getTime() <= Date.now()) {
+      return res.json({ status: 'expired' });
+    }
+    return res.json({ status: 'pending' });
+  } catch (error) {
+    console.error('getQrLoginStatus error:', error);
+    res.status(500).json({ error: 'Failed to check QR login status' });
+  }
+};
+
+export const consumeQrLogin = async (req: Request, res: Response) => {
+  try {
+    const code = extractQrLoginCode(req.body);
+    if (!code) {
+      return res.status(400).json({ error: 'QR login code is required' });
+    }
+
+    const tokenHash = hashQrLoginCode(code);
+    const claimed = await prisma.qrLoginSession.updateMany({
+      where: {
+        tokenHash,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: { consumedAt: new Date() },
+    });
+
+    if (claimed.count !== 1) {
+      return res.status(400).json({ error: 'Invalid or expired QR code. Generate a new one from the dashboard.' });
+    }
+
+    const session = await prisma.qrLoginSession.findUnique({ where: { tokenHash } });
+    if (!session) {
+      return res.status(400).json({ error: 'Invalid or expired QR code. Generate a new one from the dashboard.' });
+    }
+
+    const account = await resolveAccountById(session.userId);
+    if (!account) {
+      return res.status(404).json({ error: 'Account no longer exists' });
+    }
+
+    const auth = buildAuthResponseForAccount(account);
+    if (!auth.ok) {
+      return res.status(auth.status).json(auth.body);
+    }
+
+    return res.json(auth.payload);
+  } catch (error) {
+    console.error('consumeQrLogin error:', error);
+    res.status(500).json({ error: 'Failed to sign in with QR code' });
   }
 };

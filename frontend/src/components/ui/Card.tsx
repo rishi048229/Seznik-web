@@ -10,9 +10,10 @@ interface CardProps {
   children: ReactNode
   className?: string
   onClick?: () => void
+  'data-tour'?: string
 }
 
-export const Card = ({ children, className, onClick }: CardProps) => {
+export const Card = ({ children, className, onClick, ...rest }: CardProps) => {
   return (
     <div
       className={cn(
@@ -21,6 +22,7 @@ export const Card = ({ children, className, onClick }: CardProps) => {
         className
       )}
       onClick={onClick}
+      {...rest}
     >
       {children}
     </div>

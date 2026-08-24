@@ -64,6 +64,22 @@ model EmailOtp {
   updatedAt  DateTime  @updatedAt
 }
 
+// Short-lived, one-time code shown as a QR on the web dashboard so the
+// mobile app can sign in as the same account without typing a password.
+// userId is not a FK: it may point at User or ManagedUser (see accountType).
+model QrLoginSession {
+  id          String    @id @default(uuid())
+  tokenHash   String    @unique
+  userId      String
+  accountType String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model ManagedUser {
   id          String   @id @default(uuid())
   uid         String   @unique

@@ -14,6 +14,9 @@ import {
   sendForgotPasswordOtp,
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
+  generateQrLogin,
+  getQrLoginStatus,
+  consumeQrLogin,
 } from '../controllers/authController';
 import { protect } from '../middlewares/authMiddleware';
 
@@ -31,6 +34,11 @@ router.post('/forgot-password/reset-password', resetPasswordWithOtp);
 router.post('/register', register);
 router.post('/login', login);
 router.post('/social', socialLogin);
+
+// QR login: dashboard generates a short-lived code; the mobile app consumes it.
+router.post('/qr-login/session', protect, generateQrLogin);
+router.get('/qr-login/session/:sessionId', protect, getQrLoginStatus);
+router.post('/qr-login', consumeQrLogin);
 router.get('/profile', protect, getProfile);
 router.post('/setRole', protect, setRole);
 router.post('/onboard', protect, completeOnboarding);

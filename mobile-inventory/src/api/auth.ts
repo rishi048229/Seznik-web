@@ -9,6 +9,13 @@ export const authApi = {
     });
   },
 
+  loginWithQr: async (code: string): Promise<AuthResponse> => {
+    return fetchApi<AuthResponse>('/auth/qr-login', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
     return fetchApi<AuthResponse>('/auth/register', {
       method: 'POST',

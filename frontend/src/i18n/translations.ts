@@ -102,6 +102,17 @@ const en = {
   'dashboard.printerPrinting': 'Printing…',
   'dashboard.connectedToPrinter': 'Connected to',
   'dashboard.failedToConnectPrinter': 'Failed to connect to printer',
+  'dashboard.mobileLoginTitle': 'Log in on your phone',
+  'dashboard.mobileLoginDesc': 'Open the Seznik app, tap Scan QR on the login screen, and point the camera at this code.',
+  'dashboard.mobileLoginStep1': 'Open Seznik POS on your phone',
+  'dashboard.mobileLoginStep2': 'On the login screen, tap Scan QR',
+  'dashboard.mobileLoginStep3': 'Point the camera at this code',
+  'dashboard.mobileLoginExpires': 'Expires in',
+  'dashboard.mobileLoginRefresh': 'New code',
+  'dashboard.mobileLoginConsumed': 'Phone signed in',
+  'dashboard.mobileLoginConsumedDesc': 'This device is now logged into the same account. Generate a new code to sign in another phone.',
+  'dashboard.mobileLoginExpired': 'This code expired. Generating a new one…',
+  'dashboard.mobileLoginError': 'Could not load a login QR code',
 
   // Settings
   'settings.title': 'Settings',
