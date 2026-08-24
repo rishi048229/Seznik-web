@@ -14,6 +14,13 @@ import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
 import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
 import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
+import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
+import {
+  exportProductsToExcel,
+  buildProductsHtmlReport,
+  triggerPrintReport,
+  triggerImageReportDownload,
+} from '@/utils/exportEngine'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
@@ -155,6 +162,7 @@ export const ProductsPage = () => {
   const [showAiModal, setShowAiModal] = useState(false)
   const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
   const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
+  const [showExportModal, setShowExportModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
@@ -793,6 +801,14 @@ export const ProductsPage = () => {
             className="shrink-0 whitespace-nowrap"
           >
             Manual Stock Update
+          </Button>
+          <Button
+            variant="outline"
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800 font-bold shrink-0 whitespace-nowrap"
+            leftIcon={<Download size={16} className="text-emerald-600 dark:text-emerald-400" />}
+            onClick={() => setShowExportModal(true)}
+          >
+            {selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export Products'}
           </Button>
         </div>
       </div>
@@ -2185,6 +2201,44 @@ export const ProductsPage = () => {
         steps={pageTutorial.tutorialData.tourSteps}
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
+      />
+
+      {/* Multi-Format Products Catalog & Valuation Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="Export Products & Inventory"
+        subtitle={browseStoreName ? `Store: ${browseStoreName}` : 'All Stores / Global Catalog'}
+        totalCount={selectedIds.size > 0 ? selectedIds.size : activeProducts.length}
+        itemLabel={selectedIds.size > 0 ? 'selected products' : 'products'}
+        storeName={browseStoreName || undefined}
+        businessName={settings?.businessName || 'SEZNIK ENTERPRISES'}
+        businessGSTIN={settings?.businessGSTIN}
+        businessPhone={settings?.businessPhone}
+        onExport={async (format) => {
+          const targetProducts = selectedIds.size > 0
+            ? activeProducts.filter(p => selectedIds.has(p.id))
+            : activeProducts
+
+          const meta = {
+            businessName: settings?.businessName || 'SEZNIK ENTERPRISES',
+            businessAddress: settings?.businessAddress || '',
+            businessPhone: settings?.businessPhone || '',
+            businessGSTIN: settings?.businessGSTIN || '',
+            businessLogoURL: settings?.businessLogoURL || '',
+            storeName: browseStoreName || undefined,
+          }
+
+          if (format === 'excel') {
+            exportProductsToExcel(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+          } else if (format === 'pdf') {
+            const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            triggerPrintReport(html, 'Products-Inventory-Report')
+          } else if (format === 'image') {
+            const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            await triggerImageReportDownload(html, `products-catalog-${new Date().toISOString().slice(0, 10)}`)
+          }
+        }}
       />
     </div>
   )

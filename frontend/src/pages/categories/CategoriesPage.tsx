@@ -15,7 +15,15 @@ import {
   useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, useToggleCategoryActive,
 } from '@/hooks/useCategories'
 import { useProducts } from '@/hooks/useProducts'
+import { useSettings } from '@/hooks/useSettings'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
+import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
+import {
+  exportCategoriesToExcel,
+  buildCategoriesHtmlReport,
+  triggerPrintReport,
+  triggerImageReportDownload,
+} from '@/utils/exportEngine'
 import type { Category } from '@/services/categoryService'
 import {
   Plus, Pencil, Trash2, Search, Download, ChevronLeft, ChevronRight, ChevronDown,
@@ -44,6 +52,7 @@ export const CategoriesPage = () => {
   const pageTutorial = usePageTutorial('categories')
   const { data: categories = [], isLoading } = useCategories()
   const { data: products } = useProducts()
+  const { data: settings } = useSettings()
   const { mutate: createCategory, isPending: isCreating } = useCreateCategory()
   const { mutate: updateCategory, isPending: isUpdating } = useUpdateCategory()
   const { mutate: deleteCategory } = useDeleteCategory()
@@ -52,6 +61,7 @@ export const CategoriesPage = () => {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [showExportModal, setShowExportModal] = useState(false)
 
   // Create/edit modal state — one modal handles both top-level categories and subcategories.
   const [modalOpen, setModalOpen] = useState(false)
@@ -231,7 +241,13 @@ export const CategoriesPage = () => {
           <Card className="overflow-hidden">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Management</h3>
-              <Button variant="outline" size="sm" leftIcon={<Download size={14} />}>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Download size={14} />}
+                onClick={() => setShowExportModal(true)}
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800"
+              >
                 Export
               </Button>
             </div>
@@ -580,6 +596,37 @@ export const CategoriesPage = () => {
         steps={pageTutorial.tutorialData.tourSteps}
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
+      />
+
+      {/* Multi-Format Categories Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="Export Categories & Subcategories"
+        subtitle={`${topLevel.length} Main Categories · ${all.length - topLevel.length} Subcategories`}
+        totalCount={all.length}
+        itemLabel="categories"
+        businessName={settings?.businessName || 'SEZNIK ENTERPRISES'}
+        businessGSTIN={settings?.businessGSTIN}
+        businessPhone={settings?.businessPhone}
+        onExport={async (format) => {
+          const meta = {
+            businessName: settings?.businessName || 'SEZNIK ENTERPRISES',
+            businessAddress: settings?.businessAddress || '',
+            businessPhone: settings?.businessPhone || '',
+            businessGSTIN: settings?.businessGSTIN || '',
+            businessLogoURL: settings?.businessLogoURL || '',
+          }
+          if (format === 'excel') {
+            exportCategoriesToExcel(all, products ?? [], meta)
+          } else if (format === 'pdf') {
+            const html = buildCategoriesHtmlReport(all, products ?? [], meta)
+            triggerPrintReport(html, 'Categories-Directory')
+          } else if (format === 'image') {
+            const html = buildCategoriesHtmlReport(all, products ?? [], meta)
+            await triggerImageReportDownload(html, `categories-directory-${new Date().toISOString().slice(0, 10)}`)
+          }
+        }}
       />
     </div>
   )
