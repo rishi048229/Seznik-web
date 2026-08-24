@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { Spinner } from '@/components/ui/Spinner'
+import { TokensGridSkeleton } from '@/components/ui/PageSkeleton'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { useTokenTypes, useCreateTokenType, useUpdateTokenType, useDeleteTokenType } from '@/hooks/useTokenTypes'
@@ -315,7 +315,7 @@ export const QuickTokensPage = () => {
       {/* Issue grid */}
       <Card className="p-6 mb-6">
         {typesLoading ? (
-          <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+          <TokensGridSkeleton count={8} />
         ) : activeTypes.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Ticket size={48} className="mx-auto mb-3 opacity-30" />

@@ -11,7 +11,7 @@ export const Skeleton = ({ variant = 'text', width, height, className }: Skeleto
   return (
     <div
       className={clsx(
-        'animate-pulse bg-gray-200 dark:bg-gray-700',
+        'skeleton-shimmer bg-gray-200 dark:bg-gray-700/80',
         {
           'h-4 w-full': variant === 'text',
           'rounded-full': variant === 'circular',
@@ -20,6 +20,7 @@ export const Skeleton = ({ variant = 'text', width, height, className }: Skeleto
         className
       )}
       style={{ width, height }}
+      aria-hidden="true"
     />
   )
 }

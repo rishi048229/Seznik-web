@@ -10,7 +10,7 @@ interface UsersSectionProps {
 }
 
 export const UsersSection: React.FC<UsersSectionProps> = ({ initialSearchTerm }) => {
-  const [timeRange, setTimeRange] = useState('7d');
+  const [timeRange, setTimeRange] = useState('all');
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -36,7 +36,9 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ initialSearchTerm })
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
         <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Showing users registered in the selected time window
+          {timeRange === 'all'
+            ? 'Showing all registered merchant users'
+            : 'Showing users registered in the selected time window'}
         </p>
         <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />
       </div>

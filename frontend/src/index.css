@@ -30,6 +30,28 @@
   .dark .scrollbar-thin::-webkit-scrollbar-thumb {
     background: #475569;
   }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
+  }
+
+  .dark .skeleton-shimmer::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  }
 }
 
 /* Animation keyframes for dropdown */
@@ -50,6 +72,12 @@
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 

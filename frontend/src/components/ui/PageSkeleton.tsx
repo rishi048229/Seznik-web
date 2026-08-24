@@ -171,3 +171,106 @@ export const SettingsPageSkeleton = () => (
     </div>
   </div>
 )
+
+export const AuthPageSkeleton = () => (
+  <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 animate-fadeIn" aria-busy="true" aria-label="Loading">
+    <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg p-8 space-y-6">
+      <div className="flex flex-col items-center gap-3">
+        <Skeleton variant="rectangular" className="h-14 w-14 rounded-2xl" />
+        <Skeleton variant="text" className="h-6 w-44" />
+        <Skeleton variant="text" className="h-4 w-56" />
+      </div>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Skeleton variant="text" className="h-4 w-16" />
+          <Skeleton variant="rectangular" className="h-11 w-full rounded-xl" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton variant="text" className="h-4 w-20" />
+          <Skeleton variant="rectangular" className="h-11 w-full rounded-xl" />
+        </div>
+        <Skeleton variant="rectangular" className="h-11 w-full rounded-xl" />
+      </div>
+      <Skeleton variant="text" className="h-4 w-40 mx-auto" />
+    </div>
+  </div>
+)
+
+export const DetailPageSkeleton = () => (
+  <div className="space-y-6 w-full animate-fadeIn">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <Skeleton variant="circular" className="h-10 w-10" />
+        <div className="space-y-2">
+          <Skeleton variant="text" className="h-6 w-44" />
+          <Skeleton variant="text" className="h-4 w-32" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Skeleton variant="rectangular" className="h-10 w-28 rounded-xl" />
+        <Skeleton variant="rectangular" className="h-10 w-28 rounded-xl" />
+      </div>
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+        <Skeleton variant="text" className="h-5 w-36" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-0">
+            <Skeleton variant="text" className="h-4 w-40" />
+            <Skeleton variant="text" className="h-4 w-20" />
+          </div>
+        ))}
+        <Skeleton variant="rectangular" className="h-10 w-full rounded-xl mt-4" />
+      </div>
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+        <Skeleton variant="text" className="h-5 w-28" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex justify-between">
+            <Skeleton variant="text" className="h-4 w-24" />
+            <Skeleton variant="text" className="h-4 w-16" />
+          </div>
+        ))}
+        <Skeleton variant="rectangular" className="h-12 w-full rounded-xl" />
+      </div>
+    </div>
+  </div>
+)
+
+export const TokensGridSkeleton = ({ count = 10 }: { count?: number }) => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-fadeIn">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="flex flex-col items-center gap-3 p-5 rounded-xl border border-gray-100 dark:border-gray-700">
+        <Skeleton variant="circular" className="h-12 w-12" />
+        <Skeleton variant="text" className="h-4 w-20" />
+        <Skeleton variant="text" className="h-3 w-14" />
+      </div>
+    ))}
+  </div>
+)
+
+export const TokensPageSkeleton = () => (
+  <div className="space-y-6 w-full animate-fadeIn">
+    <div className="flex items-center justify-between gap-4">
+      <Skeleton variant="text" className="h-7 w-36" />
+      <Skeleton variant="rectangular" className="h-10 w-36 rounded-xl" />
+    </div>
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+      <TokensGridSkeleton />
+    </div>
+    <TableSkeleton rows={5} columns={4} />
+  </div>
+)
+
+export const ChartWidgetSkeleton = () => (
+  <div className="flex flex-col items-center justify-center gap-3 py-6 animate-fadeIn">
+    <Skeleton variant="circular" className="w-28 h-28" />
+    <div className="w-full space-y-2 px-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between">
+          <Skeleton variant="text" className="h-3.5 w-24" />
+          <Skeleton variant="text" className="h-3.5 w-16" />
+        </div>
+      ))}
+    </div>
+  </div>
+)

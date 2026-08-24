@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
-import { Spinner } from '@/components/ui/Spinner'
-import { DashboardSkeleton } from '@/components/ui/PageSkeleton'
+import { DashboardSkeleton, ChartWidgetSkeleton } from '@/components/ui/PageSkeleton'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -357,7 +356,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<Wallet size={18} className="text-blue-500" />} title={t('dashboard.paymentModes')} onView={() => navigate(ROUTES.REPORTS_SALES)} />
           {loadingPaymentModes ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            <ChartWidgetSkeleton />
           ) : !paymentModes || paymentModes.modes.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
@@ -391,7 +390,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<PieChartIcon size={18} className="text-emerald-500" />} title={t('dashboard.profitBreakdown')} onView={() => navigate(ROUTES.REPORTS_PL)} />
           {loadingProfitBreakdown ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            <ChartWidgetSkeleton />
           ) : !profitBreakdown || profitBreakdown.revenue === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
@@ -425,7 +424,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<Package size={18} className="text-amber-500" />} title={t('dashboard.topProducts')} onView={() => navigate(ROUTES.PRODUCTS)} />
           {loadingTopProducts ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            <ChartWidgetSkeleton />
           ) : !topProducts || topProducts.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">{t('common.noSalesYet')}</p>
           ) : (
@@ -452,7 +451,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<Tag size={18} className="text-purple-500" />} title={t('dashboard.topCategories')} onView={() => navigate(ROUTES.CATEGORIES)} />
           {loadingTopCategories ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            <ChartWidgetSkeleton />
           ) : !topCategories || topCategories.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">{t('common.noSalesYet')}</p>
           ) : (
@@ -473,7 +472,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<IndianRupee size={18} className="text-red-500" />} title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
           {loadingExpenseSummary ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            <ChartWidgetSkeleton />
           ) : !expenseSummary ? (
             <p className="text-sm text-gray-400 text-center py-8">{t('dashboard.noData')}</p>
           ) : (

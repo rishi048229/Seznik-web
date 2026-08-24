@@ -8,7 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { MobileNav } from '@/components/layout/MobileNav'
-import { Spinner } from '@/components/ui/Spinner'
+import { RouteLoadingFallback } from '@/components/ui/RouteLoadingFallback'
 import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
@@ -47,11 +47,7 @@ const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'T
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 
-const LoadingFallback = (
-  <div className="flex justify-center py-12">
-    <Spinner size="lg" />
-  </div>
-)
+const LoadingFallback = <RouteLoadingFallback />
 
 const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)

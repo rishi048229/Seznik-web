@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Spinner } from '@/components/ui/Spinner'
+import { RouteLoadingFallback } from '@/components/ui/RouteLoadingFallback'
 import { ROUTES } from '@/constants/routes'
 import { type ReactNode } from 'react'
 
@@ -13,11 +13,7 @@ export const PrivateRoute = ({ children }: PrivateRouteProps) => {
   const location = useLocation()
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <RouteLoadingFallback />
   }
 
   if (!user) {

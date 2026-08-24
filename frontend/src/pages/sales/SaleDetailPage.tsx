@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
+import { DetailPageSkeleton } from '@/components/ui/PageSkeleton'
 import { ArrowLeft, Printer, FileText, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
@@ -89,9 +89,7 @@ export const SaleDetailPage = () => {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-    )
+    return <DetailPageSkeleton />
   }
 
   if (!sale) {
