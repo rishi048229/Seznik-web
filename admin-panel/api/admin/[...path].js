@@ -11,7 +11,12 @@ import {
 import { getPool, sendJson, readJsonBody } from '../../lib/adminDb.js';
 
 function pathSegments(req) {
-  const raw = req.query.path;
+  const rawUrl = req.url || '';
+  const pathname = new URL(rawUrl, 'http://localhost').pathname;
+  const trimmed = pathname.replace(/^\/api\/admin\/?/, '');
+  if (trimmed) return trimmed.split('/').filter(Boolean);
+
+  const raw = req.query?.path;
   if (Array.isArray(raw)) return raw.filter(Boolean);
   if (typeof raw === 'string' && raw.length > 0) return raw.split('/').filter(Boolean);
   return [];
