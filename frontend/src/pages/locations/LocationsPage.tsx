@@ -16,7 +16,7 @@ import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSe
 import { useProducts } from '@/hooks/useProducts'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Store, Plus, Pencil, Trash2, ArrowRightLeft, Package, Search } from 'lucide-react'
+import { Store, Plus, Pencil, Trash2, ArrowRightLeft, Package, Search, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Location } from '@/types/location.types'
 
@@ -46,7 +46,11 @@ export const LocationsPage = () => {
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
   const [stockSearch, setStockSearch] = useState('')
   const [showAllProducts, setShowAllProducts] = useState(true)
+  const [stockPage, setStockPage] = useState(1)
+  const [stockPageSize, setStockPageSize] = useState(15)
+
   const [transferOpen, setTransferOpen] = useState(false)
+  const [transferSearch, setTransferSearch] = useState('')
   const [transferProductId, setTransferProductId] = useState('')
   const [transferFromId, setTransferFromId] = useState('')
   const [transferToId, setTransferToId] = useState('')
@@ -128,8 +132,25 @@ export const LocationsPage = () => {
   const activeLocation = locations.find(l => l.id === activeLocationId)
   const stockByProductId = new Map(locationStock.map(s => [s.productId, s]))
   const filteredProducts = (products ?? [])
-    .filter(p => p.isActive !== false && p.name.toLowerCase().includes(stockSearch.toLowerCase()))
+    .filter(p => p.isActive !== false && (
+      p.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
+      p.sku?.toLowerCase().includes(stockSearch.toLowerCase()) ||
+      p.barcode?.toLowerCase().includes(stockSearch.toLowerCase())
+    ))
     .filter(p => showAllProducts || (stockByProductId.get(p.id)?.stock ?? 0) > 0)
+
+  const totalStockPages = Math.max(1, Math.ceil(filteredProducts.length / stockPageSize))
+  const paginatedProducts = filteredProducts.slice((stockPage - 1) * stockPageSize, stockPage * stockPageSize)
+
+  const openTransferForProduct = (prodId: string) => {
+    setTransferProductId(prodId)
+    setTransferFromId(activeLocationId || '')
+    const otherLoc = locations.find(l => l.id !== activeLocationId && l.isActive)
+    setTransferToId(otherLoc?.id || '')
+    setTransferQty('')
+    setTransferSearch('')
+    setTransferOpen(true)
+  }
 
   const handleStockChange = (productId: string, field: 'stock' | 'priceOverride', value: string) => {
     if (!activeLocationId) return
@@ -153,7 +174,9 @@ export const LocationsPage = () => {
         onSuccess: () => {
           toast.success('Stock transferred')
           setTransferOpen(false)
-          setTransferProductId(''); setTransferQty('')
+          setTransferProductId('')
+          setTransferQty('')
+          setTransferSearch('')
         },
         onError: (err: any) => toast.error(err?.message || 'Transfer failed'),
       }
@@ -293,54 +316,118 @@ export const LocationsPage = () => {
                 {isStockLoading ? (
                   <TableSkeleton rows={4} columns={3} />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                          <th className="py-2 pr-2">{t('common.product') || 'Product'}</th>
-                          <th className="py-2 px-2">{t('locations.stockAtLocation') || 'Stock here'}</th>
-                          <th className="py-2 px-2">{t('locations.priceOverride') || 'Price override'}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                        {filteredProducts.map(p => {
-                          const stockRow = stockByProductId.get(p.id)
-                          return (
-                            <tr key={p.id}>
-                              <td className="py-2 pr-2">
-                                <p className="font-medium text-gray-900 dark:text-gray-100">{p.name}</p>
-                                <p className="text-[10px] text-gray-400">Base price: {formatINR(p.sellingPrice)}</p>
-                              </td>
-                              <td className="py-2 px-2">
-                                <input
-                                  type="number"
-                                  defaultValue={stockRow?.stock ?? 0}
-                                  onBlur={e => handleStockChange(p.id, 'stock', e.target.value)}
-                                  className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
-                                />
-                              </td>
-                              <td className="py-2 px-2">
-                                <input
-                                  type="number"
-                                  placeholder={String(p.sellingPrice)}
-                                  defaultValue={stockRow?.priceOverride ?? ''}
-                                  onBlur={e => handleStockChange(p.id, 'priceOverride', e.target.value)}
-                                  className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
-                                />
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                            <th className="py-2.5 pr-2">{t('common.product') || 'Product'}</th>
+                            <th className="py-2.5 px-2">{t('locations.stockAtLocation') || 'Stock here'}</th>
+                            <th className="py-2.5 px-2">{t('locations.priceOverride') || 'Price override'}</th>
+                            <th className="py-2.5 px-2 text-right">Transfer</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                          {paginatedProducts.map(p => {
+                            const stockRow = stockByProductId.get(p.id)
+                            return (
+                              <tr key={p.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                <td className="py-2.5 pr-2">
+                                  <p className="font-medium text-gray-900 dark:text-gray-100">{p.name}</p>
+                                  <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
+                                    <span>Base: {formatINR(p.sellingPrice)}</span>
+                                    {p.sku && <span>• SKU: {p.sku}</span>}
+                                    {p.barcode && <span>• {p.barcode}</span>}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-2">
+                                  <input
+                                    type="number"
+                                    defaultValue={stockRow?.stock ?? 0}
+                                    onBlur={e => handleStockChange(p.id, 'stock', e.target.value)}
+                                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 font-semibold"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2">
+                                  <input
+                                    type="number"
+                                    placeholder={String(p.sellingPrice)}
+                                    defaultValue={stockRow?.priceOverride ?? ''}
+                                    onBlur={e => handleStockChange(p.id, 'priceOverride', e.target.value)}
+                                    className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                                  />
+                                </td>
+                                <td className="py-2.5 px-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => openTransferForProduct(p.id)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg transition-colors"
+                                    title="Transfer stock of this product to another store"
+                                  >
+                                    <ArrowRightLeft size={12} />
+                                    Transfer
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          {filteredProducts.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="py-8 text-center text-gray-400">
+                                {showAllProducts ? 'No products match your search.' : "This store doesn't carry any products yet — add stock above, or check \"Show all products\"."}
                               </td>
                             </tr>
-                          )
-                        })}
-                        {filteredProducts.length === 0 && (
-                          <tr>
-                            <td colSpan={3} className="py-6 text-center text-gray-400">
-                              {showAllProducts ? 'No products match your search.' : "This store doesn't carry any products yet — add stock above, or check \"Show all products\"."}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {filteredProducts.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500">
+                        <div className="flex items-center gap-2">
+                          <span>
+                            Showing {(stockPage - 1) * stockPageSize + 1}–{Math.min(stockPage * stockPageSize, filteredProducts.length)} of {filteredProducts.length} items
+                          </span>
+                          <select
+                            value={stockPageSize}
+                            onChange={e => {
+                              setStockPageSize(Number(e.target.value))
+                              setStockPage(1)
+                            }}
+                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs"
+                          >
+                            <option value={15}>15 per page</option>
+                            <option value={30}>30 per page</option>
+                            <option value={50}>50 per page</option>
+                            <option value={100}>100 per page</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={stockPage <= 1}
+                            onClick={() => setStockPage(p => Math.max(1, p - 1))}
+                            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                          >
+                            <ChevronLeft size={14} />
+                          </button>
+                          <span className="px-2 font-medium">
+                            Page {stockPage} of {totalStockPages}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={stockPage >= totalStockPages}
+                            onClick={() => setStockPage(p => Math.min(totalStockPages, p + 1))}
+                            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -381,40 +468,104 @@ export const LocationsPage = () => {
       </Modal>
 
       {/* Stock transfer modal */}
-      <Modal isOpen={transferOpen} onClose={() => setTransferOpen(false)} title={t('locations.transfer') || 'Transfer Stock'}>
-        <div className="space-y-3">
+      <Modal isOpen={transferOpen} onClose={() => setTransferOpen(false)} title={t('locations.transfer') || 'Transfer Stock'} size="md">
+        <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">{t('common.product') || 'Product'}</label>
-            <select
-              value={transferProductId}
-              onChange={e => setTransferProductId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm"
-            >
-              <option value="">Select product</option>
-              {(products ?? []).filter(p => p.isActive !== false).map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              Select Product *
+            </label>
+            <div className="relative mb-2">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={transferSearch}
+                onChange={e => setTransferSearch(e.target.value)}
+                placeholder="Search by name, SKU or barcode..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700"
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+              {(products ?? [])
+                .filter(p => p.isActive !== false && (
+                  !transferSearch.trim() ||
+                  p.name.toLowerCase().includes(transferSearch.toLowerCase()) ||
+                  p.sku?.toLowerCase().includes(transferSearch.toLowerCase()) ||
+                  p.barcode?.toLowerCase().includes(transferSearch.toLowerCase())
+                ))
+                .slice(0, 25)
+                .map(p => {
+                  const isSelected = transferProductId === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setTransferProductId(p.id)}
+                      className={`w-full px-3 py-2 text-left flex items-center justify-between transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 text-white'
+                          : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-800 dark:text-gray-200'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <p className="text-xs font-semibold truncate">{p.name}</p>
+                        <p className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                          {p.sku ? `SKU: ${p.sku}` : ''} {p.barcode ? `• ${p.barcode}` : ''}
+                        </p>
+                      </div>
+                      {isSelected && <Check size={14} className="shrink-0 text-white" />}
+                    </button>
+                  )
+                })}
+            </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-              <select value={transferFromId} onChange={e => setTransferFromId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm">
-                <option value="">Select</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Source Store (From) *</label>
+              <select
+                value={transferFromId}
+                onChange={e => setTransferFromId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+              >
+                <option value="">Select source store</option>
+                {locations.filter(l => l.isActive).map(l => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-              <select value={transferToId} onChange={e => setTransferToId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm">
-                <option value="">Select</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Destination Store (To) *</label>
+              <select
+                value={transferToId}
+                onChange={e => setTransferToId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+              >
+                <option value="">Select destination</option>
+                {locations.filter(l => l.isActive).map(l => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
               </select>
             </div>
           </div>
-          <Input label="Quantity" type="number" value={transferQty} onChange={e => setTransferQty(e.target.value)} />
-          <Button onClick={handleTransfer} disabled={isTransferring} className="w-full">
-            {t('locations.transfer') || 'Transfer'}
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Transfer Quantity *</label>
+            <Input
+              type="number"
+              min="1"
+              value={transferQty}
+              onChange={e => setTransferQty(e.target.value)}
+              placeholder="e.g. 10"
+              className="w-full"
+            />
+          </div>
+
+          <Button
+            onClick={handleTransfer}
+            disabled={isTransferring || !transferProductId || !transferFromId || !transferToId || !transferQty}
+            className="w-full py-2.5 font-bold"
+          >
+            {isTransferring ? 'Transferring...' : (t('locations.transfer') || 'Transfer Stock')}
           </Button>
         </div>
       </Modal>

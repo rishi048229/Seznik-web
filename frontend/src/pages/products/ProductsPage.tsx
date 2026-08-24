@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -142,6 +142,7 @@ export const ProductsPage = () => {
   const { mutate: bulkDeleteProducts, isPending: isBulkDeleting } = useBulkDeleteProducts()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<ProductFormState>(defaultForm)
@@ -207,6 +208,20 @@ export const ProductsPage = () => {
     setDetailProduct(product)
     setIsDetailOpen(true)
   }
+
+  const searchSuggestions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return (products ?? [])
+      .filter((p: Product) => p.isActive !== false && (
+        p.name.toLowerCase().includes(q) ||
+        p.sku?.toLowerCase().includes(q) ||
+        p.barcode?.toLowerCase().includes(q) ||
+        (p.brand && p.brand.toLowerCase().includes(q))
+      ))
+      .slice(0, 6)
+  }, [products, search])
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -845,14 +860,60 @@ export const ProductsPage = () => {
           </div>
         </div>
 
-        <div data-tour="search-input" className="relative w-full sm:w-72 shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        <div data-tour="search-input" className="relative w-full sm:w-80 shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={16} />
           <Input
             placeholder={t('products.searchPlaceholder')}
             value={search}
-            onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
+            onChange={e => {
+              setSearch(e.target.value)
+              setShowSearchSuggestions(true)
+              setCurrentPage(1)
+            }}
+            onFocus={() => setShowSearchSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 250)}
             className="pl-9 w-full text-xs h-9"
           />
+          {showSearchSuggestions && search.trim().length > 0 && searchSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
+              <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                Matching Products ({searchSuggestions.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {searchSuggestions.map((p: Product) => {
+                  const stock = getBrowseStock(p)
+                  const price = getBrowsePrice(p)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setSearch(p.name)
+                        setShowSearchSuggestions(false)
+                        setCurrentPage(1)
+                      }}
+                      className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                          {p.sku && <span>SKU: {p.sku}</span>}
+                          {p.barcode && <span>• {p.barcode}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
+                        <span className={`block text-[10px] ${stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                          {stock <= 0 ? 'Out of Stock' : `${stock} in stock`}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

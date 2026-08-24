@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateSale } from '@/hooks/useSales'
 
@@ -27,6 +27,7 @@ import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 import type { Sale } from '@/types/sale.types'
+import type { Product } from '@/types/product.types'
 
 interface CartItem {
   id: string
@@ -104,6 +105,7 @@ export const POSLitePage = () => {
   const [productPrice, setProductPrice] = useState('')
   const [productQty, setProductQty] = useState('1')
   const [productTaxRate, setProductTaxRate] = useState('0')
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false)
 
   // Multi-location inventory: resolve this location's price override, if any
   // (see LocationSelector/POSPage for the full explanation of the model).
@@ -113,6 +115,27 @@ export const POSLitePage = () => {
     if (!selectedLocationId) return product.sellingPrice
     const override = locationStockRows.find(r => r.productId === product.id)?.priceOverride
     return override ?? product.sellingPrice
+  }
+
+  const nameSuggestions = useMemo(() => {
+    const q = productName.trim().toLowerCase()
+    if (!q) return []
+    return (products ?? [])
+      .filter(p => p.isActive !== false && (
+        p.name.toLowerCase().includes(q) ||
+        p.sku?.toLowerCase().includes(q) ||
+        p.barcode?.toLowerCase().includes(q)
+      ))
+      .slice(0, 6)
+  }, [products, productName])
+
+  const handleSelectSuggestedProduct = (p: Product) => {
+    const effectivePrice = getEffectivePrice(p)
+    setProductName(p.name)
+    setProductPrice(String(effectivePrice))
+    setProductTaxRate(String(p.taxRate ?? 0))
+    setGstMode(p.priceIncludesGst ? 'inclusive' : 'exclusive')
+    setShowNameSuggestions(false)
   }
 
   // Barcode scan: look up product from catalog and add directly to cart
@@ -535,16 +558,56 @@ export const POSLitePage = () => {
           {/* Manual Product Entry Form */}
           <Card className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2" data-tour="pos-lite-name-input">
+              <div className="md:col-span-2 relative" data-tour="pos-lite-name-input">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t('pos.productNameLabel')}
                 </label>
                 <Input
                   value={productName}
-                  onChange={e => setProductName(e.target.value)}
+                  onChange={e => {
+                    setProductName(e.target.value)
+                    setShowNameSuggestions(true)
+                  }}
+                  onFocus={() => setShowNameSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
                   placeholder={t('pos.enterProductName')}
                   className="w-full"
                 />
+                {showNameSuggestions && productName.trim().length > 0 && nameSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
+                    <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                      Suggested Catalog Items ({nameSuggestions.length})
+                    </div>
+                    <div className="max-h-56 overflow-y-auto">
+                      {nameSuggestions.map(p => {
+                        const price = getEffectivePrice(p)
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              handleSelectSuggestedProduct(p)
+                            }}
+                            className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
+                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                {p.barcode && <span>Barcode: {p.barcode}</span>}
+                                {p.sku && <span>• SKU: {p.sku}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
+                              <span className="block text-[10px] text-gray-400">GST: {p.taxRate ?? 0}%</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

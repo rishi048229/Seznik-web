@@ -1056,7 +1056,7 @@ export const PrintersPage = () => {
           </div>
 
           {/* Live Preview Panel — 100% Reactive to all Section Toggles */}
-          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0">
+          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Live Preview — {config.paperSize}</span>
               {receiptConfig.compactMode && (
@@ -1067,9 +1067,9 @@ export const PrintersPage = () => {
             </div>
 
             {/* Scrollable Receipt Preview Container */}
-            <div className="w-full max-w-[400px] flex flex-col items-center max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar p-1 pb-4">
+            <div className="w-full max-w-[400px] flex flex-col items-center max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar p-1 pb-4 max-w-full">
               <div
-                className={`bg-white text-gray-900 p-4 rounded-t-xl shadow-xl border-t-8 border-blue-600 font-mono transition-all duration-300 max-w-full ${
+                className={`bg-white text-gray-900 p-4 rounded-t-xl shadow-xl border-t-8 border-blue-600 font-mono transition-all duration-300 max-w-full overflow-hidden ${
                   config.paperSize === '58mm' ? 'w-[280px]' : 'w-[360px]'
                 }`}
                 style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.12)' }}
@@ -1487,11 +1487,11 @@ export const PrintersPage = () => {
             </div>
 
             {/* Live Preview */}
-            <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+            <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
               <span className="text-xs font-semibold text-gray-400 mb-3">
                 Live Preview — {config.labelWidth}mm × {config.labelHeight}mm
               </span>
-              <div className="p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px]">
+              <div className="p-6 sm:p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px] max-w-full overflow-hidden relative">
                 <div
                   className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
                   style={{
@@ -1615,9 +1615,9 @@ export const PrintersPage = () => {
             </div>
           </div>
 
-          <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
             <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview</span>
-            <div className="w-[320px] bg-white text-gray-900 p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between">
+            <div className="w-full max-w-[320px] bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
               <div>
                 <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
                   <div>
