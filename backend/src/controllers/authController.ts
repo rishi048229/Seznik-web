@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
+import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
@@ -296,9 +297,11 @@ export const register = async (req: Request, res: Response) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    const platform = resolveRegistrationPlatform(req);
 
     const user = await prisma.user.create({
       data: {
+        id: generateUserId(platform),
         email,
         emailVerified: true,
         phone,
@@ -404,8 +407,10 @@ export const socialLogin = async (req: Request, res: Response) => {
         });
       }
 
+      const platform = resolveRegistrationPlatform(req);
       user = await prisma.user.create({
         data: {
+          id: generateUserId(platform),
           email,
           uid,
           displayName,

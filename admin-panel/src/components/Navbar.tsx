@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Smartphone,
   Search,
+  HeartPulse,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -96,6 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'users', label: 'Registered Users', icon: Users },
     { id: 'traffic', label: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', icon: ExternalLink },
+    { id: 'health', label: 'System Health', icon: HeartPulse },
   ];
 
   return (

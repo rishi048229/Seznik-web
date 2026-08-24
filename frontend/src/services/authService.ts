@@ -20,7 +20,7 @@ export const registerUser = async (email: string, pass: string, firstName: strin
   const displayName = `${firstName} ${lastName}`.trim();
   const data = await fetchApi('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password: pass, displayName, phone }),
+    body: JSON.stringify({ email, password: pass, displayName, phone, registrationSource: 'web' }),
   })
   setAuthToken(data.token)
   return data

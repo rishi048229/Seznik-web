@@ -790,6 +790,37 @@ app.get('/api/admin/products', async (req, res) => {
   }
 });
 
+// GET /api/admin/health - Server & Database health check
+app.get('/api/admin/health', async (req, res) => {
+  try {
+    const startTime = Date.now();
+    await pool.query('SELECT 1');
+    const dbLatencyMs = Date.now() - startTime;
+
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      database: {
+        status: 'connected',
+        latencyMs: dbLatencyMs,
+      },
+      environment: process.env.NODE_ENV || 'production',
+      memoryUsageMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 100) / 100,
+      port: PORT,
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'disconnected',
+        error: err instanceof Error ? err.message : 'Database ping failed',
+      },
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[Seznik Admin Backend] Listening on port ${PORT}`);
 });

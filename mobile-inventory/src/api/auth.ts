@@ -12,7 +12,7 @@ export const authApi = {
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
     return fetchApi<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, registrationSource: 'mobile' }),
     });
   },
 

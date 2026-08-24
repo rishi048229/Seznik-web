@@ -62,4 +62,5 @@ export interface RegisterPayload {
   password?: string;
   phone: string;
   displayName?: string;
+  registrationSource?: 'web' | 'mobile';
 }

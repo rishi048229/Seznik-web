@@ -847,7 +847,44 @@ export default defineConfig(({ mode }) => {
               }
             }
 
-            // 7. GET /api/admin/products
+            // 7. GET /api/admin/health
+            if (pathname === '/api/admin/health') {
+              try {
+                const startTime = Date.now();
+                await pool.query('SELECT 1');
+                const dbLatencyMs = Date.now() - startTime;
+
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  status: 'healthy',
+                  timestamp: new Date().toISOString(),
+                  uptimeSeconds: Math.floor(process.uptime()),
+                  database: {
+                    status: 'connected',
+                    latencyMs: dbLatencyMs,
+                  },
+                  environment: process.env.NODE_ENV || 'development',
+                  memoryUsageMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 100) / 100,
+                }));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/health:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  status: 'unhealthy',
+                  timestamp: new Date().toISOString(),
+                  database: {
+                    status: 'disconnected',
+                    error: err.message || 'Database ping failed',
+                  },
+                }));
+                return;
+              }
+            }
+
+            // 8. GET /api/admin/products
             if (pathname === '/api/admin/products') {
               const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10));
               try {

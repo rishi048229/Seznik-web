@@ -141,3 +141,21 @@ export interface AdminProduct {
   createdAt: string;
 }
 
+export interface HealthDatabaseStatus {
+  status: 'connected' | 'disconnected';
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface HealthCheckResult {
+  status: 'healthy' | 'unhealthy';
+  timestamp: string;
+  uptimeSeconds?: number;
+  database?: HealthDatabaseStatus;
+  environment?: string;
+  memoryUsageMb?: number;
+  port?: number;
+  serverLatencyMs?: number;
+  error?: string;
+}
+

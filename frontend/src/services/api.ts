@@ -20,6 +20,7 @@ export const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
   
   const headers = {
     'Content-Type': 'application/json',
+    'x-client-platform': 'web',
     ...options.headers,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };

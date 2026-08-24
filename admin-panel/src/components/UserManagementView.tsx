@@ -26,6 +26,12 @@ import {
 } from 'lucide-react';
 import type { UserRecord } from '../types/admin';
 import { banUser, unbanUser } from '../services/api';
+import {
+  getRegistrationSource,
+  getRegistrationSourceLabel,
+  getRegistrationSourceStyle,
+  type RegistrationSource,
+} from '../utils/registrationSource';
 
 interface UserManagementViewProps {
   users: UserRecord[];
@@ -41,6 +47,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onRefreshUsers,
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
+  const [sourceFilter, setSourceFilter] = useState<'all' | RegistrationSource>('all');
   const [viewMode, setViewMode] = useState<'paginated' | 'scroll'>('paginated');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -53,7 +60,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, pageSize]);
+  }, [searchTerm, pageSize, sourceFilter]);
 
   // Modal State for User Profile Details
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<UserRecord | null>(null);
@@ -124,14 +131,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   };
 
   const filteredUsers = users.filter((u) => {
-    return (
+    const matchesSearch =
       String(u.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.uid || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.displayName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (u.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (u.businessName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (u.phone || '').includes(searchTerm)
-    );
+      (u.phone || '').includes(searchTerm);
+
+    const matchesSource =
+      sourceFilter === 'all' || getRegistrationSource(u.id) === sourceFilter;
+
+    return matchesSearch && matchesSource;
   });
 
   // Pagination Calculations
@@ -221,6 +232,28 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <span>Scroll View</span>
             </button>
           </div>
+
+          {/* Source Filter */}
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as 'all' | RegistrationSource)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-main)',
+              color: 'var(--text-main)',
+              fontSize: '0.8rem',
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+            aria-label="Filter by registration source"
+          >
+            <option value="all">All Sources</option>
+            <option value="web">Web</option>
+            <option value="mobile">Mobile</option>
+            <option value="legacy">Legacy</option>
+          </select>
 
           {/* Search Input */}
           <div style={{ position: 'relative', width: '280px', maxWidth: '100%' }}>
@@ -332,6 +365,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               }}
             >
               <th>User ID</th>
+              <th>Source</th>
               <th>User Name &amp; Email</th>
               <th>Business Name</th>
               <th>Phone</th>
@@ -344,7 +378,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <tbody>
             {displayedUsers.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                   No merchant users match your search criteria.
                 </td>
               </tr>
@@ -353,6 +387,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 const banInfo = bannedMap[u.id];
                 const isUserBanned = banInfo?.banned || u.isBanned;
                 const banReasonText = banInfo?.reason || u.banReason || 'Account suspended by admin';
+                const registrationSource = getRegistrationSource(u.id);
+                const sourceStyle = getRegistrationSourceStyle(registrationSource);
 
                 return (
                   <tr key={u.id}>
@@ -360,6 +396,22 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       <code style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }} title={String(u.id)}>
                         #{typeof u.id === 'string' && u.id.length > 8 ? `${u.id.slice(0, 8)}…` : u.id}
                       </code>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          color: sourceStyle.color,
+                          background: sourceStyle.background,
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid var(--border-color)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {getRegistrationSourceLabel(registrationSource)}
+                      </span>
                     </td>
                     <td>
                       <div style={{ cursor: 'pointer' }} onClick={() => setSelectedUserForProfile(u)}>
@@ -737,7 +789,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       {u.displayName || 'Merchant User'}
                     </h3>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      User ID: #{u.id} • UID: <code style={{ color: 'var(--accent-blue)' }}>{u.uid}</code>
+                      User ID: #{u.id} • Source:{' '}
+                      <span style={{ color: getRegistrationSourceStyle(getRegistrationSource(u.id)).color, fontWeight: 600 }}>
+                        {getRegistrationSourceLabel(getRegistrationSource(u.id))}
+                      </span>{' '}
+                      • UID: <code style={{ color: 'var(--accent-blue)' }}>{u.uid}</code>
                     </div>
                   </div>
                 </div>

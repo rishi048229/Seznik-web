@@ -7,6 +7,7 @@ import type {
   DeviceSessionBreakdownData,
   InvoiceRecord,
   AdminProduct,
+  HealthCheckResult,
 } from '../types/admin';
 
 const getApiBaseUrl = () => {
@@ -147,4 +148,48 @@ export async function banUser(userId: string | number, reason: string): Promise<
 
 export async function unbanUser(userId: string | number): Promise<any> {
   return postAdminEndpoint(`/users/${encodeURIComponent(String(userId))}/unban`);
+}
+
+function getBackendBaseUrl(): string {
+  const apiUrl = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5001/api').trim().replace(/\/$/, '');
+  return apiUrl.replace(/\/api$/, '');
+}
+
+async function fetchHealthEndpoint(url: string): Promise<HealthCheckResult> {
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    const data = (await res.json().catch(() => ({}))) as HealthCheckResult;
+    return {
+      ...data,
+      status: data.status || (res.ok ? 'healthy' : 'unhealthy'),
+      timestamp: data.timestamp || new Date().toISOString(),
+      serverLatencyMs: Date.now() - start,
+    };
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    return {
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      serverLatencyMs: Date.now() - start,
+      error: err?.name === 'AbortError' ? 'Request timed out after 8s' : (err?.message || 'Server unreachable'),
+      database: { status: 'disconnected', error: 'Could not reach server' },
+    };
+  }
+}
+
+export async function fetchAdminHealth(): Promise<HealthCheckResult> {
+  const localUrl = '/api/admin/health';
+  const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}/health` : null;
+  const url = isLocalDev() ? localUrl : remoteUrl || localUrl;
+  return fetchHealthEndpoint(url);
+}
+
+export async function fetchBackendHealth(): Promise<HealthCheckResult> {
+  const base = getBackendBaseUrl();
+  return fetchHealthEndpoint(`${base}/api/health`);
 }

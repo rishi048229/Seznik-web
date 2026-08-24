@@ -8,6 +8,7 @@ import { PeakUsageHeatmap } from './components/PeakUsageHeatmap';
 import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
 import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
+import { HealthView } from './components/HealthView';
 import {
   fetchDashboardMetrics,
   fetchUserRecords,
@@ -24,7 +25,7 @@ import type {
   DeviceSessionBreakdownData,
 } from './types/admin';
 
-const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects'];
+const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'health'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -194,7 +195,9 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {loading && !metrics ? (
+        {activeTab === 'health' ? (
+          <HealthView />
+        ) : loading && !metrics ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
             <div className="pulse-dot" style={{ width: '16px', height: '16px' }} />
             <span style={{ marginLeft: '12px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
