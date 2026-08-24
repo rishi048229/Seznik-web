@@ -512,15 +512,13 @@ export const generateReceiptEscPos = async ({
   const b = new EscPosBuilder()
   b.init(paperSize)
 
-  // Store logo, rasterized to an actual bitmap the printer hardware can
-  // draw — previously this was never attempted at all on the thermal path
-  // (only the browser/A4 HTML preview rendered it via <img>), so the logo
-  // silently never appeared on a real printed receipt no matter what was
-  // uploaded in Printer Settings.
+  // Store logo, rasterized to an actual high-contrast 1bpp bitmap.
+  // Sized proportionally to ensure fast, continuous printing without printer buffer stalls.
   const logoSrc = (receiptConfig?.showLogo ?? true) ? (receiptConfig?.logoURL || '') : ''
   if (logoSrc) {
-    const maxWidthDots = paperSize === '80mm' ? 384 : 256 // leave margin either side of the head width
-    const raster = await rasterizeImageForEscPos(logoSrc, maxWidthDots)
+    const maxWidthDots = paperSize === '80mm' ? 320 : 224
+    const maxHeightDots = paperSize === '80mm' ? 96 : 72
+    const raster = await rasterizeImageForEscPos(logoSrc, maxWidthDots, maxHeightDots)
     if (raster) {
       b.align('center')
       b.image(raster.packed, raster.widthBytes, raster.heightDots)
