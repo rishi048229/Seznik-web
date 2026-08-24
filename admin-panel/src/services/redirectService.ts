@@ -1,55 +1,23 @@
 import type { AdminProductRedirect, RedirectClickEvent } from '../types/redirect';
+import { SEZNIK_WEBSITE_PRODUCTS } from '../data/seznikWebsiteProducts';
 
-const ADMIN_REDIRECTS_STORAGE_KEY = 'seznik_admin_redirects_telemetry_v1';
-
-const generateClicks = (count: number, now: Date): RedirectClickEvent[] => {
-  const clicks: RedirectClickEvent[] = [];
-  const sources = ['Google Organic', 'Instagram Ads', 'Direct Website', 'Facebook', 'Email Newsletter', 'Affiliate Link'];
-  const devices: ('Desktop' | 'Mobile')[] = ['Desktop', 'Mobile', 'Mobile', 'Desktop', 'Mobile'];
-
-  for (let i = 0; i < count; i++) {
-    const hoursAgo = Math.floor(Math.random() * (30 * 24));
-    const timestamp = new Date(now.getTime() - hoursAgo * 3600 * 1000).toISOString();
-    clicks.push({
-      id: `clk_adm_${i}_${Math.random().toString(36).substring(2, 7)}`,
-      timestamp,
-      source: sources[i % sources.length],
-      device: devices[i % devices.length],
-    });
-  }
-
-  return clicks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-};
+const ADMIN_REDIRECTS_STORAGE_KEY = 'seznik_admin_redirects_telemetry_v2';
+const SEZNIK_STORE_ORIGIN = 'https://seznik.in';
 
 export const getInitialAdminRedirects = (): AdminProductRedirect[] => {
   const now = new Date();
-  const domain = 'https://seznik.com';
 
-  const defaultProducts = [
-    { name: 'Classic Banarasi Silk Sari', sku: 'SAR-001', price: 4999, category: 'Apparel & Fashion' },
-    { name: 'Leather Bifold Slim Wallet', sku: 'WAL-004', price: 1299, category: 'Fashion Accessories' },
-    { name: 'Wireless Noise Cancelling Earbuds', sku: 'EAR-102', price: 2499, category: 'Electronics' },
-    { name: 'Organic Assam Green Tea (250g)', sku: 'TEA-088', price: 450, category: 'Food & Beverage' },
-    { name: 'Ergonomic Mesh Office Chair', sku: 'CHR-501', price: 8999, category: 'Office Furniture' },
-    { name: 'Smart Fitness Tracker Band', sku: 'FT-900', price: 1999, category: 'Electronics' },
-    { name: 'Stainless Steel Water Bottle (1L)', sku: 'BOT-330', price: 699, category: 'Home & Kitchen' },
-    { name: 'Handcrafted Brass Puja Diya', sku: 'DIY-108', price: 850, category: 'Home Decor' },
-  ];
-
-  return defaultProducts.map((p, idx) => {
-    const clickCount = Math.max(12, 140 - idx * 15);
-    const clicks = generateClicks(clickCount, now);
+  return SEZNIK_WEBSITE_PRODUCTS.map((p) => {
     return {
-      id: `red_adm_${idx + 1}`,
-      productId: `prod_${idx + 1}`,
+      id: `red_adm_${p.id}`,
+      productId: p.id,
       productName: p.name,
       productSku: p.sku,
-      sellingPrice: p.price,
-      categoryName: p.category,
-      targetUrl: `${domain}/products/${p.sku.toLowerCase()}`,
-      clicks,
-      totalRedirects: clicks.length,
-      lastRedirectAt: clicks[0]?.timestamp,
+      sellingPrice: p.sellingPrice,
+      categoryName: p.categoryName,
+      targetUrl: p.productUrl,
+      clicks: [],
+      totalRedirects: 0,
       status: 'active',
       createdAt: new Date(now.getTime() - 40 * 24 * 3600 * 1000).toISOString(),
     };
@@ -143,7 +111,6 @@ export const addAdminProductRedirect = (
   customUrl?: string
 ): AdminProductRedirect[] => {
   const redirects = fetchAdminRedirects();
-  const domain = 'https://seznik.com';
   const newRedirect: AdminProductRedirect = {
     id: `red_adm_custom_${Date.now()}`,
     productId: `prod_custom_${Date.now()}`,
@@ -151,7 +118,7 @@ export const addAdminProductRedirect = (
     productSku: sku,
     sellingPrice: price,
     categoryName: category,
-    targetUrl: customUrl || `${domain}/products/${sku.toLowerCase()}`,
+    targetUrl: customUrl || `${SEZNIK_STORE_ORIGIN}/products/${sku.toLowerCase()}`,
     clicks: [],
     totalRedirects: 0,
     status: 'active',

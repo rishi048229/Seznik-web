@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Search, AlertTriangle, RefreshCw } from 'lucide-react';
-import { fetchProducts } from '../services/api';
-import type { AdminProduct } from '../types/admin';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Search } from 'lucide-react';
+import { SEZNIK_WEBSITE_PRODUCTS } from '../data/seznikWebsiteProducts';
 
 type TimeFrame = '24h' | '7d' | '30d' | 'all' | 'custom';
 
@@ -10,6 +9,7 @@ interface ProductRedirectItem {
   name: string;
   sku: string;
   category: string;
+  productUrl: string;
   redirects: {
     '24h': number;
     '7d': number;
@@ -30,9 +30,6 @@ const TIMEFRAMES: { id: TimeFrame; label: string }[] = [
 export const RedirectsView: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('7d');
   const [searchQuery, setSearchQuery] = useState('');
-  const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const fourteenDaysAgoStr = useMemo(() => {
@@ -44,40 +41,28 @@ export const RedirectsView: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState<string>(fourteenDaysAgoStr);
   const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
 
-  const loadProducts = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchProducts(100);
-      setProducts(data);
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to load products for redirects:', err);
-      setError(err?.message || 'Failed to fetch products from database');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
   const redirectItems: ProductRedirectItem[] = useMemo(() => {
-    return products.map((p) => ({
-      id: p.id,
-      name: p.name,
-      sku: p.sku || 'N/A',
-      category: p.categoryName || 'General',
-      redirects: {
-        '24h': 0,
-        '7d': 0,
-        '30d': 0,
-        all: 0,
-        custom: 0,
-      },
-    }));
-  }, [products]);
+    return [...SEZNIK_WEBSITE_PRODUCTS]
+      .sort((a, b) => {
+        const categoryCmp = a.categoryName.localeCompare(b.categoryName);
+        if (categoryCmp !== 0) return categoryCmp;
+        return a.name.localeCompare(b.name);
+      })
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku || 'N/A',
+        category: p.categoryName || 'General',
+        productUrl: p.productUrl,
+        redirects: {
+          '24h': 0,
+          '7d': 0,
+          '30d': 0,
+          all: 0,
+          custom: 0,
+        },
+      }));
+  }, []);
 
   const filteredData = useMemo(() => {
     let result = redirectItems;
@@ -109,51 +94,12 @@ export const RedirectsView: React.FC = () => {
           color: 'var(--text-muted)',
         }}
       >
-        <strong style={{ color: '#F59E0B' }}>Demo data:</strong> Redirect counts are not tracked in the database yet. Product names come from the catalog; redirect numbers are placeholders until analytics are wired up.
+        <strong style={{ color: '#F59E0B' }}>Demo data:</strong> Redirect counts are not tracked in the database yet. Product names are the full catalog from{' '}
+        <a href="https://seznik.in/collections/all" target="_blank" rel="noreferrer" style={{ color: '#F59E0B' }}>
+          seznik.in
+        </a>
+        {' '}({SEZNIK_WEBSITE_PRODUCTS.length} products). Redirect numbers are placeholders until analytics are wired up.
       </div>
-
-      {/* Error Banner */}
-      {error && (
-        <div
-          className="admin-error-banner"
-          style={{
-            padding: '12px 18px',
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            borderRadius: '10px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertTriangle size={20} color="#EF4444" />
-            <div>
-              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#EF4444' }}>
-                Catalog / Redirects Database Error
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {error}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={loadProducts}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              color: '#fff',
-              background: '#EF4444',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={13} /> Retry
-          </button>
-        </div>
-      )}
 
       {/* Header & Timeframe Bar */}
       <div className="glass-card" style={{ padding: '20px 24px' }}>
@@ -163,13 +109,19 @@ export const RedirectsView: React.FC = () => {
               Website Redirects
             </h2>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              Track the number of website redirects per product across different timeframes.
+              Track website redirects per product from the seznik.in catalog ({SEZNIK_WEBSITE_PRODUCTS.length} products).
             </p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               {/* Total Badge */}
+              <div style={{ padding: '6px 14px', borderRadius: '8px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginRight: '6px' }}>Products:</span>
+                <strong style={{ fontSize: '0.95rem', color: 'var(--accent-blue)', fontWeight: 700 }}>
+                  {filteredData.length.toLocaleString()}
+                </strong>
+              </div>
               <div style={{ padding: '6px 14px', borderRadius: '8px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginRight: '6px' }}>Total Redirects:</span>
                 <strong style={{ fontSize: '0.95rem', color: 'var(--accent-blue)', fontWeight: 700 }}>
@@ -294,8 +246,15 @@ export const RedirectsView: React.FC = () => {
               ) : (
                 filteredData.map((item) => (
                   <tr key={item.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.86rem' }}>
-                      {item.name}
+                    <td style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.86rem', maxWidth: '520px' }}>
+                      <a
+                        href={item.productUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'inherit', textDecoration: 'none' }}
+                      >
+                        {item.name}
+                      </a>
                     </td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                       {item.sku}
