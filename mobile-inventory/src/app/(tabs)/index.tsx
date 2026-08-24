@@ -112,6 +112,21 @@ export default function DashboardScreen() {
   } = useDashboard();
   const [timeframe, setTimeframe] = useState<'month' | 'daily' | 'monthly'>('month');
   const { trend, isLoading: isTrendLoading, refetch: refetchTrend } = useRevenueTrend(timeframe);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      await Promise.allSettled([
+        refetch(),
+        refetchTrend(),
+        refetchProducts(),
+        refetchCustomers(),
+      ]);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -510,14 +525,10 @@ export default function DashboardScreen() {
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={() => {
-                refetch();
-                refetchTrend();
-                refetchProducts();
-                refetchCustomers();
-              }}
+              refreshing={isManualRefreshing}
+              onRefresh={handleManualRefresh}
               tintColor={BRAND_COLORS.sky500}
+              colors={[BRAND_COLORS.sky500]}
             />
           }
         >

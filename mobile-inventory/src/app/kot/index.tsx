@@ -58,6 +58,16 @@ export default function KotOrdersScreen() {
   const { orders, isLoading, isRefetching, isError, refetch } = useKotOrders(
     activeStatuses.length > 0 ? activeStatuses : undefined
   );
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -242,7 +252,7 @@ export default function KotOrdersScreen() {
             <FlatList
               data={filteredOrders}
               keyExtractor={(item) => item.id}
-              refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+              refreshControl={<RefreshControl refreshing={isManualRefreshing} onRefresh={handleRefresh} />}
               contentContainerStyle={{ paddingBottom: 30 }}
               renderItem={({ item }) => {
                 const badge = getStatusBadge(item.status);
