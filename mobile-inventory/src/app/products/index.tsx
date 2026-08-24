@@ -72,6 +72,8 @@ import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { GST_SLAB_OPTIONS, GST_CUSTOM_OPTION, getGstSlabLabel, isStandardGstSlab } from '@/constants/gstSlabs';
 import { calculateProductGstBreakdown } from '@/utils/gst';
 import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
+import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
+import { useLocations, useLocationStock } from '@/hooks/useLocations';
 
 export default function ProductsScreen() {
   const router = useRouter();
@@ -95,6 +97,12 @@ export default function ProductsScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
+  // Multi-store inventory — see getBrowseStock/getBrowsePrice below.
+  const [browseStoreId, setBrowseStoreId] = useState<string | null>(null);
+  const [showOnlyThisStore, setShowOnlyThisStore] = useState(false);
+  const { locations } = useLocations();
+  const { locationStock: browseStoreStock } = useLocationStock(browseStoreId);
 
   // Barcode & QR Label Printing Modal State
   const [barcodePrintProduct, setBarcodePrintProduct] = useState<Product | null>(null);
@@ -174,12 +182,26 @@ export default function ProductsScreen() {
   const lowStockCount = products.filter((p) => p.currentStock <= p.lowStockThreshold).length;
   const totalStockValue = products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * p.currentStock, 0);
 
+  // Multi-store inventory: browse/manage this catalog scoped to one store at a time (the same
+  // shared selection as POS, via StoreSwitcher). A product with no stock row at the selected
+  // store shows 0 here — it never falls back to the flat currentStock.
+  const storeStockMap = new Map(browseStoreStock.map((r) => [r.productId, r]));
+  const browseStoreName = locations.find((l) => l.id === browseStoreId)?.name ?? '';
+  const getBrowseStock = (p: Product): number =>
+    browseStoreId ? (storeStockMap.get(p.id)?.stock ?? 0) : p.currentStock;
+  const getBrowsePrice = (p: Product): number =>
+    browseStoreId ? (storeStockMap.get(p.id)?.priceOverride ?? p.sellingPrice) : p.sellingPrice;
+  const isPriceOverridden = (p: Product): boolean =>
+    !!browseStoreId && storeStockMap.get(p.id)?.priceOverride != null;
+  const isCarriedAtBrowseStore = (p: Product): boolean => !browseStoreId || storeStockMap.has(p.id);
+
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.barcode && p.barcode.includes(searchQuery));
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
-    return matchesSearch && matchesCategory;
+    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p);
+    return matchesSearch && matchesCategory && matchesStoreScope;
   });
 
   // Photo Selection Handlers (Camera & Photo Gallery)
@@ -647,6 +669,24 @@ export default function ProductsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Store switcher — only renders when multi-store inventory is on and a store exists */}
+        <StoreSwitcher onChange={setBrowseStoreId} />
+        {browseStoreId ? (
+          <TouchableOpacity onPress={() => setShowOnlyThisStore((v) => !v)} style={styles.storeFilterRow}>
+            <View
+              style={[
+                styles.storeFilterCheckbox,
+                showOnlyThisStore && { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
+              ]}
+            >
+              {showOnlyThisStore ? <Check size={10} color="#FFFFFF" /> : null}
+            </View>
+            <Text style={[styles.storeFilterLabel, { color: theme.textSecondary }]}>
+              Only show products carried at {browseStoreName}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
         {/* Product Cards List */}
         {isLoading ? (
           <ScreenLoadingState
@@ -679,7 +719,11 @@ export default function ProductsScreen() {
             removeClippedSubviews={Platform.OS === 'android'}
             contentContainerStyle={{ paddingBottom: 60 }}
             renderItem={({ item }) => {
-              const isLowStock = item.currentStock <= item.lowStockThreshold;
+              const storeStock = getBrowseStock(item);
+              const storePrice = getBrowsePrice(item);
+              const priceOverridden = isPriceOverridden(item);
+              const notCarriedHere = !isCarriedAtBrowseStore(item);
+              const isLowStock = storeStock <= item.lowStockThreshold;
 
               return (
                 <TouchableOpacity
@@ -699,14 +743,28 @@ export default function ProductsScreen() {
                   <View style={{ flex: 1, marginHorizontal: 10 }}>
                     <Text style={[styles.productName, { color: theme.textPrimary }]}>{item.name}</Text>
                     <Text style={[styles.productMeta, { color: theme.textSecondary }]}>
-                      Selling: ₹{item.sellingPrice.toFixed(2)} | Cost: ₹{(item.costPrice || 0).toFixed(2)}
+                      Selling:{' '}
+                      {priceOverridden ? (
+                        <>
+                          <Text style={{ textDecorationLine: 'line-through' }}>₹{item.sellingPrice.toFixed(2)}</Text>{' '}
+                          <Text style={{ fontWeight: '800', color: BRAND_COLORS.blue600 }}>₹{storePrice.toFixed(2)}</Text>
+                        </>
+                      ) : (
+                        <>₹{storePrice.toFixed(2)}</>
+                      )}{' '}
+                      | Cost: ₹{(item.costPrice || 0).toFixed(2)}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
                       <View style={[styles.stockPill, { backgroundColor: isLowStock ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
                         <Text style={[styles.stockPillText, { color: isLowStock ? '#EF4444' : '#10B981' }]}>
-                          Stock: {item.currentStock} {item.unit || 'pcs'}
+                          Stock: {storeStock} {item.unit || 'pcs'}
                         </Text>
                       </View>
+                      {notCarriedHere ? (
+                        <View style={[styles.stockPill, { backgroundColor: 'rgba(100, 116, 139, 0.15)' }]}>
+                          <Text style={[styles.stockPillText, { color: '#64748B' }]}>Not sold here</Text>
+                        </View>
+                      ) : null}
                       {item.discountValue && item.discountValue > 0 ? (
                         <View style={[styles.stockPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)', flexDirection: 'row', alignItems: 'center' }]}>
                           <Tag size={10} color="#10B981" />
@@ -1465,6 +1523,18 @@ const styles = StyleSheet.create({
   productMeta: { fontSize: 11, marginTop: 2 },
   stockPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   stockPillText: { fontSize: 10, fontWeight: '800' },
+  storeFilterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  storeFilterCheckbox: {
+    width: 15,
+    height: 15,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 7,
+  },
+  storeFilterLabel: { fontSize: 10.5, fontWeight: '600', flex: 1 },
   barcodeText: { fontSize: 10, marginLeft: 6 },
   iconBtn: { padding: 8, borderRadius: 10, backgroundColor: 'rgba(100, 116, 139, 0.12)' },
   scannerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },

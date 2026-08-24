@@ -311,5 +311,41 @@ export async function setStoredAutoConnect(enabled: boolean): Promise<void> {
   }
 }
 
+// Multi-store inventory: which store the user is currently billing/browsing from. Shared
+// between POS and Products via this one key, so picking a store on either screen carries
+// over to the other (a cashier is physically at one store for a whole shift, not per-item).
+const SELECTED_STORE_KEY = 'selected_store_id';
+
+export async function getStoredSelectedStoreId(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(SELECTED_STORE_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(SELECTED_STORE_KEY);
+  } catch (error) {
+    console.error('Error reading selected store:', error);
+    return null;
+  }
+}
+
+export async function setStoredSelectedStoreId(storeId: string | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (storeId) window.localStorage.setItem(SELECTED_STORE_KEY, storeId);
+        else window.localStorage.removeItem(SELECTED_STORE_KEY);
+      }
+      return;
+    }
+    if (storeId) {
+      await SecureStore.setItemAsync(SELECTED_STORE_KEY, storeId);
+    } else {
+      await SecureStore.deleteItemAsync(SELECTED_STORE_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving selected store:', error);
+  }
+}
+
 
 
