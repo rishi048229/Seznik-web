@@ -11,6 +11,7 @@ import {
   HeartPulse,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -27,6 +28,8 @@ interface NavbarProps {
   autoRefreshInterval: number;
   onSelectAutoRefreshInterval?: (interval: number) => void;
   setAutoRefreshInterval?: (interval: number) => void;
+  userId?: string;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,6 +45,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   autoRefreshInterval,
   onSelectAutoRefreshInterval,
   setAutoRefreshInterval,
+  userId = 'SezAdmin',
+  onLogout,
 }) => {
   const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -268,8 +273,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             borderRadius: '9999px' 
           }}>
             <UserCheck size={14} color="var(--accent-blue)" />
-            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--accent-blue)' }}>Admin Root</span>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--accent-blue)' }}>{userId}</span>
           </div>
+
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="admin-logout-btn"
+            >
+              <LogOut size={13} />
+              Logout
+            </button>
+          )}
         </div>
 
         <div className="admin-navbar-end">

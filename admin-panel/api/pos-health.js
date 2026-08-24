@@ -1,4 +1,17 @@
-export default async function handler(_req, res) {
+import { getSessionUser } from '../lib/adminAuth.js';
+
+export default async function handler(req, res) {
+  if (!getSessionUser(req)) {
+    res.statusCode = 401;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      status: 'unhealthy',
+      error: 'Unauthorized',
+      database: { status: 'disconnected', error: 'Sign in required' },
+    }));
+    return;
+  }
+
   const base = (process.env.POS_API_URL || process.env.VITE_API_URL || '').replace(/\/$/, '');
   if (!base) {
     res.statusCode = 500;

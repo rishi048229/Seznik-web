@@ -25,7 +25,12 @@ const getInitialTab = (): string => {
   return 'overview';
 };
 
-export const App: React.FC = () => {
+interface AppProps {
+  userId: string;
+  onLogout: () => void;
+}
+
+export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
   const [activeTab, setActiveTabState] = useState<string>(getInitialTab);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(new Date().toLocaleTimeString());
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
@@ -93,6 +98,8 @@ export const App: React.FC = () => {
           lastRefreshedAt={lastRefreshedAt}
           autoRefreshInterval={autoRefreshInterval}
           onSelectAutoRefreshInterval={setAutoRefreshInterval}
+          userId={userId}
+          onLogout={onLogout}
         />
       </div>
 

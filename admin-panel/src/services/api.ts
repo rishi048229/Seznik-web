@@ -24,17 +24,24 @@ function usesSameOriginAdminApi(): boolean {
   return window.location.protocol === 'https:';
 }
 
-function getAdminApiBase(): string {
+export function getAdminApiBase(): string {
   if (usesSameOriginAdminApi()) return '/api/admin';
 
   const envUrl = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5005/api').trim().replace(/\/$/, '');
   return envUrl.endsWith('/admin') ? envUrl : `${envUrl}/admin`;
 }
 
+function notifyUnauthorized(status: number) {
+  if (status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('admin-auth-required'));
+  }
+}
+
 async function fetchAdminEndpoint<T>(path: string): Promise<T> {
   const url = `${getAdminApiBase()}${path}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { credentials: 'include' });
   if (res.ok) return (await res.json()) as T;
+  notifyUnauthorized(res.status);
   const errData = await res.json().catch(() => null);
   throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
 }
@@ -43,11 +50,13 @@ async function postAdminEndpoint<T>(path: string, body?: unknown): Promise<T> {
   const url = `${getAdminApiBase()}${path}`;
   const response = await fetch(url, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
   if (!response.ok) {
+    notifyUnauthorized(response.status);
     const errorData = await response.json().catch(() => ({}));
     throw new Error((errorData as { error?: string }).error || `Request failed (HTTP ${response.status})`);
   }
@@ -143,9 +152,10 @@ async function fetchHealthEndpoint(url: string): Promise<HealthCheckResult> {
   const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal, credentials: 'include' });
     clearTimeout(timeoutId);
     const data = (await res.json().catch(() => ({}))) as HealthCheckResult;
+    if (res.status === 401) notifyUnauthorized(401);
     return {
       ...data,
       status: data.status || (res.ok ? 'healthy' : 'unhealthy'),

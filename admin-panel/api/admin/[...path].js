@@ -9,6 +9,15 @@ import {
   metricsSalesQuery,
 } from '../../analyticsShared.js';
 import { getPool, sendJson, readJsonBody } from '../../lib/adminDb.js';
+import {
+  credentialsMatch,
+  createSessionToken,
+  getSessionUser,
+  getAdminUserId,
+  isSecureRequest,
+  sessionCookieHeader,
+  clearSessionCookieHeader,
+} from '../../lib/adminAuth.js';
 
 function pathSegments(req) {
   const rawUrl = req.url || '';
@@ -27,8 +36,36 @@ export default async function handler(req, res) {
   const route = segments.join('/');
   const method = req.method || 'GET';
   const query = req.query || {};
+  const secure = isSecureRequest(req);
 
   try {
+    if (method === 'POST' && route === 'login') {
+      const payload = await readJsonBody(req);
+      const userId = String(payload.userId || '').trim();
+      const password = String(payload.password || '');
+      if (!credentialsMatch(userId, password)) {
+        return sendJson(res, 401, { error: 'Invalid user ID or password' });
+      }
+      const token = createSessionToken(getAdminUserId());
+      res.setHeader('Set-Cookie', sessionCookieHeader(token, secure));
+      return sendJson(res, 200, { success: true, userId: getAdminUserId() });
+    }
+
+    if (method === 'POST' && route === 'logout') {
+      res.setHeader('Set-Cookie', clearSessionCookieHeader(secure));
+      return sendJson(res, 200, { success: true });
+    }
+
+    if (method === 'GET' && route === 'me') {
+      const session = getSessionUser(req);
+      if (!session) return sendJson(res, 401, { error: 'Unauthorized' });
+      return sendJson(res, 200, { userId: session.userId });
+    }
+
+    if (!getSessionUser(req)) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+
     const pool = getPool();
 
     if (method === 'GET' && route === 'health') {

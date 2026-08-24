@@ -11,10 +11,22 @@ import {
   applyTableAlias,
   metricsSalesQuery,
 } from './analyticsShared.js';
+import {
+  credentialsMatch,
+  createSessionToken,
+  getSessionUser,
+  getAdminUserId,
+  isSecureRequest,
+  sessionCookieHeader,
+  clearSessionCookieHeader,
+} from './lib/adminAuth.js';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  for (const key of ['ADMIN_USER_ID', 'ADMIN_PASSWORD', 'ADMIN_SESSION_SECRET', 'DATABASE_URL'] as const) {
+    if (env[key] && !process.env[key]) process.env[key] = env[key];
+  }
   const dbUrl =
     env.DATABASE_URL ||
     process.env.DATABASE_URL ||
@@ -37,6 +49,58 @@ export default defineConfig(({ mode }) => {
             const pathname = parsedUrl.pathname;
             const timeRange = parsedUrl.searchParams.get('timeRange') || '24h';
             const intervals = getTimeIntervals(timeRange);
+            const send = (status: number, body: unknown) => {
+              res.statusCode = status;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(body));
+            };
+            const readBody = () => new Promise<Record<string, unknown>>((resolve, reject) => {
+              let body = '';
+              req.on('data', (chunk) => { body += chunk; });
+              req.on('end', () => {
+                try { resolve(body ? JSON.parse(body) : {}); }
+                catch (err) { reject(err); }
+              });
+            });
+
+            if (pathname === '/api/admin/login' && req.method === 'POST') {
+              try {
+                const payload = await readBody();
+                const userId = String(payload.userId || '').trim();
+                const password = String(payload.password || '');
+                if (!credentialsMatch(userId, password)) {
+                  send(401, { error: 'Invalid user ID or password' });
+                  return;
+                }
+                const token = createSessionToken(getAdminUserId());
+                res.setHeader('Set-Cookie', sessionCookieHeader(token, isSecureRequest(req)));
+                send(200, { success: true, userId: getAdminUserId() });
+              } catch {
+                send(400, { error: 'Invalid login payload' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/admin/logout' && req.method === 'POST') {
+              res.setHeader('Set-Cookie', clearSessionCookieHeader(isSecureRequest(req)));
+              send(200, { success: true });
+              return;
+            }
+
+            if (pathname === '/api/admin/me' && req.method === 'GET') {
+              const session = getSessionUser(req);
+              if (!session) {
+                send(401, { error: 'Unauthorized' });
+                return;
+              }
+              send(200, { userId: session.userId });
+              return;
+            }
+
+            if (pathname.startsWith('/api/admin') && !getSessionUser(req)) {
+              send(401, { error: 'Unauthorized' });
+              return;
+            }
 
             // 1. GET /api/admin/users
             if (pathname === '/api/admin/users') {
