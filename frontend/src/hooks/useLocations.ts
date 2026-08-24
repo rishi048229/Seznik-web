@@ -16,9 +16,12 @@ export const useLocations = () => {
 export const useCreateLocation = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ name, sortOrder }: { name: string; sortOrder?: number }) =>
-      locationService.createLocation(name, sortOrder),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEYS.LOCATIONS] }),
+    mutationFn: ({ name, sortOrder, seedFromCurrentStock }: { name: string; sortOrder?: number; seedFromCurrentStock?: boolean }) =>
+      locationService.createLocation(name, sortOrder, seedFromCurrentStock),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.LOCATIONS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.LOCATION_STOCK] })
+    },
   })
 }
 

@@ -19,18 +19,45 @@ export const getLocations = async (req: Request, res: Response) => {
   }
 };
 
+// `seedFromCurrentStock`: a user who created products BEFORE ever enabling
+// multi-store inventory has real stock sitting only in each Product's flat
+// `currentStock` — no Location attaches to it at all, so it can never appear
+// in the store switcher and can never be the source side of a transfer.
+// Checking this option on store creation solves that in one step: it copies
+// every active product's current flat stock into a real ProductLocationStock
+// row for the new store, so that store immediately shows up as a genuine,
+// switchable, transferable home for what used to be un-owned inventory.
 export const createLocation = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { name, sortOrder } = req.body;
+    const { name, sortOrder, seedFromCurrentStock } = req.body;
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Location name is required' });
     }
 
-    const location = await prisma.location.create({
-      data: { name: String(name).trim(), userId, isActive: true, sortOrder: Number(sortOrder) || 0 },
+    const location = await prisma.$transaction(async (tx) => {
+      const loc = await tx.location.create({
+        data: { name: String(name).trim(), userId, isActive: true, sortOrder: Number(sortOrder) || 0 },
+      });
+
+      if (seedFromCurrentStock) {
+        const products = await tx.product.findMany({ where: { userId, isActive: true } });
+        if (products.length > 0) {
+          await tx.productLocationStock.createMany({
+            data: products.map(p => ({
+              productId: p.id,
+              locationId: loc.id,
+              userId,
+              stock: p.currentStock,
+            })),
+          });
+        }
+      }
+
+      return loc;
     });
+
     res.status(201).json(location);
   } catch (error) {
     console.error('Failed to create location:', error);

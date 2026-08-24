@@ -5,10 +5,10 @@ export const getLocations = async (): Promise<Location[]> => {
   return await fetchApi('/locations')
 }
 
-export const createLocation = async (name: string, sortOrder?: number): Promise<Location> => {
+export const createLocation = async (name: string, sortOrder?: number, seedFromCurrentStock?: boolean): Promise<Location> => {
   return await fetchApi('/locations', {
     method: 'POST',
-    body: JSON.stringify({ name, sortOrder }),
+    body: JSON.stringify({ name, sortOrder, seedFromCurrentStock }),
   })
 }
 

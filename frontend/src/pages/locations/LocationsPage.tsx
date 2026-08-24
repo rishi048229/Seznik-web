@@ -41,6 +41,7 @@ export const LocationsPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [formName, setFormName] = useState('')
+  const [seedFromCurrentStock, setSeedFromCurrentStock] = useState(true)
 
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
   const [stockSearch, setStockSearch] = useState('')
@@ -75,6 +76,13 @@ export const LocationsPage = () => {
   const openCreate = () => {
     setEditId(null)
     setFormName('')
+    // Defaults on for the very first store — this is exactly the "I already
+    // added products before ever creating a store" scenario: without this,
+    // that existing stock has no store attached to it at all and can never
+    // be picked in the switcher or transferred from. Off by default for a
+    // 2nd/3rd store, since duplicating the same numbers into every new
+    // store isn't usually what's wanted once a real first store exists.
+    setSeedFromCurrentStock(locations.length === 0)
     setModalOpen(true)
   }
 
@@ -95,9 +103,9 @@ export const LocationsPage = () => {
         onError: () => toast.error('Failed to update store'),
       })
     } else {
-      createLocation({ name: formName.trim(), sortOrder: locations.length }, {
+      createLocation({ name: formName.trim(), sortOrder: locations.length, seedFromCurrentStock }, {
         onSuccess: (created) => {
-          toast.success('Store added')
+          toast.success(seedFromCurrentStock ? 'Store added with your existing product stock' : 'Store added')
           setModalOpen(false)
           setActiveLocationId(created.id)
         },
@@ -188,7 +196,11 @@ export const LocationsPage = () => {
         <EmptyState
           icon={<Store size={40} />}
           title={t('locations.emptyTitle') || 'No stores yet'}
-          description={t('locations.emptyDesc') || 'Add your first two stores, e.g. "Main Store" and "Baner Store".'}
+          description={
+            (products?.some(p => p.currentStock > 0)
+              ? 'You already have products with stock — creating your first store below can adopt that existing stock automatically, so it has a real store to belong to and you can transfer it out from there.'
+              : t('locations.emptyDesc')) || 'Add your first two stores, e.g. "Main Store" and "Baner Store".'
+          }
           action={<Button onClick={openCreate}><Plus size={16} className="mr-1.5" />{t('locations.addLocation') || 'Add Store'}</Button>}
         />
       ) : (
@@ -343,8 +355,25 @@ export const LocationsPage = () => {
             label="Store name"
             value={formName}
             onChange={e => setFormName(e.target.value)}
-            placeholder="e.g. Baner Store"
+            placeholder={locations.length === 0 ? 'e.g. Main Store' : 'e.g. Baner Store'}
           />
+          {!editId && (
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={seedFromCurrentStock}
+                onChange={e => setSeedFromCurrentStock(e.target.checked)}
+                className="mt-0.5 rounded"
+              />
+              <span className="text-xs text-gray-700 dark:text-gray-300">
+                <span className="font-semibold">Copy my current product stock into this store</span>
+                <br />
+                {locations.length === 0
+                  ? "Recommended — if you added products before creating a store, their existing stock isn't attached to any store yet. Checking this makes this store their real home, so you can switch to it and transfer stock out of it like any other store."
+                  : "Starts this store off with the same stock numbers each product currently shows, as a snapshot."}
+              </span>
+            </label>
+          )}
           <Button onClick={handleSave} disabled={isCreating} className="w-full">
             {t('action.save') || 'Save'}
           </Button>
