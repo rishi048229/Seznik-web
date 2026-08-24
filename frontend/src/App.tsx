@@ -14,10 +14,38 @@ import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserPermissions } from '@/types/auth.types'
 
-// Helper to lazy-load named exports as default components
+// Helper to lazy-load named exports as default components.
+//
+// Retries once on a failed chunk load (import().catch below) before giving
+// up. A stale browser tab left open across a redeploy still references the
+// PREVIOUS build's hashed chunk filenames — those files no longer exist on
+// the server once a new build has shipped, so the dynamic import 404s. That
+// used to throw straight into render with nothing catching it, blanking the
+// whole app until the user figured out to hit refresh themselves. Now it
+// reloads once automatically (fetching a fresh index.html with the correct
+// current hashes) instead of surfacing that as a blank screen; a genuinely
+// persistent failure still surfaces normally via ErrorBoundary rather than
+// reload-looping forever.
+const CHUNK_RELOAD_KEY = 'chunk-reload-attempted'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const lazyPage = <T extends Record<string, any>>(importFn: () => Promise<T>, name: keyof T) =>
-  lazy(() => importFn().then(module => ({ default: module[name] as React.ComponentType })))
+  lazy(() =>
+    importFn()
+      .then(module => {
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+        return { default: module[name] as React.ComponentType }
+      })
+      .catch(err => {
+        if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+          sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+          window.location.reload()
+          // Never resolves — the reload above replaces this page before
+          // React would get a chance to render anything from this branch.
+          return new Promise<{ default: React.ComponentType }>(() => {})
+        }
+        throw err
+      })
+  )
 
 // Lazy-loaded pages (named exports → default for React.lazy)
 // NOTE: the marketing landing page (src/pages/landing/) is built but intentionally

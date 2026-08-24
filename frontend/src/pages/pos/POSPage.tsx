@@ -190,7 +190,7 @@ export const POSPage = () => {
       const matchesCategory = !selectedCategory || p.categoryId === selectedCategory
 
       const reserved = cartReserved[p.id] || 0
-      const available = p.currentStock - reserved
+      const available = getEffectiveStock(p) - reserved
       const matchesStock = stockFilter === 'all' ||
         (stockFilter === 'out' && available <= 0) ||
         (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
@@ -199,7 +199,13 @@ export const POSPage = () => {
       const matchesPriceMin = isNaN(priceMinNum) || p.sellingPrice >= priceMinNum
       const matchesPriceMax = isNaN(priceMaxNum) || p.sellingPrice <= priceMaxNum
 
-      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax
+      // Once a store is picked, only show what that store actually carries
+      // (has a stock row for) — a bare price/stock swap wasn't enough; the
+      // grid itself needs to reflect "this store's catalog," not every
+      // product in the whole business.
+      const matchesStoreScope = !selectedLocationId || locationStockMap.has(p.id)
+
+      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax && matchesStoreScope
     })
     .sort((a, b) => {
       switch (sortBy) {
