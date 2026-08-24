@@ -6,10 +6,20 @@ import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import {
   Package, Pencil, Trash2, Tag, Download, QrCode, Barcode as BarcodeIcon,
-  Layers, Truck, IndianRupee, TrendingUp, AlertTriangle, ShieldCheck, Box, CheckCircle2
+  Layers, Truck, IndianRupee, TrendingUp, AlertTriangle, ShieldCheck, Box, CheckCircle2,
+  Store, MapPin
 } from 'lucide-react'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng } from '@/utils/barcodeGenerator'
+import { useProductLocationStock, useLocations } from '@/hooks/useLocations'
 import type { Product } from '@/types/product.types'
+
+export function formatDisplayUnit(unit?: string): string {
+  if (!unit) return 'pcs'
+  const clean = String(unit).trim().toLowerCase()
+  if (!clean || /^\d+(\.\d+)?$/.test(clean)) return 'pcs'
+  if (clean === 'piece' || clean === 'pcs' || clean === 'unit' || clean === 'units') return 'pcs'
+  return clean
+}
 
 interface ProductDetailModalProps {
   isOpen: boolean
@@ -17,6 +27,8 @@ interface ProductDetailModalProps {
   product: Product | null
   categoryName?: string
   supplierName?: string
+  selectedStoreId?: string | null
+  selectedStoreName?: string | null
   onEdit?: (product: Product) => void
   onDelete?: (product: Product) => void
   onPrintLabel?: (product: Product) => void
@@ -28,6 +40,8 @@ export const ProductDetailModal = ({
   product,
   categoryName = 'Uncategorised',
   supplierName = 'None',
+  selectedStoreId,
+  selectedStoreName,
   onEdit,
   onDelete,
   onPrintLabel,
@@ -35,6 +49,11 @@ export const ProductDetailModal = ({
   const { t } = useLanguage()
   const barcodeCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  const { data: locationStockEntries = [], isLoading: isLoadingLocationStock } = useProductLocationStock(
+    isOpen && product?.id ? product.id : null
+  )
+  const { data: allLocations = [] } = useLocations()
 
   useEffect(() => {
     if (isOpen && product) {
@@ -56,12 +75,19 @@ export const ProductDetailModal = ({
 
   if (!product) return null
 
-  const isOutOfStock = product.currentStock <= 0
-  const isLowStock = product.currentStock > 0 && product.currentStock <= product.lowStockThreshold
+  const displayUnit = formatDisplayUnit(product.unit)
+  const activeStoreEntry = selectedStoreId
+    ? locationStockEntries.find(ls => ls.locationId === selectedStoreId)
+    : null
+  const currentEffectiveStock = activeStoreEntry ? activeStoreEntry.stock : product.currentStock
+  const effectiveSellingPrice = activeStoreEntry?.priceOverride ?? product.sellingPrice
+
+  const isOutOfStock = currentEffectiveStock <= 0
+  const isLowStock = currentEffectiveStock > 0 && currentEffectiveStock <= product.lowStockThreshold
   const costPrice = product.costPrice || 0
-  const profitMargin = product.sellingPrice - costPrice
+  const profitMargin = effectiveSellingPrice - costPrice
   const profitMarginPercent = costPrice > 0 ? ((profitMargin / costPrice) * 100).toFixed(1) : '100'
-  const totalInventoryValue = product.currentStock * (costPrice || product.sellingPrice)
+  const totalInventoryValue = currentEffectiveStock * (costPrice || effectiveSellingPrice)
 
   const handleDownloadBarcode = () => {
     if (barcodeCanvasRef.current) {
@@ -144,8 +170,13 @@ export const ProductDetailModal = ({
                   {categoryName}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/10 text-white/90">
-                  Unit: {product.unit}
+                  Unit: {displayUnit}
                 </span>
+                {selectedStoreName && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 flex items-center gap-1">
+                    <Store size={11} /> {selectedStoreName}
+                  </span>
+                )}
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                   isOutOfStock ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
                   isLowStock ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
@@ -162,7 +193,7 @@ export const ProductDetailModal = ({
             </div>
 
             <div className="text-right sm:text-right mt-2 sm:mt-0 flex-shrink-0">
-              <p className="text-2xl font-extrabold text-blue-400">{formatINR(product.sellingPrice)}</p>
+              <p className="text-2xl font-extrabold text-blue-400">{formatINR(effectiveSellingPrice)}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 {product.priceIncludesGst ? 'Incl. GST' : 'Excl. GST'} ({product.taxRate}% GST)
               </p>
@@ -213,7 +244,7 @@ export const ProductDetailModal = ({
             <div className="divide-y divide-gray-100 dark:divide-gray-700/60 text-xs">
               <div className="py-2 flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Selling Price</span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">{formatINR(product.sellingPrice)}</span>
+                <span className="font-bold text-gray-900 dark:text-gray-100">{formatINR(effectiveSellingPrice)}</span>
               </div>
               <div className="py-2 flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Cost Price</span>
@@ -252,16 +283,21 @@ export const ProductDetailModal = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700">
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">Current Stock</p>
-              <p className={`text-xl font-bold mt-1 ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'}`}>
-                {product.currentStock} {product.unit}
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {selectedStoreName ? `${selectedStoreName} Stock` : 'Current Stock'}
               </p>
+              <p className={`text-xl font-bold mt-1 ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'}`}>
+                {currentEffectiveStock} <span className="text-sm font-semibold text-gray-500">{displayUnit}</span>
+              </p>
+              {selectedStoreName && (
+                <p className="text-[10px] text-gray-400 mt-0.5">Total across all stores: {product.currentStock} {displayUnit}</p>
+              )}
             </div>
 
             <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700">
               <p className="text-[11px] text-gray-500 dark:text-gray-400">Low Stock Threshold</p>
               <p className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-                {product.lowStockThreshold} {product.unit}
+                {product.lowStockThreshold} <span className="text-sm font-semibold text-gray-500">{displayUnit}</span>
               </p>
             </div>
 
@@ -272,6 +308,52 @@ export const ProductDetailModal = ({
               </p>
             </div>
           </div>
+
+          {/* Multi-Location Live Breakdown (if locations configured) */}
+          {allLocations.length > 0 && locationStockEntries.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                <MapPin size={13} className="text-indigo-500" /> Location-wise Stock Entries
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {locationStockEntries.map((loc) => {
+                  const locInfo = allLocations.find(l => l.id === loc.locationId)
+                  const isSelected = selectedStoreId === loc.locationId
+                  return (
+                    <div
+                      key={loc.locationId}
+                      className={`p-2.5 rounded-lg border text-xs flex items-center justify-between transition-all ${
+                        isSelected
+                          ? 'bg-indigo-50/80 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 shadow-sm'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="font-semibold text-gray-900 dark:text-gray-100 truncate flex items-center gap-1">
+                          {locInfo?.name || 'Store'}
+                          {isSelected && <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">(Selected)</span>}
+                        </p>
+                        {loc.priceOverride && (
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                            Custom Price: {formatINR(loc.priceOverride)}
+                          </p>
+                        )}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-xs flex-shrink-0 ${
+                        loc.stock <= 0
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                          : loc.stock <= product.lowStockThreshold
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      }`}>
+                        {loc.stock} {displayUnit}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Barcode & QR Code Section with Direct Download Options */}

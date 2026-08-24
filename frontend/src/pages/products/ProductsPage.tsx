@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
-import { ProductDetailModal } from './components/ProductDetailModal'
+import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
 import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
 import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
@@ -1079,7 +1079,7 @@ export const ProductsPage = () => {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-gray-400">{product.unit}{product.brand ? ` · ${product.brand}` : ''}</p>
+                                  <p className="text-[11px] text-gray-400">{formatDisplayUnit(product.unit)}{product.brand ? ` · ${product.brand}` : ''}</p>
                                 </div>
                               </div>
                             </td>
@@ -2147,6 +2147,8 @@ export const ProductsPage = () => {
         product={detailProduct}
         categoryName={detailProduct ? getCategoryName(detailProduct.categoryId) : undefined}
         supplierName={detailProduct ? (suppliers?.find(s => s.id === detailProduct.supplierId)?.name || 'None') : undefined}
+        selectedStoreId={browseStoreId}
+        selectedStoreName={browseStoreName}
         onEdit={openEdit}
         onDelete={(p) => {
           if (confirm(`Delete product "${p.name}"?`)) {

@@ -243,7 +243,8 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       const taxRate = !isNaN(taxVal) ? taxVal : 0
 
       // Unit
-      const unitVal = unitKey && row[unitKey] ? String(row[unitKey]).trim().toLowerCase() : 'piece'
+      const rawUnit = unitKey && row[unitKey] ? String(row[unitKey]).trim().toLowerCase() : ''
+      const unitVal = (!rawUnit || /^\d+(\.\d+)?$/.test(rawUnit)) ? 'piece' : rawUnit
 
       products.push({
         id: `csv-format-${Date.now()}-${idx}`,
