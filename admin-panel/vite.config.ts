@@ -1,10 +1,12 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import pg from 'pg';
+import { statSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 import {
   getTimeIntervals,
   computeRealTopFeatures,
-  computeRealHeatmapData,
   buildMetricsResponse,
   mapUserRows,
   getUsersWhereClause,
@@ -292,7 +294,10 @@ export default defineConfig(({ mode }) => {
               try {
                 const daysParam = parseInt(parsedUrl.searchParams.get('days') || '', 10);
                 const dayCountOverride = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : undefined;
-                const heatmapData = await computeRealHeatmapData(pool, timeRange, dayCountOverride);
+                const analyticsPath = resolve(process.cwd(), 'analyticsShared.js');
+                const mtime = statSync(analyticsPath).mtimeMs;
+                const analytics = await import(`${pathToFileURL(analyticsPath).href}?mtime=${mtime}`);
+                const heatmapData = await analytics.computeRealHeatmapData(pool, timeRange, dayCountOverride);
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(heatmapData));
                 return;

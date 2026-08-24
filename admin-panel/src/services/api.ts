@@ -100,21 +100,71 @@ export async function fetchSectionUsage(timeRange: string = '7d'): Promise<Secti
   return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
+const IST_TZ = 'Asia/Kolkata';
+
+function istDateHourFromUtcBucket(dateKey: string, hour: number) {
+  const utc = new Date(Date.UTC(
+    Number(dateKey.slice(0, 4)),
+    Number(dateKey.slice(5, 7)) - 1,
+    Number(dateKey.slice(8, 10)),
+    hour,
+    30,
+    0,
+  ));
+  const date = utc.toLocaleDateString('en-CA', { timeZone: IST_TZ });
+  const hourPart = new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST_TZ,
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(utc).find((part) => part.type === 'hour')?.value;
+  return { date, hour: Number(hourPart) % 24 };
+}
+
+/** Older heatmap APIs bucketed by UTC hour while the grid is labeled IST. */
+function normalizeHeatmapToIst(data: HeatmapResponse): HeatmapResponse {
+  if (data.hoursTimezone === 'IST') return data;
+
+  const merged = new Map<string, HeatmapCell>();
+  for (const cell of data.cells || []) {
+    const dateKey = cell.date;
+    const srcHour = Number(cell.hour);
+    const ist = dateKey && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)
+      ? istDateHourFromUtcBucket(dateKey, srcHour)
+      : { date: dateKey || cell.day, hour: srcHour };
+    const key = `${ist.date}|${ist.hour}`;
+    const prev = merged.get(key);
+    merged.set(key, {
+      date: ist.date,
+      day: cell.day,
+      hour: ist.hour,
+      count: (prev?.count || 0) + (cell.count || 0),
+      uniqueUsers: Math.max(prev?.uniqueUsers || 0, cell.uniqueUsers || 0),
+    });
+  }
+
+  const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: IST_TZ });
+  return {
+    ...data,
+    cells: Array.from(merged.values()).filter((cell) => !cell.date || cell.date <= todayIst),
+    hoursTimezone: 'IST',
+  };
+}
+
 export async function fetchHeatmapData(timeRange: string = '7d', days?: number): Promise<HeatmapResponse> {
   const daysQuery = days != null && days > 0 ? `&days=${days}` : '';
   const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}${daysQuery}`);
   if (Array.isArray(res)) {
     const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
-    return {
+    return normalizeHeatmapToIst({
       cells: res,
       requestsToday: 0,
       requestsThisHour: 0,
       requestsThisWeek: total,
       totalAllTime: total,
       currentWeekRange: 'Current Week',
-    };
+    });
   }
-  return res;
+  return normalizeHeatmapToIst(res);
 }
 
 export async function fetchDeviceSessionBreakdown(timeRange: string = '7d'): Promise<DeviceSessionBreakdownData> {

@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Activity, Clock, Calendar, Palette, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Activity, Clock, Calendar, Palette, Info } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
 import { fetchHeatmapData } from '../services/api';
 import { EmptyState } from './EmptyState';
@@ -40,16 +40,24 @@ function formatIstDateParts(dateKey: string) {
 
 function getIstClockParts() {
   const now = new Date();
-  const date = now.toLocaleDateString('en-CA', { timeZone: IST_TIMEZONE });
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value || '';
+  const date = `${pick('year')}-${pick('month')}-${pick('day')}`;
+  const hour = Number(pick('hour')) % 24;
   const time = now.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
     timeZone: IST_TIMEZONE,
   });
-  const hour = Number(
-    now.toLocaleString('en-IN', { hour: 'numeric', hour12: false, timeZone: IST_TIMEZONE })
-  );
   return { date, time, hour };
 }
 
@@ -63,6 +71,132 @@ interface PaletteOption {
 }
 
 const LEGEND_LABELS: [string, string, string, string, string] = ['Quiet', 'Low', 'Moderate', 'High', 'Peak'];
+
+const ACTIVITY_SOURCES = [
+  'POS invoices & sales',
+  'Stock movements (sales & adjustments)',
+  'New products & categories',
+  'New customers & suppliers',
+  'Token / kiosk orders',
+  'Purchases & expenses',
+  'Credit ledger entries',
+  'New merchant sign-ups',
+] as const;
+
+const INTENSITY_TIERS: { label: string; threshold: string; swatchIndex: number }[] = [
+  { label: 'Quiet', threshold: '0 records in that hour', swatchIndex: 0 },
+  { label: 'Low', threshold: '> 0 and below 10% of the busiest hour in view', swatchIndex: 1 },
+  { label: 'Moderate', threshold: '10%–35% of the busiest hour in view', swatchIndex: 2 },
+  { label: 'High', threshold: '35%–70% of the busiest hour in view', swatchIndex: 3 },
+  { label: 'Peak', threshold: '70% or more of the busiest hour in view', swatchIndex: 4 },
+];
+
+const HeatmapRangeInfoButton: React.FC<{
+  palette: PaletteOption;
+  rangeLabel: string;
+  dateRange: string;
+  compact?: boolean;
+  variant?: 'inline' | 'toolbar';
+}> = ({ palette, rangeLabel, dateRange, compact = false, variant = 'toolbar' }) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      className={`heatmap-range-info heatmap-range-info--${variant}`}
+      style={{ position: 'relative', display: 'inline-flex' }}
+    >
+      <button
+        type="button"
+        className={`heatmap-range-info__btn heatmap-range-info__btn--${variant}${open ? ' heatmap-range-info__btn--active' : ''}`}
+        aria-label="Heatmap range and activity guide"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        title="What counts as activity & color scale"
+      >
+        <Info size={variant === 'toolbar' ? (compact ? 14 : 15) : compact ? 13 : 14} strokeWidth={2.25} />
+        {variant === 'toolbar' ? <span>Guide</span> : null}
+      </button>
+      {open ? (
+        <div
+          className={`heatmap-range-info__panel heatmap-range-info__panel--${variant}`}
+          role="dialog"
+          aria-label="Heatmap guide"
+        >
+          <div className="heatmap-range-info__section">
+            <div className="heatmap-range-info__heading">Time range</div>
+            <p className="heatmap-range-info__text">
+              <strong>{rangeLabel}</strong>
+              {' · '}
+              {dateRange}
+              . Hours are bucketed in <strong>IST (Asia/Kolkata)</strong>. Each cell is one calendar hour;
+              counts refresh about every 30 seconds.
+            </p>
+          </div>
+
+          <div className="heatmap-range-info__section">
+            <div className="heatmap-range-info__heading">What counts as activity</div>
+            <p className="heatmap-range-info__text heatmap-range-info__text--muted">
+              Only <strong>new database records</strong> are counted — not page views or API pings.
+            </p>
+            <ul className="heatmap-range-info__list">
+              {ACTIVITY_SOURCES.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <p className="heatmap-range-info__note">
+              Editing an existing product or browsing the app without creating a record does not add to the heatmap.
+            </p>
+          </div>
+
+          <div className="heatmap-range-info__section">
+            <div className="heatmap-range-info__heading">
+              Color scale
+              <span className="heatmap-range-info__palette-tag">{palette.name}</span>
+            </div>
+            <p className="heatmap-range-info__text heatmap-range-info__text--muted">
+              Colors are relative to the <strong>busiest hour</strong> in the current view (not fixed numbers).
+            </p>
+            <div className="heatmap-range-info__tiers">
+              {INTENSITY_TIERS.map((tier) => (
+                <div key={tier.label} className="heatmap-range-info__tier">
+                  <div
+                    className="heatmap-range-info__tier-swatch"
+                    style={{
+                      background: palette.swatches[tier.swatchIndex],
+                      border: tier.swatchIndex === 0 ? '1px solid var(--border-color)' : 'none',
+                    }}
+                  />
+                  <div className="heatmap-range-info__tier-copy">
+                    <span className="heatmap-range-info__tier-label">{palette.legendLabels[tier.swatchIndex]}</span>
+                    <span className="heatmap-range-info__tier-threshold">{tier.threshold}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 const HeatmapColorLegend: React.FC<{
   palette: PaletteOption;
@@ -91,6 +225,128 @@ const HeatmapColorLegend: React.FC<{
     {istTime ? (
       <span className="heatmap-color-legend__clock">Now {istTime} IST</span>
     ) : null}
+  </div>
+);
+
+function getSkeletonDayCount(viewTodayOnly: boolean, embedded: boolean, timeRange: string) {
+  if (viewTodayOnly) return 1;
+  if (embedded) return 3;
+  if (timeRange === '24h') return 2;
+  if (timeRange === '3d') return 3;
+  if (timeRange === '7d') return 7;
+  if (timeRange === '30d') return 7;
+  return 3;
+}
+
+const HeatmapLegendSkeleton: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
+  <div className={`heatmap-color-legend heatmap-skeleton-legend${compact ? ' heatmap-color-legend--compact' : ''}`}>
+    <div className="heatmap-color-legend__head">
+      <span className="skeleton-block skeleton-block--text" style={{ width: compact ? 72 : 84, height: 10 }} />
+      <span className="skeleton-block skeleton-block--text" style={{ width: compact ? 96 : 120, height: 12 }} />
+    </div>
+    <div className="heatmap-color-legend__steps">
+      {Array.from({ length: 5 }, (_, idx) => (
+        <div key={idx} className="heatmap-color-legend__step">
+          <div
+            className="skeleton-block heatmap-skeleton-legend__swatch"
+            style={{ animationDelay: `${idx * 0.08}s` }}
+          />
+          <span className="skeleton-block skeleton-block--text" style={{ width: compact ? 28 : 36, height: 8 }} />
+        </div>
+      ))}
+    </div>
+    {!compact ? (
+      <span className="skeleton-block skeleton-block--text" style={{ width: 88, height: 10, marginLeft: 'auto' }} />
+    ) : null}
+  </div>
+);
+
+const HeatmapGridSkeleton: React.FC<{
+  embedded: boolean;
+  hourGridTemplate: string;
+  cellGap: number;
+  hourCount: number;
+  dayCount: number;
+  minWidth: number;
+}> = ({ embedded, hourGridTemplate, cellGap, hourCount, dayCount, minWidth }) => (
+  <div
+    className={`heatmap-grid-scroll heatmap-grid-skeleton${embedded ? ' heatmap-grid-fit' : ''}`}
+    style={{
+      flex: 1,
+      minHeight: 0,
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      padding: embedded ? '2px 2px 0' : '4px 2px 2px',
+      background: 'var(--bg-main)',
+      borderRadius: '10px',
+      border: '1px solid var(--border-color)',
+      display: embedded ? 'flex' : undefined,
+      flexDirection: embedded ? 'column' : undefined,
+    }}
+    aria-hidden="true"
+  >
+    <div
+      className={embedded ? 'heatmap-hour-row' : undefined}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: hourGridTemplate,
+        gap: cellGap,
+        padding: embedded ? '4px 8px 2px' : '8px 10px 4px',
+        minWidth,
+      }}
+    >
+      <div />
+      {Array.from({ length: hourCount }, (_, idx) => (
+        <div
+          key={idx}
+          className="skeleton-block heatmap-skeleton-grid__hour"
+          style={{ animationDelay: `${idx * 0.02}s` }}
+        />
+      ))}
+    </div>
+    <div
+      className={embedded ? 'heatmap-day-rows' : undefined}
+      style={{
+        padding: embedded ? undefined : '0 10px 10px',
+        minWidth,
+        flex: embedded ? 1 : undefined,
+        display: embedded ? 'flex' : undefined,
+        flexDirection: embedded ? 'column' : undefined,
+        gap: embedded ? 2 : undefined,
+      }}
+    >
+      {Array.from({ length: dayCount }, (_, rowIdx) => (
+        <div
+          key={rowIdx}
+          className={embedded ? 'heatmap-day-row' : undefined}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: hourGridTemplate,
+            gap: cellGap,
+            alignItems: 'stretch',
+            marginBottom: embedded ? 0 : 4,
+            flex: embedded ? 1 : undefined,
+          }}
+        >
+          <div className="heatmap-skeleton-grid__day-label">
+            <span className="skeleton-block skeleton-block--text" style={{ width: embedded ? 22 : 28, height: 10 }} />
+            <span className="skeleton-block skeleton-block--text" style={{ width: embedded ? 16 : 18, height: 8 }} />
+          </div>
+          {Array.from({ length: hourCount }, (_, colIdx) => (
+            <div
+              key={colIdx}
+              className="skeleton-block heatmap-skeleton-grid__cell"
+              style={{
+                animationDelay: `${(rowIdx * hourCount + colIdx) * 0.015}s`,
+                minHeight: embedded ? 0 : 28,
+                height: embedded ? '100%' : undefined,
+                borderRadius: embedded ? 3 : 4,
+              }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
   </div>
 );
 
@@ -243,7 +499,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
   const [rangeLoading, setRangeLoading] = useState(true);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [hoveredCell, setHoveredCell] = useState<HoveredCellInfo | null>(null);
-  const [viewFilter, setViewFilter] = useState<'all' | 'business'>(() => (embedded ? 'business' : 'all'));
+  const [viewFilter, setViewFilter] = useState<'all' | 'business'>('all');
   const [viewTodayOnly, setViewTodayOnly] = useState(false);
   const [todayData, setTodayData] = useState<HeatmapResponse | null>(null);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -269,30 +525,39 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
     if (viewTodayOnly) return;
 
     let cancelled = false;
-    setRangeLoading(true);
-    setRangeError(null);
+    let isFirst = true;
 
-    fetchHeatmapData(timeRange, embedded ? 3 : undefined)
-      .then((result) => {
-        if (!cancelled) {
-          setRangeData(result);
-          setRangeError(null);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) {
-          setRangeError(err?.message || 'Failed to load heatmap');
-          setRangeData(undefined);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setRangeLoading(false);
-      });
+    const load = () => {
+      if (isFirst) {
+        setRangeLoading(true);
+        isFirst = false;
+      }
+      setRangeError(null);
+      fetchHeatmapData(timeRange, embedded ? 3 : undefined)
+        .then((result) => {
+          if (!cancelled) {
+            setRangeData(result);
+            setRangeError(null);
+          }
+        })
+        .catch((err: Error) => {
+          if (!cancelled) {
+            setRangeError(err?.message || 'Failed to load heatmap');
+            setRangeData(undefined);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setRangeLoading(false);
+        });
+    };
 
+    load();
+    const timer = setInterval(load, 30_000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
-  }, [timeRange, viewTodayOnly]);
+  }, [timeRange, viewTodayOnly, embedded]);
 
   // Live fetch for "Today Only" — calendar today in IST from API
   useEffect(() => {
@@ -303,28 +568,37 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
     }
 
     let cancelled = false;
-    setTodayLoading(true);
-    setTodayError(null);
+    let isFirst = true;
 
-    fetchHeatmapData('today')
-      .then((result) => {
-        if (!cancelled) {
-          setTodayData(result);
-          setTodayError(null);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) {
-          setTodayError(err?.message || 'Failed to load today\'s heatmap');
-          setTodayData(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setTodayLoading(false);
-      });
+    const load = () => {
+      if (isFirst) {
+        setTodayLoading(true);
+        isFirst = false;
+      }
+      setTodayError(null);
+      fetchHeatmapData('today')
+        .then((result) => {
+          if (!cancelled) {
+            setTodayData(result);
+            setTodayError(null);
+          }
+        })
+        .catch((err: Error) => {
+          if (!cancelled) {
+            setTodayError(err?.message || 'Failed to load today\'s heatmap');
+            setTodayData(null);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setTodayLoading(false);
+        });
+    };
 
+    load();
+    const timer = setInterval(load, 30_000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, [viewTodayOnly]);
 
@@ -400,7 +674,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
   }, [rowDates, currentWeekRange]);
 
   const getCellData = (date: string, hour: number) => {
-    const cell = cells.find((c) => (c.date || c.day) === date && c.hour === hour);
+    const cell = cells.find((c) => (c.date || c.day) === date && Number(c.hour) === hour);
     return {
       count: cell ? cell.count : 0,
       uniqueUsers: cell?.uniqueUsers ?? 0,
@@ -441,6 +715,9 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
   const labelColWidth = embedded ? 44 : 58;
   const hourGridTemplate = `${labelColWidth}px repeat(${activeHours.length}, minmax(0, 1fr))`;
   const cellGap = embedded ? 2 : 4;
+  const gridMinWidth = viewFilter === 'business' ? 420 : 560;
+  const skeletonDayCount = getSkeletonDayCount(viewTodayOnly, embedded, timeRange);
+  const isHeatmapLoading = viewTodayOnly ? todayLoading && !todayData : rangeLoading && !rangeData;
 
   return (
     <div
@@ -509,9 +786,13 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
             <div style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Today
             </div>
-            <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
-              {requestsToday.toLocaleString()}
-            </div>
+            {isHeatmapLoading ? (
+              <div className="skeleton-block heatmap-skeleton-stat" style={{ width: 48, height: 20, margin: '0 auto' }} />
+            ) : (
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
+                {requestsToday.toLocaleString()}
+              </div>
+            )}
           </div>
           <div
             style={{
@@ -526,9 +807,13 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
             <div style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               This Hour
             </div>
-            <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
-              {requestsThisHour.toLocaleString()}
-            </div>
+            {isHeatmapLoading ? (
+              <div className="skeleton-block heatmap-skeleton-stat" style={{ width: 48, height: 20, margin: '0 auto' }} />
+            ) : (
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
+                {requestsThisHour.toLocaleString()}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -547,6 +832,14 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
           flexShrink: 0,
         }}
       >
+        <HeatmapRangeInfoButton
+          palette={activePalette}
+          rangeLabel={viewTodayOnly ? 'Today (IST)' : `${timeRangeLabel(timeRange)} (IST)`}
+          dateRange={weekDateRangeStr}
+          compact={embedded}
+          variant="toolbar"
+        />
+
         <div style={controlGroup}>
           <button type="button" onClick={() => setViewTodayOnly(false)} style={toggleBtn(!viewTodayOnly)}>
             Full Range
@@ -605,11 +898,15 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         </div>
       </div>
 
-      <HeatmapColorLegend
-        palette={activePalette}
-        istTime={embedded ? undefined : istClock.time}
-        compact={embedded}
-      />
+      {isHeatmapLoading ? (
+        <HeatmapLegendSkeleton compact={embedded} />
+      ) : (
+        <HeatmapColorLegend
+          palette={activePalette}
+          istTime={embedded ? undefined : istClock.time}
+          compact={embedded}
+        />
+      )}
 
       {(todayError && viewTodayOnly) || (rangeError && !viewTodayOnly) ? (
         <div style={{ fontSize: '0.75rem', color: '#EF4444' }}>
@@ -617,16 +914,15 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         </div>
       ) : null}
 
-      {viewTodayOnly && todayLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1, minHeight: '160px', color: 'var(--text-muted)' }}>
-          <RefreshCw size={16} className="animate-spin-slow" />
-          <span style={{ fontSize: '0.85rem' }}>Loading today&apos;s activity…</span>
-        </div>
-      ) : !viewTodayOnly && rangeLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1, minHeight: '160px', color: 'var(--text-muted)' }}>
-          <RefreshCw size={16} className="animate-spin-slow" />
-          <span style={{ fontSize: '0.85rem' }}>Loading heatmap…</span>
-        </div>
+      {isHeatmapLoading ? (
+        <HeatmapGridSkeleton
+          embedded={embedded}
+          hourGridTemplate={hourGridTemplate}
+          cellGap={cellGap}
+          hourCount={activeHours.length}
+          dayCount={skeletonDayCount}
+          minWidth={gridMinWidth}
+        />
       ) : cells.length === 0 ? (
         <EmptyState
           icon={Clock}

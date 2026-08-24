@@ -1,11 +1,24 @@
 /** Shared admin analytics helpers (used by server.js + vite dev middleware). */
 
+const IST_TZ = 'Asia/Kolkata';
+
+/**
+ * Prisma DateTime is TIMESTAMP(3) without time zone, stored in UTC.
+ * Convert to IST wall-clock before taking ::date / EXTRACT(HOUR), otherwise
+ * the heatmap (and "today" / "this hour" stats) stop around UTC noon and
+ * never show later IST activity.
+ */
+const IST_NOW_SQL = `(CURRENT_TIMESTAMP AT TIME ZONE '${IST_TZ}')`;
+const IST_DATE_SQL = `${IST_NOW_SQL}::date`;
+const EVENT_IST_SQL = `(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE '${IST_TZ}')`;
+const EVENT_IST_DATE_SQL = `${EVENT_IST_SQL}::date`;
+
 export function getTimeIntervals(timeRange = '24h') {
   const tr = (timeRange || '24h').toLowerCase();
-  const istDate = `(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date`;
-  const istNow = `(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')`;
-  const eventIstDate = `"createdAt"::date`;
-  const eventIst = `"createdAt"`;
+  const istDate = IST_DATE_SQL;
+  const istNow = IST_NOW_SQL;
+  const eventIstDate = EVENT_IST_DATE_SQL;
+  const eventIst = EVENT_IST_SQL;
 
   if (tr === 'today') {
     const todayFilter = `${eventIstDate} = ${istDate}`;
@@ -319,8 +332,8 @@ export async function computeRealHeatmapData(pool, timeRange = '24h', dayCountOv
   const statsRes = await pool.query(`
     ${eventsCte}
     SELECT 
-      COUNT(*) FILTER (WHERE "createdAt"::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)::int as activity_today,
-      COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('hour', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'))::int as activity_this_hour,
+      COUNT(*) FILTER (WHERE ${EVENT_IST_DATE_SQL} = ${IST_DATE_SQL})::int as activity_today,
+      COUNT(*) FILTER (WHERE ${EVENT_IST_SQL} >= date_trunc('hour', ${IST_NOW_SQL}))::int as activity_this_hour,
       COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as activity_in_window,
       COUNT(*)::int as total_all_time
     FROM events
@@ -339,8 +352,8 @@ export async function computeRealHeatmapData(pool, timeRange = '24h', dayCountOv
     ${eventsCte},
     date_series AS (
       SELECT generate_series(
-        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - ($1::int - 1),
-        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
+        ${IST_DATE_SQL} - ($1::int - 1),
+        ${IST_DATE_SQL},
         interval '1 day'
       )::date AS activity_date
     ),
@@ -354,8 +367,8 @@ export async function computeRealHeatmapData(pool, timeRange = '24h', dayCountOv
     ),
     aggregated AS (
       SELECT
-        "createdAt"::date AS activity_date,
-        EXTRACT(HOUR FROM "createdAt")::int AS hour,
+        ${EVENT_IST_DATE_SQL} AS activity_date,
+        EXTRACT(HOUR FROM ${EVENT_IST_SQL})::int AS hour,
         COUNT(*)::int AS count,
         COUNT(DISTINCT "userId")::int AS unique_users
       FROM events
@@ -396,6 +409,7 @@ export async function computeRealHeatmapData(pool, timeRange = '24h', dayCountOv
     requestsThisWeek: stats.activity_in_window || 0,
     totalAllTime: stats.total_all_time || 0,
     currentWeekRange: rangeLabel,
+    hoursTimezone: 'IST',
   };
 }
 

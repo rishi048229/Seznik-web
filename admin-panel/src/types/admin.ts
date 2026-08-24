@@ -111,6 +111,8 @@ export interface HeatmapResponse {
   requestsThisWeek: number;
   totalAllTime: number;
   currentWeekRange: string;
+  /** Present when hour buckets are already Asia/Kolkata wall-clock hours. */
+  hoursTimezone?: 'IST' | 'UTC';
 }
 
 export interface DeviceSessionBreakdownData {
