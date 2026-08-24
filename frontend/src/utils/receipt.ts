@@ -2,7 +2,7 @@ import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
 import { EscPosBuilder, rasterizeImageForEscPos } from './escpos'
 import { compileReceiptTextLines } from './receiptEngine'
-import { buildUpiPayLink } from './upiQr'
+import { buildUpiPayLink, getUpiQrImageUrl } from './upiQr'
 
 export const resolveEffectiveReceiptConfig = (
   settings?: Partial<UserSettings> | null,
@@ -23,27 +23,27 @@ export const resolveEffectiveReceiptConfig = (
     termsLine2: rConf?.termsLine2 || '2. All disputes are subject to local jurisdiction only',
     termsLine3: rConf?.termsLine3 || '',
     compactMode: rConf?.compactMode ?? false,
-    showLogo: pConf?.showLogo ?? rConf?.showLogo ?? true,
     showCompanyHeader: rConf?.showCompanyHeader ?? true,
     showAddress: rConf?.showAddress ?? true,
     showPhone: rConf?.showPhone ?? true,
-    showGSTIN: pConf?.showGSTIN ?? rConf?.showGSTIN ?? true,
-    showCustomerDetails: pConf?.showCustomerDetails ?? rConf?.showCustomerDetails ?? true,
+    showGSTIN: rConf?.showGSTIN ?? true,
+    showCustomerDetails: rConf?.showCustomerDetails ?? true,
     showInvoiceNoAndDate: rConf?.showInvoiceNoAndDate ?? true,
-    showTaxBreakdown: rConf?.showTaxBreakdown ?? true,
     showSubtotalDiscount: rConf?.showSubtotalDiscount ?? true,
+    showTaxBreakdown: rConf?.showTaxBreakdown ?? true,
     showFooterMessage: rConf?.showFooterMessage ?? true,
     showTerms: rConf?.showTerms ?? true,
-    showBarcode: pConf?.showBarcode ?? rConf?.showBarcode ?? true,
+    showBarcode: rConf?.showBarcode ?? true,
+    showLogo: rConf?.showLogo ?? pConf?.showLogo ?? true,
     showPaymentQR: rConf?.showPaymentQR ?? pConf?.invoiceShowPaymentQR ?? false,
+    upiId: rConf?.upiId || '',
     paymentQrURL: rConf?.paymentQrURL || pConf?.paymentQrURL || '',
-    upiId: rConf?.upiId || pConf?.upiId || '',
-    ...overrides,
   }
-  return merged
+
+  return { ...merged, ...(overrides || {}) }
 }
 
-interface GenerateReceiptHTMLParams {
+export interface GenerateReceiptHTMLParams {
   sale: Sale
   receiptConfig?: Partial<ReceiptConfig> | null
   businessName?: string
@@ -51,8 +51,13 @@ interface GenerateReceiptHTMLParams {
   customerName?: string
   width?: '50mm' | '80mm' | '210mm'
   logoURL?: string
-  settingsTaxRate?: number   // from settings.taxConfig.taxRate
-  settingsTaxName?: string   // from settings.taxConfig.taxName
+  settingsTaxRate?: number
+  settingsTaxName?: string
+}
+
+function formatDate(date: any): string {
+  const dateObj = typeof date === 'object' && (date as any)?.toDate ? (date as any).toDate() : (typeof date === 'string' || typeof date === 'number') ? new Date(date) : new Date()
+  return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 // ─── Number to words (Indian system) ─────────────────────────────────────────
@@ -100,7 +105,6 @@ export const generateReceiptHTML = ({
   const dateRaw = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
   const dateObj = typeof dateRaw === 'object' && dateRaw?.toDate ? dateRaw.toDate() : (typeof dateRaw === 'string' || typeof dateRaw === 'number') ? new Date(dateRaw) : new Date()
 
-
   const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const dueDateStr = dateStr // same day unless terms differ
 
@@ -111,8 +115,9 @@ export const generateReceiptHTML = ({
           : 'Credit'
 
   const isThermal = width === '50mm' || width === '80mm'
-
   const is80mm = width === '80mm'
+  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
+  const pageMargin = width === '80mm' ? '2mm 2mm 8mm 2mm' : isThermal ? '2mm 1mm 8mm 1mm' : '10mm 12mm'
 
   const totalTax = sale.totalTax || 0
   const taxableAmount = saleItems.reduce(
@@ -134,8 +139,9 @@ export const generateReceiptHTML = ({
   }
 
   const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
+  const billTotal = Number(sale.grandTotal ?? (sale as any).finalTotal ?? (sale as any).total ?? 0)
 
-  // ─── Font sizes ──────────────────────────────────────────────────────────
+  // Typography Tokens
   // Thermal: 58mm vs 80mm vs A4
   const headerFS = is80mm ? '17px' : isThermal ? '15px' : '20px'
   const baseFS = is80mm ? '13px' : isThermal ? '12px' : '14px'
@@ -151,7 +157,17 @@ export const generateReceiptHTML = ({
   // A4 INVOICE HTML
   // ══════════════════════════════════════════════════════════════════════════
   const effectiveLogo = (receiptConfig?.showLogo ?? true) ? (logoURL || receiptConfig?.logoURL || '') : ''
-  const effectivePaymentQR = (receiptConfig?.showPaymentQR ?? false) ? (receiptConfig?.paymentQrURL || '') : ''
+  const isPaymentQrEnabled = receiptConfig?.showPaymentQR ?? false
+  const effectivePaymentQR = isPaymentQrEnabled
+    ? (receiptConfig?.upiId
+        ? getUpiQrImageUrl({
+            upiId: receiptConfig.upiId,
+            payeeName: companyName,
+            amount: billTotal,
+            note: sale.invoiceNumber || 'Bill Payment',
+          }, 180)
+        : (receiptConfig?.paymentQrURL || ''))
+    : ''
 
   if (!isThermal) {
     // Items table rows for A4 — larger font sizes to fill A4 page
@@ -266,7 +282,7 @@ export const generateReceiptHTML = ({
       ${footerMessage ? `<div style="font-size:11px;margin-top:8px;color:#374151;"><span style="font-weight:600;">Notes</span><br/>${footerMessage}</div>` : ''}
       ${effectivePaymentQR ? `
       <div style="margin-top:12px;padding-top:8px;border-top:1px dashed #cbd5e1;">
-        <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Scan &amp; Pay via UPI / QR:</div>
+        <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Scan &amp; Pay Exact Bill (&#x20B9;${billTotal.toFixed(2)}) via UPI:</div>
         <img src="${effectivePaymentQR}" alt="Payment QR" style="width:110px;height:110px;object-fit:contain;display:block;" />
       </div>` : ''}
     </div>
@@ -361,7 +377,7 @@ export const generateReceiptHTML = ({
   ">
 ${effectiveLogo ? `<div style="text-align:center;margin:0 auto 8px auto;padding-bottom:4px;border-bottom:1px dashed #000;display:block;"><img src="${effectiveLogo}" alt="Store Logo" style="max-height:56px;max-width:180px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
 ${rawLinesHtml}
-${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA QR / UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:130px;height:130px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY &#x20B9;${billTotal.toFixed(2)} VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:130px;height:130px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
 }
 
@@ -532,17 +548,21 @@ export const generateReceiptEscPos = async ({
   })
 
   // Payment QR Code on ESC/POS Bluetooth receipt. Prefers a real UPI ID
-  // (proper VPA, e.g. "name@okhdfcbank") to build a correct upi://pay link —
-  // this used to fall back to the business's phone number as the VPA, which
-  // is not generally a valid UPI ID and would print an unpayable QR. Only
-  // falls back to the legacy paymentQrURL-as-payload behavior (for the
-  // static-uploaded-QR flow) when no upiId is configured.
+  // (proper VPA, e.g. "name@okhdfcbank") to build a correct upi://pay link with the exact bill amount.
   if (receiptConfig?.showPaymentQR && (receiptConfig?.upiId || receiptConfig?.paymentQrURL)) {
+    const billTotal = Number(sale.grandTotal ?? (sale as any).finalTotal ?? (sale as any).total ?? 0)
     b.feed(1)
     b.align('center')
-    b.line('SCAN TO PAY VIA QR')
+    b.bold(true)
+    b.line(`SCAN TO PAY Rs.${billTotal.toFixed(2)}`)
+    b.bold(false)
     const qrPayload = receiptConfig.upiId
-      ? buildUpiPayLink({ upiId: receiptConfig.upiId, payeeName: businessName || 'SEZNIK', amount: sale.grandTotal })
+      ? buildUpiPayLink({
+          upiId: receiptConfig.upiId,
+          payeeName: businessName || 'SEZNIK',
+          amount: billTotal,
+          note: sale.invoiceNumber || 'Bill Payment',
+        })
       : receiptConfig.paymentQrURL!
     b.qr(qrPayload, paperSize === '80mm' ? 6 : 4)
   }

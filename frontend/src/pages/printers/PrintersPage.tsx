@@ -25,6 +25,7 @@ import {
 } from '@/utils/labelPrint'
 import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { compileReceiptTextLines } from '@/utils/receiptEngine'
+import { getUpiQrImageUrl } from '@/utils/upiQr'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
@@ -1116,11 +1117,11 @@ export const PrintersPage = () => {
                 </pre>
 
                 {/* Live Payment QR Code Preview */}
-                {receiptConfig.showPaymentQR && receiptConfig.paymentQrURL && (
+                {receiptConfig.showPaymentQR && (receiptConfig.upiId || receiptConfig.paymentQrURL) && (
                   <div className="mt-3 pt-3 border-t border-dashed border-gray-300 text-center flex flex-col items-center">
-                    <span className="text-[10px] font-bold tracking-wider text-gray-800 mb-1">SCAN TO PAY (UPI / QR)</span>
+                    <span className="text-[10px] font-bold tracking-wider text-gray-800 mb-1">SCAN TO PAY ₹2,759.00 (UPI / QR)</span>
                     <img
-                      src={receiptConfig.paymentQrURL}
+                      src={receiptConfig.upiId ? getUpiQrImageUrl({ upiId: receiptConfig.upiId, payeeName: settings?.businessName || 'SEZNIK POS STORE', amount: 2759, note: 'INV/2026/00142' }, 140) : receiptConfig.paymentQrURL}
                       alt="Payment QR Code"
                       className="w-28 h-28 object-contain border border-gray-200 rounded p-1 bg-white"
                     />
