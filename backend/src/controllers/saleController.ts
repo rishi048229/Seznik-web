@@ -59,6 +59,13 @@ export const createSale = async (req: Request, res: Response) => {
       body.customerId && String(body.customerId).trim()
         ? String(body.customerId).trim()
         : null;
+    // Multi-location inventory: which store this whole sale was billed from. Absent
+    // entirely when the feature is off or no store was picked, so stock decrements
+    // hit the flat Product.currentStock exactly as before (legacy path unchanged).
+    const locationId =
+      body.locationId && String(body.locationId).trim()
+        ? String(body.locationId).trim()
+        : null;
     const saleDate = body.createdAt ? new Date(body.createdAt) : new Date();
     if (Number.isNaN(saleDate.getTime())) {
       return res.status(400).json({ error: 'Invalid sale date' });
@@ -82,6 +89,7 @@ export const createSale = async (req: Request, res: Response) => {
         amountPaid,
         changeReturned,
         isQuickBill,
+        locationId,
         platform,
         userId,
         createdAt: saleDate,
@@ -109,15 +117,28 @@ export const createSale = async (req: Request, res: Response) => {
               return;
             }
 
-            await prisma.product.update({
-              where: { id: product.id },
-              data: { currentStock: { decrement: qty } },
-            });
+            // Multi-location inventory: a whole sale is billed from one location
+            // (locationId), so its stock decrement hits that location's own pool
+            // instead of the flat Product.currentStock. Off entirely (unchanged
+            // legacy path) when the feature is off (no locationId).
+            if (locationId) {
+              await prisma.productLocationStock.upsert({
+                where: { productId_locationId: { productId: product.id, locationId } },
+                update: { stock: { decrement: qty } },
+                create: { productId: product.id, locationId, userId, stock: -qty },
+              });
+            } else {
+              await prisma.product.update({
+                where: { id: product.id },
+                data: { currentStock: { decrement: qty } },
+              });
+            }
             await prisma.stockHistory.create({
               data: {
                 change: -qty,
                 reason: 'sale',
                 productId: product.id,
+                locationId: locationId || null,
                 userId,
                 createdAt: saleDate,
               },

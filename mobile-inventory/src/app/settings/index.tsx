@@ -37,6 +37,7 @@ import {
   Mail,
   Sparkles,
   Trash2,
+  Store,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -159,6 +160,25 @@ export default function SettingsScreen() {
     }
   };
 
+  const multiStoreEnabled = settings?.locationConfig?.enabled ?? false;
+  const [isTogglingMultiStore, setIsTogglingMultiStore] = useState(false);
+
+  const toggleMultiStore = async (value: boolean) => {
+    setIsTogglingMultiStore(true);
+    try {
+      if (settings?.id) {
+        await settingsApi.updateSettings(settings.id, { locationConfig: { enabled: value } });
+      } else {
+        await settingsApi.createSettings({ locationConfig: { enabled: value } });
+      }
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    } catch (e: any) {
+      Alert.alert('Could Not Save', e?.message || 'Please check your connection and try again.');
+    } finally {
+      setIsTogglingMultiStore(false);
+    }
+  };
+
   return (
     <ScreenBackground color={theme.bg}>
       <StatusBar
@@ -196,12 +216,40 @@ export default function SettingsScreen() {
         <ScrollView style={{ flex: 1, marginTop: 12 }} contentContainerStyle={{ paddingBottom: 40 }}>
           {activeSection === 'menu' ? (
             /* Main Menu Grid */
-            <View style={styles.menuGrid}>
+            <View>
+              <View style={[styles.multiStoreCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={[styles.menuIconBox, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                  <Store size={20} color={BRAND_COLORS.blue600} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12, marginRight: 8 }}>
+                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>
+                    {t('enableMultiStore', 'Enable Multi-Store Inventory')}
+                  </Text>
+                  <Text style={[styles.menuSub, { color: theme.textSecondary }]}>
+                    {t(
+                      'enableMultiStoreDesc',
+                      'Track separate stock & price per store. Off = billing works exactly as one store.'
+                    )}
+                  </Text>
+                </View>
+                {isTogglingMultiStore ? (
+                  <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                ) : (
+                  <Switch
+                    value={multiStoreEnabled}
+                    onValueChange={toggleMultiStore}
+                    trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
+                  />
+                )}
+              </View>
+
+              <View style={styles.menuGrid}>
               {[
                 { id: 'profile', icon: Building, label: 'Business Profile', color: BRAND_COLORS.blue600 },
                 { id: 'permissions', icon: Users, label: 'Staff Permissions', color: '#F59E0B' },
                 { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
                 { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
+                { id: 'stores', icon: Store, label: t('stores', 'Stores'), color: '#2563EB', link: '/stores' },
                 { id: 'support', icon: LifeBuoy, label: 'Help & Support', color: '#EF4444' },
               ].map((item) => (
                 <FeatureGridTile
@@ -213,6 +261,7 @@ export default function SettingsScreen() {
                   theme={theme}
                 />
               ))}
+              </View>
             </View>
           ) : activeSection === 'support' ? (
             /* Help & Support Section */
@@ -474,6 +523,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '900', marginBottom: 6 },
   menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   menuItem: { borderRadius: 18, padding: 14, borderWidth: 1, marginBottom: 10, flexDirection: 'row', alignItems: 'center' },
+  multiStoreCard: { borderRadius: 18, padding: 14, borderWidth: 1, marginBottom: 16, flexDirection: 'row', alignItems: 'center' },
   menuIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(37, 99, 235, 0.12)', alignItems: 'center', justifyContent: 'center' },
   menuTitle: { fontSize: 14, fontWeight: '800' },
   menuSub: { fontSize: 11, marginTop: 2 },

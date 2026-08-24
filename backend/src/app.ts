@@ -20,6 +20,7 @@ import tokenTypeRoutes from './routes/tokenTypeRoutes';
 import tokenRoutes from './routes/tokenRoutes';
 import restaurantTableRoutes from './routes/restaurantTableRoutes';
 import kotOrderRoutes from './routes/kotOrderRoutes';
+import locationRoutes from './routes/locationRoutes';
 const app = express();
 
 // 1. Security Headers via Helmet
@@ -86,6 +87,7 @@ app.use('/api/token-types', tokenTypeRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/restaurant-tables', restaurantTableRoutes);
 app.use('/api/kot-orders', kotOrderRoutes);
+app.use('/api/locations', locationRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {

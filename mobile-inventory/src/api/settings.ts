@@ -14,6 +14,8 @@ export interface Settings {
   receiptConfig?: Record<string, any> | null;
   printerConfig?: Record<string, any> | null;
   labelConfig?: Record<string, any> | null;
+  // Multi-location inventory (opt-in — see src/hooks/useLocations.ts, src/app/stores/index.tsx).
+  locationConfig?: { enabled: boolean } | null;
   userId: string;
   createdAt?: string;
   updatedAt?: string;

@@ -13,6 +13,7 @@ import {
   aiConvertInvoice,
   bulkImportProducts
 } from '../controllers/productController';
+import { upsertProductLocationStock, getProductLocationStock } from '../controllers/locationController';
 import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
@@ -36,5 +37,9 @@ router.get('/barcode/:barcode', getProductByBarcode);
 router.put('/:id', updateProduct);
 router.delete('/:id', softDeleteProduct);
 router.post('/:id/stock', adjustStock);
+
+// Multi-location inventory (opt-in — see Settings.locationConfig).
+router.get('/:productId/location-stock', getProductLocationStock);
+router.put('/:productId/location-stock/:locationId', upsertProductLocationStock);
 
 export default router;

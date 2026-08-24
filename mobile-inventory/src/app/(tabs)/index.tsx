@@ -60,6 +60,7 @@ import {
   MessageSquarePlus,
   Trash2,
   ChefHat,
+  Store,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -659,6 +660,14 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
+                      label={t('stores', 'Stores')}
+                      badge="NEW"
+                      icon={Store}
+                      color="#2563EB"
+                      onPress={() => router.push('/stores' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
                       label={t('thermalPrinter', 'Thermal Printer')}
                       icon={Printer}
                       color={BRAND_COLORS.blue600}
@@ -726,7 +735,7 @@ export default function DashboardScreen() {
               >
                 <LayoutGrid size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 6 }} />
                 <Text style={[styles.showMoreBtnText, { color: theme.textPrimary }]}>
-                  {showMoreTools ? t('showLessOptions', 'Show Less Options') : t('showMoreOptions', 'Show More Options (13)')}
+                  {showMoreTools ? t('showLessOptions', 'Show Less Options') : t('showMoreOptions', 'Show More Options (14)')}
                 </Text>
                 {showMoreTools ? (
                   <ChevronUp size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
@@ -738,30 +747,27 @@ export default function DashboardScreen() {
               {/* 2.5 LIVE THERMAL & BLUETOOTH PRINTER HARDWARE STATUS CARD */}
               <View style={[styles.printerCard, { backgroundColor: theme.cardBg, borderColor: connectionState === 'connected' ? '#10B981' : theme.borderColor }]}>
                 <View style={styles.printerCardHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View style={[styles.printerIconBadge, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)' }]}>
-                      <Printer size={20} color={connectionState === 'connected' ? '#10B981' : '#64748B'} />
-                    </View>
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={[styles.printerCardTitle, { color: theme.textPrimary }]}>
-                          {t('thermalPrinter', 'Thermal POS Printer')}
-                        </Text>
-                        <View style={[styles.statusPill, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
-                          <View style={[styles.statusDot, { backgroundColor: connectionState === 'connected' ? '#10B981' : '#EF4444' }]} />
-                          <Text style={[styles.statusPillText, { color: connectionState === 'connected' ? '#10B981' : '#EF4444' }]}>
-                            {connectionState === 'connected' ? (activeDevice?.name || t('connected', 'Connected')) : t('disconnected', 'Disconnected')}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
-                        {connectionState === 'connected' 
-                          ? `${activeDevice?.name || 'Bluetooth/USB'} • ${paperWidth} ${t('printerReady', 'Paper Ready')}` 
-                          : t('noBluetoothFound', 'Tap Scan & Connect to link Bluetooth/USB receipt printer')}
-                      </Text>
-                    </View>
+                  <View style={[styles.printerIconBadge, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)' }]}>
+                    <Printer size={18} color={connectionState === 'connected' ? '#10B981' : '#64748B'} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+                    <Text style={[styles.printerCardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {t('thermalPrinter', 'Thermal POS Printer')}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusPill, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
+                    <View style={[styles.statusDot, { backgroundColor: connectionState === 'connected' ? '#10B981' : '#EF4444' }]} />
+                    <Text style={[styles.statusPillText, { color: connectionState === 'connected' ? '#10B981' : '#EF4444' }]}>
+                      {connectionState === 'connected' ? (activeDevice?.name || t('connected', 'Connected')) : t('disconnected', 'Disconnected')}
+                    </Text>
                   </View>
                 </View>
+
+                <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
+                  {connectionState === 'connected' 
+                    ? `${activeDevice?.name || 'Bluetooth/USB'} • ${paperWidth} ${t('printerReady', 'Paper Ready')}` 
+                    : t('noBluetoothFound', 'No Bluetooth device linked. Tap Scan & Connect to link receipt printer.')}
+                </Text>
 
                 {/* Action Buttons: Scan/Connect + Test Print + Paper Switch */}
                 <View style={styles.printerActionRow}>
@@ -788,7 +794,7 @@ export default function DashboardScreen() {
                   ) : null}
 
                   {/* 58mm / 80mm toggle */}
-                  <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
+                  <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
                     <TouchableOpacity
                       style={[styles.paperToggleBtn, paperWidth === '58mm' && styles.paperToggleActive]}
                       onPress={() => setPaperWidth('58mm')}
@@ -1389,7 +1395,9 @@ const styles = StyleSheet.create({
   printerCardSub: {
     fontSize: 11,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: -4,
+    marginBottom: 12,
+    lineHeight: 16,
   },
   statusPill: {
     flexDirection: 'row',
