@@ -510,3 +510,238 @@ export const getExpenseSummary = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch expense summary' });
   }
 };
+
+export const getDaybook = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const dateParam = req.query.date as string;
+    const targetDate = dateParam ? new Date(dateParam) : new Date();
+    const dayStart = startOfDay(targetDate);
+    const dayEnd = endOfDay(targetDate);
+
+    const [sales, expenses, creditTxns, lowStockCount] = await Promise.all([
+      prisma.sale.findMany({
+        where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.expense.findMany({
+        where: { userId, expenseDate: { gte: dayStart, lte: dayEnd } },
+        orderBy: { expenseDate: 'desc' },
+      }),
+      prisma.creditTransaction.findMany({
+        where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
+        include: { customer: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.product.count({
+        where: {
+          userId,
+          isActive: true,
+          currentStock: { lte: 10 },
+        },
+      }),
+    ]);
+
+    // 1. Sales breakdown
+    const modeMap = new Map<string, number>();
+    let totalTax = 0;
+    let nonCreditSales = 0;
+    let creditSales = 0;
+
+    const productSalesMap = new Map<string, { name: string; unitsSold: number; revenue: number }>();
+
+    sales.forEach((s: any) => {
+      totalTax += s.totalTax || 0;
+      const method = (s.paymentMethod || 'cash').toLowerCase();
+      modeMap.set(method, (modeMap.get(method) || 0) + (s.grandTotal || 0));
+
+      if (method === 'credit') {
+        creditSales += s.grandTotal || 0;
+      } else {
+        nonCreditSales += s.grandTotal || 0;
+      }
+
+      const items = (s.items as any[]) || [];
+      items.forEach((item: any) => {
+        const name = item.productName || item.name || 'Product';
+        const qty = Number(item.quantity) || 1;
+        const total = Number(item.total) || Number(item.price || item.sellingPrice || 0) * qty;
+        const existing = productSalesMap.get(name) || { name, unitsSold: 0, revenue: 0 };
+        existing.unitsSold += qty;
+        existing.revenue += total;
+        productSalesMap.set(name, existing);
+      });
+    });
+
+    // 2. Credit Transactions breakdown
+    let creditCollectedToday = 0;
+    let manualCreditGiven = 0;
+
+    creditTxns.forEach((tx: any) => {
+      if (tx.type === 'payment') {
+        creditCollectedToday += tx.amount || 0;
+      } else if (tx.type === 'credit') {
+        manualCreditGiven += tx.amount || 0;
+      }
+    });
+
+    const totalExpenseAmount = expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+    const moneyIn = nonCreditSales + creditCollectedToday;
+    const moneyOut = totalExpenseAmount;
+    const netBalance = moneyIn - moneyOut;
+    const creditGiven = creditSales + manualCreditGiven;
+
+    const paymentModeBreakdown = Array.from(modeMap.entries()).map(([method, amount]) => ({
+      method,
+      amount,
+    }));
+
+    const topSellingItemToday = Array.from(productSalesMap.values()).sort((a, b) => b.revenue - a.revenue)[0] || null;
+
+    // 3. Transactions feed
+    const transactions: Array<{
+      type: 'sale' | 'expense' | 'credit_payment' | 'credit_given';
+      amount: number;
+      isCredit: boolean;
+      description: string;
+      createdAt: string;
+    }> = [];
+
+    sales.forEach((s: any) => {
+      transactions.push({
+        type: 'sale',
+        amount: s.grandTotal,
+        isCredit: s.paymentMethod === 'credit',
+        description: `Sale ${s.invoiceNumber || ''} (${s.paymentMethod.toUpperCase()})`,
+        createdAt: s.createdAt.toISOString(),
+      });
+    });
+
+    expenses.forEach((e: any) => {
+      transactions.push({
+        type: 'expense',
+        amount: e.amount,
+        isCredit: false,
+        description: `Expense: ${e.category || e.title || 'Store Expense'}`,
+        createdAt: e.expenseDate.toISOString(),
+      });
+    });
+
+    creditTxns.forEach((tx: any) => {
+      transactions.push({
+        type: tx.type === 'payment' ? 'credit_payment' : 'credit_given',
+        amount: tx.amount,
+        isCredit: tx.type === 'credit',
+        description: `${tx.type === 'payment' ? 'Payment from' : 'Credit given to'} ${tx.customer?.name || 'Customer'}${tx.notes ? ` (${tx.notes})` : ''}`,
+        createdAt: tx.createdAt.toISOString(),
+      });
+    });
+
+    transactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({
+      date: targetDate.toISOString().split('T')[0],
+      moneyIn,
+      moneyOut,
+      netBalance,
+      creditGiven,
+      creditCollectedToday,
+      paymentModeBreakdown,
+      gstCollectedToday: {
+        total: totalTax,
+        cgst: totalTax / 2,
+        sgst: totalTax / 2,
+      },
+      topSellingItemToday,
+      remindersSentToday: 0,
+      lowStockAlertCount: lowStockCount,
+      transactions: transactions.slice(0, 100),
+    });
+  } catch (error) {
+    console.error('Failed to fetch daybook:', error);
+    res.status(500).json({ error: 'Failed to fetch daybook' });
+  }
+};
+
+export const getDayCloseStatus = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const dateParam = req.query.date as string;
+    const targetDate = dateParam ? new Date(dateParam) : new Date();
+    const dayStart = startOfDay(targetDate);
+    const dayEnd = endOfDay(targetDate);
+
+    const record = await prisma.dayClose.findFirst({
+      where: {
+        userId,
+        closeDate: { gte: dayStart, lte: dayEnd },
+      },
+    });
+
+    res.json(record || null);
+  } catch (error) {
+    console.error('Failed to fetch day close status:', error);
+    res.status(500).json({ error: 'Failed to fetch day close status' });
+  }
+};
+
+export const closeDayRegister = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const { countedCash, notes } = req.body;
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+
+    // Calculate expected cash = Cash Sales + Cash Credit Payments - Cash Expenses
+    const [cashSales, cashCreditPayments, cashExpenses] = await Promise.all([
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: todayStart, lte: todayEnd }, paymentMethod: 'cash' },
+        _sum: { grandTotal: true },
+      }),
+      prisma.creditTransaction.aggregate({
+        where: { userId, createdAt: { gte: todayStart, lte: todayEnd }, type: 'payment' },
+        _sum: { amount: true },
+      }),
+      prisma.expense.aggregate({
+        where: { userId, expenseDate: { gte: todayStart, lte: todayEnd } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const expectedCash =
+      (cashSales._sum.grandTotal || 0) +
+      (cashCreditPayments._sum.amount || 0) -
+      (cashExpenses._sum.amount || 0);
+
+    const counted = Number(countedCash) || 0;
+    const variance = counted - expectedCash;
+
+    const record = await prisma.dayClose.upsert({
+      where: {
+        userId_closeDate: {
+          userId,
+          closeDate: todayStart,
+        },
+      },
+      create: {
+        userId,
+        closeDate: todayStart,
+        expectedCash,
+        countedCash: counted,
+        variance,
+        notes: notes ? String(notes).trim() : null,
+      },
+      update: {
+        expectedCash,
+        countedCash: counted,
+        variance,
+        notes: notes ? String(notes).trim() : null,
+      },
+    });
+
+    res.status(201).json(record);
+  } catch (error: any) {
+    console.error('Failed to close day register:', error);
+    res.status(500).json({ error: error?.message || 'Failed to close day register' });
+  }
+};

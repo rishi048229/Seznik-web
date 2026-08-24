@@ -11,6 +11,9 @@ import {
   getTopProducts,
   getTopCategories,
   getExpenseSummary,
+  getDaybook,
+  getDayCloseStatus,
+  closeDayRegister,
 } from '../controllers/reportController';
 import { protect } from '../middlewares/authMiddleware';
 
@@ -29,5 +32,8 @@ router.get('/profit-breakdown', getProfitBreakdown);
 router.get('/top-products', getTopProducts);
 router.get('/top-categories', getTopCategories);
 router.get('/expense-summary', getExpenseSummary);
+router.get('/daybook', getDaybook);
+router.get('/day-close', getDayCloseStatus);
+router.post('/day-close', closeDayRegister);
 
 export default router;
