@@ -35,7 +35,7 @@ const TIMEFRAMES: { id: TrafficTimeFrame; label: string }[] = [
 export const TrafficView: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<TrafficTimeFrame>('7d');
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Custom date range state pre-filled with past 14 days to today
@@ -70,8 +70,6 @@ export const TrafficView: React.FC = () => {
 
   // Timeframe limit calculation including custom date range
   const timeframeFilteredLogs = useMemo(() => {
-    const now = Date.now();
-
     if (timeFrame === 'custom') {
       const startMs = new Date(`${customStartDate}T00:00:00`).getTime();
       const endMs = new Date(`${customEndDate}T23:59:59`).getTime();
@@ -187,15 +185,12 @@ export const TrafficView: React.FC = () => {
       {/* Error Banner */}
       {error && (
         <div
+          className="admin-error-banner"
           style={{
             padding: '12px 18px',
             background: 'rgba(239, 68, 68, 0.12)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -232,11 +227,11 @@ export const TrafficView: React.FC = () => {
 
       {/* Header Card */}
       <div className="glass-card" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Activity size={22} color="var(--accent-blue)" />
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', wordBreak: 'break-word' }}>
                 Traffic Analytics &amp; Invoice Creation Numbers
               </h2>
             </div>
@@ -247,7 +242,7 @@ export const TrafficView: React.FC = () => {
 
           {/* Timeframe & Custom Date Selector */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--tab-bg)', padding: '4px', borderRadius: '8px', border: '1px solid var(--tab-border)', flexWrap: 'wrap' }}>
+            <div className="timeframe-pills" style={{ background: 'var(--tab-bg)', padding: '4px', borderRadius: '8px', border: '1px solid var(--tab-border)' }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Calendar size={13} color="var(--accent-blue)" />
                 Timeframe:
@@ -276,10 +271,8 @@ export const TrafficView: React.FC = () => {
             {/* Custom Date Pickers Bar (Visible when timeFrame === 'custom') */}
             {timeFrame === 'custom' && (
               <div
+                className="custom-date-range"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
                   background: 'var(--bg-main)',
                   padding: '6px 12px',
                   borderRadius: '8px',
@@ -324,7 +317,7 @@ export const TrafficView: React.FC = () => {
       </div>
 
       {/* 3 Top Cards: Total, Mobile App, Web App */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+      <div className="traffic-metric-grid">
         {/* Card 1: Total Invoices */}
         <div className="glass-card" style={{ padding: '20px', background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)', color: '#FFFFFF' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -389,7 +382,7 @@ export const TrafficView: React.FC = () => {
 
       {/* Timeline View Chart: Mobile App vs Web Traffic over time */}
       <div className="glass-card" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div className="page-header-row" style={{ marginBottom: '16px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <TrendingUp size={18} color="var(--accent-blue)" />
@@ -403,7 +396,7 @@ export const TrafficView: React.FC = () => {
 
         <div style={{ height: '280px', width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="mobileTrafficGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />

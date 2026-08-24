@@ -379,13 +379,7 @@ export const HealthView: React.FC = () => {
 
       {/* Summary stats row */}
       {anyChecked && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-          }}
-        >
+        <div className="health-stats-grid">
           {[
             { icon: Server, label: 'Services checked', value: '2', color: 'var(--accent-blue)' },
             {
@@ -436,13 +430,7 @@ export const HealthView: React.FC = () => {
       )}
 
       {/* Service cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-          gap: '14px',
-        }}
-      >
+      <div className="health-service-grid">
         {services.map((service) => (
           <ServiceCard key={service.label} service={service} checking={loading} />
         ))}

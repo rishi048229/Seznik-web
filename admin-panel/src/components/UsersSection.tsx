@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { UserManagementView } from './UserManagementView';
-import { TimeRangeSelect } from './TimeRangeSelect';
 import { fetchUserRecords } from '../services/api';
 import type { UserRecord } from '../types/admin';
 
@@ -10,16 +9,15 @@ interface UsersSectionProps {
 }
 
 export const UsersSection: React.FC<UsersSectionProps> = ({ initialSearchTerm }) => {
-  const [timeRange, setTimeRange] = useState('all');
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const loadUsers = async (activeRange = timeRange) => {
+  const loadUsers = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await fetchUserRecords(activeRange);
+      const data = await fetchUserRecords('all');
       setUsers(data);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Database connection error or failed request');
@@ -29,32 +27,21 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ initialSearchTerm })
   };
 
   useEffect(() => {
-    loadUsers(timeRange);
-  }, [timeRange]);
+    loadUsers();
+  }, []);
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
-        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          {timeRange === 'all'
-            ? 'Showing all registered merchant users'
-            : 'Showing users registered in the selected time window'}
-        </p>
-        <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />
-      </div>
 
       {errorMessage && (
         <div
+          className="admin-error-banner"
           style={{
             marginBottom: '14px',
             padding: '12px 18px',
             background: 'rgba(239, 68, 68, 0.12)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

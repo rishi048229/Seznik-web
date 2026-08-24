@@ -6,7 +6,6 @@ import {
   Building2,
   Search,
   ShieldAlert,
-  ShieldCheck,
   Ban,
   CheckCircle2,
   UserCheck,
@@ -161,7 +160,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   ];
 
   return (
-    <div className="glass-card" style={{ padding: '24px', minHeight: '620px', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' }}>
+    <div className="glass-card user-mgmt-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -255,7 +254,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           </select>
 
           {/* Search Input */}
-          <div style={{ position: 'relative', width: '280px', maxWidth: '100%' }}>
+          <div className="user-mgmt-search">
             <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
             <input
               type="text"
@@ -332,6 +331,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
       {/* Users Table Container (with Scroll View support) */}
       <div
+        className="users-desktop-table"
         style={{
           width: '100%',
           overflowX: 'auto',
@@ -348,7 +348,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             : {}),
         }}
       >
-        <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className="custom-table users-roster-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr
               style={{
@@ -538,6 +538,128 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="users-mobile-cards">
+        {displayedUsers.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            No merchant users match your search criteria.
+          </div>
+        ) : (
+          displayedUsers.map((u) => {
+            const banInfo = bannedMap[u.id];
+            const isUserBanned = banInfo?.banned || u.isBanned;
+            const registrationSource = getRegistrationSource(u.id);
+            const sourceStyle = getRegistrationSourceStyle(registrationSource);
+
+            return (
+              <div key={u.id} className="user-mobile-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+                      {u.displayName || 'No Name'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', wordBreak: 'break-word', marginTop: '2px' }}>
+                      {u.email || 'No Email'}
+                    </div>
+                  </div>
+                  {isUserBanned ? (
+                    <span className="badge badge-failed"><ShieldAlert size={12} /> Banned</span>
+                  ) : u.emailVerified ? (
+                    <span className="badge badge-active"><UserCheck size={12} /> Verified</span>
+                  ) : (
+                    <span className="badge badge-free">Unverified</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      color: sourceStyle.color,
+                      background: sourceStyle.background,
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    {getRegistrationSourceLabel(registrationSource)}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                    {u.businessName || 'Independent'}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '3px 8px' }}>
+                    {u.phone || 'No phone'}
+                  </span>
+                </div>
+
+                <div className="user-mobile-card-actions">
+                  <button
+                    onClick={() => setSelectedUserForProfile(u)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--accent-blue)',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <User size={12} />
+                    View Profile
+                  </button>
+                  {isUserBanned ? (
+                    <button
+                      onClick={() => handleUnban(u.id)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        color: '#10B981',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      <CheckCircle2 size={12} />
+                      Unban
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedUserForBan(u)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(244, 63, 94, 0.15)',
+                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                        color: '#F87171',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      <Ban size={12} />
+                      Ban User
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Footer Controls: Pagination Navigation or Scroll Summary */}
@@ -753,7 +875,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             }}
           >
             <div
-              className="glass-card"
+              className="glass-card admin-modal-card"
               style={{
                 width: '100%',
                 maxWidth: '560px',
@@ -784,10 +906,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     {(u.displayName || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', wordBreak: 'break-word' }}>
                       {u.displayName || 'Merchant User'}
                     </h3>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', wordBreak: 'break-word' }}>
                       User ID: #{u.id} • Source:{' '}
                       <span style={{ color: getRegistrationSourceStyle(getRegistrationSource(u.id)).color, fontWeight: 600 }}>
                         {getRegistrationSourceLabel(getRegistrationSource(u.id))}
@@ -806,7 +928,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
 
               {/* Profile Details Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px' }}>
+              <div className="profile-details-grid" style={{ marginBottom: '20px' }}>
                 <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Mail size={12} /> Email Address
@@ -854,7 +976,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   </div>
                 </div>
 
-                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', gridColumn: 'span 2' }}>
+                <div className="span-2" style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', gridColumn: 'span 2' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Calendar size={12} /> Registered / Joined Date
                   </div>
@@ -878,7 +1000,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
 
               {/* Profile Actions */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => setSelectedUserForProfile(null)}
                   style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
@@ -929,7 +1051,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           }}
         >
           <div
-            className="glass-card"
+            className="glass-card admin-modal-card"
             style={{
               width: '100%',
               maxWidth: '480px',
@@ -1029,7 +1151,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             )}
 
             {/* Modal Actions */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setSelectedUserForBan(null)}
                 disabled={actionLoading}

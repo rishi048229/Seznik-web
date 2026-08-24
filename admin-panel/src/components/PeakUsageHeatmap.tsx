@@ -423,11 +423,8 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
     >
       {/* Header */}
       <div
+        className="heatmap-header"
         style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: '12px',
           flexShrink: 0,
         }}
       >
@@ -635,8 +632,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
           style={{
             flex: 1,
             minHeight: 0,
-            overflow: embedded ? 'hidden' : undefined,
-            overflowX: embedded ? 'hidden' : 'auto',
+            overflowX: 'auto',
             overflowY: 'hidden',
             padding: embedded ? '2px 2px 0' : '4px 2px 2px',
             background: 'var(--bg-main)',
@@ -654,7 +650,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
               gridTemplateColumns: hourGridTemplate,
               gap: cellGap,
               padding: embedded ? '4px 8px 2px' : '8px 10px 4px',
-              minWidth: embedded ? undefined : (viewFilter === 'business' ? '420px' : '640px'),
+              minWidth: viewFilter === 'business' ? '420px' : '560px',
             }}
           >
             <div />
@@ -684,7 +680,10 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
           {/* Day rows */}
           <div
             className={embedded ? 'heatmap-day-rows' : undefined}
-            style={embedded ? undefined : { padding: '0 10px 10px', minWidth: viewFilter === 'business' ? '420px' : '640px' }}
+            style={{
+              padding: embedded ? undefined : '0 10px 10px',
+              minWidth: viewFilter === 'business' ? '420px' : '560px',
+            }}
           >
             {rowDates.map((dateInfo) => (
               <div
@@ -788,9 +787,10 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         <div
           style={{
             position: 'fixed',
-            left: `${hoveredCell.x}px`,
-            top: `${hoveredCell.y - 12}px`,
+            left: `${Math.min(Math.max(hoveredCell.x, 110), (typeof window !== 'undefined' ? window.innerWidth : 800) - 110)}px`,
+            top: `${Math.max(hoveredCell.y - 12, 72)}px`,
             transform: 'translate(-50%, -100%)',
+            maxWidth: 'calc(100vw - 24px)',
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
             boxShadow: '0 8px 24px rgba(0,0,0,0.45)',

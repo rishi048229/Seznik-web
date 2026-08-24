@@ -47,7 +47,7 @@ export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embed
   if (error || !data || (data.totalInvoices ?? 0) === 0) {
     return (
       <div className={`glass-card${embedded ? ' device-panel--embedded' : ''}`} style={{ padding: embedded ? '12px 14px' : '18px 22px', height: '100%', minHeight: 0, boxSizing: 'border-box', flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+        <div className="device-panel-header" style={{ marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Laptop size={17} color="#8B5CF6" />
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -83,7 +83,7 @@ export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embed
       }}
     >
       <div style={{ flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+        <div className="device-panel-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Laptop size={17} color="#8B5CF6" />
@@ -114,7 +114,7 @@ export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embed
             {d.mobilePercent > 0 && <div style={{ width: `${d.mobilePercent}%`, background: '#10B981', borderRadius: '2px', transition: 'width 0.3s ease' }} title={`Mobile: ${d.mobilePercent}%`} />}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <div className="device-panel-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
             <div style={{ background: 'var(--bg-card-hover)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
                 <Laptop size={14} color="#3B82F6" /> Web (Browser POS)

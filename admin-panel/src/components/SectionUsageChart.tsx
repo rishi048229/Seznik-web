@@ -3,7 +3,6 @@ import {
   LayoutGrid, 
   TrendingUp, 
   TrendingDown, 
-  Clock, 
   ArrowRight, 
   Package, 
   ShoppingBag, 
@@ -20,11 +19,8 @@ import {
   ShieldCheck, 
   Printer, 
   ChevronDown, 
-  ChevronUp,
   X,
   Calculator,
-  HelpCircle,
-  Info,
 } from 'lucide-react';
 import type { SectionUsage } from '../types/admin';
 import { EmptyState } from './EmptyState';
@@ -63,7 +59,6 @@ const getModuleIcon = (iconName: string, path: string) => {
 export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
   title = 'Top 5 Most Used Features',
   sections = [],
-  showInsights = false,
   compact = false,
   hideHeaderButton = false,
   isCollapsible = false,
@@ -224,7 +219,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
           />
         ) : (
           <div style={{ width: '100%', overflowX: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-            <table className="custom-table" style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
+            <table className="custom-table" style={{ width: '100%', minWidth: '640px', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
               <thead>
                 <tr>
                   <th style={{ padding: '6px 14px', textAlign: 'left', width: '42%', fontSize: '0.74rem' }}>Section Module</th>
@@ -373,7 +368,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
           onClick={() => setShowTrendTooltip(false)}
         >
           <div
-            className="glass-card"
+            className="glass-card admin-modal-card"
             style={{
               maxWidth: '480px',
               width: '100%',

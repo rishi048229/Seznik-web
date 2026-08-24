@@ -31,7 +31,7 @@ export const RedirectsView: React.FC = () => {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('7d');
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -115,15 +115,12 @@ export const RedirectsView: React.FC = () => {
       {/* Error Banner */}
       {error && (
         <div
+          className="admin-error-banner"
           style={{
             padding: '12px 18px',
             background: 'rgba(239, 68, 68, 0.12)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -160,7 +157,7 @@ export const RedirectsView: React.FC = () => {
 
       {/* Header & Timeframe Bar */}
       <div className="glass-card" style={{ padding: '20px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
               Website Redirects
@@ -181,7 +178,7 @@ export const RedirectsView: React.FC = () => {
               </div>
 
               {/* Timeframe Selector Buttons */}
-              <div style={{ display: 'flex', background: 'var(--tab-bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--tab-border)' }}>
+              <div className="timeframe-pills" style={{ background: 'var(--tab-bg)', padding: '3px', borderRadius: '8px', border: '1px solid var(--tab-border)' }}>
                 {TIMEFRAMES.map((tf) => (
                   <button
                     key={tf.id}
@@ -207,10 +204,8 @@ export const RedirectsView: React.FC = () => {
             {/* Custom Date Range Picker */}
             {timeFrame === 'custom' && (
               <div
+                className="custom-date-range"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
                   background: 'var(--bg-main)',
                   padding: '6px 12px',
                   borderRadius: '8px',

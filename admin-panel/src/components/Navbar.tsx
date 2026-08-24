@@ -3,15 +3,14 @@ import {
   Activity, 
   Users, 
   LayoutGrid, 
-  ShieldAlert, 
   RefreshCw, 
   Clock, 
   Calendar,
   UserCheck,
   ExternalLink,
-  Smartphone,
-  Search,
   HeartPulse,
+  Menu,
+  X,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -45,12 +44,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   setAutoRefreshInterval,
 }) => {
   const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDateTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1201px)');
+    const closeOnDesktop = () => {
+      if (mq.matches) setMobileMenuOpen(false);
+    };
+    mq.addEventListener('change', closeOnDesktop);
+    return () => mq.removeEventListener('change', closeOnDesktop);
   }, []);
 
   const formattedDate = currentDateTime.toLocaleDateString('en-IN', {
@@ -75,6 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     } else if (setActiveTab) {
       setActiveTab(tabId);
     }
+    setMobileMenuOpen(false);
   };
 
   const handleAutoRefreshChange = (interval: number) => {
@@ -94,44 +104,41 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview & Metrics', icon: Activity },
-    { id: 'sections', label: 'Section Analytics', icon: LayoutGrid },
-    { id: 'users', label: 'Registered Users', icon: Users },
-    { id: 'traffic', label: 'Traffic', icon: Activity },
-    { id: 'redirects', label: 'Redirects', icon: ExternalLink },
-    { id: 'health', label: 'System Health', icon: HeartPulse },
+    { id: 'overview', label: 'Overview & Metrics', shortLabel: 'Overview', icon: Activity },
+    { id: 'sections', label: 'Section Analytics', shortLabel: 'Sections', icon: LayoutGrid },
+    { id: 'users', label: 'Registered Users', shortLabel: 'Users', icon: Users },
+    { id: 'traffic', label: 'Traffic', shortLabel: 'Traffic', icon: Activity },
+    { id: 'redirects', label: 'Redirects', shortLabel: 'Redirects', icon: ExternalLink },
+    { id: 'health', label: 'System Health', shortLabel: 'Health', icon: HeartPulse },
   ];
 
   return (
-    <header style={{ background: 'var(--navbar-bg)', borderBottom: '1px solid var(--navbar-border)', transition: 'background 0.3s ease, border-color 0.3s ease' }} className="sticky top-0 z-50">
-      {/* Top Bar */}
-      <div style={{ padding: '12px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', width: '100%', boxSizing: 'border-box' }}>
-        {/* Logo + Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <header className="admin-navbar">
+      <div className="admin-navbar-top">
+        <div className="admin-navbar-brand">
           <img
             src="/seznik_logo.png"
             alt="Seznik Logo"
             className="navbar-logo"
-            style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'contain', boxShadow: '0 2px 8px rgba(59,130,246,0.18)' }}
+            style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'contain', boxShadow: '0 2px 8px rgba(59,130,246,0.18)', flexShrink: 0 }}
           />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--navbar-text)', transition: 'color 0.3s ease' }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="admin-navbar-title-row">
+              <h1 className="admin-navbar-title">
                 Seznik Admin Panel
               </h1>
-              <span className="badge badge-active" style={{ fontSize: '0.7rem' }}>
+              <span className="badge badge-active navbar-hide-sm" style={{ fontSize: '0.7rem' }}>
                 <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span> LIVE TELEMETRY
               </span>
             </div>
-            <p style={{ margin: '1px 0 0 0', fontSize: '0.72rem', color: 'var(--navbar-text-muted)', transition: 'color 0.3s ease' }}>
+            <p className="admin-navbar-subtitle">
               Usage Heatmap • Section Analytics • Merchant Insights
             </p>
           </div>
         </div>
 
-        {/* Right Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Live Date & Time Box */}
+        <div className="admin-navbar-right">
+        <div className={`admin-navbar-actions${mobileMenuOpen ? ' is-open' : ''}`}>
           <div
             style={{
               display: 'flex',
@@ -146,6 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               fontWeight: 600,
               boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
               userSelect: 'none',
+              flexWrap: 'wrap',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--accent-blue)' }}>
@@ -160,11 +168,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Global Time Range — Users tab only; overview sections have their own */}
           {showTimeRange && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--tab-bg)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--tab-border)' }}>
             <Calendar size={13} color="var(--accent-blue)" />
-            <span style={{ fontSize: '0.75rem', color: 'var(--navbar-text-muted)', fontWeight: 500 }}>Range:</span>
+            <span className="navbar-label-full" style={{ fontSize: '0.75rem', color: 'var(--navbar-text-muted)', fontWeight: 500 }}>Range:</span>
             <select
               className="custom-select"
               value={timeRange}
@@ -187,16 +194,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
           )}
 
-          {/* Auto Refresh Interval Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--tab-bg)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--tab-border)', transition: 'background 0.3s ease' }}>
             {autoRefreshInterval > 0 && (
               <span className="pulse-dot" style={{ width: '6px', height: '6px', background: '#10B981' }} />
             )}
-            <span style={{ fontSize: '0.75rem', color: 'var(--navbar-text-muted)', fontWeight: 500 }}>Auto Refresh:</span>
+            <span className="navbar-label-full" style={{ fontSize: '0.75rem', color: 'var(--navbar-text-muted)', fontWeight: 500 }}>Auto Refresh:</span>
             <select
               className="custom-select"
               value={autoRefreshInterval}
               onChange={(e) => handleAutoRefreshChange(Number(e.target.value))}
+              aria-label="Auto refresh interval"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -214,7 +221,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </select>
           </div>
 
-          {/* Refresh Button */}
           <button
             onClick={onRefresh}
             style={{
@@ -236,7 +242,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Refresh</span>
           </button>
 
-          {/* Last Updated Timestamp Pill */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -253,7 +258,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Updated: {lastRefreshedAt}</span>
           </div>
 
-          {/* Admin Avatar */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -266,27 +270,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             <UserCheck size={14} color="var(--accent-blue)" />
             <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--accent-blue)' }}>Admin Root</span>
           </div>
+        </div>
 
-          {/* Theme Toggler */}
+        <div className="admin-navbar-end">
           <AnimatedThemeToggler variant="circle" duration={500} />
+          <button
+            type="button"
+            className="admin-navbar-menu-btn"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label={mobileMenuOpen ? 'Close toolbar' : 'Open toolbar'}
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div 
-        style={{ 
-          display: 'flex', 
-          padding: '0 24px', 
-          gap: '6px', 
-          overflowX: 'auto', 
-          borderTop: '1px solid var(--navbar-border)', 
-          width: '100%', 
-          boxSizing: 'border-box', 
-          transition: 'border-color 0.3s ease',
-          scrollbarWidth: 'thin',
-          WebkitOverflowScrolling: 'touch',
-        }}
-      >
+      <div className="admin-navbar-tabs-wrap">
+      <div className="admin-navbar-tabs">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isSelected = activeTab === tab.id;
@@ -294,29 +296,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '7px',
-                padding: '11px 16px',
-                border: 'none',
-                background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-                color: isSelected ? 'var(--accent-blue)' : 'var(--navbar-text-muted)',
-                borderBottom: isSelected ? '2px solid var(--accent-blue)' : '2px solid transparent',
-                fontSize: '0.84rem',
-                fontWeight: isSelected ? 600 : 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                borderRadius: '6px 6px 0 0',
-                transition: 'all 0.15s ease',
-              }}
+              className={`admin-navbar-tab${isSelected ? ' is-active' : ''}`}
             >
               <Icon size={15} color={isSelected ? 'var(--accent-blue)' : undefined} />
-              <span>{tab.label}</span>
+              <span className="tab-label-full">{tab.label}</span>
+              <span className="tab-label-short">{tab.shortLabel}</span>
             </button>
           );
         })}
+      </div>
       </div>
     </header>
   );
