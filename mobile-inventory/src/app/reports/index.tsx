@@ -31,7 +31,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ReportsSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function ReportsScreen() {
@@ -41,7 +41,7 @@ export default function ReportsScreen() {
   const [activeTab, setActiveTab] = useState<'sales' | 'pnl' | 'tax'>('sales');
   const [period, setPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
 
-  const { data, isLoading } = useReports(period);
+  const { data, isLoading, isRefetching, isError, refetchAll } = useReports(period);
 
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -145,6 +145,13 @@ export default function ReportsScreen() {
               message="Loading reports..."
               hint="Calculating sales, profit, and tax summaries"
               skeleton={<ReportsSkeleton />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message="Could not load reports"
+              hint="Check your connection and try again"
+              onRetry={refetchAll}
+              isRetrying={isRefetching}
             />
           ) : (
             <>

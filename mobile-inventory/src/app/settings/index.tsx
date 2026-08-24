@@ -59,7 +59,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
-  const { settings } = useSettings();
+  const { settings, isError: isSettingsError, isRefetching: isSettingsRefetching, refetch: refetchSettings } = useSettings();
   const queryClient = useQueryClient();
 
   const [activeSection, setActiveSection] = useState<
@@ -279,6 +279,20 @@ export default function SettingsScreen() {
           ) : activeSection === 'profile' ? (
             /* Business Profile Section */
             <View>
+              {isSettingsError ? (
+                <View style={[styles.settingsErrorBanner, { backgroundColor: theme.isDark ? '#3F1D1D' : '#FEF2F2', borderColor: '#EF4444' }]}>
+                  <Text style={[styles.settingsErrorText, { color: theme.textPrimary }]}>
+                    {t('settingsLoadError', "Couldn't load your saved business details — showing defaults. Saving will overwrite them.")}
+                  </Text>
+                  <TouchableOpacity onPress={() => refetchSettings()} disabled={isSettingsRefetching} style={styles.settingsErrorRetryBtn}>
+                    {isSettingsRefetching ? (
+                      <ActivityIndicator size="small" color="#EF4444" />
+                    ) : (
+                      <Text style={styles.settingsErrorRetryText}>{t('retry', 'Retry')}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               <Text style={[styles.label, { color: theme.textPrimary, marginTop: 0 }]}>{t('businessLogo', 'Business Logo')}</Text>
               <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 8 }}>
                 {t('businessLogoSub', 'Prints at the top of every thermal receipt')}
@@ -442,6 +456,17 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  settingsErrorBanner: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingsErrorText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17, marginRight: 10 },
+  settingsErrorRetryBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, backgroundColor: 'rgba(239, 68, 68, 0.12)', minWidth: 56, alignItems: 'center' },
+  settingsErrorRetryText: { color: '#EF4444', fontWeight: '800', fontSize: 12 },
   mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },

@@ -5,9 +5,15 @@ import { getOwnerUserId } from '../utils/getOwnerUserId';
 export const getSales = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
+    // Optional limit/page, but ALWAYS capped even when the caller sends nothing — previously this
+    // returned the tenant's entire sales history unconditionally, unbounded by row count.
+    const limit = Math.min(Number(req.query.limit) || 500, 500);
+    const page = Math.max(Number(req.query.page) || 1, 1);
     const sales = await prisma.sale.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: (page - 1) * limit,
     });
     res.json(sales);
   } catch (error) {

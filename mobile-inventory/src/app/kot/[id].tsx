@@ -34,7 +34,7 @@ import { useKotOrder, useKotOrders } from '@/hooks/useKotOrders';
 import { KOTOrderStatus } from '@/types/kot';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { KotOrderDetailSkeleton } from '@/components/ui/ScreenSkeleton';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -49,7 +49,7 @@ export default function KotOrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 14);
 
-  const { order, isLoading, refetch } = useKotOrder(id);
+  const { order, isLoading, isRefetching, isError, refetch } = useKotOrder(id);
   const { updateStatus, generateBill, isGeneratingBill } = useKotOrders();
   const { paperWidth, connectionState } = usePrinterStore();
   const { settings } = useSettings();
@@ -162,6 +162,18 @@ export default function KotOrderDetailScreen() {
       Alert.alert('Billing Error', err?.message || 'Failed to generate bill');
     }
   };
+
+  if (isError && !order) {
+    return (
+      <ScreenErrorState
+        message="Could not load kitchen order"
+        hint="Check your connection and try again"
+        onRetry={refetch}
+        isRetrying={isRefetching}
+        fullScreen
+      />
+    );
+  }
 
   if (isLoading || !order) {
     return (

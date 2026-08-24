@@ -122,7 +122,17 @@
       "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=23636\")",
       "Bash(SCRATCH=\"/c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-desktop-seznik-app/10dd505b-0c85-4d38-a25b-3435b7ff8fd4/scratchpad\" *)",
       "PowerShell(Stop-Process -Id 23636 -Force -ErrorAction SilentlyContinue)",
-      "Read(//c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-desktop-seznik-app/10dd505b-0c85-4d38-a25b-3435b7ff8fd4/scratchpad/**)"
+      "Read(//c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-desktop-seznik-app/10dd505b-0c85-4d38-a25b-3435b7ff8fd4/scratchpad/**)",
+      "Bash(curl -s -m 5 http://localhost:5001/health)",
+      "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' http://localhost:5001/api/credits/reminders/due?thresholdDays=0 -H 'Authorization: Bearer dev-token-bypass')",
+      "Bash(curl -s http://localhost:5001/api/credits/reminders/due?thresholdDays=0 -H 'Authorization: Bearer dev-token-bypass')",
+      "Bash(curl -s http://localhost:5001/api/products?limit=2 -H 'Authorization: Bearer dev-token-bypass')",
+      "Bash(curl -s http://localhost:5001/api/products -H 'Authorization: Bearer dev-token-bypass')",
+      "Bash(node \"/c/Users/rishi/AppData/Local/Temp/claude/c--Users-rishi-desktop-seznik-app/10dd505b-0c85-4d38-a25b-3435b7ff8fd4/scratchpad/hard-delete-test-product.mjs\")",
+      "Bash(curl -s http://localhost:5001/api/customers -H 'Authorization: Bearer dev-token-bypass')",
+      "Bash(time curl -s -m 10 http://localhost:5001/health)",
+      "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' http://localhost:5001/api/reports/top-products -H 'Authorization: Bearer dev-token-bypass')",
+      "Bash(curl -s http://localhost:5001/api/sales -H 'Authorization: Bearer dev-token-bypass')"
     ],
     "additionalDirectories": [
       "C:\\tmp_extracted_apk",

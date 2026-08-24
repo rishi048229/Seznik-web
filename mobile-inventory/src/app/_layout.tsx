@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
 import { installGlobalAlertInterceptor } from '@/store/useAlertStore';
 import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
@@ -17,7 +17,20 @@ installGlobalAlertInterceptor();
 
 SplashScreen.preventAutoHideAsync();
 
+// App-wide fallback so a query/mutation failure is never silently swallowed, even on a screen
+// that hasn't (yet) wired up its own isError/ScreenErrorState handling — this is a safety net,
+// not a replacement for per-screen error UI.
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      console.error(`[QueryCache] query ${JSON.stringify(query.queryKey)} failed:`, error);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      console.error(`[MutationCache] mutation ${JSON.stringify(mutation.options.mutationKey) || '(unnamed)'} failed:`, error);
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: 1,

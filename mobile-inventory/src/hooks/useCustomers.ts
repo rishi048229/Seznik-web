@@ -43,6 +43,8 @@ export function useCustomers() {
   return {
     customers: customersQuery.data || [],
     isLoading: !customersQuery.data && customersQuery.isLoading,
+    isRefetching: customersQuery.isRefetching,
+    isError: customersQuery.isError && !customersQuery.data,
     refetch: customersQuery.refetch,
     createCustomer: createCustomerMutation.mutateAsync,
     isCreating: createCustomerMutation.isPending,

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 
 export const getCreditTransactions = async (req: Request, res: Response) => {
@@ -170,26 +171,50 @@ export const getCustomerLedger = async (req: Request, res: Response) => {
   }
 };
 
+interface OldestSaleRow {
+  id: string;
+  customerId: string | null;
+  invoiceNumber: string;
+  items: unknown;
+  grandTotal: number;
+  amountPaid: number;
+  createdAt: Date;
+}
+
 export const getRemindersDue = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const thresholdDays = Number(req.query.thresholdDays) || 0;
 
+    // Previously this did customer.findMany({ include: { sales: {...} } }) — eagerly loading
+    // EVERY sale ever made for every customer with a balance, just to find each one's oldest
+    // unpaid sale. Split into (1) a plain, unindexed-relation-free customer lookup, then (2) one
+    // set-based query that returns exactly one relevant sale per customer.
     const customersWithCredit = await prisma.customer.findMany({
-      where: {
-        userId,
-        creditBalance: { gt: 0 },
-      },
-      include: {
-        sales: {
-          orderBy: { createdAt: 'asc' },
-        },
-      },
+      where: { userId, creditBalance: { gt: 0 } },
+      select: { id: true, name: true, phone: true, creditBalance: true, updatedAt: true },
     });
 
+    const customerIds = customersWithCredit.map((c) => c.id);
+
+    // DISTINCT ON (customerId), ordered by (unpaid-first, then oldest) gives exactly the same
+    // pick as the old `unpaidSales[0] || c.sales[0]`: the oldest unpaid sale if one exists,
+    // otherwise the oldest sale overall.
+    const oldestSales = customerIds.length
+      ? await prisma.$queryRaw<OldestSaleRow[]>(Prisma.sql`
+          SELECT DISTINCT ON (s."customerId")
+            s.id, s."customerId", s."invoiceNumber", s.items, s."grandTotal", s."amountPaid", s."createdAt"
+          FROM "Sale" s
+          WHERE s."userId" = ${userId} AND s."customerId" IN (${Prisma.join(customerIds)})
+          ORDER BY s."customerId",
+            CASE WHEN s."amountPaid" < s."grandTotal" THEN 0 ELSE 1 END ASC,
+            s."createdAt" ASC
+        `)
+      : [];
+    const oldestSaleByCustomerId = new Map(oldestSales.map((s) => [s.customerId, s]));
+
     const remindersDue = customersWithCredit.map((c) => {
-      const unpaidSales = c.sales.filter((s) => (s.amountPaid || 0) < (s.grandTotal || 0));
-      const oldestSale = unpaidSales[0] || c.sales[0];
+      const oldestSale = oldestSaleByCustomerId.get(c.id);
       const oldestDate = oldestSale?.createdAt || c.updatedAt;
       const diffMs = Date.now() - new Date(oldestDate).getTime();
       const daysOverdue = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));

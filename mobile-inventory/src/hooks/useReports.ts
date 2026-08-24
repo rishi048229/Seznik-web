@@ -66,7 +66,15 @@ export function useReports(period: 'today' | '7days' | '30days' | 'year' = '30da
     plReport: plReportQuery.data,
     taxReport: taxReportQuery.data,
     isLoading:
-      salesReportQuery.isLoading || plReportQuery.isLoading || taxReportQuery.isLoading,
+      (!salesReportQuery.data && salesReportQuery.isLoading) ||
+      (!plReportQuery.data && plReportQuery.isLoading) ||
+      (!taxReportQuery.data && taxReportQuery.isLoading),
+    isRefetching:
+      salesReportQuery.isRefetching || plReportQuery.isRefetching || taxReportQuery.isRefetching,
+    isError:
+      (salesReportQuery.isError && !salesReportQuery.data) ||
+      (plReportQuery.isError && !plReportQuery.data) ||
+      (taxReportQuery.isError && !taxReportQuery.data),
     refetchAll: () => {
       salesReportQuery.refetch();
       plReportQuery.refetch();

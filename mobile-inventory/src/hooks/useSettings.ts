@@ -37,7 +37,10 @@ export function useSettings() {
 
   return {
     settings: settingsQuery.data || null,
-    isLoading: settingsQuery.isLoading,
+    isLoading: !settingsQuery.data && settingsQuery.isLoading,
+    isRefetching: settingsQuery.isRefetching,
+    isError: settingsQuery.isError && !settingsQuery.data,
+    refetch: settingsQuery.refetch,
     updateSettings: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
   };

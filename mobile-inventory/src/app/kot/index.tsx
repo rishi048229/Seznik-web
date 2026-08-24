@@ -34,7 +34,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { ListScreenSkeleton, KotOrdersListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import ThermalPrinterService from '@/services/PrinterService';
 
 export default function KotOrdersScreen() {
@@ -55,7 +55,7 @@ export default function KotOrdersScreen() {
       ? []
       : [selectedStatus as KOTOrderStatus];
 
-  const { orders, isLoading, isRefetching, refetch } = useKotOrders(
+  const { orders, isLoading, isRefetching, isError, refetch } = useKotOrders(
     activeStatuses.length > 0 ? activeStatuses : undefined
   );
 
@@ -230,6 +230,13 @@ export default function KotOrdersScreen() {
               message="Loading kitchen orders..."
               hint="Fetching active KOT tickets and order status"
               skeleton={<KotOrdersListSkeleton count={4} />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message="Could not load kitchen orders"
+              hint="Check your connection and try again"
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : (
             <FlatList

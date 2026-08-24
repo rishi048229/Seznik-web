@@ -38,7 +38,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ListScreenSkeleton, ExpensesListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 type Period = 'today' | 'week' | 'month' | 'all';
@@ -93,7 +93,7 @@ import { useTranslation } from '@/store/useLanguageStore';
 export default function ExpensesScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
-  const { expenses, isLoading, createExpense, updateExpense, deleteExpense } = useExpenses();
+  const { expenses, isLoading, isRefetching, isError, refetch, createExpense, updateExpense, deleteExpense } = useExpenses();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -391,6 +391,13 @@ export default function ExpensesScreen() {
               message={t('loadingExpenses', 'Loading expenses...')}
               hint={t('loadingExpensesHint', 'Fetching cash outflows and expense records')}
               skeleton={<ExpensesListSkeleton count={5} />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message={t('expensesLoadError', 'Could not load expenses')}
+              hint={t('expensesLoadErrorHint', 'Check your connection and try again')}
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : filteredExpenses.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No expenses in this period.</Text>

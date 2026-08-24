@@ -40,13 +40,13 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function PurchasesScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
-  const { purchases, isLoading, isRefetching, refetch, deletePurchase } = usePurchases();
+  const { purchases, isLoading, isRefetching, isError, refetch, deletePurchase } = usePurchases();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
@@ -224,6 +224,13 @@ export default function PurchasesScreen() {
               message="Loading purchases..."
               hint="Fetching stock-in records and supplier bills"
               skeleton={<ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message="Couldn't load purchases"
+              hint="Check your connection to the server and try again."
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : (
             <FlatList

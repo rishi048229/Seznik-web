@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 import { getAuthToken, removeAuthToken, removeStoredUser } from '@/services/secureStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -32,12 +32,24 @@ const getDynamicHostIp = () => {
     return `http://${envHost}:${DEFAULT_PORT}/api`;
   }
 
-  // 4. Local Development: Dynamic Host IP auto-detected from Expo bundler (auto-detects laptop Wi-Fi IP)
+  // 4. Local Development: NativeModules.SourceCode.scriptURL (always has Metro host IP on physical devices)
+  try {
+    const scriptURL = NativeModules.SourceCode?.scriptURL;
+    if (scriptURL && typeof scriptURL === 'string') {
+      const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
+      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+        return `http://${match[1]}:${DEFAULT_PORT}/api`;
+      }
+    }
+  } catch {}
+
+  // 5. Local Development: Dynamic Host IP auto-detected from Expo bundler (laptop Wi-Fi IP)
   const hostUri =
     Constants.expoConfig?.hostUri ||
     Constants.manifest2?.extra?.expoGo?.debuggerHost ||
     (Constants as any).expoGoConfig?.debuggerHost ||
     (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).manifest?.hostUri ||
     (Constants as any).experienceUrl;
 
   if (hostUri && typeof hostUri === 'string') {
@@ -48,16 +60,20 @@ const getDynamicHostIp = () => {
     }
   }
 
-  // 5. Local Development: Android Emulator loopback alias for host machine
+  // 6. Local Development: Android Emulator loopback alias for host machine
   if (Platform.OS === 'android') {
     return `http://10.0.2.2:${DEFAULT_PORT}/api`;
   }
 
-  // 6. Local Development: Default localhost fallback
+  // 7. Local Development: Default localhost fallback
   return `http://localhost:${DEFAULT_PORT}/api`;
 };
 
 let currentBaseUrl = getDynamicHostIp();
+
+if (__DEV__) {
+  console.log('📡 [Seznik API Client] Active API Base URL:', currentBaseUrl);
+}
 
 export const getApiBaseUrl = () => currentBaseUrl;
 
@@ -70,6 +86,9 @@ export const setApiBaseUrl = (url: string) => {
     formatted = formatted.replace(/\/$/, '') + '/api';
   }
   currentBaseUrl = formatted;
+  if (__DEV__) {
+    console.log('📡 [Seznik API Client] Updated API Base URL:', currentBaseUrl);
+  }
 };
 
 export class ApiError extends Error {
@@ -88,7 +107,7 @@ export async function fetchApi<T = any>(
   endpoint: string,
   options: RequestInit & { timeoutMs?: number } = {}
 ): Promise<T> {
-  const { timeoutMs = 90000, ...fetchOptions } = options;
+  const { timeoutMs = 15000, ...fetchOptions } = options;
   const storedToken = await getAuthToken();
   const token = storedToken || useAuthStore.getState().token || (__DEV__ ? 'dev-token-bypass' : undefined);
   const headers: Record<string, string> = {
@@ -133,7 +152,7 @@ export async function fetchApi<T = any>(
     const msg = error instanceof Error ? error.message : String(error);
     if (msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
       throw new ApiError(
-        `Request timed out or cancelled. Server at ${currentBaseUrl} took too long to respond.`,
+        `Request timed out. Server at ${currentBaseUrl} took too long to respond.`,
         0
       );
     }

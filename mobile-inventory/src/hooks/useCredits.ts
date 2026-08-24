@@ -11,7 +11,9 @@ export function useDaybook(date?: string) {
 
   return {
     daybook: daybookQuery.data,
-    isLoading: daybookQuery.isLoading,
+    isLoading: !daybookQuery.data && daybookQuery.isLoading,
+    isRefetching: daybookQuery.isRefetching,
+    isError: daybookQuery.isError && !daybookQuery.data,
     error: daybookQuery.error as Error | null,
     refetch: daybookQuery.refetch,
   };
@@ -73,7 +75,9 @@ export function useRemindersDue(thresholdDays: number, cooldownDays: number) {
 
   return {
     remindersDue: query.data || [],
-    isLoading: query.isLoading,
+    isLoading: !query.data && query.isLoading,
+    isRefetching: query.isRefetching,
+    isError: query.isError && !query.data,
     refetch: query.refetch,
   };
 }

@@ -39,13 +39,13 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 export default function SuppliersScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
-  const { suppliers, isLoading, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
+  const { suppliers, isLoading, isRefetching, isError, refetch, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -220,6 +220,13 @@ export default function SuppliersScreen() {
             message={t('loadingSuppliers', 'Loading suppliers...')}
             hint={t('loadingSuppliersHint', 'Fetching vendor contacts and purchase partners')}
             skeleton={<ListScreenSkeleton hasSearch={false} hasStats={false} count={5} />}
+          />
+        ) : isError ? (
+          <ScreenErrorState
+            message={t('suppliersLoadFailed', "Couldn't load suppliers")}
+            hint={t('suppliersLoadFailedHint', 'Check your connection to the server and try again.')}
+            onRetry={refetch}
+            isRetrying={isRefetching}
           />
         ) : filteredSuppliers.length === 0 ? (
           <View style={styles.emptyState}>

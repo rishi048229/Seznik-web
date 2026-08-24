@@ -52,7 +52,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { DaybookSkeleton, RemindersListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 type AgeingBucket = '0-7' | '8-15' | '16-30' | '30+';
@@ -85,7 +85,13 @@ export default function CreditsDaybookScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
-  const { daybook, isLoading: isDaybookLoading } = useDaybook();
+  const {
+    daybook,
+    isLoading: isDaybookLoading,
+    isRefetching: isDaybookRefetching,
+    isError: isDaybookError,
+    refetch: refetchDaybook,
+  } = useDaybook();
   const { recordCreditPayment } = useCredits();
   const { customers } = useCustomers();
   const { settings } = useSettings();
@@ -95,10 +101,13 @@ export default function CreditsDaybookScreen() {
   const thresholdDays: number = typeof reminderConfig.thresholdDays === 'number' ? reminderConfig.thresholdDays : 30;
   const cooldownDays: number = typeof reminderConfig.cooldownDays === 'number' ? reminderConfig.cooldownDays : 7;
 
-  const { remindersDue, isLoading: isRemindersLoading, refetch: refetchReminders } = useRemindersDue(
-    thresholdDays,
-    cooldownDays
-  );
+  const {
+    remindersDue,
+    isLoading: isRemindersLoading,
+    isRefetching: isRemindersRefetching,
+    isError: isRemindersError,
+    refetch: refetchReminders,
+  } = useRemindersDue(thresholdDays, cooldownDays);
   const { sendReminder } = useSendReminder();
 
   const [activeTab, setActiveTab] = useState<'daybook' | 'credits'>('daybook');
@@ -269,6 +278,13 @@ export default function CreditsDaybookScreen() {
               hint="Fetching cash in, cash out, and register activity"
               skeleton={<DaybookSkeleton />}
             />
+          ) : isDaybookError ? (
+            <ScreenErrorState
+              message="Could not load daybook"
+              hint="Check your connection and try again"
+              onRetry={refetchDaybook}
+              isRetrying={isDaybookRefetching}
+            />
           ) : (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
             <Text style={styles.sectionHeader}>CASHFLOW METRICS</Text>
@@ -410,6 +426,13 @@ export default function CreditsDaybookScreen() {
                 message="Loading reminders..."
                 hint="Checking overdue customer credit balances"
                 skeleton={<RemindersListSkeleton count={4} />}
+              />
+            ) : isRemindersError ? (
+              <ScreenErrorState
+                message="Could not load reminders"
+                hint="Check your connection and try again"
+                onRetry={refetchReminders}
+                isRetrying={isRemindersRefetching}
               />
             ) : remindersDue.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.textSecondary, marginBottom: 16 }]}>

@@ -4,9 +4,15 @@ import prisma from '../config/db';
 export const getCustomers = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
+    // Optional limit/page, but ALWAYS capped even when the caller sends nothing — previously this
+    // returned the tenant's entire customer table unconditionally, unbounded by row count.
+    const limit = Math.min(Number(req.query.limit) || 500, 500);
+    const page = Math.max(Number(req.query.page) || 1, 1);
     const customers = await prisma.customer.findMany({
       where: { userId },
       orderBy: { name: 'asc' },
+      take: limit,
+      skip: (page - 1) * limit,
     });
     res.json(customers);
   } catch (error) {

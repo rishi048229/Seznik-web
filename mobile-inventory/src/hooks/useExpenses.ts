@@ -35,7 +35,9 @@ export function useExpenses() {
 
   return {
     expenses: expensesQuery.data || [],
-    isLoading: expensesQuery.isLoading,
+    isLoading: !expensesQuery.data && expensesQuery.isLoading,
+    isRefetching: expensesQuery.isRefetching,
+    isError: expensesQuery.isError && !expensesQuery.data,
     refetch: expensesQuery.refetch,
     createExpense: createExpenseMutation.mutateAsync,
     isCreating: createExpenseMutation.isPending,

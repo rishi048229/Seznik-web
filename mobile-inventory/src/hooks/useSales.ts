@@ -63,6 +63,7 @@ export function useSales() {
     sales: salesQuery.data || [],
     isLoading: !salesQuery.data && salesQuery.isLoading,
     isRefetching: salesQuery.isRefetching,
+    isError: salesQuery.isError && !salesQuery.data,
     refetch: salesQuery.refetch,
     createSale: createSaleMutation.mutateAsync,
     persistSaleInBackground,

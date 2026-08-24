@@ -183,10 +183,16 @@ function robustParseProductJson(rawText: string): any[] {
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
+    // Optional limit/page, but ALWAYS capped even when the caller sends nothing — previously this
+    // returned the tenant's entire product table unconditionally, unbounded by row count.
+    const limit = Math.min(Number(req.query.limit) || 500, 500);
+    const page = Math.max(Number(req.query.page) || 1, 1);
     const products = await prisma.product.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       select: PRODUCT_LIST_SELECT,
+      take: limit,
+      skip: (page - 1) * limit,
     });
     res.json(products);
   } catch (error) {

@@ -42,7 +42,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ContactImportModal } from '@/components/customers/ContactImportModal';
 import { CustomersListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 
@@ -60,7 +60,7 @@ const computeOverdueCustomerIds = (customers: Customer[]): Set<string> => {
 export default function CustomersScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
-  const { customers, isLoading, createCustomer, updateCustomer, bulkCreateCustomers, refetch } = useCustomers();
+  const { customers, isLoading, isRefetching, isError, createCustomer, updateCustomer, bulkCreateCustomers, refetch } = useCustomers();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'due' | 'settled'>('all');
@@ -262,6 +262,13 @@ export default function CustomersScreen() {
               message={t('loadingCustomers', 'Loading customers...')}
               hint={t('loadingCustomersHint', 'Fetching customer accounts and credit balances')}
               skeleton={<CustomersListSkeleton count={6} />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message={t('customersLoadFailed', "Couldn't load customers")}
+              hint={t('customersLoadFailedHint', 'Check your connection to the server and try again.')}
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : (
             <FlatList

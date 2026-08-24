@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import prisma from './config/db';
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
@@ -28,6 +29,10 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
+// 1b. Gzip every response — previously every JSON payload (including the large report responses)
+// was sent uncompressed.
+app.use(compression());
 
 // 2. CORS configuration
 const allowedOrigins = [
@@ -57,8 +62,12 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(
+  ['/api/products/ai-extract', '/api/products/ai-extract-document', '/api/products/ai-convert-invoice'],
+  express.json({ limit: '50mb' })
+);
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ limit: '2mb', extended: true }));
 
 // 3. API Routes
 app.use('/api/auth', authRoutes);

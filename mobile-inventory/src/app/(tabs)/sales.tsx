@@ -33,11 +33,11 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 export default function SalesHistoryTabScreen() {
-  const { sales, isLoading, isRefetching, refetch, deleteSale } = useSales();
+  const { sales, isLoading, isRefetching, isError, refetch, deleteSale } = useSales();
   const { t } = useLanguageStore();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -146,6 +146,13 @@ export default function SalesHistoryTabScreen() {
             message={t('loadingSales', 'Loading sales...')}
             hint={t('loadingSalesHint', 'Fetching recent bills and transactions')}
             skeleton={<SalesListSkeleton count={6} />}
+          />
+        ) : isError ? (
+          <ScreenErrorState
+            message={t('salesLoadFailed', "Couldn't load sales")}
+            hint={t('salesLoadFailedHint', 'Check your connection to the server and try again.')}
+            onRetry={refetch}
+            isRetrying={isRefetching}
           />
         ) : (
           <FlatList

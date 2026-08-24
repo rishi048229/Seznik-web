@@ -63,8 +63,9 @@ export function useKotOrders(statuses?: KOTOrderStatus[]) {
 
   return {
     orders: ordersQuery.data || [],
-    isLoading: ordersQuery.isLoading,
+    isLoading: !ordersQuery.data && ordersQuery.isLoading,
     isRefetching: ordersQuery.isRefetching,
+    isError: ordersQuery.isError && !ordersQuery.data,
     refetch: ordersQuery.refetch,
     createOrder: createOrderMutation.mutateAsync,
     addItems: addItemsMutation.mutateAsync,
@@ -86,7 +87,9 @@ export function useKotOrder(id?: string) {
 
   return {
     order: orderQuery.data,
-    isLoading: orderQuery.isLoading,
+    isLoading: !orderQuery.data && orderQuery.isLoading,
+    isRefetching: orderQuery.isRefetching,
+    isError: orderQuery.isError && !orderQuery.data,
     refetch: orderQuery.refetch,
   };
 }

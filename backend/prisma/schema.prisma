@@ -143,6 +143,9 @@ model Customer {
   kotOrders     KOTOrder[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, creditBalance])
 }
 
 model Supplier {
@@ -190,6 +193,9 @@ model Product {
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, isActive])
 }
 
 model StockHistory {
@@ -202,6 +208,9 @@ model StockHistory {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([productId, createdAt])
 }
 
 model Sale {
@@ -224,6 +233,9 @@ model Sale {
   token           Token?
   kotOrder        KOTOrder?
   createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, customerId])
 }
 
 model Purchase {
@@ -240,6 +252,8 @@ model Purchase {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Expense {
@@ -253,6 +267,8 @@ model Expense {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
+
+  @@index([userId, expenseDate])
 }
 
 model CreditTransaction {
@@ -266,6 +282,9 @@ model CreditTransaction {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([customerId, createdAt])
 }
 
 model Feedback {

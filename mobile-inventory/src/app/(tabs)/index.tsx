@@ -87,7 +87,7 @@ import { AiProductImportModal } from '@/components/products/AiProductImportModal
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { DashboardSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
@@ -107,6 +107,7 @@ export default function DashboardScreen() {
     topCustomers,
     isLoading,
     isRefetching,
+    isError,
     refetch,
   } = useDashboard();
   const [timeframe, setTimeframe] = useState<'month' | 'daily' | 'monthly'>('month');
@@ -525,6 +526,13 @@ export default function DashboardScreen() {
               message={t('loadingDashboard', 'Loading dashboard...')}
               hint={t('loadingDashboardHint', 'Fetching today’s sales, stock alerts, and store metrics')}
               skeleton={<DashboardSkeleton />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message={t('dashboardLoadFailed', "Couldn't load the dashboard")}
+              hint={t('dashboardLoadFailedHint', 'Check your connection to the server and try again.')}
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : (
             <>

@@ -41,7 +41,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
@@ -55,7 +55,7 @@ export default function SalesHistoryScreen() {
   const { t } = useLanguageStore();
   const storeProfile = useStoreProfile();
   const { connectionState } = usePrinterStore();
-  const { sales, isLoading, isRefetching, refetch, deleteSale } = useSales();
+  const { sales, isLoading, isRefetching, isError, refetch, deleteSale } = useSales();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
 
@@ -365,6 +365,13 @@ export default function SalesHistoryScreen() {
               message="Loading sales..."
               hint="Fetching recent bills and transactions"
               skeleton={<SalesListSkeleton count={6} />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message="Couldn't load sales"
+              hint="Check your connection to the server and try again."
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : (
             <FlatList

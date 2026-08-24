@@ -33,7 +33,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { ListScreenSkeleton, StaffListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
 
 // Mirrors UserPermissions (src/types/auth.ts) and useAuthStore.hasPermission's gating exactly —
@@ -64,7 +64,7 @@ export default function StaffScreen() {
   const { t, currentLanguage } = useTranslation();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
-  const { staff, isLoading, createStaff, isCreating, updateStaff, removeStaff, isSyncing } = useManagedUsers();
+  const { staff, isLoading, isRefetching, isError, refetch, createStaff, isCreating, updateStaff, removeStaff, isSyncing } = useManagedUsers();
 
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<ManagedUser | null>(null);
@@ -186,6 +186,13 @@ export default function StaffScreen() {
               message="Loading staff..."
               hint="Fetching team members and access permissions"
               skeleton={<StaffListSkeleton count={4} />}
+            />
+          ) : isError ? (
+            <ScreenErrorState
+              message="Could not load staff"
+              hint="Check your connection and try again"
+              onRetry={refetch}
+              isRetrying={isRefetching}
             />
           ) : (
             <FlatList

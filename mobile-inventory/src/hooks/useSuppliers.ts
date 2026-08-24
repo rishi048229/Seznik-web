@@ -34,7 +34,9 @@ export function useSuppliers() {
 
   return {
     suppliers: suppliersQuery.data || [],
-    isLoading: suppliersQuery.isLoading,
+    isLoading: !suppliersQuery.data && suppliersQuery.isLoading,
+    isRefetching: suppliersQuery.isRefetching,
+    isError: suppliersQuery.isError && !suppliersQuery.data,
     refetch: suppliersQuery.refetch,
     createSupplier: createSupplierMutation.mutateAsync,
     updateSupplier: updateSupplierMutation.mutateAsync,

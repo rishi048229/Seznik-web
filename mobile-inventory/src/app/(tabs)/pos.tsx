@@ -341,8 +341,8 @@ export default function PosScreen() {
       totalTax: saleData.totalTax,
       grandTotal: saleData.grandTotal,
       paymentMethod,
-      amountPaid: saleData.amountPaid,
-      changeReturned: saleData.changeReturned,
+      amountPaid: saleData.amountPaid ?? grandTotalNow,
+      changeReturned: saleData.changeReturned ?? 0,
       customerId: selectedCustomerId || undefined,
       isQuickBill: false,
     };

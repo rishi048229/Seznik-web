@@ -8,7 +8,9 @@ export function useDashboard() {
     queryKey: ['reports', 'dashboard'],
     queryFn: reportsApi.getDashboardStats,
     staleTime: 1000 * 10,
-    retry: 2,
+    // Was retry:2 (3 attempts total) on top of fetchApi's old 90s timeout — up to ~4.5 minutes of
+    // pure spinner before ever surfacing an error. The app-wide default (retry:1, set in
+    // src/app/_layout.tsx) is already the right amount of resilience for a flaky connection.
   });
 
   const paymentModesQuery = useQuery({
@@ -53,7 +55,10 @@ export function useDashboard() {
     topCustomers: topCustomersQuery.data || [],
     isLoading: !dashboardQuery.data && dashboardQuery.isLoading,
     isRefetching: dashboardQuery.isRefetching || paymentModesQuery.isRefetching,
-    isError: dashboardQuery.isError,
+    // Only meaningful as a "show a blocking error" signal when there's truly nothing cached to
+    // show instead — a background refetch failing while stale data is still on screen shouldn't
+    // yank the dashboard away, it should just quietly keep the last-good numbers.
+    isError: dashboardQuery.isError && !dashboardQuery.data,
     refetch: refetchAll,
   };
 }
@@ -64,7 +69,6 @@ export function useRevenueTrend(period: 'month' | 'daily' | 'weekly' | 'monthly'
     queryKey: ['reports', 'trend', period],
     queryFn: () => reportsApi.getRevenueTrend(period),
     staleTime: 1000 * 15,
-    retry: 2,
   });
 
   return {

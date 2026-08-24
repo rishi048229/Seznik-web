@@ -1,62 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { purchasesApi } from '@/api/purchases';
-import { CreatePurchasePayload, Purchase } from '@/types/purchase';
-
-const SAMPLE_PURCHASES: Purchase[] = [
-  {
-    id: 'pur-1',
-    invoiceNumber: 'PUR-2026-001',
-    supplierId: 'sup-1',
-    supplierName: 'Metro Cash & Carry',
-    supplier: { id: 'sup-1', name: 'Metro Cash & Carry' },
-    subtotal: 12500,
-    totalTax: 625,
-    totalDiscount: 0,
-    grandTotal: 13125,
-    paymentMethod: 'bank_transfer',
-    amountPaid: 13125,
-    items: [
-      { productId: 'prod-1', productName: 'Organic Basmati Rice 5kg', quantity: 25, costPrice: 380, total: 9500 },
-      { productId: 'prod-4', productName: 'Sunflower Cooking Oil 1L', quantity: 20, costPrice: 150, total: 3000 },
-    ],
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'pur-2',
-    invoiceNumber: 'PUR-2026-002',
-    supplierId: 'sup-2',
-    supplierName: 'Amul Dairy Distributors',
-    supplier: { id: 'sup-2', name: 'Amul Dairy Distributors' },
-    subtotal: 4800,
-    totalTax: 0,
-    totalDiscount: 0,
-    grandTotal: 4800,
-    paymentMethod: 'cash',
-    amountPaid: 4800,
-    items: [
-      { productId: 'prod-2', productName: 'Fresh Cow Milk 1L', quantity: 80, costPrice: 60, total: 4800 },
-    ],
-    createdAt: new Date().toISOString(),
-  },
-];
+import { CreatePurchasePayload } from '@/types/purchase';
 
 export function usePurchases() {
   const queryClient = useQueryClient();
 
+  // Previously this queryFn caught its own errors and returned hardcoded SAMPLE_PURCHASES on ANY
+  // failure — React Query never saw it as an error (isError stayed permanently false), so a real
+  // backend outage silently rendered fabricated purchase history with no way to tell it was fake.
+  // It also replaced a genuine empty result (a store with zero purchases yet — a normal, valid
+  // state) with the same fake data. Letting the query actually fail/return real data lets it
+  // surface through the same error-state pattern as everywhere else.
   const purchasesQuery = useQuery({
     queryKey: ['purchases'],
-    queryFn: async () => {
-      try {
-        const data = await purchasesApi.getPurchases();
-        if (Array.isArray(data) && data.length > 0) {
-          return data;
-        }
-        return data && Array.isArray(data) ? data : SAMPLE_PURCHASES;
-      } catch (err) {
-        console.warn('Failed to fetch backend purchases, using sample fallback:', err);
-        return SAMPLE_PURCHASES;
-      }
-    },
+    queryFn: () => purchasesApi.getPurchases(),
     staleTime: 1000 * 60 * 5,
   });
 
@@ -81,9 +38,10 @@ export function usePurchases() {
   });
 
   return {
-    purchases: purchasesQuery.data || SAMPLE_PURCHASES,
+    purchases: purchasesQuery.data || [],
     isLoading: !purchasesQuery.data && purchasesQuery.isLoading,
     isRefetching: purchasesQuery.isRefetching,
+    isError: purchasesQuery.isError && !purchasesQuery.data,
     refetch: purchasesQuery.refetch,
     createPurchase: createPurchaseMutation.mutateAsync,
     isCreating: createPurchaseMutation.isPending,

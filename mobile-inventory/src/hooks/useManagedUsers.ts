@@ -44,7 +44,10 @@ export function useManagedUsers() {
 
   return {
     staff: listQuery.data || [],
-    isLoading: listQuery.isLoading,
+    isLoading: !listQuery.data && listQuery.isLoading,
+    isRefetching: listQuery.isRefetching,
+    isError: listQuery.isError && !listQuery.data,
+    refetch: listQuery.refetch,
     createStaff: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     updateStaff,

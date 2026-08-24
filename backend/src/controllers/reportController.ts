@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth, addDays, differenceInCalendarDays, subMonths } from 'date-fns';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
@@ -20,39 +21,74 @@ const buildProductCostMap = (products: { id: string; costPrice: number }[]) => {
   return map;
 };
 
+/** Distinct, truthy productIds referenced across a batch of sales' JSON `items` arrays. */
+const collectProductIds = (sales: { items: unknown }[]): string[] => {
+  const ids = new Set<string>();
+  for (const sale of sales) {
+    const items = sale.items;
+    if (!Array.isArray(items)) continue;
+    for (const item of items as any[]) {
+      if (item?.productId) ids.add(item.productId);
+    }
+  }
+  return Array.from(ids);
+};
+
+// A DEFAULT trailing window applied only when the caller doesn't specify start/end — any caller
+// that already passes an explicit date range is completely unaffected. Previously these endpoints
+// defaulted to `new Date(0)` (literally all of history) when no range was given, so their cost
+// grew without bound as a tenant's transaction history grew, forever.
+const DEFAULT_REPORT_WINDOW_DAYS = 366;
+
+// Guards every raw SQL `jsonb_array_elements(s.items)` call against a null/non-array `items`
+// value (matches the JS code's own `if (Array.isArray(items))` guard it replaces) — without this,
+// a malformed/empty items value would throw inside Postgres instead of just contributing nothing.
+const SAFE_ITEMS_ARRAY = Prisma.sql`CASE WHEN jsonb_typeof(s.items) = 'array' THEN s.items ELSE '[]'::jsonb END`;
+
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
     const todayStart = startOfDay(new Date());
 
-    const [todaySales, activeProducts, recentSales, totalCustomers, allProducts] = await Promise.all([
-      prisma.sale.findMany({
-        where: { userId, createdAt: { gte: todayStart } },
-      }),
-      prisma.product.findMany({ where: { userId, isActive: true } }),
-      prisma.sale.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      }),
+    const [todaySales, recentSales, totalCustomers, lowStockProducts, stockValueRows] = await Promise.all([
+      prisma.sale.findMany({ where: { userId, createdAt: { gte: todayStart } } }),
+      prisma.sale.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
       prisma.customer.count({ where: { userId } }),
-      prisma.product.findMany({ where: { userId, isActive: true }, select: { costPrice: true, sellingPrice: true, currentStock: true } }),
+      // Low-stock filtering is a column-to-column comparison ("currentStock <= lowStockThreshold")
+      // that the Prisma client can't express — previously this pulled the WHOLE active-product
+      // catalog into Node and filtered in JS. Push the comparison into SQL instead.
+      prisma.$queryRaw<Array<{ id: string; name: string; currentStock: number; lowStockThreshold: number }>>(Prisma.sql`
+        SELECT id, name, "currentStock", "lowStockThreshold"
+        FROM "Product"
+        WHERE "userId" = ${userId} AND "isActive" = true AND "currentStock" <= "lowStockThreshold"
+        ORDER BY "currentStock" ASC
+        LIMIT 20
+      `),
+      // Same reasoning: one aggregate row instead of pulling every active product into Node just
+      // to sum `costPrice(or sellingPrice fallback) * currentStock`. NULLIF/COALESCE preserves the
+      // original `costPrice || sellingPrice || 0` semantics exactly (0 is falsy in JS, so a
+      // costPrice of exactly 0 fell back to sellingPrice there too).
+      prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+        SELECT COALESCE(SUM(COALESCE(NULLIF("costPrice", 0), "sellingPrice", 0) * "currentStock"), 0) AS total
+        FROM "Product"
+        WHERE "userId" = ${userId} AND "isActive" = true
+      `),
     ]);
 
-    const productCosts = buildProductCostMap(activeProducts);
-    const lowStockProducts = activeProducts
-      .filter((p) => p.currentStock <= p.lowStockThreshold)
-      .slice(0, 20);
+    // Gross profit only needs cost prices for products actually sold TODAY (a handful of rows),
+    // not the entire catalog — todaySales is already a small, date-bounded set.
+    const todayProductIds = collectProductIds(todaySales);
+    const todayProducts = todayProductIds.length
+      ? await prisma.product.findMany({ where: { id: { in: todayProductIds }, userId }, select: { id: true, costPrice: true } })
+      : [];
+    const productCosts = buildProductCostMap(todayProducts);
 
     const todayRevenue = todaySales.reduce((s, sale) => s + sale.grandTotal, 0);
     const todayGrossProfit = todaySales.reduce(
       (s, sale) => s + computeSaleGrossProfit(sale, productCosts),
       0
     );
-    const totalStockValue = allProducts.reduce(
-      (sum, p) => sum + (p.costPrice || p.sellingPrice || 0) * p.currentStock,
-      0
-    );
+    const totalStockValue = Number(stockValueRows[0]?.total ?? 0);
 
     res.json({
       todayRevenue,
@@ -60,6 +96,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       todayGrossProfit,
       totalCustomers,
       totalStockValue,
+      // Preserves the original behavior exactly: this was always "count of the (already
+      // limit-20) low-stock list", not a true unbounded count.
       lowStockCount: lowStockProducts.length,
       lowStockProducts: lowStockProducts.map((p) => ({
         id: p.id,
@@ -80,6 +118,12 @@ export const getDashboardStats = async (req: Request, res: Response) => {
   }
 };
 
+// Day-bucketing stays in JS here (and in getRevenueTrend below) rather than a raw SQL
+// date_trunc — the exact bucket-boundary semantics (server-local calendar days) are what the
+// existing charts already rely on, and getting that subtly wrong via a DB-side timezone
+// assumption is a real correctness risk this pass isn't taking. The actual "grows forever" fix
+// is the default window below: a caller that never specifies a date range used to get
+// literally all of history; now it gets a bounded trailing year, same as every other report.
 export const getSalesReport = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
@@ -89,7 +133,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
       where: {
         userId,
         createdAt: {
-          gte: parseDate(start, new Date(0)),
+          gte: parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS)),
           lte: parseRangeEnd(end, new Date())
         }
       }
@@ -121,26 +165,24 @@ export const getPLReport = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
     const { start, end } = req.query;
+    const startDate = parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
+    const endDate = parseRangeEnd(end, new Date());
 
-    const sales = await prisma.sale.findMany({
-      where: {
-        userId,
-        createdAt: {
-          gte: parseDate(start, new Date(0)),
-          lte: parseRangeEnd(end, new Date())
-        }
-      }
-    });
+    // No per-day bucketing here — just two totals — so both sides convert cleanly to a single
+    // DB-side aggregate/SUM instead of pulling every row into Node.
+    const [salesAgg, expenseRows] = await Promise.all([
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        _sum: { grandTotal: true },
+      }),
+      prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+        SELECT COALESCE(SUM(amount), 0) AS total FROM "Expense"
+        WHERE "userId" = ${userId} AND "expenseDate" >= ${startDate} AND "expenseDate" <= ${endDate}
+      `),
+    ]);
 
-    const expenses: any[] = await prisma.$queryRaw`
-      SELECT * FROM "Expense" 
-      WHERE "userId" = ${userId} 
-        AND "expenseDate" >= ${parseDate(start, new Date(0))} 
-        AND "expenseDate" <= ${parseRangeEnd(end, new Date())}
-    `;
-
-    const totalRevenue = sales.reduce((sum, d) => sum + d.grandTotal, 0);
-    const totalExpenses = expenses.reduce((sum, d) => sum + d.amount, 0);
+    const totalRevenue = salesAgg._sum.grandTotal ?? 0;
+    const totalExpenses = Number(expenseRows[0]?.total ?? 0);
     const totalCost = totalRevenue * 0.6; // Simplified
 
     res.json({
@@ -148,7 +190,7 @@ export const getPLReport = async (req: Request, res: Response) => {
       totalCost,
       totalExpenses,
       netProfit: totalRevenue - totalCost - totalExpenses,
-      period: `${parseDate(start, new Date(0)).toISOString().split('T')[0]} to ${parseRangeEnd(end, new Date()).toISOString().split('T')[0]}`,
+      period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
     });
   } catch (error) {
     console.error(error);
@@ -160,21 +202,19 @@ export const getTaxReport = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
     const { start, end } = req.query;
+    const startDate = parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
+    const endDate = parseRangeEnd(end, new Date());
 
-    const sales = await prisma.sale.findMany({
-      where: {
-        userId,
-        createdAt: {
-          gte: parseDate(start, new Date(0)),
-          lte: parseRangeEnd(end, new Date())
-        }
-      }
+    const agg = await prisma.sale.aggregate({
+      where: { userId, createdAt: { gte: startDate, lte: endDate } },
+      _sum: { totalTax: true },
+      _count: { _all: true },
     });
 
     res.json({
-      totalOutputTax: sales.reduce((sum, sale) => sum + sale.totalTax, 0),
-      taxableSales: sales.length,
-      period: `${parseDate(start, new Date(0)).toISOString().split('T')[0]} to ${parseRangeEnd(end, new Date()).toISOString().split('T')[0]}`,
+      totalOutputTax: agg._sum.totalTax ?? 0,
+      taxableSales: agg._count._all,
+      period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
     });
   } catch (error) {
     console.error(error);
@@ -192,12 +232,16 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
         ? startOfDay(startOfMonth(new Date()))
         : startOfDay(subDays(new Date(), (numDays || 7) - 1));
 
-    const [sales, products] = await Promise.all([
-      prisma.sale.findMany({
-        where: { userId, createdAt: { gte: startDate } },
-      }),
-      prisma.product.findMany({ where: { userId } }),
-    ]);
+    const sales = await prisma.sale.findMany({
+      where: { userId, createdAt: { gte: startDate } },
+    });
+    // Was `prisma.product.findMany({where:{userId}})` — the ENTIRE catalog, just to build a cost
+    // map. `sales` here is already date-windowed (not all-time), so scope the cost lookup to only
+    // the products that actually appear in that window instead of every product ever created.
+    const productIdsInWindow = collectProductIds(sales);
+    const products = productIdsInWindow.length
+      ? await prisma.product.findMany({ where: { id: { in: productIdsInWindow }, userId }, select: { id: true, costPrice: true } })
+      : [];
     const productCosts = buildProductCostMap(products);
 
     const bucketMap = new Map<string, { revenue: number; profit: number }>();
@@ -275,33 +319,31 @@ export const getTopCustomers = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId((req as any).user.id);
     const limit = Number(req.query.limit) || 10;
 
-    const sales = await prisma.sale.findMany({
+    // Groups on a real column (customerId) — no JSON involved, straightforward DB-side groupBy
+    // instead of pulling every sale ever made (plus a joined customer row each) into Node.
+    const grouped = await prisma.sale.groupBy({
+      by: ['customerId'],
       where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: { customer: true }
+      _sum: { grandTotal: true },
+      _count: { _all: true },
+      _max: { createdAt: true },
+      orderBy: { _sum: { grandTotal: 'desc' } },
+      take: limit,
     });
 
-    const customerMap = new Map<string, { name: string; totalSpent: number; invoiceCount: number; lastPurchase: number }>();
+    const realCustomerIds = grouped.map((g) => g.customerId).filter((id): id is string => !!id);
+    const customers = realCustomerIds.length
+      ? await prisma.customer.findMany({ where: { id: { in: realCustomerIds } }, select: { id: true, name: true } })
+      : [];
+    const nameById = new Map(customers.map((c) => [c.id, c.name]));
 
-    sales.forEach(sale => {
-      const key = sale.customerId ?? 'walk-in';
-      const existing = customerMap.get(key) ?? {
-        name: sale.customer?.name || 'Walk-in Customer',
-        totalSpent: 0,
-        invoiceCount: 0,
-        lastPurchase: 0,
-      };
-      existing.totalSpent += sale.grandTotal;
-      existing.invoiceCount += 1;
-      const saleTime = sale.createdAt.getTime();
-      if (saleTime > existing.lastPurchase) existing.lastPurchase = saleTime;
-      customerMap.set(key, existing);
-    });
-
-    const top = Array.from(customerMap.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, limit);
+    const top = grouped.map((g) => ({
+      id: g.customerId ?? 'walk-in',
+      name: g.customerId ? nameById.get(g.customerId) || 'Walk-in Customer' : 'Walk-in Customer',
+      totalSpent: g._sum.grandTotal ?? 0,
+      invoiceCount: g._count._all,
+      lastPurchase: g._max.createdAt ? g._max.createdAt.getTime() : 0,
+    }));
 
     res.json(top);
   } catch (error) {
@@ -313,24 +355,22 @@ export const getTopCustomers = async (req: Request, res: Response) => {
 export const getPaymentModeBreakdown = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
-    const sales = await prisma.sale.findMany({ where: { userId } });
 
-    const totals = new Map<string, { amount: number; count: number }>();
-    let totalSales = 0;
-    sales.forEach(sale => {
-      const existing = totals.get(sale.paymentMethod) ?? { amount: 0, count: 0 };
-      existing.amount += sale.grandTotal;
-      existing.count += 1;
-      totals.set(sale.paymentMethod, existing);
-      totalSales += sale.grandTotal;
+    const grouped = await prisma.sale.groupBy({
+      by: ['paymentMethod'],
+      where: { userId },
+      _sum: { grandTotal: true },
+      _count: { _all: true },
     });
 
-    const modes = Array.from(totals.entries())
-      .map(([method, data]) => ({
-        method,
-        amount: data.amount,
-        count: data.count,
-        percent: totalSales > 0 ? Math.round((data.amount / totalSales) * 100) : 0,
+    const totalSales = grouped.reduce((sum, g) => sum + (g._sum.grandTotal ?? 0), 0);
+
+    const modes = grouped
+      .map((g) => ({
+        method: g.paymentMethod,
+        amount: g._sum.grandTotal ?? 0,
+        count: g._count._all,
+        percent: totalSales > 0 ? Math.round(((g._sum.grandTotal ?? 0) / totalSales) * 100) : 0,
       }))
       .sort((a, b) => b.amount - a.amount);
 
@@ -345,29 +385,26 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
 
-    const [sales, products] = await Promise.all([
-      prisma.sale.findMany({ where: { userId } }),
-      prisma.product.findMany({ where: { userId } }),
-    ]);
-    const productCosts = new Map<string, number>();
-    products.forEach(p => productCosts.set(p.id, p.costPrice));
+    // Sale.items is a JSON column (not a normalized child table), so per-item cost aggregation
+    // needs a LATERAL unnest rather than a plain Prisma groupBy — this replaces pulling every
+    // sale AND the entire product catalog into Node with one aggregate row from Postgres.
+    const rows = await prisma.$queryRaw<Array<{ revenue: number; tax: number; cost: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(s."grandTotal"), 0) AS revenue,
+        COALESCE(SUM(s."totalTax"), 0) AS tax,
+        COALESCE(SUM(item_costs.cost), 0) AS cost
+      FROM "Sale" s
+      LEFT JOIN LATERAL (
+        SELECT SUM(COALESCE((item->>'costPrice')::float, p."costPrice", 0) * COALESCE((item->>'quantity')::float, 0)) AS cost
+        FROM jsonb_array_elements(${SAFE_ITEMS_ARRAY}) AS item
+        LEFT JOIN "Product" p ON p.id = NULLIF(item->>'productId', '')
+      ) item_costs ON true
+      WHERE s."userId" = ${userId}
+    `);
 
-    let revenue = 0;
-    let tax = 0;
-    let cost = 0;
-    sales.forEach(sale => {
-      revenue += sale.grandTotal;
-      tax += sale.totalTax;
-      const items: any = sale.items;
-      if (Array.isArray(items)) {
-        items.forEach(item => {
-          if (item.productId) {
-            cost += (productCosts.get(item.productId) ?? 0) * item.quantity;
-          }
-        });
-      }
-    });
-
+    const revenue = Number(rows[0]?.revenue ?? 0);
+    const tax = Number(rows[0]?.tax ?? 0);
+    const cost = Number(rows[0]?.cost ?? 0);
     const profit = revenue - tax - cost;
     const marginPercent = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
 
@@ -383,30 +420,27 @@ export const getTopProducts = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId((req as any).user.id);
     const limit = Number(req.query.limit) || 5;
 
-    const sales = await prisma.sale.findMany({ where: { userId } });
+    // Preserves the exact existing quirk: `item.productId || item.productName` grouping (POS
+    // Lite always sends an empty productId, which must still fall through to name-based
+    // grouping rather than merge every such item together).
+    const rows = await prisma.$queryRaw<Array<{ id: string; name: string; unitsSold: number; revenue: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(item->>'productId', ''), item->>'productName') AS id,
+        MAX(item->>'productName') AS name,
+        SUM(COALESCE((item->>'quantity')::float, 0)) AS "unitsSold",
+        SUM(COALESCE(
+          (item->>'total')::float,
+          COALESCE((item->>'sellingPrice')::float, 0) * COALESCE((item->>'quantity')::float, 0) - COALESCE((item->>'discount')::float, 0)
+        )) AS revenue
+      FROM "Sale" s
+      CROSS JOIN LATERAL jsonb_array_elements(${SAFE_ITEMS_ARRAY}) AS item
+      WHERE s."userId" = ${userId}
+      GROUP BY COALESCE(NULLIF(item->>'productId', ''), item->>'productName')
+      ORDER BY revenue DESC
+      LIMIT ${limit}
+    `);
 
-    const productMap = new Map<string, { name: string; unitsSold: number; revenue: number }>();
-    sales.forEach(sale => {
-      const items: any = sale.items;
-      if (Array.isArray(items)) {
-        items.forEach(item => {
-          // productId can be an empty string (POS Lite always sends ''), which must
-          // still fall through to name-based grouping rather than merge every such item.
-          const key = item.productId || item.productName;
-          const existing = productMap.get(key) ?? { name: item.productName, unitsSold: 0, revenue: 0 };
-          existing.unitsSold += item.quantity;
-          existing.revenue += item.total ?? (item.sellingPrice * item.quantity - (item.discount || 0));
-          productMap.set(key, existing);
-        });
-      }
-    });
-
-    const top = Array.from(productMap.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, limit);
-
-    res.json(top);
+    res.json(rows.map((r) => ({ id: r.id, name: r.name, unitsSold: Number(r.unitsSold), revenue: Number(r.revenue) })));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch top products' });
@@ -418,29 +452,23 @@ export const getTopCategories = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId((req as any).user.id);
     const limit = Number(req.query.limit) || 3;
 
-    const [sales, products] = await Promise.all([
-      prisma.sale.findMany({ where: { userId } }),
-      prisma.product.findMany({ where: { userId }, include: { category: true } }),
-    ]);
-    const categoryByProductId = new Map<string, string>();
-    products.forEach(p => categoryByProductId.set(p.id, p.category?.name || 'Uncategorized'));
+    const rows = await prisma.$queryRaw<Array<{ name: string; revenue: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(c.name, 'Uncategorized') AS name,
+        SUM(COALESCE(
+          (item->>'total')::float,
+          COALESCE((item->>'sellingPrice')::float, 0) * COALESCE((item->>'quantity')::float, 0) - COALESCE((item->>'discount')::float, 0)
+        )) AS revenue
+      FROM "Sale" s
+      CROSS JOIN LATERAL jsonb_array_elements(${SAFE_ITEMS_ARRAY}) AS item
+      LEFT JOIN "Product" p ON p.id = NULLIF(item->>'productId', '')
+      LEFT JOIN "Category" c ON c.id = p."categoryId"
+      WHERE s."userId" = ${userId}
+      GROUP BY c.name
+      ORDER BY revenue DESC
+    `);
 
-    const categoryMap = new Map<string, number>();
-    sales.forEach(sale => {
-      const items: any = sale.items;
-      if (Array.isArray(items)) {
-        items.forEach(item => {
-          const categoryName = (item.productId && categoryByProductId.get(item.productId)) || 'Uncategorized';
-          const revenue = item.total ?? (item.sellingPrice * item.quantity - (item.discount || 0));
-          categoryMap.set(categoryName, (categoryMap.get(categoryName) ?? 0) + revenue);
-        });
-      }
-    });
-
-    const sorted = Array.from(categoryMap.entries())
-      .map(([name, revenue]) => ({ name, revenue }))
-      .sort((a, b) => b.revenue - a.revenue);
-
+    const sorted = rows.map((r) => ({ name: r.name, revenue: Number(r.revenue) }));
     const top = sorted.slice(0, limit);
     const rest = sorted.slice(limit);
     if (rest.length > 0) {
@@ -461,21 +489,19 @@ export const getExpenseSummary = async (req: Request, res: Response) => {
     const todayStart = startOfDay(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [todayExpenses, monthExpenses, allExpenses, allSales, todaySales] = await Promise.all([
-      prisma.expense.findMany({ where: { userId, expenseDate: { gte: todayStart } } }),
-      prisma.expense.findMany({ where: { userId, expenseDate: { gte: monthStart } } }),
-      prisma.expense.findMany({ where: { userId } }),
-      prisma.sale.findMany({ where: { userId } }),
-      prisma.sale.findMany({ where: { userId, createdAt: { gte: todayStart } } }),
+    const [todayAgg, monthAgg, allExpAgg, allSalesAgg, todayNonCreditAgg] = await Promise.all([
+      prisma.expense.aggregate({ where: { userId, expenseDate: { gte: todayStart } }, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { userId, expenseDate: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { userId }, _sum: { amount: true } }),
+      prisma.sale.aggregate({ where: { userId }, _sum: { grandTotal: true } }),
+      prisma.sale.aggregate({ where: { userId, createdAt: { gte: todayStart }, paymentMethod: { not: 'credit' } }, _sum: { grandTotal: true } }),
     ]);
 
-    const today = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const thisMonth = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalExpenses = allExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalRevenue = allSales.reduce((sum, s) => sum + s.grandTotal, 0);
-    const collectionsNonCredit = todaySales
-      .filter(s => s.paymentMethod !== 'credit')
-      .reduce((sum, s) => sum + s.grandTotal, 0);
+    const today = todayAgg._sum.amount ?? 0;
+    const thisMonth = monthAgg._sum.amount ?? 0;
+    const totalExpenses = allExpAgg._sum.amount ?? 0;
+    const totalRevenue = allSalesAgg._sum.grandTotal ?? 0;
+    const collectionsNonCredit = todayNonCreditAgg._sum.grandTotal ?? 0;
     const net = totalRevenue - totalExpenses;
 
     res.json({ today, thisMonth, collectionsNonCredit, net });

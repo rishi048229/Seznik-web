@@ -35,7 +35,7 @@ import { Sale } from '@/types/sale';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
-import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
+import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -86,7 +86,7 @@ export default function InvoicesTabScreen() {
     activeCustomTemplateId,
     enableBillQrCode,
   } = usePrinterStore();
-  const { sales, isLoading, isRefetching, refetch } = useSales();
+  const { sales, isLoading, isRefetching, isError, refetch } = useSales();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
@@ -397,6 +397,15 @@ export default function InvoicesTabScreen() {
                 message={t('loadingInvoices', 'Loading invoices...')}
                 hint={t('loadingInvoicesHint', 'Fetching your complete invoice history')}
                 skeleton={<SalesListSkeleton count={8} />}
+              />
+            </View>
+          ) : isError ? (
+            <View style={styles.list}>
+              <ScreenErrorState
+                message={t('invoicesLoadFailed', "Couldn't load invoices")}
+                hint={t('invoicesLoadFailedHint', 'Check your connection to the server and try again.')}
+                onRetry={refetch}
+                isRetrying={isRefetching}
               />
             </View>
           ) : (

@@ -12,14 +12,15 @@ export function useProducts() {
     queryKey: ['products', userId],
     queryFn: () => productsApi.getProducts(),
     staleTime: 1000 * 30,
-    retry: 2,
+    // Was retry:2, stacked on top of getProducts()'s own timeoutMs:120000 below — up to ~6
+    // minutes of spinner on a real failure. Falls back to the app-wide default (retry:1).
   });
 
   const lowStockQuery = useQuery({
     queryKey: ['products', 'low-stock', userId],
     queryFn: () => productsApi.getLowStockProducts(),
     staleTime: 1000 * 30,
-    retry: 1,
+    // Explicit retry:1 here was redundant with the app-wide default anyway — dropped for consistency.
   });
 
   const createProductMutation = useMutation({
