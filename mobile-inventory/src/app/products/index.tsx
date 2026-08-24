@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,7 @@ import {
   ImageIcon,
   Sparkles,
   Percent,
+  Receipt,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -68,6 +69,9 @@ import { ProductsListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
+import { GST_SLAB_OPTIONS, GST_CUSTOM_OPTION, getGstSlabLabel, isStandardGstSlab } from '@/constants/gstSlabs';
+import { calculateProductGstBreakdown } from '@/utils/gst';
+import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
 
 export default function ProductsScreen() {
   const router = useRouter();
@@ -139,8 +143,10 @@ export default function ProductsScreen() {
   const [barcode, setBarcode] = useState('');
   const [barcodeType, setBarcodeType] = useState<'EAN13' | 'CODE128'>('EAN13');
   const [taxRate, setTaxRate] = useState('0');
-  const [gstLabel, setGstLabel] = useState('0% — Exempt');
-  const [priceIncludesGst, setPriceIncludesGst] = useState(true);
+  const [gstLabel, setGstLabel] = useState('0% — Nil Rated / Exempt');
+  const [gstIsCustom, setGstIsCustom] = useState(false);
+  const [customTaxRate, setCustomTaxRate] = useState('');
+  const [priceIncludesGst, setPriceIncludesGst] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('percent');
@@ -149,14 +155,6 @@ export default function ProductsScreen() {
 
   const theme = useAppTheme();
   const isDark = theme.isDark;
-
-  const GST_SLABS = [
-    { rate: '0', label: '0% — Exempt' },
-    { rate: '5', label: '5% — Reduced (Essential Goods)' },
-    { rate: '12', label: '12% — Standard Rate' },
-    { rate: '18', label: '18% — Standard Plus' },
-    { rate: '28', label: '28% — Maximum Rate' },
-  ];
 
   const UNITS = [
     'Piece',
@@ -234,6 +232,11 @@ export default function ProductsScreen() {
     setStock(product.currentStock?.toString() || '0');
     setLowStockThreshold(product.lowStockThreshold?.toString() || '5');
     setTaxRate(product.taxRate?.toString() || '0');
+    const editTaxRate = String(product.taxRate ?? 0);
+    const editIsCustom = !isStandardGstSlab(editTaxRate);
+    setGstIsCustom(editIsCustom);
+    setCustomTaxRate(editIsCustom ? editTaxRate : '');
+    setGstLabel(getGstSlabLabel(editTaxRate));
     setPriceIncludesGst(Boolean(product.priceIncludesGst));
     setUnit(product.unit || 'Piece');
     setImageUrl(product.imageUrl || null);
@@ -253,6 +256,9 @@ export default function ProductsScreen() {
     setStock('0');
     setLowStockThreshold('5');
     setTaxRate('0');
+    setGstLabel('0% — Nil Rated / Exempt');
+    setGstIsCustom(false);
+    setCustomTaxRate('');
     setPriceIncludesGst(false);
     setUnit('Piece');
     setImageUrl(null);
@@ -366,8 +372,10 @@ export default function ProductsScreen() {
     setBarcode(generateEAN13Barcode());
     setBarcodeType('EAN13');
     setTaxRate('0');
-    setGstLabel('0% — Exempt');
-    setPriceIncludesGst(true);
+    setGstLabel('0% — Nil Rated / Exempt');
+    setGstIsCustom(false);
+    setCustomTaxRate('');
+    setPriceIncludesGst(false);
     setCategoryId(categories[0]?.id || null);
     setSupplierId(suppliers[0]?.id || null);
     setDiscountType('percent');
@@ -385,10 +393,13 @@ export default function ProductsScreen() {
     setUnit(p.unit || 'Piece');
     setImageUrl(p.imageUrl || null);
     setBarcode(p.barcode || generateEAN13Barcode());
-    setTaxRate(String(p.taxRate || 0));
-    const matchedGst = GST_SLABS.find((g) => g.rate === String(p.taxRate)) || GST_SLABS[0];
-    setGstLabel(matchedGst.label);
-    setPriceIncludesGst(p.priceIncludesGst);
+    const productTaxRate = String(p.taxRate ?? 0);
+    setTaxRate(productTaxRate);
+    const isCustom = !isStandardGstSlab(productTaxRate);
+    setGstIsCustom(isCustom);
+    setCustomTaxRate(isCustom ? productTaxRate : '');
+    setGstLabel(getGstSlabLabel(productTaxRate));
+    setPriceIncludesGst(Boolean(p.priceIncludesGst));
     setCategoryId(p.categoryId || null);
     setSupplierId(p.supplierId || null);
     setDiscountType(p.discountType || 'percent');
@@ -414,6 +425,10 @@ export default function ProductsScreen() {
       Alert.alert('Required Fields', 'Please enter product name and selling price.');
       return;
     }
+    if (gstIsCustom && (effectiveGstRate < 0 || effectiveGstRate > 100)) {
+      Alert.alert('Invalid GST Rate', 'Custom GST rate must be between 0% and 100%.');
+      return;
+    }
     setSubmitting(true);
     try {
       const discVal = parseFloat(discountValue) || 0;
@@ -426,7 +441,7 @@ export default function ProductsScreen() {
         unit: unit.trim() || 'Piece',
         imageUrl: imageUrl || undefined,
         barcode: barcode.trim() || undefined,
-        taxRate: parseFloat(taxRate) || 0,
+        taxRate: effectiveGstRate,
         priceIncludesGst,
         categoryId: categoryId || undefined,
         supplierId: supplierId || undefined,
@@ -488,6 +503,25 @@ export default function ProductsScreen() {
   const cPrice = parseFloat(costPrice) || 0;
   const marginAmt = sPrice - cPrice;
   const marginPct = sPrice > 0 ? ((marginAmt / sPrice) * 100).toFixed(1) : '0.0';
+
+  const effectiveGstRate = parseFloat(gstIsCustom ? customTaxRate : taxRate) || 0;
+  const gstBreakdown = useMemo(
+    () => calculateProductGstBreakdown(sPrice, effectiveGstRate, priceIncludesGst),
+    [sPrice, effectiveGstRate, priceIncludesGst],
+  );
+
+  const handleSelectGstSlab = (rate: string, label: string) => {
+    if (rate === GST_CUSTOM_OPTION.rate) {
+      setGstIsCustom(true);
+      setGstLabel(GST_CUSTOM_OPTION.label);
+    } else {
+      setGstIsCustom(false);
+      setCustomTaxRate('');
+      setTaxRate(rate);
+      setGstLabel(label);
+    }
+    setShowGstDropdown(false);
+  };
 
   return (
     <ScreenBackground color={theme.bg}>
@@ -843,7 +877,7 @@ export default function ProductsScreen() {
 
                   <Text style={styles.heroPriceText}>₹{detailProduct.sellingPrice.toFixed(2)}</Text>
                   <Text style={styles.heroPriceSub}>
-                    {detailProduct.priceIncludesGst ? 'Incl. GST' : 'Excl. GST'} ({detailProduct.taxRate || 0}% GST)
+                    {detailProduct.priceIncludesGst ? 'GST Inclusive (MRP)' : 'GST Exclusive (Taxable Value)'} · {detailProduct.taxRate || 0}% GST
                   </Text>
                 </View>
 
@@ -924,6 +958,21 @@ export default function ProductsScreen() {
                       ).toFixed(1)}
                       %)
                     </Text>
+                  </View>
+
+                  <View style={[styles.detailRow, { borderBottomWidth: 0, flexDirection: 'column', alignItems: 'stretch' }]}>
+                    <Text style={[styles.detailLabel, { color: theme.textSecondary, marginBottom: 8 }]}>
+                      GST Rate · {getGstSlabLabel(detailProduct.taxRate || 0)}
+                    </Text>
+                    <GstBreakdownCard
+                      breakdown={calculateProductGstBreakdown(
+                        detailProduct.sellingPrice,
+                        detailProduct.taxRate || 0,
+                        Boolean(detailProduct.priceIncludesGst),
+                      )}
+                      theme={theme}
+                      compact
+                    />
                   </View>
                 </View>
 
@@ -1120,17 +1169,47 @@ export default function ProductsScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
               <View style={{ flex: 1, marginRight: 6 }}>
                 <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: theme.textPrimary }]}>Selling Price (₹) *</Text>
-                  <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={[styles.label, { color: theme.textPrimary }]}>Selling Price (₹) *</Text>
+                    <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 8, padding: 2, borderWidth: 1, borderColor: theme.borderColor }}>
+                      <TouchableOpacity
+                        onPress={() => setPriceIncludesGst(false)}
+                        style={[
+                          { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+                          !priceIncludesGst && { backgroundColor: BRAND_COLORS.blue600 },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: !priceIncludesGst ? '#FFFFFF' : theme.textSecondary }}>
+                          Excl. GST
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setPriceIncludesGst(true)}
+                        style={[
+                          { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+                          priceIncludesGst && { backgroundColor: BRAND_COLORS.blue600 },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: priceIncludesGst ? '#FFFFFF' : theme.textSecondary }}>
+                          Incl. GST
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 4 }]}
                   value={sellingPrice}
                   onChangeText={setSellingPrice}
                   keyboardType="numeric"
-                  placeholder="480.00"
+                  placeholder={priceIncludesGst ? 'MRP incl. GST' : 'Taxable value excl. GST'}
                   placeholderTextColor="#94A3B8"
                 />
+                <Text style={{ fontSize: 10, color: theme.textSecondary, marginBottom: 0, fontWeight: '600' }}>
+                  {priceIncludesGst
+                    ? 'Entered price is the final MRP (GST already included)'
+                    : 'Entered price is taxable value — GST will be added at billing'}
+                </Text>
               </View>
 
               <View style={{ flex: 1, marginLeft: 6 }}>
@@ -1147,6 +1226,94 @@ export default function ProductsScreen() {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
+            </View>
+
+            {/* GST Configuration */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, padding: 12 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <Receipt size={14} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]}>GST Rate (Slab)</Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setShowGstDropdown(!showGstDropdown);
+                  setShowCatDropdown(false);
+                  setShowUnitDropdown(false);
+                }}
+                style={[styles.dropdownSelect, { backgroundColor: theme.bg, borderColor: theme.borderColor, marginBottom: showGstDropdown ? 0 : 10 }]}
+              >
+                <Text style={[styles.dropdownSelectText, { color: theme.textPrimary }]}>
+                  {gstIsCustom ? GST_CUSTOM_OPTION.label : gstLabel}
+                </Text>
+                <ChevronDown size={18} color={theme.textSecondary} />
+              </TouchableOpacity>
+
+              {showGstDropdown ? (
+                <View style={[styles.dropdownMenu, { backgroundColor: theme.bg, borderColor: theme.borderColor, marginBottom: 10 }]}>
+                  {GST_SLAB_OPTIONS.map((slab) => (
+                    <TouchableOpacity
+                      key={slab.rate}
+                      onPress={() => handleSelectGstSlab(slab.rate, slab.label)}
+                      style={[styles.dropdownOption, { borderBottomColor: theme.borderColor }]}
+                    >
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text
+                          style={[
+                            styles.dropdownOptionText,
+                            { color: !gstIsCustom && taxRate === slab.rate ? BRAND_COLORS.blue600 : theme.textPrimary },
+                          ]}
+                        >
+                          {slab.label}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>{slab.description}</Text>
+                      </View>
+                      {!gstIsCustom && taxRate === slab.rate ? <Check size={16} color={BRAND_COLORS.blue600} /> : null}
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    onPress={() => handleSelectGstSlab(GST_CUSTOM_OPTION.rate, GST_CUSTOM_OPTION.label)}
+                    style={[styles.dropdownOption, { borderBottomWidth: 0 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.dropdownOptionText,
+                          { color: gstIsCustom ? BRAND_COLORS.blue600 : theme.textPrimary },
+                        ]}
+                      >
+                        {GST_CUSTOM_OPTION.label}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>{GST_CUSTOM_OPTION.description}</Text>
+                    </View>
+                    {gstIsCustom ? <Check size={16} color={BRAND_COLORS.blue600} /> : null}
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {gstIsCustom ? (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={[styles.label, { color: theme.textSecondary, fontSize: 11, marginBottom: 6 }]}>
+                    Custom GST Rate (%)
+                  </Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0 }]}
+                    value={customTaxRate}
+                    onChangeText={setCustomTaxRate}
+                    keyboardType="decimal-pad"
+                    placeholder="e.g. 6.5"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+              ) : null}
+
+              {sPrice > 0 ? (
+                <GstBreakdownCard breakdown={gstBreakdown} theme={theme} />
+              ) : (
+                <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', textAlign: 'center', marginTop: 4 }}>
+                  Enter selling price to view GST breakdown
+                </Text>
+              )}
             </View>
 
             {/* PRODUCT DISCOUNT CONFIGURATION SECTION */}
