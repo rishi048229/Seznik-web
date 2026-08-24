@@ -3,12 +3,7 @@ import { Activity, Clock, Calendar, Palette, RefreshCw } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
 import { fetchHeatmapData } from '../services/api';
 import { EmptyState } from './EmptyState';
-
-interface PeakUsageHeatmapProps {
-  data?: HeatmapCell[] | HeatmapResponse;
-  globalTimeRange?: string;
-  lastRefreshedAt?: string;
-}
+import { TimeRangeSelect, timeRangeLabel } from './TimeRangeSelect';
 
 interface HoveredCellInfo {
   date: string;
@@ -204,13 +199,13 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
   },
 };
 
-export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
-  data,
-  globalTimeRange = '7d',
-  lastRefreshedAt,
-}) => {
+export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+  const [timeRange, setTimeRange] = useState(embedded ? '3d' : '7d');
+  const [rangeData, setRangeData] = useState<HeatmapCell[] | HeatmapResponse | undefined>(undefined);
+  const [rangeLoading, setRangeLoading] = useState(true);
+  const [rangeError, setRangeError] = useState<string | null>(null);
   const [hoveredCell, setHoveredCell] = useState<HoveredCellInfo | null>(null);
-  const [viewFilter, setViewFilter] = useState<'all' | 'business'>('all');
+  const [viewFilter, setViewFilter] = useState<'all' | 'business'>(() => (embedded ? 'business' : 'all'));
   const [viewTodayOnly, setViewTodayOnly] = useState(false);
   const [todayData, setTodayData] = useState<HeatmapResponse | null>(null);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -231,6 +226,35 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
     setPaletteId(newPalette);
     localStorage.setItem('seznik_heatmap_palette', newPalette);
   };
+
+  useEffect(() => {
+    if (viewTodayOnly) return;
+
+    let cancelled = false;
+    setRangeLoading(true);
+    setRangeError(null);
+
+    fetchHeatmapData(timeRange, embedded ? 3 : undefined)
+      .then((result) => {
+        if (!cancelled) {
+          setRangeData(result);
+          setRangeError(null);
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setRangeError(err?.message || 'Failed to load heatmap');
+          setRangeData(undefined);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRangeLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timeRange, viewTodayOnly]);
 
   // Live fetch for "Today Only" — calendar today in IST from API
   useEffect(() => {
@@ -264,11 +288,11 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [viewTodayOnly, lastRefreshedAt]);
+  }, [viewTodayOnly]);
 
   const activeData: HeatmapCell[] | HeatmapResponse | undefined = viewTodayOnly
     ? todayData ?? undefined
-    : data;
+    : rangeData;
 
   const cells: HeatmapCell[] = Array.isArray(activeData)
     ? activeData
@@ -353,275 +377,251 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
     return `${displayH} ${period} IST`;
   };
 
+  const toggleBtn = (active: boolean, accent?: 'green') => ({
+    padding: '5px 12px',
+    borderRadius: '5px',
+    border: 'none',
+    background: active ? (accent === 'green' ? '#10B981' : 'var(--accent-blue)') : 'transparent',
+    color: active ? '#FFFFFF' : 'var(--text-muted)',
+    fontSize: '0.74rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    whiteSpace: 'nowrap' as const,
+  });
+
+  const controlGroup: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    background: 'var(--bg-main)',
+    padding: '3px',
+    borderRadius: '8px',
+    border: '1px solid var(--border-color)',
+    gap: '2px',
+  };
+
+  const labelColWidth = embedded ? 44 : 58;
+  const hourGridTemplate = `${labelColWidth}px repeat(${activeHours.length}, minmax(0, 1fr))`;
+  const cellGap = embedded ? 2 : 4;
+
   return (
-    <div 
-      className="glass-card" 
-      style={{ 
-        padding: '18px 22px', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        justifyContent: 'space-between',
-        height: '100%', 
-        minHeight: 0,
+    <div
+      className={`glass-card${embedded ? ' heatmap-panel--embedded' : ''}`}
+      style={{
+        padding: embedded ? '12px 14px' : '16px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: embedded ? '8px' : '12px',
+        height: '100%',
+        minHeight: embedded ? 0 : '320px',
         boxSizing: 'border-box',
         position: 'relative',
+        width: '100%',
+        minWidth: 0,
         flex: 1,
       }}
     >
-      {/* 1. Header & Live Metrics Badges */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#06B6D4',
-            }}
-          >
-            <Activity size={18} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                24-Hour Peak Usage &amp; API Heatmap
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '9px',
+                background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Activity size={18} color="#06B6D4" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.3 }}>
+                Peak Usage Heatmap
               </h3>
-              {!viewTodayOnly && (
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  ({globalTimeRange === '24h' ? 'Last 24h' : globalTimeRange === '7d' ? 'Last 7 days' : globalTimeRange === '30d' ? 'Last 30 days' : globalTimeRange === 'all' ? 'All time' : globalTimeRange} · IST)
-                </span>
-              )}
-              {viewTodayOnly && (
-                <span style={{ fontSize: '0.68rem', color: '#10B981', fontWeight: 600 }}>
-                  (Today · IST)
-                </span>
-              )}
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  color: 'var(--accent-blue)',
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(59, 130, 246, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Calendar size={11} />
-                {weekDateRangeStr}
-              </span>
+              <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                {viewTodayOnly ? 'Today · IST' : `${timeRangeLabel(timeRange)} · IST`}
+                {' · '}
+                <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{weekDateRangeStr}</span>
+              </p>
             </div>
           </div>
         </div>
 
-        {/* 2 Live Info Cards (Today & This Hour) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Card A: Today */}
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
           <div
             style={{
               background: 'var(--bg-main)',
               border: '1px solid var(--border-color)',
               borderRadius: '8px',
-              padding: '5px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
+              padding: '6px 12px',
+              textAlign: 'center',
+              minWidth: '72px',
             }}
           >
-            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Today:</span>
-            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace' }}>{requestsToday.toLocaleString()}</span>
+            <div style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Today
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
+              {requestsToday.toLocaleString()}
+            </div>
           </div>
-
-          {/* Card B: This Hour */}
           <div
             style={{
               background: 'var(--bg-main)',
               border: '1px solid var(--border-color)',
               borderRadius: '8px',
-              padding: '5px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
+              padding: '6px 12px',
+              textAlign: 'center',
+              minWidth: '72px',
             }}
           >
-            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>This Hour:</span>
-            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace' }}>{requestsThisHour.toLocaleString()}</span>
+            <div style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              This Hour
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
+              {requestsThisHour.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Controls Bar: Time Filter, Palette Switcher & Dynamic Legend */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '8px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Date scope: full navbar range vs today only (live API) */}
-          <div
-            style={{
-              display: 'inline-flex',
-              background: 'var(--bg-main)',
-              padding: '2px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-            }}
+      {/* Toolbar row 1: scope + range + hours */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: embedded ? '6px' : '8px',
+          padding: embedded ? '6px 10px' : '10px 12px',
+          background: 'var(--bg-main)',
+          borderRadius: '10px',
+          border: '1px solid var(--border-color)',
+          flexShrink: 0,
+        }}
+      >
+        <div style={controlGroup}>
+          <button type="button" onClick={() => setViewTodayOnly(false)} style={toggleBtn(!viewTodayOnly)}>
+            Full Range
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTodayOnly(true)}
+            style={{ ...toggleBtn(viewTodayOnly, 'green'), display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            <button
-              onClick={() => setViewTodayOnly(false)}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '4px',
-                border: 'none',
-                background: !viewTodayOnly ? 'var(--accent-blue)' : 'transparent',
-                color: !viewTodayOnly ? '#FFFFFF' : 'var(--text-muted)',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Full Range
-            </button>
-            <button
-              onClick={() => setViewTodayOnly(true)}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '4px',
-                border: 'none',
-                background: viewTodayOnly ? '#10B981' : 'transparent',
-                color: viewTodayOnly ? '#FFFFFF' : 'var(--text-muted)',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              <Calendar size={11} />
-              Today Only
-            </button>
-          </div>
-
-          {/* Hour column filter */}
-          <div
-            style={{
-              display: 'inline-flex',
-              background: 'var(--bg-main)',
-              padding: '2px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <button
-              onClick={() => setViewFilter('all')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '4px',
-                border: 'none',
-                background: viewFilter === 'all' ? 'var(--accent-blue)' : 'transparent',
-                color: viewFilter === 'all' ? '#FFFFFF' : 'var(--text-muted)',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              24 Hours
-            </button>
-            <button
-              onClick={() => setViewFilter('business')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '4px',
-                border: 'none',
-                background: viewFilter === 'business' ? 'var(--accent-blue)' : 'transparent',
-                color: viewFilter === 'business' ? '#FFFFFF' : 'var(--text-muted)',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Business Hours (08:00 - 22:00)
-            </button>
-          </div>
-
-          {/* Color Palette Switcher Dropdown */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'var(--bg-main)',
-              padding: '3px 8px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <Palette size={13} color="var(--accent-blue)" />
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>Theme:</span>
-            <select
-              value={paletteId}
-              onChange={(e) => handlePaletteChange(e.target.value as HeatmapPalette)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-main)',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                outline: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="traffic">Traffic Light (Green → Red)</option>
-              <option value="cyber">Cyber Neon (Cyan → Purple)</option>
-              <option value="ocean">Ocean Cobalt (Blue → Indigo)</option>
-              <option value="github">GitHub Matrix (Monochrome Green)</option>
-              <option value="inferno">Solar Inferno (Gold → Crimson)</option>
-            </select>
-          </div>
+            <Calendar size={11} />
+            Today
+          </button>
         </div>
 
-        {/* Dynamic Color Code Legend matching selected Palette */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-          <span style={{ fontSize: '0.65rem', fontWeight: 600 }}>Quiet (0)</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            {activePalette.swatches.map((swatchColor, idx) => (
-              <div
-                key={idx}
-                style={{
-                  width: '9px',
-                  height: '9px',
-                  borderRadius: '2px',
-                  background: swatchColor,
-                  border: idx === 0 ? '1px solid var(--border-color)' : 'none',
-                }}
-                title={`Level ${idx + 1}`}
-              />
-            ))}
-          </div>
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: activePalette.swatches[4] }}>
-            Peak Hotspot
+        {!viewTodayOnly && !embedded && <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />}
+        {!viewTodayOnly && embedded && (
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', padding: '4px 8px' }}>
+            Last 3 Days
           </span>
+        )}
+
+        <div style={controlGroup}>
+          <button type="button" onClick={() => setViewFilter('all')} style={toggleBtn(viewFilter === 'all')}>
+            24 Hours
+          </button>
+          <button type="button" onClick={() => setViewFilter('business')} style={toggleBtn(viewFilter === 'business')}>
+            Business (8–22)
+          </button>
+        </div>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Palette size={13} color="var(--accent-blue)" />
+          <select
+            className="custom-select"
+            value={paletteId}
+            onChange={(e) => handlePaletteChange(e.target.value as HeatmapPalette)}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              color: 'var(--text-main)',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              padding: '4px 8px',
+              outline: 'none',
+              cursor: 'pointer',
+              maxWidth: '180px',
+            }}
+          >
+            <option value="traffic">Traffic Light</option>
+            <option value="cyber">Cyber Neon</option>
+            <option value="ocean">Ocean Cobalt</option>
+            <option value="github">GitHub Matrix</option>
+            <option value="inferno">Solar Inferno</option>
+          </select>
         </div>
       </div>
 
-      {todayError && viewTodayOnly && (
-        <div style={{ fontSize: '0.75rem', color: '#EF4444', padding: '6px 0' }}>
-          {todayError}
+      {!embedded ? (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          padding: '6px 12px',
+          background: 'var(--bg-main)',
+          borderRadius: '8px',
+          border: '1px solid var(--border-color)',
+          fontSize: '0.7rem',
+          color: 'var(--text-muted)',
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>Quiet</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {activePalette.swatches.map((swatchColor, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: '14px',
+                height: '14px',
+                borderRadius: '3px',
+                background: swatchColor,
+                border: idx === 0 ? '1px solid var(--border-color)' : 'none',
+              }}
+            />
+          ))}
         </div>
-      )}
+        <span style={{ fontWeight: 700, color: activePalette.swatches[4] }}>Peak</span>
+        <span style={{ opacity: 0.5 }}>|</span>
+        <span>Now {istClock.time} IST</span>
+      </div>
+      ) : null}
+
+      {(todayError && viewTodayOnly) || (rangeError && !viewTodayOnly) ? (
+        <div style={{ fontSize: '0.75rem', color: '#EF4444' }}>
+          {viewTodayOnly ? todayError : rangeError}
+        </div>
+      ) : null}
 
       {viewTodayOnly && todayLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1, minHeight: '180px', color: 'var(--text-muted)' }}>
-          <RefreshCw size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
-          <span style={{ fontSize: '0.85rem' }}>Loading today&apos;s live activity…</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1, minHeight: '160px', color: 'var(--text-muted)' }}>
+          <RefreshCw size={16} className="animate-spin-slow" />
+          <span style={{ fontSize: '0.85rem' }}>Loading today&apos;s activity…</span>
+        </div>
+      ) : !viewTodayOnly && rangeLoading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1, minHeight: '160px', color: 'var(--text-muted)' }}>
+          <RefreshCw size={16} className="animate-spin-slow" />
+          <span style={{ fontSize: '0.85rem' }}>Loading heatmap…</span>
         </div>
       ) : cells.length === 0 ? (
         <EmptyState
@@ -630,111 +630,111 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
           message="No active API traffic recorded for heatmap analysis in this window."
         />
       ) : (
-        <div style={{ width: '100%', overflowX: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-around', margin: '6px 0' }}>
-          {/* Hour Labels Header */}
+        <div
+          className={`heatmap-grid-scroll${embedded ? ' heatmap-grid-fit' : ''}`}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: embedded ? 'hidden' : undefined,
+            overflowX: embedded ? 'hidden' : 'auto',
+            overflowY: 'hidden',
+            padding: embedded ? '2px 2px 0' : '4px 2px 2px',
+            background: 'var(--bg-main)',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            display: embedded ? 'flex' : undefined,
+            flexDirection: embedded ? 'column' : undefined,
+          }}
+        >
+          {/* Hour labels */}
           <div
+            className={embedded ? 'heatmap-hour-row' : undefined}
             style={{
               display: 'grid',
-              gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
-              gap: '3px',
-              marginBottom: '4px',
-              flexShrink: 0,
-            }}
-          >
-            <div />
-            <div
-              style={{
-                gridColumn: `2 / span ${activeHours.length}`,
-                fontSize: '0.62rem',
-                color: 'var(--text-muted)',
-                textAlign: 'center',
-                fontWeight: 600,
-                marginBottom: '2px',
-                userSelect: 'none',
-              }}
-            >
-              Hours (IST · now {istClock.time})
-            </div>
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
-              gap: '3px',
-              marginBottom: '4px',
-              flexShrink: 0,
+              gridTemplateColumns: hourGridTemplate,
+              gap: cellGap,
+              padding: embedded ? '4px 8px 2px' : '8px 10px 4px',
+              minWidth: embedded ? undefined : (viewFilter === 'business' ? '420px' : '640px'),
             }}
           >
             <div />
             {activeHours.map((h) => {
               const isCurrentHour = h === istClock.hour;
               return (
-              <div
-                key={h}
-                title={formatHourLabel(h)}
-                style={{
-                  fontSize: '0.64rem',
-                  color: isCurrentHour ? '#10B981' : 'var(--text-muted)',
-                  textAlign: 'center',
-                  fontWeight: isCurrentHour ? 800 : 600,
-                  userSelect: 'none',
-                  background: isCurrentHour ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
-                  borderRadius: '4px',
-                  border: isCurrentHour ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid transparent',
-                }}
-              >
-                {h < 10 ? `0${h}` : h}h
-              </div>
-            );})}
+                <div
+                  key={h}
+                  title={formatHourLabel(h)}
+                  style={{
+                    fontSize: embedded ? '0.6rem' : '0.68rem',
+                    color: isCurrentHour ? '#10B981' : 'var(--text-muted)',
+                    textAlign: 'center',
+                    fontWeight: isCurrentHour ? 800 : 500,
+                    userSelect: 'none',
+                    padding: '2px 0',
+                    background: isCurrentHour ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                    borderRadius: '4px',
+                  }}
+                >
+                  {h < 10 ? `0${h}` : h}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Days Grid Rows — one row per actual calendar date */}
-          {rowDates.map((dateInfo) => (
+          {/* Day rows */}
+          <div
+            className={embedded ? 'heatmap-day-rows' : undefined}
+            style={embedded ? undefined : { padding: '0 10px 10px', minWidth: viewFilter === 'business' ? '420px' : '640px' }}
+          >
+            {rowDates.map((dateInfo) => (
               <div
                 key={dateInfo.date}
+                className={embedded ? 'heatmap-day-row' : undefined}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
-                  gap: '3px',
+                  gridTemplateColumns: hourGridTemplate,
+                  gap: cellGap,
                   alignItems: 'stretch',
-                  flex: 1,
-                  minHeight: '25px',
-                  margin: '2px 0',
+                  marginBottom: embedded ? 0 : 4,
                 }}
               >
                 <div
                   style={{
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '2px 6px',
-                    borderRadius: '5px',
-                    background: dateInfo.isToday ? 'rgba(59, 130, 246, 0.16)' : 'transparent',
+                    justifyContent: 'center',
+                    padding: embedded ? '2px 1px' : '4px 2px',
+                    borderRadius: embedded ? '4px' : '6px',
+                    background: dateInfo.isToday ? 'rgba(59, 130, 246, 0.14)' : 'transparent',
                     border: dateInfo.isToday ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent',
                     userSelect: 'none',
-                    boxSizing: 'border-box',
+                    minHeight: embedded ? 0 : 28,
+                    height: embedded ? '100%' : undefined,
                   }}
                   title={dateInfo.fullDate}
                 >
                   <span
                     style={{
-                      fontSize: '0.73rem',
+                      fontSize: embedded ? '0.62rem' : '0.7rem',
                       fontWeight: 700,
                       color: dateInfo.isToday ? '#38BDF8' : 'var(--text-main)',
+                      lineHeight: 1.1,
                     }}
                   >
                     {dateInfo.dayAbbr}
                   </span>
-                  <span
-                    style={{
-                      fontSize: '0.70rem',
-                      color: dateInfo.isToday ? '#38BDF8' : 'var(--text-muted)',
-                      fontWeight: dateInfo.isToday ? 700 : 500,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    {dateInfo.dayNum}
-                  </span>
+                  {dateInfo.dayNum && (
+                    <span
+                      style={{
+                        fontSize: embedded ? '0.58rem' : '0.65rem',
+                        color: dateInfo.isToday ? '#38BDF8' : 'var(--text-muted)',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      {dateInfo.dayNum}
+                    </span>
+                  )}
                 </div>
                 {activeHours.map((h) => {
                   const { count, uniqueUsers } = getCellData(dateInfo.date, h);
@@ -759,20 +759,19 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
                       }}
                       onMouseLeave={() => setHoveredCell(null)}
                       style={{
-                        height: '100%',
-                        minHeight: '25px',
-                        borderRadius: '4px',
+                        minHeight: embedded ? 0 : 28,
+                        height: embedded ? '100%' : undefined,
+                        borderRadius: embedded ? 3 : 4,
                         ...styleObj,
-                        transform: isHovered ? 'scale(1.22)' : 'scale(1)',
+                        transform: isHovered ? 'scale(1.15)' : 'scale(1)',
                         zIndex: isHovered ? 20 : 1,
                         outline: isHovered
                           ? '2px solid #FFFFFF'
                           : isCurrentHour
-                            ? '2px solid rgba(16, 185, 129, 0.75)'
+                            ? '2px solid rgba(16, 185, 129, 0.6)'
                             : 'none',
-                        transition: 'all 0.12s ease',
+                        transition: 'transform 0.12s ease, outline 0.12s ease',
                         cursor: 'pointer',
-                        width: '100%',
                         boxSizing: 'border-box',
                       }}
                     />
@@ -780,6 +779,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
                 })}
               </div>
             ))}
+          </div>
         </div>
       )}
 
@@ -809,7 +809,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Requests:</span>
+              <span style={{ color: 'var(--text-muted)' }}>Activity records:</span>
               <strong style={{ color: 'var(--text-main)' }}>{hoveredCell.count.toLocaleString()}</strong>
             </div>
 

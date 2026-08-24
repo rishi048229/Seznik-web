@@ -11,11 +11,7 @@ export interface UserRecord {
   onboardingCompleted: boolean;
   createdAt: string;
   lastLoginAt: string;
-  location: string;
-  city: string;
-  country: string;
-  countryCode: string;
-  ipAddress: string;
+  lastUpdatedAt?: string;
   isBanned?: boolean;
   banReason?: string;
   bannedAt?: string;
@@ -42,7 +38,7 @@ export interface SectionUsage {
   iconName: string;
   viewCount: number;
   uniqueUsers: number;
-  avgDurationMinutes: number;
+  avgDurationMinutes?: number;
   percentageShare: number;
   trend: 'up' | 'down' | 'neutral';
   trendPercent: number;
@@ -61,6 +57,8 @@ export interface DashboardMetrics {
   webRevenue?: number;
   totalMobileInvoices?: number;
   totalWebInvoices?: number;
+  totalSalesCount?: number;
+  totalRevenue?: number;
   activeInvoicingUsersToday?: number;
   activeInvoicingUsersTrend?: number;
   activeNowCount?: number;
@@ -70,13 +68,10 @@ export interface DashboardMetrics {
   topSection: string;
   topSectionShare: number;
   topSectionTrend: number;
-  topLocation?: string;
-  topLocationShare?: number;
-  topLocationTrend?: number;
   verifiedUserPercentage: number;
-  freePlanCount: number;
-  proPlanCount: number;
-  enterprisePlanCount: number;
+  freePlanCount?: number;
+  proPlanCount?: number;
+  enterprisePlanCount?: number;
   timeRange?: string;
   timeWindowLabel?: string;
 }
@@ -123,13 +118,7 @@ export interface DeviceSessionBreakdownData {
   desktopPercent: number;
   mobileCount: number;
   mobilePercent: number;
-  tabletCount: number;
-  tabletPercent: number;
   totalInvoices?: number;
-  newUsersCount: number;
-  newUsersPercent: number;
-  returningUsersCount: number;
-  returningUsersPercent: number;
 }
 
 export interface AdminProduct {

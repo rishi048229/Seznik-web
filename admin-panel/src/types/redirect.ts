@@ -11,9 +11,7 @@ export interface RedirectClickEvent {
   id: string
   timestamp: string
   source: string
-  device: 'Desktop' | 'Mobile' | 'Tablet'
-  ipAddress?: string
-  city?: string
+  device: 'Desktop' | 'Mobile'
 }
 
 export interface AdminProductRedirect {

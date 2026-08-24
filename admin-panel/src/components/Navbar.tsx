@@ -22,6 +22,7 @@ interface NavbarProps {
   timeRange?: string;
   onSelectTimeRange?: (range: string) => void;
   setTimeRange?: (range: string) => void;
+  showTimeRange?: boolean;
   lastRefreshedAt: string;
   onRefresh: () => void;
   autoRefreshInterval: number;
@@ -36,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   timeRange = '7d',
   onSelectTimeRange,
   setTimeRange,
+  showTimeRange = false,
   lastRefreshedAt,
   onRefresh,
   autoRefreshInterval,
@@ -158,7 +160,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Global Time Range */}
+          {/* Global Time Range — Users tab only; overview sections have their own */}
+          {showTimeRange && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--tab-bg)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--tab-border)' }}>
             <Calendar size={13} color="var(--accent-blue)" />
             <span style={{ fontSize: '0.75rem', color: 'var(--navbar-text-muted)', fontWeight: 500 }}>Range:</span>
@@ -182,6 +185,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <option value="all">All Time</option>
             </select>
           </div>
+          )}
 
           {/* Auto Refresh Interval Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--tab-bg)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--tab-border)', transition: 'background 0.3s ease' }}>

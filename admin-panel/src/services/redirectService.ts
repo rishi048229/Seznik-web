@@ -5,8 +5,7 @@ const ADMIN_REDIRECTS_STORAGE_KEY = 'seznik_admin_redirects_telemetry_v1';
 const generateClicks = (count: number, now: Date): RedirectClickEvent[] => {
   const clicks: RedirectClickEvent[] = [];
   const sources = ['Google Organic', 'Instagram Ads', 'Direct Website', 'Facebook', 'Email Newsletter', 'Affiliate Link'];
-  const devices: ('Desktop' | 'Mobile' | 'Tablet')[] = ['Desktop', 'Mobile', 'Mobile', 'Desktop', 'Tablet'];
-  const cities = ['Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Chennai', 'Kolkata', 'Pune', 'Ahmedabad'];
+  const devices: ('Desktop' | 'Mobile')[] = ['Desktop', 'Mobile', 'Mobile', 'Desktop', 'Mobile'];
 
   for (let i = 0; i < count; i++) {
     const hoursAgo = Math.floor(Math.random() * (30 * 24));
@@ -16,8 +15,6 @@ const generateClicks = (count: number, now: Date): RedirectClickEvent[] => {
       timestamp,
       source: sources[i % sources.length],
       device: devices[i % devices.length],
-      city: cities[i % cities.length],
-      ipAddress: `103.${Math.floor(Math.random() * 200)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
     });
   }
 
@@ -99,8 +96,6 @@ export const simulateAdminRedirectClick = (
         timestamp: now,
         source,
         device: 'Desktop',
-        city: 'Mumbai',
-        ipAddress: '103.22.140.12',
       };
       const clicks = [newClick, ...r.clicks];
       return {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   HeartPulse,
   RefreshCw,
@@ -29,10 +29,38 @@ function formatUptime(seconds?: number): string {
   return `${mins}m ${seconds % 60}s`;
 }
 
-function StatusBadge({ healthy }: { healthy: boolean }) {
+type HealthStatus = 'healthy' | 'unhealthy' | 'unknown' | 'checking';
+
+function StatusBadge({ status }: { status: HealthStatus }) {
+  const styles: Record<HealthStatus, { className: string; label: string; icon: React.ReactNode }> = {
+    healthy: {
+      className: 'badge badge-active',
+      label: 'Healthy',
+      icon: <CheckCircle2 size={13} />,
+    },
+    unhealthy: {
+      className: 'badge badge-failed',
+      label: 'Unhealthy',
+      icon: <XCircle size={13} />,
+    },
+    unknown: {
+      className: 'badge badge-free',
+      label: 'Not checked',
+      icon: <Clock size={13} />,
+    },
+    checking: {
+      className: 'badge badge-free',
+      label: 'Checking…',
+      icon: <RefreshCw size={13} className="animate-spin-slow" />,
+    },
+  };
+
+  const config = styles[status];
+  const isNeutral = status === 'unknown' || status === 'checking';
+
   return (
     <span
-      className={healthy ? 'badge badge-active' : 'badge badge-banned'}
+      className={config.className}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -40,10 +68,11 @@ function StatusBadge({ healthy }: { healthy: boolean }) {
         fontSize: '0.78rem',
         fontWeight: 700,
         padding: '4px 10px',
+        color: isNeutral ? 'var(--text-muted)' : undefined,
       }}
     >
-      {healthy ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-      {healthy ? 'Healthy' : 'Unhealthy'}
+      {config.icon}
+      {config.label}
     </span>
   );
 }
@@ -66,16 +95,33 @@ function MetricRow({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-function ServiceCard({ service }: { service: ServiceHealth }) {
+function ServiceCard({ service, checking }: { service: ServiceHealth; checking: boolean }) {
   const result = service.result;
+  const checked = result != null;
   const healthy = result?.status === 'healthy';
+  const status: HealthStatus = !checked ? 'unknown' : healthy ? 'healthy' : 'unhealthy';
   const dbHealthy = result?.database?.status === 'connected';
+
+  const borderColor =
+    status === 'healthy'
+      ? 'rgba(16, 185, 129, 0.3)'
+      : status === 'unhealthy'
+        ? 'rgba(239, 68, 68, 0.35)'
+        : 'var(--card-border)';
+  const iconBg =
+    status === 'healthy'
+      ? 'rgba(16, 185, 129, 0.12)'
+      : status === 'unhealthy'
+        ? 'rgba(239, 68, 68, 0.12)'
+        : 'var(--tab-bg)';
+  const iconColor =
+    status === 'healthy' ? '#10B981' : status === 'unhealthy' ? '#EF4444' : 'var(--text-muted)';
 
   return (
     <div
       style={{
         background: 'var(--card-bg)',
-        border: `1px solid ${healthy ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.35)'}`,
+        border: `1px solid ${borderColor}`,
         borderRadius: '12px',
         padding: '20px 22px',
         display: 'flex',
@@ -90,13 +136,13 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
               width: '42px',
               height: '42px',
               borderRadius: '10px',
-              background: healthy ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+              background: iconBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Server size={20} color={healthy ? '#10B981' : '#EF4444'} />
+            <Server size={20} color={iconColor} />
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -107,12 +153,19 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
             </p>
           </div>
         </div>
-        <StatusBadge healthy={healthy} />
+        <StatusBadge status={checking && !checked ? 'checking' : status} />
       </div>
 
       {!result ? (
-        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-          Not checked yet. Click &quot;Run Health Check&quot; to probe this service.
+        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {checking ? (
+            <>
+              <RefreshCw size={14} className="animate-spin-slow" />
+              Checking service availability...
+            </>
+          ) : (
+            'Not checked yet. Click "Run Health Check" to probe this service.'
+          )}
         </p>
       ) : (
         <div>
@@ -179,10 +232,10 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
 export const HealthView: React.FC = () => {
   const [adminHealth, setAdminHealth] = useState<HealthCheckResult | null>(null);
   const [backendHealth, setBackendHealth] = useState<HealthCheckResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
 
-  const runHealthCheck = async () => {
+  const runHealthCheck = useCallback(async () => {
     setLoading(true);
     try {
       const [admin, backend] = await Promise.all([fetchAdminHealth(), fetchBackendHealth()]);
@@ -192,7 +245,11 @@ export const HealthView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    runHealthCheck();
+  }, [runHealthCheck]);
 
   const allHealthy =
     adminHealth?.status === 'healthy' &&
@@ -270,7 +327,7 @@ export const HealthView: React.FC = () => {
             transition: 'all 0.15s ease',
           }}
         >
-          <RefreshCw size={15} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          <RefreshCw size={15} className={loading ? 'animate-spin-slow' : undefined} />
           {loading ? 'Checking...' : 'Run Health Check'}
         </button>
       </div>
@@ -387,27 +444,9 @@ export const HealthView: React.FC = () => {
         }}
       >
         {services.map((service) => (
-          <ServiceCard key={service.label} service={service} />
+          <ServiceCard key={service.label} service={service} checking={loading} />
         ))}
       </div>
-
-      {!anyChecked && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '48px 24px',
-            background: 'var(--card-bg)',
-            border: '1px dashed var(--card-border)',
-            borderRadius: '12px',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <HeartPulse size={36} color="var(--text-muted)" style={{ opacity: 0.4, marginBottom: '12px' }} />
-          <p style={{ margin: 0, fontSize: '0.88rem' }}>
-            Click <strong>Run Health Check</strong> to ping the admin server, POS backend, and their databases.
-          </p>
-        </div>
-      )}
     </div>
   );
 };

@@ -39,6 +39,7 @@ interface SectionUsageChartProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   onViewAllSessions?: (sectionId?: string) => void;
+  headerExtra?: React.ReactNode;
 }
 
 const getModuleIcon = (iconName: string, path: string) => {
@@ -69,6 +70,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
   isExpanded = false,
   onToggleExpand,
   onViewAllSessions,
+  headerExtra,
 }) => {
   const [showTrendTooltip, setShowTrendTooltip] = React.useState(false);
   const topModule = sections[0] || null;
@@ -76,9 +78,9 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
 
   return (
     <div 
-      className="glass-card" 
+      className={`glass-card${compact ? ' section-chart--compact' : ''}`}
       style={{ 
-        padding: '14px 22px', 
+        padding: compact ? '10px 16px' : '14px 22px', 
         width: '100%', 
         boxSizing: 'border-box',
         display: 'flex',
@@ -133,16 +135,17 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
               border: '1px solid rgba(59, 130, 246, 0.2)',
             }}
           >
-            {sections.length} Tracked Modules • {totalOperations.toLocaleString()} Total Requests
+            {sections.length} Tracked Modules • {totalOperations.toLocaleString()} Total Records
           </span>
-          {topModule && (
+          {topModule && !compact && (
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
-              • #1 Leader: <strong style={{ color: 'var(--text-main)' }}>{topModule.sectionName}</strong> ({topModule.viewCount.toLocaleString()} reqs • {topModule.percentageShare}%)
+              • #1 Leader: <strong style={{ color: 'var(--text-main)' }}>{topModule.sectionName}</strong> ({topModule.viewCount.toLocaleString()} records • {topModule.percentageShare}%)
             </span>
           )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {headerExtra}
           {/* Toggle Button (Only when collapsed) */}
           {isCollapsible && onToggleExpand && !isExpanded && (
             <button
@@ -202,12 +205,15 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
 
       {/* Smooth Collapsible Body Container */}
       <div
+        className="section-chart-body"
         style={{
-          maxHeight: (!isCollapsible || isExpanded) ? '600px' : '0px',
+          maxHeight: (!isCollapsible || isExpanded) ? (compact ? 'none' : '600px') : '0px',
           opacity: (!isCollapsible || isExpanded) ? 1 : 0,
           overflow: 'hidden',
           transition: 'max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin-top 0.35s ease',
-          marginTop: (!isCollapsible || isExpanded) ? '12px' : '0px',
+          marginTop: (!isCollapsible || isExpanded) ? (compact ? '8px' : '12px') : '0px',
+          flex: compact ? 1 : undefined,
+          minHeight: compact ? 0 : undefined,
         }}
       >
         {sections.length === 0 ? (
@@ -222,7 +228,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
               <thead>
                 <tr>
                   <th style={{ padding: '6px 14px', textAlign: 'left', width: '42%', fontSize: '0.74rem' }}>Section Module</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Requests Volume</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Record Volume</th>
                   <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Traffic Share</th>
                   <th style={{ padding: '6px 14px', textAlign: 'left', width: '20%', fontSize: '0.74rem' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -275,12 +281,12 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                       }}
                     >
                       {/* Section Module Name & Route Badge */}
-                      <td style={{ padding: '8px 14px', borderRadius: '6px 0 0 6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <td style={{ padding: compact ? '4px 10px' : '8px 14px', borderRadius: '6px 0 0 6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: compact ? '8px' : '10px' }}>
                           <div
                             style={{
-                              width: '26px',
-                              height: '26px',
+                              width: compact ? '22px' : '26px',
+                              height: compact ? '22px' : '26px',
                               borderRadius: '6px',
                               background: 'var(--bg-main)',
                               border: '1px solid var(--border-color)',
@@ -292,10 +298,11 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                           >
                             {getModuleIcon(sec.iconName, sec.path)}
                           </div>
-                          <div>
-                            <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.86rem' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: compact ? '0.8rem' : '0.86rem' }}>
                               {sec.sectionName}
                             </span>
+                            {!compact && (
                             <code
                               style={{
                                 fontSize: '0.7rem',
@@ -309,18 +316,19 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                             >
                               {sec.path}
                             </code>
+                            )}
                           </div>
                         </div>
                       </td>
 
-                      {/* Number of Requests Made */}
+                      {/* Number of records in window */}
                       <td style={{ padding: '8px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                             {sec.viewCount.toLocaleString()}
                           </span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            requests
+                            records
                           </span>
                         </div>
                       </td>
@@ -469,7 +477,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
 
             {/* Example Walkthrough */}
             <div style={{ padding: '10px 12px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', marginBottom: '18px', fontSize: '0.75rem', color: 'var(--text-main)' }}>
-              <strong style={{ color: 'var(--accent-blue)' }}>Example:</strong> If a module had <strong>115 requests</strong> in the current window and <strong>100 requests</strong> in the previous window:
+              <strong style={{ color: 'var(--accent-blue)' }}>Example:</strong> If a module had <strong>115 records</strong> in the current window and <strong>100 records</strong> in the previous window:
               <div style={{ fontFamily: 'monospace', marginTop: '4px', fontWeight: 600, color: '#10B981' }}>
                 ((115 − 100) / 100) × 100 = +15.0% Growth
               </div>

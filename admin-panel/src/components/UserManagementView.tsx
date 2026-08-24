@@ -12,7 +12,6 @@ import {
   UserCheck,
   X,
   User,
-  MapPin,
   Calendar,
   Clock,
   Layers,
@@ -841,6 +840,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   </div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
                     {u.role || 'Admin'} ({u.onboardingCompleted ? 'Onboarded' : 'Pending'})
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-main)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12} /> Last Updated
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>
+                    {(u.lastUpdatedAt || u.lastLoginAt)
+                      ? new Date(u.lastUpdatedAt || u.lastLoginAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                      : 'N/A'}
                   </div>
                 </div>
 

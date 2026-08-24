@@ -99,6 +99,19 @@ export const RedirectsView: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+      <div
+        style={{
+          padding: '10px 16px',
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          borderRadius: '10px',
+          fontSize: '0.78rem',
+          color: 'var(--text-muted)',
+        }}
+      >
+        <strong style={{ color: '#F59E0B' }}>Demo data:</strong> Redirect counts are not tracked in the database yet. Product names come from the catalog; redirect numbers are placeholders until analytics are wired up.
+      </div>
+
       {/* Error Banner */}
       {error && (
         <div

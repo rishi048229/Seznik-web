@@ -77,7 +77,7 @@ async function postAdminEndpoint<T>(path: string, body?: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchDashboardMetrics(timeRange: string = '7d'): Promise<DashboardMetrics> {
+export async function fetchDashboardMetrics(timeRange: string = 'all'): Promise<DashboardMetrics> {
   const data = await fetchAdminEndpoint<any>(`/metrics?timeRange=${encodeURIComponent(timeRange)}`);
   return {
     totalUsers: data.totalUsers ?? 0,
@@ -86,15 +86,10 @@ export async function fetchDashboardMetrics(timeRange: string = '7d'): Promise<D
     invoicesTodayTrend: data.invoicesTodayTrend ?? 0,
     activeInvoicingUsersToday: data.activeInvoicingUsersToday ?? 0,
     activeInvoicingUsersTrend: data.activeInvoicingUsersTrend ?? 0,
-    loginsTodayCount: data.loginsTodayCount ?? 0,
-    loginsTodayTrend: data.loginsTodayTrend ?? 0,
     topSection: data.topSection || 'N/A (0%)',
     topSectionShare: data.topSectionShare ?? 0,
     topSectionTrend: data.topSectionTrend ?? 0,
     verifiedUserPercentage: data.verifiedUserPercentage ?? 0,
-    freePlanCount: data.freePlanCount ?? 0,
-    proPlanCount: data.proPlanCount ?? 0,
-    enterprisePlanCount: data.enterprisePlanCount ?? 0,
     timeRange: data.timeRange || timeRange,
     timeWindowLabel: data.timeWindowLabel,
     webInvoicesCount: data.webInvoicesCount,
@@ -103,6 +98,10 @@ export async function fetchDashboardMetrics(timeRange: string = '7d'): Promise<D
     mobileInvoicesPercent: data.mobileInvoicesPercent,
     mobileRevenue: data.mobileRevenue,
     webRevenue: data.webRevenue,
+    totalMobileInvoices: data.totalMobileInvoices,
+    totalWebInvoices: data.totalWebInvoices,
+    totalSalesCount: data.totalSalesCount,
+    totalRevenue: data.totalRevenue,
   };
 }
 
@@ -114,8 +113,9 @@ export async function fetchSectionUsage(timeRange: string = '7d'): Promise<Secti
   return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
-export async function fetchHeatmapData(timeRange: string = '7d'): Promise<HeatmapResponse> {
-  const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}`);
+export async function fetchHeatmapData(timeRange: string = '7d', days?: number): Promise<HeatmapResponse> {
+  const daysQuery = days != null && days > 0 ? `&days=${days}` : '';
+  const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}${daysQuery}`);
   if (Array.isArray(res)) {
     const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
     return {
