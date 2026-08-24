@@ -218,14 +218,13 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
           />
         ) : (
           <div style={{ width: '100%', overflowX: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-            <table className="custom-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
+            <table className="custom-table" style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
               <thead>
                 <tr>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '34%', fontSize: '0.74rem' }}>Section Module</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '20%', fontSize: '0.74rem' }}>Requests Volume</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '24%', fontSize: '0.74rem' }}>Traffic Share</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '12%', fontSize: '0.74rem' }}>Active Merchants</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '12%', fontSize: '0.74rem' }}>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '42%', fontSize: '0.74rem' }}>Section Module</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Requests Volume</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Traffic Share</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '20%', fontSize: '0.74rem' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <span>Trend</span>
                       <button
@@ -326,49 +325,11 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                         </div>
                       </td>
 
-                      {/* Traffic Distribution Bar & Percentage */}
+                      {/* Traffic Share — percentage only */}
                       <td style={{ padding: '8px 14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div
-                            style={{
-                              flex: 1,
-                              height: '6px',
-                              background: 'rgba(255, 255, 255, 0.06)',
-                              borderRadius: '4px',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: `${Math.max(sec.percentageShare, 2)}%`,
-                                height: '100%',
-                                background: idx === 0 
-                                   ? 'linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%)' 
-                                   : (idx === 1 ? 'linear-gradient(90deg, #10B981 0%, #06B6D4 100%)' : 'rgba(139, 92, 246, 0.75)'),
-                                borderRadius: '4px',
-                              }}
-                            />
-                          </div>
-                          <span
-                            style={{
-                              fontSize: '0.82rem',
-                              fontWeight: 700,
-                              color: 'var(--text-main)',
-                              minWidth: '46px',
-                              textAlign: 'right',
-                            }}
-                          >
-                            {sec.percentageShare}%
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Active Merchants */}
-                      <td style={{ padding: '8px 14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)', fontSize: '0.8rem' }}>
-                          <Users size={13} color="#8B5CF6" />
-                          <span style={{ fontWeight: 500 }}>{sec.uniqueUsers || 1} {sec.uniqueUsers === 1 ? 'merchant' : 'merchants'}</span>
-                        </div>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          {sec.percentageShare}%
+                        </span>
                       </td>
 
                       {/* Trend Delta */}

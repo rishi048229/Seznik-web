@@ -1,26 +1,31 @@
 import React from 'react';
-import { Laptop, Smartphone, Tablet, UserCheck, UserPlus } from 'lucide-react';
+import { Laptop, Smartphone, UserCheck, UserPlus } from 'lucide-react';
 import type { DeviceSessionBreakdownData } from '../types/admin';
+import { EmptyState } from './EmptyState';
 
 interface DeviceSessionBreakdownProps {
   data?: DeviceSessionBreakdownData;
 }
 
 export const DeviceSessionBreakdown: React.FC<DeviceSessionBreakdownProps> = ({ data }) => {
-  const defaultData: DeviceSessionBreakdownData = {
-    desktopCount: 3,
-    desktopPercent: 75,
-    mobileCount: 1,
-    mobilePercent: 25,
-    tabletCount: 0,
-    tabletPercent: 0,
-    newUsersCount: 1,
-    newUsersPercent: 25,
-    returningUsersCount: 3,
-    returningUsersPercent: 75,
-  };
+  if (!data) {
+    return (
+      <div className="glass-card" style={{ padding: '18px 22px', height: '100%', minHeight: 0, boxSizing: 'border-box', flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <Laptop size={17} color="#8B5CF6" />
+          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
+            Device &amp; Session Breakdown
+          </h3>
+        </div>
+        <EmptyState
+          title="No Platform Data"
+          message="No invoice or user activity recorded in this time window."
+        />
+      </div>
+    );
+  }
 
-  const d = data || defaultData;
+  const d = data;
 
   return (
     <div 
@@ -49,7 +54,6 @@ export const DeviceSessionBreakdown: React.FC<DeviceSessionBreakdownProps> = ({ 
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'space-around', margin: '6px 0' }}>
-        {/* Platform Invoices Breakdown */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
@@ -86,7 +90,6 @@ export const DeviceSessionBreakdown: React.FC<DeviceSessionBreakdownProps> = ({ 
           </div>
         </div>
 
-        {/* User Retention & Acquisition Split */}
         <div>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
             User Retention &amp; Acquisition

@@ -1,6 +1,5 @@
 import type { 
   UserRecord, 
-  UserLoginLog, 
   SectionUsage, 
   DashboardMetrics,
   HeatmapCell,
@@ -17,27 +16,27 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+function isLocalDev(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  );
+}
+
 async function fetchAdminEndpoint<T>(path: string): Promise<T> {
   const localUrl = `/api/admin${path}`;
   const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}${path}` : null;
 
-  // 1. If running on localhost / dev, local dev server middleware is connected to RDS
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    try {
-      const res = await fetch(localUrl);
-      if (res.ok) return (await res.json()) as T;
-      const errData = await res.json().catch(() => null);
-      throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
-    } catch (err: any) {
-      if (remoteUrl) {
-        // fallback to remote if local fails
-      } else {
-        throw err;
-      }
-    }
+  // Dev: Vite middleware talks directly to RDS — never fall back to a remote URL
+  // (avoids masking local DB errors with an 8s timeout to an unrelated server).
+  if (isLocalDev()) {
+    const res = await fetch(localUrl);
+    if (res.ok) return (await res.json()) as T;
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
   }
 
-  // 2. Try remote backend if configured
+  // Production: try configured remote admin API, then same-origin fallback
   if (remoteUrl) {
     try {
       const controller = new AbortController();
@@ -52,14 +51,32 @@ async function fetchAdminEndpoint<T>(path: string): Promise<T> {
     }
   }
 
-  // 3. Fallback to local route
   const res = await fetch(localUrl);
   if (res.ok) return (await res.json()) as T;
   const errData = await res.json().catch(() => null);
   throw new Error(errData?.error || `Server error (${res.status}) on ${path}`);
 }
 
-export async function fetchDashboardMetrics(timeRange: string = '24h'): Promise<DashboardMetrics> {
+async function postAdminEndpoint<T>(path: string, body?: unknown): Promise<T> {
+  const localUrl = `/api/admin${path}`;
+  const remoteUrl = API_BASE_URL && !API_BASE_URL.startsWith('/api') ? `${API_BASE_URL}${path}` : null;
+  const url = isLocalDev() ? localUrl : remoteUrl || localUrl;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error || `Request failed (HTTP ${response.status})`);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function fetchDashboardMetrics(timeRange: string = '7d'): Promise<DashboardMetrics> {
   const data = await fetchAdminEndpoint<any>(`/metrics?timeRange=${encodeURIComponent(timeRange)}`);
   return {
     totalUsers: data.totalUsers ?? 0,
@@ -88,19 +105,15 @@ export async function fetchDashboardMetrics(timeRange: string = '24h'): Promise<
   };
 }
 
-export async function fetchUserRecords(timeRange: string = '24h'): Promise<UserRecord[]> {
+export async function fetchUserRecords(timeRange: string = '7d'): Promise<UserRecord[]> {
   return await fetchAdminEndpoint<UserRecord[]>(`/users?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
-export async function fetchLoginLogs(): Promise<UserLoginLog[]> {
-  return await fetchAdminEndpoint<UserLoginLog[]>('/logins');
-}
-
-export async function fetchSectionUsage(timeRange: string = '24h'): Promise<SectionUsage[]> {
+export async function fetchSectionUsage(timeRange: string = '7d'): Promise<SectionUsage[]> {
   return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
-export async function fetchHeatmapData(timeRange: string = '24h'): Promise<HeatmapResponse> {
+export async function fetchHeatmapData(timeRange: string = '7d'): Promise<HeatmapResponse> {
   const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}`);
   if (Array.isArray(res)) {
     const total = res.reduce((sum: number, c: HeatmapCell) => sum + (c.count || 0), 0);
@@ -116,7 +129,7 @@ export async function fetchHeatmapData(timeRange: string = '24h'): Promise<Heatm
   return res;
 }
 
-export async function fetchDeviceSessionBreakdown(timeRange: string = '24h'): Promise<DeviceSessionBreakdownData> {
+export async function fetchDeviceSessionBreakdown(timeRange: string = '7d'): Promise<DeviceSessionBreakdownData> {
   return await fetchAdminEndpoint<DeviceSessionBreakdownData>(`/devices?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
@@ -129,28 +142,9 @@ export async function fetchInvoices(timeRange: string = '24h', platform: string 
 }
 
 export async function banUser(userId: string | number, reason: string): Promise<any> {
-  const url = `${API_BASE_URL}/users/${encodeURIComponent(String(userId))}/ban`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
-  });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to ban user (HTTP ${response.status})`);
-  }
-  return await response.json();
+  return postAdminEndpoint(`/users/${encodeURIComponent(String(userId))}/ban`, { reason });
 }
 
 export async function unbanUser(userId: string | number): Promise<any> {
-  const url = `${API_BASE_URL}/users/${encodeURIComponent(String(userId))}/unban`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to unban user (HTTP ${response.status})`);
-  }
-  return await response.json();
+  return postAdminEndpoint(`/users/${encodeURIComponent(String(userId))}/unban`);
 }

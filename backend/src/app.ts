@@ -19,9 +19,6 @@ import tokenTypeRoutes from './routes/tokenTypeRoutes';
 import tokenRoutes from './routes/tokenRoutes';
 import restaurantTableRoutes from './routes/restaurantTableRoutes';
 import kotOrderRoutes from './routes/kotOrderRoutes';
-import { routeTelemetryMiddleware } from './middlewares/routeTelemetry';
-
-
 const app = express();
 
 // 1. Security Headers via Helmet
@@ -63,10 +60,7 @@ app.use(
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 3. Real-Time Route Telemetry Tracker
-app.use(routeTelemetryMiddleware);
-
-// 4. API Routes
+// 3. API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/settings', settingsRoutes);

@@ -1,13 +1,17 @@
-import React, { useState, useMemo } from 'react';
-import { Activity, Clock, Zap, Users, Calendar, Sparkles, Flame, Palette } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Activity, Clock, Calendar, Palette, RefreshCw } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
+import { fetchHeatmapData } from '../services/api';
 import { EmptyState } from './EmptyState';
 
 interface PeakUsageHeatmapProps {
   data?: HeatmapCell[] | HeatmapResponse;
+  globalTimeRange?: string;
+  lastRefreshedAt?: string;
 }
 
 interface HoveredCellInfo {
+  date: string;
   day: string;
   hour: number;
   count: number;
@@ -17,6 +21,42 @@ interface HoveredCellInfo {
 }
 
 export type HeatmapPalette = 'traffic' | 'cyber' | 'ocean' | 'github' | 'inferno';
+
+const IST_TIMEZONE = 'Asia/Kolkata';
+
+function parseIstDateKey(dateKey: string): Date {
+  return new Date(`${dateKey}T12:00:00+05:30`);
+}
+
+function formatIstDateParts(dateKey: string) {
+  const d = parseIstDateKey(dateKey);
+  return {
+    dayAbbr: d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: IST_TIMEZONE }),
+    dayNum: d.toLocaleDateString('en-IN', { day: 'numeric', timeZone: IST_TIMEZONE }),
+    fullDate: d.toLocaleDateString('en-IN', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: IST_TIMEZONE,
+    }),
+  };
+}
+
+function getIstClockParts() {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-CA', { timeZone: IST_TIMEZONE });
+  const time = now.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: IST_TIMEZONE,
+  });
+  const hour = Number(
+    now.toLocaleString('en-IN', { hour: 'numeric', hour12: false, timeZone: IST_TIMEZONE })
+  );
+  return { date, time, hour };
+}
 
 interface PaletteOption {
   id: HeatmapPalette;
@@ -164,88 +204,141 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
   },
 };
 
-export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
+export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({
+  data,
+  globalTimeRange = '7d',
+  lastRefreshedAt,
+}) => {
   const [hoveredCell, setHoveredCell] = useState<HoveredCellInfo | null>(null);
   const [viewFilter, setViewFilter] = useState<'all' | 'business'>('all');
+  const [viewTodayOnly, setViewTodayOnly] = useState(false);
+  const [todayData, setTodayData] = useState<HeatmapResponse | null>(null);
+  const [todayLoading, setTodayLoading] = useState(false);
+  const [todayError, setTodayError] = useState<string | null>(null);
   const [paletteId, setPaletteId] = useState<HeatmapPalette>(() => {
     return (localStorage.getItem('seznik_heatmap_palette') as HeatmapPalette) || 'traffic';
   });
+  const [istClock, setIstClock] = useState(() => getIstClockParts());
 
   const activePalette = PALETTES[paletteId] || PALETTES.traffic;
+
+  useEffect(() => {
+    const timer = setInterval(() => setIstClock(getIstClockParts()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handlePaletteChange = (newPalette: HeatmapPalette) => {
     setPaletteId(newPalette);
     localStorage.setItem('seznik_heatmap_palette', newPalette);
   };
 
-  // Normalize data whether passed as an array or HeatmapResponse object
-  const cells: HeatmapCell[] = Array.isArray(data)
-    ? data
-    : data?.cells || [];
+  // Live fetch for "Today Only" — calendar today in IST from API
+  useEffect(() => {
+    if (!viewTodayOnly) {
+      setTodayData(null);
+      setTodayError(null);
+      return;
+    }
 
-  const requestsToday = (!Array.isArray(data) && data?.requestsToday !== undefined)
-    ? data.requestsToday
+    let cancelled = false;
+    setTodayLoading(true);
+    setTodayError(null);
+
+    fetchHeatmapData('today')
+      .then((result) => {
+        if (!cancelled) {
+          setTodayData(result);
+          setTodayError(null);
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setTodayError(err?.message || 'Failed to load today\'s heatmap');
+          setTodayData(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTodayLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewTodayOnly, lastRefreshedAt]);
+
+  const activeData: HeatmapCell[] | HeatmapResponse | undefined = viewTodayOnly
+    ? todayData ?? undefined
+    : data;
+
+  const cells: HeatmapCell[] = Array.isArray(activeData)
+    ? activeData
+    : activeData?.cells || [];
+
+  const requestsToday = (!Array.isArray(activeData) && activeData?.requestsToday !== undefined)
+    ? activeData.requestsToday
     : 0;
 
-  const requestsThisHour = (!Array.isArray(data) && data?.requestsThisHour !== undefined)
-    ? data.requestsThisHour
+  const requestsThisHour = (!Array.isArray(activeData) && activeData?.requestsThisHour !== undefined)
+    ? activeData.requestsThisHour
     : 0;
 
-  const requestsThisWeek = (!Array.isArray(data) && data?.requestsThisWeek !== undefined)
-    ? data.requestsThisWeek
-    : cells.reduce((sum, c) => sum + c.count, 0);
+  const currentWeekRange = (!Array.isArray(activeData) && activeData?.currentWeekRange)
+    ? activeData.currentWeekRange
+    : viewTodayOnly
+      ? 'Today (IST)'
+      : 'Current Active Week';
 
-  const currentWeekRange = (!Array.isArray(data) && data?.currentWeekRange)
-    ? data.currentWeekRange
-    : 'Current Active Week';
-
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const fullHours = Array.from({ length: 24 }, (_, i) => i);
   const businessHours = Array.from({ length: 15 }, (_, i) => i + 8); // 08:00 to 22:00
 
   const activeHours = viewFilter === 'business' ? businessHours : fullHours;
 
-  // Calculate calendar dates for each day of the current week (Monday to Sunday)
-  const weekDates = useMemo(() => {
-    const now = new Date();
-    const currentDay = now.getDay(); // 0 is Sun, 1 is Mon...
-    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + distanceToMonday);
-
-    const dayMap: Record<string, { dayNum: number; shortDate: string; fullDate: string; isToday: boolean }> = {};
-    const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    dayKeys.forEach((key, index) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + index);
-      const isToday = d.toDateString() === now.toDateString();
-      const monthShort = d.toLocaleDateString([], { month: 'short' });
-      const dayNum = d.getDate();
-      const fullDate = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
-
-      dayMap[key] = {
+  // Build one row per actual calendar date returned by the API (IST, rolling window)
+  const rowDates = useMemo(() => {
+    const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    cells.forEach((c) => {
+      const key = c.date || c.day;
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        ordered.push(key);
+      }
+    });
+    return ordered.map((dateKey) => {
+      const isIsoDate = /^\d{4}-\d{2}-\d{2}$/.test(dateKey);
+      if (!isIsoDate) {
+        return {
+          date: dateKey,
+          dayAbbr: dateKey,
+          dayNum: '',
+          fullDate: dateKey,
+          isToday: false,
+        };
+      }
+      const { dayAbbr, dayNum, fullDate } = formatIstDateParts(dateKey);
+      return {
+        date: dateKey,
+        dayAbbr,
         dayNum,
-        shortDate: `${monthShort} ${dayNum}`,
-        fullDate,
-        isToday,
+        fullDate: `${fullDate} IST`,
+        isToday: dateKey === todayIst,
       };
     });
-
-    return dayMap;
-  }, []);
+  }, [cells]);
 
   const weekDateRangeStr = useMemo(() => {
-    const mon = weekDates['Mon'];
-    const sun = weekDates['Sun'];
-    if (mon && sun) {
-      return `${mon.shortDate} – ${sun.shortDate}, ${new Date().getFullYear()}`;
+    if (currentWeekRange && currentWeekRange.includes('–')) {
+      return currentWeekRange;
     }
+    const first = rowDates[0]?.date;
+    const last = rowDates[rowDates.length - 1]?.date;
+    if (first && last) return `${first} – ${last}`;
     return currentWeekRange;
-  }, [weekDates, currentWeekRange]);
+  }, [rowDates, currentWeekRange]);
 
-  const getCellData = (day: string, hour: number) => {
-    const cell = cells.find((c) => c.day === day && c.hour === hour);
+  const getCellData = (date: string, hour: number) => {
+    const cell = cells.find((c) => (c.date || c.day) === date && c.hour === hour);
     return {
       count: cell ? cell.count : 0,
       uniqueUsers: cell?.uniqueUsers ?? 0,
@@ -253,22 +346,11 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
   };
 
   const maxCount = Math.max(...cells.map((c) => c.count), 1);
-  const peakSlot = [...cells].sort((a, b) => b.count - a.count)[0] || { day: 'Mon', hour: 12, count: 0 };
 
   const formatHourLabel = (h: number) => {
     const period = h >= 12 ? 'PM' : 'AM';
     const displayH = h % 12 === 0 ? 12 : h % 12;
-    return `${displayH} ${period}`;
-  };
-
-  const dayFullNames: Record<string, string> = {
-    Mon: 'Monday',
-    Tue: 'Tuesday',
-    Wed: 'Wednesday',
-    Thu: 'Thursday',
-    Fri: 'Friday',
-    Sat: 'Saturday',
-    Sun: 'Sunday',
+    return `${displayH} ${period} IST`;
   };
 
   return (
@@ -308,6 +390,16 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
               <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 24-Hour Peak Usage &amp; API Heatmap
               </h3>
+              {!viewTodayOnly && (
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                  ({globalTimeRange === '24h' ? 'Last 24h' : globalTimeRange === '7d' ? 'Last 7 days' : globalTimeRange === '30d' ? 'Last 30 days' : globalTimeRange === 'all' ? 'All time' : globalTimeRange} · IST)
+                </span>
+              )}
+              {viewTodayOnly && (
+                <span style={{ fontSize: '0.68rem', color: '#10B981', fontWeight: 600 }}>
+                  (Today · IST)
+                </span>
+              )}
               <span
                 style={{
                   fontSize: '0.72rem',
@@ -368,7 +460,55 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
       {/* Controls Bar: Time Filter, Palette Switcher & Dynamic Legend */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '8px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Time View Filter */}
+          {/* Date scope: full navbar range vs today only (live API) */}
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'var(--bg-main)',
+              padding: '2px',
+              borderRadius: '6px',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <button
+              onClick={() => setViewTodayOnly(false)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                background: !viewTodayOnly ? 'var(--accent-blue)' : 'transparent',
+                color: !viewTodayOnly ? '#FFFFFF' : 'var(--text-muted)',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Full Range
+            </button>
+            <button
+              onClick={() => setViewTodayOnly(true)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                background: viewTodayOnly ? '#10B981' : 'transparent',
+                color: viewTodayOnly ? '#FFFFFF' : 'var(--text-muted)',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <Calendar size={11} />
+              Today Only
+            </button>
+          </div>
+
+          {/* Hour column filter */}
           <div
             style={{
               display: 'inline-flex',
@@ -472,7 +612,18 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
         </div>
       </div>
 
-      {cells.length === 0 ? (
+      {todayError && viewTodayOnly && (
+        <div style={{ fontSize: '0.75rem', color: '#EF4444', padding: '6px 0' }}>
+          {todayError}
+        </div>
+      )}
+
+      {viewTodayOnly && todayLoading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1, minHeight: '180px', color: 'var(--text-muted)' }}>
+          <RefreshCw size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: '0.85rem' }}>Loading today&apos;s live activity…</span>
+        </div>
+      ) : cells.length === 0 ? (
         <EmptyState
           icon={Clock}
           title="No Heatmap Telemetry"
@@ -491,28 +642,56 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
             }}
           >
             <div />
-            {activeHours.map((h) => (
+            <div
+              style={{
+                gridColumn: `2 / span ${activeHours.length}`,
+                fontSize: '0.62rem',
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                fontWeight: 600,
+                marginBottom: '2px',
+                userSelect: 'none',
+              }}
+            >
+              Hours (IST · now {istClock.time})
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
+              gap: '3px',
+              marginBottom: '4px',
+              flexShrink: 0,
+            }}
+          >
+            <div />
+            {activeHours.map((h) => {
+              const isCurrentHour = h === istClock.hour;
+              return (
               <div
                 key={h}
+                title={formatHourLabel(h)}
                 style={{
                   fontSize: '0.64rem',
-                  color: 'var(--text-muted)',
+                  color: isCurrentHour ? '#10B981' : 'var(--text-muted)',
                   textAlign: 'center',
-                  fontWeight: 600,
+                  fontWeight: isCurrentHour ? 800 : 600,
                   userSelect: 'none',
+                  background: isCurrentHour ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                  borderRadius: '4px',
+                  border: isCurrentHour ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid transparent',
                 }}
               >
                 {h < 10 ? `0${h}` : h}h
               </div>
-            ))}
+            );})}
           </div>
 
-          {/* Days Grid Rows (Distributing evenly across available height) */}
-          {days.map((day) => {
-            const dateInfo = weekDates[day];
-            return (
+          {/* Days Grid Rows — one row per actual calendar date */}
+          {rowDates.map((dateInfo) => (
               <div
-                key={day}
+                key={dateInfo.date}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: `54px repeat(${activeHours.length}, minmax(0, 1fr))`,
@@ -523,7 +702,6 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
                   margin: '2px 0',
                 }}
               >
-                {/* Sleek Single-Line Day + Date Indicator */}
                 <div
                   style={{
                     display: 'flex',
@@ -531,37 +709,38 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
                     justifyContent: 'space-between',
                     padding: '2px 6px',
                     borderRadius: '5px',
-                    background: dateInfo?.isToday ? 'rgba(59, 130, 246, 0.16)' : 'transparent',
-                    border: dateInfo?.isToday ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent',
+                    background: dateInfo.isToday ? 'rgba(59, 130, 246, 0.16)' : 'transparent',
+                    border: dateInfo.isToday ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent',
                     userSelect: 'none',
                     boxSizing: 'border-box',
                   }}
-                  title={dateInfo?.fullDate}
+                  title={dateInfo.fullDate}
                 >
                   <span
                     style={{
                       fontSize: '0.73rem',
                       fontWeight: 700,
-                      color: dateInfo?.isToday ? '#38BDF8' : 'var(--text-main)',
+                      color: dateInfo.isToday ? '#38BDF8' : 'var(--text-main)',
                     }}
                   >
-                    {day}
+                    {dateInfo.dayAbbr}
                   </span>
                   <span
                     style={{
                       fontSize: '0.70rem',
-                      color: dateInfo?.isToday ? '#38BDF8' : 'var(--text-muted)',
-                      fontWeight: dateInfo?.isToday ? 700 : 500,
+                      color: dateInfo.isToday ? '#38BDF8' : 'var(--text-muted)',
+                      fontWeight: dateInfo.isToday ? 700 : 500,
                       fontFamily: 'monospace',
                     }}
                   >
-                    {dateInfo?.dayNum}
+                    {dateInfo.dayNum}
                   </span>
                 </div>
                 {activeHours.map((h) => {
-                  const { count, uniqueUsers } = getCellData(day, h);
+                  const { count, uniqueUsers } = getCellData(dateInfo.date, h);
                   const styleObj = activePalette.getIntensity(count, maxCount);
-                  const isHovered = hoveredCell?.day === day && hoveredCell?.hour === h;
+                  const isHovered = hoveredCell?.date === dateInfo.date && hoveredCell?.hour === h;
+                  const isCurrentHour = dateInfo.isToday && h === istClock.hour;
 
                   return (
                     <div
@@ -569,7 +748,8 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         setHoveredCell({
-                          day,
+                          date: dateInfo.date,
+                          day: dateInfo.dayAbbr,
                           hour: h,
                           count,
                           uniqueUsers,
@@ -585,7 +765,11 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
                         ...styleObj,
                         transform: isHovered ? 'scale(1.22)' : 'scale(1)',
                         zIndex: isHovered ? 20 : 1,
-                        outline: isHovered ? '2px solid #FFFFFF' : 'none',
+                        outline: isHovered
+                          ? '2px solid #FFFFFF'
+                          : isCurrentHour
+                            ? '2px solid rgba(16, 185, 129, 0.75)'
+                            : 'none',
                         transition: 'all 0.12s ease',
                         cursor: 'pointer',
                         width: '100%',
@@ -595,8 +779,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
                   );
                 })}
               </div>
-            );
-          })}
+            ))}
         </div>
       )}
 
@@ -620,7 +803,7 @@ export const PeakUsageHeatmap: React.FC<PeakUsageHeatmapProps> = ({ data }) => {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
             <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {weekDates[hoveredCell.day]?.fullDate || dayFullNames[hoveredCell.day] || hoveredCell.day} • {formatHourLabel(hoveredCell.hour)}
+              {rowDates.find((r) => r.date === hoveredCell.date)?.fullDate || hoveredCell.date} • {formatHourLabel(hoveredCell.hour)}
             </span>
           </div>
 

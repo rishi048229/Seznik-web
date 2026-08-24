@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -29,7 +29,9 @@ interface ReceiptPreviewModalProps {
   onClose: () => void;
   /** POS checkout closes after print; invoice history keeps the preview open. */
   autoCloseAfterPrint?: boolean;
-  /** True while the sale is still being saved — disables print until the invoice is final. */
+  /** When true and a printer is connected, print as soon as the preview opens — no save wait. */
+  autoPrintOnOpen?: boolean;
+  /** True while the sale is being saved in the background — shown as a banner only, never blocks print. */
   isSaleSaving?: boolean;
 }
 
@@ -38,6 +40,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   saleData,
   onClose,
   autoCloseAfterPrint = true,
+  autoPrintOnOpen = false,
   isSaleSaving = false,
 }) => {
   const {
@@ -58,20 +61,36 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const [hasPrinted, setHasPrinted] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const theme = useAppTheme();
+  const autoPrintStartedRef = useRef(false);
+  /** Keeps the last receipt visible while the modal animates closed — parent nulls saleData on onClose. */
+  const pinnedSaleDataRef = useRef<PrintSaleData | null>(null);
+
+  useEffect(() => {
+    if (saleData) {
+      pinnedSaleDataRef.current = saleData;
+    }
+    if (!visible) {
+      pinnedSaleDataRef.current = null;
+      autoPrintStartedRef.current = false;
+    }
+  }, [saleData, visible]);
 
   useEffect(() => {
     if (visible) {
       setHasPrinted(false);
       setIsPrinting(false);
       setShowConnectModal(false);
+      autoPrintStartedRef.current = false;
     }
   }, [visible, saleData?.invoiceNumber]);
 
   const resolvedSaleData = useMemo(() => {
-    if (!saleData) return null;
-    return applyStoreProfileToPrintData(saleData, storeProfile);
+    const source = saleData ?? pinnedSaleDataRef.current;
+    if (!source) return null;
+    return applyStoreProfileToPrintData(source, storeProfile);
   }, [
     saleData,
+    visible,
     storeProfile.storeName,
     storeProfile.storeAddress,
     storeProfile.storePhone,
@@ -80,28 +99,38 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     storeProfile.upiId,
   ]);
 
-  if (!resolvedSaleData) return null;
-
   const activeCustomTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
   const template = getTemplateById(activeTemplateId);
 
-  const printOptions: ReceiptPrintOptions = {
-    template,
-    customTemplate: activeCustomTemplate,
-    includeBillQr: enableBillQrCode,
-    topMargin,
-    autoCut,
-    fontSize,
-    copies: printCopies,
-    storeName: resolvedSaleData.storeName,
-    storeAddress: resolvedSaleData.storeAddress,
-    storePhone: resolvedSaleData.storePhone,
-    storeGstin: resolvedSaleData.storeGstin,
-    storeLogoUrl: resolvedSaleData.storeLogoUrl,
-    upiId: resolvedSaleData.upiId,
-  };
+  const printOptions: ReceiptPrintOptions = useMemo(
+    () => ({
+      template,
+      customTemplate: activeCustomTemplate,
+      includeBillQr: enableBillQrCode,
+      topMargin,
+      autoCut,
+      fontSize,
+      copies: printCopies,
+      storeName: resolvedSaleData?.storeName,
+      storeAddress: resolvedSaleData?.storeAddress,
+      storePhone: resolvedSaleData?.storePhone,
+      storeGstin: resolvedSaleData?.storeGstin,
+      storeLogoUrl: resolvedSaleData?.storeLogoUrl,
+      upiId: resolvedSaleData?.upiId,
+    }),
+    [
+      activeCustomTemplate,
+      autoCut,
+      enableBillQrCode,
+      fontSize,
+      printCopies,
+      resolvedSaleData,
+      template,
+      topMargin,
+    ]
+  );
 
-  const finishAfterPrint = () => {
+  const finishAfterPrint = useCallback(() => {
     setHasPrinted(true);
     if (autoCloseAfterPrint) {
       onClose();
@@ -109,9 +138,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       Alert.alert('Print Sent', 'Receipt sent to your thermal printer.');
       setHasPrinted(false);
     }
-  };
+  }, [autoCloseAfterPrint, onClose]);
 
-  const handlePrintThermal = async () => {
+  const handlePrintThermal = useCallback(async () => {
     if (isPrinting) return;
     if (hasPrinted && autoCloseAfterPrint) return;
 
@@ -127,6 +156,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       return;
     }
 
+    if (!resolvedSaleData) return;
+
     setIsPrinting(true);
     try {
       const ok = await ThermalPrinterService.printReceipt(resolvedSaleData, paperWidth, printOptions);
@@ -138,10 +169,28 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     } finally {
       setIsPrinting(false);
     }
-  };
+  }, [
+    activeDevice,
+    autoCloseAfterPrint,
+    connectionState,
+    finishAfterPrint,
+    hasPrinted,
+    isPrinting,
+    paperWidth,
+    printOptions,
+    resolvedSaleData,
+  ]);
+
+  // POS fast checkout: print the moment the preview opens — don't wait for the server save.
+  useEffect(() => {
+    if (!visible || !autoPrintOnOpen || !resolvedSaleData || autoPrintStartedRef.current) return;
+    if (!activeDevice || connectionState !== 'connected') return;
+    autoPrintStartedRef.current = true;
+    handlePrintThermal();
+  }, [visible, autoPrintOnOpen, resolvedSaleData, activeDevice, connectionState, handlePrintThermal]);
 
   const handleSystemPrint = async () => {
-    if (isPrinting) return;
+    if (isPrinting || !resolvedSaleData) return;
     if (hasPrinted && autoCloseAfterPrint) return;
 
     setIsPrinting(true);
@@ -162,11 +211,13 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   };
 
   const activeTemplateName = activeCustomTemplate ? activeCustomTemplate.name : template.name;
-  const printDisabled = isPrinting || isSaleSaving || (hasPrinted && autoCloseAfterPrint);
+  const printDisabled = isPrinting || (hasPrinted && autoCloseAfterPrint);
+  const modalVisible = visible && !!resolvedSaleData;
 
   return (
     <>
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    {modalVisible && resolvedSaleData ? (
+    <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} onPress={onClose} />
         <View style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
@@ -208,7 +259,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
           {isSaleSaving ? (
             <View style={[styles.savingBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
               <ActivityIndicator size="small" color="#D97706" />
-              <Text style={styles.savingBannerText}>Saving sale… invoice will be ready to print shortly</Text>
+              <Text style={styles.savingBannerText}>Saving sale in background…</Text>
             </View>
           ) : null}
 
@@ -221,7 +272,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
             nestedScrollEnabled
             bounces
           >
-            {activeCustomTemplate ? (
+            {resolvedSaleData && activeCustomTemplate ? (
               <CustomReceiptMockup
                 template={activeCustomTemplate}
                 storeName={resolvedSaleData.storeName || 'Your Store Name'}
@@ -240,7 +291,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                 paperWidth={paperWidth}
                 upiId={resolvedSaleData.upiId || ''}
               />
-            ) : (
+            ) : resolvedSaleData ? (
               <ReceiptTemplateMockup
                 template={template}
                 storeName={resolvedSaleData.storeName || 'Your Store Name'}
@@ -256,7 +307,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                 totalTax={resolvedSaleData.totalTax}
                 grandTotal={resolvedSaleData.grandTotal}
               />
-            )}
+            ) : null}
           </ScrollView>
 
           {hasPrinted && autoCloseAfterPrint ? (
@@ -294,6 +345,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
         </View>
       </View>
     </Modal>
+    ) : null}
 
     <DirectPrinterConnectModal
       visible={showConnectModal && !hasPrinted}

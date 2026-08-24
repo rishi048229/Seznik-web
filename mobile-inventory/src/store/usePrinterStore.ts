@@ -632,7 +632,13 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       });
     } catch (e) {
       // Offline / not logged in yet — keep local defaults, just mark hydration attempted.
-      console.warn('[usePrinterStore] using offline settings fallback:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      const isOffline = msg.includes('Cannot connect to backend') || msg.includes('HTTP 0');
+      if (isOffline) {
+        console.warn('[usePrinterStore] hydrateFromSettings offline — using local defaults');
+      } else {
+        console.error('[usePrinterStore] hydrateFromSettings failed:', e);
+      }
       set({ isHydrated: true });
     }
   },
@@ -669,4 +675,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 }));
 
 // Eagerly trigger hydration on store initialization so active template is available immediately
-usePrinterStore.getState().hydrateFromSettings().catch((e) => console.warn('[usePrinterStore] eager hydrate fallback:', e));
+usePrinterStore.getState().hydrateFromSettings().catch((e) => {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (!msg.includes('Cannot connect to backend')) {
+    console.error('[usePrinterStore] eager hydrate failed:', e);
+  }
+});

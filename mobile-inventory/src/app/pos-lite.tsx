@@ -52,6 +52,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
+import { generateProvisionalInvoice } from '@/utils/fastSaleCheckout';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
 import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { useLanguageStore } from '@/store/useLanguageStore';
@@ -64,7 +65,7 @@ export default function PosLiteScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
   const { products, getByBarcode } = useProducts();
-  const { createSale, isCreating } = useSales();
+  const { persistSaleInBackground, isCreating } = useSales();
   const { settings } = useSettings();
   const storeProfile = useStoreProfile();
   const { connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
@@ -172,7 +173,7 @@ export default function PosLiteScreen() {
     setShowAddSheet(false);
   };
 
-  const handleCompleteSale = async () => {
+  const handleCompleteSale = () => {
     if (cartItems.length === 0 || checkoutLockRef.current || isCreating) return;
 
     checkoutLockRef.current = true;
@@ -182,7 +183,7 @@ export default function PosLiteScreen() {
     const subtotal = getSubtotal();
     const totalDiscount = getTotalDiscount();
     const totalTax = getTotalTax();
-    const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const provisionalInv = generateProvisionalInvoice();
 
     const taxableAmt = Math.max(0, subtotal - totalDiscount);
     const halfTax = totalTax / 2;
@@ -194,7 +195,7 @@ export default function PosLiteScreen() {
       storeGstin: storeProfile.storeGstin,
       storeLogoUrl: storeProfile.storeLogoUrl,
       upiId: storeProfile.upiId,
-      invoiceNumber: fallbackInv,
+      invoiceNumber: provisionalInv,
       date: new Date().toLocaleDateString('en-GB'),
       customerName: 'Cash Sale',
       items: cartItems.map((ci) => {
@@ -224,10 +225,14 @@ export default function PosLiteScreen() {
     setPreviewSaleData(saleData);
     setShowReceiptPreviewModal(true);
     setIsSavingSalePreview(true);
+    setLastInvoiceNumber(provisionalInv);
 
-    try {
-      const sale = await createSale({
-        items: toSaleItems(),
+    const saleItems = toSaleItems();
+    clearCart();
+
+    persistSaleInBackground(
+      {
+        items: saleItems,
         subtotal,
         totalDiscount,
         totalTax,
@@ -236,21 +241,23 @@ export default function PosLiteScreen() {
         amountPaid: grandTotal,
         changeReturned: 0,
         isQuickBill: true,
-      }).catch(() => ({ invoiceNumber: fallbackInv }));
-
-      const finalInv = (sale as any)?.invoiceNumber || fallbackInv;
-      setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
-      setLastInvoiceNumber(finalInv);
-      clearCart();
-    } catch (err: any) {
-      checkoutLockRef.current = false;
-      setShowReceiptPreviewModal(false);
-      setPreviewSaleData(null);
-      setShowPaymentModal(true);
-      Alert.alert('Sale Failed', err?.message || 'Could not save this sale.');
-    } finally {
-      setIsSavingSalePreview(false);
-    }
+      },
+      {
+        onSuccess: (sale) => {
+          const finalInv = sale.invoiceNumber || provisionalInv;
+          setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
+          setLastInvoiceNumber(finalInv);
+          setIsSavingSalePreview(false);
+        },
+        onError: (err) => {
+          setIsSavingSalePreview(false);
+          Alert.alert(
+            'Sale Not Saved',
+            err.message || 'Receipt may have printed, but this sale was not saved to the server.'
+          );
+        },
+      }
+    );
   };
 
   // Voice-to-cart: "2 bread" adds, "remove 2 breads" subtracts, "remove all bread" clears the line.
@@ -745,9 +752,9 @@ export default function PosLiteScreen() {
         isSaleSaving={isSavingSalePreview}
         onClose={() => {
           setShowReceiptPreviewModal(false);
-          setPreviewSaleData(null);
           setIsSavingSalePreview(false);
           checkoutLockRef.current = false;
+          setTimeout(() => setPreviewSaleData(null), 350);
         }}
       />
     </View>

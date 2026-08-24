@@ -1,34 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, ChevronDown, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { KPICards } from './components/KPICards';
 import { SectionUsageChart } from './components/SectionUsageChart';
 import { UserManagementView } from './components/UserManagementView';
 import { PeakUsageHeatmap } from './components/PeakUsageHeatmap';
 import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
-import { RegisteredUsersRoster } from './components/RegisteredUsersRoster';
-import { LoginAuditTable } from './components/LoginAuditTable';
 import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
-import { 
-  fetchDashboardMetrics, 
-  fetchUserRecords, 
-  fetchLoginLogs, 
-  fetchSectionUsage, 
-  fetchHeatmapData, 
+import {
+  fetchDashboardMetrics,
+  fetchUserRecords,
+  fetchSectionUsage,
+  fetchHeatmapData,
   fetchDeviceSessionBreakdown,
 } from './services/api';
-import type { 
-  DashboardMetrics, 
-  UserRecord, 
-  UserLoginLog, 
-  SectionUsage, 
-  HeatmapCell, 
-  HeatmapResponse, 
+import type {
+  DashboardMetrics,
+  UserRecord,
+  SectionUsage,
+  HeatmapCell,
+  HeatmapResponse,
   DeviceSessionBreakdownData,
 } from './types/admin';
 
-const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'logins'];
+const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -46,11 +42,10 @@ const getInitialTab = (): string => {
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTabState] = useState<string>(getInitialTab);
-  const [timeRange, setTimeRange] = useState<string>('24h');
+  const [timeRange, setTimeRange] = useState<string>('7d');
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(new Date().toLocaleTimeString());
-  const [selectedUserEmailForLogs, setSelectedUserEmailForLogs] = useState<string | null>(null);
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0); // 0 = Off (Manual), 10s, 30s, 60s, 300s
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const setActiveTab = (tab: string) => {
@@ -60,23 +55,10 @@ export const App: React.FC = () => {
       window.location.hash = targetTab;
       localStorage.setItem('admin_active_tab', targetTab);
     }
-    if (targetTab !== 'logins') setSelectedUserEmailForLogs(null);
     if (targetTab !== 'users') setSelectedUserForProfile(null);
   };
 
-  // Global Cmd+K / Ctrl+K listener for Command Palette
   useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
-
-  useEffect(() => {
-    // Ensure URL hash and localStorage are set on initial load
     if (typeof window !== 'undefined') {
       window.location.hash = activeTab;
       localStorage.setItem('admin_active_tab', activeTab);
@@ -95,7 +77,6 @@ export const App: React.FC = () => {
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [users, setUsers] = useState<UserRecord[]>([]);
-  const [loginLogs, setLoginLogs] = useState<UserLoginLog[]>([]);
   const [sectionUsage, setSectionUsage] = useState<SectionUsage[]>([]);
   const [heatmapData, setHeatmapData] = useState<HeatmapResponse | HeatmapCell[] | undefined>(undefined);
   const [deviceData, setDeviceData] = useState<DeviceSessionBreakdownData | undefined>(undefined);
@@ -105,10 +86,9 @@ export const App: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [m, u, l, s, heat, dev] = await Promise.all([
+      const [m, u, s, heat, dev] = await Promise.all([
         fetchDashboardMetrics(activeRange),
         fetchUserRecords(activeRange),
-        fetchLoginLogs(),
         fetchSectionUsage(activeRange),
         fetchHeatmapData(activeRange),
         fetchDeviceSessionBreakdown(activeRange),
@@ -116,7 +96,6 @@ export const App: React.FC = () => {
 
       setMetrics(m);
       setUsers(u);
-      setLoginLogs(l);
       setSectionUsage(s);
       setHeatmapData(heat);
       setDeviceData(dev);
@@ -134,7 +113,6 @@ export const App: React.FC = () => {
     loadAllData(timeRange);
   }, [timeRange]);
 
-  // Dynamic Auto-Refresh Effect
   useEffect(() => {
     if (autoRefreshInterval <= 0) return;
 
@@ -155,7 +133,6 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ height: '100vh', maxHeight: '100vh', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Top Navigation */}
       <div style={{ flexShrink: 0 }}>
         <Navbar
           activeTab={activeTab}
@@ -169,9 +146,7 @@ export const App: React.FC = () => {
         />
       </div>
 
-      {/* Main Container */}
       <main style={{ flex: 1, minHeight: 0, padding: '16px 24px', maxWidth: '1600px', margin: '0 auto', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-        {/* Prominent Error Banner */}
         {errorMessage && (
           <div
             style={{
@@ -191,7 +166,7 @@ export const App: React.FC = () => {
               <AlertTriangle size={20} color="#EF4444" />
               <div>
                 <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#EF4444' }}>
-                  Database / Telemetry Error (Fallback Disabled)
+                  Database Error
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                   {errorMessage}
@@ -230,12 +205,10 @@ export const App: React.FC = () => {
           <>
             {activeTab === 'overview' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0 }}>
-                {/* 1. Key Performance Indicators (Always at Top) */}
                 <div style={{ flexShrink: 0 }}>
                   <KPICards metrics={metrics} onSelectTab={handleSelectTabFromCard} />
                 </div>
 
-                {/* 2. Heatmap + Device Breakdown Row */}
                 <div
                   style={{
                     display: 'grid',
@@ -246,11 +219,14 @@ export const App: React.FC = () => {
                     minHeight: '270px',
                   }}
                 >
-                  <PeakUsageHeatmap data={heatmapData} />
+                  <PeakUsageHeatmap
+                    data={heatmapData}
+                    globalTimeRange={timeRange}
+                    lastRefreshedAt={lastRefreshedAt}
+                  />
                   <DeviceSessionBreakdown data={deviceData} />
                 </div>
 
-                {/* 3. Top 5 Most Used Features (Standard Card, No Toggle Button) */}
                 <SectionUsageChart
                   title="Top 5 Most Used Features"
                   sections={sectionUsage.slice(0, 5)}
@@ -264,13 +240,9 @@ export const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'traffic' && (
-              <TrafficView />
-            )}
+            {activeTab === 'traffic' && <TrafficView />}
 
-            {activeTab === 'redirects' && (
-              <RedirectsView />
-            )}
+            {activeTab === 'redirects' && <RedirectsView />}
 
             {activeTab === 'sections' && (
               <SectionUsageChart
@@ -290,17 +262,6 @@ export const App: React.FC = () => {
                 onRefreshUsers={loadAllData}
               />
             )}
-
-            {activeTab === 'logins' && (
-              <LoginAuditTable
-                logs={loginLogs}
-                filterUserEmail={selectedUserEmailForLogs}
-                onSelectUser={(email) => {
-                  setSelectedUserForProfile(email);
-                  setActiveTab('users');
-                }}
-              />
-            )}
           </>
         )}
       </main>
@@ -309,4 +270,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

@@ -4,33 +4,56 @@ import pg from 'pg';
 
 function getTimeIntervals(timeRange: string = '24h') {
   const tr = (timeRange || '24h').toLowerCase();
-  if (tr === '24h') {
+  const istDate = `(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date`;
+  const istNow = `(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')`;
+  // createdAt is timestamp without tz — app stores IST wall-clock values directly
+  const eventIstDate = `"createdAt"::date`;
+  const eventIst = `"createdAt"`;
+
+  if (tr === 'today') {
+    const todayFilter = `${eventIstDate} = ${istDate}`;
     return {
-      currentClause: `WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '24 hours'`,
-      prevClause: `WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '48 hours' AND "createdAt" < CURRENT_TIMESTAMP - INTERVAL '24 hours'`,
-      timeWindowName: 'Last 24 Hours',
-      currentFilter: `"createdAt" >= CURRENT_TIMESTAMP - INTERVAL '24 hours'`,
-      prevFilter: `"createdAt" >= CURRENT_TIMESTAMP - INTERVAL '48 hours' AND "createdAt" < CURRENT_TIMESTAMP - INTERVAL '24 hours'`,
+      currentClause: `WHERE ${todayFilter}`,
+      prevClause: `WHERE ${eventIstDate} = ${istDate} - 1`,
+      timeWindowName: 'Today (IST)',
+      currentFilter: todayFilter,
+      prevFilter: `${eventIstDate} = ${istDate} - 1`,
+      intervalDays: 1,
+    };
+  }
+  if (tr === '24h') {
+    const currentFilter = `${eventIst} >= ${istNow} - INTERVAL '24 hours'`;
+    const prevFilter = `${eventIst} >= ${istNow} - INTERVAL '48 hours' AND ${eventIst} < ${istNow} - INTERVAL '24 hours'`;
+    return {
+      currentClause: `WHERE ${currentFilter}`,
+      prevClause: `WHERE ${prevFilter}`,
+      timeWindowName: 'Last 24 Hours (IST)',
+      currentFilter,
+      prevFilter,
       intervalDays: 1,
     };
   }
   if (tr === '7d') {
+    const currentFilter = `${eventIstDate} >= ${istDate} - INTERVAL '6 days'`;
+    const prevFilter = `${eventIstDate} >= ${istDate} - INTERVAL '13 days' AND ${eventIstDate} < ${istDate} - INTERVAL '6 days'`;
     return {
-      currentClause: `WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '7 days'`,
-      prevClause: `WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '14 days' AND "createdAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`,
-      timeWindowName: 'Last 7 Days',
-      currentFilter: `"createdAt" >= CURRENT_TIMESTAMP - INTERVAL '7 days'`,
-      prevFilter: `"createdAt" >= CURRENT_TIMESTAMP - INTERVAL '14 days' AND "createdAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`,
+      currentClause: `WHERE ${currentFilter}`,
+      prevClause: `WHERE ${prevFilter}`,
+      timeWindowName: 'Last 7 Days (IST)',
+      currentFilter,
+      prevFilter,
       intervalDays: 7,
     };
   }
   if (tr === '30d') {
+    const currentFilter = `${eventIstDate} >= ${istDate} - INTERVAL '29 days'`;
+    const prevFilter = `${eventIstDate} >= ${istDate} - INTERVAL '59 days' AND ${eventIstDate} < ${istDate} - INTERVAL '29 days'`;
     return {
-      currentClause: `WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '30 days'`,
-      prevClause: `WHERE "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '60 days' AND "createdAt" < CURRENT_TIMESTAMP - INTERVAL '30 days'`,
-      timeWindowName: 'Last 30 Days',
-      currentFilter: `"createdAt" >= CURRENT_TIMESTAMP - INTERVAL '30 days'`,
-      prevFilter: `"createdAt" >= CURRENT_TIMESTAMP - INTERVAL '60 days' AND "createdAt" < CURRENT_TIMESTAMP - INTERVAL '30 days'`,
+      currentClause: `WHERE ${currentFilter}`,
+      prevClause: `WHERE ${prevFilter}`,
+      timeWindowName: 'Last 30 Days (IST)',
+      currentFilter,
+      prevFilter,
       intervalDays: 30,
     };
   }
@@ -38,7 +61,7 @@ function getTimeIntervals(timeRange: string = '24h') {
   return {
     currentClause: `WHERE "createdAt" IS NOT NULL`,
     prevClause: `WHERE 1=0`,
-    timeWindowName: 'All Time Telemetry',
+    timeWindowName: 'All Time (IST calendar view)',
     currentFilter: `"createdAt" IS NOT NULL`,
     prevFilter: `1=0`,
     intervalDays: 365,
@@ -90,17 +113,6 @@ async function computeRealTopFeatures(pool: pg.Pool, timeRange: string = '24h') 
       pool.query(`SELECT COUNT(*)::int as count, COUNT(DISTINCT "userId")::int as unique_users, COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as window_count FROM "Feedback"`),
       pool.query(`SELECT COUNT(*)::int as count, COUNT(DISTINCT id)::int as unique_users, COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as window_count FROM "User"`),
     ]);
-
-  let routeTelemetryRows: Array<{ routePath: string; featureName: string; count: number; unique_users: number }> = [];
-  try {
-    const routeRes = await pool.query(`
-      SELECT "routePath", "featureName", COUNT(*)::int as count, COUNT(DISTINCT "userId")::int as unique_users
-      FROM "RouteTelemetry"
-      WHERE ${intervals.currentFilter}
-      GROUP BY "routePath", "featureName"
-    `);
-    routeTelemetryRows = routeRes.rows;
-  } catch {}
 
   const getCount = (res: pg.QueryResult) => {
     const windowCount = res.rows[0]?.window_count || 0;
@@ -266,15 +278,6 @@ async function computeRealTopFeatures(pool: pg.Pool, timeRange: string = '24h') 
     },
   ];
 
-  // Incorporate real live incoming API route telemetry calls
-  routeTelemetryRows.forEach((row) => {
-    const matched = features.find((f) => f.path === row.routePath || f.sectionName === row.featureName);
-    if (matched) {
-      matched.viewCount += row.count;
-      matched.uniqueUsers = Math.max(matched.uniqueUsers, row.unique_users);
-    }
-  });
-
   const totalHits = Math.max(1, features.reduce((acc, f) => acc + f.viewCount, 0));
   const calculated = features
     .map((f) => ({
@@ -290,53 +293,49 @@ async function computeRealTopFeatures(pool: pg.Pool, timeRange: string = '24h') 
   }
 }
 
+function getHeatmapDayCount(timeRange: string = '7d'): number {
+  const tr = (timeRange || '7d').toLowerCase();
+  if (tr === 'today') return 1;
+  if (tr === '24h') return 2; // yesterday + today IST rows for rolling 24h window
+  if (tr === '7d') return 7;
+  if (tr === '30d') return 30;
+  return 14;
+}
+
 async function computeRealHeatmapData(pool: pg.Pool, timeRange: string = '24h') {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const intervals = getTimeIntervals(timeRange);
+  const dayCount = getHeatmapDayCount(timeRange);
 
-  let routeTelemetryExists = false;
-  try {
-    await pool.query('SELECT 1 FROM "RouteTelemetry" LIMIT 1');
-    routeTelemetryExists = true;
-  } catch {}
-
-  const eventsCte = routeTelemetryExists
-    ? `
-      WITH events AS (
-        SELECT "createdAt", "userId" FROM "RouteTelemetry"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Sale"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Product"
-        UNION ALL
-        SELECT "createdAt", id as "userId" FROM "User"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Token"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Customer"
-      )
-    `
-    : `
-      WITH events AS (
-        SELECT "createdAt", "userId" FROM "Sale"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Product"
-        UNION ALL
-        SELECT "createdAt", id as "userId" FROM "User"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Token"
-        UNION ALL
-        SELECT "createdAt", "userId" FROM "Customer"
-      )
-    `;
+  const eventsCte = `
+    WITH events AS (
+      SELECT "createdAt", "userId" FROM "Sale"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "Product"
+      UNION ALL
+      SELECT "createdAt", id as "userId" FROM "User"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "Token"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "Customer"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "Purchase"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "Expense"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "CreditTransaction"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "StockHistory"
+      UNION ALL
+      SELECT "createdAt", "userId" FROM "Category"
+    )
+  `;
 
   try {
-    // 1. Compute summary stats in IST
     const statsRes = await pool.query(`
       ${eventsCte}
       SELECT 
-        COUNT(*) FILTER (WHERE ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)::int as requests_today,
-        COUNT(*) FILTER (WHERE ("createdAt" AT TIME ZONE 'Asia/Kolkata') >= date_trunc('hour', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'))::int as requests_this_hour,
+        COUNT(*) FILTER (WHERE "createdAt"::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date)::int as requests_today,
+        COUNT(*) FILTER (WHERE "createdAt" >= date_trunc('hour', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'))::int as requests_this_hour,
         COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as requests_in_window,
         COUNT(*)::int as total_all_time
       FROM events
@@ -350,38 +349,62 @@ async function computeRealHeatmapData(pool: pg.Pool, timeRange: string = '24h') 
       total_all_time: 0,
     };
 
-    // 2. Compute heatmap grid based on selected timeframe converted to IST
-    const filterClause = `WHERE ${intervals.currentFilter}`;
+    const heatmapRes = await pool.query(
+      `
+      ${eventsCte},
+      date_series AS (
+        SELECT generate_series(
+          (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - ($1::int - 1),
+          (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
+          interval '1 day'
+        )::date AS activity_date
+      ),
+      hours AS (
+        SELECT generate_series(0, 23) AS hour
+      ),
+      grid AS (
+        SELECT ds.activity_date, h.hour
+        FROM date_series ds
+        CROSS JOIN hours h
+      ),
+      aggregated AS (
+        SELECT
+          "createdAt"::date AS activity_date,
+          EXTRACT(HOUR FROM "createdAt")::int AS hour,
+          COUNT(*)::int AS count,
+          COUNT(DISTINCT "userId")::int AS unique_users
+        FROM events
+        WHERE ${intervals.currentFilter}
+        GROUP BY 1, 2
+      )
+      SELECT
+        to_char(g.activity_date, 'YYYY-MM-DD') AS date,
+        TRIM(to_char(g.activity_date, 'Dy')) AS day,
+        g.hour::int AS hour,
+        COALESCE(a.count, 0)::int AS count,
+        COALESCE(a.unique_users, 0)::int AS unique_users
+      FROM grid g
+      LEFT JOIN aggregated a
+        ON g.activity_date = a.activity_date AND g.hour = a.hour
+      ORDER BY g.activity_date, g.hour
+    `,
+      [dayCount]
+    );
 
-    const heatmapRes = await pool.query(`
-      ${eventsCte}
-      SELECT 
-        TRIM(to_char("createdAt" AT TIME ZONE 'Asia/Kolkata', 'Dy')) as day,
-        EXTRACT(HOUR FROM ("createdAt" AT TIME ZONE 'Asia/Kolkata'))::int as hour,
-        COUNT(*)::int as count,
-        COUNT(DISTINCT "userId")::int as unique_users
-      FROM events
-      ${filterClause}
-      GROUP BY day, hour
-    `);
+    const fullGrid = heatmapRes.rows.map((r) => ({
+      date: r.date,
+      day: r.day,
+      hour: r.hour,
+      count: r.count,
+      uniqueUsers: r.unique_users,
+    }));
 
-    const map = new Map<string, { count: number; uniqueUsers: number }>();
-    heatmapRes.rows.forEach((r) => {
-      map.set(`${r.day}-${r.hour}`, { count: r.count, uniqueUsers: r.unique_users });
-    });
-
-    const fullGrid: Array<{ day: string; hour: number; count: number; uniqueUsers: number }> = [];
-    days.forEach((day) => {
-      for (let h = 0; h < 24; h++) {
-        const match = map.get(`${day}-${h}`) || { count: 0, uniqueUsers: 0 };
-        fullGrid.push({
-          day,
-          hour: h,
-          count: match.count,
-          uniqueUsers: match.uniqueUsers,
-        });
-      }
-    });
+    const firstDate = fullGrid[0]?.date;
+    const lastDate = fullGrid[fullGrid.length - 1]?.date;
+    const rangeLabel =
+      firstDate && lastDate
+        ? `${firstDate} – ${lastDate}`
+        : intervals.timeWindowName;
 
     return {
       cells: fullGrid,
@@ -389,7 +412,7 @@ async function computeRealHeatmapData(pool: pg.Pool, timeRange: string = '24h') 
       requestsThisHour: stats.requests_this_hour || 0,
       requestsThisWeek: stats.requests_in_window || 0,
       totalAllTime: stats.total_all_time || 0,
-      currentWeekRange: intervals.timeWindowName,
+      currentWeekRange: rangeLabel,
     };
   } catch (err) {
     console.error('computeRealHeatmapData DB error:', err);
@@ -852,73 +875,6 @@ export default defineConfig(({ mode }) => {
                 res.end(JSON.stringify({ error: err.message || 'Failed to fetch products from database' }));
                 return;
               }
-            }
-
-            // 8. GET /api/admin/logins
-            if (pathname === '/api/admin/logins') {
-              try {
-                // Fetch real user login telemetry
-                const result = await pool.query(`
-                  SELECT 
-                    rt.id::text,
-                    rt."userId"::text,
-                    COALESCE(u."displayName", u.email, 'User') as "userName",
-                    COALESCE(u.email, 'unknown') as "userEmail",
-                    COALESCE(u.role, 'Admin') as "userRole",
-                    'Desktop (Web Session)' as device,
-                    'Chrome Browser' as browser,
-                    rt."createdAt" as "loginAt",
-                    'active' as status,
-                    'login' as "actionType",
-                    CONCAT('Accessed ', rt."featureName", ' (', rt."routePath", ')') as "actionDetails"
-                  FROM "RouteTelemetry" rt
-                  LEFT JOIN "User" u ON rt."userId"::text = u.id::text OR rt."userId"::text = u.uid
-                  ORDER BY rt."createdAt" DESC
-                  LIMIT 50
-                `);
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(result.rows));
-                return;
-              } catch (err: any) {
-                console.error('DB error on /api/admin/logins:', err.message);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: err.message || 'Failed to fetch login logs' }));
-                return;
-              }
-            }
-
-            // 9. POST /api/admin/telemetry
-            if (pathname === '/api/admin/telemetry' && req.method === 'POST') {
-              let body = '';
-              req.on('data', (chunk) => { body += chunk; });
-              req.on('end', async () => {
-                try {
-                  const data = JSON.parse(body);
-                  try {
-                    await pool.query(`
-                      CREATE TABLE IF NOT EXISTS "RouteTelemetry" (
-                        id SERIAL PRIMARY KEY,
-                        "routePath" VARCHAR(255),
-                        "featureName" VARCHAR(255),
-                        "userId" INTEGER,
-                        "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                      )
-                    `);
-                    await pool.query(
-                      'INSERT INTO "RouteTelemetry" ("routePath", "featureName", "userId") VALUES ($1, $2, $3)',
-                      [data.routePath || '/overview', data.featureName || 'Overview', data.userId || null]
-                    );
-                  } catch {}
-
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ success: true }));
-                } catch {
-                  res.statusCode = 400;
-                  res.end(JSON.stringify({ error: 'Invalid JSON' }));
-                }
-              });
-              return;
             }
 
             next();

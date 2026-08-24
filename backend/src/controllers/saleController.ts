@@ -82,6 +82,7 @@ export const createSale = async (req: Request, res: Response) => {
       },
     });
 
+    const stockUpdates: Promise<void>[] = [];
     for (const item of items) {
       const productId = item?.productId
         ? String(item.productId)
@@ -91,31 +92,39 @@ export const createSale = async (req: Request, res: Response) => {
       const qty = Number(item?.quantity) || 0;
       if (!productId || qty <= 0 || productId.startsWith('manual-')) continue;
 
-      try {
-        const product = await prisma.product.findFirst({
-          where: { id: productId, userId },
-        });
-        if (!product) {
-          console.warn(`createSale: skipping stock for unknown product ${productId}`);
-          continue;
-        }
+      stockUpdates.push(
+        (async () => {
+          try {
+            const product = await prisma.product.findFirst({
+              where: { id: productId, userId },
+            });
+            if (!product) {
+              console.warn(`createSale: skipping stock for unknown product ${productId}`);
+              return;
+            }
 
-        await prisma.product.update({
-          where: { id: product.id },
-          data: { currentStock: { decrement: qty } },
-        });
-        await prisma.stockHistory.create({
-          data: {
-            change: -qty,
-            reason: 'sale',
-            productId: product.id,
-            userId,
-            createdAt: saleDate,
-          },
-        });
-      } catch (stockErr) {
-        console.warn(`createSale: stock update failed for ${productId}`, stockErr);
-      }
+            await prisma.product.update({
+              where: { id: product.id },
+              data: { currentStock: { decrement: qty } },
+            });
+            await prisma.stockHistory.create({
+              data: {
+                change: -qty,
+                reason: 'sale',
+                productId: product.id,
+                userId,
+                createdAt: saleDate,
+              },
+            });
+          } catch (stockErr) {
+            console.warn(`createSale: stock update failed for ${productId}`, stockErr);
+          }
+        })()
+      );
+    }
+
+    if (stockUpdates.length > 0) {
+      await Promise.all(stockUpdates);
     }
 
     const unpaid = grandTotal - amountPaid;

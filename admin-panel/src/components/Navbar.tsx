@@ -32,6 +32,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
   setActiveTab,
+  timeRange = '7d',
+  onSelectTimeRange,
+  setTimeRange,
   lastRefreshedAt,
   onRefresh,
   autoRefreshInterval,
@@ -47,18 +50,20 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const formattedDate = currentDateTime.toLocaleDateString('en-US', {
+  const formattedDate = currentDateTime.toLocaleDateString('en-IN', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    timeZone: 'Asia/Kolkata',
   });
 
-  const formattedTime = currentDateTime.toLocaleTimeString('en-US', {
+  const formattedTime = currentDateTime.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Kolkata',
   });
 
   const handleTabClick = (tabId: string) => {
@@ -74,6 +79,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       onSelectAutoRefreshInterval(interval);
     } else if (setAutoRefreshInterval) {
       setAutoRefreshInterval(interval);
+    }
+  };
+
+  const handleTimeRangeChange = (range: string) => {
+    if (onSelectTimeRange) {
+      onSelectTimeRange(range);
+    } else if (setTimeRange) {
+      setTimeRange(range);
     }
   };
 
@@ -107,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
             <p style={{ margin: '1px 0 0 0', fontSize: '0.72rem', color: 'var(--navbar-text-muted)', transition: 'color 0.3s ease' }}>
-              User Login Tracking • Section Heatmap • Geolocation Analytics
+              Usage Heatmap • Section Analytics • Merchant Insights
             </p>
           </div>
         </div>
@@ -139,7 +152,33 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--navbar-text)' }}>
               <Clock size={13} color="#10B981" />
               <span style={{ fontFamily: 'monospace', letterSpacing: '0.3px', fontWeight: 700 }}>{formattedTime}</span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--navbar-text-muted)', fontWeight: 600 }}>IST</span>
             </div>
+          </div>
+
+          {/* Global Time Range */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--tab-bg)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--tab-border)' }}>
+            <Calendar size={13} color="var(--accent-blue)" />
+            <span style={{ fontSize: '0.75rem', color: 'var(--navbar-text-muted)', fontWeight: 500 }}>Range:</span>
+            <select
+              className="custom-select"
+              value={timeRange}
+              onChange={(e) => handleTimeRangeChange(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--navbar-text)',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="all">All Time</option>
+            </select>
           </div>
 
           {/* Auto Refresh Interval Dropdown */}

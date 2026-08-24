@@ -100,6 +100,9 @@ export interface InvoiceRecord {
 }
 
 export interface HeatmapCell {
+  /** ISO calendar date (YYYY-MM-DD) in IST — primary row key */
+  date?: string;
+  /** Short weekday label (Mon, Tue, …) */
   day: string;
   hour: number;
   count: number;

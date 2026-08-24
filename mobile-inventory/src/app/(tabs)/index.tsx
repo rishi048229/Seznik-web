@@ -67,7 +67,13 @@ import { useDashboard, useRevenueTrend } from '@/hooks/useDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import ThermalPrinterService from '@/services/PrinterService';
+import {
+  buildReceiptPrintOptions,
+  generateProvisionalInvoice,
+  printSaleReceiptNow,
+} from '@/utils/fastSaleCheckout';
 import { useCartStore } from '@/store/useCartStore';
 import { useSales } from '@/hooks/useSales';
 import { useProducts } from '@/hooks/useProducts';
@@ -117,8 +123,17 @@ export default function DashboardScreen() {
     activeDevice,
     paperWidth,
     setPaperWidth,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
   } = usePrinterStore();
-  const { createSale, isCreating } = useSales();
+  const storeProfile = useStoreProfile();
+  const { persistSaleInBackground, isCreating } = useSales();
   const { products, updateProduct, getByBarcode, refetch: refetchProducts } = useProducts();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [permission, requestPermission] = useCameraPermissions();
@@ -203,7 +218,7 @@ export default function DashboardScreen() {
     .reduce((acc, p) => acc + ((p.costPrice || p.sellingPrice || 0) * (p.currentStock || 0)), 0);
   const totalCatalogValue = stats.totalStockValue ?? localCatalogValue;
 
-  const handleQuickBill = async () => {
+  const handleQuickBill = () => {
     const validItems = quickBillItems
       .filter((item) => item.name.trim().length > 0 && parseFloat(item.price) > 0)
       .map((item) => {
@@ -223,9 +238,55 @@ export default function DashboardScreen() {
     }
 
     const total = validItems.reduce((acc, i) => acc + i.total, 0);
+    const provisionalInv = generateProvisionalInvoice();
+    const customerName = quickCustomerName.trim() || 'Quick Walk-in Customer';
+    const printOptions = buildReceiptPrintOptions({
+      activeTemplateId,
+      customTemplates,
+      activeCustomTemplateId,
+      enableBillQrCode,
+      topMargin,
+      autoCut,
+      fontSize,
+      printCopies,
+      storeName: settings?.businessName || storeProfile.storeName,
+      storeAddress: settings?.businessAddress || storeProfile.storeAddress,
+      storePhone: settings?.businessPhone || storeProfile.storePhone,
+      storeGstin: settings?.businessGSTIN || storeProfile.storeGstin,
+      storeLogoUrl: settings?.businessLogoURL || storeProfile.storeLogoUrl,
+      upiId: settings?.upiId || storeProfile.upiId,
+    });
 
-    try {
-      const sale = await createSale({
+    // Close the form and print immediately — don't wait on the server round-trip.
+    setShowQuickBillModal(false);
+    setQuickBillItems([{ id: '1', name: '', price: '', qty: '1' }]);
+    setQuickCustomerName('');
+
+    if (connectionState === 'connected') {
+      printSaleReceiptNow(
+        {
+          storeName: settings?.businessName || 'SEZNIK STORE',
+          storeAddress: settings?.businessAddress || '',
+          storePhone: settings?.businessPhone || '',
+          invoiceNumber: provisionalInv,
+          date: new Date().toLocaleDateString('en-GB'),
+          customerName,
+          items: validItems,
+          subtotal: total,
+          totalTax: 0,
+          totalDiscount: 0,
+          grandTotal: total,
+          amountPaid: total,
+          changeReturned: 0,
+          paymentMethod: quickPaymentMethod.toUpperCase(),
+        },
+        paperWidth,
+        printOptions
+      );
+    }
+
+    persistSaleInBackground(
+      {
         items: validItems,
         subtotal: total,
         totalDiscount: 0,
@@ -235,40 +296,25 @@ export default function DashboardScreen() {
         amountPaid: total,
         changeReturned: 0,
         isQuickBill: true,
-      });
-
-      // Quick-print thermal receipt automatically if connected
-      if (connectionState === 'connected') {
-        try {
-          await ThermalPrinterService.printSaleReceipt({
-            storeName: settings?.businessName || 'SEZNIK STORE',
-            storeAddress: settings?.businessAddress || '',
-            storePhone: settings?.businessPhone || '',
-            invoiceNumber: sale.invoiceNumber,
-            date: new Date().toLocaleDateString('en-GB'),
-            customerName: quickCustomerName.trim() || 'Quick Walk-in Customer',
-            items: validItems,
-            subtotal: total,
-            totalTax: 0,
-            totalDiscount: 0,
-            grandTotal: total,
-            amountPaid: total,
-            changeReturned: 0,
-            paymentMethod: quickPaymentMethod.toUpperCase(),
-          });
-        } catch (printErr) {
-          console.warn('Auto print failed:', printErr);
-        }
+      },
+      {
+        onSuccess: (sale) => {
+          refetch();
+          Alert.alert(
+            'Bill Generated! 🧾',
+            `Invoice #${sale.invoiceNumber} recorded with ${validItems.length} products (${formatCurrency(total)}).`
+          );
+        },
+        onError: (err) => {
+          Alert.alert(
+            'Bill Not Saved',
+            connectionState === 'connected'
+              ? `${err.message}\n\nThe receipt may have printed, but this sale was not saved.`
+              : err.message || 'Failed to save this quick bill.'
+          );
+        },
       }
-
-      setShowQuickBillModal(false);
-      setQuickBillItems([{ id: '1', name: '', price: '', qty: '1' }]);
-      setQuickCustomerName('');
-      refetch();
-      Alert.alert('Bill Generated! 🧾', `Invoice #${sale.invoiceNumber} recorded successfully with ${validItems.length} products (${formatCurrency(total)}).`);
-    } catch (err: any) {
-      Alert.alert('Billing Error', err?.message || 'Failed to complete quick bill');
-    }
+    );
   };
 
   const handleBarcodeScanned = async ({ data }: { data: string }) => {

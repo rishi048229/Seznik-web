@@ -56,6 +56,12 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { BRAND_COLORS } from '@/constants/theme';
 import ThermalPrinterService, { type PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
+import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
+import {
+  buildReceiptPrintOptions,
+  generateProvisionalInvoice,
+  printSaleReceiptNow,
+} from '@/utils/fastSaleCheckout';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
@@ -75,9 +81,21 @@ export default function PosScreen() {
   const { t } = useLanguageStore();
   const { products, isInitialLoading: loadingProducts, isError: productsError, error: productsLoadError, refetch: refetchProducts, getByBarcode } = useProducts();
   const { categories } = useCategories();
-  const { createSale, isCreating } = useSales();
+  const { persistSaleInBackground, isCreating } = useSales();
   const storeProfile = useStoreProfile();
-  const { activeDevice, connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
+  const {
+    activeDevice,
+    connectionState,
+    paperWidth,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
+  } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
@@ -300,15 +318,8 @@ export default function PosScreen() {
     storeProfile,
   ]);
 
-  const handlePreviewBill = useCallback(() => {
-    if (getCartItems().length === 0) return;
-    const saleData = buildSaleData('PREVIEW');
-    setPreviewSaleData(saleData);
-    setShowReceiptPreviewModal(true);
-  }, [buildSaleData, getCartItems]);
-
-  // Print button finalizes the sale, then opens receipt preview for print/share.
-  const handlePrintCheckout = async () => {
+  /** Print to thermal, open preview, and save the invoice — all at once when Print Bill is tapped. */
+  const handlePrintCheckout = () => {
     if (getCartItems().length === 0 || checkoutLockRef.current || isCreating) return;
 
     if (paymentMethod === 'credit' && !selectedCustomerId) {
@@ -320,44 +331,73 @@ export default function PosScreen() {
     checkoutLockRef.current = true;
     setCheckoutModalOpen(false);
 
-    const fallbackInv = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
-    const saleData = buildSaleData(fallbackInv);
+    const provisionalInv = generateProvisionalInvoice();
+    const saleData = buildSaleData(provisionalInv);
+    const saleItems = toSaleItems();
+    const salePayload = {
+      items: saleItems,
+      subtotal: saleData.subtotal,
+      totalDiscount: saleData.totalDiscount,
+      totalTax: saleData.totalTax,
+      grandTotal: saleData.grandTotal,
+      paymentMethod,
+      amountPaid: saleData.amountPaid,
+      changeReturned: saleData.changeReturned,
+      customerId: selectedCustomerId || undefined,
+      isQuickBill: false,
+    };
 
     setPreviewSaleData(saleData);
     setShowReceiptPreviewModal(true);
     setIsSavingSalePreview(true);
 
-    try {
-      const sale = await createSale({
-        items: toSaleItems(),
-        subtotal: saleData.subtotal,
-        totalDiscount: saleData.totalDiscount,
-        totalTax: saleData.totalTax,
-        grandTotal: saleData.grandTotal,
-        paymentMethod,
-        amountPaid: saleData.amountPaid ?? grandTotalNow,
-        changeReturned: saleData.changeReturned ?? 0,
-        customerId: selectedCustomerId || undefined,
-        isQuickBill: false,
-      });
+    // Cart clears immediately so the next customer can be served while print + save run.
+    setCreditAmountReceivedInput('0');
+    setBillDiscountInput('');
+    clearCart();
 
-      const finalInv = (sale as any)?.invoiceNumber || fallbackInv;
-      setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
-      setCreditAmountReceivedInput('0');
-      setBillDiscountInput('');
-      clearCart();
-    } catch (err: any) {
-      checkoutLockRef.current = false;
-      setShowReceiptPreviewModal(false);
-      setPreviewSaleData(null);
-      setCheckoutModalOpen(true);
-      Alert.alert(
-        t('saleFailed', 'Sale Not Saved'),
-        err?.message || t('saleFailedHint', 'Could not save this sale to the server. Dashboard and stock will not update until the sale is saved.')
+    if (connectionState === 'connected' && activeDevice) {
+      const printData = applyStoreProfileToPrintData(saleData, storeProfile);
+      printSaleReceiptNow(
+        printData,
+        paperWidth,
+        buildReceiptPrintOptions({
+          activeTemplateId,
+          customTemplates,
+          activeCustomTemplateId,
+          enableBillQrCode,
+          topMargin,
+          autoCut,
+          fontSize,
+          printCopies,
+          storeName: printData.storeName,
+          storeAddress: printData.storeAddress,
+          storePhone: printData.storePhone,
+          storeGstin: printData.storeGstin,
+          storeLogoUrl: printData.storeLogoUrl,
+          upiId: printData.upiId,
+        })
       );
-    } finally {
-      setIsSavingSalePreview(false);
     }
+
+    persistSaleInBackground(salePayload, {
+      onSuccess: (sale) => {
+        const finalInv = sale.invoiceNumber || provisionalInv;
+        setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
+        setIsSavingSalePreview(false);
+      },
+      onError: (err) => {
+        setIsSavingSalePreview(false);
+        Alert.alert(
+          t('saleFailed', 'Sale Not Saved'),
+          err.message ||
+            t(
+              'saleFailedHint',
+              'Receipt may have printed, but this sale was not saved. Dashboard and stock will not update until it is recorded.'
+            )
+        );
+      },
+    });
   };
 
   // Voice-to-cart: "2 bread" adds, "remove 2 breads" subtracts, "remove all bread" clears the line.
@@ -1254,14 +1294,6 @@ export default function PosScreen() {
 
             <View style={styles.checkoutActionRow}>
               <TouchableOpacity
-                onPress={handlePreviewBill}
-                disabled={cartItems.length === 0}
-                style={[styles.previewBtn, { borderColor: theme.borderColor }, cartItems.length === 0 && { opacity: 0.5 }]}
-              >
-                <Text style={[styles.previewBtnText, { color: theme.textPrimary }]}>{t('previewBill', 'Preview Bill')}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 onPress={handlePrintCheckout}
                 disabled={cartItems.length === 0 || isCreating}
                 style={[styles.submitBtn, { flex: 1 }, (cartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
@@ -1269,7 +1301,10 @@ export default function PosScreen() {
                 {isCreating ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitBtnText}>{t('printBill', 'Print Bill')}</Text>
+                  <>
+                    <Printer size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.submitBtnText}>{t('printBill', 'Print Bill')}</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -1290,11 +1325,14 @@ export default function PosScreen() {
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
         isSaleSaving={isSavingSalePreview}
+        autoCloseAfterPrint={false}
         onClose={() => {
           setShowReceiptPreviewModal(false);
-          setPreviewSaleData(null);
           setIsSavingSalePreview(false);
           checkoutLockRef.current = false;
+          // Defer clearing receipt data so the preview modal can finish its close animation
+          // without crashing on a null saleData mid-render.
+          setTimeout(() => setPreviewSaleData(null), 350);
         }}
       />
 
