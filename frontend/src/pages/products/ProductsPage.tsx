@@ -19,7 +19,7 @@ import {
   exportProductsToExcel,
   buildProductsHtmlReport,
   triggerPrintReport,
-  triggerImageReportDownload,
+  exportProductsToImage,
 } from '@/utils/exportEngine'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
@@ -2235,8 +2235,7 @@ export const ProductsPage = () => {
             const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
             triggerPrintReport(html, 'Products-Inventory-Report')
           } else if (format === 'image') {
-            const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
-            await triggerImageReportDownload(html, `products-catalog-${new Date().toISOString().slice(0, 10)}`)
+            exportProductsToImage(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
           }
         }}
       />

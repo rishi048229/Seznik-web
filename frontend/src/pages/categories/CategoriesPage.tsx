@@ -22,7 +22,7 @@ import {
   exportCategoriesToExcel,
   buildCategoriesHtmlReport,
   triggerPrintReport,
-  triggerImageReportDownload,
+  exportCategoriesToImage,
 } from '@/utils/exportEngine'
 import type { Category } from '@/services/categoryService'
 import {
@@ -623,8 +623,7 @@ export const CategoriesPage = () => {
             const html = buildCategoriesHtmlReport(all, products ?? [], meta)
             triggerPrintReport(html, 'Categories-Directory')
           } else if (format === 'image') {
-            const html = buildCategoriesHtmlReport(all, products ?? [], meta)
-            await triggerImageReportDownload(html, `categories-directory-${new Date().toISOString().slice(0, 10)}`)
+            exportCategoriesToImage(all, products ?? [], meta)
           }
         }}
       />
