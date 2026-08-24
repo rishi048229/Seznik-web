@@ -139,6 +139,7 @@ export default function ProductsScreen() {
   const [showGstDropdown, setShowGstDropdown] = useState(false);
   const [showUnitDropdown, setShowUnitDropdown] = useState(false);
   const [showCatDropdown, setShowCatDropdown] = useState(false);
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
 
   // Form State
   const [name, setName] = useState('');
@@ -1218,6 +1219,53 @@ export default function ProductsScreen() {
                       {cat.name}
                     </Text>
                     {categoryId === cat.id ? <Check size={16} color={BRAND_COLORS.blue600} /> : null}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {/* Supplier / Vendor Dropdown */}
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Supplier / Vendor</Text>
+              <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowSupplierDropdown(!showSupplierDropdown)}
+              style={[styles.dropdownSelect, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            >
+              <Text style={[styles.dropdownSelectText, { color: theme.textPrimary }]}>
+                {suppliers.find((s) => s.id === supplierId)?.name || 'Direct / No Supplier Selected'}
+              </Text>
+              <ChevronDown size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+
+            {showSupplierDropdown ? (
+              <View style={[styles.dropdownMenu, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSupplierId(null);
+                    setShowSupplierDropdown(false);
+                  }}
+                  style={[styles.dropdownOption, { borderBottomColor: theme.borderColor }]}
+                >
+                  <Text style={[styles.dropdownOptionText, { color: supplierId === null ? BRAND_COLORS.blue600 : theme.textPrimary }]}>
+                    None / Direct Procurement
+                  </Text>
+                  {supplierId === null ? <Check size={16} color={BRAND_COLORS.blue600} /> : null}
+                </TouchableOpacity>
+                {suppliers.map((s) => (
+                  <TouchableOpacity
+                    key={s.id}
+                    onPress={() => {
+                      setSupplierId(s.id);
+                      setShowSupplierDropdown(false);
+                    }}
+                    style={[styles.dropdownOption, { borderBottomColor: theme.borderColor }]}
+                  >
+                    <Text style={[styles.dropdownOptionText, { color: supplierId === s.id ? BRAND_COLORS.blue600 : theme.textPrimary }]}>
+                      {s.name} {s.phone ? `(${s.phone})` : ''}
+                    </Text>
+                    {supplierId === s.id ? <Check size={16} color={BRAND_COLORS.blue600} /> : null}
                   </TouchableOpacity>
                 ))}
               </View>

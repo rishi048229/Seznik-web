@@ -22,6 +22,7 @@ router.patch('/:id/toggle', toggleLocationActive);
 router.delete('/:id', deleteLocation);
 router.get('/:id/stock', getLocationStock);
 
+router.get('/transfers', getStockTransfers);
 router.get('/transfers/history', getStockTransfers);
 router.post('/transfers', createStockTransfer);
 
