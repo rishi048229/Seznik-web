@@ -11,6 +11,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   Image,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -27,12 +28,13 @@ import {
   Search,
   CheckCircle2,
   Layers,
-  Layout,
-  SlidersHorizontal,
   Sparkles,
   Hash,
   ImageIcon,
   Info,
+  FolderOpen,
+  Check,
+  Star,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -64,10 +66,6 @@ import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintProm
 
 const newId = () => `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-// Every new element used to spawn at the exact same fixed point regardless of how many elements
-// already exist, so adding several of the same type stacked them perfectly on top of each other —
-// indistinguishable from "nothing happened". Cascading by count keeps each new element visibly
-// distinct and immediately draggable; wraps every 6 adds and stays clamped inside the label.
 function spawnPoint(widthMm: number, heightMm: number, count: number) {
   const cx = Math.max(2, widthMm / 2 - 10);
   const cy = Math.max(2, heightMm / 2 - 5);
@@ -75,10 +73,6 @@ function spawnPoint(widthMm: number, heightMm: number, count: number) {
   return { xMm: Math.min(widthMm - 5, cx + offset), yMm: Math.min(heightMm - 5, cy + offset) };
 }
 
-// Shrinking the label (steppers or a size preset) used to leave existing elements' boxes
-// untouched, stranding them outside the new smaller bounds (invisible since the canvas has
-// overflow:'visible'). Clamping every element back inside on every size change — used by both the
-// steppers and the size-preset chips — keeps the design always fully within the printable area.
 function applyLabelSize(prev: LabelTemplate, widthMm: number, heightMm: number): LabelTemplate {
   const elements = prev.elements.map((e) => {
     const clampedWidth = Math.min(e.widthMm, widthMm);
@@ -148,13 +142,13 @@ function resolveCodeValue(el: LabelBarcodeElement | LabelQrElement, product: Pro
 
 const TEXT_BINDING_OPTIONS: { value: LabelTextBinding; label: string }[] = [
   { value: 'productName', label: 'Product Name' },
-  { value: 'price', label: 'Price' },
+  { value: 'price', label: 'Price (Rs.)' },
   { value: 'sku', label: 'SKU' },
-  { value: 'barcodeText', label: 'Barcode (as text)' },
+  { value: 'barcodeText', label: 'Barcode Text' },
   { value: 'unit', label: 'Unit' },
   { value: 'category', label: 'Category' },
+  { value: 'sequence', label: 'Sequence No.' },
   { value: 'custom', label: 'Custom Text' },
-  { value: 'sequence', label: 'Sequence Number' },
 ];
 
 const CODE_BINDING_OPTIONS: { value: LabelCodeBinding; label: string }[] = [
@@ -168,9 +162,8 @@ export default function LabelStudioScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const theme = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
-  const isTablet = windowWidth >= 600;
 
-  const { products, isLoading: loadingProducts } = useProducts();
+  const { products } = useProducts();
   const {
     labelTemplates,
     activeLabelTemplateId,
@@ -186,38 +179,31 @@ export default function LabelStudioScreen() {
 
   const existing = params.id ? labelTemplates.find((t) => t.id === params.id) : undefined;
   const [template, setTemplate] = useState<LabelTemplate>(() => existing || makeBlankTemplate(labelWidthMm, labelHeightMm));
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'design' | 'data' | 'templates'>('design');
-  const [mobileMode, setMobileMode] = useState<'canvas' | 'controls'>('canvas');
+  const [selectedId, setSelectedId] = useState<string | null>(() => template.elements[0]?.id || null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(products[0] || null);
   const [productSearch, setProductSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSettingDefault, setIsSettingDefault] = useState(false);
   const [isTestPrinting, setIsTestPrinting] = useState(false);
   const [showProductPicker, setShowProductPicker] = useState(false);
+  const [showSavedTemplatesModal, setShowSavedTemplatesModal] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
 
-  // Sequential Number Printing — e.g. "0001","0002",... or "A01","A02",..., one label per value.
-  // Driven by any text element bound to 'sequence' (see TEXT_BINDING_OPTIONS) — the starting
-  // pattern/count are supplied fresh per print run via SequencePrintPrompt, never stored on the
-  // template itself, and PrinterService.printLabelSequence does the actual per-copy substitution.
   const hasSequenceElement = template.elements.some((e) => e.type === 'text' && e.binding === 'sequence');
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
   const [isSeqPrinting, setIsSeqPrinting] = useState(false);
-  const [seqProgress, setSeqProgress] = useState(0);
+  const [, setSeqProgress] = useState(0);
 
-  // Dynamic pxPerMm calculation so canvas NEVER overflows the screen!
-  const maxAvailableCanvasWidth = isTablet ? windowWidth - 220 : windowWidth - 32;
+  const maxAvailableCanvasWidth = windowWidth - 32;
   const pxPerMm = useMemo(() => {
     return Math.max(4, Math.min(8, Math.floor(maxAvailableCanvasWidth / template.widthMm)));
   }, [maxAvailableCanvasWidth, template.widthMm]);
-  // pxPerMm's floor of 4 can still produce a canvas wider than the screen for large label widths
-  // (up to 100mm via the stepper) — when that happens, the canvas must be horizontally scrollable
-  // or its right edge (and any resize handles there) becomes completely unreachable.
+
   const canvasWidthPx = template.widthMm * pxPerMm;
   const canvasOverflowsScreen = canvasWidthPx > maxAvailableCanvasWidth;
 
   const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
-  const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
+  const [, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
 
   const openLogoBgOption = (uri: string, onSelected: (finalUri: string) => void) => {
     setLogoBgModalUri(uri);
@@ -288,7 +274,10 @@ export default function LabelStudioScreen() {
 
   const deleteSelected = () => {
     if (!selectedId) return;
-    setTemplate((prev) => ({ ...prev, elements: prev.elements.filter((e) => e.id !== selectedId) }));
+    setTemplate((prev) => {
+      const remaining = prev.elements.filter((e) => e.id !== selectedId);
+      return { ...prev, elements: remaining };
+    });
     setSelectedId(null);
   };
 
@@ -302,7 +291,7 @@ export default function LabelStudioScreen() {
       const toSave: LabelTemplate = { ...template, updatedAt: new Date().toISOString() };
       await saveLabelTemplate(toSave);
       setTemplate(toSave);
-      Alert.alert('Template Saved', `"${toSave.name}" has been saved.`);
+      Alert.alert('Template Saved! 💾', `"${toSave.name}" has been saved successfully.`);
     } catch (e: any) {
       Alert.alert('Save Failed', e?.message || 'Could not save this template.');
     } finally {
@@ -311,11 +300,17 @@ export default function LabelStudioScreen() {
   };
 
   const handleSetDefault = async () => {
+    setIsSettingDefault(true);
     try {
-      await setActiveLabelTemplate(template.id);
-      Alert.alert('Set as Default', 'New product label prints will use this template.');
+      const toSave: LabelTemplate = { ...template, updatedAt: new Date().toISOString() };
+      await saveLabelTemplate(toSave);
+      await setActiveLabelTemplate(toSave.id);
+      setTemplate(toSave);
+      Alert.alert('Default Template Set! ⭐', `"${toSave.name}" is now the active default template for all product label prints.`);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not set this template as default.');
+    } finally {
+      setIsSettingDefault(false);
     }
   };
 
@@ -325,22 +320,19 @@ export default function LabelStudioScreen() {
     }
     const targetProduct = previewProduct || products[0] || {
       id: 'demo-1',
-      name: 'Basmati Rice 5kg',
-      sellingPrice: 480.0,
+      name: 'Sample Item 500g',
+      sellingPrice: 250.0,
       barcode: '8901234567890',
     };
 
     setIsTestPrinting(true);
     try {
-      // Gap mode = TSPL die-cut label printer, so the template becomes real TSPL commands.
-      // Continuous mode = ESC/POS receipt roll, a genuinely different protocol — sending TSPL
-      // commands there is exactly what printed as gibberish text before this branch existed.
       const ok =
         labelPaperMode === 'continuous'
           ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, template, paperWidth)
           : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template, 1, labelGapMm);
-      if (ok) Alert.alert('Test Print Sent', `Printed "${template.name}" label.`);
-      else Alert.alert('Print Failed', 'Could not send label to printer.');
+      if (ok) Alert.alert('Test Print Sent! 🖨️', `Printed test label for "${targetProduct.name}".`);
+      else Alert.alert('Print Failed', 'Could not send label to printer. Make sure printer is connected.');
     } catch (e: any) {
       Alert.alert('Print Failed', e?.message || 'Could not print this template.');
     } finally {
@@ -350,7 +342,7 @@ export default function LabelStudioScreen() {
 
   const handleOpenSequencePrompt = () => {
     if (!hasSequenceElement) {
-      Alert.alert('Add a Sequence Field', 'Set one of the label\'s text elements to bind to "Sequence Number" first (in the Bind To options under Selected Element).');
+      Alert.alert('Add a Sequence Field', 'Select a text element below and set its "Bind to" option to "Sequence No." first.');
       return;
     }
     setShowSequencePrompt(true);
@@ -359,8 +351,8 @@ export default function LabelStudioScreen() {
   const handleSubmitSequence = async (startPattern: string, count: number) => {
     const targetProduct = previewProduct || products[0] || {
       id: 'demo-1',
-      name: 'Basmati Rice 5kg',
-      sellingPrice: 480.0,
+      name: 'Sample Item 500g',
+      sellingPrice: 250.0,
       barcode: '8901234567890',
     };
 
@@ -375,11 +367,11 @@ export default function LabelStudioScreen() {
       );
       if (result.ok) {
         setShowSequencePrompt(false);
-        Alert.alert('Sequence Printed', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
+        Alert.alert('Sequence Printed! 🔢', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
       } else if (result.printedCount === 0) {
         Alert.alert('Invalid Pattern', 'The starting pattern must include at least one number to increment (e.g. "0001" or "A01").');
       } else {
-        Alert.alert('Print Failed', `Stopped after ${result.printedCount} labels — could not reach the printer.`);
+        Alert.alert('Print Failed', `Stopped after ${result.printedCount} labels.`);
       }
     } catch (e: any) {
       Alert.alert('Print Failed', e?.message || 'Could not print the sequence.');
@@ -393,6 +385,8 @@ export default function LabelStudioScreen() {
     () => products.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase())),
     [products, productSearch]
   );
+
+  const isCurrentTemplateDefault = activeLabelTemplateId === template.id;
 
   const renderElementContent = (el: LabelElement) => {
     const px = (mm: number) => mm * pxPerMm;
@@ -444,7 +438,7 @@ export default function LabelStudioScreen() {
     }
     return (
       <View style={styles.unsupportedBox}>
-        <Text style={styles.unsupportedText}>{el.type}{'\n'}(prints blank on label printers)</Text>
+        <Text style={styles.unsupportedText}>{el.type}</Text>
       </View>
     );
   };
@@ -452,79 +446,99 @@ export default function LabelStudioScreen() {
   return (
     <ScreenBackground color={theme.bg}>
       <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
-      {/* inModal here even though this isn't a <Modal>: the canvas + floating side-panel layout
-          uses absolute positioning that doesn't reflow usefully under Android's adjustResize —
-          the JS-driven "height" behavior actually moves focused inputs above the keyboard. */}
-      <KeyboardAvoidingWrapper inModal>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={20} color={theme.textSecondary} />
-            <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>Back</Text>
-          </TouchableOpacity>
-          <TextInput
-            value={template.name}
-            onChangeText={(name) => setTemplate((prev) => ({ ...prev, name }))}
-            style={[styles.nameInput, { color: theme.textPrimary, borderColor: theme.borderColor }]}
-            placeholder="Label name"
-            placeholderTextColor="#94A3B8"
-          />
-          <TouchableOpacity
-            onPress={() => setShowAiBillModal(true)}
-            style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.blue600, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }]}
+        <KeyboardAvoidingWrapper inModal>
+          {/* Top Header Row */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <ArrowLeft size={18} color={theme.textPrimary} />
+            </TouchableOpacity>
+
+            <TextInput
+              value={template.name}
+              onChangeText={(name) => setTemplate((prev) => ({ ...prev, name }))}
+              style={[styles.nameInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+              placeholder="Template Name"
+              placeholderTextColor="#94A3B8"
+            />
+
+            <TouchableOpacity
+              onPress={() => setShowSavedTemplatesModal(true)}
+              style={[styles.headerIconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            >
+              <FolderOpen size={16} color={BRAND_COLORS.blue600} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowAiBillModal(true)}
+              style={[styles.aiBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+            >
+              <Sparkles size={14} color="#FFFFFF" />
+              <Text style={styles.aiBtnText}>AI</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSaveTemplate}
+              disabled={isSaving}
+              style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+            >
+              {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Save size={15} color="#FFFFFF" />}
+            </TouchableOpacity>
+          </View>
+
+          {/* Default Template Action Banner */}
+          <View style={{ marginHorizontal: 12, marginBottom: 8 }}>
+            {isCurrentTemplateDefault ? (
+              <View style={[styles.defaultStatusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+                <CheckCircle2 size={14} color="#10B981" />
+                <Text style={styles.defaultStatusText}>Default Template (Used for real barcode label prints)</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={handleSetDefault}
+                disabled={isSettingDefault}
+                style={[styles.setDefaultBtn, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: '#F59E0B' }]}
+              >
+                {isSettingDefault ? (
+                  <ActivityIndicator size="small" color="#B45309" style={{ marginRight: 6 }} />
+                ) : (
+                  <Star size={14} color="#B45309" style={{ marginRight: 6 }} />
+                )}
+                <Text style={styles.setDefaultBtnText}>Set as Active Default Label Template ⭐</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Main Unified Scrolling Content */}
+          <ScrollView
+            style={styles.mainScroll}
+            contentContainerStyle={styles.mainScrollContent}
+            keyboardShouldPersistTaps="handled"
           >
-            <Sparkles size={15} color="#FFFFFF" />
-            <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11, marginLeft: 4 }}>AI Bill</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleSaveTemplate} disabled={isSaving} style={styles.saveBtn}>
-            {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Save size={16} color="#FFFFFF" />}
-          </TouchableOpacity>
-        </View>
+            {/* CANVAS WORK AREA */}
+            <View style={[styles.canvasCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={styles.canvasHeader}>
+                <Text style={[styles.canvasBadge, { color: theme.textSecondary }]}>
+                  CANVAS ({template.widthMm}mm × {template.heightMm}mm)
+                </Text>
+                <Text style={{ fontSize: 10, color: theme.textSecondary }}>
+                  Drag to reposition • Handles to resize
+                </Text>
+              </View>
 
-        {activeLabelTemplateId === template.id ? (
-          <View style={styles.activeBanner}>
-            <CheckCircle2 size={13} color="#10B981" />
-            <Text style={styles.activeBannerText}>Default — real label prints use this template</Text>
-          </View>
-        ) : (
-          <TouchableOpacity onPress={handleSetDefault} style={[styles.activeBanner, { backgroundColor: 'rgba(100,116,139,0.12)' }]}>
-            <Layers size={13} color="#64748B" />
-            <Text style={[styles.activeBannerText, { color: '#64748B' }]}>Tap to set as the default label template</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Mobile View Mode Switcher (Canvas vs Controls) */}
-        {!isTablet ? (
-          <View style={[styles.mobileModeBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <TouchableOpacity
-              onPress={() => setMobileMode('canvas')}
-              style={[styles.mobileModeBtn, mobileMode === 'canvas' && styles.mobileModeBtnActive]}
-            >
-              <Layout size={13} color={mobileMode === 'canvas' ? '#FFF' : theme.textSecondary} />
-              <Text style={[styles.mobileModeBtnText, mobileMode === 'canvas' && styles.mobileModeBtnTextActive]}>CANVAS DESIGN</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setMobileMode('controls')}
-              style={[styles.mobileModeBtn, mobileMode === 'controls' && styles.mobileModeBtnActive]}
-            >
-              <SlidersHorizontal size={13} color={mobileMode === 'controls' ? '#FFF' : theme.textSecondary} />
-              <Text style={[styles.mobileModeBtnText, mobileMode === 'controls' && styles.mobileModeBtnTextActive]}>PROPERTIES & DATA</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        <View style={styles.bodyRow}>
-          {/* Canvas Section */}
-          {(isTablet || mobileMode === 'canvas') && (
-            <ScrollView style={styles.canvasScroll} contentContainerStyle={styles.canvasScrollContent}>
               <ScrollView
                 horizontal={canvasOverflowsScreen}
-                contentContainerStyle={canvasOverflowsScreen ? { minWidth: canvasWidthPx } : undefined}
+                contentContainerStyle={canvasOverflowsScreen ? { minWidth: canvasWidthPx } : styles.canvasCenterWrapper}
+                showsHorizontalScrollIndicator={false}
               >
                 <TouchableOpacity activeOpacity={1} onPress={() => setSelectedId(null)}>
                   <View
                     style={[
                       styles.canvas,
-                      { width: template.widthMm * pxPerMm, height: template.heightMm * pxPerMm, backgroundColor: template.backgroundColor || '#FFFFFF' },
+                      {
+                        width: template.widthMm * pxPerMm,
+                        height: template.heightMm * pxPerMm,
+                        backgroundColor: template.backgroundColor || '#FFFFFF',
+                      },
                     ]}
                   >
                     {template.elements.map((el) => (
@@ -547,401 +561,576 @@ export default function LabelStudioScreen() {
                   </View>
                 </TouchableOpacity>
               </ScrollView>
-              <Text style={[styles.canvasCaption, { color: theme.textSecondary }]}>
-                {template.widthMm}mm x {template.heightMm}mm — drag to move, corner handles to resize
-              </Text>
 
-              {/* Quick Elements Toolbar on Canvas */}
+              {/* QUICK ADD ELEMENTS TOOLBAR (Right below Canvas) */}
               <View style={styles.quickAddBar}>
-                <TouchableOpacity onPress={() => addElement('text')} style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
+                <TouchableOpacity
+                  onPress={() => addElement('text')}
+                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                >
                   <Type size={14} color={BRAND_COLORS.blue600} />
                   <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ Text</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => addElement('barcode')} style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
+
+                <TouchableOpacity
+                  onPress={() => addElement('barcode')}
+                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                >
                   <BarcodeIcon size={14} color={BRAND_COLORS.blue600} />
                   <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ Barcode</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => addElement('qrcode')} style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
-                  <QrCode size={14} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ QR</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity onPress={handleTestPrint} disabled={isTestPrinting} style={styles.testPrintBtn}>
-                {isTestPrinting ? <ActivityIndicator size="small" color="#FFF" /> : <BarcodeIcon size={16} color="#FFFFFF" />}
-                <Text style={styles.testPrintBtnText}>Test Print with Real Product Data</Text>
-              </TouchableOpacity>
-
-              {/* Sequential Number Printing — driven by a text element bound to "Sequence Number" */}
-              <View style={[styles.seqCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <View style={styles.seqHeaderRow}>
-                  <Hash size={15} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.seqTitle, { color: theme.textPrimary }]}>Sequential Number Printing</Text>
-                </View>
-                <Text style={[styles.seqSub, { color: theme.textSecondary }]}>
-                  Print a run of labels with an auto-incrementing number or code, e.g. &quot;0001&quot;, &quot;0002&quot;... or &quot;A01&quot;, &quot;A02&quot;...
-                </Text>
-                {!hasSequenceElement && (
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 8 }}>
-                    Select a text element on the canvas and set its &quot;Bind to&quot; option to &quot;Sequence Number&quot; first.
-                  </Text>
-                )}
 
                 <TouchableOpacity
-                  onPress={handleOpenSequencePrompt}
-                  style={[styles.testPrintBtn, { marginTop: 14, opacity: hasSequenceElement ? 1 : 0.5 }]}
+                  onPress={() => addElement('qrcode')}
+                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
                 >
-                  <Hash size={16} color="#FFFFFF" />
-                  <Text style={styles.testPrintBtnText}>Print a Sequence</Text>
+                  <QrCode size={14} color={BRAND_COLORS.blue600} />
+                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ QR Code</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => addElement('image')}
+                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                >
+                  <ImageIcon size={14} color={BRAND_COLORS.blue600} />
+                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ Logo</Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          )}
+            </View>
 
-          {/* Right Controls Panel */}
-          {(isTablet || mobileMode === 'controls') && (
-            <View style={[styles.sidePanel, !isTablet && { width: '100%', flex: 1 }, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <View style={styles.sideTabRow}>
-                {(['design', 'data', 'templates'] as const).map((tab) => (
-                  <TouchableOpacity key={tab} onPress={() => setLeftTab(tab)} style={[styles.sideTab, leftTab === tab && styles.sideTabActive]}>
-                    <Text style={[styles.sideTabText, leftTab === tab && styles.sideTabTextActive]}>{tab.toUpperCase()}</Text>
+            {/* DIRECT ELEMENT EDITING INSPECTOR (Directly below Canvas) */}
+            {selectedElement ? (
+              <View style={[styles.inspectorCard, { backgroundColor: theme.cardBg, borderColor: BRAND_COLORS.blue600 }]}>
+                {/* Element Header with DELETE BUTTON */}
+                <View style={styles.inspectorHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[styles.typeBadge, { backgroundColor: BRAND_COLORS.navyInk }]}>
+                      <Text style={styles.typeBadgeText}>{selectedElement.type.toUpperCase()}</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textSecondary }}>
+                      X:{Math.round(selectedElement.xMm)} Y:{Math.round(selectedElement.yMm)} • {Math.round(selectedElement.widthMm)}×{Math.round(selectedElement.heightMm)}mm
+                    </Text>
+                  </View>
+
+                  {/* PROMINENT DELETE BUTTON RIGHT BELOW CANVAS */}
+                  <TouchableOpacity
+                    onPress={deleteSelected}
+                    style={styles.deleteElementBtn}
+                  >
+                    <Trash2 size={14} color="#FFF" style={{ marginRight: 4 }} />
+                    <Text style={styles.deleteElementBtnText}>Delete</Text>
                   </TouchableOpacity>
-                ))}
-              </View>
+                </View>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12 }}>
-              {leftTab === 'design' ? (
-                <>
-                  <Text style={[styles.panelLabel, { color: theme.textSecondary }]}>LABEL SIZE (MM)</Text>
-                  <View style={styles.chipWrap}>
-                    {LABEL_SIZE_PRESETS.map((preset) => {
-                      const selected = template.widthMm === preset.widthMm && template.heightMm === preset.heightMm;
-                      return (
-                        <TouchableOpacity
-                          key={preset.label}
-                          onPress={() => setTemplate((p) => applyLabelSize(p, preset.widthMm, preset.heightMm))}
-                          style={[styles.chip, { borderColor: theme.borderColor }, selected && styles.chipActive]}
-                        >
-                          <Text style={[styles.chipText, { color: theme.textSecondary }, selected && styles.chipTextActive]}>{preset.label}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                  <View style={[styles.dimRow, { marginTop: 10 }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Width</Text>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, Math.max(10, p.widthMm - 1), p.heightMm))} style={styles.stepBtn}>
-                          <Minus size={14} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                        <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{template.widthMm}</Text>
-                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, Math.min(100, p.widthMm + 1), p.heightMm))} style={styles.stepBtn}>
-                          <Plus size={14} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Height</Text>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.max(10, p.heightMm - 1)))} style={styles.stepBtn}>
-                          <Minus size={14} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                        <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{template.heightMm}</Text>
-                        <TouchableOpacity onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.min(150, p.heightMm + 1)))} style={styles.stepBtn}>
-                          <Plus size={14} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-
-                  <Text style={[styles.panelLabel, { color: theme.textSecondary, marginTop: 16 }]}>ADD ELEMENTS</Text>
-                  <View style={styles.addGrid}>
-                    <TouchableOpacity onPress={() => addElement('text')} style={[styles.addBtn, { borderColor: theme.borderColor }]}>
-                      <Type size={16} color={BRAND_COLORS.blue600} />
-                      <Text style={[styles.addBtnText, { color: theme.textPrimary }]}>Text</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => addElement('barcode')} style={[styles.addBtn, { borderColor: theme.borderColor }]}>
-                      <BarcodeIcon size={16} color={BRAND_COLORS.blue600} />
-                      <Text style={[styles.addBtnText, { color: theme.textPrimary }]}>Barcode</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => addElement('qrcode')} style={[styles.addBtn, { borderColor: theme.borderColor }]}>
-                      <QrCode size={16} color={BRAND_COLORS.blue600} />
-                      <Text style={[styles.addBtnText, { color: theme.textPrimary }]}>QR Code</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => addElement('image')} style={[styles.addBtn, { borderColor: theme.borderColor }]}>
-                      <ImageIcon size={16} color={BRAND_COLORS.blue600} />
-                      <Text style={[styles.addBtnText, { color: theme.textPrimary }]}>Image / Logo</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={{ fontSize: 10.5, color: theme.textSecondary, marginTop: 8, lineHeight: 15 }}>
-                    Tap Image / Logo above to upload company logos or product pictures directly onto your label canvas.
-                  </Text>
-
-                  {selectedElement ? (
-                    <>
-                      <View style={[styles.divider, { borderColor: theme.borderColor }]} />
-                      <View style={styles.sectionHeaderRow}>
-                        <Text style={[styles.panelLabel, { color: theme.textSecondary }]}>SELECTED ELEMENT</Text>
-                        <TouchableOpacity onPress={deleteSelected}>
-                          <Trash2 size={16} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-
-                      {selectedElement.type === 'text' ? (
-                        <>
-                          <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 8 }]}>Bind to</Text>
-                          <View style={styles.chipWrap}>
-                            {TEXT_BINDING_OPTIONS.map((opt) => (
-                              <TouchableOpacity
-                                key={opt.value}
-                                onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelTextElement>)}
-                                style={[styles.chip, { borderColor: theme.borderColor }, selectedElement.binding === opt.value && styles.chipActive]}
-                              >
-                                <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.binding === opt.value && styles.chipTextActive]}>
-                                  {opt.label}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                          {selectedElement.binding === 'custom' ? (
-                            <TextInput
-                              value={selectedElement.customText || ''}
-                              onChangeText={(customText) => updateElementProps(selectedElement.id, { customText } as Partial<LabelTextElement>)}
-                              style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, marginTop: 8 }]}
-                              placeholder="Custom text"
-                              placeholderTextColor="#94A3B8"
-                            />
-                          ) : null}
-
-                          <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 10 }]}>Font Size</Text>
-                          {/* Steps by 3 (not 0.5) and stays on exact multiples of 3 — matches
-                              PrinterService.printLabelFromTemplate's TSPL scale quantization
-                              (Math.round(fontSizePt / 3)) exactly, so the on-screen preview never
-                              shows a size that snaps to something different once printed. */}
-                          <View style={styles.stepperControls}>
-                            <TouchableOpacity
-                              onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(3, selectedElement.fontSizePt - 3) } as Partial<LabelTextElement>)}
-                              style={styles.stepBtn}
+                {/* TEXT ELEMENT CONTROLS */}
+                {selectedElement.type === 'text' && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bind Content To:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {TEXT_BINDING_OPTIONS.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.value}
+                            onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelTextElement>)}
+                            style={[
+                              styles.chip,
+                              { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                              selectedElement.binding === opt.value && styles.chipActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipText,
+                                { color: theme.textSecondary },
+                                selectedElement.binding === opt.value && styles.chipTextActive,
+                              ]}
                             >
-                              <Minus size={14} color={theme.textPrimary} />
-                            </TouchableOpacity>
-                            <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{selectedElement.fontSizePt}</Text>
-                            <TouchableOpacity
-                              onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(9, selectedElement.fontSizePt + 3) } as Partial<LabelTextElement>)}
-                              style={styles.stepBtn}
-                            >
-                              <Plus size={14} color={theme.textPrimary} />
-                            </TouchableOpacity>
-                          </View>
-
-                          <View style={{ flexDirection: 'row', marginTop: 10, alignItems: 'center' }}>
-                            <TouchableOpacity
-                              onPress={() => updateElementProps(selectedElement.id, { bold: !selectedElement.bold } as Partial<LabelTextElement>)}
-                              style={[styles.chip, { borderColor: theme.borderColor }, selectedElement.bold && styles.chipActive]}
-                            >
-                              <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.bold && styles.chipTextActive]}>Bold</Text>
-                            </TouchableOpacity>
-                            {(['left', 'center', 'right'] as const).map((a) => (
-                              <TouchableOpacity
-                                key={a}
-                                onPress={() => updateElementProps(selectedElement.id, { align: a } as Partial<LabelTextElement>)}
-                                style={[styles.chip, { borderColor: theme.borderColor, marginLeft: 6 }, selectedElement.align === a && styles.chipActive]}
-                              >
-                                <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.align === a && styles.chipTextActive]}>{a}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </>
-                      ) : null}
-
-                      {selectedElement.type === 'barcode' || selectedElement.type === 'qrcode' ? (
-                        <>
-                          <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 8 }]}>Bind to</Text>
-                          <View style={styles.chipWrap}>
-                            {CODE_BINDING_OPTIONS.map((opt) => (
-                              <TouchableOpacity
-                                key={opt.value}
-                                onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelBarcodeElement>)}
-                                style={[styles.chip, { borderColor: theme.borderColor }, selectedElement.binding === opt.value && styles.chipActive]}
-                              >
-                                <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.binding === opt.value && styles.chipTextActive]}>
-                                  {opt.label}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                          {selectedElement.binding === 'custom' ? (
-                            <TextInput
-                              value={selectedElement.customValue || ''}
-                              onChangeText={(customValue) => updateElementProps(selectedElement.id, { customValue } as Partial<LabelBarcodeElement>)}
-                              style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, marginTop: 8 }]}
-                              placeholder="Custom value"
-                              placeholderTextColor="#94A3B8"
-                            />
-                          ) : null}
-                        </>
-                      ) : null}
-
-                      {selectedElement.type === 'barcode' ? (
-                        <>
-                          <Text style={[styles.dimSub, { color: theme.textSecondary, marginTop: 10 }]}>Format</Text>
-                          <View style={styles.chipWrap}>
-                            {(['ean13', 'code128'] as const).map((f) => (
-                              <TouchableOpacity
-                                key={f}
-                                onPress={() => updateElementProps(selectedElement.id, { format: f } as Partial<LabelBarcodeElement>)}
-                                style={[styles.chip, { borderColor: theme.borderColor }, selectedElement.format === f && styles.chipActive]}
-                              >
-                                <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.format === f && styles.chipTextActive]}>
-                                  {f.toUpperCase()}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </>
-                      ) : null}
-
-                      {selectedElement.type === 'image' ? (
-                        <>
-                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-                            <TouchableOpacity
-                              onPress={() => handlePickImageForElement(selectedElement.id)}
-                              style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.blue600, flex: 1, paddingVertical: 10, marginLeft: 0 }]}
-                            >
-                              <ImageIcon size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>Replace</Text>
-                            </TouchableOpacity>
-
-                            {selectedElement.uri ? (
-                              <TouchableOpacity
-                                onPress={() => {
-                                  if (selectedElement.uri) {
-                                    openLogoBgOption(selectedElement.uri, (finalUri) => {
-                                      updateElementProps(selectedElement.id, { uri: finalUri } as Partial<LabelImageElement>);
-                                    });
-                                  }
-                                }}
-                                style={[styles.saveBtn, { backgroundColor: '#D97706', flex: 1.2, paddingVertical: 10, marginLeft: 0 }]}
-                              >
-                                <Sparkles size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                                <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>Background</Text>
-                              </TouchableOpacity>
-                            ) : null}
-                          </View>
-
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, justifyContent: 'space-between' }}>
-                            <Text style={[styles.dimSub, { color: theme.textSecondary }]}>Invert Colors (B/W)</Text>
-                            <TouchableOpacity
-                              onPress={() => updateElementProps(selectedElement.id, { invert: !selectedElement.invert } as Partial<LabelImageElement>)}
-                              style={[styles.chip, { borderColor: theme.borderColor }, selectedElement.invert && styles.chipActive]}
-                            >
-                              <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.invert && styles.chipTextActive]}>
-                                {selectedElement.invert ? 'ON' : 'OFF'}
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-
-                          <View style={{ backgroundColor: 'rgba(234, 179, 8, 0.1)', borderColor: 'rgba(234, 179, 8, 0.3)', borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 14 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                              <Info size={16} color="#D97706" style={{ marginRight: 6 }} />
-                              <Text style={{ fontSize: 12, fontWeight: '800', color: '#D97706' }}>Thermal Printing Image Tips</Text>
-                            </View>
-                            <Text style={{ fontSize: 11, color: theme.textPrimary, lineHeight: 16 }}>
-                              • Thermal printers use <Text style={{ fontWeight: 'bold' }}>1-bit direct black/white paper</Text> (no color/grayscale).{'\n'}
-                              • <Text style={{ fontWeight: 'bold' }}>Best Results</Text>: High contrast black logos with a transparent PNG background.{'\n'}
-                              • If an image prints as a solid black block, tap <Text style={{ fontWeight: 'bold' }}>Invert Colors</Text> or choose a clean line-art logo.{'\n'}
-                              • On a die-cut label printer (Gap mode), images currently print <Text style={{ fontWeight: 'bold' }}>blank</Text> — they only show up in this preview and when printing on the receipt roll (Continuous mode) or via System Print.
+                              {opt.label}
                             </Text>
-                          </View>
-                        </>
-                      ) : null}
-                    </>
-                  ) : (
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 16 }}>Tap an element on the canvas to edit it.</Text>
-                  )}
-                </>
-              ) : leftTab === 'data' ? (
-                <>
-                  <Text style={[styles.panelLabel, { color: theme.textSecondary }]}>PREVIEW WITH REAL PRODUCT</Text>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10, lineHeight: 16 }}>
-                    Elements bound to a product field show this product&apos;s actual data while you design — the same binding is resolved against whichever real product you print later.
-                  </Text>
-                  <TouchableOpacity onPress={() => setShowProductPicker(true)} style={[styles.productPickBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
-                    <Package size={16} color={BRAND_COLORS.blue600} />
-                    <Text style={[styles.productPickText, { color: theme.textPrimary }]} numberOfLines={1}>
-                      {previewProduct ? previewProduct.name : 'Choose a product...'}
-                    </Text>
-                  </TouchableOpacity>
-                  {previewProduct ? (
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 6 }}>
-                      Rs.{previewProduct.sellingPrice.toFixed(2)} • {previewProduct.barcode || previewProduct.sku || 'no code'}
-                    </Text>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.panelLabel, { color: theme.textSecondary }]}>SAVED TEMPLATES ({labelTemplates.length})</Text>
-                  {labelTemplates.length === 0 ? (
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 8 }}>No saved templates yet — design one and tap Save.</Text>
-                  ) : (
-                    labelTemplates.map((t) => (
-                      <View key={t.id} style={[styles.templateRow, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
-                        <TouchableOpacity style={{ flex: 1 }} onPress={() => { setTemplate(t); setSelectedId(null); }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={[styles.templateName, { color: theme.textPrimary }]} numberOfLines={1}>{t.name}</Text>
-                            {activeLabelTemplateId === t.id ? (
-                              <View style={styles.defaultBadge}>
-                                <Text style={styles.defaultBadgeText}>DEFAULT</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                            {t.widthMm}x{t.heightMm}mm
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+
+                    {/* Direct Text Input */}
+                    {selectedElement.binding === 'custom' && (
+                      <TextInput
+                        value={selectedElement.customText || ''}
+                        onChangeText={(customText) => updateElementProps(selectedElement.id, { customText } as Partial<LabelTextElement>)}
+                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg, marginTop: 6 }]}
+                        placeholder="Enter custom text..."
+                        placeholderTextColor="#94A3B8"
+                      />
+                    )}
+
+                    {/* Font Styling Row */}
+                    <View style={styles.stylingRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>Size:</Text>
+                        <View style={styles.stepperMini}>
+                          <TouchableOpacity
+                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(3, selectedElement.fontSizePt - 3) } as Partial<LabelTextElement>)}
+                            style={[styles.stepMiniBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                          >
+                            <Minus size={12} color={theme.textPrimary} />
+                          </TouchableOpacity>
+                          <Text style={[styles.stepMiniVal, { color: theme.textPrimary }]}>{selectedElement.fontSizePt}</Text>
+                          <TouchableOpacity
+                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(9, selectedElement.fontSizePt + 3) } as Partial<LabelTextElement>)}
+                            style={[styles.stepMiniBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                          >
+                            <Plus size={12} color={theme.textPrimary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => updateElementProps(selectedElement.id, { bold: !selectedElement.bold } as Partial<LabelTextElement>)}
+                        style={[
+                          styles.boldToggleBtn,
+                          { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                          selectedElement.bold && styles.chipActive,
+                        ]}
+                      >
+                        <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.bold && styles.chipTextActive]}>
+                          Bold
+                        </Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        {(['left', 'center', 'right'] as const).map((a) => (
+                          <TouchableOpacity
+                            key={a}
+                            onPress={() => updateElementProps(selectedElement.id, { align: a } as Partial<LabelTextElement>)}
+                            style={[
+                              styles.alignBtn,
+                              { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                              selectedElement.align === a && styles.chipActive,
+                            ]}
+                          >
+                            <Text style={[styles.chipText, { color: theme.textSecondary, textTransform: 'capitalize' }, selectedElement.align === a && styles.chipTextActive]}>
+                              {a}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* BARCODE ELEMENT CONTROLS */}
+                {selectedElement.type === 'barcode' && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bind Barcode To:</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
+                      {CODE_BINDING_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelBarcodeElement>)}
+                          style={[
+                            styles.chip,
+                            { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                            selectedElement.binding === opt.value && styles.chipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: theme.textSecondary },
+                              selectedElement.binding === opt.value && styles.chipTextActive,
+                            ]}
+                          >
+                            {opt.label}
                           </Text>
                         </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {selectedElement.binding === 'custom' && (
+                      <TextInput
+                        value={selectedElement.customValue || ''}
+                        onChangeText={(customValue) => updateElementProps(selectedElement.id, { customValue } as Partial<LabelBarcodeElement>)}
+                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg, marginTop: 4 }]}
+                        placeholder="Enter barcode numbers/text..."
+                        placeholderTextColor="#94A3B8"
+                      />
+                    )}
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>Format:</Text>
+                      {(['ean13', 'code128'] as const).map((f) => (
+                        <TouchableOpacity
+                          key={f}
+                          onPress={() => updateElementProps(selectedElement.id, { format: f } as Partial<LabelBarcodeElement>)}
+                          style={[
+                            styles.chip,
+                            { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                            selectedElement.format === f && styles.chipActive,
+                          ]}
+                        >
+                          <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.format === f && styles.chipTextActive]}>
+                            {f.toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* QR CODE ELEMENT CONTROLS */}
+                {selectedElement.type === 'qrcode' && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bind QR Code To:</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
+                      {CODE_BINDING_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelQrElement>)}
+                          style={[
+                            styles.chip,
+                            { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                            selectedElement.binding === opt.value && styles.chipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: theme.textSecondary },
+                              selectedElement.binding === opt.value && styles.chipTextActive,
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {selectedElement.binding === 'custom' && (
+                      <TextInput
+                        value={selectedElement.customValue || ''}
+                        onChangeText={(customValue) => updateElementProps(selectedElement.id, { customValue } as Partial<LabelQrElement>)}
+                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg, marginTop: 4 }]}
+                        placeholder="Enter QR content / URL / UPI ID..."
+                        placeholderTextColor="#94A3B8"
+                      />
+                    )}
+                  </View>
+                )}
+
+                {/* IMAGE / LOGO CONTROLS */}
+                {selectedElement.type === 'image' && (
+                  <View style={{ marginTop: 8 }}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={() => handlePickImageForElement(selectedElement.id)}
+                        style={[styles.imageActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                      >
+                        <ImageIcon size={13} color="#FFF" />
+                        <Text style={styles.imageActionBtnText}>Replace Logo</Text>
+                      </TouchableOpacity>
+
+                      {selectedElement.uri ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (selectedElement.uri) {
+                              openLogoBgOption(selectedElement.uri, (finalUri) => {
+                                updateElementProps(selectedElement.id, { uri: finalUri } as Partial<LabelImageElement>);
+                              });
+                            }
+                          }}
+                          style={[styles.imageActionBtn, { backgroundColor: '#D97706' }]}
+                        >
+                          <Sparkles size={13} color="#FFF" />
+                          <Text style={styles.imageActionBtnText}>Remove BG</Text>
+                        </TouchableOpacity>
+                      ) : null}
+
+                      <TouchableOpacity
+                        onPress={() => updateElementProps(selectedElement.id, { invert: !selectedElement.invert } as Partial<LabelImageElement>)}
+                        style={[
+                          styles.imageActionBtn,
+                          {
+                            backgroundColor: selectedElement.invert ? BRAND_COLORS.navyInk : theme.bg,
+                            borderWidth: 1,
+                            borderColor: theme.borderColor,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.imageActionBtnText, { color: selectedElement.invert ? '#FFF' : theme.textPrimary }]}>
+                          Invert: {selectedElement.invert ? 'ON' : 'OFF'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={[styles.inspectorCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Info size={16} color={BRAND_COLORS.blue600} />
+                  <Text style={{ fontSize: 12, color: theme.textSecondary, flex: 1 }}>
+                    Tap any item on the label above to edit its text, size, binding, or delete it.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* LABEL SIZE PRESETS & DIMENSIONS SECTION */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.sectionCardTitle, { color: theme.textPrimary }]}>
+                Label Dimensions (Paper Stock)
+              </Text>
+
+              {/* Presets Horizontal Strip */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {LABEL_SIZE_PRESETS.map((preset) => {
+                    const isSelected = template.widthMm === preset.widthMm && template.heightMm === preset.heightMm;
+                    return (
+                      <TouchableOpacity
+                        key={preset.label}
+                        onPress={() => setTemplate((p) => applyLabelSize(p, preset.widthMm, preset.heightMm))}
+                        style={[
+                          styles.presetChip,
+                          { borderColor: theme.borderColor, backgroundColor: theme.bg },
+                          isSelected && styles.presetChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.presetChipText,
+                            { color: theme.textSecondary },
+                            isSelected && styles.presetChipTextActive,
+                          ]}
+                        >
+                          {preset.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Custom Width / Height Stepper Controls */}
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.dimLabel, { color: theme.textSecondary }]}>Width (mm)</Text>
+                  <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
+                    <TouchableOpacity
+                      onPress={() => setTemplate((p) => applyLabelSize(p, Math.max(10, p.widthMm - 1), p.heightMm))}
+                      style={styles.stepBoxBtn}
+                    >
+                      <Minus size={14} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.stepBoxVal, { color: theme.textPrimary }]}>{template.widthMm}</Text>
+                    <TouchableOpacity
+                      onPress={() => setTemplate((p) => applyLabelSize(p, Math.min(100, p.widthMm + 1), p.heightMm))}
+                      style={styles.stepBoxBtn}
+                    >
+                      <Plus size={14} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.dimLabel, { color: theme.textSecondary }]}>Height (mm)</Text>
+                  <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
+                    <TouchableOpacity
+                      onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.max(10, p.heightMm - 1)))}
+                      style={styles.stepBoxBtn}
+                    >
+                      <Minus size={14} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.stepBoxVal, { color: theme.textPrimary }]}>{template.heightMm}</Text>
+                    <TouchableOpacity
+                      onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.min(150, p.heightMm + 1)))}
+                      style={styles.stepBoxBtn}
+                    >
+                      <Plus size={14} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* LIVE PRODUCT PREVIEW SELECTOR */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={[styles.sectionCardTitle, { color: theme.textPrimary }]}>
+                  Test Product Preview
+                </Text>
+                <TouchableOpacity onPress={() => setShowProductPicker(true)}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>Change Product</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowProductPicker(true)}
+                style={[styles.productPreviewCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+              >
+                <Package size={18} color={BRAND_COLORS.blue600} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={[styles.productPreviewName, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {previewProduct ? previewProduct.name : 'Select a Product for Live Data'}
+                  </Text>
+                  {previewProduct && (
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 1 }}>
+                      Rs.{previewProduct.sellingPrice.toFixed(2)} • {previewProduct.barcode || previewProduct.sku || 'No Barcode'}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* PRINTING & SEQUENCE ACTIONS */}
+            <View style={{ gap: 8, marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={handleTestPrint}
+                disabled={isTestPrinting}
+                style={[styles.actionPrintBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+              >
+                {isTestPrinting ? (
+                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 8 }} />
+                ) : (
+                  <BarcodeIcon size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                )}
+                <Text style={styles.actionPrintBtnText}>Test Print Label 🖨️</Text>
+              </TouchableOpacity>
+
+              {hasSequenceElement && (
+                <TouchableOpacity
+                  onPress={handleOpenSequencePrompt}
+                  style={[styles.actionPrintBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+                >
+                  <Hash size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.actionPrintBtnText}>Run Sequential Number Printing (0001, 0002...)</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingWrapper>
+      </SafeAreaView>
+
+      {/* SAVED TEMPLATES MODAL */}
+      <Modal visible={showSavedTemplatesModal} animationType="slide" onRequestClose={() => setShowSavedTemplatesModal(false)}>
+        <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: theme.bg }]}>
+          <View style={{ flex: 1, padding: 16 }}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Saved Label Templates</Text>
+              <TouchableOpacity onPress={() => setShowSavedTemplatesModal(false)}>
+                <X size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {labelTemplates.length === 0 ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <FolderOpen size={36} color={theme.textSecondary} />
+                <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 8 }}>
+                  No saved templates yet. Design one and tap Save.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={labelTemplates}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item: t }) => {
+                  const isCurrent = t.id === template.id;
+                  const isDefault = t.id === activeLabelTemplateId;
+                  return (
+                    <View style={[styles.templateListRow, { backgroundColor: theme.cardBg, borderColor: isCurrent ? BRAND_COLORS.blue600 : theme.borderColor }]}>
+                      <TouchableOpacity
+                        style={{ flex: 1 }}
+                        onPress={() => {
+                          setTemplate(t);
+                          setSelectedId(t.elements[0]?.id || null);
+                          setShowSavedTemplatesModal(false);
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[styles.templateListName, { color: theme.textPrimary }]} numberOfLines={1}>
+                            {t.name}
+                          </Text>
+                          {isDefault && (
+                            <View style={styles.defaultPill}>
+                              <Text style={styles.defaultPillText}>DEFAULT</Text>
+                            </View>
+                          )}
+                          {isCurrent && (
+                            <View style={styles.activePill}>
+                              <Text style={styles.activePillText}>OPEN</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                          {t.widthMm}mm × {t.heightMm}mm • {t.elements.length} elements
+                        </Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {!isDefault && (
+                          <TouchableOpacity
+                            onPress={async () => {
+                              await setActiveLabelTemplate(t.id);
+                              Alert.alert('Default Updated! ⭐', `"${t.name}" is now default.`);
+                            }}
+                            style={[styles.setDefSmallBtn, { borderColor: theme.borderColor }]}
+                          >
+                            <Star size={12} color="#D97706" />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#D97706', marginLeft: 2 }}>Default</Text>
+                          </TouchableOpacity>
+                        )}
+
                         <TouchableOpacity
                           onPress={() =>
                             Alert.alert('Delete Template', `Delete "${t.name}"?`, [
                               { text: 'Cancel', style: 'cancel' },
-                              { text: 'Delete', style: 'destructive', onPress: () => deleteLabelTemplate(t.id) },
+                              {
+                                text: 'Delete',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  await deleteLabelTemplate(t.id);
+                                },
+                              },
                             ])
                           }
                           style={{ padding: 6 }}
                         >
-                          <Trash2 size={15} color="#EF4444" />
+                          <Trash2 size={16} color="#EF4444" />
                         </TouchableOpacity>
                       </View>
-                    ))
-                  )}
-                  <TouchableOpacity
-                    onPress={() => {
-                      setTemplate(makeBlankTemplate(labelWidthMm, labelHeightMm));
-                      setSelectedId(null);
-                    }}
-                    style={styles.newTemplateBtn}
-                  >
-                    <Plus size={14} color="#FFFFFF" />
-                    <Text style={styles.newTemplateBtnText}>New Label</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
-          </View>
-        )}
-        </View>
-      </KeyboardAvoidingWrapper>
-      </SafeAreaView>
+                    </View>
+                  );
+                }}
+              />
+            )}
 
-      {/* Product Picker Modal */}
+            <TouchableOpacity
+              onPress={() => {
+                const blank = makeBlankTemplate(labelWidthMm, labelHeightMm);
+                setTemplate(blank);
+                setSelectedId(blank.elements[0]?.id || null);
+                setShowSavedTemplatesModal(false);
+              }}
+              style={[styles.newTemplateModalBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+            >
+              <Plus size={16} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.newTemplateModalBtnText}>Create New Blank Label</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* PRODUCT PICKER MODAL */}
       <Modal visible={showProductPicker} animationType="slide" onRequestClose={() => setShowProductPicker(false)}>
         <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: theme.bg }]}>
           <View style={{ flex: 1, padding: 16 }}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Choose a Product</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Choose a Test Product</Text>
               <TouchableOpacity onPress={() => setShowProductPicker(false)}>
                 <X size={22} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
+
             <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
               <Search size={16} color={theme.textSecondary} />
               <TextInput
@@ -952,126 +1141,148 @@ export default function LabelStudioScreen() {
                 onChangeText={setProductSearch}
               />
             </View>
-            {loadingProducts ? (
-              <ActivityIndicator style={{ marginTop: 30 }} color={BRAND_COLORS.blue600} />
-            ) : (
-              <ScrollView style={{ marginTop: 12 }}>
-                {filteredProducts.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    onPress={() => {
-                      setPreviewProduct(p);
-                      setShowProductPicker(false);
-                    }}
-                    style={[styles.productRow, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                  >
-                    <Text style={[styles.productRowName, { color: theme.textPrimary }]}>{p.name}</Text>
-                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>Rs.{p.sellingPrice.toFixed(2)} • {p.barcode || p.sku || 'no code'}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
+
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setPreviewProduct(item);
+                    setShowProductPicker(false);
+                  }}
+                  style={[styles.productListItem, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.productListName, { color: theme.textPrimary }]}>{item.name}</Text>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                      Rs.{item.sellingPrice.toFixed(2)} • {item.barcode || item.sku || 'No Barcode'}
+                    </Text>
+                  </View>
+                  {previewProduct?.id === item.id && <Check size={18} color={BRAND_COLORS.blue600} />}
+                </TouchableOpacity>
+              )}
+            />
           </View>
         </SafeAreaView>
       </Modal>
 
-      {/* AI A4 BILL TO RECEIPT CONVERTER MODAL */}
+      {/* AI RECEIPT/BILL MODAL */}
       <AiBillToReceiptModal
         visible={showAiBillModal}
         onClose={() => setShowAiBillModal(false)}
       />
 
-      <LogoBackgroundModal
-        visible={Boolean(logoBgModalUri)}
-        imageUri={logoBgModalUri}
-        onApply={(finalUri) => {
-          if (logoBgCallback) logoBgCallback(finalUri);
-          setLogoBgModalUri(null);
-          setLogoBgCallback(null);
-        }}
-        onCancel={() => {
-          setLogoBgModalUri(null);
-          setLogoBgCallback(null);
-        }}
-      />
-
+      {/* SEQUENTIAL PRINT PROMPT */}
       <SequencePrintPrompt
         visible={showSequencePrompt}
-        isPrinting={isSeqPrinting}
-        progress={seqProgress}
-        onSubmit={handleSubmitSequence}
         onCancel={() => setShowSequencePrompt(false)}
+        onSubmit={handleSubmitSequence}
+        isPrinting={isSeqPrinting}
       />
+
+      {/* LOGO BG MODAL */}
+      {logoBgModalUri ? (
+        <LogoBackgroundModal
+          visible={!!logoBgModalUri}
+          onCancel={() => setLogoBgModalUri(null)}
+          imageUri={logoBgModalUri}
+          onApply={(finalUri: string) => {
+            if (selectedElement && selectedElement.type === 'image') {
+              updateElementProps(selectedElement.id, { uri: finalUri } as Partial<LabelImageElement>);
+            }
+            setLogoBgModalUri(null);
+          }}
+        />
+      ) : null}
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
-  backBtnText: { fontSize: 12, fontWeight: '600', marginLeft: 4 },
-  nameInput: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontWeight: '700' },
-  saveBtn: { backgroundColor: BRAND_COLORS.navyInk, padding: 10, borderRadius: 10, marginLeft: 8 },
-  activeBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: 'rgba(16,185,129,0.12)' },
-  activeBannerText: { fontSize: 10.5, fontWeight: '700', color: '#10B981', marginLeft: 6 },
-  mobileModeBar: { flexDirection: 'row', padding: 4, borderRadius: 12, borderWidth: 1, marginHorizontal: 16, marginBottom: 8 },
-  mobileModeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 8 },
-  mobileModeBtnActive: { backgroundColor: BRAND_COLORS.blue600 },
-  mobileModeBtnText: { fontSize: 10, fontWeight: '800', marginLeft: 6, color: '#64748B' },
-  mobileModeBtnTextActive: { color: '#FFFFFF' },
-  bodyRow: { flex: 1, flexDirection: 'row' },
-  canvasScroll: { flex: 1 },
-  canvasScrollContent: { alignItems: 'center', padding: 16, paddingBottom: 40 },
-  canvas: { position: 'relative', borderWidth: 1, borderColor: '#CBD5E1', overflow: 'visible', borderRadius: 6, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
-  canvasCaption: { fontSize: 10.5, marginTop: 10, textAlign: 'center' },
-  quickAddBar: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  quickAddBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  quickAddText: { fontSize: 11, fontWeight: '800', marginLeft: 4 },
-  testPrintBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: BRAND_COLORS.blue600, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, marginTop: 14 },
-  testPrintBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 8 },
-  seqCard: { width: '100%', borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 20 },
-  seqHeaderRow: { flexDirection: 'row', alignItems: 'center' },
-  seqTitle: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
-  seqSub: { fontSize: 10.5, marginTop: 4, lineHeight: 15 },
-  sidePanel: { width: 190, borderLeftWidth: 1 },
-  sideTabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(148,163,184,0.25)' },
-  sideTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  sideTabActive: { borderBottomWidth: 2, borderBottomColor: BRAND_COLORS.blue600 },
-  sideTabText: { fontSize: 9, fontWeight: '800', color: '#94A3B8' },
-  sideTabTextActive: { color: BRAND_COLORS.blue600 },
-  panelLabel: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.4 },
-  dimRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  dimSub: { fontSize: 10, fontWeight: '700', marginBottom: 4 },
-  stepperControls: { flexDirection: 'row', alignItems: 'center' },
-  stepBtn: { width: 26, height: 26, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
-  stepVal: { fontSize: 12, fontWeight: '800', marginHorizontal: 8, minWidth: 24, textAlign: 'center' },
-  addGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  addBtn: { width: '30%', borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  addBtnText: { fontSize: 9.5, fontWeight: '700', marginTop: 4 },
-  divider: { borderTopWidth: 1, marginVertical: 14 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+  backBtn: { padding: 8, borderRadius: 10 },
+  nameInput: { flex: 1, height: 38, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, fontSize: 13, fontWeight: '700' },
+  headerIconBtn: { padding: 9, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  aiBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 9, borderRadius: 10 },
+  aiBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11, marginLeft: 3 },
+  saveBtn: { padding: 9, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  defaultStatusBanner: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, gap: 6 },
+  defaultStatusText: { fontSize: 11, fontWeight: '800', color: '#10B981' },
+  setDefaultBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
+  setDefaultBtnText: { fontSize: 12, fontWeight: '800', color: '#B45309' },
+  mainScroll: { flex: 1 },
+  mainScrollContent: { paddingHorizontal: 12, paddingBottom: 60 },
+  canvasCard: { borderRadius: 16, padding: 12, borderWidth: 1, marginBottom: 10 },
+  canvasHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  canvasBadge: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  canvasCenterWrapper: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
+  canvas: {
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    borderStyle: 'dashed',
+    borderRadius: 6,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickAddBar: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
+  quickAddBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, gap: 4 },
+  quickAddText: { fontSize: 11, fontWeight: '800' },
+  inspectorCard: { borderRadius: 16, padding: 12, borderWidth: 1.5, marginBottom: 10 },
+  inspectorHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(100,116,139,0.15)' },
+  typeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  typeBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
+  deleteElementBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  deleteElementBtnText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  fieldLabel: { fontSize: 10.5, fontWeight: '800', marginBottom: 3 },
+  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
   chipActive: { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
-  chipText: { fontSize: 9.5, fontWeight: '700' },
-  chipTextActive: { color: '#FFFFFF' },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12 },
-  unsupportedBox: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(148,163,184,0.15)', borderRadius: 4 },
-  unsupportedText: { fontSize: 9, color: '#64748B', textAlign: 'center', fontWeight: '700' },
-  productPickBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10 },
-  productPickText: { fontSize: 12, fontWeight: '700', marginLeft: 8, flex: 1 },
-  templateRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8 },
-  templateName: { fontSize: 12, fontWeight: '800' },
-  defaultBadge: { backgroundColor: '#10B981', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1.5, marginLeft: 6 },
-  defaultBadgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
-  newTemplateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BRAND_COLORS.navyInk, borderRadius: 10, paddingVertical: 10, marginTop: 8 },
-  newTemplateBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 6 },
+  chipText: { fontSize: 11, fontWeight: '700' },
+  chipTextActive: { color: '#FFFFFF', fontWeight: '900' },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12 },
+  stylingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  stepperMini: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stepMiniBtn: { width: 24, height: 24, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  stepMiniVal: { fontSize: 12, fontWeight: '900', minWidth: 16, textAlign: 'center' },
+  boldToggleBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
+  alignBtn: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
+  imageActionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 4 },
+  imageActionBtnText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  sectionCard: { borderRadius: 16, padding: 12, borderWidth: 1, marginBottom: 10 },
+  sectionCardTitle: { fontSize: 12, fontWeight: '900', marginBottom: 2 },
+  presetChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  presetChipActive: { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.navyInk },
+  presetChipText: { fontSize: 11, fontWeight: '700' },
+  presetChipTextActive: { color: '#FFFFFF', fontWeight: '900' },
+  dimLabel: { fontSize: 10.5, fontWeight: '800', marginBottom: 4 },
+  stepperBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 10, padding: 4 },
+  stepBoxBtn: { padding: 6, borderRadius: 6 },
+  stepBoxVal: { fontSize: 13, fontWeight: '900' },
+  productPreviewCard: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 4 },
+  productPreviewName: { fontSize: 12, fontWeight: '800' },
+  actionPrintBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 14 },
+  actionPrintBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   modalSafeArea: { flex: 1 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 18, fontWeight: '900' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 13 },
-  productRow: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
-  productRowName: { fontSize: 13, fontWeight: '700' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
+  searchInput: { flex: 1, fontSize: 13, marginLeft: 6 },
+  productListItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  productListName: { fontSize: 13, fontWeight: '700' },
+  templateListRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  templateListName: { fontSize: 13, fontWeight: '800' },
+  defaultPill: { backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  defaultPillText: { fontSize: 9, fontWeight: '900', color: '#10B981' },
+  activePill: { backgroundColor: 'rgba(37, 99, 235, 0.15)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  activePillText: { fontSize: 9, fontWeight: '900', color: BRAND_COLORS.blue600 },
+  setDefSmallBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  newTemplateModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, marginTop: 10 },
+  newTemplateModalBtnText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
+  unsupportedBox: { padding: 4, backgroundColor: '#FEE2E2', borderRadius: 4 },
+  unsupportedText: { fontSize: 8, color: '#DC2626', fontWeight: 'bold' },
 });

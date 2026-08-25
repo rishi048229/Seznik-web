@@ -18,6 +18,10 @@ import {
   setStoredPairedPrinters,
   getStoredAutoConnect,
   setStoredAutoConnect,
+  getStoredLabelTemplates,
+  setStoredLabelTemplates,
+  getStoredActiveLabelTemplate,
+  setStoredActiveLabelTemplate,
 } from '@/services/secureStore';
 
 /** Backoff for automatic reconnects after an unexpected drop. Deliberately finite — after this the
@@ -391,25 +395,51 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     const existing = get().labelTemplates;
     const idx = existing.findIndex((t) => t.id === template.id);
     const labelTemplates = idx >= 0 ? existing.map((t, i) => (i === idx ? template : t)) : [...existing, template];
-    // Auto-promote to Default the moment there's no default yet — otherwise a freshly designed
-    // template silently has zero effect on real prints until a separate "Set as Default" tap,
-    // which is easy to miss and is exactly what made customized labels print as the old generic
-    // layout in practice.
     const activeLabelTemplateId = get().activeLabelTemplateId === null ? template.id : get().activeLabelTemplateId;
     set({ labelTemplates, activeLabelTemplateId });
-    await settingsApi.updateLabelConfig({ templates: labelTemplates, activeTemplateId: activeLabelTemplateId });
+    await setStoredLabelTemplates(labelTemplates);
+    if (get().activeLabelTemplateId === null) {
+      await setStoredActiveLabelTemplate(template.id);
+    }
+    try {
+      await settingsApi.updateLabelConfig({ templates: labelTemplates, activeTemplateId: activeLabelTemplateId });
+    } catch (e) {
+      console.warn('Could not sync label templates to server, persisted locally:', e);
+    }
   },
 
   deleteLabelTemplate: async (id) => {
     const labelTemplates = get().labelTemplates.filter((t) => t.id !== id);
     const activeLabelTemplateId = get().activeLabelTemplateId === id ? null : get().activeLabelTemplateId;
     set({ labelTemplates, activeLabelTemplateId });
-    await settingsApi.updateLabelConfig({ templates: labelTemplates, activeTemplateId: activeLabelTemplateId });
+    await setStoredLabelTemplates(labelTemplates);
+    if (get().activeLabelTemplateId === id) {
+      await setStoredActiveLabelTemplate(null);
+    }
+    try {
+      await settingsApi.updateLabelConfig({ templates: labelTemplates, activeTemplateId: activeLabelTemplateId });
+    } catch (e) {
+      console.warn('Could not sync label template deletion to server, persisted locally:', e);
+    }
   },
 
   setActiveLabelTemplate: async (activeLabelTemplateId) => {
-    set({ activeLabelTemplateId });
-    await settingsApi.updateLabelConfig({ templates: get().labelTemplates, activeTemplateId: activeLabelTemplateId });
+    const matched = get().labelTemplates.find((t) => t.id === activeLabelTemplateId);
+    if (matched) {
+      set({
+        activeLabelTemplateId,
+        labelWidthMm: matched.widthMm,
+        labelHeightMm: matched.heightMm,
+      });
+    } else {
+      set({ activeLabelTemplateId });
+    }
+    await setStoredActiveLabelTemplate(activeLabelTemplateId);
+    try {
+      await settingsApi.updateLabelConfig({ templates: get().labelTemplates, activeTemplateId: activeLabelTemplateId });
+    } catch (e) {
+      console.warn('Could not sync active label template to server, persisted locally:', e);
+    }
   },
 
   saveCustomTemplate: async (template) => {
@@ -541,6 +571,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         localEnableBillQr,
         localPairedPrinters,
         localAutoConnect,
+        localLabelTemplates,
+        localActiveLabelId,
       ] = await Promise.all([
         getStoredActiveTemplate(),
         getStoredCustomReceiptTemplates(),
@@ -548,6 +580,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         getStoredEnableBillQr(),
         getStoredPairedPrinters(),
         getStoredAutoConnect(),
+        getStoredLabelTemplates(),
+        getStoredActiveLabelTemplate(),
       ]);
 
       const initialTemplates = localCustomTemplates && localCustomTemplates.length > 0
@@ -562,11 +596,11 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         activeCustomTemplateId: localActiveCustomId,
         enableBillQrCode: localEnableBillQr,
         autoConnect: localAutoConnect,
+        labelTemplates: localLabelTemplates || get().labelTemplates,
+        activeLabelTemplateId: localActiveLabelId !== undefined ? localActiveLabelId : get().activeLabelTemplateId,
       });
 
-      // Restore the saved printers before anything else awaits the network, so the Printers screen
-      // and the connect modal show the shop's printer immediately instead of an empty list that
-      // only fills after a fresh ~15s discovery scan.
+      // Restore the saved printers before anything else awaits the network
       if (localPairedPrinters && localPairedPrinters.length > 0 && get().pairedPrinters.length === 0) {
         set({ pairedPrinters: localPairedPrinters });
         if (localAutoConnect) {
@@ -599,6 +633,18 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           ? receiptConfig.enableBillQrCode
           : localEnableBillQr;
 
+      const effectiveLabelTemplates =
+        Array.isArray(labelConfig.templates) && labelConfig.templates.length > 0
+          ? labelConfig.templates
+          : localLabelTemplates || get().labelTemplates;
+
+      const effectiveActiveLabelId =
+        typeof labelConfig.activeTemplateId === 'string' || labelConfig.activeTemplateId === null
+          ? labelConfig.activeTemplateId
+          : localActiveLabelId !== undefined
+          ? localActiveLabelId
+          : get().activeLabelTemplateId;
+
       if (effectiveTemplateId) {
         await setStoredActiveTemplate(effectiveTemplateId);
       }
@@ -607,6 +653,10 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       }
       await setStoredActiveCustomReceiptTemplate(effectiveActiveCustomId);
       await setStoredEnableBillQr(effectiveEnableBillQr);
+      if (effectiveLabelTemplates) {
+        await setStoredLabelTemplates(effectiveLabelTemplates);
+      }
+      await setStoredActiveLabelTemplate(effectiveActiveLabelId);
 
       set({
         paperWidth: printerConfig.paperWidth === '80mm' ? '80mm' : get().paperWidth,
@@ -623,11 +673,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: effectiveCustomTemplates,
         activeCustomTemplateId: effectiveActiveCustomId,
         enableBillQrCode: effectiveEnableBillQr,
-        labelTemplates: Array.isArray(labelConfig.templates) ? labelConfig.templates : get().labelTemplates,
-        activeLabelTemplateId:
-          typeof labelConfig.activeTemplateId === 'string' || labelConfig.activeTemplateId === null
-            ? labelConfig.activeTemplateId
-            : get().activeLabelTemplateId,
+        labelTemplates: effectiveLabelTemplates,
+        activeLabelTemplateId: effectiveActiveLabelId,
         isHydrated: true,
       });
     } catch (e) {

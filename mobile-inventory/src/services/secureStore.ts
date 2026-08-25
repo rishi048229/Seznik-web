@@ -246,6 +246,67 @@ export async function setStoredEnableBillQr(enabled: boolean): Promise<void> {
 
 const PAIRED_PRINTERS_KEY = 'seznik_paired_printers';
 const AUTO_CONNECT_KEY = 'seznik_printer_auto_connect';
+const LABEL_TEMPLATES_KEY = 'seznik_label_templates';
+const ACTIVE_LABEL_TEMPLATE_KEY = 'seznik_active_label_template';
+
+export async function getStoredLabelTemplates(): Promise<any[] | null> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(LABEL_TEMPLATES_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(LABEL_TEMPLATES_KEY);
+    }
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (error) {
+    console.error('Error reading label templates:', error);
+    return null;
+  }
+}
+
+export async function setStoredLabelTemplates(templates: any[]): Promise<void> {
+  try {
+    const raw = JSON.stringify(templates);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(LABEL_TEMPLATES_KEY, raw);
+      }
+    } else {
+      await SecureStore.setItemAsync(LABEL_TEMPLATES_KEY, raw);
+    }
+  } catch (error) {
+    console.error('Error saving label templates:', error);
+  }
+}
+
+export async function getStoredActiveLabelTemplate(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_LABEL_TEMPLATE_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(ACTIVE_LABEL_TEMPLATE_KEY);
+  } catch (error) {
+    console.error('Error reading active label template id:', error);
+    return null;
+  }
+}
+
+export async function setStoredActiveLabelTemplate(id: string | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (id) window.localStorage.setItem(ACTIVE_LABEL_TEMPLATE_KEY, id);
+        else window.localStorage.removeItem(ACTIVE_LABEL_TEMPLATE_KEY);
+      }
+    } else {
+      if (id) await SecureStore.setItemAsync(ACTIVE_LABEL_TEMPLATE_KEY, id);
+      else await SecureStore.deleteItemAsync(ACTIVE_LABEL_TEMPLATE_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving active label template id:', error);
+  }
+}
 
 /**
  * The paired-printer list is device-local (a MAC address only means anything to the phone that
