@@ -3307,7 +3307,7 @@ class ThermalPrinterServiceManager {
           await this.initPrinter(paperWidth);
 
           const textContent = this.sanitizeForThermalPrint(this.formatKotText(data, paperWidth));
-          const printOptions = { widthtimes: 1, heigthtimes: 1, cut: false };
+          const printOptions = { widthtimes: 0, heigthtimes: 0, cut: false };
 
           await NativeEscposPrinter.printText(textContent, printOptions);
 
@@ -3351,7 +3351,7 @@ class ThermalPrinterServiceManager {
           await this.initPrinter(paperWidth);
 
           const textContent = this.sanitizeForThermalPrint(this.formatKotDeltaText(data, paperWidth));
-          const printOptions = { widthtimes: 1, heigthtimes: 1, cut: false };
+          const printOptions = { widthtimes: 0, heigthtimes: 0, cut: false };
 
           await NativeEscposPrinter.printText(textContent, printOptions);
 

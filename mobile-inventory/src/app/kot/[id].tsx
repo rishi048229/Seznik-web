@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   FileText,
   RefreshCw,
+  UserCheck,
 } from 'lucide-react-native';
 import { useKotOrder, useKotOrders } from '@/hooks/useKotOrders';
 import { useProducts } from '@/hooks/useProducts';
@@ -83,8 +84,6 @@ export default function KotOrderDetailScreen() {
   const { paperWidth, connectionState } = usePrinterStore();
   const { settings } = useSettings();
 
-  // Edit Mode state
-  const [isEditMode, setIsEditMode] = useState(false);
   const [reprintCounter, setReprintCounter] = useState(0);
 
   // Local draft changes for active order items
@@ -109,10 +108,12 @@ export default function KotOrderDetailScreen() {
   const [newProductNote, setNewProductNote] = useState('');
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<Product | null>(null);
 
-  // Settlement Modal
+  // Settlement / Bill Checkout Modal
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
   const [discountAmount, setDiscountAmount] = useState('0');
+  const [customerNameInput, setCustomerNameInput] = useState('');
+  const [customerPhoneInput, setCustomerPhoneInput] = useState('');
 
   // Initialize draft states from order
   useEffect(() => {
@@ -131,6 +132,8 @@ export default function KotOrderDetailScreen() {
       setItemNotes(nMap);
       setVoidedItems(vMap);
       setPendingNewItems([]);
+      setCustomerNameInput(order.customer?.name || order.partyLabel || '');
+      setCustomerPhoneInput(order.customer?.phone || order.contactNumber || '');
     }
   }, [order]);
 
@@ -152,7 +155,7 @@ export default function KotOrderDetailScreen() {
     }
   };
 
-  // Full KOT Kitchen Slip Reprint
+  // Full KOT Kitchen Slip Print / Reprint
   const handlePrintKitchenSlip = async () => {
     if (!order) return;
     try {
@@ -254,12 +257,9 @@ export default function KotOrderDetailScreen() {
   const deltaChanges = calculateDeltaChanges();
 
   // Commit Edit & Print Delta KOT
-  const handleCommitEditAndFire = async () => {
+  const handleCommitEditAndFire = async (autoPrintDelta = true) => {
     if (!order) return;
-    if (deltaChanges.length === 0) {
-      setIsEditMode(false);
-      return;
-    }
+    if (deltaChanges.length === 0) return;
 
     try {
       const itemsToAdd = pendingNewItems.map((it) => ({
@@ -294,29 +294,29 @@ export default function KotOrderDetailScreen() {
         },
       });
 
-      // Auto-print Modified Delta Ticket (Shows Changes Only)
-      try {
-        await ThermalPrinterService.printKotDeltaTicket(
-          {
-            storeName: settings?.businessName || 'SEZNIK KITCHEN',
-            orderNumber: order.orderNumber,
-            tableName: order.table?.name,
-            partyLabel: order.partyLabel || undefined,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            version: (order.version || 1) + 1,
-            changes: deltaChanges,
-          },
-          paperWidth || '58mm'
-        );
-      } catch (printErr) {
-        console.warn('Delta KOT thermal print failed:', printErr);
+      if (autoPrintDelta) {
+        try {
+          await ThermalPrinterService.printKotDeltaTicket(
+            {
+              storeName: settings?.businessName || 'SEZNIK KITCHEN',
+              orderNumber: order.orderNumber,
+              tableName: order.table?.name,
+              partyLabel: order.partyLabel || undefined,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              version: (order.version || 1) + 1,
+              changes: deltaChanges,
+            },
+            paperWidth || '58mm'
+          );
+        } catch (printErr) {
+          console.warn('Delta KOT thermal print failed:', printErr);
+        }
       }
 
-      setIsEditMode(false);
       setPendingNewItems([]);
       await refetch();
 
-      Alert.alert('Changes Fired! 👨‍🍳', `Modified Delta KOT ticket printed and sent to kitchen.`);
+      Alert.alert('Updated! 👨‍🍳', autoPrintDelta ? `Changes sent to kitchen and Delta KOT printed.` : `Order items saved.`);
     } catch (err: any) {
       Alert.alert('Edit Error', err?.message || 'Failed to update KOT order');
     }
@@ -345,6 +345,11 @@ export default function KotOrderDetailScreen() {
   const handleGenerateBill = async () => {
     if (!order) return;
     try {
+      // If there are uncommitted changes, commit them first
+      if (deltaChanges.length > 0) {
+        await handleCommitEditAndFire(false);
+      }
+
       const disc = parseFloat(discountAmount) || 0;
       const result = await generateBill({
         id: order.id,
@@ -354,17 +359,27 @@ export default function KotOrderDetailScreen() {
         },
       });
 
-      // Auto print customer receipt if connected
+      // Auto print customer tax invoice receipt if connected
       if (connectionState === 'connected') {
         try {
           const billableItems = order.items
-            .filter((it) => it.status !== 'voided')
+            .filter((it) => it.status !== 'voided' && !voidedItems[it.id])
             .map((it) => ({
               productName: it.productName,
-              quantity: it.quantity,
+              quantity: itemQuantities[it.id] ?? it.quantity,
               unitPrice: it.unitPrice,
-              total: it.unitPrice * it.quantity,
+              total: it.unitPrice * (itemQuantities[it.id] ?? it.quantity),
             }));
+
+          // Add newly added items that were just billed
+          pendingNewItems.forEach((p) => {
+            billableItems.push({
+              productName: p.productName,
+              quantity: p.quantity,
+              unitPrice: p.unitPrice,
+              total: p.unitPrice * p.quantity,
+            });
+          });
 
           const sub = billableItems.reduce((acc, it) => acc + it.total, 0);
           const total = Math.max(0, sub - disc);
@@ -376,7 +391,7 @@ export default function KotOrderDetailScreen() {
               storePhone: settings?.businessPhone || '',
               invoiceNumber: result.sale.invoiceNumber,
               date: new Date().toLocaleDateString('en-GB'),
-              customerName: order.table?.name || order.partyLabel || 'Dine-in Guest',
+              customerName: customerNameInput.trim() || order.table?.name || order.partyLabel || 'Dine-in Guest',
               items: billableItems,
               subtotal: sub,
               totalTax: 0,
@@ -447,7 +462,7 @@ export default function KotOrderDetailScreen() {
         translucent
       />
       <View style={[styles.container, { paddingTop: topPadding }]}>
-        <ScrollView style={styles.mainWrapper} contentContainerStyle={{ paddingBottom: 60 }}>
+        <ScrollView style={styles.mainWrapper} contentContainerStyle={{ paddingBottom: 80 }}>
           {/* Header Row */}
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -458,37 +473,19 @@ export default function KotOrderDetailScreen() {
             </TouchableOpacity>
 
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.headerBadge}>KOT ORDER DETAILS</Text>
+              <Text style={styles.headerBadge}>RESTAURANT KOT</Text>
               <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
                 KOT #{String(order.orderNumber).padStart(4, '0')}
               </Text>
             </View>
 
             <View style={{ flexDirection: 'row', gap: 6 }}>
-              {isOrderEditable && (
-                <TouchableOpacity
-                  onPress={() => setIsEditMode(!isEditMode)}
-                  style={[
-                    styles.editToggleBtn,
-                    {
-                      backgroundColor: isEditMode ? BRAND_COLORS.blue600 : theme.cardBg,
-                      borderColor: isEditMode ? BRAND_COLORS.blue600 : theme.borderColor,
-                    },
-                  ]}
-                >
-                  <Edit3 size={15} color={isEditMode ? '#FFF' : theme.textPrimary} />
-                  <Text style={[styles.editToggleText, { color: isEditMode ? '#FFF' : theme.textPrimary }]}>
-                    {isEditMode ? 'Editing' : 'Edit'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
               <TouchableOpacity
                 onPress={handlePrintKitchenSlip}
                 style={[styles.printSlipBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.3)' }]}
               >
                 <Printer size={15} color={BRAND_COLORS.blue600} />
-                <Text style={styles.printSlipBtnText}>Full KOT</Text>
+                <Text style={styles.printSlipBtnText}>Print KOT</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -519,8 +516,8 @@ export default function KotOrderDetailScreen() {
             )}
           </View>
 
-          {/* Kitchen Progress Actions */}
-          {isOrderEditable && !isEditMode && (
+          {/* Kitchen Progress Pipeline */}
+          {isOrderEditable && (
             <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 10 }]}>
                 Kitchen Progress Pipeline
@@ -562,18 +559,18 @@ export default function KotOrderDetailScreen() {
             </View>
           )}
 
-          {/* EDIT MODE: PENDING CHANGES / DELTA PREVIEW */}
-          {isEditMode && deltaChanges.length > 0 && (
+          {/* DELTA CHANGES BAR (Appears automatically when edits exist) */}
+          {deltaChanges.length > 0 && (
             <View style={[styles.card, { backgroundColor: 'rgba(245, 158, 11, 0.08)', borderColor: '#F59E0B' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <AlertTriangle size={16} color="#F59E0B" />
                   <Text style={{ fontSize: 13, fontWeight: '900', color: '#B45309' }}>
-                    Pending Kitchen Changes ({deltaChanges.length})
+                    Unfired Changes ({deltaChanges.length})
                   </Text>
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400E' }}>
-                  Will print Delta KOT
+                  Ready to fire delta
                 </Text>
               </View>
 
@@ -614,28 +611,44 @@ export default function KotOrderDetailScreen() {
                 ))}
               </View>
 
-              <TouchableOpacity
-                onPress={handleCommitEditAndFire}
-                disabled={isEditing}
-                style={[styles.fireDeltaBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-              >
-                {isEditing ? (
-                  <ActivityIndicator color="#FFF" style={{ marginRight: 6 }} />
-                ) : (
-                  <Printer size={16} color="#FFF" style={{ marginRight: 6 }} />
-                )}
-                <Text style={styles.fireDeltaBtnText}>Fire Changes & Print Delta KOT</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={() => handleCommitEditAndFire(false)}
+                  disabled={isEditing}
+                  style={[styles.saveDraftBtn, { borderColor: theme.borderColor }]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: theme.textPrimary }}>Save</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleCommitEditAndFire(true)}
+                  disabled={isEditing}
+                  style={[styles.fireDeltaBtn, { backgroundColor: BRAND_COLORS.blue600, flex: 1 }]}
+                >
+                  {isEditing ? (
+                    <ActivityIndicator color="#FFF" style={{ marginRight: 6 }} />
+                  ) : (
+                    <Printer size={15} color="#FFF" style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={styles.fireDeltaBtnText}>Fire Changes & Print Delta KOT</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* Ordered Items Table */}
+          {/* BILL & ITEMS MANAGEMENT SECTION */}
           <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                Kitchen Ticket Items
-              </Text>
-              {isEditMode && (
+              <View>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                  Order Items ({activeExistingItems.length + pendingNewItems.length})
+                </Text>
+                <Text style={{ fontSize: 10, color: theme.textSecondary }}>
+                  Adjust quantities, void items, or add instructions
+                </Text>
+              </View>
+
+              {isOrderEditable && (
                 <TouchableOpacity
                   onPress={() => setShowAddItemModal(true)}
                   style={[styles.addItemTopBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
@@ -646,7 +659,7 @@ export default function KotOrderDetailScreen() {
               )}
             </View>
 
-            {/* Existing Order Items */}
+            {/* Existing Items */}
             {order.items.map((it) => {
               const isVoided = !!voidedItems[it.id];
               const voidReason = voidedItems[it.id];
@@ -662,7 +675,7 @@ export default function KotOrderDetailScreen() {
                     isVoided && styles.itemRowVoided,
                   ]}
                 >
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
                     <Text
                       style={[
                         styles.itemName,
@@ -670,7 +683,10 @@ export default function KotOrderDetailScreen() {
                         isVoided && styles.itemNameVoided,
                       ]}
                     >
-                      {currentQty}x {it.productName}
+                      {it.productName}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600, marginTop: 1 }}>
+                      {formatCurrency(it.unitPrice)} each
                     </Text>
 
                     {currentNote ? (
@@ -686,8 +702,8 @@ export default function KotOrderDetailScreen() {
                     )}
                   </View>
 
-                  {/* Quantity and Actions in Edit Mode */}
-                  {isEditMode && isOrderEditable && !isVoided ? (
+                  {/* Quantity and Actions */}
+                  {isOrderEditable && !isVoided ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <TouchableOpacity
                         onPress={() => {
@@ -699,7 +715,7 @@ export default function KotOrderDetailScreen() {
                         }}
                         style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
                       >
-                        <Minus size={14} color={theme.textPrimary} />
+                        <Minus size={13} color={theme.textPrimary} />
                       </TouchableOpacity>
 
                       <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{currentQty}</Text>
@@ -708,7 +724,7 @@ export default function KotOrderDetailScreen() {
                         onPress={() => setItemQuantities((prev) => ({ ...prev, [it.id]: currentQty + 1 }))}
                         style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
                       >
-                        <Plus size={14} color={theme.textPrimary} />
+                        <Plus size={13} color={theme.textPrimary} />
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -740,21 +756,24 @@ export default function KotOrderDetailScreen() {
             {/* Pending Newly Added Items in Draft */}
             {pendingNewItems.map((draft) => (
               <View key={draft.tempId} style={[styles.itemRow, styles.draftItemRow, { borderBottomColor: theme.borderColor }]}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <View style={styles.newPill}>
                       <Text style={styles.newPillText}>+ NEW</Text>
                     </View>
                     <Text style={[styles.itemName, { color: theme.textPrimary }]}>
-                      {draft.quantity}x {draft.productName}
+                      {draft.productName}
                     </Text>
                   </View>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600, marginTop: 1 }}>
+                    {formatCurrency(draft.unitPrice)} each
+                  </Text>
                   {draft.notes ? (
                     <Text style={styles.itemNoteText}>note: {draft.notes}</Text>
                   ) : null}
                 </View>
 
-                {isEditMode ? (
+                {isOrderEditable ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <TouchableOpacity
                       onPress={() => {
@@ -768,7 +787,7 @@ export default function KotOrderDetailScreen() {
                       }}
                       style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
                     >
-                      <Minus size={14} color={theme.textPrimary} />
+                      <Minus size={13} color={theme.textPrimary} />
                     </TouchableOpacity>
 
                     <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{draft.quantity}</Text>
@@ -781,7 +800,7 @@ export default function KotOrderDetailScreen() {
                       }
                       style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
                     >
-                      <Plus size={14} color={theme.textPrimary} />
+                      <Plus size={13} color={theme.textPrimary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -800,11 +819,11 @@ export default function KotOrderDetailScreen() {
             ))}
 
             {/* Total Section */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.borderColor }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: theme.borderColor }}>
               <Text style={{ fontSize: 14, fontWeight: '900', color: theme.textPrimary }}>
                 Billable Order Total
               </Text>
-              <Text style={{ fontSize: 18, fontWeight: '900', color: BRAND_COLORS.blue600 }}>
+              <Text style={{ fontSize: 19, fontWeight: '900', color: BRAND_COLORS.blue600 }}>
                 {formatCurrency(liveSubtotal)}
               </Text>
             </View>
@@ -1031,9 +1050,34 @@ export default function KotOrderDetailScreen() {
                   </TouchableOpacity>
                 </View>
 
+                {/* Customer Details */}
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Guest / Customer Name</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                      value={customerNameInput}
+                      onChangeText={setCustomerNameInput}
+                      placeholder="e.g. Table 2 / Guest"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Phone Number</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                      value={customerPhoneInput}
+                      onChangeText={setCustomerPhoneInput}
+                      placeholder="Optional"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </View>
+
                 {/* Payment Method Selector */}
                 <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Payment Mode</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
                   {[
                     { id: 'cash' as const, label: 'Cash', icon: Banknote },
                     { id: 'upi' as const, label: 'UPI / QR', icon: QrCode },
@@ -1073,7 +1117,7 @@ export default function KotOrderDetailScreen() {
                   placeholderTextColor="#94A3B8"
                 />
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textSecondary }}>Final Net Payable:</Text>
                   <Text style={{ fontSize: 20, fontWeight: '900', color: BRAND_COLORS.blue600 }}>
                     {formatCurrency(Math.max(0, liveSubtotal - (parseFloat(discountAmount) || 0)))}
@@ -1090,7 +1134,7 @@ export default function KotOrderDetailScreen() {
                   ) : (
                     <Receipt size={16} color="#FFF" style={{ marginRight: 8 }} />
                   )}
-                  <Text style={styles.confirmBillBtnText}>Print Bill & Mark Settled</Text>
+                  <Text style={styles.confirmBillBtnText}>Print Customer Bill & Mark Settled</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1108,8 +1152,6 @@ const styles = StyleSheet.create({
   backBtn: { padding: 8, borderRadius: 12, borderWidth: 1 },
   headerBadge: { fontSize: 9, fontWeight: '900', color: BRAND_COLORS.sky500, letterSpacing: 0.5 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
-  editToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 4 },
-  editToggleText: { fontSize: 12, fontWeight: '800' },
   printSlipBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 4 },
   printSlipBtnText: { fontSize: 12, fontWeight: '800', color: BRAND_COLORS.blue600 },
   card: { borderRadius: 18, padding: 14, borderWidth: 1, marginBottom: 12 },
@@ -1121,7 +1163,8 @@ const styles = StyleSheet.create({
   stepBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   deltaChip: { padding: 8, borderRadius: 8 },
   deltaChipText: { fontSize: 11, fontWeight: '800' },
-  fireDeltaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, marginTop: 10 },
+  saveDraftBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  fireDeltaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10 },
   fireDeltaBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   addItemTopBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, gap: 4 },
   addItemTopBtnText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
