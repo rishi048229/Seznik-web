@@ -30,7 +30,7 @@ import { CreateCustomerPayload } from '@/types/customer';
 
 let Contacts: any = null;
 try {
-  Contacts = require('expo-contacts');
+  Contacts = require('expo-contacts/legacy');
 } catch (e) {
   Contacts = null;
 }

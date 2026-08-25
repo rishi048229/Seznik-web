@@ -172,21 +172,21 @@ export default function CustomersScreen() {
           </TouchableOpacity>
 
           <View style={styles.headerRow}>
-            <View>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('customersPageTitle', 'Customers')}</Text>
-              <Text style={[styles.headerSub, { color: theme.textSecondary }]}>{totalCustomers} {t('allItems', 'Active Accounts')}</Text>
+            <View style={styles.headerTextWrap}>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>{t('customersPageTitle', 'Customers')}</Text>
+              <Text style={[styles.headerSub, { color: theme.textSecondary }]} numberOfLines={1}>{totalCustomers} {t('allItems', 'Active Accounts')}</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={styles.headerActions}>
               <TouchableOpacity
                 onPress={() => setShowContactModal(true)}
-                style={[styles.addBtn, { backgroundColor: '#10B981', marginRight: 8 }]}
+                style={[styles.addBtn, { backgroundColor: '#10B981' }]}
               >
                 <Smartphone size={16} color="#FFFFFF" />
-                <Text style={styles.addBtnText}>{t('aiImport', 'Import')}</Text>
+                <Text style={styles.addBtnText} numberOfLines={1}>{t('aiImport', 'Import')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleOpenAdd} style={styles.addBtn}>
                 <Plus size={16} color="#FFFFFF" />
-                <Text style={styles.addBtnText}>{t('addCustomer', 'Add')}</Text>
+                <Text style={styles.addBtnText} numberOfLines={1}>{t('addCustomer', 'Add')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -194,19 +194,29 @@ export default function CustomersScreen() {
           {/* CONTROL PANEL METRICS CARDS */}
           <View style={styles.metricsGrid}>
             <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{t('totalDueBalance', 'Total Outstanding')}</Text>
-              <Text style={[styles.metricValue, { color: totalCreditDue > 0 ? '#EF4444' : '#10B981' }]}>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]} numberOfLines={1}>{t('totalDueBalance', 'Total Outstanding')}</Text>
+              <Text
+                style={[styles.metricValue, { color: totalCreditDue > 0 ? '#EF4444' : '#10B981' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 ₹{totalCreditDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </Text>
-              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>{creditDueCount} {t('credit', 'Accounts Due')}</Text>
+              <Text style={[styles.metricSub, { color: theme.textSecondary }]} numberOfLines={1}>{creditDueCount} {t('credit', 'Accounts Due')}</Text>
             </View>
 
             <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Overdue Risk (&gt;30d)</Text>
-              <Text style={[styles.metricValue, { color: overdueCount > 0 ? '#B91C1C' : '#10B981' }]}>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]} numberOfLines={1}>Overdue Risk (&gt;30d)</Text>
+              <Text
+                style={[styles.metricValue, { color: overdueCount > 0 ? '#B91C1C' : '#10B981' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 {overdueCount} {t('customers', 'Accounts')}
               </Text>
-              <Text style={[styles.metricSub, { color: theme.textSecondary }]}>High Priority Follow-ups</Text>
+              <Text style={[styles.metricSub, { color: theme.textSecondary }]} numberOfLines={1}>High Priority Follow-ups</Text>
             </View>
           </View>
 
@@ -454,27 +464,34 @@ const styles = StyleSheet.create({
   mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4, marginBottom: 8 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 6 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  headerTitle: { fontSize: 24, fontWeight: '900' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 10 },
+  // Title column must be allowed to shrink, otherwise it claims its full intrinsic
+  // width and pushes the action buttons off the right edge on narrow screens (or
+  // whenever a translated title/subtitle runs longer than the English one).
+  headerTextWrap: { flex: 1, minWidth: 0 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 8 },
+  headerTitle: { fontSize: 22, fontWeight: '900' },
   headerSub: { fontSize: 12 },
   addBtn: {
     backgroundColor: BRAND_COLORS.blue600,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 8,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
   addBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },
-  metricsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  metricCard: { flex: 1, borderRadius: 14, padding: 12, borderWidth: 1, marginHorizontal: 4 },
+  metricsGrid: { flexDirection: 'row', marginBottom: 12, gap: 8 },
+  metricCard: { flex: 1, minWidth: 0, borderRadius: 14, padding: 12, borderWidth: 1 },
   metricLabel: { fontSize: 10.5, fontWeight: '700', textTransform: 'uppercase' },
   metricValue: { fontSize: 16, fontWeight: '900', marginTop: 4 },
   metricSub: { fontSize: 10, marginTop: 2 },
   searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
-  filterTabRow: { flexDirection: 'row', marginBottom: 12 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+  // Wraps rather than clipping: chip labels carry live counts and translated
+  // text, so the three of them can exceed one line on a narrow screen.
+  filterTabRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12, gap: 8 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   filterChipActive: { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
   filterChipText: { fontSize: 12, fontWeight: '700' },
   filterChipTextActive: { color: '#FFFFFF' },
