@@ -1,5 +1,5 @@
 import { fetchApi, setAuthToken, removeAuthToken } from './api'
-import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
+import type { UserProfile, UserRole, UserPermissions, CompleteOnboardingPayload, BusinessType } from '@/types/auth.types'
 
 export interface AuthResponse {
   token: string
@@ -95,12 +95,18 @@ export const setUserRoleAndProfile = async (
 }
 
 export const completeOnboarding = async (
-  uid: string,
-  businessName: string
-): Promise<void> => {
-  await fetchApi('/auth/onboard', {
+  payload: CompleteOnboardingPayload
+): Promise<UserProfile> => {
+  return fetchApi('/auth/onboard', {
     method: 'POST',
-    body: JSON.stringify({ uid, businessName }),
+    body: JSON.stringify(payload),
+  })
+}
+
+export const updateBusinessType = async (businessType: BusinessType): Promise<UserProfile> => {
+  return fetchApi('/auth/business-type', {
+    method: 'PATCH',
+    body: JSON.stringify({ businessType }),
   })
 }
 

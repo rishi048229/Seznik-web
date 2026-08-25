@@ -2,6 +2,8 @@
 
 export type UserRole = 'admin' | 'agent'
 
+export type BusinessType = 'restaurant_cafe' | 'online_store' | 'retail_shop'
+
 export interface UserPermissions {
   canAccessProducts: boolean
   canManipulateStock: boolean
@@ -51,10 +53,20 @@ export interface UserProfile {
   displayName: string | null
   photoURL: string | null
   businessName: string
+  businessType?: BusinessType | null
   plan: 'free' | 'pro'
   createdAt: Date | string
 
   onboardingCompleted?: boolean
+  accountType?: 'user' | 'managed'
   role?: UserRole | null
   permissions?: UserPermissions
+}
+
+export interface CompleteOnboardingPayload {
+  businessName: string
+  businessType: BusinessType
+  phone: string
+  businessAddress: string
+  businessLogoURL?: string | null
 }

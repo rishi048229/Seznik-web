@@ -31,12 +31,15 @@ import { GstBillingSettingsModal } from '@/components/billing/GstBillingSettings
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
 import { useLanguage } from '@/contexts/LanguageContext'
 import type { TranslationKey } from '@/i18n/translations'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { isRestaurantBusiness, type NavFeatureId } from '@/constants/businessTypes'
 
 interface NavItem {
   path: string
   labelKey: TranslationKey
   icon: typeof LayoutDashboard
   permission?: 'canAccessSuppliers' | 'canAccessPurchases' | 'canAccessExpenses' | 'canAccessReports'
+  feature?: NavFeatureId
   /** Per-icon click animation — each icon moves in a way that matches what it depicts. */
   animClass: string
   /** Clip the icon box so slide-through animations (truck/cart) exit and re-enter invisibly. */
@@ -48,7 +51,7 @@ const getAllNavItems = (): NavItem[] => [
   { path: ROUTES.PRINTERS, labelKey: 'nav.printers', icon: Printer, animClass: 'animate-nav-pop' },
   { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart, animClass: 'animate-nav-drive', clip: true },
   { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft, animClass: 'animate-nav-drive-back', clip: true },
-  { path: ROUTES.TOKENS, labelKey: 'page.tokens', icon: Ticket, animClass: 'animate-nav-pop' },
+  { path: ROUTES.TOKENS, labelKey: 'page.tokens', icon: Ticket, animClass: 'animate-nav-pop', feature: 'tokens' },
   { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package, animClass: 'animate-nav-bounce' },
   { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, animClass: 'animate-nav-swing origin-top' },
   { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag, animClass: 'animate-nav-swing origin-top' },
@@ -96,6 +99,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   }
 
   const navItems = getAllNavItems().filter(item => {
+    if (item.feature && !isNavFeatureVisible(userProfile?.businessType, item.feature)) return false
     if (!item.permission) return true
     if (userProfile?.role === 'admin') return true
 
@@ -143,7 +147,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             <div className={clsx(collapsed && 'lg:hidden')}>
               <img src="/seznik_logo.png" alt="Seznik" style={{ width: '8rem', height: 'auto', objectFit: 'contain', }} />
               <div style={{ fontSize: '0.725rem', fontWeight: 500, color: '#94a3b8', letterSpacing: '0.05em' }}>
-                PREMIUM RETAIL POS
+                {isRestaurantBusiness(userProfile?.businessType) ? 'RESTAURANT & CAFE POS' : 'PREMIUM RETAIL POS'}
               </div>
             </div>
           </div>

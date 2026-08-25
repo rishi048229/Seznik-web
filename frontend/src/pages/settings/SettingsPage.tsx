@@ -10,8 +10,26 @@ import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import type { InvoiceConfig } from '@/types/settings.types'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 import { LANGUAGES } from '@/i18n/translations'
+import { Spinner } from '@/components/ui/Spinner'
+import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
+import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
+import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel'
+import { BillChargesSettingsPanel } from '@/components/billing/BillChargesSettingsPanel'
+import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
+import { toGstBillingPayload } from '@/constants/gstBilling'
+import {
+  DEFAULT_RESTAURANT_PRESETS,
+  parseRestaurantBilling,
+  toRestaurantBillingPayload,
+  type BillChargePreset,
+} from '@/constants/restaurantBilling'
+import { BUSINESS_TYPE_OPTIONS, getBusinessTypeLabel, type BusinessType } from '@/constants/businessTypes'
 import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
@@ -61,6 +79,11 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
+  const { userProfile, updateBusinessType } = useAuth()
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(
+    userProfile?.businessType ?? 'retail_shop'
+  )
+  const [isSavingType, setIsSavingType] = useState(false)
 
   const current = settings ?? DEFAULT_SETTINGS
   const {
@@ -78,6 +101,12 @@ export const SettingsPage = () => {
     setChargePresets(parseRestaurantBilling(settings.invoiceConfig).presets)
     setChargesDirty(false)
   }, [settings?.id, settings?.invoiceConfig])
+
+  useEffect(() => {
+    if (userProfile?.businessType) {
+      setSelectedBusinessType(userProfile.businessType)
+    }
+  }, [userProfile?.businessType])
 
   if (current.businessLogoURL !== prevLogo) {
     setPrevLogo(current.businessLogoURL ?? '')
@@ -137,7 +166,17 @@ export const SettingsPage = () => {
     }
   }
 
-  const handleTabSave = (tab: string) => {
+  const handleSaveBusinessType = async () => {
+    setIsSavingType(true)
+    try {
+      await updateBusinessType(selectedBusinessType)
+      toast.success(`Workspace updated for ${getBusinessTypeLabel(selectedBusinessType)}.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update business type')
+    } finally {
+      setIsSavingType(false)
+    }
+  }
     const el = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null
     const val = (id: string) => el(id)?.value ?? ''
 
@@ -358,6 +397,52 @@ export const SettingsPage = () => {
                     placeholder="+91 98765 43210"
                   />
                 </div>
+                {userProfile?.accountType !== 'managed' ? (
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Business type</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Current: {getBusinessTypeLabel(userProfile?.businessType)}. Changing this shows or hides kitchen features such as KOT and tokens.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {BUSINESS_TYPE_OPTIONS.map(option => {
+                        const selected = selectedBusinessType === option.id
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSelectedBusinessType(option.id)}
+                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                              selected
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            }`}
+                          >
+                            <span className="text-2xl">{option.emoji}</span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                {option.label}
+                              </span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                {option.description}
+                              </span>
+                            </span>
+                            {selected ? <Check size={16} className="text-blue-600 shrink-0" /> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <Button
+                      onClick={handleSaveBusinessType}
+                      loading={isSavingType}
+                      disabled={selectedBusinessType === userProfile?.businessType}
+                      className="w-full sm:w-auto"
+                    >
+                      Update business type
+                    </Button>
+                  </div>
+                ) : null}
                 <Input
                   label={t('settings.businessAddressLabel')}
                   defaultValue={current.businessAddress ?? ''}

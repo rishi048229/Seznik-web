@@ -26,7 +26,7 @@ import {
   Edit3,
   Bluetooth,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import { useTokens } from '@/hooks/useTokens';
 import { TokenType, Token } from '@/types/token';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -40,9 +40,12 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import { useSettings } from '@/hooks/useSettings';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { useAuth } from '@/hooks/useAuth';
+import { isNavFeatureVisible } from '@/utils/businessFeatures';
 
 export default function QuickTokensScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { t } = useLanguageStore();
   const { settings } = useSettings();
   const { connectionState } = usePrinterStore();
@@ -75,6 +78,10 @@ export default function QuickTokensScreen() {
   const [editingType, setEditingType] = useState<TokenType | null>(null);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypePrice, setNewTypePrice] = useState('50');
+
+  if (!isNavFeatureVisible(user?.businessType, 'tokens')) {
+    return <Redirect href="/(tabs)" />;
+  }
 
   const handlePrintToken = async (token: Token) => {
     const seq = token.dailySequence || token.dailyNumber || 1;

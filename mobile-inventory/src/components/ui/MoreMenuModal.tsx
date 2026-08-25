@@ -21,6 +21,8 @@ import {
   Receipt,
   Ticket,
   MessageSquarePlus,
+  ChefHat,
+  LayoutGrid,
   X,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -39,7 +41,7 @@ interface MoreMenuModalProps {
 
 export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const theme = useAppTheme();
   const { t } = useTranslation();
 
@@ -57,6 +59,22 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       icon: Receipt,
       color: '#0284C7',
       route: '/(tabs)/invoices',
+    },
+    {
+      id: 'kot-orders',
+      title: t('kotOrders', 'KOT Orders'),
+      icon: ChefHat,
+      color: '#F97316',
+      route: '/kot',
+      feature: 'kot',
+    },
+    {
+      id: 'kot-tables',
+      title: t('restaurantTables', 'Tables'),
+      icon: LayoutGrid,
+      color: '#7C3AED',
+      route: '/kot/tables',
+      feature: 'kot',
     },
     {
       id: 'quick-tokens',
@@ -134,9 +152,11 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
     },
   ];
 
-  const visibleMenuItems = menuItems.filter(
-    (item) => !item.feature || isNavFeatureVisible(user?.businessType, item.feature)
-  );
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.feature && !isNavFeatureVisible(user?.businessType, item.feature)) return false;
+    if (item.feature === 'kot' && !hasPermission('canAccessKOT')) return false;
+    return true;
+  });
 
   const handleNavigate = (route: string) => {
     onClose();

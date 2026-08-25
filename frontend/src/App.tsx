@@ -13,6 +13,7 @@ import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserPermissions } from '@/types/auth.types'
+import { needsBusinessSetup, isNavFeatureVisible } from '@/utils/businessFeatures'
 
 // Helper to lazy-load named exports as default components
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,7 +68,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 // Route guard for login page
 const LoginRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
-  const needsOnboarding = userProfile?.onboardingCompleted === false
+  const needsSetup = needsBusinessSetup(userProfile)
 
   if (loading) {
     return LoadingFallback
@@ -75,7 +76,7 @@ const LoginRoute = ({ children }: { children: React.ReactNode }) => {
 
   // If already authenticated, continue to dashboard if role selected, else access selection.
   if (user) {
-    if (needsOnboarding) {
+    if (needsSetup) {
       return <Navigate to={ROUTES.ONBOARDING} replace />
     }
     if (hasSelectedWorkspace && userProfile?.role) {
@@ -90,7 +91,7 @@ const LoginRoute = ({ children }: { children: React.ReactNode }) => {
 // Route guard for role selection
 const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
-  const needsOnboarding = userProfile?.onboardingCompleted === false
+  const needsSetup = needsBusinessSetup(userProfile)
   
   if (loading) {
     return LoadingFallback
@@ -102,7 +103,7 @@ const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   // New users must finish onboarding before creating/selecting credentials.
-  if (needsOnboarding) {
+  if (needsSetup) {
     return <Navigate to={ROUTES.ONBOARDING} replace />
   }
 
@@ -116,7 +117,7 @@ const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
 // Route guard for onboarding
 const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, loading } = useAuth()
-  const needsOnboarding = userProfile?.onboardingCompleted === false
+  const needsSetup = needsBusinessSetup(userProfile)
 
   if (loading) {
     return LoadingFallback
@@ -126,7 +127,7 @@ const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to={ROUTES.LOGIN} replace />
   }
 
-  if (!needsOnboarding) {
+  if (!needsSetup) {
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
   }
 
@@ -146,6 +147,10 @@ const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to={ROUTES.LOGIN} replace />
   }
 
+  if (needsBusinessSetup(userProfile)) {
+    return <Navigate to={ROUTES.ONBOARDING} replace />
+  }
+
   // If user doesn't have role, redirect to access selection
   if (!hasSelectedWorkspace || !userProfile?.role) {
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
@@ -163,6 +168,20 @@ const PermissionRoute = ({ permission, children }: { permission: keyof UserPermi
     return <>{children}</>
   }
   if (!permissions || !permissions[permission]) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />
+  }
+  return <>{children}</>
+}
+
+const BusinessFeatureRoute = ({
+  feature,
+  children,
+}: {
+  feature: 'tokens'
+  children: React.ReactNode
+}) => {
+  const { userProfile } = useAuth()
+  if (!isNavFeatureVisible(userProfile?.businessType, feature)) {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
   return <>{children}</>
@@ -198,7 +217,7 @@ function App() {
               <Route path={ROUTES.DASHBOARD} element={<AuthenticatedRoute><MainLayout><DashboardPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.POS} element={<AuthenticatedRoute><MainLayout><POSPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.POS_LITE} element={<AuthenticatedRoute><MainLayout><POSLitePage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.TOKENS} element={<AuthenticatedRoute><MainLayout><QuickTokensPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.TOKENS} element={<AuthenticatedRoute><BusinessFeatureRoute feature="tokens"><MainLayout><QuickTokensPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.PRODUCTS} element={<AuthenticatedRoute><MainLayout><ProductsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CATEGORIES} element={<AuthenticatedRoute><MainLayout><CategoriesPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CUSTOMERS} element={<AuthenticatedRoute><MainLayout><CustomersPage /></MainLayout></AuthenticatedRoute>} />

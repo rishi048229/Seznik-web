@@ -27,6 +27,9 @@ export interface UserProfile {
 export interface CompleteOnboardingPayload {
   businessName: string;
   businessType: BusinessType;
+  phone: string;
+  businessAddress: string;
+  businessLogoURL?: string | null;
 }
 
 export interface AuthResponse {

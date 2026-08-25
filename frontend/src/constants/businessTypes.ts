@@ -1,10 +1,10 @@
-export type BusinessType = 'restaurant_cafe' | 'online_store' | 'retail_shop';
+export type BusinessType = 'restaurant_cafe' | 'online_store' | 'retail_shop'
 
 export const BUSINESS_TYPE_OPTIONS: ReadonlyArray<{
-  id: BusinessType;
-  label: string;
-  description: string;
-  emoji: string;
+  id: BusinessType
+  label: string
+  description: string
+  emoji: string
 }> = [
   {
     id: 'restaurant_cafe',
@@ -24,15 +24,9 @@ export const BUSINESS_TYPE_OPTIONS: ReadonlyArray<{
     description: 'In-store POS, barcode billing, and stock management',
     emoji: '🏪',
   },
-];
+]
 
-export type NavFeatureId =
-  | 'kot'
-  | 'tokens'
-  | 'calculator'
-  | 'purchases'
-  | 'suppliers'
-  | 'stores';
+export type NavFeatureId = 'kot' | 'tokens' | 'calculator' | 'purchases' | 'suppliers' | 'stores'
 
 export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, boolean>> = {
   restaurant_cafe: {
@@ -59,7 +53,7 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     suppliers: true,
     stores: true,
   },
-};
+}
 
 export const BUSINESS_TEMPLATES: Record<
   BusinessType,
@@ -96,13 +90,13 @@ export const BUSINESS_TEMPLATES: Record<
       'Multi-store / franchise locations',
     ],
   },
-};
-
-export function isRestaurantBusiness(type: BusinessType | null | undefined): boolean {
-  return type === 'restaurant_cafe';
 }
 
 export function getBusinessTypeLabel(type: BusinessType | null | undefined): string {
-  if (!type) return 'Not set';
-  return BUSINESS_TYPE_OPTIONS.find((option) => option.id === type)?.label ?? type;
+  if (!type) return 'Not set'
+  return BUSINESS_TYPE_OPTIONS.find(option => option.id === type)?.label ?? type
+}
+
+export function isRestaurantBusiness(type: BusinessType | null | undefined): boolean {
+  return type === 'restaurant_cafe'
 }

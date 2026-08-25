@@ -41,6 +41,7 @@ const serializeOwnerAuthUser = (user: {
   id: string;
   email?: string | null;
   displayName?: string | null;
+  phone?: string | null;
   businessName?: string | null;
   businessType?: string | null;
   role?: string | null;
@@ -49,6 +50,7 @@ const serializeOwnerAuthUser = (user: {
   id: user.id,
   email: user.email,
   displayName: user.displayName,
+  phone: user.phone ?? null,
   businessName: user.businessName,
   businessType: user.businessType ?? null,
   role: user.role || 'admin',
@@ -541,6 +543,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const businessName = String(req.body.businessName || '').trim();
+    const businessAddress = String(req.body.businessAddress || '').trim();
+    const phone = String(req.body.phone || '').trim();
+    const businessLogoURL =
+      typeof req.body.businessLogoURL === 'string' ? String(req.body.businessLogoURL).trim() : '';
     const { businessType } = req.body;
 
     if (!businessName) {
@@ -549,10 +555,33 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     if (!isValidBusinessType(businessType)) {
       return res.status(400).json({ error: 'A valid business type is required' });
     }
+    if (!phone || !PHONE_RE.test(phone)) {
+      return res.status(400).json({ error: 'A valid phone number is required' });
+    }
+    if (!businessAddress) {
+      return res.status(400).json({ error: 'Shop address is required' });
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { businessName, businessType, onboardingCompleted: true },
+      data: { businessName, businessType, phone, onboardingCompleted: true },
+    });
+
+    await prisma.settings.upsert({
+      where: { userId },
+      update: {
+        businessName,
+        businessAddress,
+        businessPhone: phone,
+        ...(businessLogoURL ? { businessLogoURL } : {}),
+      },
+      create: {
+        userId,
+        businessName,
+        businessAddress,
+        businessPhone: phone,
+        ...(businessLogoURL ? { businessLogoURL } : {}),
+      },
     });
 
     const { password, ...userWithoutPassword } = user;
@@ -561,6 +590,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
       accountType: 'user',
     });
   } catch (error) {
+    console.error('completeOnboarding error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

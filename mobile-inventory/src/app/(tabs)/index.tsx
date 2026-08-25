@@ -96,6 +96,7 @@ import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
 import { useTranslation } from '@/store/useLanguageStore';
 import { RevenueTrendChart } from '@/components/dashboard/RevenueTrendChart';
+import { isNavFeatureVisible } from '@/utils/businessFeatures';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -163,6 +164,11 @@ export default function DashboardScreen() {
   const [scanMode, setScanMode] = useState<'bill' | 'stock'>('bill');
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voiceText, setVoiceText] = useState('');
+
+  const showKot =
+    isNavFeatureVisible(user?.businessType, 'kot') && hasPermission('canAccessKOT');
+  const showTokens = isNavFeatureVisible(user?.businessType, 'tokens');
+  const showCalculator = isNavFeatureVisible(user?.businessType, 'calculator');
 
   // Multi-Product Instant Quick Bill Inputs
   interface QuickBillRow {
@@ -560,60 +566,100 @@ export default function DashboardScreen() {
 
               {/* Primary 4 Actions + Expandable Grid */}
               <View style={styles.compactGridRow}>
-                {/* 1. Day Book */}
-                <FeatureGridTile
-                  label={t('dayBook', 'Day Book')}
-                  icon={BookOpen}
-                  color="#10B981"
-                  onPress={() => router.push('/credits' as any)}
-                  theme={theme}
-                />
-
-                {/* 2. Invoices */}
-                <FeatureGridTile
-                  label={t('invoices', 'Invoices')}
-                  icon={Receipt}
-                  color="#0284C7"
-                  onPress={() => router.push('/(tabs)/invoices' as any)}
-                  theme={theme}
-                />
-
-                {/* 3. Scan Stock */}
-                <FeatureGridTile
-                  label={t('scanStock', 'Scan Stock')}
-                  icon={Barcode}
-                  color={BRAND_COLORS.sky500}
-                  onPress={() => {
-                    if (!permission?.granted) requestPermission();
-                    setScanMode('stock');
-                    setShowScanModal(true);
-                  }}
-                  theme={theme}
-                />
-
-                {/* 4. AI */}
-                <FeatureGridTile
-                  label={t('aiImport', 'AI Import')}
-                  badge="AI"
-                  icon={Sparkles}
-                  color="#8B5CF6"
-                  onPress={() => setShowAiImportModal(true)}
-                  theme={theme}
-                />
+                {showKot ? (
+                  <>
+                    <FeatureGridTile
+                      label={t('kotOrders', 'KOT Orders')}
+                      badge="NEW"
+                      icon={ChefHat}
+                      color="#F97316"
+                      onPress={() => router.push('/kot' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('restaurantTables', 'Tables')}
+                      icon={LayoutGrid}
+                      color="#7C3AED"
+                      onPress={() => router.push('/kot/tables' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('dayBook', 'Day Book')}
+                      icon={BookOpen}
+                      color="#10B981"
+                      onPress={() => router.push('/credits' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('invoices', 'Invoices')}
+                      icon={Receipt}
+                      color="#0284C7"
+                      onPress={() => router.push('/(tabs)/invoices' as any)}
+                      theme={theme}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <FeatureGridTile
+                      label={t('dayBook', 'Day Book')}
+                      icon={BookOpen}
+                      color="#10B981"
+                      onPress={() => router.push('/credits' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('invoices', 'Invoices')}
+                      icon={Receipt}
+                      color="#0284C7"
+                      onPress={() => router.push('/(tabs)/invoices' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('scanStock', 'Scan Stock')}
+                      icon={Barcode}
+                      color={BRAND_COLORS.sky500}
+                      onPress={() => {
+                        if (!permission?.granted) requestPermission();
+                        setScanMode('stock');
+                        setShowScanModal(true);
+                      }}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('stores', 'Stores')}
+                      badge="NEW"
+                      icon={Store}
+                      color="#2563EB"
+                      onPress={() => router.push('/stores' as any)}
+                      theme={theme}
+                    />
+                  </>
+                )}
 
                 {/* Hidden tools revealed on Show More */}
                 {showMoreTools && (
                   <>
-                    {hasPermission('canAccessKOT') && (
+                    {showKot ? (
                       <FeatureGridTile
-                        label={t('kotOrders', 'KOT Orders')}
-                        badge="NEW"
-                        icon={ChefHat}
-                        color="#F97316"
-                        onPress={() => router.push('/kot' as any)}
+                        label={t('scanStock', 'Scan Stock')}
+                        icon={Barcode}
+                        color={BRAND_COLORS.sky500}
+                        onPress={() => {
+                          if (!permission?.granted) requestPermission();
+                          setScanMode('stock');
+                          setShowScanModal(true);
+                        }}
                         theme={theme}
                       />
-                    )}
+                    ) : null}
+                    <FeatureGridTile
+                      label={t('aiImport', 'AI Import')}
+                      badge="AI"
+                      icon={Sparkles}
+                      color="#8B5CF6"
+                      onPress={() => setShowAiImportModal(true)}
+                      theme={theme}
+                    />
                     <FeatureGridTile
                       label={t('reports', 'Reports')}
                       icon={BarChart3}
@@ -650,14 +696,16 @@ export default function DashboardScreen() {
                       onPress={() => router.push('/suppliers' as any)}
                       theme={theme}
                     />
-                    <FeatureGridTile
-                      label={t('stores', 'Stores')}
-                      badge="NEW"
-                      icon={Store}
-                      color="#2563EB"
-                      onPress={() => router.push('/stores' as any)}
-                      theme={theme}
-                    />
+                    {showKot ? (
+                      <FeatureGridTile
+                        label={t('stores', 'Stores')}
+                        badge="NEW"
+                        icon={Store}
+                        color="#2563EB"
+                        onPress={() => router.push('/stores' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
                     <FeatureGridTile
                       label={t('thermalPrinter', 'Thermal Printer')}
                       icon={Printer}
@@ -679,21 +727,25 @@ export default function DashboardScreen() {
                       onPress={() => router.push('/purchases' as any)}
                       theme={theme}
                     />
-                    <FeatureGridTile
-                      label={t('quickTokens', 'Quick Tokens')}
-                      icon={Ticket}
-                      color="#F59E0B"
-                      onPress={() => router.push('/quick-tokens' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('calculator', 'Calculator')}
-                      badge="NEW"
-                      icon={Calculator}
-                      color="#6366F1"
-                      onPress={() => router.push('/(tabs)/calculator' as any)}
-                      theme={theme}
-                    />
+                    {showTokens ? (
+                      <FeatureGridTile
+                        label={t('quickTokens', 'Quick Tokens')}
+                        icon={Ticket}
+                        color="#F59E0B"
+                        onPress={() => router.push('/quick-tokens' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {showCalculator ? (
+                      <FeatureGridTile
+                        label={t('calculator', 'Calculator')}
+                        badge="NEW"
+                        icon={Calculator}
+                        color="#6366F1"
+                        onPress={() => router.push('/(tabs)/calculator' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
                     <FeatureGridTile
                       label={t('settings', 'Settings')}
                       icon={SettingsIcon}

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft } from 'lucide-react'
+import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, Ticket } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import type { BusinessType } from '@/constants/businessTypes'
 
 const primaryItems = [
   { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
@@ -13,10 +15,16 @@ const primaryItems = [
   { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
 ]
 
-const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) => {
+const getMoreItems = (
+  permissions: ReturnType<typeof useAuth>['permissions'],
+  businessType: BusinessType | null | undefined
+) => {
   const p = permissions ?? undefined
   return [
     { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
+    ...(isNavFeatureVisible(businessType, 'tokens')
+      ? [{ path: ROUTES.TOKENS, label: 'Quick Tokens', icon: <Ticket size={20} /> }]
+      : []),
     { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
     { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },
     ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),
@@ -30,8 +38,8 @@ const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) =>
 
 export const MobileNav = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const { permissions } = useAuth()
-  const moreItems = getMoreItems(permissions)
+  const { permissions, userProfile } = useAuth()
+  const moreItems = getMoreItems(permissions, userProfile?.businessType)
 
   return (
     <>

@@ -26,6 +26,9 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import type { TranslationKey } from '@/i18n/translations'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
+import { useAuth } from '@/contexts/AuthContext'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { isRestaurantBusiness } from '@/constants/businessTypes'
 import toast from 'react-hot-toast'
 import {
   TrendingUp,
@@ -45,6 +48,9 @@ import {
   PieChart as PieChartIcon,
   Tag,
   ExternalLink,
+  Ticket,
+  ChefHat,
+  Smartphone,
 } from 'lucide-react'
 import { MobileLoginQrCard } from '@/components/dashboard/MobileLoginQrCard'
 
@@ -141,6 +147,9 @@ export const DashboardPage = () => {
   const pageTutorial = usePageTutorial('dashboard')
   const { isLoading } = useDashboardStats()
   const { data: products } = useProducts()
+  const { userProfile } = useAuth()
+  const isRestaurant = isRestaurantBusiness(userProfile?.businessType)
+  const showTokens = isNavFeatureVisible(userProfile?.businessType, 'tokens')
 
   const { data: sales } = useSales()
   const navigate = useNavigate()
@@ -223,11 +232,53 @@ export const DashboardPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
-              {t('dashboard.openScanToBill')}
+              {isRestaurant ? 'Open POS billing' : t('dashboard.openScanToBill')}
             </Button>
           }
         />
       </div>
+
+      {isRestaurant ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          {showTokens ? (
+            <Card className="p-5 bg-white border border-gray-100 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Ticket size={22} className="text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Counter tokens</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Issue cafe and counter tickets without opening a full table order.
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.TOKENS)}>
+                  Open tokens
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+          <Card className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-100 dark:border-orange-800">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <ChefHat size={22} className="text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Kitchen orders on mobile</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                  KOT tickets, tables, and send-to-kitchen live in the Seznik mobile app. Use web POS here for counter billing.
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                  <Smartphone size={12} />
+                  Scan the mobile login QR below to open kitchen tools on your phone.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
