@@ -30,10 +30,12 @@ export const MaxContentWidth = 1200;
 export type ThemeColor = keyof typeof Colors.light;
 
 export const Fonts = {
-  regular: 'System',
-  bold: 'System',
-  semibold: 'System',
-  mono: 'Courier',
+  regular: 'IBMPlexSans_400Regular',
+  medium: 'IBMPlexSans_500Medium',
+  semibold: 'IBMPlexSans_600SemiBold',
+  bold: 'IBMPlexSans_700Bold',
+  mono: 'IBMPlexMono_500Medium',
+  monoBold: 'IBMPlexMono_700Bold',
 };
 
 export const Colors = {
