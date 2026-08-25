@@ -2754,6 +2754,7 @@ class ThermalPrinterServiceManager {
     const textFields: any[] = [];
     const barcodeFields: any[] = [];
     const qrFields: any[] = [];
+    const imageFields: any[] = [];
 
     for (const el of template.elements) {
       if (el.type === 'text') {
@@ -2825,8 +2826,22 @@ class ThermalPrinterServiceManager {
           rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
           code: content,
         });
+      } else if (el.type === 'image' && el.uri) {
+        try {
+          const base64Pic = await this.uriToBase64(el.uri);
+          if (base64Pic) {
+            imageFields.push({
+              x: toDots(el.xMm),
+              y: toDots(el.yMm),
+              width: toDots(el.widthMm),
+              mode: 0,
+              image: base64Pic,
+            });
+          }
+        } catch (imgErr) {
+          console.warn('TSPL image element conversion failed:', imgErr);
+        }
       }
-      // Image/Rect/CurveRect/Circle/Line/Table: not yet supported natively — skipped (Phase 2).
     }
 
     try {
@@ -2841,9 +2856,10 @@ class ThermalPrinterServiceManager {
               reference: [0, 0],
               tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
               sound: 0,
-              text: textFields,
+              text: textFields.length ? textFields : undefined,
               barcode: barcodeFields.length ? barcodeFields : undefined,
               qrcode: qrFields.length ? qrFields : undefined,
+              image: imageFields.length ? imageFields : undefined,
             });
           }
           return true;

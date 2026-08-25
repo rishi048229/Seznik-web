@@ -53,8 +53,8 @@ export function DraggableElement({
   onSelect,
   onChange,
   onCommit,
-  minWidthMm = 3,
-  minHeightMm = 3,
+  minWidthMm = 2,
+  minHeightMm = 2,
   boundsWidthMm,
   boundsHeightMm,
   children,
@@ -66,8 +66,8 @@ export function DraggableElement({
   const translateY = useSharedValue(0);
   const growWidth = useSharedValue(0);
   const growHeight = useSharedValue(0);
-  const shiftX = useSharedValue(0); // extra left-edge shift for handles that resize from the left (tl/bl)
-  const shiftY = useSharedValue(0); // extra top-edge shift for handles that resize from the top (tl/tr)
+  const shiftX = useSharedValue(0);
+  const shiftY = useSharedValue(0);
 
   const commitBox = (next: ElementBox) => {
     onChange(next);
@@ -76,6 +76,7 @@ export function DraggableElement({
 
   const makeResizeGesture = (corner: 'tl' | 'tr' | 'bl' | 'br') =>
     Gesture.Pan()
+      .minDistance(1)
       .onUpdate((e) => {
         const dx = e.translationX;
         const dy = e.translationY;
@@ -98,8 +99,6 @@ export function DraggableElement({
         const nextBox: ElementBox = { xMm, yMm, widthMm, heightMm };
 
         if (corner === 'br' || corner === 'tr') {
-          // Growing rightward — xMm (left edge) stays put, only clamp the width against the
-          // label's right edge so the element can never resize past the printable area.
           nextBox.widthMm = Math.max(minWidthMm, Math.min(widthMm + dxMm, boundsWidthMm - xMm));
         } else {
           nextBox.widthMm = Math.max(minWidthMm, widthMm - dxMm);
@@ -125,14 +124,9 @@ export function DraggableElement({
   const brGesture = makeResizeGesture('br');
 
   const moveGesture = Gesture.Pan()
-    // A touch that could still be claimed by a corner-resize handle must never also activate the
-    // whole-element move gesture — without this, dragging a corner handle also nudged/translated
-    // the whole element at the same time (both Pan recognizers observing the same touch stream).
     .blocksExternalGesture(tlGesture, trGesture, blGesture, brGesture)
-    // Small dead-zone before a drag registers, so tiny accidental touches (and touches meant for
-    // the page/canvas scroll) don't immediately steal the gesture.
-    .activeOffsetX([-8, 8])
-    .activeOffsetY([-8, 8])
+    .activeOffsetX([-6, 6])
+    .activeOffsetY([-6, 6])
     .onBegin(() => {
       runOnJS(onSelect)();
     })
@@ -152,7 +146,6 @@ export function DraggableElement({
       runOnJS(commitBox)(nextBox);
     });
 
-
   const baseLeft = xMm * pxPerMm;
   const baseTop = yMm * pxPerMm;
   const baseWidth = widthMm * pxPerMm;
@@ -161,13 +154,14 @@ export function DraggableElement({
   const wrapperStyle = useAnimatedStyle(() => ({
     left: baseLeft + shiftX.value,
     top: baseTop + shiftY.value,
-    width: baseWidth + growWidth.value,
-    height: baseHeight + growHeight.value,
+    width: Math.max(baseWidth + growWidth.value, minWidthMm * pxPerMm),
+    height: Math.max(baseHeight + growHeight.value, minHeightMm * pxPerMm),
     transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
   }));
 
-  const handleSize = 20;
-  const handleOffset = -handleSize / 2;
+  const handleTouchSize = 32;
+  const handleDotSize = 14;
+  const handleOffset = -handleTouchSize / 2;
   const cornerPositions: Record<'tl' | 'tr' | 'bl' | 'br', ViewStyle> = {
     tl: { left: handleOffset, top: handleOffset },
     tr: { right: handleOffset, top: handleOffset },
@@ -192,11 +186,19 @@ export function DraggableElement({
               <GestureDetector key={corner} gesture={cornerGestures[corner]}>
                 <Animated.View
                   style={[
-                    styles.handle,
-                    { width: handleSize, height: handleSize, borderRadius: handleSize / 2 },
+                    styles.handleContainer,
+                    { width: handleTouchSize, height: handleTouchSize },
                     cornerPositions[corner],
                   ]}
-                />
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Animated.View
+                    style={[
+                      styles.handleDot,
+                      { width: handleDotSize, height: handleDotSize, borderRadius: handleDotSize / 2 },
+                    ]}
+                  />
+                </Animated.View>
               </GestureDetector>
             ))}
           </>
@@ -208,10 +210,20 @@ export function DraggableElement({
 
 const styles = StyleSheet.create({
   wrapper: { position: 'absolute', borderWidth: 1.5, borderStyle: 'dashed' },
-  handle: {
+  handleContainer: {
     position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+  },
+  handleDot: {
     backgroundColor: BRAND_COLORS.blue600,
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 4,
   },
 });

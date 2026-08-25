@@ -666,17 +666,17 @@ export default function LabelStudioScreen() {
                     {/* Font Styling Row */}
                     <View style={styles.stylingRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>Size:</Text>
+                        <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>Font Size:</Text>
                         <View style={styles.stepperMini}>
                           <TouchableOpacity
-                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(3, selectedElement.fontSizePt - 3) } as Partial<LabelTextElement>)}
+                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(1, selectedElement.fontSizePt - 1) } as Partial<LabelTextElement>)}
                             style={[styles.stepMiniBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
                           >
                             <Minus size={12} color={theme.textPrimary} />
                           </TouchableOpacity>
-                          <Text style={[styles.stepMiniVal, { color: theme.textPrimary }]}>{selectedElement.fontSizePt}</Text>
+                          <Text style={[styles.stepMiniVal, { color: theme.textPrimary }]}>{selectedElement.fontSizePt} Pt</Text>
                           <TouchableOpacity
-                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(9, selectedElement.fontSizePt + 3) } as Partial<LabelTextElement>)}
+                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(12, selectedElement.fontSizePt + 1) } as Partial<LabelTextElement>)}
                             style={[styles.stepMiniBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
                           >
                             <Plus size={12} color={theme.textPrimary} />
@@ -863,6 +863,85 @@ export default function LabelStudioScreen() {
                     </View>
                   </View>
                 )}
+
+                {/* PRECISION ELEMENT SIZE & POSITION STEPPERS */}
+                <View style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(100,116,139,0.15)' }}>
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Element Size (Width × Height mm):</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 2 }}>Width</Text>
+                      <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
+                        <TouchableOpacity
+                          onPress={() => updateElementProps(selectedElement.id, { widthMm: Math.max(2, Math.round(selectedElement.widthMm) - 1) })}
+                          style={styles.stepBoxBtn}
+                        >
+                          <Minus size={12} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <Text style={[styles.stepBoxVal, { fontSize: 11, color: theme.textPrimary }]}>{Math.round(selectedElement.widthMm)} mm</Text>
+                        <TouchableOpacity
+                          onPress={() => updateElementProps(selectedElement.id, { widthMm: Math.min(template.widthMm - selectedElement.xMm, Math.round(selectedElement.widthMm) + 1) })}
+                          style={styles.stepBoxBtn}
+                        >
+                          <Plus size={12} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 2 }}>Height</Text>
+                      <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
+                        <TouchableOpacity
+                          onPress={() => updateElementProps(selectedElement.id, { heightMm: Math.max(2, Math.round(selectedElement.heightMm) - 1) })}
+                          style={styles.stepBoxBtn}
+                        >
+                          <Minus size={12} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <Text style={[styles.stepBoxVal, { fontSize: 11, color: theme.textPrimary }]}>{Math.round(selectedElement.heightMm)} mm</Text>
+                        <TouchableOpacity
+                          onPress={() => updateElementProps(selectedElement.id, { heightMm: Math.min(template.heightMm - selectedElement.yMm, Math.round(selectedElement.heightMm) + 1) })}
+                          style={styles.stepBoxBtn}
+                        >
+                          <Plus size={12} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Quick Scale Presets for Image */}
+                  {selectedElement.type === 'image' && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Quick Logo Size Presets:</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          {[8, 12, 16, 20, 25, 30].map((sz) => {
+                            const active = Math.round(selectedElement.widthMm) === sz && Math.round(selectedElement.heightMm) === sz;
+                            return (
+                              <TouchableOpacity
+                                key={sz}
+                                onPress={() => updateElementProps(selectedElement.id, { widthMm: sz, heightMm: sz })}
+                                style={[
+                                  styles.chip,
+                                  { borderColor: theme.borderColor, backgroundColor: theme.bg, paddingVertical: 4, paddingHorizontal: 8 },
+                                  active && styles.chipActive,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.chipText,
+                                    { color: theme.textSecondary, fontSize: 10 },
+                                    active && styles.chipTextActive,
+                                  ]}
+                                >
+                                  {sz}×{sz}mm
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
               </View>
             ) : (
               <View style={[styles.inspectorCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
