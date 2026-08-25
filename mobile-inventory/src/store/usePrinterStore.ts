@@ -631,11 +631,17 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         isHydrated: true,
       });
     } catch (e) {
-      // Offline / not logged in yet — keep local defaults, just mark hydration attempted.
+      // Offline / not logged in yet / timeout — keep local defaults, mark hydration attempted.
       const msg = e instanceof Error ? e.message : String(e);
-      const isOffline = msg.includes('Cannot connect to backend') || msg.includes('HTTP 0');
-      if (isOffline) {
-        console.warn('[usePrinterStore] hydrateFromSettings offline — using local defaults');
+      const isOfflineOrTimeout =
+        msg.includes('Cannot connect to backend') ||
+        msg.includes('HTTP 0') ||
+        msg.includes('timed out') ||
+        msg.includes('took too long') ||
+        msg.includes('Failed to connect') ||
+        msg.includes('Network request failed');
+      if (isOfflineOrTimeout) {
+        console.warn('[usePrinterStore] hydrateFromSettings offline/timeout — using local defaults');
       } else {
         console.error('[usePrinterStore] hydrateFromSettings failed:', e);
       }

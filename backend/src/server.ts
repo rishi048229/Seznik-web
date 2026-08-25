@@ -1,10 +1,10 @@
 import app from './app';
 import prisma, { warmConnectionPool } from './config/db';
 
-const PORT = process.env.PORT || 5001;
+const PORT = Number(process.env.PORT) || 5001;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT} (0.0.0.0)`);
   void warmConnectionPool();
 });
 
