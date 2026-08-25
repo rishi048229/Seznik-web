@@ -9,6 +9,7 @@ import {
   Platform,
   RefreshControl,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -26,9 +27,12 @@ import {
   Truck,
   Printer,
   ChevronLeft,
+  AlertCircle,
+  Receipt,
 } from 'lucide-react-native';
 import { useKotOrders } from '@/hooks/useKotOrders';
-import { KOTOrder, KOTOrderStatus, KOTOrderType } from '@/types/kot';
+import { useRestaurantTables } from '@/hooks/useRestaurantTables';
+import { KOTOrder, KOTOrderStatus, KOTOrderType, RestaurantTable } from '@/types/kot';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -58,12 +62,14 @@ export default function KotOrdersScreen() {
   const { orders, isLoading, isRefetching, isError, refetch } = useKotOrders(
     activeStatuses.length > 0 ? activeStatuses : undefined
   );
+  const { tables, isLoading: isTablesLoading, refetch: refetchTables } = useRestaurantTables();
+
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setIsManualRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchTables()]);
     } finally {
       setIsManualRefreshing(false);
     }
@@ -76,6 +82,9 @@ export default function KotOrdersScreen() {
       maximumFractionDigits: 2,
     }).format(val || 0);
   };
+
+  const occupiedTables = tables.filter((t) => t.isOccupied);
+  const vacantTables = tables.filter((t) => !t.isOccupied);
 
   const filteredOrders = orders.filter((order) => {
     const matchesType = selectedType === 'all' || order.orderType === selectedType;
@@ -163,6 +172,66 @@ export default function KotOrdersScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* LIVE BUSY / OCCUPIED TABLE STRIP */}
+          {tables.length > 0 && (
+            <View style={[styles.tableStripContainer, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={styles.tableStripHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={[styles.liveDot, occupiedTables.length > 0 && styles.liveDotBusy]} />
+                  <Text style={[styles.tableStripTitle, { color: theme.textPrimary }]}>
+                    LIVE TABLES ({occupiedTables.length} Busy • {vacantTables.length} Free)
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => router.push('/kot/tables' as any)}>
+                  <Text style={styles.viewTablesLink}>View Layout →</Text>
+                </TouchableOpacity>
+              </View>
+
+              {occupiedTables.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                  {occupiedTables.map((t) => (
+                    <TouchableOpacity
+                      key={t.id}
+                      onPress={() => {
+                        if (t.activeOrder) {
+                          router.push(`/kot/${t.activeOrder.id}` as any);
+                        } else {
+                          router.push('/kot/tables' as any);
+                        }
+                      }}
+                      style={[styles.busyTableChip, { backgroundColor: theme.bg, borderColor: '#EF4444' }]}
+                    >
+                      <View style={styles.busyTableTopRow}>
+                        <Utensils size={13} color="#EF4444" />
+                        <Text style={[styles.busyTableName, { color: theme.textPrimary }]} numberOfLines={1}>
+                          {t.name}
+                        </Text>
+                        <View style={styles.busyPill}>
+                          <Text style={styles.busyPillText}>BUSY</Text>
+                        </View>
+                      </View>
+                      {t.activeOrder && (
+                        <View style={styles.busyTableBottomRow}>
+                          <Text style={styles.busyOrderNum}>KOT #{t.activeOrder.orderNumber}</Text>
+                          <Text style={[styles.busyOrderTotal, { color: BRAND_COLORS.blue600 }]}>
+                            {formatCurrency(t.activeOrder.totalAmount)}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.allFreeRow}>
+                  <CheckCircle2 size={14} color="#10B981" />
+                  <Text style={[styles.allFreeText, { color: theme.textSecondary }]}>
+                    All {tables.length} tables are currently vacant and ready for guests.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Search Box */}
           <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -354,7 +423,7 @@ export default function KotOrdersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   backBtn: { padding: 8, borderRadius: 12, borderWidth: 1 },
   headerBadge: { fontSize: 9, fontWeight: '900', color: BRAND_COLORS.sky500, letterSpacing: 0.5 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
@@ -362,6 +431,22 @@ const styles = StyleSheet.create({
   actionTopBtnText: { fontSize: 12, fontWeight: '800' },
   newOrderBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, gap: 4 },
   newOrderBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  tableStripContainer: { borderRadius: 14, padding: 10, borderWidth: 1, marginBottom: 10 },
+  tableStripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
+  liveDotBusy: { backgroundColor: '#EF4444' },
+  tableStripTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
+  viewTablesLink: { fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 },
+  busyTableChip: { minWidth: 130, padding: 8, borderRadius: 10, borderWidth: 1.5 },
+  busyTableTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  busyTableName: { fontSize: 12, fontWeight: '800', flex: 1 },
+  busyPill: { backgroundColor: 'rgba(239, 68, 68, 0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  busyPillText: { fontSize: 9, fontWeight: '900', color: '#EF4444' },
+  busyTableBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  busyOrderNum: { fontSize: 10, fontWeight: '700', color: '#64748B' },
+  busyOrderTotal: { fontSize: 11, fontWeight: '900' },
+  allFreeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
+  allFreeText: { fontSize: 11, fontWeight: '500' },
   searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
   searchInput: { flex: 1, fontSize: 13, marginLeft: 8 },
   tabRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },

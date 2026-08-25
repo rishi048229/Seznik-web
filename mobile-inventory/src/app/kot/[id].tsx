@@ -97,7 +97,7 @@ export default function KotOrderDetailScreen() {
             notes: it.notes || undefined,
           })),
         },
-        paperWidth
+        paperWidth || '58mm'
       );
       Alert.alert('Printed! 🖨️', `Kitchen slip for KOT #${order.orderNumber} printed.`);
     } catch (err: any) {
@@ -130,22 +130,25 @@ export default function KotOrderDetailScreen() {
           const sub = items.reduce((acc, it) => acc + it.total, 0);
           const total = Math.max(0, sub - disc);
 
-          await ThermalPrinterService.printSaleReceipt({
-            storeName: settings?.businessName || 'SEZNIK STORE',
-            storeAddress: settings?.businessAddress || '',
-            storePhone: settings?.businessPhone || '',
-            invoiceNumber: result.sale.invoiceNumber,
-            date: new Date().toLocaleDateString('en-GB'),
-            customerName: order.table?.name || order.partyLabel || 'Dine-in Guest',
-            items,
-            subtotal: sub,
-            totalTax: 0,
-            totalDiscount: disc,
-            grandTotal: total,
-            amountPaid: total,
-            changeReturned: 0,
-            paymentMethod: paymentMethod.toUpperCase(),
-          });
+          await ThermalPrinterService.printSaleReceipt(
+            {
+              storeName: settings?.businessName || 'SEZNIK STORE',
+              storeAddress: settings?.businessAddress || '',
+              storePhone: settings?.businessPhone || '',
+              invoiceNumber: result.sale.invoiceNumber,
+              date: new Date().toLocaleDateString('en-GB'),
+              customerName: order.table?.name || order.partyLabel || 'Dine-in Guest',
+              items,
+              subtotal: sub,
+              totalTax: 0,
+              totalDiscount: disc,
+              grandTotal: total,
+              amountPaid: total,
+              changeReturned: 0,
+              paymentMethod: paymentMethod.toUpperCase(),
+            },
+            { paperWidth: paperWidth || '58mm' }
+          );
         } catch (printErr) {
           console.warn('Auto print receipt failed:', printErr);
         }

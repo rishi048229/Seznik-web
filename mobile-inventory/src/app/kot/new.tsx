@@ -178,7 +178,7 @@ export default function NewKotOrderScreen() {
               notes: it.notes,
             })),
           },
-          paperWidth
+          paperWidth || '58mm'
         );
       } catch (printErr) {
         console.warn('Auto print KOT failed:', printErr);
