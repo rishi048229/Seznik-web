@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -8,26 +8,36 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { formatINR } from '@/utils/currency'
 import { Wallet, CreditCard, Smartphone, UserPlus, AlertTriangle, Printer } from 'lucide-react'
+import type { KOTBillPayload, KOTOrderType } from '@/types/kot.types'
+import type { KotRoomType } from '@/types/settings.types'
+import {
+  computeServiceCharge,
+  mergeKotConfig,
+  ORDER_TYPE_OPTIONS,
+  roomChargeFor,
+  roomChargeLabel,
+} from '../kotConfig'
 
 interface KOTBillModalProps {
   isOpen: boolean
   onClose: () => void
-  grandTotal: number
+  subtotal: number
+  itemTax: number
+  orderType: KOTOrderType
+  onOrderTypeChange: (type: KOTOrderType) => void
   customerId: string
   onCustomerChange: (id: string) => void
   loading: boolean
-  onSettle: (payload: {
-    paymentMethod: 'cash' | 'card' | 'upi' | 'credit'
-    discount: number
-    amountPaid: number
-    customerId?: string
-  }) => void
+  onSettle: (payload: KOTBillPayload) => void
 }
 
 export const KOTBillModal = ({
   isOpen,
   onClose,
-  grandTotal,
+  subtotal,
+  itemTax,
+  orderType,
+  onOrderTypeChange,
   customerId,
   onCustomerChange,
   loading,
@@ -35,41 +45,67 @@ export const KOTBillModal = ({
 }: KOTBillModalProps) => {
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
+  const kot = mergeKotConfig(settings?.kotConfig)
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [discount, setDiscount] = useState('')
   const [amountPaid, setAmountPaid] = useState('')
+  const [taxPercent, setTaxPercent] = useState('')
+  const [overrideTax, setOverrideTax] = useState(false)
+  const [serviceCharge, setServiceCharge] = useState('')
+  const [roomType, setRoomType] = useState<KotRoomType>('none')
+  const [roomAmount, setRoomAmount] = useState('')
 
   const discountNum = parseFloat(discount) || 0
-  const net = Math.max(0, grandTotal - discountNum)
+  const taxRateNum = parseFloat(taxPercent)
+  const taxAmount = overrideTax && !Number.isNaN(taxRateNum) ? (subtotal * taxRateNum) / 100 : itemTax
+  const serviceNum = Math.max(0, parseFloat(serviceCharge) || 0)
+  const roomNum = roomType === 'none' ? 0 : Math.max(0, parseFloat(roomAmount) || 0)
+  const net = Math.max(0, subtotal + taxAmount + serviceNum + roomNum - discountNum)
   const amountPaidNum = parseFloat(amountPaid) || 0
   const unpaidAmount = Math.max(0, net - amountPaidNum)
   const change = Math.max(0, amountPaidNum - net)
   const isComplete = unpaidAmount <= 0.01 || Boolean(customerId)
 
   useEffect(() => {
-    if (isOpen) {
-      setMethod('cash')
-      setDiscount('')
-      setAmountPaid(grandTotal > 0 ? String(grandTotal) : '')
-    }
+    if (!isOpen) return
+    setMethod('cash')
+    setDiscount('')
+    setOverrideTax(kot.applyTaxOverride)
+    setTaxPercent(kot.applyTaxOverride || kot.taxRate ? String(kot.taxRate) : itemTax > 0 && subtotal > 0 ? (itemTax / subtotal * 100).toFixed(2) : '0')
+    setServiceCharge(String(computeServiceCharge(subtotal, kot) || ''))
+    setRoomType(kot.defaultRoomType)
+    setRoomAmount(String(roomChargeFor(kot.defaultRoomType, kot) || ''))
+    // amountPaid set below after net is known via the next effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, grandTotal])
+  }, [isOpen, subtotal, itemTax])
 
   useEffect(() => {
+    if (!isOpen) return
     if (method === 'credit') {
       setAmountPaid('0')
-    } else if (isOpen && unpaidAmount > 0) {
-      setAmountPaid(String(net))
+      return
     }
+    setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method])
+  }, [isOpen, method, net])
+
+  const breakdown = useMemo(
+    () => [
+      { label: 'Food subtotal', value: subtotal },
+      { label: overrideTax ? `Tax (${taxPercent || 0}%)` : 'Item tax', value: taxAmount },
+      { label: 'Service charge', value: serviceNum },
+      ...(roomNum > 0 ? [{ label: roomChargeLabel(roomType), value: roomNum }] : []),
+      ...(discountNum > 0 ? [{ label: 'Discount', value: -discountNum }] : []),
+    ],
+    [subtotal, overrideTax, taxPercent, taxAmount, serviceNum, roomNum, roomType, discountNum]
+  )
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Settle Bill"
-      size="md"
+      size="lg"
       footer={
         <Button
           onClick={() =>
@@ -78,6 +114,11 @@ export const KOTBillModal = ({
               discount: discountNum,
               amountPaid: method === 'credit' ? 0 : amountPaidNum,
               customerId: customerId || undefined,
+              orderType,
+              taxRate: overrideTax ? (Number.isNaN(taxRateNum) ? 0 : taxRateNum) : null,
+              serviceCharge: serviceNum,
+              roomCharge: roomNum,
+              roomChargeLabel: roomChargeLabel(roomType),
             })
           }
           disabled={!isComplete || loading || net < 0}
@@ -90,9 +131,108 @@ export const KOTBillModal = ({
       }
     >
       <div className="space-y-5">
-        <div className="text-center py-5 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+        <div>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Order type</p>
+          <div className="grid grid-cols-3 gap-2">
+            {ORDER_TYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => onOrderTypeChange(opt.id)}
+                className={`py-2 rounded-lg text-sm font-semibold border-2 ${
+                  orderType === opt.id
+                    ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="text-center py-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
           <p className="text-sm text-gray-500 dark:text-gray-400">Amount due</p>
           <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatINR(net)}</p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-1.5 text-sm">
+          {breakdown.map((row) => (
+            <div key={row.label} className="flex justify-between text-gray-600 dark:text-gray-300">
+              <span>{row.label}</span>
+              <span className="font-semibold">{formatINR(row.value)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+              <input
+                type="checkbox"
+                checked={overrideTax}
+                onChange={(e) => setOverrideTax(e.target.checked)}
+              />
+              Override tax %
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={taxPercent}
+              onChange={(e) => {
+                setOverrideTax(true)
+                setTaxPercent(e.target.value)
+              }}
+              disabled={!overrideTax}
+            />
+          </div>
+          <Input
+            label="Service charge (₹)"
+            type="number"
+            min={0}
+            step="0.01"
+            value={serviceCharge}
+            onChange={(e) => setServiceCharge(e.target.value)}
+            placeholder="0"
+          />
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Room charge</p>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            {([
+              { id: 'none' as const, label: 'None' },
+              { id: 'ac' as const, label: 'AC' },
+              { id: 'non_ac' as const, label: 'Non-AC' },
+            ]).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  setRoomType(opt.id)
+                  setRoomAmount(String(roomChargeFor(opt.id, kot) || ''))
+                }}
+                className={`py-2 rounded-lg text-sm font-semibold border-2 ${
+                  roomType === opt.id
+                    ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {roomType !== 'none' && (
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={roomAmount}
+              onChange={(e) => setRoomAmount(e.target.value)}
+              placeholder="0"
+            />
+          )}
         </div>
 
         <CustomerSelect value={customerId} onChange={onCustomerChange} size="compact" />
@@ -104,7 +244,7 @@ export const KOTBillModal = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Payment method</label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
             {([
               { id: 'cash' as const, label: 'Cash', icon: Wallet },
               { id: 'card' as const, label: 'Card', icon: CreditCard },
@@ -115,12 +255,12 @@ export const KOTBillModal = ({
                 key={id}
                 type="button"
                 onClick={() => setMethod(id)}
-                className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                className={`flex flex-col items-center gap-2 p-2.5 sm:p-3 rounded-xl border-2 transition-all ${
                   method === id ? 'border-[#0a0a2e] bg-[#0a0a2e]/5' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                 }`}
               >
-                <Icon size={22} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
-                <span className={`text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>{label}</span>
+                <Icon size={20} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
+                <span className={`text-[11px] sm:text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>{label}</span>
               </button>
             ))}
           </div>

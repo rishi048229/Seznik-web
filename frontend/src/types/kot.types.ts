@@ -129,6 +129,11 @@ export interface KOTBillPayload {
   discount?: number
   amountPaid?: number
   customerId?: string
+  orderType?: KOTOrderType
+  taxRate?: number | null
+  serviceCharge?: number
+  roomCharge?: number
+  roomChargeLabel?: string
 }
 
 export interface SendToKitchenResult extends KOTOrder {

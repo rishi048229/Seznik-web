@@ -131,6 +131,21 @@ export interface LocationConfig {
   enabled?: boolean
 }
 
+export type KotRoomType = 'none' | 'ac' | 'non_ac'
+
+export interface KotConfig {
+  defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
+  taxRate?: number
+  applyTaxOverride?: boolean
+  serviceChargeType?: 'percent' | 'flat'
+  serviceChargeValue?: number
+  acCharge?: number
+  nonAcCharge?: number
+  defaultRoomType?: KotRoomType
+  kotSlipTitle?: string
+  showWaiterOnSlip?: boolean
+}
+
 export interface UserSettings {
   id: string
   businessName: string
@@ -144,4 +159,5 @@ export interface UserSettings {
   receiptConfig: ReceiptConfig
   printerConfig?: PrinterConfig
   locationConfig?: LocationConfig
+  kotConfig?: KotConfig
 }

@@ -11,7 +11,10 @@ export interface KotSlipItem {
 export interface KotSlipData {
   orderNumber: number
   tableName: string
+  orderType?: string | null
   waiterName?: string | null
+  showWaiter?: boolean
+  slipTitle?: string | null
   orderTime: string | Date
   notes?: string | null
   priority?: string | null
@@ -47,15 +50,19 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
     })
     .join('')
 
+  const title = (data.slipTitle || 'KITCHEN ORDER TICKET').trim() || 'KITCHEN ORDER TICKET'
+  const showWaiter = data.showWaiter !== false && !!data.waiterName
+
   return `<div style="font-family:ui-monospace,Menlo,monospace;color:#000;width:100%;">
-    <div style="text-align:center;font-weight:900;font-size:${smallFs};letter-spacing:1px;">*** KITCHEN ORDER TICKET ***</div>
+    <div style="text-align:center;font-weight:900;font-size:${smallFs};letter-spacing:1px;">*** ${escapeHtml(title)} ***</div>
     ${urgent ? `<div style="text-align:center;font-weight:900;font-size:${baseFs};margin-top:4px;">*** URGENT ***</div>` : ''}
     <div style="border-top:2px solid #000;margin:8px 0;"></div>
     <div style="text-align:center;font-size:${titleFs};font-weight:900;line-height:1.15;">${escapeHtml(data.tableName)}</div>
     <div style="text-align:center;font-size:${baseFs};font-weight:700;margin-top:4px;">KOT #${data.orderNumber}</div>
+    ${data.orderType ? `<div style="text-align:center;font-size:${smallFs};font-weight:700;margin-top:2px;">${escapeHtml(data.orderType.replace('_', ' ').toUpperCase())}</div>` : ''}
     <div style="border-top:1px dashed #000;margin:8px 0;"></div>
     <div style="font-size:${smallFs};">Time: ${escapeHtml(formatTime(data.orderTime))}</div>
-    ${data.waiterName ? `<div style="font-size:${smallFs};">Waiter: ${escapeHtml(data.waiterName)}</div>` : ''}
+    ${showWaiter ? `<div style="font-size:${smallFs};">Waiter: ${escapeHtml(data.waiterName || '')}</div>` : ''}
     <div style="border-top:1px dashed #000;margin:8px 0;"></div>
     ${itemRows || `<div style="font-size:${baseFs};">No new items</div>`}
     ${data.notes ? `<div style="margin-top:8px;font-size:${smallFs};"><strong>Order note:</strong> ${escapeHtml(data.notes)}</div>` : ''}
@@ -68,9 +75,10 @@ export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80
   const cols = paperSize === '80mm' ? 48 : 32
   const b = new EscPosBuilder()
   b.init(paperSize)
+  const title = (data.slipTitle || 'KITCHEN ORDER TICKET').trim() || 'KITCHEN ORDER TICKET'
   b.align('center')
   b.bold(true)
-  b.line('*** KITCHEN ORDER TICKET ***')
+  b.line(`*** ${title} ***`)
   if (data.priority === 'urgent') {
     b.doubleSize(true)
     b.line('URGENT')
@@ -83,11 +91,12 @@ export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80
   b.line(data.tableName)
   b.doubleSize(false)
   b.line(`KOT #${data.orderNumber}`)
+  if (data.orderType) b.line(data.orderType.replace('_', ' ').toUpperCase())
   b.bold(false)
   b.hr(cols, '-')
   b.align('left')
   b.line(`Time: ${formatTime(data.orderTime)}`)
-  if (data.waiterName) b.line(`Waiter: ${data.waiterName}`)
+  if (data.showWaiter !== false && data.waiterName) b.line(`Waiter: ${data.waiterName}`)
   b.hr(cols, '-')
   data.items.forEach((it) => {
     b.bold(true)

@@ -45,6 +45,7 @@ const ALLOWED_SETTINGS_FIELDS = [
   // Restored dev-branch column (see schema.prisma comment) — added to the
   // allowlist so it's no longer silently dropped now that the column exists.
   'labelConfig',
+  'kotConfig',
 ];
 
 const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {

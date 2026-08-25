@@ -26,6 +26,7 @@ export const DropdownMenu = ({ trigger, children, align = 'right' }: DropdownMen
       <div onClick={() => setIsOpen(!isOpen)}>{trigger}</div>
       {isOpen && (
         <div
+          onClick={() => setIsOpen(false)}
           className={clsx(
             'absolute z-50 mt-2',
             'bg-white dark:bg-gray-800',

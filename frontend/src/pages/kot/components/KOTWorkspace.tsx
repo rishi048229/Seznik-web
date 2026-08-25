@@ -25,10 +25,13 @@ import { OrderTicketPanel } from './OrderTicketPanel'
 import { KOTBillModal } from './KOTBillModal'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
-import type { KOTBillResult, KOTDraftItem, KOTOrderItem, RestaurantTable } from '@/types/kot.types'
+import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
+import { mergeKotConfig, orderTypeLabel, ticketTitle } from '../kotConfig'
 
 interface KOTWorkspaceProps {
-  table: RestaurantTable
+  table?: RestaurantTable | null
+  existingOrderId?: string | null
+  initialOrderType?: KOTOrderType
   onClose: () => void
 }
 
@@ -43,13 +46,17 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
     modifiers: it.modifiers,
   }))
 
-export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
+export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
   const { data: products = [], isLoading: productsLoading } = useProducts()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
   const blePrinter = useBlePrinter()
+  const kotCfg = mergeKotConfig(settings?.kotConfig)
 
-  const [orderId, setOrderId] = useState<string | null>(table.activeOrder?.id ?? null)
+  const [orderId, setOrderId] = useState<string | null>(existingOrderId ?? table?.activeOrder?.id ?? null)
+  const [orderType, setOrderType] = useState<KOTOrderType>(
+    initialOrderType || (table ? 'dine_in' : kotCfg.defaultOrderType)
+  )
   const [locationId, setLocationId] = useState<string | null>(null)
   const [waiterName, setWaiterName] = useState('')
   const [pendingItems, setPendingItems] = useState<KOTDraftItem[]>([])
@@ -72,6 +79,9 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
   useEffect(() => {
     if (order?.waiterName && !waiterName) setWaiterName(order.waiterName)
     if (order?.customerId && !customerId) setCustomerId(order.customerId)
+    if (order?.orderType === 'dine_in' || order?.orderType === 'takeaway' || order?.orderType === 'delivery') {
+      setOrderType(order.orderType)
+    }
   }, [order, waiterName, customerId])
 
   const locationStockMap = useMemo(() => {
@@ -118,6 +128,17 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
   }, [order?.items, pendingItems])
 
   const busy = isCreating || isAdding || isSending
+  const displayName = ticketTitle(table?.name, orderType)
+
+  const startOrderPayload = (items: KOTDraftItem[]) => ({
+    orderType,
+    tableId: table?.id,
+    partyLabel: table?.name || orderTypeLabel(orderType),
+    waiterName: waiterName.trim() || undefined,
+    locationId: locationId || undefined,
+    status: 'open' as const,
+    items: toPayloadItems(items),
+  })
 
   const confirmAddItem = async () => {
     if (!pickedProduct) return
@@ -140,14 +161,7 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
 
     if (!orderId) {
       try {
-        const created = await createOrder({
-          orderType: 'dine_in',
-          tableId: table.id,
-          waiterName: waiterName.trim() || undefined,
-          locationId: locationId || undefined,
-          status: 'open',
-          items: toPayloadItems([draft]),
-        })
+        const created = await createOrder(startOrderPayload([draft]))
         setOrderId(created.id)
         toast.success('Order started')
       } catch (err) {
@@ -178,8 +192,11 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
     if (items.length === 0) return
     const slip = {
       orderNumber,
-      tableName: table.name,
+      tableName: displayName,
+      orderType,
       waiterName: waiter || waiterName,
+      showWaiter: kotCfg.showWaiterOnSlip,
+      slipTitle: kotCfg.kotSlipTitle,
       orderTime: new Date(),
       notes: order?.notes,
       priority: order?.priority,
@@ -216,14 +233,7 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
           toast.error('Add items first')
           return
         }
-        const created = await createOrder({
-          orderType: 'dine_in',
-          tableId: table.id,
-          waiterName: waiterName.trim() || undefined,
-          locationId: locationId || undefined,
-          status: 'open',
-          items: toPayloadItems(pendingItems),
-        })
+        const created = await createOrder(startOrderPayload(pendingItems))
         id = created.id
         setOrderId(id)
         setPendingItems([])
@@ -317,14 +327,7 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
           toast.error('Add items first')
           return
         }
-        const created = await createOrder({
-          orderType: 'dine_in',
-          tableId: table.id,
-          waiterName: waiterName.trim() || undefined,
-          locationId: locationId || undefined,
-          status: 'open',
-          items: toPayloadItems(pendingItems),
-        })
+        const created = await createOrder(startOrderPayload(pendingItems))
         id = created.id
         setOrderId(id)
         setPendingItems([])
@@ -342,10 +345,10 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900 flex flex-col">
-      <header className="shrink-0 flex items-center justify-between gap-3 px-3 sm:px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
         <div className="min-w-0">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Dine-in KOT</p>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{table.name}</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{orderTypeLabel(orderType)} bill</p>
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h1>
         </div>
         <div className="flex-1 flex justify-end min-w-0 overflow-x-auto no-scrollbar">
           <LocationSelector onChange={setLocationId} />
@@ -412,8 +415,10 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
             </div>
           ) : (
             <OrderTicketPanel
-              tableName={table.name}
+              tableName={displayName}
               orderNumber={order?.orderNumber}
+              orderType={orderType}
+              onOrderTypeChange={setOrderType}
               waiterName={waiterName}
               onWaiterChange={setWaiterName}
               sentItems={sentItems}
@@ -472,7 +477,10 @@ export const KOTWorkspace = ({ table, onClose }: KOTWorkspaceProps) => {
       <KOTBillModal
         isOpen={billOpen}
         onClose={() => setBillOpen(false)}
-        grandTotal={totals.grandTotal}
+        subtotal={totals.subtotal}
+        itemTax={totals.tax}
+        orderType={orderType}
+        onOrderTypeChange={setOrderType}
         customerId={customerId}
         onCustomerChange={setCustomerId}
         loading={isBilling}

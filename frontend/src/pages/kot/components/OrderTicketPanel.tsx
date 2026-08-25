@@ -2,11 +2,14 @@ import { Check, Clock, Minus, Plus, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { formatINR } from '@/utils/currency'
 import { formatSentTime } from '../kotUtils'
-import type { KOTDraftItem, KOTOrderItem } from '@/types/kot.types'
+import { ORDER_TYPE_OPTIONS } from '../kotConfig'
+import type { KOTDraftItem, KOTOrderItem, KOTOrderType } from '@/types/kot.types'
 
 interface OrderTicketPanelProps {
   tableName: string
   orderNumber?: number
+  orderType: KOTOrderType
+  onOrderTypeChange: (type: KOTOrderType) => void
   waiterName: string
   onWaiterChange: (value: string) => void
   sentItems: KOTOrderItem[]
@@ -22,6 +25,8 @@ interface OrderTicketPanelProps {
 export const OrderTicketPanel = ({
   tableName,
   orderNumber,
+  orderType,
+  onOrderTypeChange,
   waiterName,
   onWaiterChange,
   sentItems,
@@ -37,12 +42,28 @@ export const OrderTicketPanel = ({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="shrink-0 p-4 border-b border-gray-200 dark:border-gray-700 space-y-2">
+      <div className="shrink-0 p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 space-y-2">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{tableName}</h2>
           {orderNumber != null && (
             <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">#KOT-{orderNumber}</span>
           )}
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {ORDER_TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onOrderTypeChange(opt.id)}
+              className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold border ${
+                orderType === opt.id
+                  ? 'border-[#0a0a2e] bg-[#0a0a2e] text-white'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
         <Input
           placeholder="Waiter / server name"
@@ -142,7 +163,7 @@ export const OrderTicketPanel = ({
         )}
 
         {sentItems.length === 0 && newCount === 0 && (
-          <p className="text-sm text-gray-400 text-center py-8">Tap a menu item to start this table&apos;s order.</p>
+          <p className="text-sm text-gray-400 text-center py-8">Tap a menu item to start this bill.</p>
         )}
       </div>
 

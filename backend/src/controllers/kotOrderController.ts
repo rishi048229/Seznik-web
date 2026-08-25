@@ -313,7 +313,17 @@ export const generateBill = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const id = String(req.params.id);
-    const { paymentMethod = 'cash', discount = 0, amountPaid, customerId } = req.body;
+    const {
+      paymentMethod = 'cash',
+      discount = 0,
+      amountPaid,
+      customerId,
+      orderType,
+      taxRate,
+      serviceCharge = 0,
+      roomCharge = 0,
+      roomChargeLabel,
+    } = req.body;
 
     const order = await prisma.kOTOrder.findFirst({
       where: { id, userId },
@@ -332,12 +342,23 @@ export const generateBill = async (req: Request, res: Response) => {
 
     const result = await prisma.$transaction(async (tx) => {
       const count = await tx.sale.count({ where: { userId } });
-      const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
+      const settingsRow = await tx.settings.findUnique({ where: { userId } });
+      const invoicePrefix =
+        ((settingsRow?.invoiceConfig as { prefix?: string } | null)?.prefix || 'INV')
+          .replace(/[^A-Za-z0-9-]/g, '')
+          .trim() || 'INV';
+      const invoiceNumber = `${invoicePrefix}-${String(count + 1).padStart(5, '0')}`;
 
       const subtotal = order.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-      const totalTax = order.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+      const itemTax = order.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+      const overrideTaxRate = taxRate !== undefined && taxRate !== null && taxRate !== '' ? Number(taxRate) : null;
+      const totalTax = overrideTaxRate !== null && !Number.isNaN(overrideTaxRate)
+        ? (subtotal * overrideTaxRate) / 100
+        : itemTax;
+      const service = Math.max(0, Number(serviceCharge) || 0);
+      const room = Math.max(0, Number(roomCharge) || 0);
       const totalDiscount = Number(discount) || 0;
-      const grandTotal = Math.max(0, subtotal + totalTax - totalDiscount);
+      const grandTotal = Math.max(0, subtotal + totalTax + service + room - totalDiscount);
       const paid = amountPaid !== undefined ? Number(amountPaid) : grandTotal;
       const change = Math.max(0, paid - grandTotal);
       const saleDate = new Date();
@@ -348,11 +369,40 @@ export const generateBill = async (req: Request, res: Response) => {
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         sellingPrice: it.unitPrice,
-        taxRate: it.taxRate,
+        taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
         discount: 0,
-        taxAmount: (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100,
+        taxAmount: overrideTaxRate !== null
+          ? (it.unitPrice * it.quantity * overrideTaxRate) / 100
+          : (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100,
         total: it.unitPrice * it.quantity,
       }));
+
+      if (service > 0) {
+        saleItems.push({
+          productId: undefined,
+          productName: 'Service Charge',
+          quantity: 1,
+          unitPrice: service,
+          sellingPrice: service,
+          taxRate: 0,
+          discount: 0,
+          taxAmount: 0,
+          total: service,
+        });
+      }
+      if (room > 0) {
+        saleItems.push({
+          productId: undefined,
+          productName: String(roomChargeLabel || 'Room Charge'),
+          quantity: 1,
+          unitPrice: room,
+          sellingPrice: room,
+          taxRate: 0,
+          discount: 0,
+          taxAmount: 0,
+          total: room,
+        });
+      }
 
       const sale = await tx.sale.create({
         data: {
@@ -439,6 +489,7 @@ export const generateBill = async (req: Request, res: Response) => {
         data: {
           status: 'billed',
           saleId: sale.id,
+          ...(orderType ? { orderType: String(orderType) } : {}),
         },
         include: {
           table: true,
