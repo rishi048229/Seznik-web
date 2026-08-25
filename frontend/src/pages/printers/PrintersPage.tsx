@@ -398,6 +398,7 @@ export const PrintersPage = () => {
             paperSize: config.paperSize,
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
+            invoiceConfig: settings?.invoiceConfig,
           })
           await printEscPos(bytes)
           toast.success('Test receipt sent to Bluetooth printer!')

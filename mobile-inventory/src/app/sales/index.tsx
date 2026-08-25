@@ -43,6 +43,10 @@ import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { BRAND_COLORS } from '@/constants/theme';
+import { parseGstBilling, gstPrintOptionOverrides, shouldShowGstBreakdown } from '@/constants/gstBilling';
+import { computeGstBillSummary, gstLinesFromSaleItems } from '@/utils/gst';
+import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown';
+import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -101,6 +105,9 @@ export default function SalesHistoryScreen() {
         unit: it.unit || 'piece',
       }));
 
+      const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
+      const summary = computeGstBillSummary(gstLinesFromSaleItems(sale.items || []));
+
       await ThermalPrinterService.printSaleReceipt({
         storeName: storeProfile.storeName,
         storeAddress: storeProfile.storeAddress,
@@ -119,7 +126,12 @@ export default function SalesHistoryScreen() {
         amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
         changeReturned: sale.changeReturned || 0,
         paymentMethod: (sale.paymentMethod || 'CASH').toUpperCase(),
-      });
+        taxableAmt: summary.taxableValue,
+        cgst: summary.cgstAmount,
+        sgst: summary.sgstAmount,
+        gstStyle: gstBilling.printOnReceipt ? gstBilling.style : undefined,
+        gstSlabs: summary.slabs,
+      }, gstPrintOptionOverrides(gstBilling));
 
       Alert.alert('Reprint Success! 🖨️', `Receipt #${sale.invoiceNumber} reprinted successfully.`);
     } catch (err: any) {
@@ -179,6 +191,9 @@ export default function SalesHistoryScreen() {
         unit: it.unit || 'piece',
       }));
 
+      const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
+      const summary = computeGstBillSummary(gstLinesFromSaleItems(sale.items || []));
+
       await ThermalPrinterService.printA4Invoice({
         storeName: storeProfile.storeName,
         storeAddress: storeProfile.storeAddress,
@@ -196,7 +211,12 @@ export default function SalesHistoryScreen() {
         amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
         changeReturned: sale.changeReturned || 0,
         paymentMethod: (sale.paymentMethod || 'CASH').toUpperCase(),
-      });
+        taxableAmt: summary.taxableValue,
+        cgst: summary.cgstAmount,
+        sgst: summary.sgstAmount,
+        gstStyle: gstBilling.printOnReceipt ? gstBilling.style : undefined,
+        gstSlabs: summary.slabs,
+      }, gstPrintOptionOverrides(gstBilling));
     } catch (err: any) {
       Alert.alert('A4 Print Error', err?.message || 'Failed to open A4 print dialog');
     }
@@ -489,16 +509,27 @@ export default function SalesHistoryScreen() {
                       <Text style={[styles.summaryVal, { color: theme.textPrimary }]}>{formatCurrency(selectedSale.subtotal)}</Text>
                     </View>
                     {selectedSale.totalTax > 0 ? (
+                      shouldShowGstBreakdown(parseGstBilling(storeProfile.settings?.invoiceConfig)) ? (
+                        <BillGstBreakdown
+                          summary={computeGstBillSummary(gstLinesFromSaleItems(selectedSale.items || []))}
+                          style={parseGstBilling(storeProfile.settings?.invoiceConfig).style}
+                          theme={theme}
+                        />
+                      ) : (
                       <View style={styles.summaryRow}>
                         <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Tax / GST</Text>
                         <Text style={[styles.summaryVal, { color: '#10B981' }]}>+{formatCurrency(selectedSale.totalTax)}</Text>
                       </View>
+                      )
                     ) : null}
                     {selectedSale.totalDiscount > 0 ? (
                       <View style={styles.summaryRow}>
                         <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Discount</Text>
                         <Text style={[styles.summaryVal, { color: '#EF4444' }]}>-{formatCurrency(selectedSale.totalDiscount)}</Text>
                       </View>
+                    ) : null}
+                    {Array.isArray(selectedSale.billCharges) && selectedSale.billCharges.length > 0 ? (
+                      <BillChargesBreakdown charges={selectedSale.billCharges} theme={theme} />
                     ) : null}
                     <View style={[styles.summaryRow, { marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: theme.borderColor }]}>
                       <Text style={[styles.summaryGrandLabel, { color: theme.textPrimary }]}>Grand Total</Text>

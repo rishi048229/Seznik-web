@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/store/useAuthStore';
-import { LoginPayload, RegisterPayload } from '@/types/auth';
+import { CompleteOnboardingPayload, LoginPayload, RegisterPayload } from '@/types/auth';
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -64,6 +64,26 @@ export function useAuth() {
       authApi.resetPasswordWithOtp(email, newPassword),
   });
 
+  const completeOnboardingMutation = useMutation({
+    mutationFn: (payload: CompleteOnboardingPayload) => authApi.completeOnboarding(payload),
+    onSuccess: async (profile) => {
+      await updateUser({
+        ...profile,
+        onboardingCompleted: true,
+      });
+      queryClient.setQueryData(['auth', 'profile'], profile);
+    },
+  });
+
+  const updateBusinessTypeMutation = useMutation({
+    mutationFn: (businessType: CompleteOnboardingPayload['businessType']) =>
+      authApi.updateBusinessType(businessType),
+    onSuccess: async (profile) => {
+      await updateUser(profile);
+      queryClient.setQueryData(['auth', 'profile'], profile);
+    },
+  });
+
   const handleLogout = async () => {
     queryClient.clear();
     await logout();
@@ -87,6 +107,10 @@ export function useAuth() {
     sendForgotPasswordOtp: sendForgotPasswordOtpMutation.mutateAsync,
     verifyForgotPasswordOtp: verifyForgotPasswordOtpMutation.mutateAsync,
     resetPassword: resetPasswordMutation.mutateAsync,
+    completeOnboarding: completeOnboardingMutation.mutateAsync,
+    isCompletingOnboarding: completeOnboardingMutation.isPending,
+    updateBusinessType: updateBusinessTypeMutation.mutateAsync,
+    isUpdatingBusinessType: updateBusinessTypeMutation.isPending,
     logout: handleLogout,
     refetchProfile: profileQuery.refetch,
     hasPermission: useAuthStore.getState().hasPermission,

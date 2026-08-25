@@ -22,6 +22,8 @@ export function buildReceiptPrintOptions(input: {
   storeGstin?: string;
   storeLogoUrl?: string;
   upiId?: string;
+  showTaxBreakdown?: boolean;
+  itemWiseGst?: boolean;
 }): ReceiptPrintOptions {
   const activeCustomTemplate =
     input.customTemplates.find((t) => t.id === input.activeCustomTemplateId) || null;
@@ -40,6 +42,8 @@ export function buildReceiptPrintOptions(input: {
     storeGstin: input.storeGstin,
     storeLogoUrl: input.storeLogoUrl,
     upiId: input.upiId,
+    showTaxBreakdown: input.showTaxBreakdown,
+    itemWiseGst: input.itemWiseGst,
   };
 }
 

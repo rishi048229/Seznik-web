@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
 import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
+import { isValidBusinessType } from '../constants/businessTypes';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 request per email per minute
@@ -27,6 +28,51 @@ const findAccountByEmail = async (email: string) => {
   if (managedUser) return { type: 'managed' as const, record: managedUser };
   return null;
 };
+
+const getAdminBusinessType = async (adminId: string): Promise<string | null> => {
+  const admin = await prisma.user.findUnique({
+    where: { id: adminId },
+    select: { businessType: true },
+  });
+  return admin?.businessType ?? null;
+};
+
+const serializeOwnerAuthUser = (user: {
+  id: string;
+  email?: string | null;
+  displayName?: string | null;
+  businessName?: string | null;
+  businessType?: string | null;
+  role?: string | null;
+  onboardingCompleted?: boolean;
+}) => ({
+  id: user.id,
+  email: user.email,
+  displayName: user.displayName,
+  businessName: user.businessName,
+  businessType: user.businessType ?? null,
+  role: user.role || 'admin',
+  onboardingCompleted: user.onboardingCompleted ?? false,
+  accountType: 'user' as const,
+});
+
+const serializeManagedAuthUser = async (managedUser: {
+  id: string;
+  email?: string | null;
+  displayName?: string | null;
+  role?: string | null;
+  permissions?: unknown;
+  adminId: string;
+}) => ({
+  id: managedUser.id,
+  email: managedUser.email,
+  displayName: managedUser.displayName,
+  role: managedUser.role || 'agent',
+  onboardingCompleted: true,
+  permissions: managedUser.permissions,
+  businessType: await getAdminBusinessType(managedUser.adminId),
+  accountType: 'managed' as const,
+});
 
 // Step 1 of signup: email in → 6-digit code out (via SMTP).
 export const sendEmailOtp = async (req: Request, res: Response) => {
@@ -318,7 +364,7 @@ export const register = async (req: Request, res: Response) => {
     const token = generateToken(user.id, user.role || 'admin');
 
     res.status(201).json({
-      user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
+      user: serializeOwnerAuthUser(user),
       token,
     });
   } catch (error) {
@@ -350,14 +396,7 @@ export const login = async (req: Request, res: Response) => {
 
         const token = generateToken(user.id, user.role || 'admin');
         return res.json({
-          user: {
-            id: user.id,
-            email: user.email,
-            displayName: user.displayName,
-            role: user.role || 'admin',
-            onboardingCompleted: user.onboardingCompleted,
-            accountType: 'user',
-          },
+          user: serializeOwnerAuthUser(user),
           token,
         });
       }
@@ -370,15 +409,7 @@ export const login = async (req: Request, res: Response) => {
       if (isMatch) {
         const token = generateToken(managedUser.id, managedUser.role || 'agent');
         return res.json({
-          user: {
-            id: managedUser.id,
-            email: managedUser.email,
-            displayName: managedUser.displayName,
-            role: managedUser.role || 'agent',
-            onboardingCompleted: true,
-            permissions: managedUser.permissions,
-            accountType: 'managed',
-          },
+          user: await serializeManagedAuthUser(managedUser),
           token,
         });
       }
@@ -422,7 +453,7 @@ export const socialLogin = async (req: Request, res: Response) => {
 
     const token = generateToken(user.id, user.role || 'admin');
     res.json({
-      user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
+      user: serializeOwnerAuthUser(user),
       token,
     });
   } catch (error) {
@@ -436,7 +467,10 @@ export const getProfile = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (user) {
       const { password, ...userWithoutPassword } = user;
-      return res.json(userWithoutPassword);
+      return res.json({
+        ...userWithoutPassword,
+        accountType: 'user',
+      });
     }
 
     const managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
@@ -445,6 +479,8 @@ export const getProfile = async (req: Request, res: Response) => {
       return res.json({
         ...userWithoutPassword,
         onboardingCompleted: true,
+        businessType: await getAdminBusinessType(managedUser.adminId),
+        accountType: 'managed',
       });
     }
 
@@ -504,15 +540,55 @@ export const setRole = async (req: Request, res: Response) => {
 export const completeOnboarding = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { businessName } = req.body;
+    const businessName = String(req.body.businessName || '').trim();
+    const { businessType } = req.body;
+
+    if (!businessName) {
+      return res.status(400).json({ error: 'Business name is required' });
+    }
+    if (!isValidBusinessType(businessType)) {
+      return res.status(400).json({ error: 'A valid business type is required' });
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { businessName, onboardingCompleted: true },
+      data: { businessName, businessType, onboardingCompleted: true },
     });
 
     const { password, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+    res.json({
+      ...userWithoutPassword,
+      accountType: 'user',
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const updateBusinessType = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { businessType } = req.body;
+
+    if (!isValidBusinessType(businessType)) {
+      return res.status(400).json({ error: 'A valid business type is required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'Only store owners can change business type' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { businessType },
+    });
+
+    const { password, ...userWithoutPassword } = updated;
+    res.json({
+      ...userWithoutPassword,
+      accountType: 'user',
+    });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -715,11 +791,12 @@ const resolveAccountById = async (userId: string) => {
   return null;
 };
 
-const buildAuthResponseForAccount = (
+const buildAuthResponseForAccount = async (
   account: NonNullable<Awaited<ReturnType<typeof resolveAccountById>>>
-):
+): Promise<
   | { ok: true; payload: { user: Record<string, unknown>; token: string } }
-  | { ok: false; status: number; body: Record<string, unknown> } => {
+  | { ok: false; status: number; body: Record<string, unknown> }
+> => {
   if (account.type === 'user') {
     const user = account.record;
     if ((user as { isBanned?: boolean }).isBanned) {
@@ -737,14 +814,7 @@ const buildAuthResponseForAccount = (
     return {
       ok: true,
       payload: {
-        user: {
-          id: user.id,
-          email: user.email,
-          displayName: user.displayName,
-          role: user.role || 'admin',
-          onboardingCompleted: user.onboardingCompleted,
-          accountType: 'user',
-        },
+        user: serializeOwnerAuthUser(user),
         token: generateToken(user.id, user.role || 'admin'),
       },
     };
@@ -754,15 +824,7 @@ const buildAuthResponseForAccount = (
   return {
     ok: true,
     payload: {
-      user: {
-        id: managedUser.id,
-        email: managedUser.email,
-        displayName: managedUser.displayName,
-        role: managedUser.role || 'agent',
-        onboardingCompleted: true,
-        permissions: managedUser.permissions,
-        accountType: 'managed',
-      },
+      user: await serializeManagedAuthUser(managedUser),
       token: generateToken(managedUser.id, managedUser.role || 'agent'),
     },
   };
@@ -780,7 +842,7 @@ export const generateQrLogin = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const auth = buildAuthResponseForAccount(account);
+    const auth = await buildAuthResponseForAccount(account);
     if (!auth.ok) {
       return res.status(auth.status).json(auth.body);
     }
@@ -880,7 +942,7 @@ export const consumeQrLogin = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Account no longer exists' });
     }
 
-    const auth = buildAuthResponseForAccount(account);
+    const auth = await buildAuthResponseForAccount(account);
     if (!auth.ok) {
       return res.status(auth.status).json(auth.body);
     }

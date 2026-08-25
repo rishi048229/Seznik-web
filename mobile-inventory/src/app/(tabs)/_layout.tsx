@@ -6,12 +6,16 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
 import { GlobalPosCartBar } from '@/components/pos/GlobalPosCartBar';
 import { useTranslation } from '@/store/useLanguageStore';
+import { useAuth } from '@/hooks/useAuth';
+import { isNavFeatureVisible } from '@/utils/businessFeatures';
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const showCalculatorTab = isNavFeatureVisible(user?.businessType, 'calculator');
 
   const screenOptions = useMemo(
     () => ({
@@ -87,6 +91,7 @@ export default function TabsLayout() {
           name="calculator"
           listeners={{ tabPress: closeMoreMenu }}
           options={{
+            href: showCalculatorTab ? undefined : null,
             title: t('calculator', 'Calculator'),
             tabBarLabel: ({ color, focused }) => (
               <Text

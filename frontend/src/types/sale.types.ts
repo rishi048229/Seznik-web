@@ -1,5 +1,15 @@
 
 
+export interface AppliedBillCharge {
+  presetId: string
+  label: string
+  kind: 'service' | 'legacy_vat' | 'other'
+  type: 'percent' | 'flat'
+  value: number
+  amount: number
+  applyOn?: 'net_subtotal' | 'gross'
+}
+
 export interface Sale {
   id: string
   invoiceNumber: string
@@ -9,6 +19,8 @@ export interface Sale {
   totalDiscount: number
   totalTax: number
   grandTotal: number
+  billCharges?: AppliedBillCharge[] | null
+  extraChargesTotal?: number
   paymentMethod: 'cash' | 'card' | 'upi' | 'credit'
   amountPaid: number
   changeReturned: number

@@ -4,6 +4,12 @@ import {
   Croissant,
   Coffee,
   UtensilsCrossed,
+  Utensils,
+  Receipt,
+  ShoppingBag,
+  Wine,
+  ChefHat,
+  BedDouble,
   ShoppingCart,
   Shirt,
   Footprints,
@@ -37,6 +43,7 @@ export type TemplateCategory =
   | 'all'
   | 'custom'
   | 'food'
+  | 'restaurant'
   | 'retail'
   | 'fashion'
   | 'tech'
@@ -50,6 +57,26 @@ export interface TemplateSampleItem {
   unitPrice: number;
   total: number;
   unit?: string;
+}
+
+/** Restaurant thermal layouts used by PrinterService + ReceiptTemplateMockup. */
+export type RestaurantLayout =
+  | 'restaurant_bill'
+  | 'restaurant_compact'
+  | 'restaurant_gst'
+  | 'restaurant_takeaway'
+  | 'restaurant_roomservice';
+
+export type ReceiptLayout = 'standard' | RestaurantLayout;
+
+export function isRestaurantLayout(layout?: ReceiptLayout | null): layout is RestaurantLayout {
+  return (
+    layout === 'restaurant_bill' ||
+    layout === 'restaurant_compact' ||
+    layout === 'restaurant_gst' ||
+    layout === 'restaurant_takeaway' ||
+    layout === 'restaurant_roomservice'
+  );
 }
 
 export interface ReceiptTemplate {
@@ -80,6 +107,21 @@ export interface ReceiptTemplate {
   showCustomerLine: boolean;
   /** Character used for the thin divider rule between sections */
   dividerChar: string;
+  /** Optional alternate print layout (defaults to standard two-column receipt) */
+  layout?: ReceiptLayout;
+  /** Shown as a size chip on the template card (e.g. restaurant 48mm printable head). */
+  paperFit?: '48mm' | '58mm' | '80mm';
+  /** Demo header/meta used by the template gallery mockup and test prints. */
+  previewStoreName?: string;
+  previewAddress?: string;
+  previewPhone?: string;
+  previewGstin?: string;
+  previewInvoice?: string;
+  previewDate?: string;
+  previewCustomerName?: string;
+  previewCustomerPhone?: string;
+  previewTableNo?: string;
+  previewWaiter?: string;
   /** Realistic demo items tailored to this business vertical */
   sampleItems: TemplateSampleItem[];
 }
@@ -94,6 +136,7 @@ export const TEMPLATE_CATEGORIES: CategoryFilterOption[] = [
   { id: 'all', label: 'All', emoji: '🌟' },
   { id: 'custom', label: 'Custom', emoji: '🛠️' },
   { id: 'food', label: 'Food & Dining', emoji: '🍔' },
+  { id: 'restaurant', label: 'Restaurant & Cafe', emoji: '🍽️' },
   { id: 'retail', label: 'Retail & Grocery', emoji: '🛒' },
   { id: 'fashion', label: 'Fashion & Lifestyle', emoji: '👗' },
   { id: 'tech', label: 'Electronics & Tech', emoji: '📱' },
@@ -261,11 +304,11 @@ export const RECEIPT_TEMPLATES: ReceiptTemplate[] = [
     ],
   },
 
-  // ================= FOOD & DINING =================
+  // ================= RESTAURANT & HOTEL (58mm) =================
   {
     id: 'restaurant',
     name: 'Fine Dining Restaurant',
-    category: 'food',
+    category: 'restaurant',
     keywords: ['restaurant', 'dining', 'food', 'table', 'kot', 'meal', 'lunch', 'dinner'],
     icon: UtensilsCrossed,
     emoji: '🍽️',
@@ -285,6 +328,267 @@ export const RECEIPT_TEMPLATES: ReceiptTemplate[] = [
       { productName: 'Jeera Rice Half', quantity: 1, unitPrice: 140, total: 140, unit: 'Plate' },
     ],
   },
+  {
+    id: 'restaurant_bill',
+    name: 'Restaurant Bill',
+    category: 'restaurant',
+    keywords: ['restaurant bill', 'cash bill', 'diner', 'waiter', 'table', 'vat', 'service charge', 'local diners'],
+    icon: UtensilsCrossed,
+    emoji: '🍽️',
+    accentColor: '#1E293B',
+    tagline: 'CASH/BILL',
+    footerMessage: 'Thank you for dining with us!',
+    billLabel: 'Bill No',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Total Rs',
+    itemLabel: 'ORDER',
+    showTaxBreakdown: false,
+    showCustomerLine: false,
+    dividerChar: '-',
+    layout: 'restaurant_bill',
+    paperFit: '48mm',
+    previewStoreName: 'HOTEL BLUE MOON',
+    previewAddress: 'MG ROAD, PUNE',
+    previewPhone: '020-24441190',
+    previewInvoice: '1842',
+    previewDate: '25/08/26 13:42',
+    previewTableNo: '12',
+    previewWaiter: 'RAJ',
+    sampleItems: [
+      { productName: 'FLAVOURED MOJITO', quantity: 1, unitPrice: 330, total: 330 },
+      { productName: 'CUCUMBER MINT', quantity: 1, unitPrice: 170, total: 170 },
+      { productName: 'LONG ISLAND ELEC', quantity: 2, unitPrice: 340, total: 680 },
+      { productName: 'CRUNCHY SALAD', quantity: 1, unitPrice: 160, total: 160 },
+      { productName: 'ASSORTED SATAY', quantity: 1, unitPrice: 260, total: 260 },
+      { productName: 'TEQUILA CHICKEN', quantity: 1, unitPrice: 320, total: 320 },
+      { productName: 'FAJITAS CHICKEN', quantity: 1, unitPrice: 300, total: 300 },
+      { productName: 'SURF N TURF', quantity: 1, unitPrice: 360, total: 360 },
+    ],
+  },
+  {
+    id: 'restaurant_compact',
+    name: 'Compact Dine-In',
+    category: 'restaurant',
+    keywords: ['compact', 'dine in', 'table', '58mm', 'hotel', 'waiter', 'tno', 'short bill'],
+    icon: Utensils,
+    emoji: '🍽️',
+    accentColor: '#0F172A',
+    tagline: 'CASH/BILL',
+    footerMessage: 'Thank you for dining with us!',
+    billLabel: 'Bill',
+    itemColumnLeft: 'ITEM',
+    itemColumnRight: 'AMT',
+    itemLabel: 'ORDER',
+    showTaxBreakdown: true,
+    showCustomerLine: false,
+    dividerChar: '-',
+    layout: 'restaurant_compact',
+    paperFit: '48mm',
+    previewStoreName: 'HOTEL BLUE MOON',
+    previewAddress: 'MG ROAD, PUNE',
+    previewPhone: '020-24441190',
+    previewInvoice: '1842',
+    previewDate: '25/08/26 13:42',
+    previewTableNo: '12',
+    previewWaiter: 'RAJ',
+    sampleItems: [
+      { productName: 'DAL FRY', quantity: 1, unitPrice: 180, total: 180 },
+      { productName: 'BUTTER NAAN', quantity: 4, unitPrice: 55, total: 220 },
+      { productName: 'JEERA RICE', quantity: 1, unitPrice: 140, total: 140 },
+    ],
+  },
+  {
+    id: 'restaurant_gst',
+    name: 'GST Tax Invoice',
+    category: 'restaurant',
+    keywords: ['gst', 'tax invoice', 'cgst', 'sgst', 'registered', 'gstin', 'dine in'],
+    icon: Receipt,
+    emoji: '🧾',
+    accentColor: '#14532D',
+    tagline: 'TAX INVOICE',
+    footerMessage: 'Thank you. Visit again.',
+    billLabel: 'Bill',
+    itemColumnLeft: 'ITEM',
+    itemColumnRight: 'AMT',
+    itemLabel: 'ORDER',
+    showTaxBreakdown: true,
+    showCustomerLine: false,
+    dividerChar: '-',
+    layout: 'restaurant_gst',
+    paperFit: '48mm',
+    previewStoreName: 'SPICE GARDEN',
+    previewAddress: 'FC ROAD, PUNE',
+    previewPhone: '020-25551212',
+    previewGstin: '27AABCU9603R1ZM',
+    previewInvoice: '2201',
+    previewDate: '25/08/26 14:10',
+    previewTableNo: '07',
+    previewWaiter: 'ANITA',
+    sampleItems: [
+      { productName: 'PANEER TIKKA', quantity: 1, unitPrice: 280, total: 280 },
+      { productName: 'DAL MAKHANI', quantity: 1, unitPrice: 240, total: 240 },
+      { productName: 'GARLIC NAAN', quantity: 2, unitPrice: 55, total: 110 },
+    ],
+  },
+  {
+    id: 'restaurant_takeaway',
+    name: 'Takeaway / Parcel',
+    category: 'restaurant',
+    keywords: ['takeaway', 'parcel', 'pickup', 'packed', 'counter', 'guest', 'to go'],
+    icon: ShoppingBag,
+    emoji: '🥡',
+    accentColor: '#9A3412',
+    tagline: 'PARCEL',
+    footerMessage: 'Packed fresh. Enjoy!',
+    billLabel: 'Bill',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Total',
+    itemLabel: 'PARCEL',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+    layout: 'restaurant_takeaway',
+    paperFit: '48mm',
+    previewStoreName: 'TANDOORI EXPRESS',
+    previewAddress: 'FC ROAD, PUNE',
+    previewPhone: '020-24440011',
+    previewInvoice: '903',
+    previewDate: '25/08/26 13:05',
+    previewCustomerName: 'PRIYA SHAH',
+    previewCustomerPhone: '9876543210',
+    sampleItems: [
+      { productName: 'VEG BIRYANI', quantity: 1, unitPrice: 220, total: 220 },
+      { productName: 'BOONDI RAITA', quantity: 1, unitPrice: 40, total: 40 },
+    ],
+  },
+  {
+    id: 'restaurant_dhaba',
+    name: 'Dhaba / Family Diner',
+    category: 'restaurant',
+    keywords: ['dhaba', 'highway', 'family diner', 'roti', 'dal', 'lassi', 'unregistered', 'cash'],
+    icon: Flame,
+    emoji: '🔥',
+    accentColor: '#B45309',
+    tagline: 'CASH BILL',
+    footerMessage: 'Visit again bhai!',
+    billLabel: 'Bill',
+    itemColumnLeft: 'ITEM',
+    itemColumnRight: 'AMT',
+    itemLabel: 'ORDER',
+    showTaxBreakdown: false,
+    showCustomerLine: false,
+    dividerChar: '-',
+    layout: 'restaurant_compact',
+    paperFit: '48mm',
+    previewStoreName: 'DHABA 24',
+    previewAddress: 'NH48 HIGHWAY',
+    previewPhone: '9822001122',
+    previewInvoice: '77',
+    previewDate: '25/08/26 12:40',
+    previewTableNo: '4',
+    previewWaiter: 'RAMU',
+    sampleItems: [
+      { productName: 'DAL TADKA', quantity: 1, unitPrice: 140, total: 140 },
+      { productName: 'TAVA ROTI', quantity: 6, unitPrice: 15, total: 90 },
+      { productName: 'LASSI', quantity: 2, unitPrice: 40, total: 80 },
+    ],
+  },
+  {
+    id: 'restaurant_bar',
+    name: 'Bar & Lounge',
+    category: 'restaurant',
+    keywords: ['bar', 'lounge', 'drinks', 'cocktail', 'mojito', 'service charge', 'vat', 'nightlife'],
+    icon: Wine,
+    emoji: '🍸',
+    accentColor: '#1E1B4B',
+    tagline: 'CASH/BILL',
+    footerMessage: 'Please drink responsibly.',
+    billLabel: 'Bill',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Total',
+    itemLabel: 'BAR ORDER',
+    showTaxBreakdown: false,
+    showCustomerLine: false,
+    dividerChar: '-',
+    layout: 'restaurant_bill',
+    paperFit: '48mm',
+    previewStoreName: 'NIGHT OWL BAR',
+    previewAddress: 'KOREGAON PARK',
+    previewPhone: '020-26667890',
+    previewInvoice: '3318',
+    previewDate: '25/08/26 22:15',
+    previewTableNo: '9',
+    previewWaiter: 'VIKAS',
+    sampleItems: [
+      { productName: 'MOJITO', quantity: 2, unitPrice: 330, total: 660 },
+      { productName: 'LONG ISLAND', quantity: 1, unitPrice: 340, total: 340 },
+      { productName: 'CRUNCHY SALAD', quantity: 1, unitPrice: 160, total: 160 },
+    ],
+  },
+  {
+    id: 'restaurant_cloud',
+    name: 'Cloud Kitchen',
+    category: 'restaurant',
+    keywords: ['cloud kitchen', 'delivery', 'dark kitchen', 'online', 'swiggy', 'zomato', 'packed'],
+    icon: ChefHat,
+    emoji: '📦',
+    accentColor: '#0F766E',
+    tagline: 'DELIVERY ORDER',
+    footerMessage: 'Please check the seal.',
+    billLabel: 'Order',
+    itemColumnLeft: 'Item',
+    itemColumnRight: 'Total',
+    itemLabel: 'PACKED',
+    showTaxBreakdown: true,
+    showCustomerLine: true,
+    dividerChar: '-',
+    layout: 'restaurant_takeaway',
+    paperFit: '48mm',
+    previewStoreName: 'BOXED BITES',
+    previewAddress: 'KIRKEE, PUNE',
+    previewPhone: '020-26660011',
+    previewInvoice: '4418',
+    previewDate: '25/08/26 20:18',
+    previewCustomerName: 'AMIT K',
+    previewCustomerPhone: '9811122233',
+    sampleItems: [
+      { productName: 'BUTTER CHKN BOWL', quantity: 1, unitPrice: 249, total: 249 },
+      { productName: 'GARLIC NAAN PK', quantity: 2, unitPrice: 40, total: 80 },
+    ],
+  },
+  {
+    id: 'restaurant_roomservice',
+    name: 'Room Service',
+    category: 'restaurant',
+    keywords: ['room service', 'hotel', 'in room', 'guest', 'steward', 'charge to room'],
+    icon: BedDouble,
+    emoji: '🛎️',
+    accentColor: '#334155',
+    tagline: 'ROOM SERVICE',
+    footerMessage: 'Charge to room. Thank you.',
+    billLabel: 'Bill',
+    itemColumnLeft: 'ITEM',
+    itemColumnRight: 'AMT',
+    itemLabel: 'ORDER',
+    showTaxBreakdown: true,
+    showCustomerLine: false,
+    dividerChar: '-',
+    layout: 'restaurant_roomservice',
+    paperFit: '48mm',
+    previewStoreName: 'THE GRAND STAY',
+    previewAddress: 'MG ROAD, PUNE',
+    previewPhone: '020-26110000',
+    previewInvoice: '118',
+    previewDate: '25/08/26 21:05',
+    previewTableNo: '304',
+    previewWaiter: 'STEWARD',
+    sampleItems: [
+      { productName: 'CLUB SANDWICH', quantity: 1, unitPrice: 320, total: 320 },
+      { productName: 'LIME SODA', quantity: 1, unitPrice: 90, total: 90 },
+    ],
+  },
+
+  // ================= FOOD & DINING =================
   {
     id: 'cafe',
     name: 'Cafe & Coffee Bar',

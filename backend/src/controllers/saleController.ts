@@ -49,6 +49,8 @@ export const createSale = async (req: Request, res: Response) => {
     const totalDiscount = Number(body.totalDiscount) || 0;
     const totalTax = Number(body.totalTax) || 0;
     const grandTotal = Number(body.grandTotal) || 0;
+    const extraChargesTotal = Number(body.extraChargesTotal) || 0;
+    const billCharges = Array.isArray(body.billCharges) ? body.billCharges : null;
     const paymentMethod = String(body.paymentMethod || 'cash');
     const amountPaid = Number(body.amountPaid ?? grandTotal);
     const changeReturned = Number(body.changeReturned) || 0;
@@ -85,6 +87,8 @@ export const createSale = async (req: Request, res: Response) => {
         totalDiscount,
         totalTax,
         grandTotal,
+        billCharges: billCharges as any,
+        extraChargesTotal,
         paymentMethod,
         amountPaid,
         changeReturned,

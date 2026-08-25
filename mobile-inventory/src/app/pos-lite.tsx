@@ -43,14 +43,23 @@ import { useRouter } from 'expo-router';
 import { useCartStore } from '@/store/useCartStore';
 import { useProducts } from '@/hooks/useProducts';
 import { useSales } from '@/hooks/useSales';
-import { useSettings } from '@/hooks/useSettings';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
+import { parseGstBilling, shouldShowGstBreakdown } from '@/constants/gstBilling';
+import {
+  computeChargeAmount,
+  getEnabledPresets,
+  parseRestaurantBilling,
+  shouldShowBillCharges,
+} from '@/constants/restaurantBilling';
+import { computeGstBillSummary } from '@/utils/gst';
+import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown';
+import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown';
 import { PaymentMethod } from '@/types/sale';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
-import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
+import type { PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { generateProvisionalInvoice } from '@/utils/fastSaleCheckout';
 import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
@@ -66,8 +75,6 @@ export default function PosLiteScreen() {
   const { t } = useLanguageStore();
   const { products, getByBarcode } = useProducts();
   const { persistSaleInBackground, isCreating } = useSales();
-  const { settings } = useSettings();
-  const storeProfile = useStoreProfile();
   const { connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -82,7 +89,52 @@ export default function PosLiteScreen() {
     getTotalTax,
     getGrandTotal,
     toSaleItems,
+    getResolvedBillCharges,
+    getExtraChargesTotal,
+    getGrossSubtotalForCharges,
+    getNetSubtotalForCharges,
+    setChargePresets,
+    initDefaultSelectedCharges,
+    toggleChargePreset,
+    clearCharges,
+    chargePresets,
+    selectedChargePresetIds,
   } = useCartStore();
+
+  const storeProfile = useStoreProfile();
+  const gstBilling = React.useMemo(
+    () => parseGstBilling(storeProfile.settings?.invoiceConfig),
+    [storeProfile.settings?.invoiceConfig],
+  );
+  const restaurantBilling = React.useMemo(
+    () => parseRestaurantBilling(storeProfile.settings?.invoiceConfig),
+    [storeProfile.settings?.invoiceConfig],
+  );
+  const showBillCharges = shouldShowBillCharges(restaurantBilling);
+
+  const prepareBillCharges = useCallback(() => {
+    if (showBillCharges) {
+      setChargePresets(getEnabledPresets(restaurantBilling));
+      initDefaultSelectedCharges();
+    } else {
+      setChargePresets([]);
+      clearCharges();
+    }
+  }, [showBillCharges, restaurantBilling, setChargePresets, initDefaultSelectedCharges, clearCharges]);
+  const gstSummary = React.useMemo(() => {
+    const rawGross = cartItems.reduce((sum, ci) => sum + ci.product.sellingPrice * ci.quantity, 0);
+    const totalDisc = getTotalDiscount();
+    const discountFactor = rawGross > 0 ? Math.max(0, rawGross - totalDisc) / rawGross : 1;
+    return computeGstBillSummary(
+      cartItems.map((ci) => ({
+        sellingPrice: ci.product.sellingPrice * discountFactor,
+        quantity: ci.quantity,
+        discount: 0,
+        taxRate: ci.product.taxRate || 0,
+        priceIncludesGst: Boolean(ci.product.priceIncludesGst),
+      })),
+    );
+  }, [cartItems, getTotalDiscount]);
 
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -183,9 +235,11 @@ export default function PosLiteScreen() {
     const subtotal = getSubtotal();
     const totalDiscount = getTotalDiscount();
     const totalTax = getTotalTax();
+    const resolvedCharges = getResolvedBillCharges();
+    const extraChargesTotal = getExtraChargesTotal();
     const provisionalInv = generateProvisionalInvoice();
 
-    const taxableAmt = Math.max(0, subtotal - totalDiscount);
+    const taxableAmt = gstSummary.taxableValue || Math.max(0, subtotal - totalDiscount);
     const halfTax = totalTax / 2;
 
     const saleData = {
@@ -212,10 +266,14 @@ export default function PosLiteScreen() {
       }),
       subtotal,
       taxableAmt,
-      sgst: halfTax,
-      cgst: halfTax,
+      sgst: gstSummary.sgstAmount || halfTax,
+      cgst: gstSummary.cgstAmount || halfTax,
+      gstStyle: gstBilling.printOnReceipt ? gstBilling.style : undefined,
+      gstSlabs: gstSummary.slabs,
       totalDiscount,
       totalTax,
+      billCharges: resolvedCharges,
+      extraChargesTotal,
       grandTotal,
       amountPaid: grandTotal,
       changeReturned: 0,
@@ -237,6 +295,8 @@ export default function PosLiteScreen() {
         totalDiscount,
         totalTax,
         grandTotal,
+        billCharges: resolvedCharges,
+        extraChargesTotal,
         paymentMethod,
         amountPaid: grandTotal,
         changeReturned: 0,
@@ -412,6 +472,7 @@ export default function PosLiteScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setPaymentMethod('upi');
+                  prepareBillCharges();
                   setShowUpiModal(true);
                 }}
                 style={styles.qrPayQuickBtn}
@@ -419,7 +480,7 @@ export default function PosLiteScreen() {
                 <QrCode size={16} color="#FFFFFF" />
                 <Text style={styles.qrPayQuickBtnText}>QR PAY</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowPaymentModal(true)} style={styles.checkoutBtn}>
+              <TouchableOpacity onPress={() => { prepareBillCharges(); setShowPaymentModal(true); }} style={styles.checkoutBtn}>
                 <Text style={styles.checkoutBtnText}>Checkout</Text>
               </TouchableOpacity>
             </View>
@@ -613,6 +674,7 @@ export default function PosLiteScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     setPaymentMethod('upi');
+                    prepareBillCharges();
                     setShowUpiModal(true);
                   }}
                   disabled={cartItems.length === 0}
@@ -715,6 +777,47 @@ export default function PosLiteScreen() {
             </View>
 
             <Text style={styles.grandTotalText}>₹{getGrandTotal().toFixed(2)}</Text>
+            {shouldShowGstBreakdown(gstBilling) && gstSummary.taxableValue > 0 ? (
+              <View style={{ marginBottom: 12 }}>
+                <BillGstBreakdown summary={gstSummary} style={gstBilling.style} theme={theme} />
+              </View>
+            ) : null}
+            {showBillCharges && chargePresets.length > 0 ? (
+              <View style={{ marginBottom: 14 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 8 }}>
+                  {chargePresets.map((preset) => {
+                    const selected = selectedChargePresetIds.includes(preset.id);
+                    const previewAmount = computeChargeAmount(
+                      preset,
+                      getNetSubtotalForCharges(),
+                      getGrossSubtotalForCharges(),
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={preset.id}
+                        onPress={() => toggleChargePreset(preset.id)}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          borderRadius: 16,
+                          borderWidth: 1,
+                          backgroundColor: selected ? '#7C3AED' : theme.bg,
+                          borderColor: selected ? '#7C3AED' : theme.borderColor,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: selected ? '#FFFFFF' : theme.textPrimary }}>
+                          {preset.label}
+                        </Text>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: selected ? 'rgba(255,255,255,0.85)' : theme.textSecondary }}>
+                          ₹{previewAmount.toFixed(0)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <BillChargesBreakdown charges={getResolvedBillCharges()} theme={theme} />
+              </View>
+            ) : null}
 
             <TouchableOpacity onPress={handleCompleteSale} disabled={isCreating} style={styles.submitBtn}>
               <Text style={styles.submitBtnText}>Confirm Cash / UPI Checkout</Text>

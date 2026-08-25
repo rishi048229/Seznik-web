@@ -57,6 +57,16 @@ import { BRAND_COLORS } from '@/constants/theme';
 import ThermalPrinterService, { type PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
+import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown';
+import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown';
+import { parseGstBilling, gstPrintOptionOverrides, shouldShowGstBreakdown } from '@/constants/gstBilling';
+import {
+  computeChargeAmount,
+  getEnabledPresets,
+  parseRestaurantBilling,
+  shouldShowBillCharges,
+} from '@/constants/restaurantBilling';
+import { computeGstBillSummary } from '@/utils/gst';
 import {
   buildReceiptPrintOptions,
   generateProvisionalInvoice,
@@ -136,6 +146,16 @@ function PosScreen() {
   const getTotalDiscount = useCartStore((s) => s.getTotalDiscount);
   const getTotalTax = useCartStore((s) => s.getTotalTax);
   const getGrandTotal = useCartStore((s) => s.getGrandTotal);
+  const getGrossSubtotalForCharges = useCartStore((s) => s.getGrossSubtotalForCharges);
+  const getNetSubtotalForCharges = useCartStore((s) => s.getNetSubtotalForCharges);
+  const getResolvedBillCharges = useCartStore((s) => s.getResolvedBillCharges);
+  const getExtraChargesTotal = useCartStore((s) => s.getExtraChargesTotal);
+  const setChargePresets = useCartStore((s) => s.setChargePresets);
+  const initDefaultSelectedCharges = useCartStore((s) => s.initDefaultSelectedCharges);
+  const toggleChargePreset = useCartStore((s) => s.toggleChargePreset);
+  const clearCharges = useCartStore((s) => s.clearCharges);
+  const chargePresets = useCartStore((s) => s.chargePresets);
+  const selectedChargePresetIds = useCartStore((s) => s.selectedChargePresetIds);
   const toSaleItems = useCartStore((s) => s.toSaleItems);
   const selectedCustomerId = useCartStore((s) => s.selectedCustomerId);
   const selectedCustomerName = useCartStore((s) => s.selectedCustomerName);
@@ -233,6 +253,44 @@ function PosScreen() {
 
   const cartItems = useCartStore((s) => (s.checkoutModalOpen ? s.items : EMPTY_CART));
   const getCartItems = useCallback(() => useCartStore.getState().items, []);
+
+  const gstBilling = useMemo(
+    () => parseGstBilling(storeProfile.settings?.invoiceConfig),
+    [storeProfile.settings?.invoiceConfig],
+  );
+
+  const restaurantBilling = useMemo(
+    () => parseRestaurantBilling(storeProfile.settings?.invoiceConfig),
+    [storeProfile.settings?.invoiceConfig],
+  );
+
+  const showBillCharges = shouldShowBillCharges(restaurantBilling);
+
+  const openCheckoutModal = useCallback(() => {
+    if (shouldShowBillCharges(restaurantBilling)) {
+      setChargePresets(getEnabledPresets(restaurantBilling));
+      initDefaultSelectedCharges();
+    } else {
+      setChargePresets([]);
+      clearCharges();
+    }
+    setCheckoutModalOpen(true);
+  }, [restaurantBilling, setChargePresets, initDefaultSelectedCharges, clearCharges, setCheckoutModalOpen]);
+
+  const gstSummary = useMemo(() => {
+    const rawGross = cartItems.reduce((sum, ci) => sum + ci.product.sellingPrice * ci.quantity, 0);
+    const totalDisc = getTotalDiscount();
+    const discountFactor = rawGross > 0 ? Math.max(0, rawGross - totalDisc) / rawGross : 1;
+    return computeGstBillSummary(
+      cartItems.map((ci) => ({
+        sellingPrice: ci.product.sellingPrice * discountFactor,
+        quantity: ci.quantity,
+        discount: 0,
+        taxRate: ci.product.taxRate || 0,
+        priceIncludesGst: Boolean(ci.product.priceIncludesGst),
+      })),
+    );
+  }, [cartItems, getTotalDiscount]);
   const liveCartItems = useCartStore((s) => s.items);
   const cartTotalCount = liveCartItems.reduce((sum, item) => sum + item.quantity, 0);
   const grandTotalNow = getGrandTotal();
@@ -332,11 +390,23 @@ function PosScreen() {
     const grandTotal = getGrandTotal();
     const totalDiscount = getTotalDiscount();
     const totalTax = getTotalTax();
+    const resolvedCharges = getResolvedBillCharges();
+    const extraChargesTotal = getExtraChargesTotal();
     const grossSubtotal = cartItems.reduce((sum, ci) => sum + ci.product.sellingPrice * ci.quantity, 0);
     const amountPaid = paymentMethod === 'credit' ? Math.max(0, Math.min(grandTotal, parseFloat(creditAmountReceivedInput) || 0)) : grandTotal;
     const changeReturned = Math.max(0, amountPaid - grandTotal);
     const customerName = selectedCustomerName || 'Walk-in Customer';
-    const taxableAmt = Math.max(0, grossSubtotal - totalDiscount);
+    const discountFactor = grossSubtotal > 0 ? Math.max(0, grossSubtotal - totalDiscount) / grossSubtotal : 1;
+    const summary = computeGstBillSummary(
+      cartItems.map((ci) => ({
+        sellingPrice: ci.product.sellingPrice * discountFactor,
+        quantity: ci.quantity,
+        discount: 0,
+        taxRate: ci.product.taxRate || 0,
+        priceIncludesGst: Boolean(ci.product.priceIncludesGst),
+      })),
+    );
+    const taxableAmt = summary.taxableValue || Math.max(0, grossSubtotal - totalDiscount);
     const halfTax = totalTax / 2;
 
     return {
@@ -363,10 +433,14 @@ function PosScreen() {
       }),
       subtotal: grossSubtotal,
       taxableAmt,
-      sgst: halfTax,
-      cgst: halfTax,
+      sgst: summary.sgstAmount || halfTax,
+      cgst: summary.cgstAmount || halfTax,
+      gstStyle: gstBilling.printOnReceipt ? gstBilling.style : undefined,
+      gstSlabs: summary.slabs,
       totalDiscount: totalDiscount > 0 ? totalDiscount : 0,
       totalTax,
+      billCharges: resolvedCharges,
+      extraChargesTotal,
       grandTotal,
       amountPaid,
       changeReturned,
@@ -376,9 +450,12 @@ function PosScreen() {
     getCartItems,
     creditAmountReceivedInput,
     getGrandTotal,
+    getResolvedBillCharges,
+    getExtraChargesTotal,
     getItemDiscount,
     getTotalDiscount,
     getTotalTax,
+    gstBilling,
     paymentMethod,
     selectedCustomerName,
     storeProfile,
@@ -405,6 +482,8 @@ function PosScreen() {
       subtotal: saleData.subtotal,
       totalDiscount: saleData.totalDiscount,
       totalTax: saleData.totalTax,
+      billCharges: saleData.billCharges,
+      extraChargesTotal: saleData.extraChargesTotal,
       grandTotal: saleData.grandTotal,
       paymentMethod,
       amountPaid: saleData.amountPaid ?? grandTotalNow,
@@ -445,6 +524,7 @@ function PosScreen() {
           storeGstin: printData.storeGstin,
           storeLogoUrl: printData.storeLogoUrl,
           upiId: printData.upiId,
+          ...(gstPrintOptionOverrides(gstBilling)),
         })
       );
     }
@@ -773,7 +853,7 @@ function PosScreen() {
         </View>
 
         <View style={styles.footerMainRow}>
-          <TouchableOpacity onPress={() => setCheckoutModalOpen(true)} style={{ flex: 1, marginRight: 10 }}>
+          <TouchableOpacity onPress={openCheckoutModal} style={{ flex: 1, marginRight: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.tenderTotalLabel}>
                 {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
@@ -1309,6 +1389,45 @@ function PosScreen() {
                 </View>
               ) : null}
 
+              {cartItems.length > 0 && showBillCharges && chargePresets.length > 0 ? (
+                <View style={[styles.overallDiscountCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Percent size={15} color="#7C3AED" style={{ marginRight: 6 }} />
+                    <Text style={[styles.overallDiscountTitle, { color: theme.textPrimary }]}>Bill Charges</Text>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                    {chargePresets.map((preset) => {
+                      const selected = selectedChargePresetIds.includes(preset.id);
+                      const previewAmount = computeChargeAmount(
+                        preset,
+                        getNetSubtotalForCharges(),
+                        getGrossSubtotalForCharges(),
+                      );
+                      return (
+                        <TouchableOpacity
+                          key={preset.id}
+                          onPress={() => toggleChargePreset(preset.id)}
+                          style={[
+                            styles.discountPresetChip,
+                            {
+                              backgroundColor: selected ? '#7C3AED' : theme.bg,
+                              borderColor: selected ? '#7C3AED' : theme.borderColor,
+                            },
+                          ]}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: selected ? '#FFFFFF' : theme.textPrimary }}>
+                            {preset.label}
+                          </Text>
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: selected ? 'rgba(255,255,255,0.85)' : theme.textSecondary, marginTop: 1 }}>
+                            {preset.type === 'percent' ? `${preset.value}%` : `₹${preset.value}`} · ₹{previewAmount.toFixed(0)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ) : null}
+
               {/* BILL SUMMARY / END SECTION (After Subtotal and before Grand Total) */}
               {cartItems.length > 0 ? (
                 <View style={[styles.billSummarySection, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -1354,11 +1473,17 @@ function PosScreen() {
                   ) : null}
 
                   {/* 3. Tax / GST */}
-                  {getTotalTax() > 0 ? (
+                  {shouldShowGstBreakdown(gstBilling) && gstSummary.taxableValue > 0 ? (
+                    <BillGstBreakdown summary={gstSummary} style={gstBilling.style} theme={theme} />
+                  ) : getTotalTax() > 0 ? (
                     <View style={styles.billSummaryRow}>
                       <Text style={[styles.billSummaryLabel, { color: theme.textSecondary }]}>GST / Taxes</Text>
                       <Text style={[styles.billSummaryValue, { color: '#3B82F6' }]}>+₹{getTotalTax().toFixed(2)}</Text>
                     </View>
+                  ) : null}
+
+                  {showBillCharges ? (
+                    <BillChargesBreakdown charges={getResolvedBillCharges()} theme={theme} />
                   ) : null}
 
                   {/* 4. Grand Total */}

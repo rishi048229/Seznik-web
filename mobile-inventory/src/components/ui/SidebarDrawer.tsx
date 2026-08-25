@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -32,12 +32,16 @@ import {
   ChefHat,
   PlusCircle,
   LayoutGrid,
+  Percent,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
+import { NavFeatureId } from '@/constants/businessTypes';
+import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { GstBillingSettingsModal } from '@/components/billing/GstBillingSettingsModal';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.82, 340);
@@ -54,6 +58,25 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const isDark = colorScheme === 'dark';
   const { user, logout, hasPermission } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
+  const businessType = user?.businessType;
+  const [taxBillingOpen, setTaxBillingOpen] = useState(false);
+
+  const isFeatureVisible = (feature?: NavFeatureId) => {
+    if (!feature) return true;
+    return isNavFeatureVisible(businessType, feature);
+  };
+
+  const corePosItems = [
+    { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
+    { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
+    ...(isFeatureVisible('calculator')
+      ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
+      : []),
+    { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: Receipt, route: '/(tabs)/invoices' },
+    ...(isFeatureVisible('tokens')
+      ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
+      : []),
+  ];
 
   const theme = isDark
     ? {
@@ -78,15 +101,9 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const navGroups = [
     {
       title: t('corePosSales', 'CORE POS & SALES'),
-      items: [
-        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
-        { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
-        { id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' },
-        { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: Receipt, route: '/(tabs)/invoices' },
-        { id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' },
-      ],
+      items: corePosItems,
     },
-    ...(hasPermission('canAccessKOT')
+    ...(isFeatureVisible('kot') && hasPermission('canAccessKOT')
       ? [
           {
             title: t('kotRestaurantOrders', 'KOT & RESTAURANT ORDERS'),
@@ -102,19 +119,27 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       title: t('inventoryCatalog', 'INVENTORY & CATALOG'),
       items: [
         { id: 'products', label: t('products', 'Products & Barcodes'), icon: Package, route: '/products' },
+        ...(isFeatureVisible('stores')
+          ? [{ id: 'stores', label: t('stores', 'Stores & Locations'), icon: LayoutGrid, route: '/stores' }]
+          : []),
       ],
     },
     {
       title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
         { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
+        { id: 'tax-billing', label: t('taxBilling', 'Tax & Billing'), icon: Percent, modal: 'taxBilling' as const },
       ],
     },
     {
       title: t('suppliersPurchases', 'SUPPLIERS & PURCHASES'),
       items: [
-        { id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' },
-        { id: 'purchases', label: t('purchases', 'Stock Purchases'), icon: ShoppingBag, route: '/purchases' },
+        ...(isFeatureVisible('suppliers')
+          ? [{ id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' }]
+          : []),
+        ...(isFeatureVisible('purchases')
+          ? [{ id: 'purchases', label: t('purchases', 'Stock Purchases'), icon: ShoppingBag, route: '/purchases' }]
+          : []),
       ],
     },
     {
@@ -133,7 +158,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         { id: 'feedback', label: t('feedback', 'Review & Suggest'), icon: Star, route: '/feedback' },
       ],
     },
-  ];
+  ].filter((group) => group.items.length > 0);
 
   const handleNavigate = (route: string) => {
     onClose();
@@ -143,6 +168,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   };
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.drawerContent, { width: DRAWER_WIDTH, backgroundColor: theme.bg }]}>
@@ -185,11 +211,20 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                   <Text style={styles.groupTitle}>{group.title}</Text>
                   {group.items.map((item) => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.route;
+                    const isActive = 'route' in item && pathname === item.route;
                     return (
                       <TouchableOpacity
                         key={item.id}
-                        onPress={() => handleNavigate(item.route)}
+                        onPress={() => {
+                          if ('modal' in item && item.modal === 'taxBilling') {
+                            onClose();
+                            setTimeout(() => setTaxBillingOpen(true), 150);
+                            return;
+                          }
+                          if ('route' in item && item.route) {
+                            handleNavigate(item.route);
+                          }
+                        }}
                         style={[
                           styles.navItem,
                           isActive && { backgroundColor: theme.activeBg },
@@ -269,6 +304,8 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       </View>
     </Modal>
+    <GstBillingSettingsModal visible={taxBillingOpen} onClose={() => setTaxBillingOpen(false)} />
+    </>
   );
 }
 

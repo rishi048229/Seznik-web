@@ -29,6 +29,8 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 
 import { useTranslation } from '@/store/useLanguageStore';
+import { NavFeatureId } from '@/constants/businessTypes';
+import { isNavFeatureVisible } from '@/utils/businessFeatures';
 
 interface MoreMenuModalProps {
   visible: boolean;
@@ -41,7 +43,14 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const theme = useAppTheme();
   const { t } = useTranslation();
 
-  const menuItems = [
+  const menuItems: Array<{
+    id: string;
+    title: string;
+    icon: typeof Receipt;
+    color: string;
+    route: string;
+    feature?: NavFeatureId;
+  }> = [
     {
       id: 'invoices',
       title: t('invoices', 'Invoices'),
@@ -55,6 +64,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       icon: Ticket,
       color: '#2563EB',
       route: '/quick-tokens',
+      feature: 'tokens',
     },
     {
       id: 'customers',
@@ -69,6 +79,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       icon: Truck,
       color: '#7C3AED',
       route: '/suppliers',
+      feature: 'suppliers',
     },
     {
       id: 'purchases',
@@ -76,6 +87,15 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       icon: ShoppingBag,
       color: '#D97706',
       route: '/purchases',
+      feature: 'purchases',
+    },
+    {
+      id: 'stores',
+      title: t('stores', 'Stores & Locations'),
+      icon: ShoppingBag,
+      color: '#2563EB',
+      route: '/stores',
+      feature: 'stores',
     },
     {
       id: 'expenses',
@@ -113,6 +133,10 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       route: '/feedback',
     },
   ];
+
+  const visibleMenuItems = menuItems.filter(
+    (item) => !item.feature || isNavFeatureVisible(user?.businessType, item.feature)
+  );
 
   const handleNavigate = (route: string) => {
     onClose();
@@ -173,7 +197,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
             contentContainerStyle={styles.scrollContent}
           >
             <View style={styles.gridRow}>
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <FeatureGridTile
                   key={item.id}
                   label={item.title}

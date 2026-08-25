@@ -1,6 +1,8 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
 import { EscPosBuilder } from './escpos'
+import { parseGstBilling, type GstBreakdownStyle } from '@/constants/gstBilling'
+import { computeGstBillSummary, gstLinesFromSaleItems, type GstBillSummary } from '@/utils/gst'
 
 interface GenerateReceiptHTMLParams {
   sale: Sale
@@ -12,6 +14,63 @@ interface GenerateReceiptHTMLParams {
   logoURL?: string
   settingsTaxRate?: number   // from settings.taxConfig.taxRate
   settingsTaxName?: string   // from settings.taxConfig.taxName
+  invoiceConfig?: unknown
+}
+
+type GstPrintMode = 'unchanged' | 'compact' | GstBreakdownStyle
+
+function resolveGstPrint(sale: Sale, invoiceConfig: unknown) {
+  const config = parseGstBilling(invoiceConfig)
+  const summary = computeGstBillSummary(gstLinesFromSaleItems(sale.items ?? []))
+  if (!config.configured) {
+    return { mode: 'unchanged' as const, itemWiseGst: true, summary }
+  }
+  if (!config.printOnReceipt || config.style === 'compact') {
+    return { mode: 'compact' as const, itemWiseGst: config.itemWiseGst, summary }
+  }
+  return { mode: config.style, itemWiseGst: config.itemWiseGst, summary }
+}
+
+function saleChargeLines(sale: Sale) {
+  return Array.isArray(sale.billCharges) ? sale.billCharges.filter((c) => c.amount > 0) : []
+}
+
+function a4TaxRowsHtml(
+  mode: GstPrintMode,
+  summary: GstBillSummary,
+  totalTax: number,
+  effectiveTaxName: string,
+  effectiveTaxRate: number,
+): string {
+  const row = (label: string, value: string) => `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">${label}</span>
+        <span style="font-size:12px;">${value}</span>
+      </div>`
+  if (mode === 'unchanged') {
+    return totalTax > 0 ? row(`${effectiveTaxName} (${Number(effectiveTaxRate).toFixed(2)}%)`, totalTax.toFixed(2)) : ''
+  }
+  if (mode === 'compact') {
+    const gst = summary.totalGst || totalTax
+    return gst > 0 ? row('GST', gst.toFixed(2)) : ''
+  }
+  if (mode === 'slab_wise') {
+    return summary.slabs
+      .map((slab) => {
+        if (slab.gstRate === 0) return row('Nil / Exempt', slab.taxableValue.toFixed(2))
+        return (
+          row(`Taxable @ ${slab.gstRate}%`, slab.taxableValue.toFixed(2)) +
+          row(`CGST @ ${slab.cgstRate}%`, slab.cgstAmount.toFixed(2)) +
+          row(`SGST @ ${slab.sgstRate}%`, slab.sgstAmount.toFixed(2))
+        )
+      })
+      .join('')
+  }
+  return (
+    row('Taxable Value', summary.taxableValue.toFixed(2)) +
+    row('CGST', summary.cgstAmount.toFixed(2)) +
+    row('SGST', summary.sgstAmount.toFixed(2))
+  )
 }
 
 // ─── Number to words (Indian system) ─────────────────────────────────────────
@@ -48,6 +107,7 @@ export const generateReceiptHTML = ({
   logoURL,
   settingsTaxRate,
   settingsTaxName,
+  invoiceConfig,
 }: GenerateReceiptHTMLParams): string => {
   const companyName = receiptConfig?.companyName || businessName || 'Your Company'
   const companyAddress = receiptConfig?.address || businessAddress || ''
@@ -85,6 +145,7 @@ export const generateReceiptHTML = ({
     ? inferredTaxRate
     : (saleItems[0]?.taxRate ?? inferredTaxRate ?? settingsTaxRate ?? 0)
   const effectiveTaxName = settingsTaxName || 'GST'
+  const gstPrint = resolveGstPrint(sale, invoiceConfig)
 
   // ─── Font sizes ──────────────────────────────────────────────────────────
   // Thermal: 58mm vs 80mm vs A4
@@ -207,11 +268,12 @@ export const generateReceiptHTML = ({
         <span style="font-size:12px;color:#6b7280;">Sub Total</span>
         <span style="font-size:12px;font-weight:600;">${sale.subtotal.toFixed(2)}</span>
       </div>
-      ${totalTax > 0 ? `
+      ${a4TaxRowsHtml(gstPrint.mode, gstPrint.summary, totalTax, effectiveTaxName, effectiveTaxRate)}
+      ${saleChargeLines(sale).map((charge) => `
       <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">${effectiveTaxName} (${effectiveTaxRate}%)</span>
-        <span style="font-size:12px;">${totalTax.toFixed(2)}</span>
-      </div>` : ''}
+        <span style="font-size:12px;color:#6b7280;">${charge.label}</span>
+        <span style="font-size:12px;">${charge.amount.toFixed(2)}</span>
+      </div>`).join('')}
       ${sale.totalDiscount > 0 ? `
       <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
         <span style="font-size:12px;color:#6b7280;">Discount</span>
@@ -282,7 +344,7 @@ export const generateReceiptHTML = ({
       <div style="margin:2px 0 4px 0;">
         <div style="display:flex;justify-content:space-between;font-size:${baseFS};font-weight:700;">
           <span>${index + 1}. ${item.productName}${gstTagHtml}</span>
-          <span>${(item.taxRate || effectiveTaxRate).toFixed(2)}%</span>
+          ${gstPrint.itemWiseGst ? `<span>${(item.taxRate || effectiveTaxRate).toFixed(2)}%</span>` : '<span></span>'}
         </div>
         <div style="display:flex;justify-content:space-between;font-size:${smallFS};font-weight:600;">
           <span style="min-width:36px;">${item.quantity} Pc</span>
@@ -300,6 +362,26 @@ export const generateReceiptHTML = ({
       <span>${label}</span>
       <span>${value}</span>
     </div>`
+  const thermalTaxBlock = (() => {
+    if (gstPrint.mode === 'unchanged') {
+      return `${summaryRow('Taxable Amt', money(taxableAmt))}
+    ${totalTax > 0 ? summaryRow(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt)) : ''}
+    ${totalTax > 0 ? summaryRow(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt)) : ''}`
+    }
+    if (gstPrint.mode === 'compact') {
+      const gst = gstPrint.summary.totalGst || totalTax
+      return gst > 0 ? summaryRow('GST', money(gst)) : ''
+    }
+    if (gstPrint.mode === 'slab_wise') {
+      return gstPrint.summary.slabs
+        .map((slab) => {
+          if (slab.gstRate === 0) return summaryRow('Nil / Exempt', money(slab.taxableValue))
+          return `${summaryRow(`Taxable @ ${slab.gstRate}%`, money(slab.taxableValue))}${summaryRow(`CGST @ ${slab.cgstRate}%`, money(slab.cgstAmount))}${summaryRow(`SGST @ ${slab.sgstRate}%`, money(slab.sgstAmount))}`
+        })
+        .join('')
+    }
+    return `${summaryRow('Taxable Amt', money(gstPrint.summary.taxableValue))}${summaryRow('CGST', money(gstPrint.summary.cgstAmount))}${summaryRow('SGST', money(gstPrint.summary.sgstAmount))}`
+  })()
 
   return `
   <div style="
@@ -356,9 +438,8 @@ export const generateReceiptHTML = ({
     <!-- ── THERMAL TOTALS ── -->
     ${summaryRow('Sub Total', money(sale.subtotal))}
     ${(sale.totalDiscount || 0) > 0 ? summaryRow('Discount', `(-) ${money(sale.totalDiscount || 0)}`) : ''}
-    ${summaryRow('Taxable Amt', money(taxableAmt))}
-    ${totalTax > 0 ? summaryRow(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt)) : ''}
-    ${totalTax > 0 ? summaryRow(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt)) : ''}
+    ${thermalTaxBlock}
+    ${saleChargeLines(sale).map((charge) => summaryRow(charge.label, money(charge.amount))).join('')}
 
     ${sepS}
 
@@ -454,6 +535,7 @@ interface GenerateReceiptEscPosParams {
   businessAddress?: string
   customerName?: string
   settingsTaxRate?: number
+  invoiceConfig?: unknown
 }
 
 export const generateReceiptEscPos = ({
@@ -464,6 +546,7 @@ export const generateReceiptEscPos = ({
   businessAddress,
   customerName,
   settingsTaxRate,
+  invoiceConfig,
 }: GenerateReceiptEscPosParams): Uint8Array => {
   // 80mm printers (like Veer thermal receipt driver) use 48 characters/line (576 dots width).
   // 58mm printers use 32 characters/line (384 dots width).
@@ -505,6 +588,7 @@ export const generateReceiptEscPos = ({
   const taxableAmt = sale.subtotal - (sale.totalDiscount || 0)
   const paymentMade = sale.amountPaid || 0
   const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
+  const gstPrint = resolveGstPrint(sale, invoiceConfig)
 
   const money = (n: number) => `Rs.${n.toFixed(2)}`
 
@@ -540,7 +624,11 @@ export const generateReceiptEscPos = ({
         ? ' (+GST)'
         : ''
     b.bold(true)
-    b.twoCol(`${index + 1}. ${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
+    if (gstPrint.itemWiseGst) {
+      b.twoCol(`${index + 1}. ${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
+    } else {
+      b.line(`${index + 1}. ${item.productName}${gstTagEsc}`)
+    }
     b.bold(false)
     b.line(`  ${item.quantity} Pc  Rate:${item.sellingPrice.toFixed(2)}  Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'}  Amt:${lineTotal.toFixed(2)}`)
   })
@@ -549,11 +637,33 @@ export const generateReceiptEscPos = ({
   // ── Summary ──
   b.twoCol('Sub Total', money(sale.subtotal), lineWidth)
   if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, lineWidth)
-  b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
-  if (totalTax > 0) {
-    b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), lineWidth)
-    b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), lineWidth)
+  if (gstPrint.mode === 'unchanged') {
+    b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
+    if (totalTax > 0) {
+      b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), lineWidth)
+      b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), lineWidth)
+    }
+  } else if (gstPrint.mode === 'compact') {
+    const gst = gstPrint.summary.totalGst || totalTax
+    if (gst > 0) b.twoCol('GST', money(gst), lineWidth)
+  } else if (gstPrint.mode === 'slab_wise') {
+    gstPrint.summary.slabs.forEach((slab) => {
+      if (slab.gstRate === 0) {
+        b.twoCol('Nil / Exempt', money(slab.taxableValue), lineWidth)
+      } else {
+        b.twoCol(`Taxable @ ${slab.gstRate}%`, money(slab.taxableValue), lineWidth)
+        b.twoCol(`CGST @ ${slab.cgstRate}%`, money(slab.cgstAmount), lineWidth)
+        b.twoCol(`SGST @ ${slab.sgstRate}%`, money(slab.sgstAmount), lineWidth)
+      }
+    })
+  } else {
+    b.twoCol('Taxable Amt', money(gstPrint.summary.taxableValue), lineWidth)
+    b.twoCol('CGST', money(gstPrint.summary.cgstAmount), lineWidth)
+    b.twoCol('SGST', money(gstPrint.summary.sgstAmount), lineWidth)
   }
+  saleChargeLines(sale).forEach((charge) => {
+    b.twoCol(charge.label, money(charge.amount), lineWidth)
+  })
   b.hr(lineWidth, '=')
 
   b.bold(true)

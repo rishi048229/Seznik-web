@@ -6,6 +6,7 @@ import {
   getProfile,
   setRole,
   completeOnboarding,
+  updateBusinessType,
   getManagedUsers,
   createManagedUser,
   syncManagedUsers,
@@ -42,6 +43,7 @@ router.post('/qr-login', consumeQrLogin);
 router.get('/profile', protect, getProfile);
 router.post('/setRole', protect, setRole);
 router.post('/onboard', protect, completeOnboarding);
+router.patch('/business-type', protect, updateBusinessType);
 
 // Managed users (sub-account configuration). :adminUid in the path is kept for
 // the frontend contract, but the authenticated user is the source of truth.

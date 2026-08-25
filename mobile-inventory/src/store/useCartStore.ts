@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { Product } from '@/types/product';
 import { PaymentMethod, SaleItem } from '@/types/sale';
+import {
+  AppliedBillCharge,
+  BillChargePreset,
+  defaultSelectedPresetIds,
+  resolveBillCharges,
+} from '@/constants/restaurantBilling';
 
 export interface CartItem {
   product: Product;
@@ -22,6 +28,8 @@ interface CartState {
   selectedCustomerId: string | null;
   selectedCustomerName: string | null;
   checkoutModalOpen: boolean;
+  chargePresets: BillChargePreset[];
+  selectedChargePresetIds: string[];
 
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
@@ -31,6 +39,10 @@ interface CartState {
   setGstMode: (mode: 'inclusive' | 'exclusive') => void;
   setCustomer: (id: string | null, name: string | null) => void;
   setCheckoutModalOpen: (open: boolean) => void;
+  setChargePresets: (presets: BillChargePreset[]) => void;
+  initDefaultSelectedCharges: () => void;
+  toggleChargePreset: (presetId: string) => void;
+  clearCharges: () => void;
 
   // Item-level discount actions
   toggleItemDiscount: (productId: string) => void;
@@ -45,6 +57,10 @@ interface CartState {
   getSubtotal: () => number;
   getTotalDiscount: () => number;
   getTotalTax: () => number;
+  getGrossSubtotalForCharges: () => number;
+  getNetSubtotalForCharges: () => number;
+  getResolvedBillCharges: () => AppliedBillCharge[];
+  getExtraChargesTotal: () => number;
   getGrandTotal: () => number;
   toSaleItems: () => SaleItem[];
 }
@@ -56,6 +72,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   selectedCustomerId: null,
   selectedCustomerName: null,
   checkoutModalOpen: false,
+  chargePresets: [],
+  selectedChargePresetIds: [],
 
   addItem: (product: Product, quantity = 1) => {
     set((state) => {
@@ -101,6 +119,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       discount: { type: 'flat', value: 0 },
       selectedCustomerId: null,
       selectedCustomerName: null,
+      selectedChargePresetIds: [],
     });
   },
 
@@ -118,6 +137,30 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   setCheckoutModalOpen: (open) => {
     set({ checkoutModalOpen: open });
+  },
+
+  setChargePresets: (presets) => {
+    set({ chargePresets: presets });
+  },
+
+  initDefaultSelectedCharges: () => {
+    const { chargePresets } = get();
+    set({ selectedChargePresetIds: defaultSelectedPresetIds(chargePresets) });
+  },
+
+  toggleChargePreset: (presetId) => {
+    set((state) => {
+      const exists = state.selectedChargePresetIds.includes(presetId);
+      return {
+        selectedChargePresetIds: exists
+          ? state.selectedChargePresetIds.filter((id) => id !== presetId)
+          : [...state.selectedChargePresetIds, presetId],
+      };
+    });
+  },
+
+  clearCharges: () => {
+    set({ selectedChargePresetIds: [] });
   },
 
   toggleItemDiscount: (productId: string) => {
@@ -257,11 +300,36 @@ export const useCartStore = create<CartState>((set, get) => ({
     }, 0);
   },
 
+  getGrossSubtotalForCharges: () => {
+    const { items } = get();
+    return items.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
+  },
+
+  getNetSubtotalForCharges: () => {
+    const { getGrossSubtotalForCharges, getTotalDiscount } = get();
+    return Math.max(0, getGrossSubtotalForCharges() - getTotalDiscount());
+  },
+
+  getResolvedBillCharges: () => {
+    const { chargePresets, selectedChargePresetIds, getNetSubtotalForCharges, getGrossSubtotalForCharges } = get();
+    return resolveBillCharges(
+      chargePresets,
+      selectedChargePresetIds,
+      getNetSubtotalForCharges(),
+      getGrossSubtotalForCharges(),
+    );
+  },
+
+  getExtraChargesTotal: () => {
+    return get().getResolvedBillCharges().reduce((sum, charge) => sum + charge.amount, 0);
+  },
+
   getGrandTotal: () => {
     const subtotal = get().getSubtotal();
     const discount = get().getTotalDiscount();
     const tax = get().getTotalTax();
-    return Math.max(0, subtotal - discount + tax);
+    const extraCharges = get().getExtraChargesTotal();
+    return Math.max(0, subtotal - discount + tax + extraCharges);
   },
 
   toSaleItems: () => {
@@ -277,6 +345,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         unitPrice: item.product.sellingPrice,
         costPrice: item.product.costPrice,
         taxRate: item.product.taxRate,
+        priceIncludesGst: Boolean(item.product.priceIncludesGst),
         discountType: item.discountType,
         discountValue: item.discountValue,
         discountAmount: discountAmt,

@@ -3,9 +3,29 @@ export interface NotificationConfig {
   overdueDays: number
 }
 
+export interface GstBillingConfigPayload {
+  showBreakdown: boolean
+  style: 'compact' | 'tax_invoice' | 'slab_wise'
+  printOnReceipt: boolean
+  itemWiseGst: boolean
+}
+
+export interface BillChargePresetPayload {
+  id: string
+  label: string
+  kind: 'service' | 'legacy_vat' | 'other'
+  type: 'percent' | 'flat'
+  value: number
+  enabled: boolean
+  defaultSelected: boolean
+  applyOn: 'net_subtotal' | 'gross'
+}
+
 export interface InvoiceConfig {
   prefix: string
   footerText: string
+  gstBilling?: GstBillingConfigPayload
+  restaurantBilling?: { presets: BillChargePresetPayload[] }
 }
 
 export interface ReceiptConfig {

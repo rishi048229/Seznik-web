@@ -17,6 +17,7 @@ model User {
   displayName         String?
   photoURL            String? @db.Text
   businessName        String?
+  businessType        String? // restaurant_cafe | online_store | retail_shop
   plan                String  @default("free")
   onboardingCompleted Boolean @default(false)
   role                String?
@@ -250,6 +251,9 @@ model Sale {
   totalDiscount  Float
   totalTax       Float
   grandTotal     Float
+  /** Restaurant / bill add-ons applied at checkout — [{ presetId, label, kind, type, value, amount }] */
+  billCharges       Json?
+  extraChargesTotal Float     @default(0)
   paymentMethod  String
   amountPaid     Float
   changeReturned Float

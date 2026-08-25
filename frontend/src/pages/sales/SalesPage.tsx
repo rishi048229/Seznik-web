@@ -56,6 +56,7 @@ export const SalesPage = () => {
       customerName,
       width: printFormat === 'thermal' ? '50mm' : '210mm',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
+      invoiceConfig: settings?.invoiceConfig,
     })
 
     printReceipt(receiptHTML, printFormat === 'thermal' ? '50mm' : '210mm', printSale.invoiceNumber, () => {
@@ -81,6 +82,7 @@ export const SalesPage = () => {
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
+        invoiceConfig: settings?.invoiceConfig,
       })
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)
@@ -113,6 +115,7 @@ export const SalesPage = () => {
       customerName,
       width: '210mm',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
+      invoiceConfig: settings?.invoiceConfig,
     })
     const full = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${sale.invoiceNumber}</title>
 <style>body{margin:0;padding:16px;font-family:Arial,sans-serif;}</style></head><body>${html}</body></html>`

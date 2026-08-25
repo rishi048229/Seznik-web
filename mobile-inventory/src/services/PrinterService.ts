@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, EmitterSubscription } from 'react-native';
-import { ReceiptTemplate, getTemplateById } from '../constants/receiptTemplates';
+import { ReceiptTemplate, getTemplateById, isRestaurantLayout } from '../constants/receiptTemplates';
 import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } from '../types/labelTemplate';
 import { CustomReceiptTemplate } from '../types/customReceipt';
 import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
@@ -64,12 +64,21 @@ export interface PrintSaleData {
   taxableAmt?: number;
   sgst?: number;
   cgst?: number;
+  /** When set, overrides the receipt template's tax block (compact / tax invoice / slab-wise). */
+  gstStyle?: 'compact' | 'tax_invoice' | 'slab_wise';
+  gstSlabs?: { gstRate: number; cgstRate: number; sgstRate: number; taxableValue: number; cgstAmount: number; sgstAmount: number; totalGst: number }[];
   totalDiscount: number;
   totalTax: number;
   grandTotal: number;
+  /** Selected restaurant / bill charge lines applied at checkout */
+  billCharges?: import('@/constants/restaurantBilling').AppliedBillCharge[];
+  extraChargesTotal?: number;
   amountPaid?: number;
   changeReturned?: number;
   paymentMethod: string;
+  /** Restaurant bill layout — table / waiter shown in the meta row */
+  tableNo?: string;
+  waiterName?: string;
 }
 
 /**
@@ -158,6 +167,53 @@ export interface ReceiptPrintOptions {
   storeGstin?: string;
   storeLogoUrl?: string;
   upiId?: string;
+  /** When set, overrides ReceiptTemplate.showTaxBreakdown. */
+  showTaxBreakdown?: boolean;
+  /** Print each line's GST % under the item name. */
+  itemWiseGst?: boolean;
+}
+
+function effectiveShowTaxBreakdown(
+  template: ReceiptTemplate,
+  options: ReceiptPrintOptions,
+  data: PrintSaleData,
+): boolean {
+  if (options.showTaxBreakdown !== undefined) return options.showTaxBreakdown;
+  if (data.gstStyle === 'compact') return false;
+  if (data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise') return true;
+  return template.showTaxBreakdown;
+}
+
+function effectiveShowItemGst(options: ReceiptPrintOptions, showBreakdown: boolean): boolean {
+  if (options.itemWiseGst !== undefined) return options.itemWiseGst;
+  return showBreakdown;
+}
+
+function gstTotalsHtml(data: PrintSaleData): string {
+  if (data.gstStyle === 'slab_wise' && data.gstSlabs && data.gstSlabs.length > 0) {
+    return data.gstSlabs
+      .map((slab) => {
+        if (slab.gstRate === 0) {
+          return `<tr><td>Nil / Exempt</td><td class="right">Rs.${slab.taxableValue.toFixed(2)}</td></tr>`;
+        }
+        return `<tr><td>Taxable @ ${slab.gstRate}%</td><td class="right">Rs.${slab.taxableValue.toFixed(2)}</td></tr>
+            <tr><td>CGST ${slab.cgstRate}%</td><td class="right">Rs.${slab.cgstAmount.toFixed(2)}</td></tr>
+            <tr><td>SGST ${slab.sgstRate}%</td><td class="right">Rs.${slab.sgstAmount.toFixed(2)}</td></tr>`;
+      })
+      .join('');
+  }
+  const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
+  const halfTax = data.totalTax / 2;
+  const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
+  const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
+  return `<tr><td>Taxable Amt</td><td class="right">Rs.${taxable.toFixed(2)}</td></tr>
+            <tr><td>SGST</td><td class="right">Rs.${sgstVal.toFixed(2)}</td></tr>
+            <tr><td>CGST</td><td class="right">Rs.${cgstVal.toFixed(2)}</td></tr>`;
+}
+
+function billChargesHtml(data: PrintSaleData): string {
+  const charges = data.billCharges?.filter((c) => c.amount > 0) || [];
+  return charges.map((charge) => `<tr><td>${charge.label}</td><td class="right">Rs.${charge.amount.toFixed(2)}</td></tr>`).join('');
 }
 
 export interface BluetoothPrinterDevice {
@@ -846,6 +902,11 @@ class ThermalPrinterServiceManager {
   ): string {
     const width = paperWidth === '58mm' ? 32 : 48;
     const lines: string[] = [];
+    const showBreakdown =
+      options.showTaxBreakdown !== undefined
+        ? options.showTaxBreakdown
+        : data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise';
+    const showItemGst = effectiveShowItemGst(options, showBreakdown);
 
     // Top margin
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
@@ -930,7 +991,7 @@ class ThermalPrinterServiceManager {
               if (rem) lines.push('   ' + rem.slice(0, Math.max(1, width - 3)));
             }
 
-            if (entry.showTaxColumn && item.gstRate) {
+            if ((showItemGst || entry.showTaxColumn) && item.gstRate) {
               lines.push(`   ${item.gstRate.toFixed(1)}% GST`);
             }
 
@@ -988,6 +1049,228 @@ class ThermalPrinterServiceManager {
   }
 
   /**
+   * Restaurant thermal layouts sized for 32-col / 48mm printable heads.
+   * Compact and GST variants keep item names on a single qty/amt row.
+   */
+  private formatRestaurantBillText(
+    data: PrintSaleData,
+    paperWidth: '58mm' | '80mm',
+    template: ReceiptTemplate,
+    options: ReceiptPrintOptions = {},
+  ): string {
+    const layout = template.layout || 'restaurant_bill';
+    const width = paperWidth === '58mm' ? 32 : 48;
+    const divider = '-'.repeat(width);
+    const doubleDivider = '='.repeat(width);
+    const detailIndent = paperWidth === '58mm' ? 4 : 10;
+    const compact = layout === 'restaurant_compact' || layout === 'restaurant_gst' || layout === 'restaurant_roomservice';
+    const takeaway = layout === 'restaurant_takeaway';
+    const gstInvoice = layout === 'restaurant_gst';
+    const roomService = layout === 'restaurant_roomservice';
+    const seatLabel = roomService ? 'Room' : 'TNo';
+
+    const center = (str: string) => {
+      const trimmed = String(str ?? '').trim();
+      if (!trimmed) return;
+      if (trimmed.length >= width) return trimmed.slice(0, width);
+      const padLeft = Math.floor((width - trimmed.length) / 2);
+      return ' '.repeat(padLeft) + trimmed;
+    };
+
+    const padRight = (str: string, len: number) => {
+      const s = String(str ?? '');
+      if (s.length >= len) return s.slice(0, len);
+      return s + ' '.repeat(len - s.length);
+    };
+
+    const padLeft = (str: string, len: number) => {
+      const s = String(str ?? '');
+      if (s.length >= len) return s.slice(s.length - len);
+      return ' '.repeat(len - s.length) + s;
+    };
+
+    const padLine = (left: string, right: string) => {
+      const leftStr = String(left ?? '');
+      const rightStr = String(right ?? '');
+      const available = width - leftStr.length - rightStr.length;
+      if (available <= 0) {
+        const maxLeft = Math.max(1, width - rightStr.length - 1);
+        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
+      }
+      return leftStr + ' '.repeat(available) + rightStr;
+    };
+
+    const formatQty = (qty: number) => {
+      const rounded = Math.round(qty * 1000) / 1000;
+      return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(3);
+    };
+
+    const wrapName = (name: string): string[] => {
+      const upper = String(name || 'Item').toUpperCase();
+      if (upper.length <= width) return [upper];
+      const lines: string[] = [];
+      let remaining = upper;
+      while (remaining.length > width) {
+        let breakAt = remaining.lastIndexOf(' ', width);
+        if (breakAt <= 0) breakAt = width;
+        lines.push(remaining.slice(0, breakAt).trim());
+        remaining = remaining.slice(breakAt).trim();
+      }
+      if (remaining) lines.push(remaining);
+      return lines.length ? lines : ['ITEM'];
+    };
+
+    const compactItemLine = (name: string, qty: string, amount: string) => {
+      const amt = padLeft(amount, 8);
+      const qtyCol = padLeft(qty, 4);
+      const nameWidth = Math.max(8, width - amt.length - qtyCol.length - 2);
+      return `${padRight(name.toUpperCase(), nameWidth)} ${qtyCol} ${amt}`.slice(0, width);
+    };
+
+    const lines: string[] = [];
+    for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
+
+    const storeName = (data.storeName || 'YOUR RESTAURANT').toUpperCase();
+    lines.push(center(storeName) || storeName.slice(0, width));
+
+    const addressLines = String(data.storeAddress || '')
+      .split(/[\n,]+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    addressLines.forEach((line) => lines.push(center(line.toUpperCase()) || line.slice(0, width)));
+
+    if (data.storePhone) lines.push(center(`PH: ${data.storePhone}`) || `PH: ${data.storePhone}`.slice(0, width));
+    const tin = data.storeGstin || '';
+    if (tin) {
+      const tinLabel = gstInvoice ? `GSTIN: ${tin}` : `TIN: ${tin}`;
+      lines.push(center(tinLabel) || tinLabel.slice(0, width));
+    }
+    lines.push(center(template.tagline || 'CASH/BILL') || 'CASH/BILL');
+
+    lines.push(divider);
+
+    const dateParts = String(data.date || '').split(/[\s,]+/);
+    const billDate = dateParts[0] || new Date().toLocaleDateString('en-GB');
+    const billTime =
+      dateParts.length > 1
+        ? dateParts.slice(1).join(' ').slice(0, 5)
+        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    if (takeaway) {
+      lines.push(padLine(`${template.billLabel}: ${data.invoiceNumber}`, billDate));
+      lines.push(padLine((data.customerName || 'WALK-IN').toUpperCase(), billTime));
+      if (data.customerPhone) lines.push(`PH: ${data.customerPhone}`.slice(0, width));
+    } else if (compact) {
+      const waiter = (data.waiterName || (roomService ? 'STEWARD' : 'WAITER')).toUpperCase();
+      lines.push(padLine(`${template.billLabel}: ${data.invoiceNumber}`, billDate));
+      lines.push(
+        padLine(
+          `${seatLabel} ${(data.tableNo || '—').toUpperCase()} ${waiter}`.slice(0, 22),
+          billTime,
+        ),
+      );
+    } else if (paperWidth === '80mm') {
+      const metaHeader =
+        padRight('Bill No', 8) +
+        padRight('Waiter', 8) +
+        padRight('TNo', 5) +
+        padRight('Date', 11) +
+        padRight('Time', 5);
+      const metaValues =
+        padRight(data.invoiceNumber || '—', 8) +
+        padRight((data.waiterName || 'WAITER').toUpperCase().slice(0, 8), 8) +
+        padRight((data.tableNo || '—').toUpperCase().slice(0, 5), 5) +
+        padRight(billDate.slice(0, 11), 11) +
+        padRight(billTime.slice(0, 5), 5);
+      lines.push(metaHeader.slice(0, width));
+      lines.push(metaValues.slice(0, width));
+    } else {
+      lines.push(padLine(`Bill: ${data.invoiceNumber}`, billDate));
+      lines.push(padLine(`Waiter: ${(data.waiterName || 'WAITER').toUpperCase()}`, `TNo: ${data.tableNo || '—'}`));
+      lines.push(center(`Time: ${billTime}`) || `Time: ${billTime}`.slice(0, width));
+    }
+
+    lines.push(divider);
+    if (compact) {
+      lines.push(compactItemLine('ITEM', 'QTY', 'AMT'));
+    } else {
+      lines.push(padLine('Item', 'Total'));
+    }
+    lines.push(divider);
+
+    data.items.forEach((item) => {
+      if (compact) {
+        lines.push(compactItemLine(item.productName || 'ITEM', formatQty(item.quantity), item.total.toFixed(2)));
+      } else {
+        wrapName(item.productName).forEach((nameLine) => lines.push(nameLine.slice(0, width)));
+        const detail = `${formatQty(item.quantity)} x ${item.unitPrice.toFixed(2)}`;
+        lines.push(padLine(' '.repeat(detailIndent) + detail, item.total.toFixed(2)));
+      }
+    });
+
+    lines.push(divider);
+
+    const totalQty = data.items.reduce((sum, it) => sum + it.quantity, 0);
+    const grossTotal = data.subtotal;
+    const billCharges = data.billCharges || [];
+    const extraChargesTotal = data.extraChargesTotal ?? billCharges.reduce((s, c) => s + c.amount, 0);
+    const halfTax = Math.round((data.totalTax / 2) * 100) / 100;
+
+    if (gstInvoice) {
+      lines.push(padLine('Taxable', grossTotal.toFixed(2)));
+      if (data.totalTax > 0) {
+        lines.push(padLine('CGST 2.5%', halfTax.toFixed(2)));
+        lines.push(padLine('SGST 2.5%', (data.totalTax - halfTax).toFixed(2)));
+      }
+    } else if (compact || takeaway) {
+      lines.push(padLine(`Qty ${formatQty(totalQty)}`, grossTotal.toFixed(2)));
+      if (data.totalTax > 0 && template.showTaxBreakdown) lines.push(padLine('GST 5%', data.totalTax.toFixed(2)));
+      billCharges.forEach((charge) => {
+        if (charge.amount > 0) lines.push(padLine(charge.label, charge.amount.toFixed(2)));
+      });
+    } else {
+      lines.push(padLine('Total Qty', formatQty(totalQty)));
+      lines.push(padLine('Gross Total', grossTotal.toFixed(2)));
+
+      if (data.gstSlabs && data.gstSlabs.length > 0) {
+        data.gstSlabs.forEach((slab) => {
+          if (slab.gstRate > 0) {
+            lines.push(padLine(`VAT ${slab.gstRate.toFixed(1)} %`, slab.totalGst.toFixed(2)));
+          }
+        });
+      } else if (data.totalTax > 0) {
+        lines.push(padLine('GST / Tax', data.totalTax.toFixed(2)));
+      }
+
+      billCharges.forEach((charge) => {
+        if (charge.amount > 0) {
+          lines.push(padLine(charge.label, charge.amount.toFixed(2)));
+        }
+      });
+
+      if (extraChargesTotal > 0 && billCharges.length === 0) {
+        lines.push(padLine('Extra Charges', extraChargesTotal.toFixed(2)));
+      }
+    }
+
+    lines.push(doubleDivider);
+    lines.push(padLine(gstInvoice ? 'Grand Total' : 'Net Amount', data.grandTotal.toFixed(2)));
+    lines.push(divider);
+
+    const footer = template.footerMessage || 'Thank you!';
+    if (footer.length <= width) {
+      const centered = center(footer);
+      if (centered) lines.push(centered);
+    } else {
+      lines.push(footer.slice(0, width));
+    }
+
+    lines.push('');
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  /**
    * Plaintext formatted receipt representation
    */
   public formatReceiptText(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): string {
@@ -997,6 +1280,11 @@ class ThermalPrinterServiceManager {
     }
 
     const template = this.resolveActiveTemplate(options);
+    if (isRestaurantLayout(template.layout)) {
+      return this.formatRestaurantBillText(data, paperWidth, template, options);
+    }
+    const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
+    const showItemGst = effectiveShowItemGst(options, showBreakdown);
     // 58mm paper rolls have a 48mm printable head (384 dots). Standard Font A is 32 cols.
     // 80mm rolls have a 72mm printable head (576 dots). Standard Font A is 48 cols.
     const width = paperWidth === '58mm' ? 32 : 48;
@@ -1053,7 +1341,7 @@ class ThermalPrinterServiceManager {
     if (template.tagline) wrapAndCenter(template.tagline);
     if (data.storeAddress) wrapAndCenter(data.storeAddress);
     if (data.storePhone) wrapAndCenter(`Phone: ${data.storePhone}`);
-    if (template.showTaxBreakdown && data.storeGstin) wrapAndCenter(`GSTIN: ${data.storeGstin}`);
+    if (showBreakdown && data.storeGstin) wrapAndCenter(`GSTIN: ${data.storeGstin}`);
     lines.push(divider);
 
     // Meta / Bill Info
@@ -1087,7 +1375,7 @@ class ThermalPrinterServiceManager {
         }
       }
 
-      if (template.showTaxBreakdown && item.gstRate) {
+      if (showItemGst && item.gstRate) {
         lines.push(`   ${item.gstRate.toFixed(2)}% GST`);
       }
       lines.push(
@@ -1103,8 +1391,8 @@ class ThermalPrinterServiceManager {
 
     lines.push(divider);
 
-    if (template.showTaxBreakdown) {
-      // Full tax-invoice style breakdown — retail/electronics/jewellery etc.
+    if (showBreakdown) {
+      // Full tax-invoice style breakdown — retail/electronics/jewellery/restaurants.
       const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
       const halfTax = data.totalTax / 2;
       const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
@@ -1112,9 +1400,25 @@ class ThermalPrinterServiceManager {
 
       lines.push(padLine('Sub Total', `Rs.${data.subtotal.toFixed(2)}`));
       if (data.totalDiscount > 0) lines.push(padLine('Discount', `-Rs.${data.totalDiscount.toFixed(2)}`));
-      lines.push(padLine('Taxable Amt', `Rs.${taxable.toFixed(2)}`));
-      lines.push(padLine('SGST', `Rs.${sgstVal.toFixed(2)}`));
-      lines.push(padLine('CGST', `Rs.${cgstVal.toFixed(2)}`));
+      if (data.gstStyle === 'slab_wise' && data.gstSlabs && data.gstSlabs.length > 0) {
+        data.gstSlabs.forEach((slab) => {
+          if (slab.gstRate === 0) {
+            lines.push(padLine('Nil / Exempt', `Rs.${slab.taxableValue.toFixed(2)}`));
+            return;
+          }
+          lines.push(padLine(`Taxable @ ${slab.gstRate}%`, `Rs.${slab.taxableValue.toFixed(2)}`));
+          lines.push(padLine(`CGST ${slab.cgstRate}%`, `Rs.${slab.cgstAmount.toFixed(2)}`));
+          lines.push(padLine(`SGST ${slab.sgstRate}%`, `Rs.${slab.sgstAmount.toFixed(2)}`));
+        });
+      } else {
+        lines.push(padLine('Taxable Amt', `Rs.${taxable.toFixed(2)}`));
+        lines.push(padLine('SGST', `Rs.${sgstVal.toFixed(2)}`));
+        lines.push(padLine('CGST', `Rs.${cgstVal.toFixed(2)}`));
+      }
+      const extraCharges = data.billCharges?.filter((c) => c.amount > 0) || [];
+      extraCharges.forEach((charge) => {
+        lines.push(padLine(charge.label, `Rs.${charge.amount.toFixed(2)}`));
+      });
       lines.push(doubleDivider);
       lines.push(padLine('Total Amount', `Rs.${data.grandTotal.toFixed(2)}`));
       const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
@@ -1125,6 +1429,10 @@ class ThermalPrinterServiceManager {
       // Compact style — cafe/bakery/salon/garage/bookstore: just the bottom line, no tax table.
       if (data.totalDiscount > 0) lines.push(padLine('Discount', `-Rs.${data.totalDiscount.toFixed(2)}`));
       if (data.totalTax > 0) lines.push(padLine('Tax', `Rs.${data.totalTax.toFixed(2)}`));
+      const extraCharges = data.billCharges?.filter((c) => c.amount > 0) || [];
+      extraCharges.forEach((charge) => {
+        lines.push(padLine(charge.label, `Rs.${charge.amount.toFixed(2)}`));
+      });
       lines.push(doubleDivider);
       lines.push(padLine('Grand Total', `Rs.${data.grandTotal.toFixed(2)}`));
     }
@@ -1529,6 +1837,11 @@ class ThermalPrinterServiceManager {
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
     const billPdfUrl = buildBillPdfUrl(data);
+    const showBreakdown =
+      options.showTaxBreakdown !== undefined
+        ? options.showTaxBreakdown
+        : data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise';
+    const showItemGst = effectiveShowItemGst(options, showBreakdown);
 
     const blocksHtml = enrichCustomReceiptEntries(
       customTemplate.entries.filter((e) => e.enabled),
@@ -1608,7 +1921,7 @@ class ThermalPrinterServiceManager {
                 (item, idx) => `
                 <div style="margin-bottom: 5px;">
                   <div><b>${idx + 1}. ${item.productName}</b></div>
-                  ${entry.showTaxColumn && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${item.gstRate.toFixed(1)}% GST</div>` : ''}
+                  ${(showItemGst || entry.showTaxColumn) && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${item.gstRate.toFixed(1)}% GST</div>` : ''}
                   <div style="display: flex; justify-content: space-between; font-size: 0.95em;">
                     <span>&nbsp;&nbsp;${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}</span>
                     <span>${item.total.toFixed(2)}</span>
@@ -1722,6 +2035,193 @@ class ThermalPrinterServiceManager {
     `;
   }
 
+  /** HTML fallback for restaurant thermal layouts (48mm / 58mm printable head). */
+  private generateRestaurantBillHtml(
+    data: PrintSaleData,
+    template: ReceiptTemplate,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: ReceiptPrintOptions = {},
+  ): string {
+    const layout = template.layout || 'restaurant_bill';
+    const compact = layout === 'restaurant_compact' || layout === 'restaurant_gst' || layout === 'restaurant_roomservice';
+    const takeaway = layout === 'restaurant_takeaway';
+    const gstInvoice = layout === 'restaurant_gst';
+    const roomService = layout === 'restaurant_roomservice';
+    const seatLabel = roomService ? 'Room' : 'TNo';
+    const widthPx = paperWidth === '58mm' ? '248px' : '380px';
+    const fontSize = paperWidth === '58mm' ? '11px' : '12px';
+    const topMarginPx = (options.topMargin || 0) * 10;
+
+    const dateParts = String(data.date || '').split(/[\s,]+/);
+    const billDate = dateParts[0] || new Date().toLocaleDateString('en-GB');
+    const billTime =
+      dateParts.length > 1
+        ? dateParts.slice(1).join(' ').slice(0, 5)
+        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const totalQty = data.items.reduce((sum, it) => sum + it.quantity, 0);
+    const grossTotal = data.subtotal;
+    const billCharges = data.billCharges || [];
+    const halfTax = Math.round((data.totalTax / 2) * 100) / 100;
+
+    const itemsHtml = compact
+      ? data.items
+          .map((item) => {
+            const qtyLabel = Number.isInteger(item.quantity) ? String(item.quantity) : item.quantity.toFixed(3);
+            return `<tr>
+              <td>${String(item.productName || '').toUpperCase()}</td>
+              <td class="r">${qtyLabel}</td>
+              <td class="r">${item.total.toFixed(2)}</td>
+            </tr>`;
+          })
+          .join('')
+      : data.items
+          .map((item) => {
+            const qtyLabel = Number.isInteger(item.quantity) ? String(item.quantity) : item.quantity.toFixed(3);
+            return `
+        <div class="item-block">
+          <div class="item-name">${String(item.productName || '').toUpperCase()}</div>
+          <div class="item-detail">
+            <span class="item-qty-rate">${qtyLabel} x ${item.unitPrice.toFixed(2)}</span>
+            <span>${item.total.toFixed(2)}</span>
+          </div>
+        </div>`;
+          })
+          .join('');
+
+    const vatHtml =
+      data.gstSlabs && data.gstSlabs.length > 0
+        ? data.gstSlabs
+            .filter((slab) => slab.gstRate > 0)
+            .map((slab) => `<tr><td>VAT ${slab.gstRate.toFixed(1)} %</td><td class="r">${slab.totalGst.toFixed(2)}</td></tr>`)
+            .join('')
+        : data.totalTax > 0
+          ? `<tr><td>GST / Tax</td><td class="r">${data.totalTax.toFixed(2)}</td></tr>`
+          : '';
+
+    const chargesHtml = billCharges
+      .filter((charge) => charge.amount > 0)
+      .map((charge) => `<tr><td>${charge.label}</td><td class="r">${charge.amount.toFixed(2)}</td></tr>`)
+      .join('');
+
+    const totalsHtml = gstInvoice
+      ? `<tr><td>Taxable</td><td class="r">${grossTotal.toFixed(2)}</td></tr>
+         ${data.totalTax > 0 ? `<tr><td>CGST 2.5%</td><td class="r">${halfTax.toFixed(2)}</td></tr>
+         <tr><td>SGST 2.5%</td><td class="r">${(data.totalTax - halfTax).toFixed(2)}</td></tr>` : ''}`
+      : compact || takeaway
+        ? `<tr><td>Qty ${Number.isInteger(totalQty) ? totalQty : totalQty.toFixed(3)}</td><td class="r">${grossTotal.toFixed(2)}</td></tr>
+           ${data.totalTax > 0 && template.showTaxBreakdown ? `<tr><td>GST 5%</td><td class="r">${data.totalTax.toFixed(2)}</td></tr>` : ''}
+           ${chargesHtml}`
+        : `<tr><td>Total Qty</td><td class="r">${totalQty.toFixed(3)}</td></tr>
+           <tr><td>Gross Total</td><td class="r">${grossTotal.toFixed(2)}</td></tr>
+           ${vatHtml}
+           ${chargesHtml}`;
+
+    const metaHtml = takeaway
+      ? `<table>
+          <tr><td>${template.billLabel} ${data.invoiceNumber || '—'}</td><td class="r">${billDate}</td></tr>
+          <tr><td>${(data.customerName || 'WALK-IN').toUpperCase()}</td><td class="r">${billTime}</td></tr>
+          ${data.customerPhone ? `<tr><td colspan="2">PH: ${data.customerPhone}</td></tr>` : ''}
+        </table>`
+      : compact
+        ? `<table>
+          <tr><td>${template.billLabel} ${data.invoiceNumber || '—'}</td><td class="r">${billDate}</td></tr>
+          <tr><td>${seatLabel} ${(data.tableNo || '—').toUpperCase()} ${(data.waiterName || (roomService ? 'STEWARD' : 'WAITER')).toUpperCase()}</td><td class="r">${billTime}</td></tr>
+        </table>`
+        : `<table class="meta-table">
+            <tr>
+              <td>Bill No</td><td>Waiter</td><td>TNo</td><td>Date</td><td class="r">Time</td>
+            </tr>
+            <tr class="bold">
+              <td>${data.invoiceNumber || '—'}</td>
+              <td>${(data.waiterName || 'WAITER').toUpperCase()}</td>
+              <td>${(data.tableNo || '—').toUpperCase()}</td>
+              <td>${billDate}</td>
+              <td class="r">${billTime}</td>
+            </tr>
+          </table>`;
+
+    const addressHtml = String(data.storeAddress || '')
+      .split(/[\n,]+/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => `<div class="center">${line.toUpperCase()}</div>`)
+      .join('');
+
+    const tinLabel = gstInvoice ? 'GSTIN' : 'TIN';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @page { margin: 0; size: auto; }
+            * { box-sizing: border-box; }
+            body {
+              width: ${widthPx};
+              margin: ${topMarginPx}px auto 0 auto;
+              padding: 10px 10px;
+              font-family: 'Courier New', Courier, monospace;
+              font-size: ${fontSize};
+              color: #000;
+              background: #fff;
+              text-transform: uppercase;
+            }
+            .center { text-align: center; }
+            .r { text-align: right; }
+            .bold { font-weight: bold; }
+            .divider { border-bottom: 1px dashed #000; margin: 6px 0; }
+            .double-divider { border-bottom: 2px double #000; margin: 6px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            td { vertical-align: top; padding: 1px 0; }
+            .meta-table td { font-size: 0.9em; padding-right: 4px; }
+            .item-block { margin-bottom: 6px; }
+            .item-name { font-weight: bold; word-break: break-word; }
+            .item-detail { display: flex; justify-content: space-between; padding-left: 24px; margin-top: 1px; }
+            .item-qty-rate { color: #333; }
+          </style>
+        </head>
+        <body>
+          <div class="center bold" style="font-size: 14px;">${(data.storeName || 'YOUR RESTAURANT').toUpperCase()}</div>
+          ${addressHtml}
+          ${data.storePhone ? `<div class="center">PH: ${data.storePhone}</div>` : ''}
+          ${data.storeGstin ? `<div class="center">${tinLabel}: ${data.storeGstin}</div>` : ''}
+          <div class="center bold">${template.tagline || 'CASH/BILL'}</div>
+
+          <div class="divider"></div>
+          ${metaHtml}
+          <div class="divider"></div>
+
+          ${
+            compact
+              ? `<table class="bold"><tr><td>Item</td><td class="r">Qty</td><td class="r">Amt</td></tr></table>
+                 <div class="divider"></div>
+                 <table>${itemsHtml}</table>`
+              : `<div class="bold" style="display: flex; justify-content: space-between;">
+                   <span>Item</span><span>Total</span>
+                 </div>
+                 <div class="divider"></div>
+                 ${itemsHtml}`
+          }
+
+          <div class="divider"></div>
+
+          <table>
+            ${totalsHtml}
+          </table>
+          <div class="double-divider"></div>
+          <table class="bold">
+            <tr><td>${gstInvoice ? 'Grand Total' : 'Net Amount'}</td><td class="r">${data.grandTotal.toFixed(2)}</td></tr>
+          </table>
+
+          <div class="divider"></div>
+          <div class="center">${template.footerMessage}</div>
+        </body>
+      </html>
+    `;
+  }
+
   /** HTML fallback for standard receipt printing (no active custom template). */
   public generateReceiptHtml(
     data: PrintSaleData,
@@ -1734,14 +2234,15 @@ class ThermalPrinterServiceManager {
     }
 
     const template = this.resolveActiveTemplate(options);
+    if (isRestaurantLayout(template.layout)) {
+      return this.generateRestaurantBillHtml(data, template, paperWidth, options);
+    }
+
+    const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
     const widthPx = paperWidth === '58mm' ? '280px' : '380px';
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
 
-    const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
-    const halfTax = data.totalTax / 2;
-    const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
-    const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
     const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
     const balance = data.changeReturned !== undefined ? data.changeReturned : 0;
 
@@ -1758,15 +2259,14 @@ class ThermalPrinterServiceManager {
       )
       .join('');
 
-    const totalsHtml = template.showTaxBreakdown
+    const totalsHtml = showBreakdown
       ? (() => {
           return `
           <table>
             <tr><td>Sub Total</td><td class="right">Rs.${data.subtotal.toFixed(2)}</td></tr>
             ${data.totalDiscount > 0 ? `<tr><td>Discount</td><td class="right">-Rs.${data.totalDiscount.toFixed(2)}</td></tr>` : ''}
-            <tr><td>Taxable Amt</td><td class="right">Rs.${taxable.toFixed(2)}</td></tr>
-            <tr><td>SGST</td><td class="right">Rs.${sgstVal.toFixed(2)}</td></tr>
-            <tr><td>CGST</td><td class="right">Rs.${cgstVal.toFixed(2)}</td></tr>
+            ${gstTotalsHtml(data)}
+            ${billChargesHtml(data)}
           </table>
           <div class="double-divider"></div>
           <table class="bold">
@@ -1779,6 +2279,7 @@ class ThermalPrinterServiceManager {
           <table>
             ${data.totalDiscount > 0 ? `<tr><td>Discount</td><td class="right">-Rs.${data.totalDiscount.toFixed(2)}</td></tr>` : ''}
             ${data.totalTax > 0 ? `<tr><td>Tax</td><td class="right">Rs.${data.totalTax.toFixed(2)}</td></tr>` : ''}
+            ${billChargesHtml(data)}
           </table>
           <div class="double-divider"></div>
           <table class="bold">
@@ -1826,7 +2327,7 @@ class ThermalPrinterServiceManager {
           ${template.tagline ? `<div class="center" style="color: ${template.accentColor}; font-weight: bold;">${template.tagline}</div>` : ''}
           ${data.storeAddress ? `<div class="center">${data.storeAddress}</div>` : ''}
           ${data.storePhone ? `<div class="center">Phone: ${data.storePhone}</div>` : ''}
-          ${template.showTaxBreakdown && data.storeGstin ? `<div class="center">GSTIN: ${data.storeGstin}</div>` : ''}
+          ${showBreakdown && data.storeGstin ? `<div class="center">GSTIN: ${data.storeGstin}</div>` : ''}
 
           <div class="divider"></div>
 
@@ -1868,10 +2369,7 @@ class ThermalPrinterServiceManager {
    */
   public generateA4InvoiceHtml(data: PrintSaleData, options: ReceiptPrintOptions = {}): string {
     const template = this.resolveActiveTemplate(options);
-    const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
-    const halfTax = data.totalTax / 2;
-    const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
-    const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
+    const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
     const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
     const balance = data.changeReturned !== undefined ? data.changeReturned : 0;
 
@@ -1951,14 +2449,13 @@ class ThermalPrinterServiceManager {
               <tr><td>Sub Total</td><td class="r">Rs.${data.subtotal.toFixed(2)}</td></tr>
               ${data.totalDiscount > 0 ? `<tr><td>Discount</td><td class="r">-Rs.${data.totalDiscount.toFixed(2)}</td></tr>` : ''}
               ${
-                template.showTaxBreakdown
-                  ? `<tr><td>Taxable Amt</td><td class="r">Rs.${taxable.toFixed(2)}</td></tr>
-                     <tr><td>SGST</td><td class="r">Rs.${sgstVal.toFixed(2)}</td></tr>
-                     <tr><td>CGST</td><td class="r">Rs.${cgstVal.toFixed(2)}</td></tr>`
+                showBreakdown
+                  ? gstTotalsHtml(data).replace(/class="right"/g, 'class="r"')
                   : data.totalTax > 0
                     ? `<tr><td>Tax</td><td class="r">Rs.${data.totalTax.toFixed(2)}</td></tr>`
                     : ''
               }
+              ${billChargesHtml(data).replace(/class="right"/g, 'class="r"')}
               <tr class="grand"><td>Grand Total</td><td class="r">Rs.${data.grandTotal.toFixed(2)}</td></tr>
               <tr><td>Paid Amount</td><td class="r">Rs.${paid.toFixed(2)}</td></tr>
               ${balance > 0 ? `<tr><td>Balance Due</td><td class="r">Rs.${balance.toFixed(2)}</td></tr>` : ''}
@@ -3090,6 +3587,11 @@ class ThermalPrinterServiceManager {
       if (align === 'right') return NativeEscposPrinter.ALIGN?.RIGHT ?? 2;
       return NativeEscposPrinter.ALIGN?.LEFT ?? 0;
     };
+    const showBreakdown =
+      options.showTaxBreakdown !== undefined
+        ? options.showTaxBreakdown
+        : data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise';
+    const showItemGst = effectiveShowItemGst(options, showBreakdown);
 
     const receiptEntries = enrichCustomReceiptEntries(
       customTemplate.entries.filter((entry) => entry.enabled),
@@ -3204,7 +3706,7 @@ class ThermalPrinterServiceManager {
               if (rem) await NativeEscposPrinter.printText('   ' + rem.slice(0, Math.max(1, widthCols - 3)) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
             }
 
-            if (entry.showTaxColumn && item.gstRate) {
+            if ((showItemGst || entry.showTaxColumn) && item.gstRate) {
               await NativeEscposPrinter.printText(`   ${item.gstRate.toFixed(1)}% GST\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
             }
 
@@ -3484,6 +3986,9 @@ class ThermalPrinterServiceManager {
     const customTemplate = options.customTemplate !== undefined ? options.customTemplate : this.resolveActiveCustomTemplate(options);
     const template = this.resolveActiveTemplate(options);
 
+    const isRestaurantBill = !customTemplate && isRestaurantLayout(template.layout);
+    const classicHotelBill = !customTemplate && template.layout === 'restaurant_bill';
+
     const sampleItems = (customTemplate ? null : template.sampleItems) && (template.sampleItems?.length || 0) > 0
       ? template.sampleItems!
       : [
@@ -3493,28 +3998,63 @@ class ThermalPrinterServiceManager {
         ];
 
     const subtotal = sampleItems.reduce((s, it) => s + it.total, 0);
-    const totalTax = (!customTemplate && template.showTaxBreakdown) ? Math.round(subtotal * 0.05 * 100) / 100 : 40.5;
-    const grandTotal = subtotal + totalTax;
+    const gstSlabs = classicHotelBill
+      ? [
+          { gstRate: 5.5, cgstRate: 2.75, sgstRate: 2.75, taxableValue: 1000, cgstAmount: 27.78, sgstAmount: 27.77, totalGst: 55.55 },
+          { gstRate: 14.5, cgstRate: 7.25, sgstRate: 7.25, taxableValue: 1580, cgstAmount: 113.83, sgstAmount: 113.82, totalGst: 227.65 },
+        ]
+      : undefined;
+    const productGst = classicHotelBill
+      ? 283.2
+      : isRestaurantBill && template.showTaxBreakdown
+        ? Math.round(subtotal * 0.05 * 100) / 100
+        : 0;
+    const billCharges = classicHotelBill
+      ? [
+          { presetId: 'service-tax-5-6', label: 'Service Tax 5.6 %', kind: 'legacy_vat' as const, type: 'percent' as const, value: 5.6, amount: 158.93 },
+          { presetId: 'service-charge-10', label: 'Service Charges 10.00%', kind: 'service' as const, type: 'percent' as const, value: 10, amount: 258.0 },
+        ]
+      : undefined;
+    const extraChargesTotal = billCharges?.reduce((s, c) => s + c.amount, 0) ?? 0;
+    const totalTax =
+      isRestaurantBill
+        ? productGst
+        : !customTemplate && template.showTaxBreakdown
+          ? Math.round(subtotal * 0.05 * 100) / 100
+          : 40.5;
+    const grandTotal = isRestaurantBill ? subtotal + productGst + extraChargesTotal : subtotal + totalTax;
 
+    const now = new Date();
     const sampleData: PrintSaleData = {
-      storeName: options.storeName || 'Your Store Name',
-      storeAddress: options.storeAddress || '123 Market Road, City Center',
-      storePhone: options.storePhone || '9876543210',
-      storeGstin: options.storeGstin || '',
+      storeName: options.storeName || (isRestaurantBill ? template.previewStoreName || 'YOUR RESTAURANT' : 'Your Store Name'),
+      storeAddress:
+        options.storeAddress ||
+        (isRestaurantBill ? template.previewAddress || '12 MG Road, City' : '123 Market Road, City Center'),
+      storePhone: options.storePhone || (isRestaurantBill ? template.previewPhone || '9876543210' : '9876543210'),
+      storeGstin: options.storeGstin || (isRestaurantBill ? template.previewGstin || '' : ''),
       storeLogoUrl: options.storeLogoUrl,
       upiId: options.upiId,
-      invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-      date: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-      customerName: 'Walk-in Customer',
-      customerPhone: '9988776655',
+      invoiceNumber: isRestaurantBill
+        ? template.previewInvoice || '1842'
+        : `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: isRestaurantBill
+        ? template.previewDate || now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+        : now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      customerName: isRestaurantBill ? template.previewCustomerName || 'Walk-in Customer' : 'Walk-in Customer',
+      customerPhone: isRestaurantBill ? template.previewCustomerPhone || '9988776655' : '9988776655',
+      tableNo: isRestaurantBill ? template.previewTableNo || '12' : undefined,
+      waiterName: isRestaurantBill ? template.previewWaiter || 'WAITER' : undefined,
       items: sampleItems,
       subtotal,
       totalDiscount: 0,
       totalTax,
+      billCharges,
+      extraChargesTotal,
       grandTotal,
       amountPaid: grandTotal,
       changeReturned: 0,
       paymentMethod: 'CASH',
+      gstSlabs,
     };
 
     return this.printReceipt(sampleData, paperWidth, { ...options, customTemplate, template });

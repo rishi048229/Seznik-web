@@ -1,5 +1,5 @@
 import { fetchApi } from './client';
-import { AuthResponse, CreateManagedUserPayload, LoginPayload, ManagedUser, RegisterPayload, UserProfile } from '@/types/auth';
+import { AuthResponse, CompleteOnboardingPayload, CreateManagedUserPayload, LoginPayload, ManagedUser, RegisterPayload, UserProfile } from '@/types/auth';
 
 export const authApi = {
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
@@ -28,6 +28,20 @@ export const authApi = {
       method: 'GET',
     });
     return res.user || res;
+  },
+
+  completeOnboarding: async (payload: CompleteOnboardingPayload): Promise<UserProfile> => {
+    return fetchApi<UserProfile>('/auth/onboard', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateBusinessType: async (businessType: CompleteOnboardingPayload['businessType']): Promise<UserProfile> => {
+    return fetchApi<UserProfile>('/auth/business-type', {
+      method: 'PATCH',
+      body: JSON.stringify({ businessType }),
+    });
   },
 
   sendEmailOtp: async (email: string) => {

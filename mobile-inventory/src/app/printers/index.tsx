@@ -44,6 +44,8 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
+import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
+import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 import {
@@ -78,6 +80,15 @@ export default function PrintersScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
   const { settings } = useSettings();
+  const {
+    form: gstForm,
+    setShowBreakdown: setGstShowBreakdown,
+    setStyle: setGstStyle,
+    setPrintOnReceipt: setGstPrintOnReceipt,
+    setItemWiseGst: setGstItemWise,
+    saveGstBilling,
+    isSaving: isSavingGstBilling,
+  } = useGstBillingSettings();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -637,6 +648,37 @@ export default function PrintersScreen() {
                 </View>
               </TouchableOpacity>
 
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: theme.borderColor,
+                    padding: 14,
+                    marginBottom: 14,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary, marginBottom: 4 }}>
+                  Tax & Billing
+                </Text>
+                <GstBillingSettingsPanel
+                  theme={theme}
+                  showBreakdown={gstForm.showBreakdown}
+                  style={gstForm.style}
+                  printOnReceipt={gstForm.printOnReceipt}
+                  itemWiseGst={gstForm.itemWiseGst}
+                  onShowBreakdownChange={setGstShowBreakdown}
+                  onStyleChange={setGstStyle}
+                  onPrintOnReceiptChange={setGstPrintOnReceipt}
+                  onItemWiseGstChange={setGstItemWise}
+                  onSave={() => saveGstBilling()}
+                  isSaving={isSavingGstBilling}
+                  hintText="Tax breakdown on printed slips follows your Tax & Billing settings below."
+                  compact
+                />
+              </View>
+
               {/* Template Search Bar */}
               <View
                 style={[
@@ -906,9 +948,16 @@ export default function PrintersScreen() {
                               <Icon size={20} color={selected ? BRAND_COLORS.blue600 : theme.textSecondary} />
                             </View>
                             <View style={{ marginLeft: 10, flex: 1 }}>
-                              <Text style={[styles.templateName, { color: theme.textPrimary, textAlign: 'left', fontSize: 15 }]}>
-                                {t.name}
-                              </Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                                <Text style={[styles.templateName, { color: theme.textPrimary, textAlign: 'left', fontSize: 15 }]}>
+                                  {t.name}
+                                </Text>
+                                {t.paperFit === '48mm' ? (
+                                  <View style={{ backgroundColor: '#ECFDF5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>48mm</Text>
+                                  </View>
+                                ) : null}
+                              </View>
                               <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }} numberOfLines={1}>
                                 {t.tagline || `${t.billLabel} • ${t.itemColumnLeft}/${t.itemColumnRight}`}
                               </Text>
@@ -939,12 +988,20 @@ export default function PrintersScreen() {
                         <View style={styles.previewPaperContainer}>
                           <ReceiptTemplateMockup
                             template={t}
-                            storeName={settings?.businessName || 'Your Store Name'}
-                            storeAddress={settings?.businessAddress || '123 Market Road, City'}
-                            storePhone={settings?.businessPhone || '9999999999'}
-                            invoiceNumber="INV-1024"
-                            date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                            customerName="Walk-in Customer"
+                            storeName={t.previewStoreName || settings?.businessName || 'Your Store Name'}
+                            storeAddress={t.previewAddress || settings?.businessAddress || '123 Market Road, City'}
+                            storePhone={t.previewPhone || settings?.businessPhone || '9999999999'}
+                            storeGstin={t.previewGstin}
+                            invoiceNumber={t.previewInvoice || 'INV-1024'}
+                            date={
+                              t.previewDate ||
+                              new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                            }
+                            customerName={t.previewCustomerName || 'Walk-in Customer'}
+                            customerPhone={t.previewCustomerPhone}
+                            tableNo={t.previewTableNo}
+                            waiterName={t.previewWaiter}
+                            invoiceConfig={settings?.invoiceConfig}
                           />
                         </View>
                       </TouchableOpacity>

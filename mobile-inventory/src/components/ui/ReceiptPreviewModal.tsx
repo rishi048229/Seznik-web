@@ -22,6 +22,7 @@ import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
+import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
@@ -117,6 +118,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       storeGstin: resolvedSaleData?.storeGstin,
       storeLogoUrl: resolvedSaleData?.storeLogoUrl,
       upiId: resolvedSaleData?.upiId,
+      ...gstPrintOptionOverrides(parseGstBilling(storeProfile.settings?.invoiceConfig)),
     }),
     [
       activeCustomTemplate,
@@ -127,6 +129,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       resolvedSaleData,
       template,
       topMargin,
+      storeProfile.settings?.invoiceConfig,
     ]
   );
 

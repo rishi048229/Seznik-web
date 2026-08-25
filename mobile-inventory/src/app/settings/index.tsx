@@ -27,6 +27,7 @@ import {
   Shield,
   Globe,
   Printer,
+  Percent,
   ChevronRight,
   Check,
   ImageIcon,
@@ -52,15 +53,34 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
+import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
+import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
+import {
+  BillChargePreset,
+  DEFAULT_RESTAURANT_PRESETS,
+  createPresetId,
+  parseRestaurantBilling,
+  toRestaurantBillingPayload,
+} from '@/constants/restaurantBilling';
+import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 
 const SUPPORT_PHONE = '+918237869618';
 const SUPPORT_EMAIL = 'tech_support@seznik.in';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, updateBusinessType, isUpdatingBusinessType } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
   const { settings, isError: isSettingsError, isRefetching: isSettingsRefetching, refetch: refetchSettings } = useSettings();
+  const {
+    form: gstForm,
+    setShowBreakdown: setGstShowBreakdown,
+    setStyle: setGstStyle,
+    setPrintOnReceipt: setGstPrintOnReceipt,
+    setItemWiseGst: setGstItemWise,
+    saveGstBilling,
+    isSaving: isSavingGstBilling,
+  } = useGstBillingSettings();
   const queryClient = useQueryClient();
 
   const [activeSection, setActiveSection] = useState<
@@ -75,11 +95,14 @@ export default function SettingsScreen() {
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [upiId, setUpiId] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [chargePresets, setChargePresets] = useState<BillChargePreset[]>(DEFAULT_RESTAURANT_PRESETS);
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>('retail_shop');
 
   // Seed the form once real Settings arrive from the backend — done as a conditional setState
   // during render (React's documented pattern for "adjust state when a prop/query result
   // changes") rather than in a useEffect, so it doesn't trigger a redundant extra render.
   const [hasSeededProfile, setHasSeededProfile] = useState(false);
+  const [hasSeededBusinessType, setHasSeededBusinessType] = useState(false);
   if (settings && !hasSeededProfile) {
     setStoreName(settings.businessName || user?.businessName || user?.displayName || '');
     setStoreGstin(settings.businessGSTIN || '');
@@ -87,7 +110,15 @@ export default function SettingsScreen() {
     setStoreAddress(settings.businessAddress || '');
     setLogoUri(settings.businessLogoURL || null);
     setUpiId(settings.upiId || '');
+    const restaurant = parseRestaurantBilling(settings.invoiceConfig);
+    setChargePresets(restaurant.presets);
     setHasSeededProfile(true);
+  }
+  if (user && !hasSeededBusinessType) {
+    if (user.businessType) {
+      setSelectedBusinessType(user.businessType);
+    }
+    setHasSeededBusinessType(true);
   }
 
   // ManagedUser Granular Permissions State
@@ -123,7 +154,27 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleSaveGstBilling = async () => {
+    try {
+      await saveGstBilling({
+        extraInvoiceConfig: {
+          restaurantBilling: toRestaurantBillingPayload({ presets: chargePresets }),
+        },
+        onSuccess: () => {
+          Alert.alert('GST Billing Saved', 'Customer bills will use this GST breakdown from the next sale.');
+          setActiveSection('menu');
+        },
+      });
+    } catch (e: any) {
+      Alert.alert('Could Not Save', e?.message || 'Please check your connection and try again.');
+    }
+  };
+
   const handleSaveSettings = async () => {
+    if (activeSection === 'invoice') {
+      await handleSaveGstBilling();
+      return;
+    }
     if (activeSection !== 'profile') {
       Alert.alert('Settings Saved!', 'Your store configuration has been updated.');
       setActiveSection('menu');
@@ -157,6 +208,20 @@ export default function SettingsScreen() {
       Alert.alert('Could Not Save', e?.message || 'Please check your connection and try again.');
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveBusinessType = async () => {
+    if (user?.accountType === 'managed') {
+      Alert.alert('Not available', 'Only the store owner can change the business type.');
+      return;
+    }
+
+    try {
+      await updateBusinessType(selectedBusinessType);
+      Alert.alert('Business type updated', `Navigation is now tailored for ${getBusinessTypeLabel(selectedBusinessType)}.`);
+    } catch (e: any) {
+      Alert.alert('Could not update', e?.message || 'Please try again.');
     }
   };
 
@@ -206,6 +271,8 @@ export default function SettingsScreen() {
             ? t('settings', 'Store Configuration')
             : activeSection === 'profile'
             ? 'Business Profile'
+            : activeSection === 'invoice'
+            ? 'Tax & Billing'
             : activeSection === 'permissions'
             ? 'Staff Permissions'
             : activeSection === 'support'
@@ -246,6 +313,7 @@ export default function SettingsScreen() {
               <View style={styles.menuGrid}>
               {[
                 { id: 'profile', icon: Building, label: 'Business Profile', color: BRAND_COLORS.blue600 },
+                { id: 'invoice', icon: Percent, label: 'Tax & Billing', color: '#0F766E' },
                 { id: 'permissions', icon: Users, label: 'Staff Permissions', color: '#F59E0B' },
                 { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
                 { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
@@ -325,6 +393,151 @@ export default function SettingsScreen() {
                 <ChevronRight size={18} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
+          ) : activeSection === 'invoice' ? (
+            <View>
+              <GstBillingSettingsPanel
+                theme={theme}
+                showBreakdown={gstForm.showBreakdown}
+                style={gstForm.style}
+                printOnReceipt={gstForm.printOnReceipt}
+                itemWiseGst={gstForm.itemWiseGst}
+                onShowBreakdownChange={setGstShowBreakdown}
+                onStyleChange={setGstStyle}
+                onPrintOnReceiptChange={setGstPrintOnReceipt}
+                onItemWiseGstChange={setGstItemWise}
+                showSaveButton={false}
+              />
+
+              <Text style={[styles.sectionHeader, { color: theme.textSecondary, marginTop: 18 }]}>
+                    BILL CHARGES
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10, lineHeight: 16 }}>
+                    Configure service charge, packing, delivery, or other add-ons. Cashiers toggle these presets at checkout.
+                  </Text>
+
+                  {chargePresets.map((preset, index) => (
+                    <View
+                      key={preset.id}
+                      style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 8, flexDirection: 'column', alignItems: 'stretch' }]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                        <TextInput
+                          style={[styles.chargePresetInput, { flex: 1, color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                          value={preset.label}
+                          onChangeText={(text) => {
+                            setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, label: text } : p)));
+                          }}
+                          placeholder="Charge label"
+                          placeholderTextColor="#94A3B8"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setChargePresets((prev) => prev.filter((_, i) => i !== index))}
+                          style={{ marginLeft: 8, padding: 8 }}
+                        >
+                          <Trash2 size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, type: 'percent' } : p)))}
+                          style={[styles.chargeTypeBtn, preset.type === 'percent' && { backgroundColor: BRAND_COLORS.blue600 }]}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: preset.type === 'percent' ? '#FFF' : theme.textSecondary }}>%</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, type: 'flat' } : p)))}
+                          style={[styles.chargeTypeBtn, preset.type === 'flat' && { backgroundColor: BRAND_COLORS.blue600 }]}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: preset.type === 'flat' ? '#FFF' : theme.textSecondary }}>₹</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                          style={[styles.chargePresetInput, { flex: 1, color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                          value={String(preset.value)}
+                          onChangeText={(text) => {
+                            setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, value: Math.max(0, parseFloat(text) || 0) } : p)));
+                          }}
+                          keyboardType="numeric"
+                          placeholder={preset.type === 'percent' ? '10' : '50'}
+                          placeholderTextColor="#94A3B8"
+                        />
+                      </View>
+
+                      {preset.type === 'percent' ? (
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, applyOn: 'net_subtotal' } : p)))}
+                            style={[styles.chargeTypeBtn, { flex: 1 }, preset.applyOn !== 'gross' && { backgroundColor: BRAND_COLORS.blue600 }]}
+                          >
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: preset.applyOn !== 'gross' ? '#FFF' : theme.textSecondary, textAlign: 'center' }}>
+                              On net (after discount)
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, applyOn: 'gross' } : p)))}
+                            style={[styles.chargeTypeBtn, { flex: 1 }, preset.applyOn === 'gross' && { backgroundColor: BRAND_COLORS.blue600 }]}
+                          >
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: preset.applyOn === 'gross' ? '#FFF' : theme.textSecondary, textAlign: 'center' }}>
+                              On gross (before discount)
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 11, color: theme.textSecondary, marginRight: 8 }}>Show at checkout</Text>
+                          <Switch
+                            value={preset.enabled}
+                            onValueChange={(val) => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, enabled: val } : p)))}
+                            trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
+                          />
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 11, color: theme.textSecondary, marginRight: 8 }}>Default on</Text>
+                          <Switch
+                            value={preset.defaultSelected}
+                            onValueChange={(val) => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, defaultSelected: val } : p)))}
+                            trackColor={{ false: '#64748B', true: '#7C3AED' }}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+
+                  <TouchableOpacity
+                    onPress={() =>
+                      setChargePresets((prev) => [
+                        ...prev,
+                        {
+                          id: createPresetId(),
+                          label: 'New Charge',
+                          kind: 'other',
+                          type: 'percent',
+                          value: 5,
+                          enabled: true,
+                          defaultSelected: false,
+                          applyOn: 'net_subtotal',
+                        },
+                      ])
+                    }
+                    style={[styles.chargeAddBtn, { borderColor: theme.borderColor }]}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: BRAND_COLORS.blue600 }}>+ Add Charge Preset</Text>
+                  </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSaveGstBilling}
+                disabled={isSavingGstBilling}
+                style={[styles.saveBtn, isSavingGstBilling && { opacity: 0.6 }]}
+              >
+                {isSavingGstBilling ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save GST Billing</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           ) : activeSection === 'profile' ? (
             /* Business Profile Section */
             <View>
@@ -393,6 +606,53 @@ export default function SettingsScreen() {
                 value={storeName}
                 onChangeText={setStoreName}
               />
+
+              {user?.accountType !== 'managed' ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[styles.label, { color: theme.textPrimary }]}>Business Type</Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10 }}>
+                    Current: {getBusinessTypeLabel(user?.businessType)}. Changing this updates which features appear in your navigation.
+                  </Text>
+                  {BUSINESS_TYPE_OPTIONS.map((option) => {
+                    const selected = selectedBusinessType === option.id;
+                    return (
+                      <TouchableOpacity
+                        key={option.id}
+                        onPress={() => setSelectedBusinessType(option.id)}
+                        style={[
+                          styles.businessTypeChip,
+                          {
+                            backgroundColor: selected ? 'rgba(37, 99, 235, 0.12)' : theme.cardBg,
+                            borderColor: selected ? BRAND_COLORS.blue600 : theme.borderColor,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.businessTypeEmoji}>{option.emoji}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.businessTypeLabel, { color: theme.textPrimary }]}>{option.label}</Text>
+                          <Text style={{ fontSize: 11, color: theme.textSecondary }}>{option.description}</Text>
+                        </View>
+                        {selected ? <Check size={16} color={BRAND_COLORS.blue600} /> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity
+                    onPress={handleSaveBusinessType}
+                    disabled={isUpdatingBusinessType || selectedBusinessType === user?.businessType}
+                    style={[
+                      styles.saveBtn,
+                      (isUpdatingBusinessType || selectedBusinessType === user?.businessType) && { opacity: 0.6 },
+                      { marginTop: 4, marginBottom: 8 },
+                    ]}
+                  >
+                    {isUpdatingBusinessType ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.saveBtnText}>Update Business Type</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
               <Text style={[styles.label, { color: theme.textPrimary }]}>{t('taxIdGstin', 'GSTIN Number')}</Text>
               <TextInput
@@ -552,4 +812,17 @@ const styles = StyleSheet.create({
   permTitle: { fontSize: 13, fontWeight: '700' },
   langCard: { borderRadius: 14, padding: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   langText: { fontSize: 14, fontWeight: '700' },
+  businessTypeChip: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  businessTypeEmoji: { fontSize: 20, marginRight: 10 },
+  businessTypeLabel: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
+  chargePresetInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13 },
+  chargeTypeBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(100,116,139,0.15)' },
+  chargeAddBtn: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 8 },
 });

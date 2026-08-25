@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateSale } from '@/hooks/useSales'
 
@@ -18,6 +18,13 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { parseGstBilling, shouldShowGstBreakdown } from '@/constants/gstBilling'
+import { gstSummaryFromCart } from '@/utils/gst'
+import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown'
+import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown'
+import { BillChargeToggles } from '@/components/billing/BillChargeToggles'
+import { type AppliedBillCharge } from '@/constants/restaurantBilling'
+import { useBillCharges } from '@/hooks/useBillCharges'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -85,6 +92,8 @@ export const POSLitePage = () => {
     subtotal: number
     tax: number
     orderDiscountAmount: number
+    extraChargesTotal: number
+    billCharges: AppliedBillCharge[]
     finalTotal: number
     method: typeof method
     amountPaidNum: number
@@ -236,7 +245,27 @@ export const POSLitePage = () => {
     ? orderDiscount
     : subtotal * (orderDiscount / 100)
 
-  const finalTotal = subtotal + taxAmount - orderDiscountAmount
+  const itemDiscountTotal = items.reduce((s, i) => s + i.discount, 0)
+  const grossSubtotal = items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0)
+  const {
+    enabledPresets,
+    selectedIds,
+    billCharges,
+    extraChargesTotal,
+    showCharges,
+    netSubtotal,
+    toggleCharge,
+  } = useBillCharges(settings?.invoiceConfig, grossSubtotal, itemDiscountTotal + orderDiscountAmount)
+
+  const finalTotal = subtotal + taxAmount - orderDiscountAmount + extraChargesTotal
+  const gstBilling = useMemo(
+    () => parseGstBilling(settings?.invoiceConfig),
+    [settings?.invoiceConfig],
+  )
+  const gstSummary = useMemo(
+    () => gstSummaryFromCart(items, orderDiscountAmount),
+    [items, orderDiscountAmount],
+  )
 
   useEffect(() => {
     if (isPaymentOpen) {
@@ -270,6 +299,8 @@ export const POSLitePage = () => {
       totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
       grandTotal: finalTotal,
+      billCharges,
+      extraChargesTotal,
       paymentMethod: method,
       amountPaid: amountPaidNum,
       changeReturned: change,
@@ -290,6 +321,8 @@ export const POSLitePage = () => {
           subtotal,
           tax: taxAmount,
           orderDiscountAmount,
+          extraChargesTotal,
+          billCharges,
           finalTotal,
           method,
           amountPaidNum,
@@ -324,11 +357,14 @@ export const POSLitePage = () => {
         taxRate: item.taxRate,
         taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
         total: item.sellingPrice * item.quantity - item.discount,
+        priceIncludesGst: item.priceIncludesGst ?? false,
       })),
       subtotal: lastSaleData.subtotal,
       totalDiscount: lastSaleData.orderDiscountAmount + lastSaleData.items.reduce((s, i) => s + i.discount, 0),
       totalTax: lastSaleData.tax,
       grandTotal: lastSaleData.finalTotal,
+      billCharges: lastSaleData.billCharges,
+      extraChargesTotal: lastSaleData.extraChargesTotal,
       paymentMethod: lastSaleData.method,
       amountPaid: lastSaleData.amountPaidNum,
       changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
@@ -371,6 +407,7 @@ export const POSLitePage = () => {
       width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
+      invoiceConfig: settings?.invoiceConfig,
     })
 
     printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow)
@@ -396,6 +433,7 @@ export const POSLitePage = () => {
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
+        invoiceConfig: settings?.invoiceConfig,
       })
       await blePrinter.print(bytes)
       finishPrintFlow()
@@ -724,6 +762,18 @@ export const POSLitePage = () => {
               </div>
             </div>
           )}
+          {items.length > 0 && showCharges ? (
+            <div className="space-y-2">
+              <BillChargeToggles
+                presets={enabledPresets}
+                selectedIds={selectedIds}
+                onToggle={toggleCharge}
+                netSubtotal={netSubtotal}
+                grossSubtotal={grossSubtotal}
+              />
+              <BillChargesBreakdown charges={billCharges} />
+            </div>
+          ) : null}
 
           {/* Payment Button */}
           <div data-tour="pos-lite-checkout-btn">
@@ -762,6 +812,23 @@ export const POSLitePage = () => {
           <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.totalAmount')}</p>
             <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
+            {shouldShowGstBreakdown(gstBilling) && gstSummary.taxableValue > 0 ? (
+              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3">
+                <BillGstBreakdown summary={gstSummary} style={gstBilling.style} />
+              </div>
+            ) : null}
+            {showCharges ? (
+              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3 space-y-3">
+                <BillChargeToggles
+                  presets={enabledPresets}
+                  selectedIds={selectedIds}
+                  onToggle={toggleCharge}
+                  netSubtotal={netSubtotal}
+                  grossSubtotal={grossSubtotal}
+                />
+                <BillChargesBreakdown charges={billCharges} />
+              </div>
+            ) : null}
           </div>
 
           {/* Bill Date Selector (Custom / Backdated Invoice) */}

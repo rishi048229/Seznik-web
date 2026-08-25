@@ -12,6 +12,10 @@ import { ArrowLeft, Printer, FileText, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { parseGstBilling, shouldShowGstBreakdown } from '@/constants/gstBilling'
+import { computeGstBillSummary, gstLinesFromSaleItems } from '@/utils/gst'
+import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown'
+import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -52,6 +56,7 @@ export const SaleDetailPage = () => {
       width: paperWidth,
       logoURL: receiptConfig?.logoURL,
       settingsTaxName: 'GST',
+      invoiceConfig: settings?.invoiceConfig,
     })
 
     printReceipt(receiptHTML, paperWidth, sale.invoiceNumber, () => {
@@ -77,6 +82,7 @@ export const SaleDetailPage = () => {
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
+        invoiceConfig: settings?.invoiceConfig,
       })
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)
@@ -111,6 +117,8 @@ export const SaleDetailPage = () => {
     : uniqueTaxRates.length === 1
       ? `GST (${uniqueTaxRates[0]}%)`
       : t('sales.gstItemWise')
+  const gstBilling = parseGstBilling(settings?.invoiceConfig)
+  const gstSummary = computeGstBillSummary(gstLinesFromSaleItems(sale.items || []))
 
   return (
     <div>
@@ -236,12 +244,19 @@ export const SaleDetailPage = () => {
                   <span>-{formatINR(sale.totalDiscount)}</span>
                 </div>
               )}
+              {shouldShowGstBreakdown(gstBilling) && gstSummary.taxableValue > 0 ? (
+                <BillGstBreakdown summary={gstSummary} style={gstBilling.style} />
+              ) : (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 dark:text-gray-400">
                   {taxLabel}
                 </span>
                 <span className="text-gray-900 dark:text-gray-100">{formatINR(sale.totalTax)}</span>
               </div>
+              )}
+              {sale.billCharges && sale.billCharges.length > 0 ? (
+                <BillChargesBreakdown charges={sale.billCharges} />
+              ) : null}
               <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
                 <span className="text-gray-900 dark:text-gray-100">{t('sales.grandTotal')}</span>
                 <span className="text-[#0a0a2e]">{formatINR(sale.grandTotal)}</span>

@@ -69,7 +69,7 @@ function AppDataPrefetcher() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, initializeAuth, user } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -102,15 +102,24 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const onOnboarding = segments[0] === 'onboarding';
+    const needsOnboarding =
+      isAuthenticated &&
+      user?.accountType !== 'managed' &&
+      user?.onboardingCompleted === false;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login' as any);
-    } else if (isAuthenticated && inAuthGroup) {
+    } else if (isAuthenticated && needsOnboarding && !onOnboarding) {
+      router.replace('/onboarding' as any);
+    } else if (isAuthenticated && inAuthGroup && !needsOnboarding) {
+      router.replace('/');
+    } else if (isAuthenticated && onOnboarding && !needsOnboarding) {
       router.replace('/');
     }
 
     SplashScreen.hideAsync().catch(() => {});
-  }, [isLoading, isAuthenticated, segments]);
+  }, [isLoading, isAuthenticated, segments, user?.onboardingCompleted, user?.accountType]);
 
   if (isLoading) {
     return <AppSplashScreen />;
@@ -130,6 +139,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)/login" />
         <Stack.Screen name="(auth)/register" />
         <Stack.Screen name="(auth)/forgot-password" />
+        <Stack.Screen name="onboarding/index" />
         <Stack.Screen name="index" />
       </Stack>
       {/* Global custom themed alert popup matching app design system */}

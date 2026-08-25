@@ -6,6 +6,8 @@ import { buildBillReceiptHtml } from '@/utils/shareBillReceipt';
 import type { Sale } from '@/types/sale';
 import type { StoreProfile } from '@/hooks/useStoreProfile';
 import type { Settings } from '@/api/settings';
+import { computeGstBillSummary, gstLinesFromSaleItems } from '@/utils/gst';
+import { parseGstBilling } from '@/constants/gstBilling';
 
 type StoreProfileWithSettings = StoreProfile & { settings?: Settings | null };
 
@@ -64,6 +66,8 @@ export function saleToPrintSaleData(sale: Sale, storeProfile: StoreProfileWithSe
   const totalTax = sale.totalTax || 0;
   const halfTax = totalTax / 2;
   const taxableAmt = Math.max(0, sale.subtotal - (sale.totalDiscount || 0));
+  const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
+  const summary = computeGstBillSummary(gstLinesFromSaleItems(sale.items || []));
 
   return applyStoreProfileToPrintData(
     {
@@ -76,11 +80,15 @@ export function saleToPrintSaleData(sale: Sale, storeProfile: StoreProfileWithSe
       customerName: sale.customerName || 'Walk-in Customer',
       items: saleToPrintItems(sale),
       subtotal: sale.subtotal,
-      taxableAmt,
-      sgst: halfTax,
-      cgst: halfTax,
+      taxableAmt: summary.taxableValue || taxableAmt,
+      sgst: summary.sgstAmount || halfTax,
+      cgst: summary.cgstAmount || halfTax,
+      gstStyle: gstBilling.printOnReceipt ? gstBilling.style : undefined,
+      gstSlabs: summary.slabs,
       totalDiscount: sale.totalDiscount || 0,
       totalTax,
+      billCharges: Array.isArray(sale.billCharges) ? sale.billCharges : undefined,
+      extraChargesTotal: sale.extraChargesTotal || 0,
       grandTotal: sale.grandTotal,
       amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
       changeReturned: sale.changeReturned || 0,

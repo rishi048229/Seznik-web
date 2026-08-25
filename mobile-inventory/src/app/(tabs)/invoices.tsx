@@ -43,6 +43,7 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { getTemplateById } from '@/constants/receiptTemplates';
+import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import type { PrintSaleData } from '@/services/PrinterService';
 import {
   formatInvoiceDateTime,
@@ -154,6 +155,7 @@ export default function InvoicesTabScreen() {
   const buildPrintOptions = useCallback(() => {
     const template = getTemplateById(activeTemplateId);
     const customTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
+    const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
     return {
       template,
       customTemplate,
@@ -168,6 +170,7 @@ export default function InvoicesTabScreen() {
       storeGstin: storeProfile.storeGstin,
       storeLogoUrl: storeProfile.storeLogoUrl,
       upiId: storeProfile.upiId,
+      ...gstPrintOptionOverrides(gstBilling),
     };
   }, [
     activeTemplateId,

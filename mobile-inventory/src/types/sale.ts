@@ -7,6 +7,7 @@ export interface SaleItem {
   costPrice?: number;
   taxRate?: number;
   taxAmount?: number;
+  priceIncludesGst?: boolean;
   discountType?: 'flat' | 'percent';
   discountValue?: number;
   discountAmount?: number;
@@ -15,6 +16,16 @@ export interface SaleItem {
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'upi' | 'bank' | 'credit';
+
+export interface AppliedBillCharge {
+  presetId: string;
+  label: string;
+  kind: 'service' | 'legacy_vat' | 'other';
+  type: 'percent' | 'flat';
+  value: number;
+  amount: number;
+  applyOn?: 'net_subtotal' | 'gross';
+}
 
 export interface Sale {
   id: string;
@@ -26,6 +37,8 @@ export interface Sale {
   totalDiscount: number;
   totalTax: number;
   grandTotal: number;
+  billCharges?: AppliedBillCharge[] | null;
+  extraChargesTotal?: number;
   paymentMethod: PaymentMethod;
   amountPaid: number;
   changeReturned: number;
@@ -42,6 +55,8 @@ export interface CreateSalePayload {
   totalDiscount: number;
   totalTax: number;
   grandTotal: number;
+  billCharges?: AppliedBillCharge[];
+  extraChargesTotal?: number;
   paymentMethod: PaymentMethod;
   amountPaid: number;
   changeReturned: number;

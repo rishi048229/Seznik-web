@@ -9,16 +9,24 @@ export interface UserPermissions {
   [key: string]: boolean | undefined;
 }
 
+export type BusinessType = 'restaurant_cafe' | 'online_store' | 'retail_shop';
+
 export interface UserProfile {
   id: string;
   email: string;
   displayName?: string | null;
   businessName?: string | null;
+  businessType?: BusinessType | null;
   phone?: string | null;
   role: 'admin' | 'agent' | string;
   onboardingCompleted?: boolean;
   accountType?: 'user' | 'managed';
   permissions?: UserPermissions | null;
+}
+
+export interface CompleteOnboardingPayload {
+  businessName: string;
+  businessType: BusinessType;
 }
 
 export interface AuthResponse {
