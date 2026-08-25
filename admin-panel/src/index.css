@@ -405,6 +405,10 @@ html, body, #root {
   padding: 10px clamp(16px, 2vw, 28px);
 }
 
+.admin-main--redirects {
+  overflow: hidden;
+}
+
 .admin-overview-layout {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
@@ -1034,6 +1038,113 @@ html, body, #root {
   max-width: 100%;
 }
 
+.redirects-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.redirects-demo-banner {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.redirects-products-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.redirects-header {
+  flex-shrink: 0;
+}
+
+.redirects-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.redirects-table-wrap {
+  flex: 1;
+  min-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.redirects-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-card-hover);
+  box-shadow: 0 1px 0 var(--border-color);
+}
+
+.redirects-footer {
+  flex-shrink: 0;
+}
+
+.redirects-search {
+  position: relative;
+  width: 320px;
+  max-width: 100%;
+}
+
+.redirects-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.redirects-control-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.redirects-order-toggle {
+  display: inline-flex;
+  background: var(--bg-main);
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.redirects-sort-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--accent-blue);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
 .users-mobile-cards {
   display: none;
 }
@@ -1119,6 +1230,22 @@ html, body, #root {
     overflow: visible;
     height: auto;
     padding-bottom: 24px;
+  }
+
+  .admin-main--redirects {
+    overflow: hidden;
+    height: auto;
+    flex: 1;
+    min-height: 0;
+    padding-bottom: 16px;
+  }
+
+  .admin-app-shell:has(.admin-main--redirects) {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 
   .admin-overview-layout {
@@ -1265,6 +1392,18 @@ html, body, #root {
 
   .user-mgmt-search {
     width: 100%;
+  }
+
+  .redirects-search {
+    width: 100%;
+  }
+
+  .redirects-order-toggle {
+    width: 100%;
+  }
+
+  .redirects-order-toggle button {
+    flex: 1;
   }
 
   .profile-details-grid {

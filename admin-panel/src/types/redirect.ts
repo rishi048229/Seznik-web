@@ -1,11 +1,4 @@
-export type RedirectTimeFrame =
-  | '24h'
-  | '7d'
-  | '30d'
-  | 'this_month'
-  | 'this_year'
-  | 'all_time'
-  | 'custom'
+export type RedirectTimeFrame = 'today' | '7d' | '15d' | '30d' | 'all'
 
 export interface RedirectClickEvent {
   id: string

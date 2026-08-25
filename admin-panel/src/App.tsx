@@ -103,7 +103,11 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
         />
       </div>
 
-      <main className={`admin-main${activeTab === 'overview' ? ' admin-main--overview' : ''}`}>
+      <main
+        className={`admin-main${activeTab === 'overview' ? ' admin-main--overview' : ''}${
+          activeTab === 'redirects' ? ' admin-main--redirects' : ''
+        }`}
+      >
         {activeTab === 'health' ? (
           <HealthView />
         ) : activeTab === 'overview' ? (
