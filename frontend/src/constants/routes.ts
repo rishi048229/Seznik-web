@@ -25,4 +25,6 @@ export const ROUTES = {
   SETTINGS: '/settings',
   PRINTERS: '/printers',
   LOCATIONS: '/locations',
+  KOT: '/kot',
+  KOT_KDS: '/kot/kds',
 } as const

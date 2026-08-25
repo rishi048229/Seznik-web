@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft } from 'lucide-react'
+import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, UtensilsCrossed } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
@@ -17,6 +17,7 @@ const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) =>
   const p = permissions ?? undefined
   return [
     { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
+    { path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> },
     { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
     { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },
     ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),

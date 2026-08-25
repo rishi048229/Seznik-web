@@ -22,4 +22,6 @@ export const QUERY_KEYS = {
   LOCATIONS: 'locations',
   LOCATION_STOCK: 'location-stock',
   STOCK_TRANSFERS: 'stock-transfers',
+  RESTAURANT_TABLES: 'restaurant-tables',
+  KOT_ORDERS: 'kot-orders',
 } as const

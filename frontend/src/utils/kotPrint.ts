@@ -1,0 +1,122 @@
+import { EscPosBuilder } from './escpos'
+import { printReceipt } from './receipt'
+
+export interface KotSlipItem {
+  productName: string
+  quantity: number
+  notes?: string | null
+  modifiers?: string[]
+}
+
+export interface KotSlipData {
+  orderNumber: number
+  tableName: string
+  waiterName?: string | null
+  orderTime: string | Date
+  notes?: string | null
+  priority?: string | null
+  items: KotSlipItem[]
+}
+
+const formatTime = (value: string | Date): string => {
+  const d = typeof value === 'string' ? new Date(value) : value
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = '50mm'): string => {
+  const is80 = width === '80mm'
+  const titleFs = is80 ? '22px' : '18px'
+  const baseFs = is80 ? '14px' : '13px'
+  const smallFs = is80 ? '12px' : '11px'
+  const urgent = data.priority === 'urgent'
+
+  const itemRows = data.items
+    .map((it) => {
+      const mods = (it.modifiers ?? []).filter(Boolean)
+      const notes = it.notes?.trim()
+      return `<div style="margin:6px 0;padding-bottom:4px;border-bottom:1px dashed #000;">
+        <div style="font-size:${baseFs};font-weight:800;">${it.quantity} x ${escapeHtml(it.productName)}</div>
+        ${mods.length ? `<div style="font-size:${smallFs};font-style:italic;">* ${escapeHtml(mods.join(', '))}</div>` : ''}
+        ${notes ? `<div style="font-size:${smallFs};font-style:italic;color:#333;">Note: ${escapeHtml(notes)}</div>` : ''}
+      </div>`
+    })
+    .join('')
+
+  return `<div style="font-family:ui-monospace,Menlo,monospace;color:#000;width:100%;">
+    <div style="text-align:center;font-weight:900;font-size:${smallFs};letter-spacing:1px;">*** KITCHEN ORDER TICKET ***</div>
+    ${urgent ? `<div style="text-align:center;font-weight:900;font-size:${baseFs};margin-top:4px;">*** URGENT ***</div>` : ''}
+    <div style="border-top:2px solid #000;margin:8px 0;"></div>
+    <div style="text-align:center;font-size:${titleFs};font-weight:900;line-height:1.15;">${escapeHtml(data.tableName)}</div>
+    <div style="text-align:center;font-size:${baseFs};font-weight:700;margin-top:4px;">KOT #${data.orderNumber}</div>
+    <div style="border-top:1px dashed #000;margin:8px 0;"></div>
+    <div style="font-size:${smallFs};">Time: ${escapeHtml(formatTime(data.orderTime))}</div>
+    ${data.waiterName ? `<div style="font-size:${smallFs};">Waiter: ${escapeHtml(data.waiterName)}</div>` : ''}
+    <div style="border-top:1px dashed #000;margin:8px 0;"></div>
+    ${itemRows || `<div style="font-size:${baseFs};">No new items</div>`}
+    ${data.notes ? `<div style="margin-top:8px;font-size:${smallFs};"><strong>Order note:</strong> ${escapeHtml(data.notes)}</div>` : ''}
+    <div style="border-top:2px solid #000;margin:10px 0 4px;"></div>
+    <div style="text-align:center;font-size:${smallFs};">-- Kitchen Copy --</div>
+  </div>`
+}
+
+export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80mm' = '58mm'): Uint8Array => {
+  const cols = paperSize === '80mm' ? 48 : 32
+  const b = new EscPosBuilder()
+  b.init(paperSize)
+  b.align('center')
+  b.bold(true)
+  b.line('*** KITCHEN ORDER TICKET ***')
+  if (data.priority === 'urgent') {
+    b.doubleSize(true)
+    b.line('URGENT')
+    b.doubleSize(false)
+  }
+  b.bold(false)
+  b.hr(cols, '=')
+  b.doubleSize(true)
+  b.bold(true)
+  b.line(data.tableName)
+  b.doubleSize(false)
+  b.line(`KOT #${data.orderNumber}`)
+  b.bold(false)
+  b.hr(cols, '-')
+  b.align('left')
+  b.line(`Time: ${formatTime(data.orderTime)}`)
+  if (data.waiterName) b.line(`Waiter: ${data.waiterName}`)
+  b.hr(cols, '-')
+  data.items.forEach((it) => {
+    b.bold(true)
+    b.line(`${it.quantity} x ${it.productName}`)
+    b.bold(false)
+    const mods = (it.modifiers ?? []).filter(Boolean)
+    if (mods.length) b.line(`  * ${mods.join(', ')}`)
+    if (it.notes?.trim()) b.line(`  Note: ${it.notes.trim()}`)
+  })
+  if (data.notes?.trim()) {
+    b.hr(cols, '-')
+    b.line(`Order note: ${data.notes.trim()}`)
+  }
+  b.hr(cols, '=')
+  b.align('center')
+  b.line('-- Kitchen Copy --')
+  b.feed(2)
+  b.cut()
+  return b.toBytes()
+}
+
+export const printKotSlip = (data: KotSlipData, width: '50mm' | '80mm' = '50mm') => {
+  printReceipt(generateKotSlipHTML(data, width), width, `KOT #${data.orderNumber}`)
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}

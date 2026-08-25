@@ -434,6 +434,10 @@ model DayClose {
 model RestaurantTable {
   id        String     @id @default(uuid())
   name      String
+  // Seats at this table. Nullable so pre-existing rows (created before this
+  // column existed, e.g. from the mobile app) stay valid and simply show no
+  // capacity rather than a misleading default.
+  capacity  Int?
   isActive  Boolean    @default(true)
   sortOrder Int        @default(0)
   userId    String
@@ -457,6 +461,13 @@ model KOTOrder {
   notes           String?
   priority        String           @default("normal")
   contactNumber   String?
+  // Server/waiter who took this order — printed prominently on the kitchen
+  // slip so the kitchen knows who to hand the plates to.
+  waiterName      String?
+  // Which store this order is being run from (multi-store inventory). Null
+  // when the feature is off — billing then decrements flat product stock
+  // exactly as it did before, matching the POS behavior.
+  locationId      String?
   sentToKitchenAt DateTime?
   saleId          String?          @unique
   sale            Sale?            @relation(fields: [saleId], references: [id], onDelete: SetNull)
@@ -483,6 +494,12 @@ model KOTOrderItem {
   notes       String?
   modifiers   String[] @default([])
   status      String   @default("pending")
+  // Set the moment this specific line is printed on a kitchen slip. This is
+  // what separates "Already sent to kitchen" from "New items to print" —
+  // items added to a running order after the first slip must only appear on
+  // the NEXT slip, never reprint the whole order and make the kitchen cook
+  // it twice. Null = not yet sent.
+  sentToKitchenAt DateTime?
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())

@@ -30,6 +30,8 @@ import feedbackRoutes from './routes/feedbackRoutes';
 import tokenTypeRoutes from './routes/tokenTypeRoutes';
 import tokenRoutes from './routes/tokenRoutes';
 import locationRoutes from './routes/locationRoutes';
+import restaurantTableRoutes from './routes/restaurantTableRoutes';
+import kotOrderRoutes from './routes/kotOrderRoutes';
 
 const app = express();
 
@@ -105,6 +107,8 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/token-types', tokenTypeRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/restaurant-tables', restaurantTableRoutes);
+app.use('/api/kot-orders', kotOrderRoutes);
 
 // 6. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {

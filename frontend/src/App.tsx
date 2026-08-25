@@ -75,6 +75,8 @@ const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 
 const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
+const KOTPage = lazyPage(() => import('@/pages/kot/KOTPage'), 'KOTPage')
+const KDSPage = lazyPage(() => import('@/pages/kot/KDSPage'), 'KDSPage')
 
 const LoadingFallback = (
   <div className="flex justify-center py-12">
@@ -250,6 +252,8 @@ function App() {
               <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><TaxReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.PRINTERS} element={<AuthenticatedRoute><MainLayout><PrintersPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.KOT_KDS} element={<AuthenticatedRoute><MainLayout><KDSPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.KOT} element={<AuthenticatedRoute><MainLayout><KOTPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>
           </Suspense>
