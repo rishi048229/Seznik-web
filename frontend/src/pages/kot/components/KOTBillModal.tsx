@@ -58,7 +58,7 @@ export const KOTBillModal = ({
   useEffect(() => {
     if (method === 'credit') {
       setAmountPaid('0')
-    } else if (isOpen && unpaidAmount > 0 && method !== 'credit') {
+    } else if (isOpen && unpaidAmount > 0) {
       setAmountPaid(String(net))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
