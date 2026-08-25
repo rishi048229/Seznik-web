@@ -21,18 +21,13 @@ const getDynamicHostIp = () => {
     return url.endsWith('/api') ? url : `${url.replace(/\/$/, '')}/api`;
   }
 
-  // 2. Production build fallback (standalone APK/IPA releases)
-  if (!__DEV__) {
-    return PROD_DEFAULT_API_URL;
-  }
-
-  // 3. Local Development: Explicit Host from env (e.g. EXPO_PUBLIC_API_HOST="192.168.0.11")
+  // 2. Explicit Host from env (e.g. EXPO_PUBLIC_API_HOST="192.168.1.22")
   const envHost = process.env.EXPO_PUBLIC_API_HOST?.trim();
   if (envHost) {
     return `http://${envHost}:${DEFAULT_PORT}/api`;
   }
 
-  // 4. Local Development: NativeModules.SourceCode.scriptURL (always has Metro host IP on physical devices)
+  // 3. NativeModules.SourceCode.scriptURL (has Metro host IP on physical devices)
   try {
     const scriptURL = NativeModules.SourceCode?.scriptURL;
     if (scriptURL && typeof scriptURL === 'string') {
@@ -43,7 +38,7 @@ const getDynamicHostIp = () => {
     }
   } catch {}
 
-  // 5. Local Development: Dynamic Host IP auto-detected from Expo bundler (laptop Wi-Fi IP)
+  // 4. Dynamic Host IP auto-detected from Expo bundler (laptop Wi-Fi IP)
   const hostUri =
     Constants.expoConfig?.hostUri ||
     Constants.manifest2?.extra?.expoGo?.debuggerHost ||
@@ -60,12 +55,17 @@ const getDynamicHostIp = () => {
     }
   }
 
-  // 6. Local Development: Android Emulator loopback alias for host machine
+  // 5. If running on a physical device, fallback to the local LAN Wi-Fi machine IP
+  if (Constants.isDevice) {
+    return `http://192.168.1.22:${DEFAULT_PORT}/api`;
+  }
+
+  // 6. Android Emulator loopback alias for host machine
   if (Platform.OS === 'android') {
     return `http://10.0.2.2:${DEFAULT_PORT}/api`;
   }
 
-  // 7. Local Development: Default localhost fallback
+  // 7. Default localhost fallback
   return `http://localhost:${DEFAULT_PORT}/api`;
 };
 

@@ -76,6 +76,12 @@ function RootLayoutNav() {
   useEffect(() => {
     initializeAuth();
     usePrinterStore.getState().hydrateFromSettings().catch(() => {});
+
+    // Guarantee splash dismiss within 600ms on all devices
+    const timer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
   }, []);
 
   // Mounted at the root, for the whole app lifetime, because every screen gates printing on
