@@ -1,6 +1,7 @@
 export type KOTOrderStatus =
   | 'open'
   | 'sent_to_kitchen'
+  | 'modified'
   | 'preparing'
   | 'ready'
   | 'served'
@@ -39,7 +40,7 @@ export interface KOTOrderItem {
   taxRate: number;
   notes?: string | null;
   modifiers: string[];
-  status?: string;
+  status?: string; // 'pending' | 'new' | 'fired' | 'voided' | 'modified'
   createdAt?: string;
   updatedAt?: string;
 }
@@ -65,6 +66,7 @@ export interface KOTOrder {
   subtotal?: number;
   totalTax?: number;
   grandTotal?: number;
+  version?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,6 +90,41 @@ export interface CreateKOTOrderPayload {
     notes?: string;
     modifiers?: string[];
   }[];
+}
+
+export interface EditKOTOrderPayload {
+  status?: KOTOrderStatus;
+  priority?: KOTPriority;
+  notes?: string;
+  itemsToAdd?: {
+    productId?: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate?: number;
+    notes?: string;
+    modifiers?: string[];
+  }[];
+  itemsToUpdate?: {
+    id: string;
+    quantity?: number;
+    notes?: string;
+    modifiers?: string[];
+    status?: string;
+  }[];
+  itemsToVoid?: {
+    id: string;
+    reason: string;
+  }[];
+}
+
+export interface KOTDeltaChange {
+  type: 'new' | 'void' | 'qty_change';
+  productName: string;
+  quantity: number;
+  oldQuantity?: number;
+  notes?: string;
+  reason?: string;
 }
 
 export interface GenerateKOTBillPayload {

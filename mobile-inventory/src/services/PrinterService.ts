@@ -80,7 +80,7 @@ export interface PrintSaleData {
  */
 export interface PrintKotData {
   storeName?: string;
-  orderNumber: number;
+  orderNumber: number | string;
   orderType: 'dine_in' | 'takeaway' | 'delivery';
   tableName?: string;
   partyLabel?: string;
@@ -89,7 +89,39 @@ export interface PrintKotData {
   priority?: 'normal' | 'urgent';
   notes?: string;
   time: string;
-  items: { productName: string; quantity: number; notes?: string; modifiers?: string[] }[];
+  waiterName?: string;
+  stationName?: string;
+  copyType?: string;
+  reprintCount?: number;
+  version?: number;
+  items: {
+    productName: string;
+    quantity: number;
+    notes?: string;
+    modifiers?: string[];
+    status?: string;
+    voidReason?: string;
+  }[];
+}
+
+/** Modification Delta ticket data (fired when an active KOT is edited) */
+export interface PrintKotDeltaData {
+  storeName?: string;
+  orderNumber: number | string;
+  tableName?: string;
+  partyLabel?: string;
+  time: string;
+  version?: number;
+  waiterName?: string;
+  stationName?: string;
+  changes: {
+    type: 'new' | 'void' | 'qty_change';
+    productName: string;
+    quantity: number;
+    oldQuantity?: number;
+    notes?: string;
+    reason?: string;
+  }[];
 }
 
 /** Dedicated compact counter token slip data */
@@ -1111,6 +1143,10 @@ class ThermalPrinterServiceManager {
    * widthtimes/heigthtimes) so it reads clearly from across a kitchen. Independent of ReceiptTemplate
    * (a KOT doesn't vary by business vertical the way a customer bill's layout does).
    */
+  /**
+   * Kitchen Order Ticket — plain text, NEVER any prices/totals/tax anywhere.
+   * Formatted specifically for standard 58mm (32 cols) and 80mm (48 cols) kitchen printers.
+   */
   public formatKotText(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm'): string {
     const width = paperWidth === '58mm' ? 32 : 48;
     const divider = '='.repeat(width);
@@ -1124,42 +1160,96 @@ class ThermalPrinterServiceManager {
     };
 
     const lines: string[] = [];
-    lines.push(centerLine('*** KITCHEN ORDER TICKET ***'));
-    lines.push(divider);
-    if (data.priority === 'urgent') {
-      lines.push(centerLine('!!! URGENT !!!'));
-      lines.push(divider);
+    const copyLabel = data.copyType || 'KITCHEN COPY';
+    if (paperWidth === '58mm') {
+      lines.push(centerLine(`========${copyLabel}========`));
+      lines.push(centerLine(`KOT #${String(data.orderNumber).padStart(4, '0')}   [${(data.orderType || 'DINE_IN').replace('_', '-').toUpperCase()}]`));
+      if (data.orderType === 'dine_in') {
+        const tbl = data.tableName || data.partyLabel || 'Table ?';
+        const pax = data.guestCount ? `   Pax: ${data.guestCount}` : '';
+        lines.push(`   Table: ${tbl}${pax}`);
+      } else if (data.partyLabel) {
+        lines.push(`   Party: ${data.partyLabel}`);
+      }
+      lines.push(`   Time: ${data.time}`);
+      if (data.waiterName) {
+        lines.push(`   Waiter: ${data.waiterName}`);
+      }
+      if (data.stationName) {
+        lines.push(`   Station: ${data.stationName}`);
+      }
+      if (data.reprintCount && data.reprintCount > 0) {
+        lines.push(centerLine(`[ REPRINT #${data.reprintCount} ]`));
+      }
+      if (data.priority === 'urgent') {
+        lines.push(centerLine('!!! URGENT !!!'));
+      }
+    } else {
+      // 80mm layout (48-column)
+      lines.push(centerLine(`==================${copyLabel}==================`));
+      const stationTag = data.stationName ? `Station: ${data.stationName}` : '';
+      lines.push(`    KOT #${String(data.orderNumber).padStart(4, '0')}${' '.repeat(Math.max(4, 24 - String(data.orderNumber).length))}${stationTag}`);
+      const typeLabel = (data.orderType || 'DINE_IN').replace('_', '-').toUpperCase();
+      const tbl = data.tableName || data.partyLabel || 'Dine-In';
+      const pax = data.guestCount ? `  |  Pax: ${data.guestCount}` : '';
+      lines.push(`    Table: ${tbl}${pax}  |  ${typeLabel}`);
+      lines.push(`    Fired: ${data.time}`);
+      if (data.waiterName) {
+        lines.push(`    Waiter: ${data.waiterName}`);
+      }
+      if (data.reprintCount && data.reprintCount > 0) {
+        lines.push(centerLine(`[ REPRINT #${data.reprintCount} ]`));
+      }
+      if (data.priority === 'urgent') {
+        lines.push(centerLine('!!! URGENT !!!'));
+      }
     }
 
-    lines.push(centerLine(`KOT #${data.orderNumber}`));
-    const typeLabel = data.orderType === 'dine_in' ? 'DINE-IN' : data.orderType === 'takeaway' ? 'TAKEAWAY' : 'DELIVERY';
-    lines.push(centerLine(typeLabel));
-    if (data.orderType === 'dine_in') {
-      lines.push(centerLine(data.tableName || data.partyLabel || 'No table'));
-      if (data.guestCount) lines.push(centerLine(`${data.guestCount} guests`));
-    } else if (data.partyLabel) {
-      lines.push(centerLine(data.partyLabel));
-    }
-    if (data.contactNumber) lines.push(centerLine(`Ph: ${data.contactNumber}`));
-    lines.push(centerLine(data.time));
-    lines.push(divider);
+    lines.push(thinDivider);
 
-    data.items.forEach((item, idx) => {
-      lines.push(`${idx + 1}. ${item.quantity} x ${item.productName}`);
-      if (item.modifiers && item.modifiers.length > 0) {
-        lines.push(`   * ${item.modifiers.join(', ')}`);
+    let totalQty = 0;
+    const activeItems = data.items.filter((it) => it.status !== 'voided');
+
+    if (paperWidth === '80mm') {
+      lines.push('  QTY  ITEM                          NOTE');
+    }
+
+    activeItems.forEach((item) => {
+      totalQty += item.quantity;
+      if (paperWidth === '58mm') {
+        lines.push(` ${item.quantity}x  ${item.productName}`);
+        if (item.modifiers && item.modifiers.length > 0) {
+          lines.push(`     * ${item.modifiers.join(', ')}`);
+        }
+        if (item.notes) {
+          lines.push(`     - ${item.notes}`);
+        }
+      } else {
+        const qtyCol = `  ${item.quantity}x`.padEnd(7, ' ');
+        const nameCol = item.productName.slice(0, 26).padEnd(28, ' ');
+        const noteCol = item.notes ? item.notes.slice(0, 12) : '';
+        lines.push(`${qtyCol}${nameCol}${noteCol}`);
+        if (item.productName.length > 26) {
+          lines.push(`       ${item.productName.slice(26)}`);
+        }
+        if (item.modifiers && item.modifiers.length > 0) {
+          lines.push(`       * ${item.modifiers.join(', ')}`);
+        }
+        if (item.notes && item.notes.length > 12) {
+          lines.push(`       - ${item.notes}`);
+        }
       }
-      if (item.notes) {
-        lines.push(`   note: ${item.notes}`);
-      }
-      lines.push(thinDivider);
     });
 
+    lines.push(thinDivider);
+    lines.push(` Items: ${activeItems.length}     Total Qty: ${totalQty}`);
+
     if (data.notes) {
-      lines.push(`ORDER NOTE: ${data.notes}`);
-      lines.push(divider);
+      lines.push(` NOTE: ${data.notes}`);
     }
 
+    lines.push(` Fired: ${data.time}`);
+    lines.push(divider);
     lines.push('');
     return lines.join('\n');
   }
@@ -1167,32 +1257,121 @@ class ThermalPrinterServiceManager {
   /** HTML fallback for KOT tickets (system print dialog / no Bluetooth ESC/POS device paired). */
   public generateKotHtml(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm'): string {
     const widthPx = paperWidth === '58mm' ? '280px' : '380px';
-    const typeLabel = data.orderType === 'dine_in' ? 'DINE-IN' : data.orderType === 'takeaway' ? 'TAKEAWAY' : 'DELIVERY';
-    const itemsHtml = data.items
+    const copyLabel = data.copyType || 'KITCHEN COPY';
+    const typeLabel = (data.orderType || 'DINE_IN').replace('_', '-').toUpperCase();
+    const activeItems = data.items.filter((it) => it.status !== 'voided');
+    const totalQty = activeItems.reduce((acc, it) => acc + it.quantity, 0);
+
+    const itemsHtml = activeItems
       .map(
-        (item, idx) => `
-        <div style="margin-bottom: 10px;">
-          <div><b>${idx + 1}. ${item.quantity} x ${item.productName}</b></div>
-          ${item.modifiers && item.modifiers.length ? `<div style="font-size: 0.9em;">* ${item.modifiers.join(', ')}</div>` : ''}
-          ${item.notes ? `<div style="font-size: 0.9em; font-style: italic;">note: ${item.notes}</div>` : ''}
+        (item) => `
+        <div style="margin-bottom: 8px;">
+          <div style="font-size: 1.1em; font-weight: bold;">${item.quantity}x ${item.productName}</div>
+          ${item.modifiers && item.modifiers.length ? `<div style="font-size: 0.9em; padding-left: 12px;">* ${item.modifiers.join(', ')}</div>` : ''}
+          ${item.notes ? `<div style="font-size: 0.9em; font-style: italic; padding-left: 12px;">- ${item.notes}</div>` : ''}
         </div>`
       )
-      .join('<hr style="border: none; border-top: 1px dashed #000; margin: 6px 0;">');
+      .join('<hr style="border: none; border-top: 1px dashed #000; margin: 4px 0;">');
 
     return `
-      <html><body style="font-family: monospace; width: ${widthPx}; margin: 0 auto; padding: 12px; font-size: 16px;">
-        <div style="text-align: center; font-weight: bold; font-size: 1.2em;">*** KITCHEN ORDER TICKET ***</div>
-        ${data.priority === 'urgent' ? '<div style="text-align: center; font-weight: bold; color: #DC2626; margin-top: 6px;">!!! URGENT !!!</div>' : ''}
-        <hr style="border: none; border-top: 2px solid #000; margin: 8px 0;">
-        <div style="text-align: center; font-weight: bold; font-size: 1.3em;">KOT #${data.orderNumber}</div>
-        <div style="text-align: center; font-weight: bold;">${typeLabel}</div>
-        <div style="text-align: center;">${data.orderType === 'dine_in' ? (data.tableName || data.partyLabel || 'No table') : (data.partyLabel || '')}</div>
-        ${data.guestCount ? `<div style="text-align: center;">${data.guestCount} guests</div>` : ''}
-        ${data.contactNumber ? `<div style="text-align: center;">Ph: ${data.contactNumber}</div>` : ''}
-        <div style="text-align: center;">${data.time}</div>
-        <hr style="border: none; border-top: 2px solid #000; margin: 8px 0;">
+      <html><body style="font-family: monospace; width: ${widthPx}; margin: 0 auto; padding: 8px; font-size: 14px;">
+        <div style="text-align: center; font-weight: bold; font-size: 1.1em;">========${copyLabel}========</div>
+        <div style="text-align: center; font-weight: bold; font-size: 1.25em; margin-top: 4px;">KOT #${String(data.orderNumber).padStart(4, '0')} [${typeLabel}]</div>
+        <div style="text-align: center;">${data.orderType === 'dine_in' ? (data.tableName || data.partyLabel || 'Dine-In') : (data.partyLabel || '')}${data.guestCount ? ` | Pax: ${data.guestCount}` : ''}</div>
+        ${data.waiterName ? `<div style="text-align: center;">Waiter: ${data.waiterName}</div>` : ''}
+        ${data.stationName ? `<div style="text-align: center; font-weight: bold;">Station: ${data.stationName}</div>` : ''}
+        <div style="text-align: center; font-size: 0.9em;">Time: ${data.time}</div>
+        ${data.reprintCount ? `<div style="text-align: center; font-weight: bold; margin-top: 2px;">[ REPRINT #${data.reprintCount} ]</div>` : ''}
+        ${data.priority === 'urgent' ? '<div style="text-align: center; font-weight: bold; color: #DC2626; margin-top: 2px;">!!! URGENT !!!</div>' : ''}
+        <hr style="border: none; border-top: 1px solid #000; margin: 6px 0;">
         ${itemsHtml}
-        ${data.notes ? `<hr style="border: none; border-top: 2px solid #000; margin: 8px 0;"><div><b>ORDER NOTE:</b> ${data.notes}</div>` : ''}
+        <hr style="border: none; border-top: 1px solid #000; margin: 6px 0;">
+        <div style="font-size: 0.95em;">Items: ${activeItems.length} &nbsp;&nbsp;&nbsp; Total Qty: ${totalQty}</div>
+        ${data.notes ? `<div style="font-size: 0.9em; margin-top: 4px;"><b>NOTE:</b> ${data.notes}</div>` : ''}
+        <div style="font-size: 0.85em; margin-top: 4px;">Fired: ${data.time}</div>
+        <hr style="border: none; border-top: 2px solid #000; margin: 6px 0;">
+      </body></html>
+    `;
+  }
+
+  /**
+   * Delta Kitchen Order Ticket — prints CHANGES ONLY (+ NEW, - VOID with reason, ~ QTY CHANGE)
+   * when an active KOT order is edited after initial firing.
+   */
+  public formatKotDeltaText(data: PrintKotDeltaData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+    const width = paperWidth === '58mm' ? 32 : 48;
+    const divider = '='.repeat(width);
+    const thinDivider = '-'.repeat(width);
+
+    const centerLine = (str: string) => {
+      const trimmed = str.trim();
+      if (trimmed.length >= width) return trimmed.slice(0, width);
+      const padLeft = Math.floor((width - trimmed.length) / 2);
+      return ' '.repeat(padLeft) + trimmed;
+    };
+
+    const lines: string[] = [];
+    const versionTag = data.version ? ` v${data.version}` : '';
+    lines.push(centerLine(`======MODIFIED KOT #${String(data.orderNumber).padStart(4, '0')}======`));
+    if (data.tableName || data.partyLabel) {
+      lines.push(`  Table: ${data.tableName || data.partyLabel}    Time: ${data.time}`);
+    } else {
+      lines.push(`  Time: ${data.time}`);
+    }
+    if (data.waiterName) {
+      lines.push(`  Waiter: ${data.waiterName}`);
+    }
+    lines.push(centerLine(`[ MODIFIED${versionTag} ]`));
+    lines.push(thinDivider);
+
+    data.changes.forEach((c) => {
+      if (c.type === 'new') {
+        lines.push(`+ NEW   ${c.quantity}x  ${c.productName}`);
+        if (c.notes) lines.push(`        - ${c.notes}`);
+      } else if (c.type === 'void') {
+        lines.push(`- VOID  ${c.quantity}x  ${c.productName}`);
+        if (c.reason) lines.push(`        (${c.reason})`);
+      } else if (c.type === 'qty_change') {
+        lines.push(`~ CHG   ${c.oldQuantity || 1}x -> ${c.quantity}x  ${c.productName}`);
+        if (c.notes) lines.push(`        - ${c.notes}`);
+      }
+    });
+
+    lines.push(thinDivider);
+    lines.push(centerLine('This ticket shows CHANGES ONLY'));
+    lines.push(divider);
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  /** HTML fallback for Delta KOT tickets (system print dialog) */
+  public generateKotDeltaHtml(data: PrintKotDeltaData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+    const widthPx = paperWidth === '58mm' ? '280px' : '380px';
+    const versionTag = data.version ? ` v${data.version}` : '';
+
+    const changesHtml = data.changes
+      .map((c) => {
+        if (c.type === 'new') {
+          return `<div style="color: #15803D; font-weight: bold; margin-bottom: 6px;">+ NEW &nbsp; ${c.quantity}x ${c.productName}${c.notes ? `<div style="font-weight: normal; font-size: 0.9em; padding-left: 14px;">- ${c.notes}</div>` : ''}</div>`;
+        }
+        if (c.type === 'void') {
+          return `<div style="color: #DC2626; font-weight: bold; margin-bottom: 6px;">- VOID &nbsp; ${c.quantity}x ${c.productName}${c.reason ? `<div style="font-weight: normal; font-size: 0.9em; padding-left: 14px; font-style: italic;">(${c.reason})</div>` : ''}</div>`;
+        }
+        return `<div style="color: #B45309; font-weight: bold; margin-bottom: 6px;">~ CHG &nbsp; ${c.oldQuantity || 1}x → ${c.quantity}x ${c.productName}${c.notes ? `<div style="font-weight: normal; font-size: 0.9em; padding-left: 14px;">- ${c.notes}</div>` : ''}</div>`;
+      })
+      .join('<hr style="border: none; border-top: 1px dashed #000; margin: 4px 0;">');
+
+    return `
+      <html><body style="font-family: monospace; width: ${widthPx}; margin: 0 auto; padding: 8px; font-size: 14px;">
+        <div style="text-align: center; font-weight: bold; font-size: 1.1em;">======MODIFIED KOT #${String(data.orderNumber).padStart(4, '0')}======</div>
+        <div style="text-align: center; margin-top: 2px;">Table: ${data.tableName || data.partyLabel || 'Table'} &nbsp; Time: ${data.time}</div>
+        ${data.waiterName ? `<div style="text-align: center; font-size: 0.9em;">Waiter: ${data.waiterName}</div>` : ''}
+        <div style="text-align: center; font-weight: bold; color: #B45309; margin-top: 2px;">[ MODIFIED${versionTag} ]</div>
+        <hr style="border: none; border-top: 1px solid #000; margin: 6px 0;">
+        ${changesHtml}
+        <hr style="border: none; border-top: 1px solid #000; margin: 6px 0;">
+        <div style="text-align: center; font-size: 0.85em; font-style: italic;">This ticket shows CHANGES ONLY</div>
+        <hr style="border: none; border-top: 2px solid #000; margin: 6px 0;">
       </body></html>
     `;
   }
@@ -3153,6 +3332,50 @@ class ThermalPrinterServiceManager {
       return true;
     } catch (error) {
       console.error('KOT print error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Prints a Delta Modification Ticket (+ NEW, - VOID with reason, ~ QTY CHANGE)
+   * to inform the kitchen of live updates made to an active KOT order.
+   */
+  public async printKotDeltaTicket(
+    data: PrintKotDeltaData,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: { autoCut?: boolean } = {}
+  ): Promise<boolean> {
+    try {
+      if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        try {
+          await this.initPrinter(paperWidth);
+
+          const textContent = this.sanitizeForThermalPrint(this.formatKotDeltaText(data, paperWidth));
+          const printOptions = { widthtimes: 1, heigthtimes: 1, cut: false };
+
+          await NativeEscposPrinter.printText(textContent, printOptions);
+
+          if (typeof NativeEscposPrinter.printAndFeed === 'function') {
+            try {
+              await NativeEscposPrinter.printAndFeed(RECEIPT_BOTTOM_FEED);
+            } catch (feedErr) {
+              console.warn('printAndFeed failed (non-fatal):', feedErr);
+            }
+          }
+          if (options.autoCut && typeof NativeEscposPrinter.cutOnePoint === 'function') {
+            await NativeEscposPrinter.cutOnePoint();
+          }
+          return true;
+        } catch (escErr: any) {
+          console.warn('ESC/POS Delta KOT print failed, falling back to System Print:', escErr);
+        }
+      }
+
+      const html = this.generateKotDeltaHtml(data, paperWidth);
+      await Print.printAsync({ html });
+      return true;
+    } catch (error) {
+      console.error('Delta KOT print error:', error);
       return false;
     }
   }

@@ -4,6 +4,7 @@ import {
   getOrderById,
   createOrder,
   addItemsToOrder,
+  editOrder,
   updateOrderStatus,
   generateBill,
 } from '../controllers/kotOrderController';
@@ -17,6 +18,8 @@ router.get('/', getOrders);
 router.get('/:id', getOrderById);
 router.post('/', createOrder);
 router.post('/:id/items', addItemsToOrder);
+router.put('/:id', editOrder);
+router.put('/:id/edit', editOrder);
 router.patch('/:id/status', updateOrderStatus);
 router.post('/:id/bill', generateBill);
 

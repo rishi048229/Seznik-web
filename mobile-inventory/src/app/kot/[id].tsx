@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -22,16 +23,23 @@ import {
   Flame,
   Plus,
   Trash2,
-  DollarSign,
+  Minus,
+  Edit3,
   Utensils,
   Receipt,
   X,
   CreditCard,
   Banknote,
   QrCode,
+  Search,
+  AlertTriangle,
+  FileText,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useKotOrder, useKotOrders } from '@/hooks/useKotOrders';
-import { KOTOrderStatus } from '@/types/kot';
+import { useProducts } from '@/hooks/useProducts';
+import { KOTOrderStatus, KOTOrderItem, KOTDeltaChange } from '@/types/kot';
+import { Product } from '@/types/product';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
@@ -39,8 +47,28 @@ import { KotOrderDetailSkeleton } from '@/components/ui/ScreenSkeleton';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
-import ThermalPrinterService from '@/services/PrinterService';
+import ThermalPrinterService, { PrintKotDeltaData } from '@/services/PrinterService';
 import { useSettings } from '@/hooks/useSettings';
+
+const VOID_REASONS = [
+  'Guest cancelled',
+  'Kitchen mistake / duplicate',
+  'Item out of stock',
+  'Preparation delay',
+  'Wrong item entered',
+  'Other / Guest request',
+];
+
+interface PendingNewItem {
+  tempId: string;
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  notes?: string;
+  modifiers?: string[];
+}
 
 export default function KotOrderDetailScreen() {
   const router = useRouter();
@@ -50,13 +78,61 @@ export default function KotOrderDetailScreen() {
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 14);
 
   const { order, isLoading, isRefetching, isError, refetch } = useKotOrder(id);
-  const { updateStatus, generateBill, isGeneratingBill } = useKotOrders();
+  const { updateStatus, editOrder, generateBill, isEditing, isGeneratingBill } = useKotOrders();
+  const { products } = useProducts();
   const { paperWidth, connectionState } = usePrinterStore();
   const { settings } = useSettings();
 
+  // Edit Mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [reprintCounter, setReprintCounter] = useState(0);
+
+  // Local draft changes for active order items
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
+  const [voidedItems, setVoidedItems] = useState<Record<string, string>>({}); // itemId -> reason
+  const [pendingNewItems, setPendingNewItems] = useState<PendingNewItem[]>([]);
+
+  // Item Note Modal
+  const [editingNoteItemId, setEditingNoteItemId] = useState<string | null>(null);
+  const [itemNoteText, setItemNoteText] = useState('');
+
+  // Void Reason Modal
+  const [voidingItemId, setVoidingItemId] = useState<string | null>(null);
+  const [selectedVoidReason, setSelectedVoidReason] = useState(VOID_REASONS[0]);
+  const [customVoidReason, setCustomVoidReason] = useState('');
+
+  // Add Item Catalog Modal
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [newProductQty, setNewProductQty] = useState(1);
+  const [newProductNote, setNewProductNote] = useState('');
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState<Product | null>(null);
+
+  // Settlement Modal
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
   const [discountAmount, setDiscountAmount] = useState('0');
+
+  // Initialize draft states from order
+  useEffect(() => {
+    if (order) {
+      const qMap: Record<string, number> = {};
+      const nMap: Record<string, string> = {};
+      const vMap: Record<string, string> = {};
+      order.items.forEach((it) => {
+        qMap[it.id] = it.quantity;
+        nMap[it.id] = it.notes || '';
+        if (it.status === 'voided') {
+          vMap[it.id] = it.notes?.replace(/^\[VOID:?\s*|\]/gi, '') || 'Voided';
+        }
+      });
+      setItemQuantities(qMap);
+      setItemNotes(nMap);
+      setVoidedItems(vMap);
+      setPendingNewItems([]);
+    }
+  }, [order]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -76,9 +152,22 @@ export default function KotOrderDetailScreen() {
     }
   };
 
+  // Full KOT Kitchen Slip Reprint
   const handlePrintKitchenSlip = async () => {
     if (!order) return;
     try {
+      const nextReprint = reprintCounter + 1;
+      setReprintCounter(nextReprint);
+
+      const activeItems = order.items
+        .filter((it) => it.status !== 'voided')
+        .map((it) => ({
+          productName: it.productName,
+          quantity: it.quantity,
+          notes: it.notes || undefined,
+          modifiers: it.modifiers,
+        }));
+
       await ThermalPrinterService.printKotTicket(
         {
           storeName: settings?.businessName || 'SEZNIK KITCHEN',
@@ -91,20 +180,168 @@ export default function KotOrderDetailScreen() {
           priority: order.priority,
           notes: order.notes || undefined,
           time: new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          items: order.items.map((it) => ({
-            productName: it.productName,
-            quantity: it.quantity,
-            notes: it.notes || undefined,
-          })),
+          reprintCount: nextReprint > 1 ? nextReprint - 1 : undefined,
+          copyType: 'KITCHEN COPY',
+          items: activeItems,
         },
         paperWidth || '58mm'
       );
-      Alert.alert('Printed! 🖨️', `Kitchen slip for KOT #${order.orderNumber} printed.`);
+      Alert.alert('Printed! 🖨️', `Full kitchen slip for KOT #${order.orderNumber} printed.`);
     } catch (err: any) {
       Alert.alert('Printer Error', err?.message || 'Failed to print kitchen slip');
     }
   };
 
+  // Void item confirmation
+  const handleConfirmVoid = () => {
+    if (!voidingItemId) return;
+    const reason = selectedVoidReason === 'Other / Guest request' && customVoidReason.trim()
+      ? customVoidReason.trim()
+      : selectedVoidReason;
+
+    setVoidedItems((prev) => ({ ...prev, [voidingItemId]: reason }));
+    setVoidingItemId(null);
+    setCustomVoidReason('');
+  };
+
+  // Calculate Delta Changes
+  const calculateDeltaChanges = (): KOTDeltaChange[] => {
+    if (!order) return [];
+    const changes: KOTDeltaChange[] = [];
+
+    // 1. Newly Added Items (+ NEW)
+    pendingNewItems.forEach((newItem) => {
+      changes.push({
+        type: 'new',
+        productName: newItem.productName,
+        quantity: newItem.quantity,
+        notes: newItem.notes,
+      });
+    });
+
+    // 2. Voided Items (- VOID)
+    order.items.forEach((orig) => {
+      if (orig.status !== 'voided' && voidedItems[orig.id]) {
+        changes.push({
+          type: 'void',
+          productName: orig.productName,
+          quantity: itemQuantities[orig.id] ?? orig.quantity,
+          reason: voidedItems[orig.id],
+        });
+      }
+    });
+
+    // 3. Quantity / Note Changes (~ QTY CHANGE)
+    order.items.forEach((orig) => {
+      if (orig.status !== 'voided' && !voidedItems[orig.id]) {
+        const currentQty = itemQuantities[orig.id] ?? orig.quantity;
+        const currentNote = itemNotes[orig.id] ?? (orig.notes || '');
+        if (currentQty !== orig.quantity || currentNote !== (orig.notes || '')) {
+          changes.push({
+            type: 'qty_change',
+            productName: orig.productName,
+            quantity: currentQty,
+            oldQuantity: orig.quantity,
+            notes: currentNote,
+          });
+        }
+      }
+    });
+
+    return changes;
+  };
+
+  const deltaChanges = calculateDeltaChanges();
+
+  // Commit Edit & Print Delta KOT
+  const handleCommitEditAndFire = async () => {
+    if (!order) return;
+    if (deltaChanges.length === 0) {
+      setIsEditMode(false);
+      return;
+    }
+
+    try {
+      const itemsToAdd = pendingNewItems.map((it) => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        taxRate: it.taxRate,
+        notes: it.notes,
+      }));
+
+      const itemsToUpdate = order.items
+        .filter((orig) => orig.status !== 'voided' && !voidedItems[orig.id])
+        .filter((orig) => (itemQuantities[orig.id] !== undefined && itemQuantities[orig.id] !== orig.quantity) || itemNotes[orig.id] !== orig.notes)
+        .map((orig) => ({
+          id: orig.id,
+          quantity: itemQuantities[orig.id] ?? orig.quantity,
+          notes: itemNotes[orig.id] ?? orig.notes,
+        }));
+
+      const itemsToVoid = Object.entries(voidedItems)
+        .filter(([id]) => order.items.some((it) => it.id === id && it.status !== 'voided'))
+        .map(([id, reason]) => ({ id, reason }));
+
+      await editOrder({
+        id: order.id,
+        payload: {
+          status: 'modified',
+          itemsToAdd,
+          itemsToUpdate,
+          itemsToVoid,
+        },
+      });
+
+      // Auto-print Modified Delta Ticket (Shows Changes Only)
+      try {
+        await ThermalPrinterService.printKotDeltaTicket(
+          {
+            storeName: settings?.businessName || 'SEZNIK KITCHEN',
+            orderNumber: order.orderNumber,
+            tableName: order.table?.name,
+            partyLabel: order.partyLabel || undefined,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            version: (order.version || 1) + 1,
+            changes: deltaChanges,
+          },
+          paperWidth || '58mm'
+        );
+      } catch (printErr) {
+        console.warn('Delta KOT thermal print failed:', printErr);
+      }
+
+      setIsEditMode(false);
+      setPendingNewItems([]);
+      await refetch();
+
+      Alert.alert('Changes Fired! 👨‍🍳', `Modified Delta KOT ticket printed and sent to kitchen.`);
+    } catch (err: any) {
+      Alert.alert('Edit Error', err?.message || 'Failed to update KOT order');
+    }
+  };
+
+  // Add Item to Draft
+  const handleAddProductToDraft = () => {
+    if (!selectedProductToAdd) return;
+    const newItem: PendingNewItem = {
+      tempId: `draft_${Date.now()}_${Math.random()}`,
+      productId: selectedProductToAdd.id,
+      productName: selectedProductToAdd.name,
+      quantity: newProductQty,
+      unitPrice: selectedProductToAdd.sellingPrice,
+      taxRate: selectedProductToAdd.taxRate || 0,
+      notes: newProductNote.trim() || undefined,
+    };
+    setPendingNewItems((prev) => [...prev, newItem]);
+    setSelectedProductToAdd(null);
+    setNewProductQty(1);
+    setNewProductNote('');
+    setShowAddItemModal(false);
+  };
+
+  // Generate Customer Bill
   const handleGenerateBill = async () => {
     if (!order) return;
     try {
@@ -120,14 +357,16 @@ export default function KotOrderDetailScreen() {
       // Auto print customer receipt if connected
       if (connectionState === 'connected') {
         try {
-          const items = order.items.map((it) => ({
-            productName: it.productName,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            total: it.unitPrice * it.quantity,
-          }));
+          const billableItems = order.items
+            .filter((it) => it.status !== 'voided')
+            .map((it) => ({
+              productName: it.productName,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              total: it.unitPrice * it.quantity,
+            }));
 
-          const sub = items.reduce((acc, it) => acc + it.total, 0);
+          const sub = billableItems.reduce((acc, it) => acc + it.total, 0);
           const total = Math.max(0, sub - disc);
 
           await ThermalPrinterService.printSaleReceipt(
@@ -138,7 +377,7 @@ export default function KotOrderDetailScreen() {
               invoiceNumber: result.sale.invoiceNumber,
               date: new Date().toLocaleDateString('en-GB'),
               customerName: order.table?.name || order.partyLabel || 'Dine-in Guest',
-              items,
+              items: billableItems,
               subtotal: sub,
               totalTax: 0,
               totalDiscount: disc,
@@ -189,7 +428,16 @@ export default function KotOrderDetailScreen() {
     );
   }
 
-  const subtotal = order.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+  // Active items for live subtotal
+  const activeExistingItems = order.items.filter((it) => !voidedItems[it.id]);
+  const activeExistingTotal = activeExistingItems.reduce(
+    (sum, it) => sum + it.unitPrice * (itemQuantities[it.id] ?? it.quantity),
+    0
+  );
+  const pendingNewTotal = pendingNewItems.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+  const liveSubtotal = activeExistingTotal + pendingNewTotal;
+
+  const isOrderEditable = order.status !== 'billed' && order.status !== 'cancelled';
 
   return (
     <ScreenBackground color={theme.bg}>
@@ -199,7 +447,7 @@ export default function KotOrderDetailScreen() {
         translucent
       />
       <View style={[styles.container, { paddingTop: topPadding }]}>
-        <ScrollView style={styles.mainWrapper} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={styles.mainWrapper} contentContainerStyle={{ paddingBottom: 60 }}>
           {/* Header Row */}
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -212,17 +460,37 @@ export default function KotOrderDetailScreen() {
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.headerBadge}>KOT ORDER DETAILS</Text>
               <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-                KOT #{order.orderNumber}
+                KOT #{String(order.orderNumber).padStart(4, '0')}
               </Text>
             </View>
 
-            <TouchableOpacity
-              onPress={handlePrintKitchenSlip}
-              style={[styles.printSlipBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.3)' }]}
-            >
-              <Printer size={16} color={BRAND_COLORS.blue600} />
-              <Text style={styles.printSlipBtnText}>Print KOT</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {isOrderEditable && (
+                <TouchableOpacity
+                  onPress={() => setIsEditMode(!isEditMode)}
+                  style={[
+                    styles.editToggleBtn,
+                    {
+                      backgroundColor: isEditMode ? BRAND_COLORS.blue600 : theme.cardBg,
+                      borderColor: isEditMode ? BRAND_COLORS.blue600 : theme.borderColor,
+                    },
+                  ]}
+                >
+                  <Edit3 size={15} color={isEditMode ? '#FFF' : theme.textPrimary} />
+                  <Text style={[styles.editToggleText, { color: isEditMode ? '#FFF' : theme.textPrimary }]}>
+                    {isEditMode ? 'Editing' : 'Edit'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={handlePrintKitchenSlip}
+                style={[styles.printSlipBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.3)' }]}
+              >
+                <Printer size={15} color={BRAND_COLORS.blue600} />
+                <Text style={styles.printSlipBtnText}>Full KOT</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Info Card */}
@@ -230,10 +498,10 @@ export default function KotOrderDetailScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
                 <Text style={[styles.cardHeadline, { color: theme.textPrimary }]}>
-                  {order.table?.name || order.partyLabel || 'Dine-In'}
+                  {order.table?.name || order.partyLabel || 'Dine-In Table'}
                 </Text>
                 <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                  {order.orderType.toUpperCase()} • {new Date(order.createdAt).toLocaleString()}
+                  {order.orderType.toUpperCase()} {order.guestCount ? `• ${order.guestCount} Covers` : ''} • {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
 
@@ -251,11 +519,11 @@ export default function KotOrderDetailScreen() {
             )}
           </View>
 
-          {/* Kitchen Progress Pipeline */}
-          {order.status !== 'billed' && order.status !== 'cancelled' && (
+          {/* Kitchen Progress Actions */}
+          {isOrderEditable && !isEditMode && (
             <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 10 }]}>
-                Kitchen Progress Actions
+                Kitchen Progress Pipeline
               </Text>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                 {order.status === 'open' && (
@@ -266,7 +534,7 @@ export default function KotOrderDetailScreen() {
                     <Text style={styles.stepBtnText}>Send to Kitchen ➔</Text>
                   </TouchableOpacity>
                 )}
-                {(order.status === 'open' || order.status === 'sent_to_kitchen') && (
+                {(order.status === 'open' || order.status === 'sent_to_kitchen' || order.status === 'modified') && (
                   <TouchableOpacity
                     onPress={() => handleUpdateStatus('preparing')}
                     style={[styles.stepBtn, { backgroundColor: '#F59E0B' }]}
@@ -279,7 +547,7 @@ export default function KotOrderDetailScreen() {
                     onPress={() => handleUpdateStatus('ready')}
                     style={[styles.stepBtn, { backgroundColor: '#10B981' }]}
                   >
-                    <Text style={styles.stepBtnText}>Mark Ready to Serve 🔔</Text>
+                    <Text style={styles.stepBtnText}>Ready to Serve 🔔</Text>
                   </TouchableOpacity>
                 )}
                 {order.status === 'ready' && (
@@ -287,53 +555,269 @@ export default function KotOrderDetailScreen() {
                     onPress={() => handleUpdateStatus('served')}
                     style={[styles.stepBtn, { backgroundColor: '#8B5CF6' }]}
                   >
-                    <Text style={styles.stepBtnText}>Mark Served to Table 🍽️</Text>
+                    <Text style={styles.stepBtnText}>Mark Served 🍽️</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </View>
           )}
 
-          {/* Items Table */}
-          <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 8 }]}>
-              Ordered Items ({order.items.length})
-            </Text>
-
-            {order.items.map((it, idx) => (
-              <View key={it.id || idx} style={[styles.itemRow, { borderBottomColor: theme.borderColor }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.itemName, { color: theme.textPrimary }]}>
-                    {it.quantity}x {it.productName}
+          {/* EDIT MODE: PENDING CHANGES / DELTA PREVIEW */}
+          {isEditMode && deltaChanges.length > 0 && (
+            <View style={[styles.card, { backgroundColor: 'rgba(245, 158, 11, 0.08)', borderColor: '#F59E0B' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={16} color="#F59E0B" />
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: '#B45309' }}>
+                    Pending Kitchen Changes ({deltaChanges.length})
                   </Text>
-                  {it.notes && (
-                    <Text style={{ fontSize: 10, color: '#EF4444', fontStyle: 'italic' }}>
-                      Note: {it.notes}
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400E' }}>
+                  Will print Delta KOT
+                </Text>
+              </View>
+
+              <View style={{ gap: 6 }}>
+                {deltaChanges.map((c, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.deltaChip,
+                      {
+                        backgroundColor:
+                          c.type === 'new'
+                            ? 'rgba(16, 185, 129, 0.12)'
+                            : c.type === 'void'
+                            ? 'rgba(239, 68, 68, 0.12)'
+                            : 'rgba(245, 158, 11, 0.15)',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.deltaChipText,
+                        {
+                          color:
+                            c.type === 'new'
+                              ? '#059669'
+                              : c.type === 'void'
+                              ? '#DC2626'
+                              : '#D97706',
+                        },
+                      ]}
+                    >
+                      {c.type === 'new' && `+ NEW   ${c.quantity}x ${c.productName}`}
+                      {c.type === 'void' && `- VOID  ${c.quantity}x ${c.productName} (${c.reason || 'Cancelled'})`}
+                      {c.type === 'qty_change' && `~ CHG   ${c.oldQuantity}x ➔ ${c.quantity}x ${c.productName}`}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                onPress={handleCommitEditAndFire}
+                disabled={isEditing}
+                style={[styles.fireDeltaBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+              >
+                {isEditing ? (
+                  <ActivityIndicator color="#FFF" style={{ marginRight: 6 }} />
+                ) : (
+                  <Printer size={16} color="#FFF" style={{ marginRight: 6 }} />
+                )}
+                <Text style={styles.fireDeltaBtnText}>Fire Changes & Print Delta KOT</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Ordered Items Table */}
+          <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                Kitchen Ticket Items
+              </Text>
+              {isEditMode && (
+                <TouchableOpacity
+                  onPress={() => setShowAddItemModal(true)}
+                  style={[styles.addItemTopBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+                >
+                  <Plus size={14} color="#FFF" />
+                  <Text style={styles.addItemTopBtnText}>+ Add Item</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Existing Order Items */}
+            {order.items.map((it) => {
+              const isVoided = !!voidedItems[it.id];
+              const voidReason = voidedItems[it.id];
+              const currentQty = itemQuantities[it.id] ?? it.quantity;
+              const currentNote = itemNotes[it.id] ?? it.notes;
+
+              return (
+                <View
+                  key={it.id}
+                  style={[
+                    styles.itemRow,
+                    { borderBottomColor: theme.borderColor },
+                    isVoided && styles.itemRowVoided,
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.itemName,
+                        { color: theme.textPrimary },
+                        isVoided && styles.itemNameVoided,
+                      ]}
+                    >
+                      {currentQty}x {it.productName}
+                    </Text>
+
+                    {currentNote ? (
+                      <Text style={[styles.itemNoteText, isVoided && { textDecorationLine: 'line-through' }]}>
+                        note: {currentNote}
+                      </Text>
+                    ) : null}
+
+                    {isVoided && (
+                      <View style={styles.voidBadge}>
+                        <Text style={styles.voidBadgeText}>VOIDED: {voidReason}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Quantity and Actions in Edit Mode */}
+                  {isEditMode && isOrderEditable && !isVoided ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (currentQty > 1) {
+                            setItemQuantities((prev) => ({ ...prev, [it.id]: currentQty - 1 }));
+                          } else {
+                            setVoidingItemId(it.id);
+                          }
+                        }}
+                        style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                      >
+                        <Minus size={14} color={theme.textPrimary} />
+                      </TouchableOpacity>
+
+                      <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{currentQty}</Text>
+
+                      <TouchableOpacity
+                        onPress={() => setItemQuantities((prev) => ({ ...prev, [it.id]: currentQty + 1 }))}
+                        style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                      >
+                        <Plus size={14} color={theme.textPrimary} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditingNoteItemId(it.id);
+                          setItemNoteText(currentNote || '');
+                        }}
+                        style={[styles.noteEditBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                      >
+                        <Edit3 size={13} color={BRAND_COLORS.blue600} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => setVoidingItemId(it.id)}
+                        style={[styles.voidBtn, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
+                      >
+                        <Trash2 size={13} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Text style={[styles.itemPrice, { color: isVoided ? theme.textSecondary : theme.textPrimary }]}>
+                      {isVoided ? 'VOID' : formatCurrency(it.unitPrice * currentQty)}
                     </Text>
                   )}
                 </View>
-                <Text style={[styles.itemPrice, { color: theme.textPrimary }]}>
-                  {formatCurrency(it.unitPrice * it.quantity)}
-                </Text>
+              );
+            })}
+
+            {/* Pending Newly Added Items in Draft */}
+            {pendingNewItems.map((draft) => (
+              <View key={draft.tempId} style={[styles.itemRow, styles.draftItemRow, { borderBottomColor: theme.borderColor }]}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={styles.newPill}>
+                      <Text style={styles.newPillText}>+ NEW</Text>
+                    </View>
+                    <Text style={[styles.itemName, { color: theme.textPrimary }]}>
+                      {draft.quantity}x {draft.productName}
+                    </Text>
+                  </View>
+                  {draft.notes ? (
+                    <Text style={styles.itemNoteText}>note: {draft.notes}</Text>
+                  ) : null}
+                </View>
+
+                {isEditMode ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (draft.quantity > 1) {
+                          setPendingNewItems((prev) =>
+                            prev.map((p) => (p.tempId === draft.tempId ? { ...p, quantity: p.quantity - 1 } : p))
+                          );
+                        } else {
+                          setPendingNewItems((prev) => prev.filter((p) => p.tempId !== draft.tempId));
+                        }
+                      }}
+                      style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                    >
+                      <Minus size={14} color={theme.textPrimary} />
+                    </TouchableOpacity>
+
+                    <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{draft.quantity}</Text>
+
+                    <TouchableOpacity
+                      onPress={() =>
+                        setPendingNewItems((prev) =>
+                          prev.map((p) => (p.tempId === draft.tempId ? { ...p, quantity: p.quantity + 1 } : p))
+                        )
+                      }
+                      style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                    >
+                      <Plus size={14} color={theme.textPrimary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => setPendingNewItems((prev) => prev.filter((p) => p.tempId !== draft.tempId))}
+                      style={[styles.voidBtn, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
+                    >
+                      <Trash2 size={13} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={[styles.itemPrice, { color: BRAND_COLORS.blue600 }]}>
+                    {formatCurrency(draft.unitPrice * draft.quantity)}
+                  </Text>
+                )}
               </View>
             ))}
 
+            {/* Total Section */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.borderColor }}>
-              <Text style={{ fontSize: 14, fontWeight: '900', color: theme.textPrimary }}>Total Order Amount</Text>
+              <Text style={{ fontSize: 14, fontWeight: '900', color: theme.textPrimary }}>
+                Billable Order Total
+              </Text>
               <Text style={{ fontSize: 18, fontWeight: '900', color: BRAND_COLORS.blue600 }}>
-                {formatCurrency(subtotal)}
+                {formatCurrency(liveSubtotal)}
               </Text>
             </View>
           </View>
 
           {/* Settle / Bill Button */}
-          {order.status !== 'billed' && order.status !== 'cancelled' ? (
+          {isOrderEditable ? (
             <TouchableOpacity
               onPress={() => setShowSettleModal(true)}
               style={[styles.settleBtn, { backgroundColor: '#10B981' }]}
             >
               <Receipt size={18} color="#FFF" style={{ marginRight: 6 }} />
-              <Text style={styles.settleBtnText}>Generate Bill & Settle ({formatCurrency(subtotal)})</Text>
+              <Text style={styles.settleBtnText}>Generate Bill & Checkout ({formatCurrency(liveSubtotal)})</Text>
             </TouchableOpacity>
           ) : order.sale ? (
             <View style={[styles.billedBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
@@ -345,7 +829,195 @@ export default function KotOrderDetailScreen() {
           ) : null}
         </ScrollView>
 
-        {/* Settle & Generate Bill Modal */}
+        {/* VOID ITEM REASON MODAL */}
+        <Modal visible={!!voidingItemId} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.alertCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <AlertTriangle size={20} color="#EF4444" />
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Void Item Reason</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 12 }}>
+                Please select a mandatory void reason for kitchen waste audit:
+              </Text>
+
+              {VOID_REASONS.map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  onPress={() => setSelectedVoidReason(reason)}
+                  style={[
+                    styles.reasonOption,
+                    {
+                      backgroundColor: selectedVoidReason === reason ? BRAND_COLORS.navyInk : theme.bg,
+                      borderColor: selectedVoidReason === reason ? BRAND_COLORS.navyInk : theme.borderColor,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: selectedVoidReason === reason ? '#FFF' : theme.textPrimary }}>
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              {selectedVoidReason === 'Other / Guest request' && (
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginTop: 6 }]}
+                  placeholder="Specify custom reason..."
+                  placeholderTextColor="#94A3B8"
+                  value={customVoidReason}
+                  onChangeText={setCustomVoidReason}
+                />
+              )}
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  onPress={() => setVoidingItemId(null)}
+                  style={[styles.modalCancelBtn, { borderColor: theme.borderColor }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleConfirmVoid}
+                  style={[styles.modalConfirmBtn, { backgroundColor: '#EF4444' }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFF' }}>Confirm Void</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* EDIT ITEM NOTE MODAL */}
+        <Modal visible={!!editingNoteItemId} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.alertCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary, marginBottom: 8 }]}>Special Cooking Note</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, minHeight: 60 }]}
+                placeholder="e.g. extra spicy, no onions, butter on top..."
+                placeholderTextColor="#94A3B8"
+                value={itemNoteText}
+                onChangeText={setItemNoteText}
+                multiline
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setEditingNoteItemId(null)}
+                  style={[styles.modalCancelBtn, { borderColor: theme.borderColor }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (editingNoteItemId) {
+                      setItemNotes((prev) => ({ ...prev, [editingNoteItemId]: itemNoteText.trim() }));
+                      setEditingNoteItemId(null);
+                    }
+                  }}
+                  style={[styles.modalConfirmBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFF' }}>Save Note</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ADD ITEM CATALOG MODAL */}
+        <Modal visible={showAddItemModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.bottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, maxHeight: '85%' }]}>
+              <View style={styles.sheetHeader}>
+                <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Add Item to Order</Text>
+                <TouchableOpacity onPress={() => setShowAddItemModal(false)}>
+                  <X size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Product Search */}
+              <View style={[styles.searchBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                <Search size={16} color={theme.textSecondary} />
+                <TextInput
+                  value={productSearch}
+                  onChangeText={setProductSearch}
+                  placeholder="Search food item..."
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.searchInput, { color: theme.textPrimary }]}
+                />
+              </View>
+
+              {/* Products List */}
+              <FlatList
+                data={products.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()))}
+                keyExtractor={(item) => item.id}
+                style={{ maxHeight: 200, marginVertical: 8 }}
+                renderItem={({ item }) => {
+                  const isSelected = selectedProductToAdd?.id === item.id;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => setSelectedProductToAdd(item)}
+                      style={[
+                        styles.catalogItemRow,
+                        {
+                          backgroundColor: isSelected ? 'rgba(37, 99, 235, 0.12)' : theme.bg,
+                          borderColor: isSelected ? BRAND_COLORS.blue600 : theme.borderColor,
+                        },
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.catalogItemName, { color: theme.textPrimary }]}>{item.name}</Text>
+                        <Text style={{ fontSize: 11, color: theme.textSecondary }}>{formatCurrency(item.sellingPrice)}</Text>
+                      </View>
+                      {isSelected && <CheckCircle2 size={18} color={BRAND_COLORS.blue600} />}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+
+              {/* Quantity & Note */}
+              {selectedProductToAdd && (
+                <View style={{ marginTop: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textPrimary }}>Quantity:</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <TouchableOpacity
+                        onPress={() => setNewProductQty(Math.max(1, newProductQty - 1))}
+                        style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                      >
+                        <Minus size={14} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.qtyText, { color: theme.textPrimary }]}>{newProductQty}</Text>
+                      <TouchableOpacity
+                        onPress={() => setNewProductQty(newProductQty + 1)}
+                        style={[styles.qtyBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                      >
+                        <Plus size={14} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                    placeholder="Cooking note (e.g. extra spicy)..."
+                    placeholderTextColor="#94A3B8"
+                    value={newProductNote}
+                    onChangeText={setNewProductNote}
+                  />
+
+                  <TouchableOpacity
+                    onPress={handleAddProductToDraft}
+                    style={[styles.confirmBillBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+                  >
+                    <Plus size={16} color="#FFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.confirmBillBtnText}>Add to Draft</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* SETTLE BILL MODAL */}
         <Modal visible={showSettleModal} transparent animationType="slide">
           <KeyboardAvoidingWrapper inModal>
             <View style={styles.modalOverlay}>
@@ -404,7 +1076,7 @@ export default function KotOrderDetailScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10 }}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textSecondary }}>Final Net Payable:</Text>
                   <Text style={{ fontSize: 20, fontWeight: '900', color: BRAND_COLORS.blue600 }}>
-                    {formatCurrency(Math.max(0, subtotal - (parseFloat(discountAmount) || 0)))}
+                    {formatCurrency(Math.max(0, liveSubtotal - (parseFloat(discountAmount) || 0)))}
                   </Text>
                 </View>
 
@@ -436,7 +1108,9 @@ const styles = StyleSheet.create({
   backBtn: { padding: 8, borderRadius: 12, borderWidth: 1 },
   headerBadge: { fontSize: 9, fontWeight: '900', color: BRAND_COLORS.sky500, letterSpacing: 0.5 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
-  printSlipBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 4 },
+  editToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 4 },
+  editToggleText: { fontSize: 12, fontWeight: '800' },
+  printSlipBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 4 },
   printSlipBtnText: { fontSize: 12, fontWeight: '800', color: BRAND_COLORS.blue600 },
   card: { borderRadius: 18, padding: 14, borderWidth: 1, marginBottom: 12 },
   cardHeadline: { fontSize: 16, fontWeight: '900' },
@@ -445,16 +1119,43 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 13, fontWeight: '900' },
   stepBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   stepBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1 },
+  deltaChip: { padding: 8, borderRadius: 8 },
+  deltaChipText: { fontSize: 11, fontWeight: '800' },
+  fireDeltaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, marginTop: 10 },
+  fireDeltaBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  addItemTopBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, gap: 4 },
+  addItemTopBtnText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
+  itemRowVoided: { opacity: 0.6 },
+  draftItemRow: { backgroundColor: 'rgba(16, 185, 129, 0.05)', paddingHorizontal: 6, borderRadius: 8 },
   itemName: { fontSize: 13, fontWeight: '700' },
+  itemNameVoided: { textDecorationLine: 'line-through', color: '#EF4444' },
+  itemNoteText: { fontSize: 10, color: '#F59E0B', fontStyle: 'italic', marginTop: 2 },
+  voidBadge: { backgroundColor: 'rgba(239, 68, 68, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 4 },
+  voidBadgeText: { fontSize: 9, fontWeight: '900', color: '#EF4444' },
+  newPill: { backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  newPillText: { fontSize: 9, fontWeight: '900', color: '#10B981' },
+  qtyBtn: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  qtyText: { fontSize: 13, fontWeight: '900', minWidth: 16, textAlign: 'center' },
+  noteEditBtn: { padding: 6, borderRadius: 8, borderWidth: 1 },
+  voidBtn: { padding: 6, borderRadius: 8 },
   itemPrice: { fontSize: 13, fontWeight: '900' },
   settleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 16, marginTop: 4 },
   settleBtnText: { color: '#FFF', fontSize: 14, fontWeight: '900' },
   billedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 16, borderWidth: 1, marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', padding: 20 },
+  alertCard: { borderRadius: 20, padding: 18, borderWidth: 1 },
+  modalTitle: { fontSize: 16, fontWeight: '900' },
+  reasonOption: { padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  modalCancelBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  modalConfirmBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
   bottomSheet: { borderRadius: 24, padding: 20, borderWidth: 1 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sheetTitle: { fontSize: 18, fontWeight: '900' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 12, marginLeft: 6 },
+  catalogItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  catalogItemName: { fontSize: 12, fontWeight: '700' },
   inputLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
   input: { borderWidth: 1, borderRadius: 10, padding: 10, fontSize: 13, marginBottom: 10 },
   payModeChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, gap: 4 },

@@ -61,6 +61,16 @@ export function useKotOrders(statuses?: KOTOrderStatus[]) {
     },
   });
 
+  const editOrderMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: import('@/types/kot').EditKOTOrderPayload }) =>
+      kotOrdersApi.editOrder(id, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['kot-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['kot-order', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] });
+    },
+  });
+
   return {
     orders: ordersQuery.data || [],
     isLoading: !ordersQuery.data && ordersQuery.isLoading,
@@ -69,9 +79,11 @@ export function useKotOrders(statuses?: KOTOrderStatus[]) {
     refetch: ordersQuery.refetch,
     createOrder: createOrderMutation.mutateAsync,
     addItems: addItemsMutation.mutateAsync,
+    editOrder: editOrderMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutateAsync,
     generateBill: generateBillMutation.mutateAsync,
     isCreating: createOrderMutation.isPending,
+    isEditing: editOrderMutation.isPending,
     isGeneratingBill: generateBillMutation.isPending,
   };
 }

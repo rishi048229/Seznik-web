@@ -35,6 +35,13 @@ export const kotOrdersApi = {
     });
   },
 
+  editOrder: async (id: string, payload: import('@/types/kot').EditKOTOrderPayload): Promise<KOTOrder> => {
+    return fetchApi<KOTOrder>(`/kot-orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
   updateStatus: async (
     id: string,
     payload: { status?: KOTOrderStatus; priority?: KOTPriority; notes?: string }

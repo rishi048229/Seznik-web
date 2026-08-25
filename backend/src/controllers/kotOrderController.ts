@@ -206,6 +206,117 @@ export const addItemsToOrder = async (req: Request, res: Response) => {
   }
 };
 
+export const editOrder = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const id = String(req.params.id);
+    const {
+      status,
+      priority,
+      notes,
+      itemsToAdd = [],
+      itemsToUpdate = [],
+      itemsToVoid = [],
+    } = req.body;
+
+    const order = await prisma.kOTOrder.findFirst({
+      where: { id, userId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.status === 'billed' || order.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot edit a billed or cancelled order' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Void items
+      for (const v of itemsToVoid) {
+        if (v.id) {
+          const itemToVoid = order.items.find((it) => it.id === v.id);
+          const reasonText = v.reason ? `[VOID: ${v.reason}] ` : '[VOID] ';
+          const currentNotes = itemToVoid?.notes || '';
+          await tx.kOTOrderItem.updateMany({
+            where: { id: v.id, orderId: id, userId },
+            data: {
+              status: 'voided',
+              notes: currentNotes.includes('[VOID') ? currentNotes : `${reasonText}${currentNotes}`.trim(),
+            },
+          });
+        }
+      }
+
+      // 2. Update existing items
+      for (const u of itemsToUpdate) {
+        if (u.id) {
+          await tx.kOTOrderItem.updateMany({
+            where: { id: u.id, orderId: id, userId },
+            data: {
+              ...(u.quantity !== undefined ? { quantity: Number(u.quantity) } : {}),
+              ...(u.notes !== undefined ? { notes: u.notes?.trim() || null } : {}),
+              ...(Array.isArray(u.modifiers) ? { modifiers: u.modifiers } : {}),
+              ...(u.status !== undefined ? { status: u.status } : {}),
+            },
+          });
+        }
+      }
+
+      // 3. Add new items
+      if (itemsToAdd.length > 0) {
+        await tx.kOTOrderItem.createMany({
+          data: itemsToAdd.map((it: any) => ({
+            orderId: id,
+            productId: it.productId || null,
+            productName: it.productName || 'Item',
+            quantity: Number(it.quantity) || 1,
+            unitPrice: Number(it.unitPrice) || 0,
+            taxRate: Number(it.taxRate) || 0,
+            notes: it.notes?.trim() || null,
+            modifiers: Array.isArray(it.modifiers) ? it.modifiers : [],
+            status: 'new',
+            userId,
+          })),
+        });
+      }
+
+      // 4. Update order level fields
+      const dataToUpdate: any = {};
+      if (status !== undefined) dataToUpdate.status = status;
+      if (priority !== undefined) dataToUpdate.priority = priority;
+      if (notes !== undefined) dataToUpdate.notes = notes;
+
+      if (Object.keys(dataToUpdate).length > 0) {
+        await tx.kOTOrder.updateMany({
+          where: { id, userId },
+          data: dataToUpdate,
+        });
+      }
+    });
+
+    const updated = await prisma.kOTOrder.findFirst({
+      where: { id, userId },
+      include: { table: true, customer: true, items: true, sale: true },
+    });
+
+    const activeItems = (updated?.items || []).filter((it) => it.status !== 'voided');
+    const subtotal = activeItems.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+    const tax = activeItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+
+    res.json({
+      ...updated,
+      subtotal,
+      totalTax: tax,
+      grandTotal: subtotal + tax,
+    });
+  } catch (error) {
+    console.error('editOrder error:', error);
+    res.status(500).json({ error: 'Failed to edit KOT order' });
+  }
+};
+
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
@@ -215,7 +326,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     const dataToUpdate: any = {};
     if (status !== undefined) {
       dataToUpdate.status = status;
-      if (status === 'sent_to_kitchen') {
+      if (status === 'sent_to_kitchen' || status === 'modified') {
         dataToUpdate.sentToKitchenAt = new Date();
       }
     }
@@ -258,16 +369,17 @@ export const generateBill = async (req: Request, res: Response) => {
       const count = await tx.sale.count({ where: { userId } });
       const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
 
-      // 2. Compute totals
-      const subtotal = order.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-      const totalTax = order.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+      // 2. Compute totals for active non-voided items only
+      const billableItems = order.items.filter((it) => it.status !== 'voided');
+      const subtotal = billableItems.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+      const totalTax = billableItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
       const totalDiscount = Number(discount) || 0;
       const grandTotal = Math.max(0, subtotal + totalTax - totalDiscount);
       const paid = amountPaid !== undefined ? Number(amountPaid) : grandTotal;
       const change = Math.max(0, paid - grandTotal);
 
       // 3. Format Sale item line array
-      const saleItems = order.items.map((it) => ({
+      const saleItems = billableItems.map((it) => ({
         productId: it.productId || undefined,
         productName: it.productName,
         quantity: it.quantity,
@@ -294,7 +406,7 @@ export const generateBill = async (req: Request, res: Response) => {
       });
 
       // 5. Decrement Stock for tracked products
-      for (const it of order.items) {
+      for (const it of billableItems) {
         if (it.productId) {
           try {
             await tx.product.update({
