@@ -87,7 +87,7 @@ export const KOTPage = () => {
             </Button>
             <DropdownMenu
               trigger={
-                <Button variant="outline" aria-label="Restaurant settings">
+                <Button type="button" variant="outline" className="px-2.5" aria-label="Restaurant settings">
                   <MoreVertical size={16} />
                 </Button>
               }

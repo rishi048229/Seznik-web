@@ -40,8 +40,8 @@ export const PageHeader = ({ title, breadcrumb, action, className, onWatchTutori
         </div>
       </div>
       {action && (
-        <div className="w-full md:w-auto overflow-x-auto no-scrollbar scroll-smooth py-1 -my-1 min-w-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-max">
+        <div className="w-full md:w-auto min-w-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             {action}
           </div>
         </div>
