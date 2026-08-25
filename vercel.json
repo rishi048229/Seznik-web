@@ -3,6 +3,7 @@
   "outputDirectory": "frontend/dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api/:path*", "destination": "http://18.215.253.75:5000/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
