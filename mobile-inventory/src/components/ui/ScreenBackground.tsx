@@ -10,9 +10,10 @@ interface ScreenBackgroundProps {
 }
 
 /**
- * Solid, theme-aware full-screen background with ultra-smooth native fade & slide-in entrance transition.
+ * Solid, theme-aware full-screen background.
+ * Tab screens pass animate={false} so tab switches stay instant.
  */
-export function ScreenBackground({ color, children, style, animate = true }: ScreenBackgroundProps) {
+export function ScreenBackground({ color, children, style, animate = false }: ScreenBackgroundProps) {
   const fadeAnim = useRef(new Animated.Value(animate ? 0.0 : 1)).current;
   const slideAnim = useRef(new Animated.Value(animate ? 6 : 0)).current;
 

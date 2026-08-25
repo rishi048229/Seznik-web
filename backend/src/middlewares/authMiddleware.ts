@@ -66,15 +66,27 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     return devUser;
   };
 
+  /** Resolves the dev user onto the request. Returns false (and sends 503) if the database is down. */
+  const applyDevUser = async (req: Request, res: Response): Promise<boolean> => {
+    try {
+      const devUser = await getDevUser();
+      (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
+      return true;
+    } catch (err) {
+      console.error('[auth] dev-user lookup failed:', err instanceof Error ? err.message : err);
+      res.status(503).json({ error: 'Database unavailable, please retry' });
+      return false;
+    }
+  };
+
   if (authHeader && authHeader.startsWith('Bearer')) {
     try {
       token = authHeader.split(' ')[1];
 
       // Support dev mode token bypass seamlessly for testing - consistently routes to owner@seznik.com
       if (!token || token === 'dev-token-bypass' || token === 'null' || token === 'undefined') {
-        const devUser = await getDevUser();
-        (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
-        return next();
+        if (await applyDevUser(req, res)) return next();
+        return;
       }
 
       let decoded: any;
@@ -84,9 +96,8 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         // If JWT token expired or signed with older secret during local dev, fallback gracefully
         if (isDevMode) {
           console.warn('JWT verification failed in development, falling back to local store user:', jwtErr?.message);
-          const devUser = await getDevUser();
-          (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
-          return next();
+          if (await applyDevUser(req, res)) return next();
+          return;
         }
         return res.status(401).json({ error: 'Not authorized, token expired or invalid' });
       }
@@ -106,9 +117,11 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       return next();
     } catch (error) {
       if (isDevMode) {
-        const devUser = await getDevUser();
-        (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
-        return next();
+        // getDevUser hits the database, so it can fail for the same reason the outer block did
+        // (e.g. the connection dropped). Throwing from inside a catch here leaves the rejection
+        // unhandled and takes the whole process down, so it needs its own guard.
+        if (await applyDevUser(req, res)) return next();
+        return;
       }
       return res.status(401).json({ error: 'Not authorized, token failed' });
     }
@@ -116,9 +129,8 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
   // If no auth header sent at all in development mode, fallback to dev user
   if (isDevMode) {
-    const devUser = await getDevUser();
-    (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
-    return next();
+    if (await applyDevUser(req, res)) return next();
+    return;
   }
 
   return res.status(401).json({ error: 'Not authorized, no token' });

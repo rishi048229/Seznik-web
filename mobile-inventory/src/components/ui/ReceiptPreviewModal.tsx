@@ -4,11 +4,11 @@ import {
   Text,
   Modal,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { X, Printer, ExternalLink, FileText, CheckCircle2 } from 'lucide-react-native';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
@@ -217,10 +217,24 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   return (
     <>
     {modalVisible && resolvedSaleData ? (
-    <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} onPress={onClose} />
-        <View style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={styles.overlay} pointerEvents="box-none">
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close receipt preview"
+        />
+        <View
+          style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+          pointerEvents="auto"
+        >
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
@@ -234,14 +248,15 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
+            <Pressable
               onPress={onClose}
               style={styles.closeBtn}
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-              activeOpacity={0.6}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
             >
-              <X size={20} color={theme.textSecondary} />
-            </TouchableOpacity>
+              <X size={22} color={theme.textSecondary} />
+            </Pressable>
           </View>
 
           {/* Active Printer Pill - Tappable to connect directly */}
@@ -316,31 +331,39 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
               <Text style={styles.printedBannerText}>Receipt sent — closing...</Text>
             </View>
           ) : (
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                onPress={handleSystemPrint}
-                disabled={printDisabled}
-                style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.navyInk }, printDisabled && styles.actionBtnDisabled]}
-              >
-                <ExternalLink size={15} color="#FFFFFF" />
-                <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>System Print</Text>
-              </TouchableOpacity>
+            <>
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  onPress={handleSystemPrint}
+                  disabled={printDisabled}
+                  style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.navyInk }, printDisabled && styles.actionBtnDisabled]}
+                >
+                  <ExternalLink size={15} color="#FFFFFF" />
+                  <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>System Print</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handlePrintThermal}
-                disabled={printDisabled}
-                style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }, printDisabled && styles.actionBtnDisabled]}
-              >
-                {isPrinting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Printer size={15} color="#FFFFFF" />
-                    <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Print Bill</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  onPress={handlePrintThermal}
+                  disabled={printDisabled}
+                  style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }, printDisabled && styles.actionBtnDisabled]}
+                >
+                  {isPrinting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Printer size={15} color="#FFFFFF" />
+                      <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Print Bill</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {!autoCloseAfterPrint ? (
+                <Pressable onPress={onClose} style={styles.doneBtn} accessibilityRole="button">
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              ) : null}
+            </>
           )}
         </View>
       </View>
@@ -368,17 +391,17 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  overlayDismiss: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
-  modalCard: { width: '100%', maxWidth: 440, maxHeight: '90%', borderRadius: 24, padding: 18, borderWidth: 1, flexShrink: 1, zIndex: 1, elevation: 8 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  modalCard: { width: '100%', maxWidth: 440, maxHeight: '88%', borderRadius: 24, padding: 18, borderWidth: 1, flexShrink: 1, zIndex: 1, elevation: 8 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, zIndex: 2 },
   modalTitle: { fontSize: 16, fontWeight: '900' },
   closeBtn: {
-    padding: 6,
-    minWidth: 38,
-    minHeight: 38,
+    padding: 8,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 12,
+    zIndex: 3,
   },
   printerStatusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, marginVertical: 8 },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
@@ -409,4 +432,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   savingBannerText: { flex: 1, fontSize: 11, fontWeight: '700', color: '#B45309' },
+  doneBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(100, 116, 139, 0.15)',
+  },
+  doneBtnText: { fontSize: 14, fontWeight: '800', color: '#64748B' },
 });

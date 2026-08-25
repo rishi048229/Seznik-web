@@ -1,26 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { productsApi } from '@/api/products';
 import { useAuthStore } from '@/store/useAuthStore';
+import { writeCatalogCache } from '@/services/catalogCache';
+import { productsQueryKey } from '@/services/prefetchAppData';
 import { CreateProductPayload, Product, StockAdjustmentPayload } from '@/types/product';
 
 export function useProducts() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const userId = user?.id || 'guest';
+  const userId = user?.id;
 
   const productsQuery = useQuery({
-    queryKey: ['products', userId],
-    queryFn: () => productsApi.getProducts(),
-    staleTime: 1000 * 30,
-    // Was retry:2, stacked on top of getProducts()'s own timeoutMs:120000 below — up to ~6
-    // minutes of spinner on a real failure. Falls back to the app-wide default (retry:1).
+    queryKey: productsQueryKey(userId || ''),
+    queryFn: async () => {
+      const list = await productsApi.getCatalog();
+      if (userId) {
+        await writeCatalogCache(userId, list);
+      }
+      return list;
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
   });
 
   const lowStockQuery = useQuery({
     queryKey: ['products', 'low-stock', userId],
     queryFn: () => productsApi.getLowStockProducts(),
-    staleTime: 1000 * 30,
-    // Explicit retry:1 here was redundant with the app-wide default anyway — dropped for consistency.
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
   });
 
   const createProductMutation = useMutation({
@@ -88,5 +95,6 @@ export function useProducts() {
     bulkCreateProducts: bulkCreateMutation.mutateAsync,
     isBulkCreating: bulkCreateMutation.isPending,
     getByBarcode: productsApi.getProductByBarcode,
+    getProductById: productsApi.getProductById,
   };
 }

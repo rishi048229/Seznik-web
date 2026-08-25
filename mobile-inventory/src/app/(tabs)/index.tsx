@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -63,7 +63,8 @@ import {
   Store,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDashboard, useRevenueTrend } from '@/hooks/useDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
@@ -77,8 +78,9 @@ import {
 } from '@/utils/fastSaleCheckout';
 import { useCartStore } from '@/store/useCartStore';
 import { useSales } from '@/hooks/useSales';
-import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
+import { productsApi } from '@/api/products';
+import { productsQueryKey } from '@/services/prefetchAppData';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -97,6 +99,7 @@ import { RevenueTrendChart } from '@/components/dashboard/RevenueTrendChart';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { user, hasPermission } = useAuth();
   const { settings } = useSettings();
@@ -121,7 +124,7 @@ export default function DashboardScreen() {
       await Promise.allSettled([
         refetch(),
         refetchTrend(),
-        refetchProducts(),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
         refetchCustomers(),
       ]);
     } finally {
@@ -129,12 +132,6 @@ export default function DashboardScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-      refetchTrend();
-    }, [refetch, refetchTrend])
-  );
   const {
     connectionState,
     activeDevice,
@@ -151,7 +148,6 @@ export default function DashboardScreen() {
   } = usePrinterStore();
   const storeProfile = useStoreProfile();
   const { persistSaleInBackground, isCreating } = useSales();
-  const { products, updateProduct, getByBarcode, refetch: refetchProducts } = useProducts();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -224,16 +220,9 @@ export default function DashboardScreen() {
   const creditCustomers = (customers || []).filter((c: Customer) => (c.creditBalance || 0) > 0);
   const totalOutstandingCredit = creditCustomers.reduce((acc, c) => acc + (c.creditBalance || 0), 0);
 
-  // Low stock products
-  const lowStockProducts = (products || []).filter(
-    (p: Product) => (p.currentStock || 0) <= (p.lowStockThreshold ?? 5)
-  );
-
-  // Inventory valuation — prefer server-side cost-based total; fall back to local active products
-  const localCatalogValue = (products || [])
-    .filter((p: Product) => p.isActive !== false)
-    .reduce((acc, p) => acc + ((p.costPrice || p.sellingPrice || 0) * (p.currentStock || 0)), 0);
-  const totalCatalogValue = stats.totalStockValue ?? localCatalogValue;
+  // Inventory valuation from server-side aggregate (no need to load full catalog on dashboard).
+  const totalCatalogValue = stats.totalStockValue ?? 0;
+  const totalSkuCount = stats.totalProductCount ?? 0;
 
   const handleQuickBill = () => {
     const validItems = quickBillItems
@@ -339,12 +328,14 @@ export default function DashboardScreen() {
     if (!data) return;
 
     const raw = String(data).trim();
+    const cachedProducts =
+      user?.id ? queryClient.getQueryData<Product[]>(productsQueryKey(user.id)) || [] : [];
 
-    let matched = matchProductByCode(products, raw);
+    let matched = matchProductByCode(cachedProducts, raw);
 
     if (!matched) {
       try {
-        const remote = await getByBarcode(raw);
+        const remote = await productsApi.getProductByBarcode(raw);
         if (remote) {
           matched = remote;
         }
@@ -375,8 +366,8 @@ export default function DashboardScreen() {
           async (qtyText) => {
             const addQty = parseInt(qtyText || '0');
             if (addQty > 0) {
-              await updateProduct({ id: matched!.id, payload: { currentStock: matched!.currentStock + addQty } });
-              refetchProducts();
+              await productsApi.updateProduct(matched!.id, { currentStock: matched!.currentStock + addQty });
+              queryClient.invalidateQueries({ queryKey: ['products'] });
               Alert.alert('Stock Updated', `Added +${addQty} units to ${matched!.name}. New Stock: ${matched!.currentStock + addQty}`);
             }
           },
@@ -430,8 +421,8 @@ export default function DashboardScreen() {
     setRestockingId(product.id);
     try {
       const newStock = (product.currentStock || 0) + delta;
-      await updateProduct({ id: product.id, payload: { currentStock: newStock } });
-      refetchProducts();
+      await productsApi.updateProduct(product.id, { currentStock: newStock });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       Alert.alert('Restock Successful! 📦', `Added +${delta} ${product.unit || 'units'} to ${product.name}.\nNew In-Stock: ${newStock}`);
     } catch (err: any) {
       Alert.alert('Stock Update Failed', err?.message || 'Could not update stock.');
@@ -917,7 +908,7 @@ export default function DashboardScreen() {
                     </View>
                   </View>
                   <Text style={[styles.kpiValue, { color: '#8B5CF6' }]}>{formatCurrency(totalCatalogValue)}</Text>
-                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{(products || []).length} SKUs Listed ➔</Text>
+                  <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{totalSkuCount} SKUs Listed ➔</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1299,7 +1290,7 @@ export default function DashboardScreen() {
           onClose={() => setShowAiImportModal(false)}
           onSuccessImport={() => {
             refetch();
-            refetchProducts();
+            queryClient.invalidateQueries({ queryKey: ['products'] });
           }}
         />
 

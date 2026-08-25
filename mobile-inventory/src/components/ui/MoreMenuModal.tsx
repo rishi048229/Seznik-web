@@ -4,7 +4,7 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  TouchableWithoutFeedback,
+  Pressable,
   ScrollView,
   StyleSheet,
   Dimensions,
@@ -127,68 +127,66 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View
-              style={[
-                styles.popoverCard,
-                {
-                  backgroundColor: theme.cardBg,
-                  borderColor: theme.borderColor,
-                },
-              ]}
-            >
-              {/* Grabber Indicator */}
-              <View style={styles.grabber} />
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close menu" />
+        <View
+          style={[
+            styles.popoverCard,
+            {
+              backgroundColor: theme.cardBg,
+              borderColor: theme.borderColor,
+            },
+          ]}
+        >
+          {/* Grabber Indicator */}
+          <View style={styles.grabber} />
 
-              {/* Card Header */}
-              <View style={styles.headerRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={styles.avatarMini}>
-                    <ShieldCheck size={18} color="#FFFFFF" />
-                  </View>
-                  <View>
-                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('more', 'More Features')}</Text>
-                    <Text style={[styles.userSub, { color: theme.textSecondary }]}>
-                      {user?.displayName || 'Store Account'} · {t('role', 'Role')}: {user?.role || 'Admin'}
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  onPress={onClose}
-                  style={styles.closeBtn}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                  <X size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
+          {/* Card Header */}
+          <View style={styles.headerRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.avatarMini}>
+                <ShieldCheck size={18} color="#FFFFFF" />
               </View>
-
-              {/* Grid Content */}
-              <ScrollView
-                style={{ maxHeight: 380 }}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-              >
-                <View style={styles.gridRow}>
-                  {menuItems.map((item) => (
-                    <FeatureGridTile
-                      key={item.id}
-                      label={item.title}
-                      icon={item.icon}
-                      color={item.color}
-                      onPress={() => handleNavigate(item.route)}
-                      theme={theme}
-                    />
-                  ))}
-                </View>
-              </ScrollView>
+              <View>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('more', 'More Features')}</Text>
+                <Text style={[styles.userSub, { color: theme.textSecondary }]}>
+                  {user?.displayName || 'Store Account'} · {t('role', 'Role')}: {user?.role || 'Admin'}
+                </Text>
+              </View>
             </View>
-          </TouchableWithoutFeedback>
+
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <X size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Grid Content */}
+          <ScrollView
+            style={{ maxHeight: 380 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={styles.gridRow}>
+              {menuItems.map((item) => (
+                <FeatureGridTile
+                  key={item.id}
+                  label={item.title}
+                  icon={item.icon}
+                  color={item.color}
+                  onPress={() => handleNavigate(item.route)}
+                  theme={theme}
+                />
+              ))}
+            </View>
+          </ScrollView>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
@@ -200,7 +198,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'flex-end',
-    paddingBottom: 72, // Positions the popup card right above the bottom navbar
+    paddingBottom: 72,
     paddingHorizontal: 12,
   },
   popoverCard: {
@@ -215,6 +213,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 20,
+    zIndex: 1,
   },
   grabber: {
     width: 36,

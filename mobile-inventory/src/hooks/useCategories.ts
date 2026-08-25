@@ -6,11 +6,13 @@ import { CreateCategoryPayload } from '@/types/category';
 export function useCategories() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const userId = user?.id || 'guest';
+  const userId = user?.id;
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', userId],
     queryFn: productsApi.getCategories,
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
   });
 
   const createCategoryMutation = useMutation({

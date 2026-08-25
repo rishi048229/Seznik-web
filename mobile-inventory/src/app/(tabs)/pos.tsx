@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -74,13 +74,31 @@ import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
 import { PosProductGrid } from '@/components/pos/PosProductGrid';
 import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 import { useLocationStock } from '@/hooks/useLocations';
+import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { CartItem } from '@/store/useCartStore';
+import { useNavigation } from 'expo-router';
 
 const EMPTY_CART: CartItem[] = [];
 
-export default function PosScreen() {
+function PosScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
+  const { contentReady } = useTabTransitionReady();
+  const cartItemsCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined,
+      tabBarBadgeStyle: {
+        backgroundColor: BRAND_COLORS.blue600,
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: 'bold',
+      },
+    });
+  }, [navigation, cartItemsCount]);
+
   const { products, isInitialLoading: loadingProducts, isError: productsError, error: productsLoadError, refetch: refetchProducts, getByBarcode } = useProducts();
   const { categories } = useCategories();
   const { persistSaleInBackground, isCreating } = useSales();
@@ -199,6 +217,19 @@ export default function PosScreen() {
         (p.sku && p.sku.toLowerCase().includes(q));
     return matchesCategory && matchesQuery;
   }), [storeScopedProducts, selectedCategoryId, searchQuery]);
+
+  const categoryProductCounts = useMemo(() => {
+    const byCategory = new Map<string, number>();
+    let activeTotal = 0;
+    for (const p of storeScopedProducts) {
+      if (!p.isActive) continue;
+      activeTotal++;
+      if (p.categoryId) {
+        byCategory.set(p.categoryId, (byCategory.get(p.categoryId) || 0) + 1);
+      }
+    }
+    return { byCategory, activeTotal };
+  }, [storeScopedProducts]);
 
   const cartItems = useCartStore((s) => (s.checkoutModalOpen ? s.items : EMPTY_CART));
   const getCartItems = useCallback(() => useCartStore.getState().items, []);
@@ -627,13 +658,13 @@ export default function PosScreen() {
             {t('allItems', 'All Items')}
           </Text>
           <Text style={[styles.categoryChipCount, !selectedCategoryId ? { color: 'rgba(255,255,255,0.8)' } : { color: theme.textSecondary }]}>
-            {products.length}
+            {categoryProductCounts.activeTotal}
           </Text>
         </TouchableOpacity>
 
         {categories.map((cat) => {
           const selected = selectedCategoryId === cat.id;
-          const count = products.filter((p) => p.categoryId === cat.id).length;
+          const count = categoryProductCounts.byCategory.get(cat.id) || 0;
 
           return (
             <TouchableOpacity
@@ -667,6 +698,8 @@ export default function PosScreen() {
               hint={t('loadingProductsHint', 'Fetching your store catalog from the server. Large inventories may take a moment.')}
               skeleton={<PosGridSkeleton />}
             />
+          ) : !contentReady ? (
+            <PosGridSkeleton />
           ) : productsError ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
               <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, textAlign: 'center' }}>
@@ -1504,14 +1537,14 @@ export default function PosScreen() {
                       { color: !selectedCategoryId ? '#FFFFFF' : theme.textSecondary },
                     ]}
                   >
-                    {products.length}
+                    {categoryProductCounts.activeTotal}
                   </Text>
                 </View>
               </TouchableOpacity>
 
               {filteredCategoriesForModal.map((cat) => {
                 const isSelected = selectedCategoryId === cat.id;
-                const count = products.filter((p) => p.categoryId === cat.id).length;
+                const count = categoryProductCounts.byCategory.get(cat.id) || 0;
 
                 return (
                   <TouchableOpacity
@@ -1810,3 +1843,5 @@ const styles = StyleSheet.create({
   scannerQrBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingVertical: 11, paddingHorizontal: 12, borderRadius: 12, marginRight: 8 },
   scannerQrBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11, marginLeft: 4 },
 });
+
+export default React.memo(PosScreen);

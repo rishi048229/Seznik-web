@@ -1,24 +1,22 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
-import { ShoppingBag, Trash2, ChevronRight } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
+import { ShoppingBag, Trash2, ChevronRight } from 'lucide-react-native';
 import { useCartStore } from '@/store/useCartStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 
-export function GlobalPosCartBar() {
+function GlobalPosCartBarInner() {
   const theme = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
 
-  const items = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clearCart);
   const setCheckoutModalOpen = useCartStore((s) => s.setCheckoutModalOpen);
-  const getGrandTotal = useCartStore((s) => s.getGrandTotal);
-
-  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const cartCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
+  const grandTotal = useCartStore((s) => s.getGrandTotal());
   const isOnPos = pathname.includes('/pos');
 
   if (cartCount === 0 || isOnPos) return null;
@@ -62,7 +60,7 @@ export function GlobalPosCartBar() {
           <Text style={[styles.countText, { color: theme.textSecondary }]}>
             {cartCount} {cartCount === 1 ? t('item', 'item') : t('items', 'items')} · {t('pos', 'POS')}
           </Text>
-          <Text style={styles.totalText}>₹{getGrandTotal().toFixed(2)}</Text>
+          <Text style={styles.totalText}>₹{grandTotal.toFixed(2)}</Text>
         </View>
         <View style={styles.reviewBtn}>
           <Text style={styles.reviewBtnText}>{t('reviewBill', 'Review Bill')}</Text>
@@ -76,6 +74,8 @@ export function GlobalPosCartBar() {
     </View>
   );
 }
+
+export const GlobalPosCartBar = React.memo(GlobalPosCartBarInner);
 
 const styles = StyleSheet.create({
   bar: {

@@ -121,6 +121,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await removeAuthToken();
     await removeStoredUser();
+    try {
+      const { clearCatalogCache } = await import('@/services/catalogCache');
+      await clearCatalogCache();
+    } catch {
+      // ignore
+    }
     set({
       token: null,
       user: null,

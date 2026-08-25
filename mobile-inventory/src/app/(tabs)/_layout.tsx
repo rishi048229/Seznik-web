@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import { useColorScheme, Text } from 'react-native';
 import { LayoutDashboard, ShoppingBag, Calculator, Package, Menu } from 'lucide-react-native';
-import { useCartStore } from '@/store/useCartStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
 import { GlobalPosCartBar } from '@/components/pos/GlobalPosCartBar';
@@ -12,34 +11,39 @@ export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const { t, currentLanguage } = useTranslation();
-  const cartItemsCount = useCartStore((state) =>
-    state.items.reduce((sum, item) => sum + item.quantity, 0)
+  const { t } = useTranslation();
+
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      lazy: false,
+      freezeOnBlur: true,
+      tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
+      tabBarInactiveTintColor: isDark ? BRAND_COLORS.slate400 : '#64748B',
+      tabBarStyle: {
+        backgroundColor: isDark ? BRAND_COLORS.slate900 : '#FFFFFF',
+        borderTopColor: isDark ? BRAND_COLORS.slate800 : BRAND_COLORS.slate200,
+        height: 64,
+        paddingBottom: 8,
+        paddingTop: 8,
+      },
+      tabBarLabelStyle: {
+        fontSize: 11,
+        fontWeight: '600' as const,
+      },
+    }),
+    [isDark]
   );
+
+  const closeMoreMenu = () => setIsMoreOpen(false);
+  const openMoreMenu = () => setIsMoreOpen(true);
 
   return (
     <>
-      <Tabs
-        key={`bottom-nav-${currentLanguage}`}
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
-          tabBarInactiveTintColor: isDark ? BRAND_COLORS.slate400 : '#64748B',
-          tabBarStyle: {
-            backgroundColor: isDark ? BRAND_COLORS.slate900 : '#FFFFFF',
-            borderTopColor: isDark ? BRAND_COLORS.slate800 : BRAND_COLORS.slate200,
-            height: 64,
-            paddingBottom: 8,
-            paddingTop: 8,
-          },
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: '600',
-          },
-        }}
-      >
+      <Tabs screenOptions={screenOptions}>
         <Tabs.Screen
           name="index"
+          listeners={{ tabPress: closeMoreMenu }}
           options={{
             title: t('dashboard', 'Dashboard'),
             tabBarLabel: ({ color, focused }) => (
@@ -60,6 +64,7 @@ export default function TabsLayout() {
         />
         <Tabs.Screen
           name="pos"
+          listeners={{ tabPress: closeMoreMenu }}
           options={{
             title: t('pos', 'POS'),
             tabBarLabel: ({ color, focused }) => (
@@ -75,18 +80,12 @@ export default function TabsLayout() {
                 {t('pos', 'POS')}
               </Text>
             ),
-            tabBarBadge: cartItemsCount > 0 ? cartItemsCount : undefined,
-            tabBarBadgeStyle: {
-              backgroundColor: BRAND_COLORS.blue600,
-              color: '#FFFFFF',
-              fontSize: 10,
-              fontWeight: 'bold',
-            },
             tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="calculator"
+          listeners={{ tabPress: closeMoreMenu }}
           options={{
             title: t('calculator', 'Calculator'),
             tabBarLabel: ({ color, focused }) => (
@@ -107,6 +106,7 @@ export default function TabsLayout() {
         />
         <Tabs.Screen
           name="products"
+          listeners={{ tabPress: closeMoreMenu }}
           options={{
             title: t('products', 'Products'),
             tabBarLabel: ({ color, focused }) => (
@@ -159,14 +159,14 @@ export default function TabsLayout() {
           listeners={{
             tabPress: (e) => {
               e.preventDefault();
-              setIsMoreOpen(true);
+              openMoreMenu();
             },
           }}
         />
       </Tabs>
 
       {/* Floating Popover Card for More Actions */}
-      <MoreMenuModal visible={isMoreOpen} onClose={() => setIsMoreOpen(false)} />
+      <MoreMenuModal visible={isMoreOpen} onClose={closeMoreMenu} />
       <GlobalPosCartBar />
     </>
   );

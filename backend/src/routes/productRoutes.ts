@@ -1,6 +1,8 @@
 import express from 'express';
 import { 
-  getProducts, 
+  getProducts,
+  getProductCatalog,
+  getProductById,
   createProduct, 
   updateProduct, 
   softDeleteProduct, 
@@ -30,10 +32,12 @@ router.post('/ai-convert-invoice', aiConvertInvoice);
 router.post('/bulk-create', bulkImportProducts);
 router.post('/bulk-import', bulkImportProducts);
 
+router.get('/catalog', getProductCatalog);
 router.get('/low-stock', getLowStockProducts);
 router.post('/batch-stock-update', batchBarcodeStockUpdate);
 router.post('/bulk-delete', bulkSoftDeleteProducts);
 router.get('/barcode/:barcode', getProductByBarcode);
+router.get('/:id', getProductById);
 router.put('/:id', updateProduct);
 router.delete('/:id', softDeleteProduct);
 router.post('/:id/stock', adjustStock);

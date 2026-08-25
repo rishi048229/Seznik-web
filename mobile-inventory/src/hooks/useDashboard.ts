@@ -7,7 +7,7 @@ export function useDashboard() {
   const dashboardQuery = useQuery({
     queryKey: ['reports', 'dashboard'],
     queryFn: reportsApi.getDashboardStats,
-    staleTime: 1000 * 10,
+    staleTime: 1000 * 60,
     // Was retry:2 (3 attempts total) on top of fetchApi's old 90s timeout — up to ~4.5 minutes of
     // pure spinner before ever surfacing an error. The app-wide default (retry:1, set in
     // src/app/_layout.tsx) is already the right amount of resilience for a flaky connection.
@@ -45,6 +45,7 @@ export function useDashboard() {
       todayInvoices: 0,
       todayGrossProfit: 0,
       totalCustomers: 0,
+      totalProductCount: 0,
       totalStockValue: 0,
       lowStockCount: 0,
       lowStockProducts: [],

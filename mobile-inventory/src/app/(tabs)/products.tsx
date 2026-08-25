@@ -1,6 +1,8 @@
 import React from 'react';
 import ProductsScreen from '@/app/products/index';
 
-export default function ProductsTabRoute() {
+function ProductsTabRoute() {
   return <ProductsScreen />;
 }
+
+export default React.memo(ProductsTabRoute);

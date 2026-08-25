@@ -50,10 +50,29 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId((req as any).user.id);
     const todayStart = startOfDay(new Date());
 
-    const [todaySales, recentSales, totalCustomers, lowStockProducts, stockValueRows] = await Promise.all([
-      prisma.sale.findMany({ where: { userId, createdAt: { gte: todayStart } } }),
-      prisma.sale.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-      prisma.customer.count({ where: { userId } }),
+    const [todaySales, recentSales, totalsRows, lowStockProducts] = await Promise.all([
+      prisma.sale.findMany({
+        where: { userId, createdAt: { gte: todayStart } },
+        select: { grandTotal: true, totalTax: true, items: true, createdAt: true },
+      }),
+      prisma.sale.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, invoiceNumber: true, grandTotal: true, createdAt: true },
+      }),
+      // Customer count, product count and stock valuation were three separate round trips. Against
+      // a cross-region database each one costs ~300ms of pure latency regardless of how little work
+      // it does, so they're folded into a single query. NULLIF/COALESCE preserves the original
+      // `costPrice || sellingPrice || 0` semantics exactly (0 is falsy in JS, so a costPrice of
+      // exactly 0 fell back to sellingPrice there too).
+      prisma.$queryRaw<Array<{ customerCount: number; productCount: number; stockValue: number }>>(Prisma.sql`
+        SELECT
+          (SELECT COUNT(*) FROM "Customer" WHERE "userId" = ${userId}) AS "customerCount",
+          (SELECT COUNT(*) FROM "Product" WHERE "userId" = ${userId} AND "isActive" = true) AS "productCount",
+          (SELECT COALESCE(SUM(COALESCE(NULLIF("costPrice", 0), "sellingPrice", 0) * "currentStock"), 0)
+             FROM "Product" WHERE "userId" = ${userId} AND "isActive" = true) AS "stockValue"
+      `),
       // Low-stock filtering is a column-to-column comparison ("currentStock <= lowStockThreshold")
       // that the Prisma client can't express — previously this pulled the WHOLE active-product
       // catalog into Node and filtered in JS. Push the comparison into SQL instead.
@@ -64,16 +83,10 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         ORDER BY "currentStock" ASC
         LIMIT 20
       `),
-      // Same reasoning: one aggregate row instead of pulling every active product into Node just
-      // to sum `costPrice(or sellingPrice fallback) * currentStock`. NULLIF/COALESCE preserves the
-      // original `costPrice || sellingPrice || 0` semantics exactly (0 is falsy in JS, so a
-      // costPrice of exactly 0 fell back to sellingPrice there too).
-      prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
-        SELECT COALESCE(SUM(COALESCE(NULLIF("costPrice", 0), "sellingPrice", 0) * "currentStock"), 0) AS total
-        FROM "Product"
-        WHERE "userId" = ${userId} AND "isActive" = true
-      `),
     ]);
+
+    const totalCustomers = Number(totalsRows[0]?.customerCount ?? 0);
+    const totalProductCount = Number(totalsRows[0]?.productCount ?? 0);
 
     // Gross profit only needs cost prices for products actually sold TODAY (a handful of rows),
     // not the entire catalog — todaySales is already a small, date-bounded set.
@@ -88,13 +101,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       (s, sale) => s + computeSaleGrossProfit(sale, productCosts),
       0
     );
-    const totalStockValue = Number(stockValueRows[0]?.total ?? 0);
+    const totalStockValue = Number(totalsRows[0]?.stockValue ?? 0);
 
     res.json({
       todayRevenue,
       todayInvoices: todaySales.length,
       todayGrossProfit,
       totalCustomers,
+      totalProductCount,
       totalStockValue,
       // Preserves the original behavior exactly: this was always "count of the (already
       // limit-20) low-stock list", not a true unbounded count.

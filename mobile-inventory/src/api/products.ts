@@ -9,12 +9,19 @@ const normalizeProduct = (raw: any): Product => ({
 });
 
 export const productsApi = {
-  getProducts: async (): Promise<Product[]> => {
-    // Was timeoutMs:120000 — an ordinary list GET, not AI/bulk work; nothing justifies a 2-minute
-    // timeout here. Falls back to fetchApi's 20s default.
-    const raw = await fetchApi<any>('/products');
+  getCatalog: async (): Promise<Product[]> => {
+    const raw = await fetchApi<any>('/products/catalog', { timeoutMs: 120000 });
     const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.products) ? raw.products : []);
     return list.map(normalizeProduct);
+  },
+
+  getProducts: async (): Promise<Product[]> => {
+    return productsApi.getCatalog();
+  },
+
+  getProductById: async (id: string): Promise<Product> => {
+    const raw = await fetchApi<any>(`/products/${id}`);
+    return normalizeProduct(raw);
   },
 
   getLowStockProducts: async (): Promise<Product[]> => {

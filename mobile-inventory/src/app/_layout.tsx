@@ -6,11 +6,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 
 
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
+import { hydrateAndPrefetchAppData } from '@/services/prefetchAppData';
 import { installGlobalAlertInterceptor } from '@/store/useAlertStore';
 import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import '@/global.css';
+import { enableFreeze } from 'react-native-screens';
+
+// Keep inactive tab screens frozen so cart/theme/query updates don't re-render every tab.
+enableFreeze(true);
 
 // Intercept all Alert.alert calls across the app to render custom themed modal
 installGlobalAlertInterceptor();
@@ -45,6 +50,22 @@ const queryClient = new QueryClient({
 
 import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
 import { usePrinterStore } from '@/store/usePrinterStore';
+
+function AppDataPrefetcher() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((state) => state.user?.id);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !userId) return;
+    hydrateAndPrefetchAppData(queryClient, userId).catch((err) => {
+      console.error('[AppDataPrefetcher] startup prefetch failed:', err);
+    });
+  }, [isLoading, isAuthenticated, userId, queryClient]);
+
+  return null;
+}
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -91,6 +112,7 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <AppDataPrefetcher />
       <Stack
         screenOptions={{
           headerShown: false,

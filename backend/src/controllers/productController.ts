@@ -26,6 +26,25 @@ const PRODUCT_LIST_SELECT = {
   updatedAt: true,
 } as const;
 
+/** Slim list for mobile POS/catalog — omits imageURL (can be huge) and audit fields. */
+const PRODUCT_CATALOG_SELECT = {
+  id: true,
+  name: true,
+  sku: true,
+  barcode: true,
+  barcodeType: true,
+  categoryId: true,
+  supplierId: true,
+  costPrice: true,
+  sellingPrice: true,
+  taxRate: true,
+  priceIncludesGst: true,
+  currentStock: true,
+  lowStockThreshold: true,
+  unit: true,
+  isActive: true,
+} as const;
+
 // Tried in order for every AI document/invoice call — keeping this in one place means a bad
 // model name never silently kills a whole feature: later entries still get a chance.
 //
@@ -183,21 +202,54 @@ function robustParseProductJson(rawText: string): any[] {
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
-    // Optional limit/page, but ALWAYS capped even when the caller sends nothing — previously this
-    // returned the tenant's entire product table unconditionally, unbounded by row count.
-    const limit = Math.min(Number(req.query.limit) || 500, 500);
-    const page = Math.max(Number(req.query.page) || 1, 1);
     const products = await prisma.product.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       select: PRODUCT_LIST_SELECT,
-      take: limit,
-      skip: (page - 1) * limit,
     });
     res.json(products);
   } catch (error) {
     console.error('getProducts failed:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
+  }
+};
+
+export const getProductCatalog = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+
+    // Aggregating into JSON inside Postgres was tried here and measured slower end-to-end (6.6s vs
+    // 2.6s): Prisma parses the aggregate back into JS and res.json re-serializes it, so a 2MB
+    // payload gets walked twice. findMany's row deserialization is the cheaper path at this size.
+    const products = await prisma.product.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: PRODUCT_CATALOG_SELECT,
+    });
+
+    res.json(products);
+  } catch (error) {
+    console.error('getProductCatalog failed:', error);
+    res.status(500).json({ error: 'Failed to fetch product catalog' });
+  }
+};
+
+export const getProductById = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const { id } = req.params;
+    const productId = Array.isArray(id) ? id[0] : id;
+    const product = await prisma.product.findFirst({
+      where: { id: productId, userId },
+      select: PRODUCT_LIST_SELECT,
+    });
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    res.json(product);
+  } catch (error) {
+    console.error('getProductById failed:', error);
+    res.status(500).json({ error: 'Failed to fetch product' });
   }
 };
 

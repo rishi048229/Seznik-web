@@ -74,14 +74,16 @@ import { calculateProductGstBreakdown } from '@/utils/gst';
 import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
 import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 import { useLocations, useLocationStock } from '@/hooks/useLocations';
+import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 
 export default function ProductsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
+  const { contentReady } = useTabTransitionReady();
   const {
     products,
-    isLoading,
+    isInitialLoading,
     isError,
     error,
     createProduct,
@@ -89,6 +91,7 @@ export default function ProductsScreen() {
     deleteProduct,
     adjustStock,
     getByBarcode,
+    getProductById,
     refetch: refetchProducts,
   } = useProducts();
   const { categories, createCategory } = useCategories();
@@ -196,14 +199,23 @@ export default function ProductsScreen() {
     !!browseStoreId && storeStockMap.get(p.id)?.priceOverride != null;
   const isCarriedAtBrowseStore = (p: Product): boolean => !browseStoreId || storeStockMap.has(p.id);
 
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = useMemo(() => products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.barcode && p.barcode.includes(searchQuery));
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
-    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p);
+    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || storeStockMap.has(p.id);
     return matchesSearch && matchesCategory && matchesStoreScope;
-  });
+  }), [products, searchQuery, selectedCategoryId, browseStoreId, showOnlyThisStore, storeStockMap]);
+
+  const enrichProductDetails = async (p: Product): Promise<Product> => {
+    if (p.imageUrl) return p;
+    try {
+      return await getProductById(p.id);
+    } catch {
+      return p;
+    }
+  };
 
   // Photo Selection Handlers (Camera & Photo Gallery)
   const handlePickPhotoFromGallery = async () => {
@@ -406,32 +418,34 @@ export default function ProductsScreen() {
     setShowProductModal(true);
   };
 
-  const handleOpenEditModal = (p: Product) => {
-    setEditingProduct(p);
-    setName(p.name);
-    setSellingPrice(String(p.sellingPrice));
-    setCostPrice(String(p.costPrice || 0));
-    setStock(String(p.currentStock));
-    setLowStockThreshold(String(p.lowStockThreshold));
-    setUnit(p.unit || 'Piece');
-    setImageUrl(p.imageUrl || null);
-    setBarcode(p.barcode || generateEAN13Barcode());
-    const productTaxRate = String(p.taxRate ?? 0);
+  const handleOpenEditModal = async (p: Product) => {
+    const full = await enrichProductDetails(p);
+    setEditingProduct(full);
+    setName(full.name);
+    setSellingPrice(String(full.sellingPrice));
+    setCostPrice(String(full.costPrice || 0));
+    setStock(String(full.currentStock));
+    setLowStockThreshold(String(full.lowStockThreshold));
+    setUnit(full.unit || 'Piece');
+    setImageUrl(full.imageUrl || null);
+    setBarcode(full.barcode || generateEAN13Barcode());
+    const productTaxRate = String(full.taxRate ?? 0);
     setTaxRate(productTaxRate);
     const isCustom = !isStandardGstSlab(productTaxRate);
     setGstIsCustom(isCustom);
     setCustomTaxRate(isCustom ? productTaxRate : '');
     setGstLabel(getGstSlabLabel(productTaxRate));
-    setPriceIncludesGst(Boolean(p.priceIncludesGst));
-    setCategoryId(p.categoryId || null);
-    setSupplierId(p.supplierId || null);
-    setDiscountType(p.discountType || 'percent');
-    setDiscountValue(p.discountValue ? String(p.discountValue) : '');
+    setPriceIncludesGst(Boolean(full.priceIncludesGst));
+    setCategoryId(full.categoryId || null);
+    setSupplierId(full.supplierId || null);
+    setDiscountType(full.discountType || 'percent');
+    setDiscountValue(full.discountValue ? String(full.discountValue) : '');
     setShowProductModal(true);
   };
 
-  const handleOpenDetailModal = (p: Product) => {
-    setDetailProduct(p);
+  const handleOpenDetailModal = async (p: Product) => {
+    const full = await enrichProductDetails(p);
+    setDetailProduct(full);
     setShowDetailModal(true);
   };
 
@@ -689,12 +703,14 @@ export default function ProductsScreen() {
         ) : null}
 
         {/* Product Cards List */}
-        {isLoading ? (
+        {isInitialLoading ? (
           <ScreenLoadingState
             message={t('loadingProducts', 'Loading products...')}
             hint={t('loadingProductsHint', 'Fetching your inventory from the server')}
             skeleton={<ProductsListSkeleton count={6} />}
           />
+        ) : !contentReady ? (
+          <ProductsListSkeleton count={6} />
         ) : isError ? (
           <View style={{ padding: 24, alignItems: 'center' }}>
             <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, textAlign: 'center' }}>
@@ -714,9 +730,10 @@ export default function ProductsScreen() {
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item.id}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={7}
+            initialNumToRender={8}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            updateCellsBatchingPeriod={100}
             removeClippedSubviews={Platform.OS === 'android'}
             contentContainerStyle={{ paddingBottom: 60 }}
             renderItem={({ item }) => {
