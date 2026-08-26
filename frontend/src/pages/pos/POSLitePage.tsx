@@ -4,6 +4,10 @@ import { useCreateSale } from '@/hooks/useSales'
 
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
+import { useLocationStock } from '@/hooks/useLocations'
+import { LocationSelector } from '@/components/common/LocationSelector'
+import { UpiQrPanel } from '@/components/common/UpiQrPanel'
+import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
 import { useProducts } from '@/hooks/useProducts'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
@@ -17,7 +21,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { parseGstBilling, shouldShowGstBreakdown } from '@/constants/gstBilling'
 import { gstSummaryFromCart } from '@/utils/gst'
 import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown'
@@ -30,6 +34,7 @@ import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 import type { Sale } from '@/types/sale.types'
+import type { Product } from '@/types/product.types'
 
 interface CartItem {
   id: string
@@ -78,6 +83,7 @@ export const POSLitePage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const blePrinter = useBlePrinter()
   const [orderDiscount, setOrderDiscount] = useState(0)
@@ -108,6 +114,38 @@ export const POSLitePage = () => {
   const [productPrice, setProductPrice] = useState('')
   const [productQty, setProductQty] = useState('1')
   const [productTaxRate, setProductTaxRate] = useState('0')
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false)
+
+  // Multi-location inventory: resolve this location's price override, if any
+  // (see LocationSelector/POSPage for the full explanation of the model).
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
+  const getEffectivePrice = (product: { id: string; sellingPrice: number }): number => {
+    if (!selectedLocationId) return product.sellingPrice
+    const override = locationStockRows.find(r => r.productId === product.id)?.priceOverride
+    return override ?? product.sellingPrice
+  }
+
+  const nameSuggestions = useMemo(() => {
+    const q = productName.trim().toLowerCase()
+    if (!q) return []
+    return (products ?? [])
+      .filter(p => p.isActive !== false && (
+        p.name.toLowerCase().includes(q) ||
+        p.sku?.toLowerCase().includes(q) ||
+        p.barcode?.toLowerCase().includes(q)
+      ))
+      .slice(0, 6)
+  }, [products, productName])
+
+  const handleSelectSuggestedProduct = (p: Product) => {
+    const effectivePrice = getEffectivePrice(p)
+    setProductName(p.name)
+    setProductPrice(String(effectivePrice))
+    setProductTaxRate(String(p.taxRate ?? 0))
+    setGstMode(p.priceIncludesGst ? 'inclusive' : 'exclusive')
+    setShowNameSuggestions(false)
+  }
 
   // Barcode scan: look up product from catalog and add directly to cart
   const handleBarcodeScan = (barcode: string) => {
@@ -116,6 +154,7 @@ export const POSLitePage = () => {
       toast.error(`${t('pos.noProductFoundBarcodePrefix')} ${barcode}`)
       return
     }
+    const effectivePrice = getEffectivePrice(product)
     const existing = items.find(i => i.id === product.id)
     if (existing) {
       setItems(prev => prev.map(i =>
@@ -128,14 +167,17 @@ export const POSLitePage = () => {
         id: product.id,
         productName: product.name,
         quantity: 1,
-        sellingPrice: product.sellingPrice,
+        sellingPrice: effectivePrice,
         discount: 0,
         taxRate: product.taxRate,
         priceIncludesGst: product.priceIncludesGst ?? false,
-        total: product.sellingPrice,
+        total: effectivePrice,
       }])
     }
     toast.success(`${product.name} ${t('pos.addedViaScanSuffix')}`)
+    if (isExpiringSoon(product.expiryDate)) {
+      toast(`⚠ ${product.name} — ${formatExpiryMessage(product.expiryDate)}`, { icon: '⏳' })
+    }
   }
 
   // Physical USB/Bluetooth barcode scanner — fires when no input is focused
@@ -284,17 +326,23 @@ export const POSLitePage = () => {
 
   const handleCheckout = () => {
     const saleData: Parameters<typeof createSale>[0] = {
-      items: items.map(item => ({
-        productId: '',
-        productName: item.productName,
-        quantity: item.quantity,
-        sellingPrice: item.sellingPrice,
-        discount: item.discount,
-        taxRate: item.taxRate,
-        priceIncludesGst: item.priceIncludesGst ?? false,
-        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
-        total: item.sellingPrice * item.quantity - item.discount,
-      })),
+      items: items.map(item => {
+        const resolvedProductId = (!item.id.startsWith('temp-'))
+          ? item.id
+          : (products?.find(p => p.name.toLowerCase() === item.productName.toLowerCase())?.id || '')
+
+        return {
+          productId: resolvedProductId,
+          productName: item.productName,
+          quantity: item.quantity,
+          sellingPrice: item.sellingPrice,
+          discount: item.discount,
+          taxRate: item.taxRate,
+          priceIncludesGst: item.priceIncludesGst ?? false,
+          taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+          total: item.sellingPrice * item.quantity - item.discount,
+        }
+      }),
       subtotal,
       totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
@@ -304,12 +352,15 @@ export const POSLitePage = () => {
       paymentMethod: method,
       amountPaid: amountPaidNum,
       changeReturned: change,
-      isQuickBill: false,
+      isQuickBill: true,
       createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
     }
 
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
+    }
+    if (selectedLocationId) {
+      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
     createSale(saleData, {
@@ -388,7 +439,7 @@ export const POSLitePage = () => {
     const tempSale = buildTempSale()
     if (!tempSale || !lastSaleData) return
 
-    const receiptConfig = settings?.receiptConfig
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = lastSaleData.selectedCustomer
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
       : ''
@@ -422,11 +473,11 @@ export const POSLitePage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = settings?.receiptConfig
+      const receiptConfig = resolveEffectiveReceiptConfig(settings)
       const customerName = lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
         : ''
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',
@@ -506,6 +557,12 @@ export const POSLitePage = () => {
               {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
             </button>
           </div>
+
+          {/* Billing location (only shown when multi-location inventory is enabled) */}
+          <div className="mb-3">
+            <LocationSelector onChange={setSelectedLocationId} />
+          </div>
+
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             {t('pos.addProductManualHint')}
           </p>
@@ -539,16 +596,56 @@ export const POSLitePage = () => {
           {/* Manual Product Entry Form */}
           <Card className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2" data-tour="pos-lite-name-input">
+              <div className="md:col-span-2 relative" data-tour="pos-lite-name-input">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t('pos.productNameLabel')}
                 </label>
                 <Input
                   value={productName}
-                  onChange={e => setProductName(e.target.value)}
+                  onChange={e => {
+                    setProductName(e.target.value)
+                    setShowNameSuggestions(true)
+                  }}
+                  onFocus={() => setShowNameSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
                   placeholder={t('pos.enterProductName')}
                   className="w-full"
                 />
+                {showNameSuggestions && productName.trim().length > 0 && nameSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
+                    <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                      Suggested Catalog Items ({nameSuggestions.length})
+                    </div>
+                    <div className="max-h-56 overflow-y-auto">
+                      {nameSuggestions.map(p => {
+                        const price = getEffectivePrice(p)
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              handleSelectSuggestedProduct(p)
+                            }}
+                            className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
+                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                {p.barcode && <span>Barcode: {p.barcode}</span>}
+                                {p.sku && <span>• SKU: {p.sku}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
+                              <span className="block text-[10px] text-gray-400">GST: {p.taxRate ?? 0}%</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -873,6 +970,15 @@ export const POSLitePage = () => {
                 </button>
               ))}
             </div>
+            {method === 'upi' && settings?.receiptConfig?.upiId && (
+              <div className="mt-3">
+                <UpiQrPanel
+                  upiId={settings.receiptConfig.upiId}
+                  payeeName={settings?.businessName || 'Store'}
+                  amount={finalTotal}
+                />
+              </div>
+            )}
           </div>
 
           {/* Amount Paid / Received Input */}
@@ -939,11 +1045,28 @@ export const POSLitePage = () => {
 
       {/* Print Modal */}
       <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">
-        <div className="space-y-6">
+        <div className="space-y-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {completedInvoiceNumber && `${t('pos.invoicePrefix')} ${completedInvoiceNumber}`}
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
+
+          {/* Show / Hide Tax Info Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">Show Tax &amp; GST Info</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Include GST columns &amp; tax breakdown in bill</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTaxBreakdown}
+                onChange={(e) => setShowTaxBreakdown(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <button

@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import toast from 'react-hot-toast'
 import type { CartItem, Product } from '@/types/product.types'
+import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
 
 export const useCart = () => {
   const [items, setItems] = useState<CartItem[]>(() => {
@@ -12,6 +14,9 @@ export const useCart = () => {
   }, [items])
 
   const addItem = useCallback((product: Product) => {
+    if (isExpiringSoon(product.expiryDate)) {
+      toast(`⚠ ${product.name} — ${formatExpiryMessage(product.expiryDate)}`, { icon: '⏳' })
+    }
     setItems(prev => {
       const existing = prev.find(i => i.productId === product.id)
       if (existing) {
@@ -58,6 +63,20 @@ export const useCart = () => {
     )
   }, [])
 
+  // Refreshes an already-added line when its underlying product is edited
+  // mid-sale (e.g. from the "Scan to Bill" quick-edit) — a no-op if that
+  // product isn't currently in the cart.
+  const updateItemDetails = useCallback((
+    productId: string,
+    updates: Partial<Pick<CartItem, 'productName' | 'imageURL' | 'sellingPrice' | 'taxRate' | 'priceIncludesGst'>>
+  ) => {
+    setItems(prev =>
+      prev.map(i =>
+        i.productId === productId ? { ...i, ...updates } : i
+      )
+    )
+  }, [])
+
   const clearCart = useCallback(() => {
     setItems([])
   }, [])
@@ -94,6 +113,7 @@ export const useCart = () => {
     removeItem,
     updateQty,
     applyDiscount,
+    updateItemDetails,
     clearCart,
     totals,
   }

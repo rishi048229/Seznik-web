@@ -207,6 +207,10 @@ model Product {
   unit              String    @default("piece")
   isActive          Boolean   @default(true)
 
+  brand       String?
+  description String?   @db.Text
+  expiryDate  DateTime?
+
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 

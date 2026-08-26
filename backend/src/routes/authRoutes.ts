@@ -10,6 +10,7 @@ import {
   getManagedUsers,
   createManagedUser,
   syncManagedUsers,
+  updateManagedUserPassword,
   sendEmailOtp,
   verifyEmailOtp,
   sendForgotPasswordOtp,
@@ -50,5 +51,6 @@ router.patch('/business-type', protect, updateBusinessType);
 router.get('/managed-users/:adminUid', protect, getManagedUsers);
 router.post('/managed-users/:adminUid', protect, createManagedUser);
 router.post('/managed-users/:adminUid/bulk', protect, syncManagedUsers);
+router.post('/managed-users/:adminUid/password', protect, updateManagedUserPassword);
 
 export default router;

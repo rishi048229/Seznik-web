@@ -10,7 +10,7 @@ import {
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
 } from '@/services/authService'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, XCircle, Eye, EyeOff, Video } from 'lucide-react'
 
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -18,16 +18,22 @@ import { Input } from '@/components/ui/Input'
 import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
 import { validatePassword } from '@/utils/password'
 import { trackUserAction } from '@/utils/analytics'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 
 type EmailVerifyStep = 'idle' | 'sending' | 'sent' | 'verifying' | 'verified'
 type ForgotStep = 'email' | 'otp' | 'new_password' | 'success'
 
 export const LoginPage = () => {
   const { loginWithEmail, registerWithEmail, loading } = useAuth()
+  const pageTutorial = usePageTutorial('login')
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -51,6 +57,22 @@ export const LoginPage = () => {
   const [forgotError, setForgotError] = useState('')
   const [forgotMessage, setForgotMessage] = useState('')
   const [forgotResendIn, setForgotResendIn] = useState(0)
+
+  // Registration password validation states
+  const regPassValidation = validatePassword(password)
+  const isRegPassValid = password.length > 0 && regPassValidation.isValid
+  const isRegPassInvalid = password.length > 0 && !regPassValidation.isValid
+
+  const isRegConfirmValid = confirmPassword.length > 0 && confirmPassword === password && isRegPassValid
+  const isRegConfirmInvalid = confirmPassword.length > 0 && (confirmPassword !== password || !isRegPassValid)
+
+  // Reset password validation states
+  const forgotPassValidation = validatePassword(forgotNewPassword)
+  const isForgotPassValid = forgotNewPassword.length > 0 && forgotPassValidation.isValid
+  const isForgotPassInvalid = forgotNewPassword.length > 0 && !forgotPassValidation.isValid
+
+  const isForgotConfirmValid = forgotConfirmPassword.length > 0 && forgotConfirmPassword === forgotNewPassword && isForgotPassValid
+  const isForgotConfirmInvalid = forgotConfirmPassword.length > 0 && (forgotConfirmPassword !== forgotNewPassword || !isForgotPassValid)
 
   useEffect(() => {
     if (resendIn <= 0) return
@@ -89,31 +111,81 @@ export const LoginPage = () => {
     }
   }
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = async (codeOverride?: string) => {
+    const codeToVerify = (codeOverride || otp).trim()
+    if (codeToVerify.length !== 6) return
     setError('')
     setVerifyStep('verifying')
     try {
-      await verifyEmailOtp(email.trim(), otp.trim())
+      await verifyEmailOtp(email.trim(), codeToVerify)
       setVerifyStep('verified')
       setOtpMessage('')
     } catch (err) {
       setVerifyStep('sent')
-      setError(err instanceof Error ? err.message : 'Incorrect code')
+      setError(err instanceof Error ? err.message : 'Incorrect verification code')
+    }
+  }
+
+  const handleOtpChange = (value: string) => {
+    const numeric = value.replace(/\D/g, '').slice(0, 6)
+    setOtp(numeric)
+    if (numeric.length === 6) {
+      handleVerifyOtp(numeric)
     }
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (isRegistering && verifyStep !== 'verified') {
-      setError('Please verify your email before signing up')
+
+    const cleanEmail = email.trim()
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Please enter a valid email address')
+      return
+    }
+
+    if (!password) {
+      setError('Please enter your password')
       return
     }
 
     if (isRegistering) {
+      if (!firstName.trim() || !lastName.trim()) {
+        setError('Please enter your first and last name')
+        return
+      }
+
+      // Auto-verify OTP if 6 digits are typed but not verified yet
+      if (verifyStep !== 'verified') {
+        const cleanOtp = otp.trim()
+        if (cleanOtp.length === 6) {
+          try {
+            await verifyEmailOtp(cleanEmail, cleanOtp)
+            setVerifyStep('verified')
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Incorrect verification code')
+            return
+          }
+        } else {
+          setError('Please tap "Verify Email" to receive a 6-digit code, then enter the code below.')
+          return
+        }
+      }
+
+      const cleanPhone = phone.trim()
+      if (!cleanPhone || cleanPhone.length < 7) {
+        setError('Please enter a valid phone number (at least 7 digits)')
+        return
+      }
+
       const { isValid, failedRequirements } = validatePassword(password)
       if (!isValid) {
         setError(`Password requirements missing: ${failedRequirements.join(', ')}`)
+        return
+      }
+
+      if (password !== confirmPassword) {
+        setError('Passwords do not match. Please ensure both password fields are identical.')
         return
       }
     }
@@ -121,17 +193,16 @@ export const LoginPage = () => {
     setIsSigningIn(true)
     try {
       if (isRegistering) {
-        await registerWithEmail(email.trim(), password, firstName, lastName, phone.trim())
-        trackUserAction('user_register_success', { email: email.trim() })
+        await registerWithEmail(cleanEmail, password, firstName.trim(), lastName.trim(), phone.trim())
+        trackUserAction('user_register_success', { email: cleanEmail })
       } else {
-        await loginWithEmail(email, password)
-        trackUserAction('user_login_success', { email: email.trim() })
+        await loginWithEmail(cleanEmail, password)
+        trackUserAction('user_login_success', { email: cleanEmail })
       }
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to sign in')
     } finally {
-
       setIsSigningIn(false)
     }
   }
@@ -142,6 +213,9 @@ export const LoginPage = () => {
     setOtp('')
     setOtpMessage('')
     setVerifyStep('idle')
+    setConfirmPassword('')
+    setShowPassword(false)
+    setShowConfirmPassword(false)
   }
 
   // Open Forgot Password Modal
@@ -169,7 +243,7 @@ export const LoginPage = () => {
       await sendForgotPasswordOtp(forgotEmail.trim())
       setForgotStep('otp')
       setForgotResendIn(60)
-      setForgotMessage(`We sent a 6-digit reset code to ${forgotEmail.trim()}`)
+      setForgotMessage(`We sent a 6-digit code to ${forgotEmail.trim()}`)
     } catch (err) {
       setForgotError(err instanceof Error ? err.message : 'Failed to send reset code')
     } finally {
@@ -224,112 +298,143 @@ export const LoginPage = () => {
   const handleFinishForgot = () => {
     setEmail(forgotEmail.trim())
     setPassword('')
+    setConfirmPassword('')
     setIsForgotModalOpen(false)
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] p-4 sm:p-6">
+    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-slate-100 p-3 sm:p-6 md:p-8 overflow-y-auto">
       {/* Main Card */}
-      <div className="flex flex-col sm:flex-row w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl">
+      <div className="flex flex-col md:flex-row w-full max-w-4xl rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 bg-white my-auto">
 
         {/* Top / Left Panel — Branding */}
-        <div className="sm:w-1/2 px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
+        <div className="md:w-5/12 px-6 py-8 sm:p-10 md:p-12 flex flex-col justify-between gap-6 sm:gap-8"
           style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)', color: '#fff' }}>
           <div>
-            <div className="mb-8 sm:mb-12">
-              <img src="/seznik_white_logo.png" alt="Seznik" className="w-32 sm:w-40 h-auto object-contain" />
+            <div className="mb-6 sm:mb-10">
+              <img src="/seznik_white_logo.png" alt="Seznik" className="w-28 sm:w-36 md:w-40 h-auto object-contain" />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold leading-tight tracking-tight mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tracking-tight mb-3">
               Precision in every
               <br />
-              <span style={{ color: 'rgba(255,255,255,0.15)' }}>transaction.</span>
+              <span style={{ color: 'rgba(255,255,255,0.25)' }}>transaction.</span>
             </h1>
-            <p className="text-sm sm:text-base leading-relaxed opacity-75 max-w-xs">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               A premium retail POS designed to turn complex inventory into a seamless digital editorial for your business.
             </p>
           </div>
 
-          {/* Feature Badges */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>, label: 'MULTI-STORE SYNC' },
-              { icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>, label: 'SECURE LEDGER' },
-            ].map(b => (
-              <div key={b.label} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide"
-                style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-                {b.icon}
-                {b.label}
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sky-300 shrink-0">
+                <CheckCircle2 size={16} />
               </div>
-            ))}
+              <div>
+                <p className="text-xs font-semibold">Offline-Ready Sync</p>
+                <p className="text-[10px] sm:text-xs text-slate-300">Continuous operation even during network drops</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sky-300 shrink-0">
+                <CheckCircle2 size={16} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold">Automated GST Invoicing</p>
+                <p className="text-[10px] sm:text-xs text-slate-300">Ready-to-file tax reports in one click</p>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Bottom / Right Panel — Form */}
-        <div className="sm:w-1/2 px-8 py-10 sm:px-14 sm:py-16 bg-white flex flex-col justify-center">
-          <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-2">{isRegistering ? 'Create Account' : 'Welcome to Seznik POS'}</h2>
-          <p className="text-sm text-slate-500 mb-8">{isRegistering ? 'Sign up to get started.' : 'Enter your credentials to access your store dashboard.'}</p>
+        <div className="md:w-7/12 p-6 sm:p-10 md:p-12 flex flex-col justify-center">
+          <div className="flex items-center justify-between gap-3 mb-6 sm:mb-8">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {isRegistering ? 'Create Your Account' : 'Welcome Back'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                {isRegistering
+                  ? 'Fill in your details below to set up your business'
+                  : 'Enter your credentials to access your terminal'}
+              </p>
+            </div>
+            {pageTutorial.tutorialData && (
+              <button
+                onClick={pageTutorial.openTutorial}
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Watch Video Guide & Tutorial"
+              >
+                <Video size={14} className="animate-pulse" />
+                <span className="whitespace-nowrap">Video Guide</span>
+              </button>
+            )}
+          </div>
 
-          <form onSubmit={handleSignIn} className="flex flex-col gap-4">
-            {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
-            
+          {error && (
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSignIn} className="space-y-3 sm:space-y-4">
             {isRegistering && (
-              <div className="flex gap-4">
-                <div className="w-1/2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">First Name</label>
                   <input
                     type="text"
                     required
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   />
                 </div>
-                <div className="w-1/2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Last Name</label>
                   <input
                     type="text"
                     required
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <div className="relative">
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Email</label>
+              <div className="flex gap-2">
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   readOnly={isRegistering && verifyStep === 'verified'}
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
+                  className={`flex-1 min-w-0 px-3.5 py-2.5 sm:py-2 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
                     isRegistering && verifyStep === 'verified'
-                      ? 'border-emerald-300 bg-emerald-50/50 pr-28'
-                      : 'border-slate-300 ' + (isRegistering ? 'pr-24' : '')
+                      ? 'border-emerald-300 bg-emerald-50/50'
+                      : 'border-slate-300'
                   }`}
                   placeholder="admin@example.com"
                 />
                 {isRegistering && (
-                  <div className="absolute inset-y-0 right-1.5 flex items-center">
-                    {verifyStep === 'verified' ? (
-                      <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-2">
-                        <CheckCircle2 size={14} /> Verified
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        disabled={verifyStep === 'sending' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (verifyStep === 'sent' && resendIn > 0)}
-                        className="px-3 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-sky-400 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-                      >
-                        {verifyStep === 'sending' ? 'Sending…' : verifyStep === 'sent' ? (resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend') : 'Verify'}
-                      </button>
-                    )}
-                  </div>
+                  verifyStep === 'verified' ? (
+                    <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-xl shrink-0">
+                      <CheckCircle2 size={14} /> Verified
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={verifyStep === 'sending' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (verifyStep === 'sent' && resendIn > 0)}
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0 cursor-pointer"
+                    >
+                      {verifyStep === 'sending' ? 'Sending…' : verifyStep === 'sent' ? (resendIn > 0 ? `Resend (${resendIn}s)` : 'Resend') : 'Verify Email'}
+                    </button>
+                  )
                 )}
               </div>
               {isRegistering && otpMessage && verifyStep !== 'verified' && (
@@ -339,48 +444,41 @@ export const LoginPage = () => {
 
             {isRegistering && (verifyStep === 'sent' || verifyStep === 'verifying') && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Verification Code</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Verification Code</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center"
+                    onChange={(e) => handleOtpChange(e.target.value)}
+                    className="flex-1 px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center"
                     placeholder="••••••"
                   />
-                  <button
-                    type="button"
-                    onClick={handleVerifyOtp}
-                    disabled={otp.length !== 6 || verifyStep === 'verifying'}
-                    className="px-4 py-2 rounded-lg bg-[#0a0a2e] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-                  >
-                    {verifyStep === 'verifying' ? 'Checking…' : 'Confirm'}
-                  </button>
                 </div>
               </div>
             )}
 
             {isRegistering && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Phone Number</label>
                 <input
                   type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  pattern="\+?[0-9][0-9\s-]{6,14}"
-                  title="Enter a valid phone number (7–15 digits)"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                  className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
                   placeholder="+91 98765 43210"
                 />
               </div>
             )}
 
+            {/* Password Field with Eye Toggle and Visual Validation */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium text-slate-700">Password</label>
+                <label className="text-xs sm:text-sm font-medium text-slate-700">
+                  {isRegistering ? 'Create Password' : 'Password'}
+                </label>
                 {!isRegistering && (
                   <button
                     type="button"
@@ -391,21 +489,85 @@ export const LoginPage = () => {
                   </button>
                 )}
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 transition-all ${
+                    isRegistering && isRegPassValid
+                      ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
+                      : isRegistering && isRegPassInvalid
+                      ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
+                      : 'border-slate-300 focus:ring-[#0a0a2e]'
+                  }`}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors cursor-pointer"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {isRegistering && <PasswordRequirementsList password={password} showOnlyIfTyped />}
             </div>
 
+            {/* Confirm Password Field (Signup only) with Eye Toggle & Match Indicator */}
+            {isRegistering && (
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 transition-all ${
+                      isRegConfirmValid
+                        ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
+                        : isRegConfirmInvalid
+                        ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
+                        : 'border-slate-300 focus:ring-[#0a0a2e]'
+                    }`}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors cursor-pointer"
+                    tabIndex={-1}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {confirmPassword && (
+                  <p className={`text-xs mt-1.5 font-semibold flex items-center gap-1 ${
+                    isRegConfirmValid ? 'text-emerald-600' : 'text-red-500'
+                  }`}>
+                    {isRegConfirmValid ? (
+                      <>
+                        <CheckCircle2 size={14} /> Passwords match
+                      </>
+                    ) : (
+                      <>
+                        <XCircle size={14} /> Passwords do not match
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isSigningIn || loading || (isRegistering && verifyStep !== 'verified')}
-              className="mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isSigningIn || loading || (isRegistering && (!isRegPassValid || !isRegConfirmValid))}
+              className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
             >
               {isSigningIn || loading ? <Spinner size="sm" className="text-white" /> : (isRegistering ? 'Sign Up' : 'Sign In')}
@@ -532,6 +694,8 @@ export const LoginPage = () => {
                 placeholder="Enter new password"
                 value={forgotNewPassword}
                 onChange={(e) => setForgotNewPassword(e.target.value)}
+                success={isForgotPassValid}
+                error={isForgotPassInvalid ? ' ' : undefined}
                 autoFocus
               />
               <PasswordRequirementsList password={forgotNewPassword} />
@@ -541,12 +705,29 @@ export const LoginPage = () => {
                 placeholder="Re-enter new password"
                 value={forgotConfirmPassword}
                 onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                success={isForgotConfirmValid}
+                error={isForgotConfirmInvalid ? ' ' : undefined}
               />
+              {forgotConfirmPassword && (
+                <p className={`text-xs font-semibold flex items-center gap-1 -mt-2 ${
+                  isForgotConfirmValid ? 'text-emerald-600' : 'text-red-500'
+                }`}>
+                  {isForgotConfirmValid ? (
+                    <>
+                      <CheckCircle2 size={14} /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={14} /> Passwords do not match
+                    </>
+                  )}
+                </p>
+              )}
               <Button
                 className="w-full bg-[#0a0a2e] text-white hover:bg-[#1e1b6e]"
                 onClick={handleResetPassword}
                 loading={forgotLoading}
-                disabled={!forgotNewPassword || forgotNewPassword.length < 6 || forgotNewPassword !== forgotConfirmPassword}
+                disabled={!isForgotPassValid || !isForgotConfirmValid}
               >
                 Reset Password
               </Button>
@@ -574,6 +755,16 @@ export const LoginPage = () => {
           )}
         </div>
       </Modal>
+
+      {/* Video Tutorial Modal */}
+      {pageTutorial.tutorialData && (
+        <PageVideoTutorialModal
+          isOpen={pageTutorial.isTutorialOpen}
+          onClose={pageTutorial.closeTutorial}
+          tutorial={pageTutorial.tutorialData}
+          onStartTour={pageTutorial.startTour}
+        />
+      )}
     </div>
   )
 }

@@ -33,7 +33,6 @@ const ALLOWED_SETTINGS_FIELDS = [
   'labelConfig',
   'locationConfig',
   'kotConfig',
-  'upiId',
 ];
 
 const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {
@@ -60,7 +59,11 @@ export const createSettings = async (req: Request, res: Response) => {
     res.status(201).json(settings);
   } catch (error) {
     console.error('Failed to create settings:', error);
-    res.status(500).json({ error: 'Failed to create settings' });
+    // Authenticated internal endpoint — surface the real error (e.g. Prisma's
+    // "Unknown argument `locationConfig`" when the deployed schema/client is
+    // stale) instead of a generic message that gives no diagnostic signal.
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to create settings: ${detail}` });
   }
 };
 
@@ -78,7 +81,8 @@ export const updateSettings = async (req: Request, res: Response) => {
     res.json(settings);
   } catch (error) {
     console.error('Failed to update settings:', error);
-    res.status(500).json({ error: 'Failed to update settings' });
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to update settings: ${detail}` });
   }
 };
 

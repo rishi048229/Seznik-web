@@ -8,11 +8,15 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
+import { useLocationStock } from '@/hooks/useLocations'
+import { LocationSelector } from '@/components/common/LocationSelector'
+import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
+import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -21,7 +25,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { parseGstBilling, shouldShowGstBreakdown } from '@/constants/gstBilling'
 import { gstSummaryFromCart } from '@/utils/gst'
 import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown'
@@ -46,7 +50,7 @@ export const POSPage = () => {
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
-  const { items, addItem, removeItem, updateQty, clearCart, totals } = useCart()
+  const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
   const [search, setSearch] = useState('')
@@ -54,11 +58,22 @@ export const POSPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [isScanMode, setIsScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
+
+  // Quick-edit a product's own details (name/price/stock/etc.) without leaving
+  // the billing screen — opened from either the product grid or a cart line.
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [isEditProductOpen, setIsEditProductOpen] = useState(false)
+  const openEditProduct = (e: React.MouseEvent, product: Product) => {
+    e.stopPropagation()
+    setEditingProduct(product)
+    setIsEditProductOpen(true)
+  }
 
   // Product filter panel — stock status, price range, sort.
   type StockFilter = 'all' | 'in' | 'low' | 'out'
@@ -114,11 +129,35 @@ export const POSPage = () => {
     return acc
   }, {})
 
+  // Multi-location inventory: when a location is selected, stock/price
+  // resolve through that location's own ProductLocationStock row instead of
+  // the product's flat totals. A product with no stock row at the selected
+  // location is 0 available there — it does NOT fall back to the flat
+  // total, since that's the entire point of per-location stock.
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
+  const locationStockMap = new Map(locationStockRows.map(r => [r.productId, r]))
+
+  const getEffectiveStock = (product: Product): number => {
+    if (!selectedLocationId) return product.currentStock
+    return locationStockMap.get(product.id)?.stock ?? 0
+  }
+  const getEffectivePrice = (product: Product): number => {
+    if (!selectedLocationId) return product.sellingPrice
+    const override = locationStockMap.get(product.id)?.priceOverride
+    return override ?? product.sellingPrice
+  }
+  /** The exact object to hand to addItem/cart logic so the cart line carries the location's price. */
+  const withEffectivePrice = (product: Product): Product => {
+    const price = getEffectivePrice(product)
+    return price === product.sellingPrice ? product : { ...product, sellingPrice: price }
+  }
+
   // Barcode scanner integration
   const handleBarcodeScan = (barcode: string) => {
     const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
     if (product) {
-      addItem(product)
+      addItem(withEffectivePrice(product))
       toast.success(`${product.name} ${t('pos.addedSuffix')}`)
     } else {
       toast.error(`${t('pos.productNotFoundPrefix')} ${barcode}`)
@@ -160,7 +199,7 @@ export const POSPage = () => {
       const matchesCategory = !selectedCategory || p.categoryId === selectedCategory
 
       const reserved = cartReserved[p.id] || 0
-      const available = p.currentStock - reserved
+      const available = getEffectiveStock(p) - reserved
       const matchesStock = stockFilter === 'all' ||
         (stockFilter === 'out' && available <= 0) ||
         (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
@@ -169,7 +208,13 @@ export const POSPage = () => {
       const matchesPriceMin = isNaN(priceMinNum) || p.sellingPrice >= priceMinNum
       const matchesPriceMax = isNaN(priceMaxNum) || p.sellingPrice <= priceMaxNum
 
-      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax
+      // Once a store is picked, only show what that store actually carries
+      // (has a stock row for) — a bare price/stock swap wasn't enough; the
+      // grid itself needs to reflect "this store's catalog," not every
+      // product in the whole business.
+      const matchesStoreScope = !selectedLocationId || locationStockMap.has(p.id)
+
+      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax && matchesStoreScope
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -211,11 +256,11 @@ export const POSPage = () => {
 
   const handleProductClick = (product: Product) => {
     const reserved = cartReserved[product.id] || 0
-    const available = product.currentStock - reserved
+    const available = getEffectiveStock(product) - reserved
     if (available <= 0) {
-      toast.error(t('pos.errOutOfStock'))
+      toast.error(selectedLocationId ? `${t('pos.errOutOfStock')} at this location` : t('pos.errOutOfStock'))
     } else {
-      addItem(product)
+      addItem(withEffectivePrice(product))
     }
   }
 
@@ -224,7 +269,7 @@ export const POSPage = () => {
     if (!product) return
     const reserved = cartReserved[productId] || 0
     const otherQty = reserved - (items.find(i => i.productId === productId)?.quantity || 0)
-    const maxAllowed = product.currentStock - otherQty
+    const maxAllowed = getEffectiveStock(product) - otherQty
 
     if (newQty > maxAllowed) {
       toast.error(`Only ${maxAllowed} available in stock`)
@@ -274,6 +319,12 @@ export const POSPage = () => {
     // Only set customerId if a customer is selected (Firestore rejects undefined)
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
+    }
+    // Multi-location inventory: stamps which location's stock this whole
+    // sale decrements. Absent entirely when no location is selected, so the
+    // backend takes its legacy flat-stock path unchanged.
+    if (selectedLocationId) {
+      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
     createSale(saleData, {
@@ -359,7 +410,7 @@ export const POSPage = () => {
 
     setIsPrintingAnimating(true)
 
-    const receiptConfig = settings?.receiptConfig
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = lastSaleData.selectedCustomer
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
       : ''
@@ -394,11 +445,11 @@ export const POSPage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = settings?.receiptConfig
+      const receiptConfig = resolveEffectiveReceiptConfig(settings)
       const customerName = lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
         : ''
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',
@@ -596,6 +647,11 @@ export const POSPage = () => {
             </button>
           </div>
 
+          {/* Billing location (only shown when multi-location inventory is enabled) */}
+          <div className="mt-3">
+            <LocationSelector onChange={setSelectedLocationId} />
+          </div>
+
           {/* Barcode Scan Input Panel */}
           {isScanMode && (
             <div className="mt-3 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
@@ -623,12 +679,22 @@ export const POSPage = () => {
           )}
 
           {/* Category Tabs */}
-          <div data-tour="pos-category-tabs" className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide">
+          <div
+            data-tour="pos-category-tabs"
+            onWheel={(e) => {
+              if (e.currentTarget && (e.deltaY !== 0 || e.deltaX !== 0)) {
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                  e.currentTarget.scrollLeft += e.deltaY
+                }
+              }
+            }}
+            className="flex items-center gap-2 mt-4 overflow-x-auto py-1 px-0.5 no-scrollbar scroll-smooth overscroll-x-contain touch-pan-x select-none"
+          >
             <button
               onClick={() => setSelectedCategory('')}
-              className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+              className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                 !selectedCategory
-                  ? 'bg-[#0a0a2e] text-white'
+                  ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
               }`}
             >
@@ -638,9 +704,9 @@ export const POSPage = () => {
               <Fragment key={parent.id}>
                 <button
                   onClick={() => setSelectedCategory(parent.id)}
-                  className={`px-6 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                  className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                     selectedCategory === parent.id
-                      ? 'bg-[#0a0a2e] text-white'
+                      ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
                   }`}
                 >
@@ -650,9 +716,9 @@ export const POSPage = () => {
                   <button
                     key={child.id}
                     onClick={() => setSelectedCategory(child.id)}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                       selectedCategory === child.id
-                        ? 'bg-[#0a0a2e] text-white'
+                        ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -677,12 +743,22 @@ export const POSPage = () => {
                 <div
                   key={product.id}
                   onClick={() => !isOutOfStock && handleProductClick(product)}
-                  className={`group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
+                  className={`relative group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
                     isOutOfStock
                       ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
                       : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-300 dark:hover:border-blue-800'
                   }`}
                 >
+                  {/* Edit product — fix name/price/stock without leaving billing */}
+                  <button
+                    type="button"
+                    onClick={(e) => openEditProduct(e, product)}
+                    title={t('products.editProduct')}
+                    className="absolute top-1.5 right-1.5 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-500 dark:text-gray-300 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                  >
+                    <Pencil size={14} />
+                  </button>
+
                   {/* Thumbnail */}
                   <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                     {product.imageURL ? (
@@ -818,13 +894,24 @@ export const POSPage = () => {
                       <p className="text-xs text-gray-400">{formatINR(item.sellingPrice)} {t('pos.each')}</p>
                     </div>
 
-                    {/* Delete Button - Right */}
-                    <button
-                      onClick={() => removeItem(item.productId)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <Trash2 size={16} className="text-red-400" />
-                    </button>
+                    {/* Edit + Delete Buttons - Right (always visible so touch devices without hover can reach them) */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {product && (
+                        <button
+                          onClick={(e) => openEditProduct(e, product)}
+                          title={t('products.editProduct')}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeItem(item.productId)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <Trash2 size={16} className="text-red-400" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Quantity Controls + Line Total - Separate Row */}
@@ -999,6 +1086,15 @@ export const POSPage = () => {
                 </button>
               ))}
             </div>
+            {method === 'upi' && settings?.receiptConfig?.upiId && (
+              <div className="mt-3">
+                <UpiQrPanel
+                  upiId={settings.receiptConfig.upiId}
+                  payeeName={settings?.businessName || 'Store'}
+                  amount={finalTotal}
+                />
+              </div>
+            )}
           </div>
 
           {/* Amount Paid / Received Input */}
@@ -1065,8 +1161,25 @@ export const POSPage = () => {
 
       {/* Print Format Modal */}
       <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); }} title={t('pos.printReceiptTitle')} size="sm">
-        <div className="space-y-6">
+        <div className="space-y-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
+
+          {/* Show / Hide Tax Info Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">Show Tax &amp; GST Info</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Include GST columns &amp; tax breakdown in bill</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTaxBreakdown}
+                onChange={(e) => setShowTaxBreakdown(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -1112,6 +1225,23 @@ export const POSPage = () => {
           </Button>
         </div>
       </Modal>
+
+      {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}
+      <QuickEditProductModal
+        product={editingProduct}
+        isOpen={isEditProductOpen}
+        onClose={() => setIsEditProductOpen(false)}
+        onSaved={(updated) => {
+          if (editingProduct) {
+            updateItemDetails(editingProduct.id, {
+              productName: updated.name,
+              sellingPrice: updated.sellingPrice,
+              taxRate: updated.taxRate,
+              priceIncludesGst: updated.priceIncludesGst,
+            })
+          }
+        }}
+      />
 
       <PrinterAnimationModal
         isOpen={isPrintingAnimating}

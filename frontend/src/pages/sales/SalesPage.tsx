@@ -13,7 +13,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth } from 'lucide-react'
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import type { Sale } from '@/types/sale.types'
@@ -43,10 +43,15 @@ export const SalesPage = () => {
   const handlePrint = () => {
     if (!printSale) return
 
-    const receiptConfig = settings?.receiptConfig
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = printSale.customerId
       ? customers?.find(c => c.id === printSale.customerId)?.name
       : ''
+
+    const paperSize = settings?.printerConfig?.paperSize || '58mm'
+    const paperWidth: '50mm' | '80mm' | '210mm' = printFormat === 'thermal'
+      ? (paperSize === '80mm' ? '80mm' : '50mm')
+      : '210mm'
 
     const receiptHTML = generateReceiptHTML({
       sale: printSale,
@@ -54,12 +59,13 @@ export const SalesPage = () => {
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       customerName,
-      width: printFormat === 'thermal' ? '50mm' : '210mm',
+      width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       invoiceConfig: settings?.invoiceConfig,
+      settingsTaxName: 'GST',
     })
 
-    printReceipt(receiptHTML, printFormat === 'thermal' ? '50mm' : '210mm', printSale.invoiceNumber, () => {
+    printReceipt(receiptHTML, paperWidth, printSale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
       setPrintSaleId(null)
     })
@@ -72,13 +78,14 @@ export const SalesPage = () => {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = settings?.receiptConfig
+      const receiptConfig = resolveEffectiveReceiptConfig(settings)
       const customerName = printSale.customerId
         ? customers?.find(c => c.id === printSale.customerId)?.name
         : ''
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale: printSale,
         receiptConfig,
+        paperSize: settings?.printerConfig?.paperSize || '58mm',
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
@@ -103,7 +110,7 @@ export const SalesPage = () => {
   const handleDownload = (saleId: string) => {
     const sale = sales?.find(s => s.id === saleId)
     if (!sale) return
-    const receiptConfig = settings?.receiptConfig
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = sale.customerId
       ? customers?.find(c => c.id === sale.customerId)?.name
       : ''
@@ -116,6 +123,7 @@ export const SalesPage = () => {
       width: '210mm',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       invoiceConfig: settings?.invoiceConfig,
+      settingsTaxName: 'GST',
     })
     const full = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${sale.invoiceNumber}</title>
 <style>body{margin:0;padding:16px;font-family:Arial,sans-serif;}</style></head><body>${html}</body></html>`

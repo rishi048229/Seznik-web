@@ -19,7 +19,6 @@ export const getTables = async (req: Request, res: Response) => {
       },
     });
 
-    // Compute occupied status based on active open orders
     const enriched = tables.map((t) => {
       const activeOrder = t.orders[0] || null;
       return {

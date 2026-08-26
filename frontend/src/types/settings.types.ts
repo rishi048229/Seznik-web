@@ -29,6 +29,7 @@ export interface InvoiceConfig {
 }
 
 export interface ReceiptConfig {
+  headerTitle?: string
   companyName: string
   address: string
   phone: string
@@ -38,32 +39,22 @@ export interface ReceiptConfig {
   termsLine1: string
   termsLine2: string
   termsLine3: string
+  compactMode?: boolean
   showLogo?: boolean
   showCompanyHeader?: boolean
   showAddress?: boolean
   showPhone?: boolean
   showGSTIN?: boolean
+  showCustomerDetails?: boolean
+  showInvoiceNoAndDate?: boolean
   showTaxBreakdown?: boolean
+  showSubtotalDiscount?: boolean
+  showFooterMessage?: boolean
+  showTerms?: boolean
+  showBarcode?: boolean
+  showPaymentQR?: boolean
+  paymentQrURL?: string
   upiId?: string
-}
-
-export type KotRoomType = 'none' | 'ac' | 'non_ac'
-
-export interface KotConfig {
-  defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
-  taxRate?: number
-  applyTaxOverride?: boolean
-  serviceChargeType?: 'percent' | 'flat'
-  serviceChargeValue?: number
-  acCharge?: number
-  nonAcCharge?: number
-  defaultRoomType?: KotRoomType
-  kotSlipTitle?: string
-  showWaiterOnSlip?: boolean
-}
-
-export interface LocationConfig {
-  enabled?: boolean
 }
 
 export interface PersonalInfo {
@@ -82,6 +73,7 @@ export type LabelElementType =
   | 'sideBySideBarcodeQr'
   | 'sku'
   | 'category'
+  | 'sequenceNo'
   | 'custom'
   | 'divider'
 
@@ -146,6 +138,30 @@ export interface PrinterConfig {
   invoiceShowTerms: boolean
   invoiceTermsText: string
   invoiceShowPaymentQR: boolean
+  paymentQrURL?: string
+  upiId?: string
+}
+
+// Multi-location inventory feature flag. Purely opt-in — when `enabled` is
+// false/undefined, no location selector renders anywhere and stock/price
+// behave exactly as a single-location install always has.
+export interface LocationConfig {
+  enabled?: boolean
+}
+
+export type KotRoomType = 'none' | 'ac' | 'non_ac'
+
+export interface KotConfig {
+  defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
+  taxRate?: number
+  applyTaxOverride?: boolean
+  serviceChargeType?: 'percent' | 'flat'
+  serviceChargeValue?: number
+  acCharge?: number
+  nonAcCharge?: number
+  defaultRoomType?: KotRoomType
+  kotSlipTitle?: string
+  showWaiterOnSlip?: boolean
 }
 
 export interface UserSettings {

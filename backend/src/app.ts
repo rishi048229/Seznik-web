@@ -3,7 +3,19 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import path from 'path';
+import dotenv from 'dotenv';
 import prisma from './config/db';
+
+// Ensure .env is loaded reliably from all potential root and parent paths
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
+dotenv.config({ path: '/home/ubuntu/Seznik-web/backend/.env' });
+dotenv.config({ path: '/home/ubuntu/Seznik-web/.env' });
+
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
 import settingsRoutes from './routes/settingsRoutes';
@@ -22,6 +34,9 @@ import restaurantTableRoutes from './routes/restaurantTableRoutes';
 import kotOrderRoutes from './routes/kotOrderRoutes';
 import locationRoutes from './routes/locationRoutes';
 const app = express();
+
+// Trust reverse proxy (Nginx / Cloudflare / AWS ALB) headers
+app.set('trust proxy', true);
 
 // 1. Security Headers via Helmet
 app.use(
@@ -96,6 +111,9 @@ app.get(['/health', '/api/health'], async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     const dbLatencyMs = Date.now() - startTime;
 
+    const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+    const hasAiKey = Boolean(rawKey && rawKey.trim().length >= 10);
+
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -103,6 +121,10 @@ app.get(['/health', '/api/health'], async (req, res) => {
       database: {
         status: 'connected',
         latencyMs: dbLatencyMs,
+      },
+      aiExtraction: {
+        configured: hasAiKey,
+        keyLength: hasAiKey ? rawKey.trim().length : 0,
       },
       environment: process.env.NODE_ENV || 'production',
       memoryUsageMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 100) / 100,

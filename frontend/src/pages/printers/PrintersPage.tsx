@@ -23,7 +23,9 @@ import {
   resolveElementText,
   type LabelData,
 } from '@/utils/labelPrint'
-import { generateReceiptEscPos } from '@/utils/receipt'
+import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { compileReceiptTextLines } from '@/utils/receiptEngine'
+import { getUpiQrImageUrl } from '@/utils/upiQr'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
@@ -36,6 +38,7 @@ import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { ImageUpload } from '@/components/forms/ImageUpload'
 import {
   Printer,
   QrCode,
@@ -57,6 +60,9 @@ import {
   Bold,
   Lock,
   Sparkles,
+  Zap,
+  Check,
+  Image as ImageIcon,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
@@ -69,8 +75,7 @@ const defaultPrinterConfig: PrinterConfig = {
   autoPrintOnSale: true,
   openCashDrawer: true,
   cutPaper: true,
-
-  paperSize: '80mm',
+  paperSize: '58mm',
   showLogo: true,
   showGSTIN: true,
   showCustomerDetails: true,
@@ -82,9 +87,11 @@ const defaultPrinterConfig: PrinterConfig = {
   labelOffsetX: 0,
   labelOffsetY: 0,
   labelDirection: 0,
-  labelBarcodeOffsetX: 4,
+  labelBarcodeOffsetX: 0,
   labelBarcodeType: 'CODE128',
-  labelDensity: 10,
+  labelBarcodeHeight: 40,
+  labelPrinterMode: 'tspl',
+  labelDensity: 8,
   labelTemplate: defaultLabelTemplate,
 
   invoicePaperSize: 'A4',
@@ -98,6 +105,7 @@ const defaultPrinterConfig: PrinterConfig = {
 // Mirrors SettingsPage's DEFAULT_SETTINGS.receiptConfig exactly, so both
 // pages fall back to the same values before any settings row exists.
 const defaultReceiptConfig: ReceiptConfig = {
+  headerTitle: 'TAX INVOICE',
   companyName: '',
   address: '',
   phone: '',
@@ -107,6 +115,18 @@ const defaultReceiptConfig: ReceiptConfig = {
   termsLine1: '1. Goods once sold will not be taken back or exchanged',
   termsLine2: '2. All disputes are subject to local jurisdiction only',
   termsLine3: '',
+  compactMode: false,
+  showCompanyHeader: true,
+  showAddress: true,
+  showPhone: true,
+  showGSTIN: true,
+  showCustomerDetails: true,
+  showInvoiceNoAndDate: true,
+  showTaxBreakdown: true,
+  showSubtotalDiscount: true,
+  showFooterMessage: true,
+  showTerms: true,
+  showBarcode: true,
 }
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
@@ -119,6 +139,7 @@ const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string
   sideBySideBarcodeQr: { label: 'Barcode + QR (Image 1)', icon: '📐' },
   sku: { label: 'SKU / Code', icon: '🔢' },
   category: { label: 'Category', icon: '📁' },
+  sequenceNo: { label: 'Consecutive Label No.', icon: '#️⃣' },
   custom: { label: 'Custom Text', icon: '✎' },
   divider: { label: 'Divider Line', icon: '➖' },
 }
@@ -195,7 +216,11 @@ export const PrintersPage = () => {
       setConfig(merged)
     }
 
-    setReceiptConfig({ ...defaultReceiptConfig, ...settings.receiptConfig })
+    const mergedReceipt = { ...defaultReceiptConfig, ...settings.receiptConfig }
+    if (!mergedReceipt.logoURL && settings.businessLogoURL) {
+      mergedReceipt.logoURL = settings.businessLogoURL
+    }
+    setReceiptConfig(mergedReceipt)
   }, [settings])
 
   // Save configuration to Database — writes printerConfig AND receiptConfig
@@ -210,7 +235,7 @@ export const PrintersPage = () => {
       businessAddress: settings?.businessAddress ?? '',
       businessPhone: settings?.businessPhone ?? '',
       businessGSTIN: settings?.businessGSTIN ?? '',
-      businessLogoURL: settings?.businessLogoURL ?? '',
+      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
       personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
       invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
       notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
@@ -372,29 +397,39 @@ export const PrintersPage = () => {
   // specifically for that output, so cross-firing them would print garbage.
   const handleTestPrint = async () => {
     trackUserAction('feature_test_print', { tab: activeTab, mode: config.labelPrinterMode })
-    if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
-      try {
-        if (activeTab === 'receipt') {
-          const testSale: Sale = {
-            id: 'test_sale',
-            invoiceNumber: 'INV-TEST01',
-            items: [
-              { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, discount: 0, taxRate: 18, taxAmount: 135.00, total: 885.00 }
-            ],
-            subtotal: 750.00,
-            totalDiscount: 0,
-            totalTax: 135.00,
-            grandTotal: 885.00,
-            paymentMethod: 'cash',
-            amountPaid: 1000.00,
-            changeReturned: 115.00,
-            isQuickBill: false,
-            createdAt: new Date().toISOString(),
 
-          }
-          const bytes = generateReceiptEscPos({
+    const effectiveReceiptConfig = {
+      ...receiptConfig,
+      showLogo: config.showLogo,
+      logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
+      showPaymentQR: receiptConfig.showPaymentQR ?? false,
+      paymentQrURL: receiptConfig.paymentQrURL || '',
+    }
+
+    if (activeTab === 'receipt') {
+      const testSale: Sale = {
+        id: 'test_sale',
+        invoiceNumber: 'INV-TEST01',
+        items: [
+          { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, discount: 0, taxRate: 18, taxAmount: 135.00, total: 885.00 },
+          { productId: 'p2', productName: 'USB-C Cable 1m', quantity: 2, sellingPrice: 200.00, discount: 0, taxRate: 18, taxAmount: 72.00, total: 472.00 },
+        ],
+        subtotal: 1150.00,
+        totalDiscount: 0,
+        totalTax: 207.00,
+        grandTotal: 1357.00,
+        paymentMethod: 'cash',
+        amountPaid: 1500.00,
+        changeReturned: 143.00,
+        isQuickBill: false,
+        createdAt: new Date().toISOString(),
+      }
+
+      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+        try {
+          const bytes = await generateReceiptEscPos({
             sale: testSale,
-            receiptConfig,
+            receiptConfig: effectiveReceiptConfig,
             paperSize: config.paperSize,
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
@@ -403,9 +438,30 @@ export const PrintersPage = () => {
           await printEscPos(bytes)
           toast.success('Test receipt sent to Bluetooth printer!')
           return
+        } catch (err) {
+          console.error('BLE Print error:', err)
+          toast.error('BLE print error. Falling back to browser print.')
         }
-        if (activeTab === 'label') {
-          const mode = config.labelPrinterMode || 'tspl'
+      }
+
+      const receiptHTML = generateReceiptHTML({
+        sale: testSale,
+        receiptConfig: effectiveReceiptConfig,
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        customerName: 'Sample Customer',
+        width: config.paperSize === '80mm' ? '80mm' : '50mm',
+        logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
+        settingsTaxName: 'GST',
+      })
+      printReceipt(receiptHTML, config.paperSize === '80mm' ? '80mm' : '50mm', 'Test Receipt')
+      return
+    }
+
+    if (activeTab === 'label') {
+      const mode = config.labelPrinterMode || 'tspl'
+      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+        try {
           const bytes = mode === 'tspl'
             ? generateLabelTspl(
                 config.labelTemplate,
@@ -423,113 +479,67 @@ export const PrintersPage = () => {
           await printEscPos(bytes)
           toast.success(`Label sent to printer in ${mode.toUpperCase()} mode!`)
           return
+        } catch (err) {
+          console.error('BLE Print error:', err)
+          toast.error('BLE print error. Falling back to browser print.')
         }
-        // Invoice tab falls through to the browser dialog below — no thermal
-        // printer can render an A4 sheet.
-      } catch (err) {
-        console.error('BLE Print error:', err)
-        toast.error('BLE print error. Falling back to browser print.')
       }
-    }
 
-    // Fallback: Browser Print Dialog
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      toast.error('Please allow popups to test printing')
+      // Browser label fallback
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        toast.error('Please allow popups to test printing')
+        return
+      }
+      const htmlContent = renderLabelHtml()
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+      setTimeout(() => {
+        printWindow.focus()
+        printWindow.print()
+      }, 500)
       return
     }
 
-    let htmlContent = ''
-    if (activeTab === 'receipt') {
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Test Receipt Print</title>
-          <style>
-            body { font-family: monospace; width: ${config.paperSize === '58mm' ? '58mm' : '80mm'}; margin: 0 auto; padding: 10px; }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .line { border-top: 1px dashed #000; margin: 8px 0; }
-            .row { display: flex; justify-content: space-between; }
-          </style>
-        </head>
-        <body>
-          <div class="center bold" style="font-size: 16px;">${receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}</div>
-          ${config.showGSTIN && receiptConfig.gstin ? `<div class="center">GSTIN: ${receiptConfig.gstin}</div>` : ''}
-          <div class="line"></div>
-          <div class="row"><span>Inv #: TEST-001</span><span>Date: ${new Date().toLocaleDateString()}</span></div>
-          ${config.showCustomerDetails ? `<div class="row"><span>Customer: John Doe</span><span>Phone: 9876543210</span></div>` : ''}
-          <div class="line"></div>
-          <div class="row bold"><span>Item</span><span>Qty</span><span>Amt</span></div>
-          <div class="row"><span>Wireless Mouse</span><span>1</span><span>₹750.00</span></div>
-          <div class="row"><span>USB-C Hub</span><span>2</span><span>₹1,800.00</span></div>
-          <div class="line"></div>
-          <div class="row bold"><span>Grand Total</span><span>₹2,550.00</span></div>
-          <div class="line"></div>
-          <div class="center">${receiptConfig.footerMessage}</div>
-          ${config.showBarcode ? `<div class="center" style="margin-top:10px; font-weight:bold;">||||||||||||||||||||||||||</div><div class="center" style="font-size:10px;">TEST-001</div>` : ''}
-        </body>
-        </html>
-      `
-    } else if (activeTab === 'label') {
-      htmlContent = renderLabelHtml()
-    } else {
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Test A4 Invoice</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0a0a2e; padding-bottom: 20px; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .table th, .table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-            .table th { background: #0a0a2e; color: #fff; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <h1 style="color:#0a0a2e; margin:0;">${receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}</h1>
-              <p style="margin:5px 0;">Retail & Wholesale Inventory Solutions</p>
-            </div>
-            <div style="text-align:right;">
-              <h2>INVOICE</h2>
-              <p>Invoice #: INV-2026-0089</p>
-              <p>Date: ${new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-          <table class="table">
-            <thead>
-              <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Tax</th><th>Total</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Seznik POS Terminal Machine</td><td>1</td><td>₹25,000.00</td><td>18%</td><td>₹29,500.00</td></tr>
-              <tr><td>Thermal Paper Roll 80mm (Pack of 10)</td><td>5</td><td>₹450.00</td><td>18%</td><td>₹2,655.00</td></tr>
-            </tbody>
-          </table>
-          <h3 style="text-align:right; margin-top:20px;">Grand Total: ₹32,155.00</h3>
-        </body>
-        </html>
-      `
+    // Invoice Tab
+    const testInvoiceSale: Sale = {
+      id: 'test_invoice',
+      invoiceNumber: 'INV-2026-0089',
+      items: [
+        { productId: 'p1', productName: 'Seznik POS Terminal Machine', quantity: 1, sellingPrice: 25000.00, discount: 0, taxRate: 18, taxAmount: 4500.00, total: 29500.00 },
+        { productId: 'p2', productName: 'Thermal Paper Roll 80mm (Pack of 10)', quantity: 5, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 405.00, total: 2655.00 },
+      ],
+      subtotal: 27250.00,
+      totalDiscount: 0,
+      totalTax: 4905.00,
+      grandTotal: 32155.00,
+      paymentMethod: 'cash',
+      amountPaid: 32155.00,
+      changeReturned: 0,
+      isQuickBill: false,
+      createdAt: new Date().toISOString(),
     }
-
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
+    const invoiceHTML = generateReceiptHTML({
+      sale: testInvoiceSale,
+      receiptConfig: effectiveReceiptConfig,
+      businessName: settings?.businessName,
+      businessAddress: settings?.businessAddress,
+      customerName: 'Sample Corporate Client',
+      width: '210mm',
+      logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
+      settingsTaxName: 'GST',
+    })
+    printReceipt(invoiceHTML, '210mm', 'Test Invoice')
   }
 
   if (isLoading) {
     return <SettingsPageSkeleton />
   }
 
+  const previewPaperMaxPx = config.paperSize === '80mm' ? 360 : 280
+
   return (
-    <div className="space-y-5 pb-12 w-full max-w-full overflow-hidden">
+    <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Top Header & Quick Actions */}
       <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3">
@@ -653,7 +663,7 @@ export const PrintersPage = () => {
 
       {/* Tab 1: Thermal Receipt Settings & Live Preview */}
       {activeTab === 'receipt' && (
-        <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+        <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
           <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -696,6 +706,47 @@ export const PrintersPage = () => {
                 >
                   <option value="bluetooth">Bluetooth Printer</option>
                   <option value="system_driver">Browser Print Dialog</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Ultra-Compact Paper Saver Mode Banner */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-900/10 via-teal-900/10 to-blue-900/10 dark:from-emerald-900/30 dark:via-teal-900/30 dark:to-blue-900/30 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>⚡ Compact Paper Saver Mode (Reduces 1-product & batch receipts by 50-70% height)</span>
+              </div>
+              <Switch
+                checked={receiptConfig.compactMode ?? false}
+                onChange={v => setReceiptConfig(prev => ({ ...prev, compactMode: v }))}
+                label="Compact Mode"
+              />
+            </div>
+
+            {/* Custom Header Title Input */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                Receipt Header Title
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                  onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
+                  placeholder="e.g. TAX INVOICE, RETAIL BILL, ESTIMATE"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100"
+                />
+                <select
+                  value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                  onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold text-gray-900 dark:text-gray-100"
+                >
+                  <option value="TAX INVOICE">TAX INVOICE</option>
+                  <option value="RETAIL BILL">RETAIL BILL</option>
+                  <option value="BILL OF SUPPLY">BILL OF SUPPLY</option>
+                  <option value="ESTIMATE / QUOTATION">ESTIMATE</option>
+                  <option value="CASH MEMO">CASH MEMO</option>
+                  <option value="">None (Hide Header Title)</option>
                 </select>
               </div>
             </div>
@@ -774,116 +825,339 @@ export const PrintersPage = () => {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo" info={<FieldInfo textKey="tip.printer.showLogo" />} />
-              <Switch checked={config.showGSTIN} onChange={v => setConfig(prev => ({ ...prev, showGSTIN: v }))} label="GSTIN / Tax number" info={<FieldInfo textKey="tip.printer.showGSTIN" />} />
-              <Switch checked={config.showCustomerDetails} onChange={v => setConfig(prev => ({ ...prev, showCustomerDetails: v }))} label="Customer details" info={<FieldInfo textKey="tip.printer.showCustomerDetails" />} />
-              <Switch checked={config.showBarcode} onChange={v => setConfig(prev => ({ ...prev, showBarcode: v }))} label="Invoice barcode" info={<FieldInfo textKey="tip.printer.showBarcode" />} />
-              <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
-              <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
-              <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
+            {/* Fully Customizable Section Include / Exclude Checkboxes */}
+            <div className="border border-gray-200 dark:border-gray-700 rounded-2xl p-4 bg-gray-50/50 dark:bg-gray-800/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                  Customizable Receipt Sections (Include / Exclude)
+                </span>
+                <div className="flex gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceiptConfig(prev => ({
+                        ...prev,
+                        showCompanyHeader: true,
+                        showAddress: true,
+                        showPhone: true,
+                        showGSTIN: true,
+                        showCustomerDetails: true,
+                        showInvoiceNoAndDate: true,
+                        showSubtotalDiscount: true,
+                        showTaxBreakdown: true,
+                        showFooterMessage: true,
+                        showTerms: true,
+                        showBarcode: true,
+                        compactMode: false
+                      }))
+                      setConfig(prev => ({ ...prev, showLogo: true, showGSTIN: true, showCustomerDetails: true, showBarcode: true }))
+                    }}
+                    className="text-purple-600 dark:text-purple-400 hover:underline font-bold"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceiptConfig(prev => ({
+                        ...prev,
+                        showCompanyHeader: true,
+                        showAddress: false,
+                        showPhone: false,
+                        showGSTIN: false,
+                        showCustomerDetails: false,
+                        showInvoiceNoAndDate: true,
+                        showSubtotalDiscount: false,
+                        showTaxBreakdown: false,
+                        showFooterMessage: false,
+                        showTerms: false,
+                        showBarcode: false,
+                        compactMode: true
+                      }))
+                      setConfig(prev => ({ ...prev, showLogo: false, showGSTIN: false, showCustomerDetails: false, showBarcode: false }))
+                    }}
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
+                  >
+                    Ultra-Compact Paper Saver Preset
+                  </button>
+                </div>
+              </div>
+
+              {/* Store Logo Graphic Section */}
+              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                      <ImageIcon size={16} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Store Logo Graphic</span>
+                      <p className="text-[11px] text-gray-500">Print business logo image at the top of receipts & invoices</p>
+                    </div>
+                  </div>
+                  <Switch
+                    label="Enable Store Logo Graphic"
+                    checked={config.showLogo}
+                    onChange={v => {
+                      setConfig(prev => ({ ...prev, showLogo: v }))
+                      setReceiptConfig(prev => ({ ...prev, showLogo: v }))
+                    }}
+                    info={<FieldInfo textKey="tip.printer.showLogo" />}
+                  />
+                </div>
+                {config.showLogo && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                    <ImageUpload
+                      label="Store Logo Image (PNG / JPG / WebP)"
+                      value={receiptConfig.logoURL || settings?.businessLogoURL || ''}
+                      onChange={(url) => {
+                        setReceiptConfig(prev => ({ ...prev, logoURL: url, showLogo: true }))
+                        setConfig(prev => ({ ...prev, showLogo: true }))
+                      }}
+                      previewSize="md"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    />
+                    <p className="text-[11px] text-gray-400">
+                      Upload your high-contrast brand logo. It will appear at the top of all thermal and full-sheet invoices.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Content & Information Toggles */}
+              <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
+                <Switch
+                  checked={receiptConfig.showCompanyHeader ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showCompanyHeader: v }))}
+                  label="Company Name & Title Header"
+                />
+                <Switch
+                  checked={receiptConfig.showAddress ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showAddress: v }))}
+                  label="Business Address line"
+                />
+                <Switch
+                  checked={receiptConfig.showPhone ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showPhone: v }))}
+                  label="Business Phone Number line"
+                />
+                <Switch
+                  checked={receiptConfig.showGSTIN ?? true}
+                  onChange={v => {
+                    setReceiptConfig(prev => ({ ...prev, showGSTIN: v }))
+                    setConfig(prev => ({ ...prev, showGSTIN: v }))
+                  }}
+                  label="GSTIN / Tax Registration Number"
+                  info={<FieldInfo textKey="tip.printer.showGSTIN" />}
+                />
+                <Switch
+                  checked={receiptConfig.showCustomerDetails ?? true}
+                  onChange={v => {
+                    setReceiptConfig(prev => ({ ...prev, showCustomerDetails: v }))
+                    setConfig(prev => ({ ...prev, showCustomerDetails: v }))
+                  }}
+                  label="Customer Name & Mobile Number"
+                  info={<FieldInfo textKey="tip.printer.showCustomerDetails" />}
+                />
+                <Switch
+                  checked={receiptConfig.showInvoiceNoAndDate ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showInvoiceNoAndDate: v }))}
+                  label="Invoice Number & Date Header"
+                />
+                <Switch
+                  checked={receiptConfig.showSubtotalDiscount ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showSubtotalDiscount: v }))}
+                  label="Subtotal & Item Discount breakdown"
+                />
+                <Switch
+                  checked={receiptConfig.showTaxBreakdown ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showTaxBreakdown: v }))}
+                  label="SGST / CGST Tax breakdown lines"
+                />
+                <Switch
+                  checked={receiptConfig.showFooterMessage ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showFooterMessage: v }))}
+                  label="Footer Thank You message"
+                />
+                <Switch
+                  checked={receiptConfig.showTerms ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showTerms: v }))}
+                  label="Terms & Conditions lines"
+                />
+                <Switch
+                  checked={receiptConfig.showBarcode ?? true}
+                  onChange={v => {
+                    setReceiptConfig(prev => ({ ...prev, showBarcode: v }))
+                    setConfig(prev => ({ ...prev, showBarcode: v }))
+                  }}
+                  label="Bottom Invoice Barcode / Identifier graphic"
+                  info={<FieldInfo textKey="tip.printer.showBarcode" />}
+                />
+              </div>
+
+              {/* Payment QR Code (UPI / QR Pay) Section */}
+              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <QrCode size={16} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Payment QR Code (UPI / QR Pay)</span>
+                      <p className="text-[11px] text-gray-500">Print UPI QR code image on bills for direct customer payments</p>
+                    </div>
+                  </div>
+                  <Switch
+                    label="Enable Payment QR Code on Bills"
+                    checked={receiptConfig.showPaymentQR ?? false}
+                    onChange={v => {
+                      setReceiptConfig(prev => ({ ...prev, showPaymentQR: v }))
+                      setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))
+                    }}
+                  />
+                </div>
+                {receiptConfig.showPaymentQR && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1 block">
+                        UPI ID for live QR (recommended)
+                      </label>
+                      <input
+                        type="text"
+                        value={receiptConfig.upiId || ''}
+                        onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                        placeholder="yourname@okhdfcbank"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Generates a real QR encoding the exact bill amount, live at checkout and on every printed
+                        receipt — this is your actual UPI ID, not a phone number.
+                      </p>
+                    </div>
+                    <ImageUpload
+                      label="Or upload a static Payment QR Code image (PNG / JPG)"
+                      value={receiptConfig.paymentQrURL || ''}
+                      onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
+                      previewSize="md"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                    />
+                    <p className="text-[11px] text-gray-400">
+                      Used only as a fallback when no UPI ID is set above — a fixed image (e.g. a GPay/PhonePe QR
+                      screenshot) that doesn't encode the bill amount.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Hardware Actions */}
+              <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
+                <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
+                <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
+                <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
+              </div>
             </div>
           </div>
 
-          {/* Live Preview Panel */}
-          <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
-            <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview — {config.paperSize}</span>
-            <div
-              className={`bg-white text-gray-900 p-6 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono text-xs transition-all duration-300 ${
-                config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'
-              }`}
-              style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
-            >
-              <div className="text-center space-y-1 pb-3 border-b border-dashed border-gray-400">
-                {config.showLogo && (
-                  <div className="w-10 h-10 bg-indigo-950 text-white rounded-lg flex items-center justify-center font-extrabold mx-auto mb-1">
-                    S
+          {/* Live Preview Panel — 100% Reactive to all Section Toggles */}
+          <div className="w-full lg:w-5/12 flex flex-col min-w-0 max-w-full self-start lg:sticky lg:top-6">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Live Preview — {config.paperSize}</span>
+              {receiptConfig.compactMode && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                  ⚡ Compact Mode
+                </span>
+              )}
+            </div>
+
+            <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 p-3 sm:p-4 overflow-hidden">
+              <div className="max-h-[min(640px,calc(100dvh-12rem))] overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin">
+                <div
+                  className="mx-auto flex flex-col items-stretch max-w-full min-w-0"
+                  style={{ width: `min(100%, ${previewPaperMaxPx}px)` }}
+                >
+              <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden min-w-0">
+                {/* Live Store Logo Preview */}
+                {config.showLogo && (receiptConfig.logoURL || settings?.businessLogoURL) && (
+                  <div className="flex justify-center px-3 pt-3 pb-2 border-b border-dashed border-gray-300">
+                    <img
+                      src={receiptConfig.logoURL || settings?.businessLogoURL}
+                      alt="Store Logo"
+                      className="max-h-12 max-w-[70%] object-contain"
+                    />
                   </div>
                 )}
-                <h4 className="font-extrabold text-sm uppercase tracking-tight text-slate-900">
-                  {receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}
-                </h4>
-                {receiptConfig.address && <p className="text-[10px] text-gray-600">{receiptConfig.address}</p>}
-                {config.showGSTIN && (
-                  <p className="text-[10px] font-semibold text-gray-700">
-                    GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}
-                  </p>
+
+                        <pre
+                          className="m-0 px-2.5 py-2 whitespace-pre font-mono text-gray-900 overflow-x-hidden"
+                          style={{
+                            width: '100%',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                            fontSize: config.paperSize === '80mm' ? '10.5px' : '10px',
+                            lineHeight: 1.35,
+                            fontVariantNumeric: 'tabular-nums',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          }}
+                        >
+                  {compileReceiptTextLines({
+                    sale: {
+                      id: 'preview-1',
+                      invoiceNumber: 'INV/2026/00142',
+                      items: [
+                        { productId: 'p1', productName: 'Wireless Keyboard', quantity: 1, sellingPrice: 1499, discount: 0, taxRate: 18, taxAmount: 228.66, total: 1499 },
+                        { productId: 'p2', productName: 'Optical Mouse Pro', quantity: 2, sellingPrice: 600, discount: 0, taxRate: 18, taxAmount: 183.05, total: 1200 },
+                        { productId: 'p3', productName: 'Fresh Milk 1L', quantity: 2, sellingPrice: 30, discount: 0, taxRate: 0, taxAmount: 0, total: 60 },
+                      ],
+                      subtotal: 2759,
+                      totalDiscount: 0,
+                      totalTax: 411.71,
+                      grandTotal: 2759,
+                      paymentMethod: 'cash',
+                      amountPaid: 2759,
+                      changeReturned: 0,
+                      isQuickBill: false,
+                      createdAt: new Date().toISOString(),
+                    },
+                    receiptConfig,
+                    businessName: settings?.businessName || 'SEZNIK POS STORE',
+                    businessAddress: receiptConfig.address || settings?.businessAddress || '123 MG Road, Kothrud',
+                    businessPhone: receiptConfig.phone || '9876543210',
+                    businessGSTIN: receiptConfig.gstin || '27AAAAA0000A1Z5',
+                    customerName: 'Rahul Sharma',
+                    paperSize: config.paperSize === '80mm' ? '80mm' : '58mm',
+                  }).join('\n')}
+                </pre>
+
+                {/* Live Payment QR Code Preview */}
+                {receiptConfig.showPaymentQR && (receiptConfig.upiId || receiptConfig.paymentQrURL) && (
+                  <div className="px-2.5 pb-2 pt-2 border-t border-dashed border-gray-300 text-center flex flex-col items-center min-w-0">
+                    <span className="text-[9px] font-bold tracking-wider text-gray-800 mb-1 break-words">SCAN TO PAY ₹2,759.00 (UPI / QR)</span>
+                    <img
+                      src={receiptConfig.upiId ? getUpiQrImageUrl({ upiId: receiptConfig.upiId, payeeName: settings?.businessName || 'SEZNIK POS STORE', amount: 2759, note: 'INV/2026/00142' }, 140) : receiptConfig.paymentQrURL}
+                      alt="Payment QR Code"
+                      className="w-24 h-24 max-w-full object-contain border border-gray-200 rounded p-1 bg-white"
+                    />
+                  </div>
                 )}
               </div>
-
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-0.5 text-[10px]">
-                <div className="flex justify-between">
-                  <span>Inv: #INV-2026-9042</span>
-                  <span>{new Date().toLocaleDateString()}</span>
+              <div
+                className="h-3 w-full bg-white shrink-0"
+                style={{
+                  backgroundImage: 'radial-gradient(circle at 6px 12px, rgb(241 245 249) 6px, transparent 6.5px)',
+                  backgroundSize: '12px 12px',
+                  backgroundRepeat: 'repeat-x',
+                  backgroundPosition: '0 -6px',
+                }}
+              />
+              {config.cutPaper && (
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2.5 pb-1">
+                  <Scissors size={12} /> Auto paper cutter enabled
                 </div>
-                {config.showCustomerDetails && (
-                  <div className="flex justify-between text-gray-600">
-                    <span>Cust: Rahul Sharma</span>
-                    <span>Ph: +91 98765 43210</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="py-3 border-b border-dashed border-gray-400">
-                <div className="flex justify-between font-bold pb-1 text-[11px]">
-                  <span>Item</span>
-                  <div className="space-x-3">
-                    <span>Qty</span>
-                    <span>Amt</span>
-                  </div>
+              )}
                 </div>
-                <div className="space-y-1 text-[10px]">
-                  <div className="flex justify-between">
-                    <span className="truncate max-w-[110px]">Wireless Keyboard</span>
-                    <div className="space-x-3">
-                      <span>1</span>
-                      <span>₹1,499</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="truncate max-w-[110px]">Optical Mouse Pro</span>
-                    <div className="space-x-3">
-                      <span>2</span>
-                      <span>₹1,200</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-1 text-[11px]">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>₹2,699.00</span>
-                </div>
-                <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>GST (18%)</span>
-                  <span>₹485.82</span>
-                </div>
-                <div className="flex justify-between font-extrabold text-sm pt-1 border-t border-gray-300">
-                  <span>GRAND TOTAL</span>
-                  <span>₹3,184.82</span>
-                </div>
-              </div>
-
-              <div className="pt-3 text-center space-y-2">
-                <p className="text-[10px] text-gray-600 italic">{receiptConfig.footerMessage}</p>
-                {config.showBarcode && (
-                  <div className="pt-1">
-                    <div className="font-extrabold tracking-widest text-sm text-gray-800">||||| | |||| |||| |||||</div>
-                    <span className="text-[9px] font-mono text-gray-500">INV-2026-9042</span>
-                  </div>
-                )}
               </div>
             </div>
-            <div
-              className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'}`}
-              style={{ backgroundImage: 'radial-gradient(circle, transparent, transparent 50%, #f1f5f9 50%, #f1f5f9 100%)', backgroundSize: '12px 12px' }}
-            />
-            {config.cutPaper && (
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2">
-                <Scissors size={12} /> Auto paper cutter enabled
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1234,11 +1508,11 @@ export const PrintersPage = () => {
             </div>
 
             {/* Live Preview */}
-            <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+            <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
               <span className="text-xs font-semibold text-gray-400 mb-3">
                 Live Preview — {config.labelWidth}mm × {config.labelHeight}mm
               </span>
-              <div className="p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px]">
+              <div className="p-6 sm:p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px] max-w-full overflow-hidden relative">
                 <div
                   className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
                   style={{
@@ -1362,9 +1636,9 @@ export const PrintersPage = () => {
             </div>
           </div>
 
-          <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
             <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview</span>
-            <div className="w-[320px] bg-white text-gray-900 p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between">
+            <div className="w-full max-w-[320px] bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
               <div>
                 <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
                   <div>

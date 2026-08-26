@@ -79,6 +79,7 @@ export function getBluetoothUnsupportedReason(): string {
 let device: BluetoothDevice | null = null
 let characteristic: BluetoothRemoteGATTCharacteristic | null = null
 let supportsWriteWithResponse = true
+let supportsWriteWithoutResponse = false
 
 let state: BlePrinterState = {
   status: isBluetoothSupported() ? 'disconnected' : 'unsupported',
@@ -155,7 +156,9 @@ async function connectToDevice(dev: BluetoothDevice): Promise<void> {
 
   device = dev
   characteristic = char
-  supportsWriteWithResponse = !!((char as unknown as { properties?: { write?: boolean } })?.properties?.write)
+  const props = (char as unknown as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
+  supportsWriteWithoutResponse = !!props?.writeWithoutResponse
+  supportsWriteWithResponse = !!props?.write
   setState({ status: 'connected', deviceName: dev.name ?? 'Printer', profileName: profile.name })
 }
 
@@ -205,15 +208,16 @@ export async function printEscPos(bytes: Uint8Array): Promise<void> {
 
   setState({ status: 'printing' })
   try {
+    // Prefer writeWithoutResponse with short 3ms pacing — eliminates 30-50ms round-trip
+    // GATT ACK latency stalls per 20 bytes and streams bitmap logos smoothly to thermal printers.
+    const useFastStream = supportsWriteWithoutResponse
     for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
       const chunk = bytes.slice(offset, offset + CHUNK_SIZE)
-      if (supportsWriteWithResponse) {
-        await characteristic.writeValueWithResponse(chunk)
-      } else {
-        // Without link-layer acks the printer's buffer can overflow; pace the
-        // writes slightly like the vendor SDKs do.
+      if (useFastStream) {
         await characteristic.writeValueWithoutResponse(chunk)
-        await new Promise(resolve => setTimeout(resolve, 10))
+        await new Promise(resolve => setTimeout(resolve, 3))
+      } else {
+        await characteristic.writeValueWithResponse(chunk)
       }
     }
   } finally {
