@@ -24,8 +24,6 @@ import {
   type LabelData,
 } from '@/utils/labelPrint'
 import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { compileReceiptTextLines } from '@/utils/receiptEngine'
-import { getUpiQrImageUrl } from '@/utils/upiQr'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
@@ -39,6 +37,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { ImageUpload } from '@/components/forms/ImageUpload'
+import { ReceiptLivePreview } from './components/ReceiptLivePreview'
 import {
   Printer,
   QrCode,
@@ -48,7 +47,6 @@ import {
   Save,
   Bluetooth,
   Monitor,
-  Scissors,
   Layers,
   Unplug,
   ArrowUp,
@@ -534,8 +532,6 @@ export const PrintersPage = () => {
   if (isLoading) {
     return <SettingsPageSkeleton />
   }
-
-  const previewPaperMaxPx = config.paperSize === '80mm' ? 360 : 280
 
   return (
     <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
@@ -1069,94 +1065,13 @@ export const PrintersPage = () => {
               )}
             </div>
 
-            <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 p-3 sm:p-4 overflow-hidden">
-              <div className="max-h-[min(640px,calc(100dvh-12rem))] overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin">
-                <div
-                  className="mx-auto flex flex-col items-stretch max-w-full min-w-0"
-                  style={{ width: `min(100%, ${previewPaperMaxPx}px)` }}
-                >
-              <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden min-w-0">
-                {/* Live Store Logo Preview */}
-                {config.showLogo && (receiptConfig.logoURL || settings?.businessLogoURL) && (
-                  <div className="flex justify-center px-3 pt-3 pb-2 border-b border-dashed border-gray-300">
-                    <img
-                      src={receiptConfig.logoURL || settings?.businessLogoURL}
-                      alt="Store Logo"
-                      className="max-h-12 max-w-[70%] object-contain"
-                    />
-                  </div>
-                )}
-
-                        <pre
-                          className="m-0 px-2.5 py-2 whitespace-pre font-mono text-gray-900 overflow-x-hidden"
-                          style={{
-                            width: '100%',
-                            maxWidth: '100%',
-                            boxSizing: 'border-box',
-                            fontSize: config.paperSize === '80mm' ? '10.5px' : '10px',
-                            lineHeight: 1.35,
-                            fontVariantNumeric: 'tabular-nums',
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                          }}
-                        >
-                  {compileReceiptTextLines({
-                    sale: {
-                      id: 'preview-1',
-                      invoiceNumber: 'INV/2026/00142',
-                      items: [
-                        { productId: 'p1', productName: 'Wireless Keyboard', quantity: 1, sellingPrice: 1499, discount: 0, taxRate: 18, taxAmount: 228.66, total: 1499 },
-                        { productId: 'p2', productName: 'Optical Mouse Pro', quantity: 2, sellingPrice: 600, discount: 0, taxRate: 18, taxAmount: 183.05, total: 1200 },
-                        { productId: 'p3', productName: 'Fresh Milk 1L', quantity: 2, sellingPrice: 30, discount: 0, taxRate: 0, taxAmount: 0, total: 60 },
-                      ],
-                      subtotal: 2759,
-                      totalDiscount: 0,
-                      totalTax: 411.71,
-                      grandTotal: 2759,
-                      paymentMethod: 'cash',
-                      amountPaid: 2759,
-                      changeReturned: 0,
-                      isQuickBill: false,
-                      createdAt: new Date().toISOString(),
-                    },
-                    receiptConfig,
-                    businessName: settings?.businessName || 'SEZNIK POS STORE',
-                    businessAddress: receiptConfig.address || settings?.businessAddress || '123 MG Road, Kothrud',
-                    businessPhone: receiptConfig.phone || '9876543210',
-                    businessGSTIN: receiptConfig.gstin || '27AAAAA0000A1Z5',
-                    customerName: 'Rahul Sharma',
-                    paperSize: config.paperSize === '80mm' ? '80mm' : '58mm',
-                  }).join('\n')}
-                </pre>
-
-                {/* Live Payment QR Code Preview */}
-                {receiptConfig.showPaymentQR && (receiptConfig.upiId || receiptConfig.paymentQrURL) && (
-                  <div className="px-2.5 pb-2 pt-2 border-t border-dashed border-gray-300 text-center flex flex-col items-center min-w-0">
-                    <span className="text-[9px] font-bold tracking-wider text-gray-800 mb-1 break-words">SCAN TO PAY ₹2,759.00 (UPI / QR)</span>
-                    <img
-                      src={receiptConfig.upiId ? getUpiQrImageUrl({ upiId: receiptConfig.upiId, payeeName: settings?.businessName || 'SEZNIK POS STORE', amount: 2759, note: 'INV/2026/00142' }, 140) : receiptConfig.paymentQrURL}
-                      alt="Payment QR Code"
-                      className="w-24 h-24 max-w-full object-contain border border-gray-200 rounded p-1 bg-white"
-                    />
-                  </div>
-                )}
-              </div>
-              <div
-                className="h-3 w-full bg-white shrink-0"
-                style={{
-                  backgroundImage: 'radial-gradient(circle at 6px 12px, rgb(241 245 249) 6px, transparent 6.5px)',
-                  backgroundSize: '12px 12px',
-                  backgroundRepeat: 'repeat-x',
-                  backgroundPosition: '0 -6px',
-                }}
-              />
-              {config.cutPaper && (
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2.5 pb-1">
-                  <Scissors size={12} /> Auto paper cutter enabled
-                </div>
-              )}
-                </div>
-              </div>
-            </div>
+            <ReceiptLivePreview
+              paperSize={config.paperSize === '80mm' ? '80mm' : '58mm'}
+              receiptConfig={receiptConfig}
+              settings={settings}
+              showLogo={!!config.showLogo}
+              cutPaper={!!config.cutPaper}
+            />
           </div>
         </div>
       )}
