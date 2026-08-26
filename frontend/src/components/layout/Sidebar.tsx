@@ -32,6 +32,7 @@ import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { GstBillingSettingsModal } from '@/components/billing/GstBillingSettingsModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useTheme } from '@/contexts/ThemeContext'
 import type { TranslationKey } from '@/i18n/translations'
 import { isNavFeatureVisible } from '@/utils/businessFeatures'
 import { isRestaurantBusiness, type NavFeatureId } from '@/constants/businessTypes'
@@ -80,6 +81,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { data: settings } = useSettings()
   const { user, userProfile, permissions } = useAuth()
   const { t } = useLanguage()
+  const { isDark } = useTheme()
   const lowStockCount = products?.filter(p => p.currentStock <= p.lowStockThreshold).length ?? 0
 
   const displayName = settings?.businessName || userProfile?.businessName || userProfile?.displayName || user?.displayName || 'User'
@@ -150,8 +152,12 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               </div>
             )}
             <div className={clsx(collapsed && 'lg:hidden')}>
-              <img src="/seznik_logo.png" alt="Seznik" style={{ width: '8rem', height: 'auto', objectFit: 'contain', }} />
-              <div style={{ fontSize: '0.725rem', fontWeight: 500, color: '#94a3b8', letterSpacing: '0.05em' }}>
+              <img
+                src={isDark ? '/seznik_white_logo.png' : '/seznik_logo.png'}
+                alt="Seznik"
+                className="w-32 h-auto object-contain"
+              />
+              <div className="text-[0.725rem] font-medium text-slate-400 tracking-wider">
                 {isRestaurantBusiness(userProfile?.businessType) ? 'RESTAURANT & CAFE POS' : 'PREMIUM RETAIL POS'}
               </div>
             </div>
