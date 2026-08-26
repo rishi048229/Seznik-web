@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -15,7 +15,10 @@ import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles } from 'lucide-react'
+import { KotSettingsFields } from '@/pages/kot/components/KotSettingsFields'
+import { mergeKotConfig } from '@/pages/kot/kotConfig'
+import type { KotConfig } from '@/types/settings.types'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const DEFAULT_SETTINGS = {
@@ -47,6 +50,7 @@ export const SettingsPage = () => {
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
   const [prevLogo, setPrevLogo] = useState(settings?.businessLogoURL ?? '')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
+  const [kotForm, setKotForm] = useState<Required<KotConfig>>(() => mergeKotConfig(undefined))
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
@@ -58,10 +62,15 @@ export const SettingsPage = () => {
     setBusinessLogo(current.businessLogoURL ?? '')
   }
 
+  useEffect(() => {
+    setKotForm(mergeKotConfig(settings?.kotConfig))
+  }, [settings])
+
   const settingsTabs = [
     { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: t('settings.descBusiness') },
     { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: t('settings.descPersonal') },
     { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: t('settings.descInvoice') },
+    { key: 'kot', label: 'Kitchen / KOT', icon: ChefHat, description: 'Cafe, restaurant, charges, and kitchen slips' },
     { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: t('settings.descNotifications') },
     { key: 'permissions', label: t('settings.permissions'), icon: Users, description: t('settings.descPermissions') },
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
@@ -178,6 +187,9 @@ export const SettingsPage = () => {
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
         })
+        break
+      case 'kot':
+        handleSave('Kitchen / KOT', { kotConfig: kotForm })
         break
       case 'notifications':
         handleSave(t('settings.notifications'), {
@@ -444,6 +456,16 @@ export const SettingsPage = () => {
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('invoice')} loading={isPending} className="w-full sm:w-auto">
                     {hasSettings ? t('settings.updateInvoiceSettings') : t('settings.saveInvoiceSettings')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {activeTab === 'kot' && (
+              <div className="space-y-4 max-w-2xl">
+                <KotSettingsFields value={kotForm} onChange={setKotForm} />
+                <div className="pt-2">
+                  <Button onClick={() => handleTabSave('kot')} loading={isPending} className="w-full sm:w-auto">
+                    Save kitchen settings
                   </Button>
                 </div>
               </div>

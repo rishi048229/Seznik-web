@@ -2,8 +2,9 @@ import { Check, Clock, Minus, Plus, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { formatINR } from '@/utils/currency'
 import { formatSentTime } from '../kotUtils'
-import { ORDER_TYPE_OPTIONS } from '../kotConfig'
+import { visibleOrderTypes } from '../kotConfig'
 import type { KOTDraftItem, KOTOrderItem, KOTOrderType } from '@/types/kot.types'
+import type { KotConfig } from '@/types/settings.types'
 
 interface OrderTicketPanelProps {
   tableName: string
@@ -12,6 +13,8 @@ interface OrderTicketPanelProps {
   onOrderTypeChange: (type: KOTOrderType) => void
   waiterName: string
   onWaiterChange: (value: string) => void
+  showWaiter?: boolean
+  allowedOrderTypes?: KotConfig['allowedOrderTypes']
   sentItems: KOTOrderItem[]
   unprintedServerItems: KOTOrderItem[]
   pendingItems: KOTDraftItem[]
@@ -29,6 +32,8 @@ export const OrderTicketPanel = ({
   onOrderTypeChange,
   waiterName,
   onWaiterChange,
+  showWaiter = true,
+  allowedOrderTypes,
   sentItems,
   unprintedServerItems,
   pendingItems,
@@ -39,6 +44,7 @@ export const OrderTicketPanel = ({
   grandTotal,
 }: OrderTicketPanelProps) => {
   const newCount = unprintedServerItems.length + pendingItems.length
+  const typeOptions = visibleOrderTypes({ allowedOrderTypes })
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -49,28 +55,31 @@ export const OrderTicketPanel = ({
             <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">#KOT-{orderNumber}</span>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-1">
-          {ORDER_TYPE_OPTIONS.map((opt) => (
+        <div className={`grid gap-1 ${typeOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {typeOptions.map((opt) => (
             <button
               key={opt.id}
               type="button"
               onClick={() => onOrderTypeChange(opt.id)}
-              className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold border ${
+              className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-colors duration-150 ${
                 orderType === opt.id
-                  ? 'border-[#0a0a2e] bg-[#0a0a2e] text-white'
-                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                  ? 'bg-[#0a0a2e] text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
+              aria-pressed={orderType === opt.id}
             >
               {opt.label}
             </button>
           ))}
         </div>
-        <Input
-          placeholder="Waiter / server name"
-          value={waiterName}
-          onChange={(e) => onWaiterChange(e.target.value)}
-          className="h-9 text-sm"
-        />
+        {showWaiter && (
+          <Input
+            placeholder="Waiter / server name"
+            value={waiterName}
+            onChange={(e) => onWaiterChange(e.target.value)}
+            className="h-9 text-sm"
+          />
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">

@@ -83,7 +83,7 @@ export const MenuPicker = ({
                   type="button"
                   onClick={() => !out && onPick(product)}
                   disabled={out}
-                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 transition-colors duration-150 hover:border-gray-400 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="aspect-[4/3] rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden mb-2">
                     {product.imageURL ? (

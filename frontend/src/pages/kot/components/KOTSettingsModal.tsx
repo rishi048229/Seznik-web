@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Building2, FileText, Receipt, Store, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Building2, ChefHat, Receipt, Store, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -14,8 +14,9 @@ import {
   useDeleteLocation,
   useToggleLocationActive,
 } from '@/hooks/useLocations'
-import { DEFAULT_KOT_CONFIG, mergeKotConfig, ORDER_TYPE_OPTIONS } from '../kotConfig'
-import type { KotConfig, KotRoomType, ReceiptConfig } from '@/types/settings.types'
+import { DEFAULT_KOT_CONFIG, mergeKotConfig } from '../kotConfig'
+import { KotSettingsFields } from './KotSettingsFields'
+import type { KotConfig, ReceiptConfig } from '@/types/settings.types'
 
 export type KOTSettingsTab = 'business' | 'bill' | 'kot' | 'stores'
 
@@ -28,7 +29,7 @@ interface KOTSettingsModalProps {
 const TABS: Array<{ id: KOTSettingsTab; label: string; icon: typeof Building2 }> = [
   { id: 'business', label: 'Business', icon: Building2 },
   { id: 'bill', label: 'Customer bill', icon: Receipt },
-  { id: 'kot', label: 'KOT & charges', icon: FileText },
+  { id: 'kot', label: 'Kitchen', icon: ChefHat },
   { id: 'stores', label: 'Franchises', icon: Store },
 ]
 
@@ -180,10 +181,6 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
     )
   }
 
-  const setKotField = <K extends keyof Required<KotConfig>>(key: K, value: Required<KotConfig>[K]) => {
-    setKot((prev) => ({ ...prev, [key]: value }))
-  }
-
   return (
     <Modal
       isOpen={isOpen}
@@ -213,10 +210,10 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold ${
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                 tab === id
                   ? 'bg-[#0a0a2e] text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-800 dark:hover:text-gray-100'
               }`}
             >
               <Icon size={14} />
@@ -290,119 +287,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
         )}
 
         {tab === 'kot' && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default order type</p>
-              <div className="grid grid-cols-3 gap-2">
-                {ORDER_TYPE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setKotField('defaultOrderType', opt.id)}
-                    className={`py-2 rounded-lg text-sm font-semibold border-2 ${
-                      kot.defaultOrderType === opt.id
-                        ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Input
-              label="KOT slip title"
-              value={kot.kotSlipTitle}
-              onChange={(e) => setKotField('kotSlipTitle', e.target.value)}
-            />
-            <Switch
-              label="Show waiter on KOT slip"
-              checked={kot.showWaiterOnSlip}
-              onChange={(checked) => setKotField('showWaiterOnSlip', checked)}
-            />
-            <Switch
-              label="Override item tax with a bill tax %"
-              description="When off, each food item keeps its own tax rate."
-              checked={kot.applyTaxOverride}
-              onChange={(checked) => setKotField('applyTaxOverride', checked)}
-            />
-            <Input
-              label="Default tax %"
-              type="number"
-              min={0}
-              step="0.01"
-              value={String(kot.taxRate)}
-              onChange={(e) => setKotField('taxRate', Number(e.target.value) || 0)}
-            />
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Service charge</p>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                {(['percent', 'flat'] as const).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setKotField('serviceChargeType', type)}
-                    className={`py-2 rounded-lg text-sm font-semibold border-2 ${
-                      kot.serviceChargeType === type
-                        ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    {type === 'percent' ? 'Percent of food' : 'Flat amount (₹)'}
-                  </button>
-                ))}
-              </div>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={String(kot.serviceChargeValue)}
-                onChange={(e) => setKotField('serviceChargeValue', Number(e.target.value) || 0)}
-                placeholder={kot.serviceChargeType === 'percent' ? 'e.g. 10' : 'e.g. 50'}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                label="AC room charge (₹)"
-                type="number"
-                min={0}
-                step="0.01"
-                value={String(kot.acCharge)}
-                onChange={(e) => setKotField('acCharge', Number(e.target.value) || 0)}
-              />
-              <Input
-                label="Non-AC room charge (₹)"
-                type="number"
-                min={0}
-                step="0.01"
-                value={String(kot.nonAcCharge)}
-                onChange={(e) => setKotField('nonAcCharge', Number(e.target.value) || 0)}
-              />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default room type on new bills</p>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { id: 'none' as KotRoomType, label: 'None' },
-                  { id: 'ac' as KotRoomType, label: 'AC' },
-                  { id: 'non_ac' as KotRoomType, label: 'Non-AC' },
-                ]).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setKotField('defaultRoomType', opt.id)}
-                    className={`py-2 rounded-lg text-sm font-semibold border-2 ${
-                      kot.defaultRoomType === opt.id
-                        ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <KotSettingsFields value={kot} onChange={setKot} />
         )}
 
         {tab === 'stores' && (

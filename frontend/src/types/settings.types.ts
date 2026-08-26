@@ -133,7 +133,12 @@ export interface LocationConfig {
 
 export type KotRoomType = 'none' | 'ac' | 'non_ac'
 
+export type KotVenueType = 'cafe' | 'restaurant' | 'qsr' | 'bakery' | 'cloud_kitchen' | 'bar'
+
+export type KotTableNoun = 'tables' | 'seats' | 'counters'
+
 export interface KotConfig {
+  venueType?: KotVenueType
   defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
   taxRate?: number
   applyTaxOverride?: boolean
@@ -144,6 +149,12 @@ export interface KotConfig {
   defaultRoomType?: KotRoomType
   kotSlipTitle?: string
   showWaiterOnSlip?: boolean
+  showTables?: boolean
+  showWaiterField?: boolean
+  showRoomCharges?: boolean
+  showServiceCharge?: boolean
+  tableNoun?: KotTableNoun
+  allowedOrderTypes?: Array<'dine_in' | 'takeaway' | 'delivery'>
 }
 
 export interface UserSettings {

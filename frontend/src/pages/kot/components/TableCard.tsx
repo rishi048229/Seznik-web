@@ -15,10 +15,10 @@ export const TableCard = ({ table, onClick }: TableCardProps) => {
     <button
       type="button"
       onClick={onClick}
-        className={`text-left rounded-2xl border-2 p-3 sm:p-4 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+        className={`text-left rounded-2xl border p-3 sm:p-4 transition-colors duration-150 ${
         occupied
-          ? 'border-red-400/80 bg-red-50/80 dark:bg-red-950/30 dark:border-red-500/60'
-          : 'border-emerald-400/80 bg-emerald-50/80 dark:bg-emerald-950/30 dark:border-emerald-500/60'
+          ? 'border-red-300 bg-red-50/70 dark:bg-red-950/25 dark:border-red-500/50 hover:border-red-400 dark:hover:border-red-400'
+          : 'border-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/25 dark:border-emerald-500/50 hover:border-emerald-400 dark:hover:border-emerald-400'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">

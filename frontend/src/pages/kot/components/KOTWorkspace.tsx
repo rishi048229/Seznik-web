@@ -55,7 +55,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
   const [orderId, setOrderId] = useState<string | null>(existingOrderId ?? table?.activeOrder?.id ?? null)
   const [orderType, setOrderType] = useState<KOTOrderType>(
-    initialOrderType || (table ? 'dine_in' : kotCfg.defaultOrderType)
+    initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
   const [locationId, setLocationId] = useState<string | null>(null)
   const [waiterName, setWaiterName] = useState('')
@@ -83,6 +83,13 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       setOrderType(order.orderType)
     }
   }, [order, waiterName, customerId])
+
+  useEffect(() => {
+    if (orderId) return
+    if (!kotCfg.allowedOrderTypes.includes(orderType)) {
+      setOrderType(kotCfg.defaultOrderType)
+    }
+  }, [orderId, kotCfg.allowedOrderTypes, kotCfg.defaultOrderType, orderType])
 
   const locationStockMap = useMemo(() => {
     const map = new Map<string, { stock: number; priceOverride?: number | null }>()
@@ -421,6 +428,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               onOrderTypeChange={setOrderType}
               waiterName={waiterName}
               onWaiterChange={setWaiterName}
+              showWaiter={kotCfg.showWaiterField}
+              allowedOrderTypes={kotCfg.allowedOrderTypes}
               sentItems={sentItems}
               unprintedServerItems={unprintedServerItems}
               pendingItems={pendingItems}

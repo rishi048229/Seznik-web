@@ -27,7 +27,7 @@ export const KDSPage = () => {
         action={
           <Link to={ROUTES.KOT}>
             <Button variant="outline" leftIcon={<ArrowLeft size={16} />}>
-              Floor Plan
+              KOT
             </Button>
           </Link>
         }

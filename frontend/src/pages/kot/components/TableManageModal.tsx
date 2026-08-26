@@ -16,9 +16,10 @@ interface TableManageModalProps {
   isOpen: boolean
   onClose: () => void
   tables: RestaurantTable[]
+  itemLabel?: string
 }
 
-export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalProps) => {
+export const TableManageModal = ({ isOpen, onClose, tables, itemLabel = 'table' }: TableManageModalProps) => {
   const { mutate: createTable, isPending: isCreating } = useCreateRestaurantTable()
   const { mutate: updateTable, isPending: isUpdating } = useUpdateRestaurantTable()
   const { mutate: deleteTable, isPending: isDeleting } = useDeleteRestaurantTable()
@@ -45,7 +46,7 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
   const handleSave = () => {
     const trimmed = name.trim()
     if (!trimmed) {
-      toast.error('Table name is required')
+      toast.error(`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} name is required`)
       return
     }
     const cap = capacity.trim() === '' ? null : Number(capacity)
@@ -56,7 +57,7 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
         { id: editId, data: { name: trimmed, capacity: cap, sortOrder: sort } },
         {
           onSuccess: () => {
-            toast.success('Table updated')
+            toast.success(`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} updated`)
             resetForm()
           },
           onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update table'),
@@ -67,7 +68,7 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
         { name: trimmed, capacity: cap, sortOrder: sort },
         {
           onSuccess: () => {
-            toast.success('Table added')
+            toast.success(`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} added`)
             resetForm()
           },
           onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add table'),
@@ -95,13 +96,13 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
         resetForm()
         onClose()
       }}
-      title="Manage Tables"
+      title={`Manage ${itemLabel}s`}
       size="lg"
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <Input
-            placeholder="Table name (e.g. Table 1)"
+            placeholder={`Name (e.g. ${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} 1)`}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="sm:col-span-2"
@@ -128,12 +129,12 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
             </Button>
           )}
           <Button onClick={handleSave} loading={isCreating || isUpdating} leftIcon={<Plus size={16} />}>
-            {editId ? 'Save Table' : 'Add Table'}
+            {editId ? 'Save' : `Add ${itemLabel}`}
           </Button>
         </div>
 
         {tables.length === 0 ? (
-          <EmptyState icon={<LayoutGrid size={36} />} title="No tables yet" description="Add your first dining table above." />
+          <EmptyState icon={<LayoutGrid size={36} />} title={`No ${itemLabel}s yet`} description="Add your first one above." />
         ) : (
           <ul className="divide-y divide-gray-200 dark:divide-gray-700 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             {tables.map((table) => (
@@ -148,7 +149,7 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
                 <button
                   type="button"
                   onClick={() => startEdit(table)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  className="p-2 rounded-lg text-gray-400 transition-colors duration-150 hover:text-blue-600"
                   aria-label="Edit table"
                 >
                   <Pencil size={16} />
@@ -157,7 +158,7 @@ export const TableManageModal = ({ isOpen, onClose, tables }: TableManageModalPr
                   type="button"
                   onClick={() => handleDelete(table)}
                   disabled={isDeleting}
-                  className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  className="p-2 rounded-lg text-gray-400 transition-colors duration-150 hover:text-red-600"
                   aria-label="Delete table"
                 >
                   <Trash2 size={16} />

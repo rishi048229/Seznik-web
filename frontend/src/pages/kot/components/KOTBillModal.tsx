@@ -13,9 +13,9 @@ import type { KotRoomType } from '@/types/settings.types'
 import {
   computeServiceCharge,
   mergeKotConfig,
-  ORDER_TYPE_OPTIONS,
   roomChargeFor,
   roomChargeLabel,
+  visibleOrderTypes,
 } from '../kotConfig'
 
 interface KOTBillModalProps {
@@ -46,6 +46,7 @@ export const KOTBillModal = ({
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const kot = mergeKotConfig(settings?.kotConfig)
+  const typeOptions = visibleOrderTypes(kot)
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [discount, setDiscount] = useState('')
   const [amountPaid, setAmountPaid] = useState('')
@@ -58,8 +59,8 @@ export const KOTBillModal = ({
   const discountNum = parseFloat(discount) || 0
   const taxRateNum = parseFloat(taxPercent)
   const taxAmount = overrideTax && !Number.isNaN(taxRateNum) ? (subtotal * taxRateNum) / 100 : itemTax
-  const serviceNum = Math.max(0, parseFloat(serviceCharge) || 0)
-  const roomNum = roomType === 'none' ? 0 : Math.max(0, parseFloat(roomAmount) || 0)
+  const serviceNum = kot.showServiceCharge ? Math.max(0, parseFloat(serviceCharge) || 0) : 0
+  const roomNum = kot.showRoomCharges && roomType !== 'none' ? Math.max(0, parseFloat(roomAmount) || 0) : 0
   const net = Math.max(0, subtotal + taxAmount + serviceNum + roomNum - discountNum)
   const amountPaidNum = parseFloat(amountPaid) || 0
   const unpaidAmount = Math.max(0, net - amountPaidNum)
@@ -133,16 +134,16 @@ export const KOTBillModal = ({
       <div className="space-y-5">
         <div>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Order type</p>
-          <div className="grid grid-cols-3 gap-2">
-            {ORDER_TYPE_OPTIONS.map((opt) => (
+          <div className={`grid gap-1.5 ${typeOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {typeOptions.map((opt) => (
               <button
                 key={opt.id}
                 type="button"
                 onClick={() => onOrderTypeChange(opt.id)}
-                className={`py-2 rounded-lg text-sm font-semibold border-2 ${
+                className={`py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                   orderType === opt.id
-                    ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    ? 'bg-[#0a0a2e] text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
                 {opt.label}
@@ -187,17 +188,20 @@ export const KOTBillModal = ({
               disabled={!overrideTax}
             />
           </div>
-          <Input
-            label="Service charge (₹)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={serviceCharge}
-            onChange={(e) => setServiceCharge(e.target.value)}
-            placeholder="0"
-          />
+          {kot.showServiceCharge && (
+            <Input
+              label="Service charge (₹)"
+              type="number"
+              min={0}
+              step="0.01"
+              value={serviceCharge}
+              onChange={(e) => setServiceCharge(e.target.value)}
+              placeholder="0"
+            />
+          )}
         </div>
 
+        {kot.showRoomCharges && (
         <div>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Room charge</p>
           <div className="grid grid-cols-3 gap-2 mb-2">
@@ -213,10 +217,10 @@ export const KOTBillModal = ({
                   setRoomType(opt.id)
                   setRoomAmount(String(roomChargeFor(opt.id, kot) || ''))
                 }}
-                className={`py-2 rounded-lg text-sm font-semibold border-2 ${
+                className={`py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                   roomType === opt.id
-                    ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    ? 'bg-[#0a0a2e] text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
                 {opt.label}
@@ -234,6 +238,7 @@ export const KOTBillModal = ({
             />
           )}
         </div>
+        )}
 
         <CustomerSelect value={customerId} onChange={onCustomerChange} size="compact" />
 
@@ -255,12 +260,14 @@ export const KOTBillModal = ({
                 key={id}
                 type="button"
                 onClick={() => setMethod(id)}
-                className={`flex flex-col items-center gap-2 p-2.5 sm:p-3 rounded-xl border-2 transition-all ${
-                  method === id ? 'border-[#0a0a2e] bg-[#0a0a2e]/5' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                className={`group flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-xl transition-colors duration-150 ${
+                  method === id
+                    ? 'bg-[#0a0a2e] text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
-                <Icon size={20} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
-                <span className={`text-[11px] sm:text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>{label}</span>
+                <Icon size={18} strokeWidth={method === id ? 2.2 : 1.75} />
+                <span className="text-[11px] sm:text-xs font-medium">{label}</span>
               </button>
             ))}
           </div>
