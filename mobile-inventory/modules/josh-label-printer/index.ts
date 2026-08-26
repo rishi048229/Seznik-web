@@ -30,6 +30,17 @@ export type JoshLabelElement =
       align?: 0 | 1 | 2;
     }
   | { type: 'qrcode'; value: string; x: number; y: number; size?: number; align?: 0 | 1 | 2 }
+  | {
+      type: 'image';
+      /** Local file path or file:// URI. */
+      uri: string;
+      x: number;
+      y: number;
+      width?: number;
+      height?: number;
+      /** 0-255 grey cutoff. Omit to let the SDK decide. */
+      threshold?: number;
+    }
   | { type: 'line'; x: number; y: number; x2: number; y2: number; thickness?: number }
   | {
       type: 'rectangle';

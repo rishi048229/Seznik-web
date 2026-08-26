@@ -2710,6 +2710,88 @@ class ThermalPrinterServiceManager {
     return isJoshPrinterSupported();
   }
 
+  /**
+   * The no-saved-template layout (name / price / code) drawn on the label printer.
+   * Proportional to the label so it holds up across every stock size rather than
+   * assuming the 50x30mm default.
+   */
+  private async printAutoLabelViaJosh(
+    product: { name: string; sellingPrice: number },
+    rawCode: string,
+    format: 'qr' | 'code128' | 'ean13',
+    widthMm: number,
+    heightMm: number,
+    gapMm: number
+  ): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+
+    const pad = Math.max(1.5, widthMm * 0.05);
+    const innerWidth = widthMm - pad * 2;
+    const nameHeight = Math.max(2.5, heightMm * 0.16);
+    const priceHeight = Math.max(3, heightMm * 0.2);
+
+    const elements: JoshLabelElement[] = [
+      {
+        type: 'text',
+        value: this.sanitizeForThermalPrint(product.name || 'Product').slice(0, 32),
+        x: pad,
+        y: pad,
+        width: innerWidth,
+        height: nameHeight,
+        fontHeight: nameHeight,
+        bold: true,
+        align: 1,
+      },
+      {
+        type: 'text',
+        value: `Rs.${(product.sellingPrice ?? 0).toFixed(2)}`,
+        x: pad,
+        y: pad + nameHeight + 0.8,
+        width: innerWidth,
+        height: priceHeight,
+        fontHeight: priceHeight,
+        bold: true,
+        align: 1,
+      },
+    ];
+
+    const codeTop = pad + nameHeight + priceHeight + 2;
+    const codeSpace = Math.max(4, heightMm - codeTop - pad);
+
+    if (format === 'qr') {
+      const size = Math.min(codeSpace, innerWidth);
+      elements.push({
+        type: 'qrcode',
+        value: rawCode,
+        x: (widthMm - size) / 2,
+        y: codeTop,
+        size,
+      });
+    } else {
+      const digits = rawCode.replace(/\D/g, '');
+      const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
+      elements.push({
+        type: 'barcode',
+        value: useEan13 ? digits : rawCode.replace(/[^\x20-\x7E]/g, ''),
+        x: pad,
+        y: codeTop,
+        width: innerWidth,
+        height: Math.max(3, codeSpace - 3),
+        textHeight: Math.min(3, codeSpace * 0.3),
+        barcodeType: JOSH_BARCODE_TYPE_AUTO,
+      });
+    }
+
+    return JoshLabelPrinter.printLabel({
+      widthMm,
+      heightMm,
+      rotation: 0,
+      copies: 1,
+      gapMm,
+      elements,
+    });
+  }
+
   public async joshStartDiscovery(): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
     return JoshLabelPrinter.startDiscovery();
@@ -2825,10 +2907,20 @@ class ThermalPrinterServiceManager {
           thickness: 0.3,
           filled: !!el.fill && el.fill !== 'transparent',
         });
+      } else if (el.type === 'image') {
+        if (!el.uri) continue;
+        elements.push({
+          type: 'image',
+          uri: el.uri,
+          x: el.xMm,
+          y: el.yMm,
+          width: el.widthMm,
+          height: el.heightMm,
+          // Thermal heads are 1-bit: without a cutoff a coloured logo prints as a
+          // grey smear. 'invert' flips which side of the cutoff becomes black.
+          threshold: el.invert ? 64 : 192,
+        });
       }
-      // 'image' elements are intentionally skipped: LPAPI takes bitmaps through a
-      // separate printBitmap path rather than as a job element, so they are not
-      // part of this pass.
     }
 
     if (elements.length === 0) {
@@ -2905,6 +2997,12 @@ class ThermalPrinterServiceManager {
     // dedicated label device, and it is the one the user explicitly linked. Routing
     // here rather than at each call site means Label Studio, the products page and
     // printLabelSequence all reach it without their own branching.
+    //
+    // Errors deliberately propagate instead of falling through to the shared
+    // catch below: that catch ends in a System-Print/PDF fallback which returns
+    // true, so a failed label print used to report "sent" while nothing came out
+    // of the label printer. When a label printer is connected it is the only
+    // acceptable destination — if it fails, the user needs to hear about it.
     if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) {
       return this.printLabelViaJosh(product, template, copies, labelGapMm);
     }
@@ -3033,11 +3131,24 @@ class ThermalPrinterServiceManager {
           }
           return true;
         } catch (tscErr) {
+          // Only fall back when there is no thermal printer to fall back FROM.
+          // Silently diverting to the system print dialog while a printer was
+          // connected is what made a failed label look like a successful one:
+          // the fallback returns true, so the app reported "sent" while nothing
+          // ever came out of the label printer.
+          if (await this.isSocketConnected()) {
+            throw new Error(
+              `The printer did not accept this label. ${
+                tscErr instanceof Error ? tscErr.message : String(tscErr)
+              }`
+            );
+          }
           console.warn('TSPL Bluetooth print failed, falling back to System Print framework:', tscErr);
         }
       }
 
-      // Fallback: System Print framework (PDF / Laser / System Print dialog)
+      // Fallback: System Print framework (PDF / Laser / System Print dialog).
+      // Reached only when no thermal printer is connected at all.
       const html = this.generateLabelFromTemplateHtml(product, template);
       await Print.printAsync({ html });
       return true;
@@ -3190,6 +3301,14 @@ class ThermalPrinterServiceManager {
     labelGapMm: number = 2
   ): Promise<boolean> {
     const rawCode = product.barcode || product.sku || `PROD-${product.id?.slice(-6) || '1234'}`;
+
+    // Same routing rule as printLabelFromTemplate: a linked label printer is the
+    // destination. This is the no-saved-template path (products page with no
+    // default label design), which would otherwise emit TSPL the label printer
+    // never receives.
+    if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) {
+      return this.printAutoLabelViaJosh(product, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
+    }
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {

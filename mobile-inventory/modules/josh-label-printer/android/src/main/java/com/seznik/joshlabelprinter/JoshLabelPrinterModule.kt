@@ -280,6 +280,23 @@ class JoshLabelPrinterModule : Module() {
         val size = (el["size"] as? Number)?.toDouble() ?: 15.0
         instance.draw2DQRCode(value, x, y, size)
       }
+      "image" -> {
+        // LPAPI takes a filesystem path, while the app stores label images as
+        // content/file URIs, so strip the scheme before handing it over.
+        val raw = el["uri"] as? String ?: return
+        val path = when {
+          raw.startsWith("file://") -> android.net.Uri.parse(raw).path ?: return
+          else -> raw
+        }
+        if (!java.io.File(path).exists()) return
+        val w = (el["width"] as? Number)?.toDouble() ?: 0.0
+        val h = (el["height"] as? Number)?.toDouble() ?: 0.0
+        val threshold = (el["threshold"] as? Number)?.toInt()
+        // Thermal heads are 1-bit, so a grey logo prints as mud without a
+        // threshold; the explicit variant is used whenever one is supplied.
+        if (threshold != null) instance.drawImageWithThreshold(path, x, y, w, h, threshold)
+        else instance.drawImage(path, x, y, w, h)
+      }
       "line" -> {
         val x2 = (el["x2"] as? Number)?.toDouble() ?: x
         val y2 = (el["y2"] as? Number)?.toDouble() ?: y
