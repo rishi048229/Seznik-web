@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useProducts } from '@/hooks/useProducts'
@@ -75,6 +75,7 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+  const navigate = useNavigate()
   const { data: products } = useProducts()
   const { data: settings } = useSettings()
   const { user, userProfile, permissions } = useAuth()
@@ -276,9 +277,13 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
           {/* User Card */}
           <div className={clsx('pb-4', collapsed ? 'px-3 lg:px-2' : 'px-3')}>
-            <div
+            <button
+              type="button"
+              onClick={() => { navigate(ROUTES.PROFILE); onClose() }}
+              title={collapsed ? `${displayName} — View profile` : 'View profile'}
               className={clsx(
-                'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700',
+                'w-full text-left bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700',
+                'hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md transition-all active:scale-[0.98]',
                 collapsed ? 'p-3 lg:p-1.5' : 'p-3'
               )}
             >
@@ -297,7 +302,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   <p className="text-xs text-gray-400">{userProfile?.role?.toUpperCase() || 'USER'}</p>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </aside>

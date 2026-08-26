@@ -77,6 +77,7 @@ const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
 const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
+const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage'), 'ProfilePage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 
 const LoadingFallback = <RouteLoadingFallback />
@@ -268,6 +269,7 @@ function App() {
               <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ProfitLossPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><TaxReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.PROFILE} element={<AuthenticatedRoute><MainLayout><ProfilePage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.PRINTERS} element={<AuthenticatedRoute><MainLayout><PrintersPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>

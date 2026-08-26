@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -13,11 +14,10 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { useAuth } from '@/contexts/AuthContext'
 
 import { LANGUAGES } from '@/i18n/translations'
-import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles } from 'lucide-react'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel'
 import { BillChargesSettingsPanel } from '@/components/billing/BillChargesSettingsPanel'
@@ -30,22 +30,6 @@ import {
   type BillChargePreset,
 } from '@/constants/restaurantBilling'
 import { BUSINESS_TYPE_OPTIONS, getBusinessTypeLabel, type BusinessType } from '@/constants/businessTypes'
-import { Spinner } from '@/components/ui/Spinner'
-import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
-import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
-import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel'
-import { BillChargesSettingsPanel } from '@/components/billing/BillChargesSettingsPanel'
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
-import { toGstBillingPayload } from '@/constants/gstBilling'
-import {
-  DEFAULT_RESTAURANT_PRESETS,
-  parseRestaurantBilling,
-  toRestaurantBillingPayload,
-  type BillChargePreset,
-} from '@/constants/restaurantBilling'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -71,6 +55,7 @@ const DEFAULT_SETTINGS = {
 
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('business')
   const { data: settings, isLoading } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
@@ -122,6 +107,14 @@ export const SettingsPage = () => {
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
     { key: 'language', label: t('settings.language'), icon: Globe, description: t('settings.descLanguage') },
   ]
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    const validTabs = ['business', 'personal', 'invoice', 'notifications', 'permissions', 'security', 'language'] as const
+    if (tab && validTabs.includes(tab as typeof validTabs[number])) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
 
@@ -177,6 +170,8 @@ export const SettingsPage = () => {
       setIsSavingType(false)
     }
   }
+
+  const handleTabSave = (tab: string) => {
     const el = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null
     const val = (id: string) => el(id)?.value ?? ''
 

@@ -504,6 +504,7 @@ interface GenerateReceiptEscPosParams {
   businessAddress?: string
   customerName?: string
   settingsTaxRate?: number
+  invoiceConfig?: unknown
 }
 
 export const generateReceiptEscPos = async ({
