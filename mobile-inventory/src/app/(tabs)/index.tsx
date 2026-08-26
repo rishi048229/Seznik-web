@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Printer,
   Bluetooth,
+  PowerOff,
   Users,
   PieChart,
   DollarSign,
@@ -145,6 +146,7 @@ export default function DashboardScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    disconnectDevice,
   } = usePrinterStore();
   const storeProfile = useStoreProfile();
   const { persistSaleInBackground, isCreating } = useSales();
@@ -417,18 +419,47 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleQuickRestock = async (product: Product, delta = 10) => {
+  // Narrowed from `Product` to just the fields it actually touches, so the
+  // dashboard's low-stock items (which are a slimmer shape) can use it too.
+  const handleQuickRestock = async (
+    product: { id: string; name: string; currentStock: number; unit?: string },
+    delta = 10
+  ) => {
     setRestockingId(product.id);
     try {
       const newStock = (product.currentStock || 0) + delta;
       await productsApi.updateProduct(product.id, { currentStock: newStock });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // The dashboard's own low-stock list comes from the reports query, so it
+      // has to be refreshed too or the restocked row lingers until next reload.
+      queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
       Alert.alert('Restock Successful! 📦', `Added +${delta} ${product.unit || 'units'} to ${product.name}.\nNew In-Stock: ${newStock}`);
     } catch (err: any) {
       Alert.alert('Stock Update Failed', err?.message || 'Could not update stock.');
     } finally {
       setRestockingId(null);
     }
+  };
+
+  const handleDisconnectPrinter = () => {
+    Alert.alert(
+      t('disconnectPrinter', 'Disconnect Printer'),
+      `${activeDevice?.name || t('thermalPrinter', 'Thermal POS Printer')} ${t('disconnectPrinterBody', 'will be unlinked. Receipts cannot print until you connect again.')}`,
+      [
+        { text: t('cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('disconnect', 'Disconnect'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await disconnectDevice();
+            } catch (e: any) {
+              Alert.alert(t('printerError', 'Printer Error'), e?.message || 'Could not disconnect the printer.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleTestPrint = async () => {
@@ -760,29 +791,59 @@ export default function DashboardScreen() {
                     : t('noBluetoothFound', 'No Bluetooth device linked. Tap Scan & Connect to link receipt printer.')}
                 </Text>
 
+                {/* Connect / Disconnect live on their own row when a printer is linked:
+                    squeezing them next to Test Print and the paper toggle left the
+                    flex:1 button too narrow for its own label, which then spilled
+                    outside the button. */}
+                {connectionState === 'connected' ? (
+                  <View style={[styles.printerActionRow, { marginBottom: 8 }]}>
+                    <TouchableOpacity
+                      style={[styles.printerConnectBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                      onPress={() => setShowDirectPrinterModal(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.printerConnectBtnText} numberOfLines={1}>
+                        {t('reconnect', 'Reconnect')}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.printerDisconnectBtn, { borderColor: '#EF4444' }]}
+                      onPress={handleDisconnectPrinter}
+                      activeOpacity={0.8}
+                    >
+                      <PowerOff size={14} color="#EF4444" style={{ marginRight: 6 }} />
+                      <Text style={styles.printerDisconnectBtnText} numberOfLines={1}>
+                        {t('disconnect', 'Disconnect')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
                 {/* Action Buttons: Scan/Connect + Test Print + Paper Switch */}
                 <View style={styles.printerActionRow}>
-                  <TouchableOpacity
-                    style={[styles.printerConnectBtn, { backgroundColor: connectionState === 'connected' ? BRAND_COLORS.blue600 : '#10B981' }]}
-                    onPress={() => setShowDirectPrinterModal(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.printerConnectBtnText}>
-                      {connectionState === 'connected' ? t('changeReconnect', 'Change / Reconnect') : t('scanAndConnect', 'Scan & Connect')}
-                    </Text>
-                  </TouchableOpacity>
-
                   {connectionState === 'connected' ? (
                     <TouchableOpacity
-                      style={[styles.printerTestBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                      style={[styles.printerTestBtn, { flex: 1, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
                       onPress={handleTestPrint}
                       activeOpacity={0.8}
                     >
                       <Zap size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 4 }} />
-                      <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]}>{t('testPrint', 'Test Print')}</Text>
+                      <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]} numberOfLines={1}>{t('testPrint', 'Test Print')}</Text>
                     </TouchableOpacity>
-                  ) : null}
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.printerConnectBtn, { backgroundColor: '#10B981' }]}
+                      onPress={() => setShowDirectPrinterModal(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.printerConnectBtnText} numberOfLines={1}>
+                        {t('scanAndConnect', 'Scan & Connect')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* 58mm / 80mm toggle */}
                   <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
@@ -984,52 +1045,103 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* 7.5 DEDICATED EXPENSE TRACKER & OUTFLOW CARD */}
-              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 16 }]}>
+              {/* 7.5 LOW STOCK / REORDER CARD
+                  Replaced a third expense card that repeated the same today/this-month
+                  figures already shown in the Business Spending card above. Reorder is
+                  the thing a shop owner actually acts on daily, and the data was already
+                  being fetched by the dashboard query without ever being displayed. */}
+              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: stats.lowStockCount > 0 ? '#F59E0B' : theme.borderColor, marginBottom: 16 }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(236, 72, 153, 0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                      <Wallet size={18} color="#EC4899" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: stats.lowStockCount > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                      {stats.lowStockCount > 0 ? (
+                        <AlertTriangle size={18} color="#F59E0B" />
+                      ) : (
+                        <CheckCircle2 size={18} color="#10B981" />
+                      )}
                     </View>
-                    <View>
-                      <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{t('expenses', 'Expense Tracker & Outflow')}</Text>
-                      <Text style={{ fontSize: 11, color: theme.textSecondary }}>Live Business Spending</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                        {t('lowStockTitle', 'Running Low — Reorder')}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: theme.textSecondary }} numberOfLines={1}>
+                        {stats.lowStockCount > 0
+                          ? `${stats.lowStockCount} ${t('itemsNeedRestock', 'item(s) need restocking')}`
+                          : t('allStocked', 'Everything is well stocked')}
+                      </Text>
                     </View>
                   </View>
                   <TouchableOpacity
-                    onPress={() => router.push('/expenses' as any)}
-                    style={{ backgroundColor: 'rgba(236, 72, 153, 0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}
+                    onPress={() => router.push('/(tabs)/products' as any)}
+                    style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}
                   >
-                    <Plus size={13} color="#EC4899" style={{ marginRight: 4 }} />
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#EC4899' }}>+ Add Expense</Text>
+                    <Package size={13} color="#F59E0B" style={{ marginRight: 4 }} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#F59E0B' }} numberOfLines={1}>
+                      {t('viewStock', 'Stock')}
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: theme.bg, padding: 12, borderRadius: 14, marginBottom: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase' }}>Today&apos;s Expense</Text>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#EC4899', marginTop: 2 }}>
-                      {formatCurrency(expenseSummary.today)}
-                    </Text>
-                  </View>
-                  <View style={{ width: 1, backgroundColor: theme.borderColor, marginHorizontal: 12 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase' }}>This Month Outflow</Text>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: theme.textPrimary, marginTop: 2 }}>
-                      {formatCurrency(expenseSummary.thisMonth)}
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  onPress={() => router.push('/expenses' as any)}
-                  style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: BRAND_COLORS.sky500 }}>
-                    Manage Expense Categories & Cash Outflows ➔
+                {stats.lowStockProducts.length === 0 ? (
+                  <Text style={{ fontSize: 11.5, color: theme.textSecondary, paddingVertical: 10 }}>
+                    {t('noLowStock', 'No items below their reorder level right now.')}
                   </Text>
-                  <ArrowRight size={14} color={BRAND_COLORS.sky500} />
-                </TouchableOpacity>
+                ) : (
+                  stats.lowStockProducts.slice(0, 4).map((item) => {
+                    const isOut = item.currentStock <= 0;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => router.push('/(tabs)/products' as any)}
+                        activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: theme.borderColor }}
+                      >
+                        <View style={{ flex: 1, marginRight: 10 }}>
+                          <Text style={{ fontSize: 12.5, fontWeight: '700', color: theme.textPrimary }} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={{ fontSize: 10.5, color: theme.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                            {t('reorderAt', 'Reorder at')} {item.threshold}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <View style={{ backgroundColor: isOut ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minWidth: 62, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 11.5, fontWeight: '900', color: isOut ? '#EF4444' : '#F59E0B' }} numberOfLines={1}>
+                              {isOut ? t('outOfStock', 'Out') : `${item.currentStock} ${t('left', 'left')}`}
+                            </Text>
+                          </View>
+
+                          {/* Restock without leaving the dashboard — the common case is
+                              topping up a handful of items after a delivery. */}
+                          <TouchableOpacity
+                            onPress={() => handleQuickRestock(item)}
+                            disabled={restockingId === item.id}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={{ backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 44, alignItems: 'center', opacity: restockingId === item.id ? 0.6 : 1 }}
+                          >
+                            {restockingId === item.id ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFF' }}>+10</Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+
+                {stats.lowStockCount > 4 ? (
+                  <TouchableOpacity
+                    onPress={() => router.push('/(tabs)/products' as any)}
+                    style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10 }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: BRAND_COLORS.sky500 }}>
+                      {t('viewAllLowStock', 'View all')} {stats.lowStockCount} {t('itemsToReorder', 'items to reorder')} ➔
+                    </Text>
+                    <ArrowRight size={14} color={BRAND_COLORS.sky500} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               <RevenueTrendChart
@@ -1424,6 +1536,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 12,
+    flexShrink: 1,
+  },
+  printerDisconnectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: 'rgba(239, 68, 68, 0.10)',
+  },
+  printerDisconnectBtnText: {
+    color: '#EF4444',
+    fontWeight: '800',
+    fontSize: 12,
+    flexShrink: 1,
   },
   printerTestBtn: {
     flexDirection: 'row',
@@ -1437,6 +1566,7 @@ const styles = StyleSheet.create({
   printerTestBtnText: {
     fontSize: 12,
     fontWeight: '800',
+    flexShrink: 1,
   },
   paperToggleContainer: {
     flexDirection: 'row',
