@@ -15,7 +15,7 @@ import {
   useSendKotToKitchen,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { generateKotSlipEscPos, printKotSlip } from '@/utils/kotPrint'
 import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
@@ -263,20 +263,11 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       createdAt: String(saleRaw.createdAt ?? new Date().toISOString()),
     }
 
-    const receiptConfig = {
-      companyName: settings?.receiptConfig?.companyName || settings?.businessName || '',
-      address: settings?.receiptConfig?.address || settings?.businessAddress || '',
-      phone: settings?.receiptConfig?.phone || settings?.businessPhone || '',
-      gstin: settings?.receiptConfig?.gstin || settings?.businessGSTIN || '',
-      logoURL: settings?.receiptConfig?.logoURL || settings?.businessLogoURL || '',
-      footerMessage: settings?.receiptConfig?.footerMessage || 'Thank you for your purchase!',
-      termsLine1: settings?.receiptConfig?.termsLine1 || '',
-      termsLine2: settings?.receiptConfig?.termsLine2 || '',
-      termsLine3: settings?.receiptConfig?.termsLine3 || '',
-    }
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
     const useBle = settings?.printerConfig?.connectionType === 'bluetooth'
+
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
 
     if (useBle) {
       try {
@@ -287,6 +278,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           paperSize,
           businessName: settings?.businessName,
           businessAddress: settings?.businessAddress,
+          businessLogoURL: settings?.businessLogoURL,
+          invoiceConfig: settings?.invoiceConfig,
         })
         await blePrinter.print(bytes)
         toast.success('Receipt printed')
@@ -304,6 +297,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       businessAddress: settings?.businessAddress,
       width: htmlWidth,
       logoURL: settings?.businessLogoURL || receiptConfig.logoURL,
+      invoiceConfig: settings?.invoiceConfig,
     })
     printReceipt(html, htmlWidth, sale.invoiceNumber)
   }

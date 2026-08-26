@@ -136,8 +136,7 @@ model Settings {
   printerConfig      Json?
   locationConfig     Json?
   kotConfig          Json?
-  // Pre-existing columns not previously tracked in this file (restored from live DB
-  // introspection so `db push` stays additive-only and never proposes dropping real data).
+  // Merchant UPI VPA (e.g. shop@okhdfcbank). Required when a receipt QR is UPI.
   upiId              String?
   labelConfig        Json?
   userId             String   @unique

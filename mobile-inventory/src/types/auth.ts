@@ -30,6 +30,7 @@ export interface CompleteOnboardingPayload {
   phone: string;
   businessAddress: string;
   businessLogoURL?: string | null;
+  upiId: string;
 }
 
 export interface AuthResponse {

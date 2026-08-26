@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check } from 'lucide-react'
+import { Check, QrCode } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Spinner } from '@/components/ui/Spinner'
@@ -12,6 +13,7 @@ import {
   type BusinessType,
 } from '@/constants/businessTypes'
 import { LANGUAGES, type LanguageCode } from '@/i18n/translations'
+import { buildUpiPayLink, isValidUpiVpa } from '@/utils/upiQr'
 
 const BANNER_GRADIENT = 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)'
 
@@ -21,8 +23,9 @@ export const OnboardingPage = () => {
   const navigate = useNavigate()
 
   const pickTypeOnly = userProfile?.onboardingCompleted === true && !userProfile?.businessType
+  const lastStep = pickTypeOnly ? 2 : 3
 
-  const [step, setStep] = useState<1 | 2>(1)
+  const [step, setStep] = useState<1 | 2 | 3>(1)
   const [businessName, setBusinessName] = useState(userProfile?.businessName ?? '')
   const [phone, setPhone] = useState(userProfile?.phone ?? '')
   const [businessAddress, setBusinessAddress] = useState('')
@@ -30,6 +33,7 @@ export const OnboardingPage = () => {
     userProfile?.businessType ?? 'retail_shop'
   )
   const [logoUrl, setLogoUrl] = useState('')
+  const [upiId, setUpiId] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(language)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -37,6 +41,16 @@ export const OnboardingPage = () => {
   const template = BUSINESS_TEMPLATES[selectedBusinessType]
   const selectedLabel =
     BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'workspace'
+  const showPaymentStep = !pickTypeOnly && step === 2
+  const showWorkspaceStep = pickTypeOnly ? step === 2 : step === 3
+  const upiPreview = isValidUpiVpa(upiId)
+    ? buildUpiPayLink({
+        upiId: upiId.trim(),
+        payeeName: businessName.trim() || 'Your shop',
+        amount: 100,
+        note: 'Sample bill',
+      })
+    : ''
 
   const validateShopDetails = () => {
     if (!businessName.trim()) {
@@ -58,26 +72,50 @@ export const OnboardingPage = () => {
     e.preventDefault()
     setError('')
 
+    if (pickTypeOnly) {
+      if (step === 1) {
+        setStep(2)
+        return
+      }
+      setIsSaving(true)
+      try {
+        setLanguage(selectedLanguage)
+        await updateBusinessType(selectedBusinessType)
+        navigate(ROUTES.ACCESS_SELECTION)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('onboarding.setupFailed'))
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
     if (step === 1) {
-      if (!pickTypeOnly && !validateShopDetails()) return
+      if (!validateShopDetails()) return
       setStep(2)
+      return
+    }
+
+    if (step === 2) {
+      if (!isValidUpiVpa(upiId)) {
+        setError(t('onboarding.upiRequired'))
+        return
+      }
+      setStep(3)
       return
     }
 
     setIsSaving(true)
     try {
       setLanguage(selectedLanguage)
-      if (pickTypeOnly) {
-        await updateBusinessType(selectedBusinessType)
-      } else {
-        await completeOnboarding({
-          businessName: businessName.trim(),
-          businessType: selectedBusinessType,
-          phone: phone.trim(),
-          businessAddress: businessAddress.trim(),
-          ...(logoUrl.trim() ? { businessLogoURL: logoUrl.trim() } : {}),
-        })
-      }
+      await completeOnboarding({
+        businessName: businessName.trim(),
+        businessType: selectedBusinessType,
+        phone: phone.trim(),
+        businessAddress: businessAddress.trim(),
+        upiId: upiId.trim(),
+        ...(logoUrl.trim() ? { businessLogoURL: logoUrl.trim() } : {}),
+      })
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('onboarding.setupFailed'))
@@ -85,6 +123,21 @@ export const OnboardingPage = () => {
       setIsSaving(false)
     }
   }
+
+  const stepLabel = (n: number, label: string, active: boolean) => (
+    <div className="flex items-center gap-2 min-w-0">
+      <div
+        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+          active ? 'bg-[#0a0a2e] text-white' : 'bg-slate-200 text-slate-500'
+        }`}
+      >
+        {n}
+      </div>
+      <span className={`text-sm font-medium truncate ${active ? 'text-slate-900 font-semibold' : 'text-slate-400'}`}>
+        {label}
+      </span>
+    </div>
+  )
 
   return (
     <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] p-4 sm:p-6">
@@ -141,32 +194,27 @@ export const OnboardingPage = () => {
         </section>
 
         <section className="sm:w-[58%] px-8 py-10 sm:px-12 sm:py-14 bg-white flex flex-col justify-center max-h-[90vh] overflow-y-auto">
-          <nav className="flex items-center gap-3 mb-8">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  step === 1 ? 'bg-[#0a0a2e] text-white' : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                1
-              </div>
-              <span className="text-sm font-semibold text-slate-900">
-                {pickTypeOnly ? t('onboarding.stepBusinessType') : t('onboarding.stepShopDetails')}
-              </span>
-            </div>
-            <div className="w-8 h-px bg-slate-200" />
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  step === 2 ? 'bg-[#0a0a2e] text-white' : 'bg-slate-200 text-slate-500'
-                }`}
-              >
-                2
-              </div>
-              <span className={`text-sm font-medium ${step === 2 ? 'text-slate-900' : 'text-slate-400'}`}>
-                {t('onboarding.stepWorkspace')}
-              </span>
-            </div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
+            {t('onboarding.stepOf')
+              .replace('{step}', String(step))
+              .replace('{total}', String(lastStep))}
+          </p>
+          <nav className="flex items-center gap-2 sm:gap-3 mb-8 flex-wrap">
+            {pickTypeOnly ? (
+              <>
+                {stepLabel(1, t('onboarding.stepBusinessType'), step === 1)}
+                <div className="w-8 h-px bg-slate-200 hidden sm:block" />
+                {stepLabel(2, t('onboarding.stepWorkspace'), step === 2)}
+              </>
+            ) : (
+              <>
+                {stepLabel(1, t('onboarding.stepShopDetails'), step === 1)}
+                <div className="w-6 h-px bg-slate-200 hidden sm:block" />
+                {stepLabel(2, t('onboarding.stepPayment'), step === 2)}
+                <div className="w-6 h-px bg-slate-200 hidden sm:block" />
+                {stepLabel(3, t('onboarding.stepWorkspace'), step === 3)}
+              </>
+            )}
           </nav>
 
           <header className="mb-6">
@@ -175,14 +223,18 @@ export const OnboardingPage = () => {
                 ? pickTypeOnly
                   ? t('onboarding.pickTypeTitle')
                   : t('onboarding.shopDetailsTitle')
-                : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
+                : showPaymentStep
+                  ? t('onboarding.paymentTitle')
+                  : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
             </h2>
             <p className="text-sm text-slate-500">
               {step === 1
                 ? pickTypeOnly
                   ? t('onboarding.pickTypeDesc')
                   : t('onboarding.shopDetailsDesc')
-                : t('onboarding.confirmDescAlt')}
+                : showPaymentStep
+                  ? t('onboarding.paymentDesc')
+                  : t('onboarding.confirmDescAlt')}
             </p>
           </header>
 
@@ -292,7 +344,41 @@ export const OnboardingPage = () => {
                   </div>
                 </Field>
               </>
-            ) : (
+            ) : null}
+
+            {showPaymentStep ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <QrCode size={18} />
+                    </div>
+                    <p className="text-sm text-emerald-950 leading-relaxed">{t('onboarding.upiHint')}</p>
+                  </div>
+                </div>
+                <Field label={t('onboarding.upiId') + ' *'}>
+                  <input
+                    type="text"
+                    value={upiId}
+                    onChange={e => setUpiId(e.target.value)}
+                    placeholder={t('onboarding.upiPlaceholder')}
+                    autoComplete="off"
+                    inputMode="email"
+                    spellCheck={false}
+                    autoFocus
+                    className={fieldClass}
+                  />
+                </Field>
+                {upiPreview ? (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <QRCodeSVG value={upiPreview} size={148} />
+                    <p className="text-[11px] text-slate-500 text-center">{t('onboarding.upiPreviewNote')}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {showWorkspaceStep ? (
               <div className="rounded-xl border border-[#0a0a2e] bg-[#0a0a2e]/5 p-5">
                 <p className="text-base font-semibold text-slate-900">{template.title}</p>
                 <p className="text-sm text-slate-500 mt-1 mb-4">{template.subtitle}</p>
@@ -305,7 +391,7 @@ export const OnboardingPage = () => {
                   ))}
                 </ul>
               </div>
-            )}
+            ) : null}
 
             {error ? <p className="text-red-500 text-sm font-medium">{error}</p> : null}
 
@@ -320,18 +406,21 @@ export const OnboardingPage = () => {
                   <Spinner size="sm" className="text-white" />
                 ) : (
                   <>
-                    {step === 1 ? t('onboarding.continue') : t('onboarding.useSetup')}
+                    {step === lastStep ? t('onboarding.useSetup') : t('onboarding.continue')}
                     <span aria-hidden="true">→</span>
                   </>
                 )}
               </button>
-              {step === 2 ? (
+              {step > 1 ? (
                 <button
                   type="button"
-                  onClick={() => setStep(1)}
+                  onClick={() => {
+                    setError('')
+                    setStep(prev => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))
+                  }}
                   className="text-center text-xs text-slate-400 uppercase tracking-widest font-medium hover:text-slate-600 transition-colors"
                 >
-                  {t('onboarding.changeBusinessType')}
+                  {t('onboarding.back')}
                 </button>
               ) : null}
             </div>

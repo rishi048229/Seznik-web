@@ -4,6 +4,9 @@ import {
   calculateReceiptTotals,
   getDocumentTitle,
   formatIndianNumber,
+  formatThermalAmount,
+  formatThermalMoney,
+  padTwoCol,
   numberToIndianWords,
   getCols,
   row,
@@ -240,4 +243,136 @@ describe('Receipt Engine & Acceptance Criteria', () => {
     expect(lines.every(l => l.length === 32)).toBe(true)
   })
 
+})
+
+describe('GST print wiring', () => {
+  const gstin = '27ABCDE1234F1Z5'
+  const baseParams = {
+    sale: dummySale,
+    businessGSTIN: gstin,
+    paperSize: '58mm' as const,
+    receiptConfig: { showTaxBreakdown: true },
+  }
+
+  it('compact style shows a single GST total line', () => {
+    const lines = compileReceiptTextLines({
+      ...baseParams,
+      gstStyle: 'compact',
+      receiptConfig: { showTaxBreakdown: true },
+    })
+    expect(lines.some((l) => l.includes('GST'))).toBe(true)
+    expect(lines.some((l) => l.includes('Taxable Value'))).toBe(false)
+    expect(lines.some((l) => l.includes('Taxable @'))).toBe(false)
+  })
+
+  it('compact style hides tax breakdown block', () => {
+    const lines = compileReceiptTextLines({
+      ...baseParams,
+      gstStyle: 'compact',
+      receiptConfig: { showTaxBreakdown: false },
+    })
+    expect(lines.some((l) => l.includes('Taxable Value'))).toBe(false)
+    expect(lines.some((l) => l.includes('Taxable @'))).toBe(false)
+    expect(lines.some((l) => l.includes('CGST'))).toBe(false)
+  })
+
+  it('tax_invoice style shows aggregate taxable/CGST/SGST only', () => {
+    const lines = compileReceiptTextLines({
+      ...baseParams,
+      gstStyle: 'tax_invoice',
+    })
+    expect(lines.some((l) => l.includes('Taxable Value'))).toBe(true)
+    expect(lines.some((l) => l.includes('CGST'))).toBe(true)
+    expect(lines.some((l) => l.includes('Taxable @'))).toBe(false)
+  })
+
+  it('slab_wise style shows per-rate slab rows', () => {
+    const lines = compileReceiptTextLines({
+      ...baseParams,
+      gstStyle: 'slab_wise',
+    })
+    expect(lines.some((l) => l.includes('Taxable @'))).toBe(true)
+    expect(lines.some((l) => l.includes('Taxable Value'))).toBe(false)
+  })
+
+  it('itemWiseGst false hides per-item GST percentages', () => {
+    const withGst = compileReceiptTextLines({ ...baseParams, itemWiseGst: true })
+    const withoutGst = compileReceiptTextLines({ ...baseParams, itemWiseGst: false })
+    expect(withGst.some((l) => l.includes('5%'))).toBe(true)
+    expect(withoutGst.some((l) => l.includes('5%'))).toBe(false)
+  })
+
+  it('mixed incl/excl cart uses per-line priceIncludesGst for tax math', () => {
+    const mixedSale: Sale = {
+      ...dummySale,
+      items: [
+        {
+          productId: 'p1',
+          productName: 'Incl Item',
+          quantity: 1,
+          sellingPrice: 118,
+          discount: 0,
+          taxRate: 18,
+          taxAmount: 18,
+          total: 118,
+          priceIncludesGst: true,
+        },
+        {
+          productId: 'p2',
+          productName: 'Excl Item',
+          quantity: 1,
+          sellingPrice: 100,
+          discount: 0,
+          taxRate: 18,
+          taxAmount: 18,
+          total: 118,
+          priceIncludesGst: false,
+        },
+      ],
+      subtotal: 218,
+      totalDiscount: 0,
+      totalTax: 36,
+      grandTotal: 236,
+    }
+    const totals = calculateReceiptTotals(mixedSale, gstin, true)
+    expect(totals.taxableAmount).toBe(200)
+    expect(totals.totalTax).toBe(36)
+  })
+
+  it('legacy showTaxBreakdown off suppresses tax block when gstStyle unset', () => {
+    const lines = compileReceiptTextLines({
+      sale: dummySale,
+      businessGSTIN: gstin,
+      paperSize: '58mm',
+      receiptConfig: { showTaxBreakdown: false },
+    })
+    expect(lines.some((l) => l.includes('Taxable Value'))).toBe(false)
+    expect(lines.some((l) => l.includes('Taxable @'))).toBe(false)
+  })
+
+  it('cols keeps right-aligned amounts on one line within column width', () => {
+    const line = cols(
+      [
+        { text: '  ', width: 2, align: 'L' },
+        { text: '10 Pc x 100.00', width: 16, align: 'L' },
+        { text: '5%', width: 4, align: 'R' },
+        { text: formatThermalAmount(123456.78), width: 10, align: 'R' },
+      ],
+      32
+    )
+    expect(line.length).toBe(32)
+    expect(line.trimEnd().endsWith('56.78')).toBe(true)
+  })
+
+  it('row never exceeds column width for long labels and amounts', () => {
+    const line = row('Taxable Value', formatThermalAmount(1234567.89), 32)
+    expect(line.length).toBe(32)
+    expect(line.endsWith('567.89')).toBe(true)
+  })
+
+  it('padTwoCol accounts for Rs. prefix length on printer-safe lines', () => {
+    const line = padTwoCol('GRAND TOTAL', formatThermalMoney(1234567.89), 32)
+    expect(line.length).toBe(32)
+    expect(line.trimEnd().endsWith('67.89')).toBe(true)
+  })
 })

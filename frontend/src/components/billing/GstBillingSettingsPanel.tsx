@@ -4,6 +4,9 @@ import { Switch } from '@/components/ui/Switch'
 import { GST_BREAKDOWN_STYLE_OPTIONS, type GstBreakdownStyle } from '@/constants/gstBilling'
 import { useLanguage } from '@/contexts/LanguageContext'
 
+/** checkout = POS/KOT bill totals; print = receipt thermal layout */
+export type GstBillingPanelVariant = 'full' | 'checkout' | 'print'
+
 export interface GstBillingSettingsPanelProps {
   showBreakdown: boolean
   style: GstBreakdownStyle
@@ -18,6 +21,7 @@ export interface GstBillingSettingsPanelProps {
   showSaveButton?: boolean
   hintText?: string
   className?: string
+  variant?: GstBillingPanelVariant
 }
 
 export function GstBillingSettingsPanel({
@@ -34,8 +38,11 @@ export function GstBillingSettingsPanel({
   showSaveButton = true,
   hintText,
   className = '',
+  variant = 'full',
 }: GstBillingSettingsPanelProps) {
   const { t } = useLanguage()
+  const showCheckout = variant === 'full' || variant === 'checkout'
+  const showPrint = variant === 'full' || variant === 'print'
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -43,20 +50,25 @@ export function GstBillingSettingsPanel({
         hintText ? (
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{hintText}</p>
         ) : null
+      ) : showPrint && !showCheckout ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{t('settings.gstPrintDisplayHint')}</p>
       ) : (
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{t('settings.gstBillingHint')}</p>
       )}
 
-      <Switch
-        checked={showBreakdown}
-        onChange={(val) => {
-          onShowBreakdownChange(val)
-          if (val && !printOnReceipt) onPrintOnReceiptChange(true)
-        }}
-        label={t('settings.gstShowBreakdown')}
-        description={t('settings.gstShowBreakdownDesc')}
-      />
+      {showCheckout ? (
+        <Switch
+          checked={showBreakdown}
+          onChange={(val) => {
+            onShowBreakdownChange(val)
+            if (variant === 'full' && val && !printOnReceipt) onPrintOnReceiptChange(true)
+          }}
+          label={t('settings.gstShowBreakdown')}
+          description={t('settings.gstShowBreakdownDesc')}
+        />
+      ) : null}
 
+      {showPrint ? (
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
           {t('settings.gstStyleLabel')}
@@ -89,20 +101,25 @@ export function GstBillingSettingsPanel({
           })}
         </div>
       </div>
+      ) : null}
 
-      <Switch
-        checked={printOnReceipt}
-        onChange={onPrintOnReceiptChange}
-        label={t('settings.gstPrintOnReceipt')}
-        description={t('settings.gstPrintOnReceiptDesc')}
-      />
+      {showPrint ? (
+        <>
+          <Switch
+            checked={printOnReceipt}
+            onChange={onPrintOnReceiptChange}
+            label={t('settings.gstPrintOnReceipt')}
+            description={t('settings.gstPrintOnReceiptDesc')}
+          />
 
-      <Switch
-        checked={itemWiseGst}
-        onChange={onItemWiseGstChange}
-        label={t('settings.gstItemWise')}
-        description={t('settings.gstItemWiseDesc')}
-      />
+          <Switch
+            checked={itemWiseGst}
+            onChange={onItemWiseGstChange}
+            label={t('settings.gstItemWise')}
+            description={t('settings.gstItemWiseDesc')}
+          />
+        </>
+      ) : null}
 
       {showSaveButton && onSave ? (
         <Button onClick={onSave} loading={isSaving} className="w-full sm:w-auto">

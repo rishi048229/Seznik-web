@@ -6,6 +6,7 @@ import { generateToken } from '../utils/jwt';
 import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
 import { isValidBusinessType } from '../constants/businessTypes';
+import { isValidUpiVpa } from '../utils/upiVpa';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 request per email per minute
@@ -612,6 +613,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     const phone = String(req.body.phone || '').trim();
     const businessLogoURL =
       typeof req.body.businessLogoURL === 'string' ? String(req.body.businessLogoURL).trim() : '';
+    const upiId = String(req.body.upiId || '').trim();
     const { businessType } = req.body;
 
     if (!businessName) {
@@ -626,11 +628,28 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     if (!businessAddress) {
       return res.status(400).json({ error: 'Shop address is required' });
     }
+    if (!isValidUpiVpa(upiId)) {
+      return res.status(400).json({ error: 'A valid UPI ID is required (e.g. shopname@okhdfcbank)' });
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },
       data: { businessName, businessType, phone, onboardingCompleted: true },
     });
+
+    const currentSettings = await prisma.settings.findUnique({ where: { userId } });
+    const existingReceipt =
+      currentSettings?.receiptConfig &&
+      typeof currentSettings.receiptConfig === 'object' &&
+      !Array.isArray(currentSettings.receiptConfig)
+        ? (currentSettings.receiptConfig as Record<string, unknown>)
+        : {};
+    const receiptConfig = {
+      ...existingReceipt,
+      upiId,
+      showPaymentQR: true,
+      receiptConfigUpdatedAt: new Date().toISOString(),
+    };
 
     await prisma.settings.upsert({
       where: { userId },
@@ -638,6 +657,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessName,
         businessAddress,
         businessPhone: phone,
+        upiId,
+        receiptConfig,
         ...(businessLogoURL ? { businessLogoURL } : {}),
       },
       create: {
@@ -645,6 +666,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessName,
         businessAddress,
         businessPhone: phone,
+        upiId,
+        receiptConfig,
         ...(businessLogoURL ? { businessLogoURL } : {}),
       },
     });

@@ -1,227 +1,281 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useCreateSale } from '@/hooks/useSales'
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCreateSale } from "@/hooks/useSales";
 
-import { useCustomers } from '@/hooks/useCustomers'
-import { useSettings } from '@/hooks/useSettings'
-import { useLocationStock } from '@/hooks/useLocations'
-import { LocationSelector } from '@/components/common/LocationSelector'
-import { UpiQrPanel } from '@/components/common/UpiQrPanel'
-import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
-import { useProducts } from '@/hooks/useProducts'
-import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
-import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
-import { InteractivePageTour } from '@/components/common/InteractivePageTour'
-import { CustomerSelect } from '@/components/common/CustomerSelect'
-import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { Modal } from '@/components/ui/Modal'
-import { Badge } from '@/components/ui/Badge'
-import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { parseGstBilling, shouldShowGstBreakdown } from '@/constants/gstBilling'
-import { gstSummaryFromCart } from '@/utils/gst'
-import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown'
-import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown'
-import { BillChargeToggles } from '@/components/billing/BillChargeToggles'
-import { type AppliedBillCharge } from '@/constants/restaurantBilling'
-import { useBillCharges } from '@/hooks/useBillCharges'
-import { ROUTES } from '@/constants/routes'
-import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { useLanguage } from '@/contexts/LanguageContext'
-import toast from 'react-hot-toast'
-import type { Sale } from '@/types/sale.types'
-import type { Product } from '@/types/product.types'
+import { useCustomers } from "@/hooks/useCustomers";
+import { useSettings } from "@/hooks/useSettings";
+import { useLocationStock } from "@/hooks/useLocations";
+import { LocationSelector } from "@/components/common/LocationSelector";
+import { UpiQrPanel } from "@/components/common/UpiQrPanel";
+import { isExpiringSoon, formatExpiryMessage } from "@/utils/expiry";
+import { useProducts } from "@/hooks/useProducts";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { PageVideoTutorialModal } from "@/components/common/PageVideoTutorialModal";
+import { InteractivePageTour } from "@/components/common/InteractivePageTour";
+import { CustomerSelect } from "@/components/common/CustomerSelect";
+import { usePageTutorial } from "@/hooks/usePageTutorial";
+import {
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
+  CreditCard,
+  Wallet,
+  Smartphone,
+  UserPlus,
+  Printer,
+  Barcode,
+  ScanLine,
+  Bluetooth,
+  Video,
+  Calendar,
+  AlertTriangle,
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { Badge } from "@/components/ui/Badge";
+import { formatINR } from "@/utils/currency";
+import {
+  generateReceiptHTML,
+  generateReceiptEscPos,
+  printReceipt,
+  resolveEffectiveReceiptConfig,
+} from "@/utils/receipt";
+import {
+  parseGstBilling,
+  shouldShowGstBreakdown,
+} from "@/constants/gstBilling";
+import { gstSummaryFromCart } from "@/utils/gst";
+import { BillGstBreakdown } from "@/components/billing/BillGstBreakdown";
+import { BillChargesBreakdown } from "@/components/billing/BillChargesBreakdown";
+import { BillChargeToggles } from "@/components/billing/BillChargeToggles";
+import { type AppliedBillCharge } from "@/constants/restaurantBilling";
+import { useBillCharges } from "@/hooks/useBillCharges";
+import { ROUTES } from "@/constants/routes";
+import { useBlePrinter } from "@/hooks/useBlePrinter";
+import { useLanguage } from "@/contexts/LanguageContext";
+import toast from "react-hot-toast";
+import type { Sale } from "@/types/sale.types";
+import type { Product } from "@/types/product.types";
 
 interface CartItem {
-  id: string
-  productName: string
-  quantity: number
-  sellingPrice: number
-  discount: number
-  taxRate: number
-  priceIncludesGst?: boolean
-  total: number
+  id: string;
+  productName: string;
+  quantity: number;
+  sellingPrice: number;
+  discount: number;
+  taxRate: number;
+  priceIncludesGst?: boolean;
+  total: number;
 }
 
 export const POSLitePage = () => {
-  const { t } = useLanguage()
-  const pageTutorial = usePageTutorial('pos-lite')
-  const navigate = useNavigate()
-  const { mutate: createSale, isPending: isCreating } = useCreateSale()
-  const { data: customers } = useCustomers()
-  const { data: settings } = useSettings()
-  const { data: products } = useProducts()
+  const { t } = useLanguage();
+  const pageTutorial = usePageTutorial("pos-lite");
+  const navigate = useNavigate();
+  const { mutate: createSale, isPending: isCreating } = useCreateSale();
+  const { data: customers } = useCustomers();
+  const { data: settings } = useSettings();
+  const { data: products } = useProducts();
 
-  const scanInputRef = useRef<HTMLInputElement>(null)
-  const [isScanMode, setIsScanMode] = useState(false)
-  const [scanInput, setScanInput] = useState('')
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const [isScanMode, setIsScanMode] = useState(false);
+  const [scanInput, setScanInput] = useState("");
 
-  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
+  const [mobileTab, setMobileTab] = useState<"products" | "cart">("products");
 
   // Persist Quick Bill cart state in localStorage so navigating away preserves cart items
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('pos_lite_cart')
-      return saved ? JSON.parse(saved) : []
+      const saved = localStorage.getItem("pos_lite_cart");
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return []
+      return [];
     }
-  })
+  });
 
   useEffect(() => {
     try {
-      localStorage.setItem('pos_lite_cart', JSON.stringify(items))
+      localStorage.setItem("pos_lite_cart", JSON.stringify(items));
     } catch (e) {
-      console.error('Failed to persist POS Lite cart', e)
+      console.error("Failed to persist POS Lite cart", e);
     }
-  }, [items])
+  }, [items]);
 
-  const [selectedCustomer, setSelectedCustomer] = useState<string>('')
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false)
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
-  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
-  const [isBlePrinting, setIsBlePrinting] = useState(false)
-  const blePrinter = useBlePrinter()
-  const [orderDiscount, setOrderDiscount] = useState(0)
-  const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
-  const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
-  const [amountPaid, setAmountPaid] = useState('')
-  const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
-  const [completedSaleId, setCompletedSaleId] = useState<string>('')
-  const [completedInvoiceNumber, setCompletedInvoiceNumber] = useState<string>('')
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isBlePrinting, setIsBlePrinting] = useState(false);
+  const blePrinter = useBlePrinter();
+  const [orderDiscount, setOrderDiscount] = useState(0);
+  const [orderDiscountType, setOrderDiscountType] = useState<
+    "flat" | "percent"
+  >("flat");
+  const [method, setMethod] = useState<"cash" | "card" | "upi" | "credit">(
+    "cash",
+  );
+  const [amountPaid, setAmountPaid] = useState("");
+  const [billDate, setBillDate] = useState<string>(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [completedSaleId, setCompletedSaleId] = useState<string>("");
+  const [completedInvoiceNumber, setCompletedInvoiceNumber] =
+    useState<string>("");
   const [lastSaleData, setLastSaleData] = useState<{
-    items: CartItem[]
-    subtotal: number
-    tax: number
-    orderDiscountAmount: number
-    extraChargesTotal: number
-    billCharges: AppliedBillCharge[]
-    finalTotal: number
-    method: typeof method
-    amountPaidNum: number
-    selectedCustomer: string
-  } | null>(null)
+    items: CartItem[];
+    subtotal: number;
+    tax: number;
+    orderDiscountAmount: number;
+    extraChargesTotal: number;
+    billCharges: AppliedBillCharge[];
+    finalTotal: number;
+    method: typeof method;
+    amountPaidNum: number;
+    selectedCustomer: string;
+  } | null>(null);
 
   // GST mode: 'exclusive' = price is base (GST added on top), 'inclusive' = price already includes GST
-  const [gstMode, setGstMode] = useState<'exclusive' | 'inclusive'>('exclusive')
+  const [gstMode, setGstMode] = useState<"exclusive" | "inclusive">(
+    "exclusive",
+  );
 
   // Manual product entry form
-  const [productName, setProductName] = useState('')
-  const [productPrice, setProductPrice] = useState('')
-  const [productQty, setProductQty] = useState('1')
-  const [productTaxRate, setProductTaxRate] = useState('0')
-  const [showNameSuggestions, setShowNameSuggestions] = useState(false)
+  const [productName, setProductName] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  const [productQty, setProductQty] = useState("1");
+  const [productTaxRate, setProductTaxRate] = useState("0");
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
   // Multi-location inventory: resolve this location's price override, if any
   // (see LocationSelector/POSPage for the full explanation of the model).
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
-  const getEffectivePrice = (product: { id: string; sellingPrice: number }): number => {
-    if (!selectedLocationId) return product.sellingPrice
-    const override = locationStockRows.find(r => r.productId === product.id)?.priceOverride
-    return override ?? product.sellingPrice
-  }
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    null,
+  );
+  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId);
+  const getEffectivePrice = (product: {
+    id: string;
+    sellingPrice: number;
+  }): number => {
+    if (!selectedLocationId) return product.sellingPrice;
+    const override = locationStockRows.find(
+      (r) => r.productId === product.id,
+    )?.priceOverride;
+    return override ?? product.sellingPrice;
+  };
 
   const nameSuggestions = useMemo(() => {
-    const q = productName.trim().toLowerCase()
-    if (!q) return []
+    const q = productName.trim().toLowerCase();
+    if (!q) return [];
     return (products ?? [])
-      .filter(p => p.isActive !== false && (
-        p.name.toLowerCase().includes(q) ||
-        p.sku?.toLowerCase().includes(q) ||
-        p.barcode?.toLowerCase().includes(q)
-      ))
-      .slice(0, 6)
-  }, [products, productName])
+      .filter(
+        (p) =>
+          p.isActive !== false &&
+          (p.name.toLowerCase().includes(q) ||
+            p.sku?.toLowerCase().includes(q) ||
+            p.barcode?.toLowerCase().includes(q)),
+      )
+      .slice(0, 6);
+  }, [products, productName]);
 
   const handleSelectSuggestedProduct = (p: Product) => {
-    const effectivePrice = getEffectivePrice(p)
-    setProductName(p.name)
-    setProductPrice(String(effectivePrice))
-    setProductTaxRate(String(p.taxRate ?? 0))
-    setGstMode(p.priceIncludesGst ? 'inclusive' : 'exclusive')
-    setShowNameSuggestions(false)
-  }
+    const effectivePrice = getEffectivePrice(p);
+    setProductName(p.name);
+    setProductPrice(String(effectivePrice));
+    setProductTaxRate(String(p.taxRate ?? 0));
+    setGstMode(p.priceIncludesGst ? "inclusive" : "exclusive");
+    setShowNameSuggestions(false);
+  };
 
   // Barcode scan: look up product from catalog and add directly to cart
   const handleBarcodeScan = (barcode: string) => {
-    const product = products?.find(p => p.barcode === barcode && p.isActive !== false)
+    const product = products?.find(
+      (p) => p.barcode === barcode && p.isActive !== false,
+    );
     if (!product) {
-      toast.error(`${t('pos.noProductFoundBarcodePrefix')} ${barcode}`)
-      return
+      toast.error(`${t("pos.noProductFoundBarcodePrefix")} ${barcode}`);
+      return;
     }
-    const effectivePrice = getEffectivePrice(product)
-    const existing = items.find(i => i.id === product.id)
+    const effectivePrice = getEffectivePrice(product);
+    const existing = items.find((i) => i.id === product.id);
     if (existing) {
-      setItems(prev => prev.map(i =>
-        i.id === product.id
-          ? { ...i, quantity: i.quantity + 1, total: i.sellingPrice * (i.quantity + 1) }
-          : i
-      ))
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === product.id
+            ? {
+                ...i,
+                quantity: i.quantity + 1,
+                total: i.sellingPrice * (i.quantity + 1),
+              }
+            : i,
+        ),
+      );
     } else {
-      setItems(prev => [...prev, {
-        id: product.id,
-        productName: product.name,
-        quantity: 1,
-        sellingPrice: effectivePrice,
-        discount: 0,
-        taxRate: product.taxRate,
-        priceIncludesGst: product.priceIncludesGst ?? false,
-        total: effectivePrice,
-      }])
+      setItems((prev) => [
+        ...prev,
+        {
+          id: product.id,
+          productName: product.name,
+          quantity: 1,
+          sellingPrice: effectivePrice,
+          discount: 0,
+          taxRate: product.taxRate,
+          priceIncludesGst: product.priceIncludesGst ?? false,
+          total: effectivePrice,
+        },
+      ]);
     }
-    toast.success(`${product.name} ${t('pos.addedViaScanSuffix')}`)
+    toast.success(`${product.name} ${t("pos.addedViaScanSuffix")}`);
     if (isExpiringSoon(product.expiryDate)) {
-      toast(`⚠ ${product.name} — ${formatExpiryMessage(product.expiryDate)}`, { icon: '⏳' })
+      toast(`⚠ ${product.name} — ${formatExpiryMessage(product.expiryDate)}`, {
+        icon: "⏳",
+      });
     }
-  }
+  };
 
   // Physical USB/Bluetooth barcode scanner — fires when no input is focused
   useBarcodeScanner({
-    mode: 'pos',
+    mode: "pos",
     onScan: handleBarcodeScan,
     enabled: !isPaymentOpen && !isPrintModalOpen && !isScanMode,
-  })
+  });
 
   // Manual scan input submit (for on-screen scan mode or typing a barcode)
   const handleScanSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const code = scanInput.trim()
-    if (code.length >= 4) handleBarcodeScan(code)
-    setScanInput('')
-  }
+    e.preventDefault();
+    const code = scanInput.trim();
+    if (code.length >= 4) handleBarcodeScan(code);
+    setScanInput("");
+  };
 
   const toggleScanMode = () => {
-    setIsScanMode(prev => {
-      if (!prev) setTimeout(() => scanInputRef.current?.focus(), 50)
-      return !prev
-    })
-    setScanInput('')
-  }
+    setIsScanMode((prev) => {
+      if (!prev) setTimeout(() => scanInputRef.current?.focus(), 50);
+      return !prev;
+    });
+    setScanInput("");
+  };
 
   const addItem = () => {
     if (!productName.trim()) {
-      toast.error(t('pos.errEnterProductName'))
-      return
+      toast.error(t("pos.errEnterProductName"));
+      return;
     }
-    const price = parseFloat(productPrice)
+    const price = parseFloat(productPrice);
     if (isNaN(price) || price <= 0) {
-      toast.error(t('pos.errValidPrice'))
-      return
+      toast.error(t("pos.errValidPrice"));
+      return;
     }
-    const qty = parseInt(productQty)
+    const qty = parseInt(productQty);
     if (isNaN(qty) || qty <= 0) {
-      toast.error(t('pos.errValidQuantity'))
-      return
+      toast.error(t("pos.errValidQuantity"));
+      return;
     }
-    const taxRate = parseFloat(productTaxRate) || 0
+    const taxRate = parseFloat(productTaxRate) || 0;
     if (taxRate < 0 || taxRate > 100) {
-      toast.error(t('pos.errGstRange'))
-      return
+      toast.error(t("pos.errGstRange"));
+      return;
     }
 
     const newItem: CartItem = {
@@ -231,64 +285,70 @@ export const POSLitePage = () => {
       sellingPrice: price,
       discount: 0,
       taxRate,
-      priceIncludesGst: gstMode === 'inclusive',
+      priceIncludesGst: gstMode === "inclusive",
       total: price * qty,
-    }
+    };
 
-    setItems(prev => [...prev, newItem])
-    setProductName('')
-    setProductPrice('')
-    setProductQty('1')
-    setProductTaxRate('0')
-    toast.success(`${newItem.productName} ${t('pos.addedSuffix')}`)
-  }
+    setItems((prev) => [...prev, newItem]);
+    setProductName("");
+    setProductPrice("");
+    setProductQty("1");
+    setProductTaxRate("0");
+    toast.success(`${newItem.productName} ${t("pos.addedSuffix")}`);
+  };
 
   const removeItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id))
-  }
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
 
   const updateQty = (id: string, newQty: number) => {
     if (newQty <= 0) {
-      removeItem(id)
+      removeItem(id);
     } else {
-      setItems(prev =>
-        prev.map(i =>
-          i.id === id ? { ...i, quantity: newQty, total: i.sellingPrice * newQty } : i
-        )
-      )
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? { ...i, quantity: newQty, total: i.sellingPrice * newQty }
+            : i,
+        ),
+      );
     }
-  }
+  };
 
   const clearCart = () => {
-    setItems([])
-    localStorage.removeItem('pos_lite_cart')
-    setOrderDiscount(0)
-    setSelectedCustomer('')
-  }
+    setItems([]);
+    localStorage.removeItem("pos_lite_cart");
+    setOrderDiscount(0);
+    setSelectedCustomer("");
+  };
 
   const subtotal = items.reduce((sum, item) => {
-    const lineTotal = item.sellingPrice * item.quantity - item.discount
+    const lineTotal = item.sellingPrice * item.quantity - item.discount;
     if (item.priceIncludesGst && item.taxRate > 0) {
-      return sum + (lineTotal / (1 + item.taxRate / 100))
+      return sum + lineTotal / (1 + item.taxRate / 100);
     }
-    return sum + lineTotal
-  }, 0)
+    return sum + lineTotal;
+  }, 0);
 
   const taxAmount = items.reduce((sum, item) => {
-    const lineTotal = item.sellingPrice * item.quantity - item.discount
+    const lineTotal = item.sellingPrice * item.quantity - item.discount;
     if (item.priceIncludesGst && item.taxRate > 0) {
-      const baseAmt = lineTotal / (1 + item.taxRate / 100)
-      return sum + (lineTotal - baseAmt)
+      const baseAmt = lineTotal / (1 + item.taxRate / 100);
+      return sum + (lineTotal - baseAmt);
     }
-    return sum + (lineTotal * (item.taxRate || 0) / 100)
-  }, 0)
+    return sum + (lineTotal * (item.taxRate || 0)) / 100;
+  }, 0);
 
-  const orderDiscountAmount = orderDiscountType === 'flat'
-    ? orderDiscount
-    : subtotal * (orderDiscount / 100)
+  const orderDiscountAmount =
+    orderDiscountType === "flat"
+      ? orderDiscount
+      : subtotal * (orderDiscount / 100);
 
-  const itemDiscountTotal = items.reduce((s, i) => s + i.discount, 0)
-  const grossSubtotal = items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0)
+  const itemDiscountTotal = items.reduce((s, i) => s + i.discount, 0);
+  const grossSubtotal = items.reduce(
+    (s, i) => s + i.sellingPrice * i.quantity,
+    0,
+  );
   const {
     enabledPresets,
     selectedIds,
@@ -297,39 +357,46 @@ export const POSLitePage = () => {
     showCharges,
     netSubtotal,
     toggleCharge,
-  } = useBillCharges(settings?.invoiceConfig, grossSubtotal, itemDiscountTotal + orderDiscountAmount)
+  } = useBillCharges(
+    settings?.invoiceConfig,
+    grossSubtotal,
+    itemDiscountTotal + orderDiscountAmount,
+  );
 
-  const finalTotal = subtotal + taxAmount - orderDiscountAmount + extraChargesTotal
+  const finalTotal =
+    subtotal + taxAmount - orderDiscountAmount + extraChargesTotal;
   const gstBilling = useMemo(
     () => parseGstBilling(settings?.invoiceConfig),
     [settings?.invoiceConfig],
-  )
+  );
   const gstSummary = useMemo(
     () => gstSummaryFromCart(items, orderDiscountAmount),
     [items, orderDiscountAmount],
-  )
+  );
 
   useEffect(() => {
     if (isPaymentOpen) {
-      if (method === 'credit') {
-        setAmountPaid('0')
-      } else if (!amountPaid || amountPaid === '0') {
-        setAmountPaid(finalTotal.toString())
+      if (method === "credit") {
+        setAmountPaid("0");
+      } else if (!amountPaid || amountPaid === "0") {
+        setAmountPaid(finalTotal.toString());
       }
     }
-  }, [isPaymentOpen, method, finalTotal])
+  }, [isPaymentOpen, method, finalTotal]);
 
-  const amountPaidNum = parseFloat(amountPaid) || 0
-  const unpaidAmount = Math.max(0, finalTotal - amountPaidNum)
-  const change = Math.max(0, amountPaidNum - finalTotal)
-  const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
+  const amountPaidNum = parseFloat(amountPaid) || 0;
+  const unpaidAmount = Math.max(0, finalTotal - amountPaidNum);
+  const change = Math.max(0, amountPaidNum - finalTotal);
+  const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer);
 
   const handleCheckout = () => {
     const saleData: Parameters<typeof createSale>[0] = {
-      items: items.map(item => {
-        const resolvedProductId = (!item.id.startsWith('temp-'))
+      items: items.map((item) => {
+        const resolvedProductId = !item.id.startsWith("temp-")
           ? item.id
-          : (products?.find(p => p.name.toLowerCase() === item.productName.toLowerCase())?.id || '')
+          : products?.find(
+              (p) => p.name.toLowerCase() === item.productName.toLowerCase(),
+            )?.id || "";
 
         return {
           productId: resolvedProductId,
@@ -339,12 +406,16 @@ export const POSLitePage = () => {
           discount: item.discount,
           taxRate: item.taxRate,
           priceIncludesGst: item.priceIncludesGst ?? false,
-          taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+          taxAmount:
+            ((item.sellingPrice * item.quantity - item.discount) *
+              item.taxRate) /
+            100,
           total: item.sellingPrice * item.quantity - item.discount,
-        }
+        };
       }),
       subtotal,
-      totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
+      totalDiscount:
+        orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
       grandTotal: finalTotal,
       billCharges,
@@ -353,20 +424,22 @@ export const POSLitePage = () => {
       amountPaid: amountPaidNum,
       changeReturned: change,
       isQuickBill: true,
-      createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
-    }
+      createdAt: billDate
+        ? new Date(billDate + "T12:00:00").toISOString()
+        : undefined,
+    };
 
     if (selectedCustomer) {
-      saleData.customerId = selectedCustomer
+      saleData.customerId = selectedCustomer;
     }
     if (selectedLocationId) {
-      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
+      (saleData as Record<string, unknown>).locationId = selectedLocationId;
     }
 
     createSale(saleData, {
       onSuccess: (result) => {
-        const saleId = result.id
-        const invoiceNumber = result.invoiceNumber
+        const saleId = result.id;
+        const invoiceNumber = result.invoiceNumber;
         setLastSaleData({
           items: [...items],
           subtotal,
@@ -378,76 +451,84 @@ export const POSLitePage = () => {
           method,
           amountPaidNum,
           selectedCustomer,
-        })
-        setCompletedSaleId(saleId)
-        setCompletedInvoiceNumber(invoiceNumber)
-        clearCart()
-        setIsPaymentOpen(false)
-        setIsPrintModalOpen(true)
-        toast.success(t('pos.saleCompleted'))
+        });
+        setCompletedSaleId(saleId);
+        setCompletedInvoiceNumber(invoiceNumber);
+        clearCart();
+        setIsPaymentOpen(false);
+        setIsPrintModalOpen(true);
+        toast.success(t("pos.saleCompleted"));
       },
       onError: (error) => {
-        const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')
-        console.error('Sale creation failed:', error)
-        toast.error(msg)
+        const msg =
+          error instanceof Error ? error.message : t("pos.errFailedCreateSale");
+        console.error("Sale creation failed:", error);
+        toast.error(msg);
       },
-    })
-  }
+    });
+  };
 
   const buildTempSale = (): Sale | null => {
-    if (!lastSaleData) return null
+    if (!lastSaleData) return null;
     return {
       id: completedSaleId,
-      invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
-      items: lastSaleData.items.map(item => ({
+      invoiceNumber:
+        completedInvoiceNumber ||
+        `INV-${completedSaleId?.slice(-5) || "00000"}`,
+      items: lastSaleData.items.map((item) => ({
         productId: item.id,
         productName: item.productName,
         quantity: item.quantity,
         sellingPrice: item.sellingPrice,
         discount: item.discount,
         taxRate: item.taxRate,
-        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+        taxAmount:
+          ((item.sellingPrice * item.quantity - item.discount) * item.taxRate) /
+          100,
         total: item.sellingPrice * item.quantity - item.discount,
         priceIncludesGst: item.priceIncludesGst ?? false,
       })),
       subtotal: lastSaleData.subtotal,
-      totalDiscount: lastSaleData.orderDiscountAmount + lastSaleData.items.reduce((s, i) => s + i.discount, 0),
+      totalDiscount:
+        lastSaleData.orderDiscountAmount +
+        lastSaleData.items.reduce((s, i) => s + i.discount, 0),
       totalTax: lastSaleData.tax,
       grandTotal: lastSaleData.finalTotal,
       billCharges: lastSaleData.billCharges,
       extraChargesTotal: lastSaleData.extraChargesTotal,
       paymentMethod: lastSaleData.method,
       amountPaid: lastSaleData.amountPaidNum,
-      changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
+      changeReturned:
+        lastSaleData.method === "cash"
+          ? lastSaleData.amountPaidNum - lastSaleData.finalTotal
+          : 0,
       isQuickBill: false,
       createdAt: new Date().toISOString(),
-
-    }
-  }
+    };
+  };
 
   const finishPrintFlow = () => {
-    setIsPrintModalOpen(false)
-    setCompletedSaleId('')
-    setCompletedInvoiceNumber('')
-    setMethod('cash')
-    setAmountPaid('')
-    navigate(ROUTES.SALES)
-  }
+    setIsPrintModalOpen(false);
+    setCompletedSaleId("");
+    setCompletedInvoiceNumber("");
+    setMethod("cash");
+    setAmountPaid("");
+    navigate(ROUTES.SALES);
+  };
 
   // Accept format directly to avoid React state race condition
-  const handlePrint = (format: 'a4' | 'thermal') => {
-    const tempSale = buildTempSale()
-    if (!tempSale || !lastSaleData) return
+  const handlePrint = (format: "a4" | "thermal") => {
+    const tempSale = buildTempSale();
+    if (!tempSale || !lastSaleData) return;
 
-    const receiptConfig = resolveEffectiveReceiptConfig(settings)
+    const receiptConfig = resolveEffectiveReceiptConfig(settings);
     const customerName = lastSaleData.selectedCustomer
-      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-      : ''
+      ? customers?.find((c) => c.id === lastSaleData.selectedCustomer)?.name
+      : "";
 
-    const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
-      ? (paperSize === '80mm' ? '80mm' : '50mm')
-      : '210mm'
+    const paperSize = settings?.printerConfig?.paperSize || "58mm";
+    const paperWidth: "50mm" | "80mm" | "210mm" =
+      format === "thermal" ? (paperSize === "80mm" ? "80mm" : "50mm") : "210mm";
 
     const receiptHTML = generateReceiptHTML({
       sale: tempSale,
@@ -457,69 +538,77 @@ export const POSLitePage = () => {
       customerName,
       width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
-      settingsTaxName: 'GST',
+      settingsTaxName: "GST",
       invoiceConfig: settings?.invoiceConfig,
-    })
+    });
 
-    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow)
-  }
+    printReceipt(
+      receiptHTML,
+      paperWidth,
+      tempSale.invoiceNumber,
+      finishPrintFlow,
+    );
+  };
 
   const handlePrintBluetooth = async () => {
-    const tempSale = buildTempSale()
-    if (!tempSale || !lastSaleData) return
+    const tempSale = buildTempSale();
+    if (!tempSale || !lastSaleData) return;
 
-    setIsBlePrinting(true)
+    setIsBlePrinting(true);
     try {
-      if (blePrinter.status !== 'connected') {
-        await blePrinter.connect()
+      if (blePrinter.status !== "connected") {
+        await blePrinter.connect();
       }
-      const receiptConfig = resolveEffectiveReceiptConfig(settings)
+      const receiptConfig = resolveEffectiveReceiptConfig(settings);
       const customerName = lastSaleData.selectedCustomer
-        ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-        : ''
+        ? customers?.find((c) => c.id === lastSaleData.selectedCustomer)?.name
+        : "";
       const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || '58mm',
+        paperSize: settings?.printerConfig?.paperSize || "58mm",
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
         invoiceConfig: settings?.invoiceConfig,
-      })
-      await blePrinter.print(bytes)
-      finishPrintFlow()
+        businessLogoURL: settings?.businessLogoURL,
+      });
+      await blePrinter.print(bytes);
+      finishPrintFlow();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
-      toast.error(msg)
+      const msg =
+        error instanceof Error
+          ? error.message
+          : t("pos.errFailedPrintBluetooth");
+      toast.error(msg);
     } finally {
-      setIsBlePrinting(false)
+      setIsBlePrinting(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
-
       {/* Mobile Tab Switcher */}
       <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
         <button
-          onClick={() => setMobileTab('products')}
+          onClick={() => setMobileTab("products")}
           className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-            mobileTab === 'products'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 dark:text-gray-400'
+            mobileTab === "products"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          {t('pos.quickSaleTab')}
+          {t("pos.quickSaleTab")}
         </button>
         <button
-          onClick={() => setMobileTab('cart')}
+          onClick={() => setMobileTab("cart")}
           className={`flex-1 py-3 text-sm font-semibold transition-colors relative ${
-            mobileTab === 'cart'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500 dark:text-gray-400'
+            mobileTab === "cart"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          {t('pos.cartTab')}
+          {t("pos.cartTab")}
           {items.length > 0 && (
             <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
               {items.length}
@@ -529,18 +618,25 @@ export const POSLitePage = () => {
       </div>
 
       {/* Left: Manual Entry Form + Product List */}
-      <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
-        <div data-tour="pos-lite-header" className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+      <div
+        className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${mobileTab === "cart" ? "hidden sm:flex" : "flex"}`}
+      >
+        <div
+          data-tour="pos-lite-header"
+          className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10"
+        >
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('pos.quickBillManualEntry')}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {t("pos.quickBillManualEntry")}
+              </h2>
               <button
                 onClick={pageTutorial.openTutorial}
                 type="button"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
               >
                 <Video size={14} className="animate-pulse" />
-                <span>{t('pos.videoGuide')}</span>
+                <span>{t("pos.videoGuide")}</span>
               </button>
             </div>
             <button
@@ -549,12 +645,16 @@ export const POSLitePage = () => {
               onClick={toggleScanMode}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
                 isScanMode
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                  : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400"
               }`}
             >
-              {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
-              {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
+              {isScanMode ? (
+                <ScanLine size={16} className="animate-pulse" />
+              ) : (
+                <Barcode size={16} />
+              )}
+              {isScanMode ? t("pos.scanning") : t("pos.scanBarcode")}
             </button>
           </div>
 
@@ -564,7 +664,7 @@ export const POSLitePage = () => {
           </div>
 
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            {t('pos.addProductManualHint')}
+            {t("pos.addProductManualHint")}
           </p>
 
           {/* Barcode Scan Input Panel */}
@@ -572,22 +672,22 @@ export const POSLitePage = () => {
             <div className="mb-4 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
               <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
-                {t('pos.scanModeActive')}
+                {t("pos.scanModeActive")}
               </div>
               <form onSubmit={handleScanSubmit} className="flex gap-2">
                 <Input
                   ref={scanInputRef}
                   value={scanInput}
-                  onChange={e => setScanInput(e.target.value)}
-                  placeholder={t('pos.scanPlaceholder')}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  placeholder={t("pos.scanPlaceholder")}
                   className="flex-1"
                   autoComplete="off"
                 />
                 <Button type="submit" disabled={scanInput.trim().length < 4}>
-                  {t('pos.add')}
+                  {t("pos.add")}
                 </Button>
                 <Button type="button" variant="ghost" onClick={toggleScanMode}>
-                  {t('pos.done')}
+                  {t("pos.done")}
                 </Button>
               </form>
             </div>
@@ -596,86 +696,101 @@ export const POSLitePage = () => {
           {/* Manual Product Entry Form */}
           <Card className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2 relative" data-tour="pos-lite-name-input">
+              <div
+                className="md:col-span-2 relative"
+                data-tour="pos-lite-name-input"
+              >
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.productNameLabel')}
+                  {t("pos.productNameLabel")}
                 </label>
                 <Input
                   value={productName}
-                  onChange={e => {
-                    setProductName(e.target.value)
-                    setShowNameSuggestions(true)
+                  onChange={(e) => {
+                    setProductName(e.target.value);
+                    setShowNameSuggestions(true);
                   }}
                   onFocus={() => setShowNameSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
-                  placeholder={t('pos.enterProductName')}
+                  onBlur={() =>
+                    setTimeout(() => setShowNameSuggestions(false), 250)
+                  }
+                  placeholder={t("pos.enterProductName")}
                   className="w-full"
                 />
-                {showNameSuggestions && productName.trim().length > 0 && nameSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
-                    <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
-                      Suggested Catalog Items ({nameSuggestions.length})
-                    </div>
-                    <div className="max-h-56 overflow-y-auto">
-                      {nameSuggestions.map(p => {
-                        const price = getEffectivePrice(p)
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              handleSelectSuggestedProduct(p)
-                            }}
-                            className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
-                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-                                {p.barcode && <span>Barcode: {p.barcode}</span>}
-                                {p.sku && <span>• SKU: {p.sku}</span>}
+                {showNameSuggestions &&
+                  productName.trim().length > 0 &&
+                  nameSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
+                      <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                        Suggested Catalog Items ({nameSuggestions.length})
+                      </div>
+                      <div className="max-h-56 overflow-y-auto">
+                        {nameSuggestions.map((p) => {
+                          const price = getEffectivePrice(p);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectSuggestedProduct(p);
+                              }}
+                              className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                  {p.name}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                  {p.barcode && (
+                                    <span>Barcode: {p.barcode}</span>
+                                  )}
+                                  {p.sku && <span>• SKU: {p.sku}</span>}
+                                </div>
                               </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
-                              <span className="block text-[10px] text-gray-400">GST: {p.taxRate ?? 0}%</span>
-                            </div>
-                          </button>
-                        )
-                      })}
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                  {formatINR(price)}
+                                </span>
+                                <span className="block text-[10px] text-gray-400">
+                                  GST: {p.taxRate ?? 0}%
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.priceLabel')}
+                  {t("pos.priceLabel")}
                 </label>
                 <Input
                   type="number"
                   step="0.01"
                   value={productPrice}
-                  onChange={e => setProductPrice(e.target.value)}
+                  onChange={(e) => setProductPrice(e.target.value)}
                   placeholder="0.00"
                   className="w-full"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.quantityLabel')}
+                  {t("pos.quantityLabel")}
                 </label>
                 <Input
                   type="number"
                   min="1"
                   value={productQty}
-                  onChange={e => setProductQty(e.target.value)}
+                  onChange={(e) => setProductQty(e.target.value)}
                   placeholder="1"
                   className="w-full"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.gstLabel')}
+                  {t("pos.gstLabel")}
                 </label>
                 <Input
                   type="number"
@@ -683,7 +798,7 @@ export const POSLitePage = () => {
                   max="100"
                   step="0.01"
                   value={productTaxRate}
-                  onChange={e => setProductTaxRate(e.target.value)}
+                  onChange={(e) => setProductTaxRate(e.target.value)}
                   placeholder="0"
                   className="w-full"
                 />
@@ -694,31 +809,31 @@ export const POSLitePage = () => {
               <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                 <button
                   type="button"
-                  onClick={() => setGstMode('exclusive')}
+                  onClick={() => setGstMode("exclusive")}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    gstMode === 'exclusive'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    gstMode === "exclusive"
+                      ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                   }`}
                 >
-                  {t('pos.gstExclusive')}
+                  {t("pos.gstExclusive")}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setGstMode('inclusive')}
+                  onClick={() => setGstMode("inclusive")}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    gstMode === 'inclusive'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    gstMode === "inclusive"
+                      ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                   }`}
                 >
-                  {t('pos.gstInclusive')}
+                  {t("pos.gstInclusive")}
                 </button>
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                {gstMode === 'exclusive'
-                  ? t('pos.gstExclusiveHint')
-                  : t('pos.gstInclusiveHint')}
+                {gstMode === "exclusive"
+                  ? t("pos.gstExclusiveHint")
+                  : t("pos.gstInclusiveHint")}
               </p>
               <Button
                 data-tour="pos-lite-add-cart-btn"
@@ -726,22 +841,26 @@ export const POSLitePage = () => {
                 leftIcon={<Plus size={16} />}
                 className="md:ml-auto w-full md:w-auto"
               >
-                {t('pos.addToCart')}
+                {t("pos.addToCart")}
               </Button>
             </div>
           </Card>
         </div>
 
-
         {/* Mobile: View Cart sticky bar */}
         {items.length > 0 && (
-          <div data-tour="pos-lite-tab-cart" className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div
+            data-tour="pos-lite-tab-cart"
+            className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+          >
             <button
-              onClick={() => setMobileTab('cart')}
+              onClick={() => setMobileTab("cart")}
               className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"
             >
-              <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length} items</span>
-              <span>{t('pos.viewCart')}</span>
+              <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {items.length} items
+              </span>
+              <span>{t("pos.viewCart")}</span>
               <span className="font-bold">{formatINR(finalTotal)}</span>
             </button>
           </div>
@@ -749,30 +868,42 @@ export const POSLitePage = () => {
       </div>
 
       {/* Right: Cart Panel */}
-      <Card data-tour="pos-lite-cart" className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none h-full min-h-0 max-h-full overflow-hidden ${mobileTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+      <Card
+        data-tour="pos-lite-cart"
+        className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none h-full min-h-0 max-h-full overflow-hidden ${mobileTab === "products" ? "hidden sm:flex" : "flex"}`}
+      >
         {/* Cart Header */}
         <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('pos.checkout')}</h2>
-              <Badge variant="info">{t('pos.orderPrefix')}{String(Date.now()).slice(-4)}</Badge>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
+                {t("pos.checkout")}
+              </h2>
+              <Badge variant="info">
+                {t("pos.orderPrefix")}
+                {String(Date.now()).slice(-4)}
+              </Badge>
             </div>
             {items.length > 0 && (
               <button
                 type="button"
                 onClick={() => setIsPaymentOpen(true)}
                 disabled={isCreating}
-                title={t('pos.completeAndPrint')}
+                title={t("pos.completeAndPrint")}
                 className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
-                <span>{t('pos.print')}</span>
+                <span>{t("pos.print")}</span>
               </button>
             )}
           </div>
 
           {/* Customer Selector — searchable by name/phone */}
-          <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="default" />
+          <CustomerSelect
+            value={selectedCustomer}
+            onChange={setSelectedCustomer}
+            size="default"
+          />
         </div>
 
         {/* Cart Items List */}
@@ -780,20 +911,30 @@ export const POSLitePage = () => {
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
               <ShoppingCart size={48} className="mb-3 opacity-30" />
-              <p className="text-sm font-medium">{t('pos.cartEmpty')}</p>
-              <p className="text-xs text-gray-400 mt-1">{t('pos.addItemsHint')}</p>
+              <p className="text-sm font-medium">{t("pos.cartEmpty")}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {t("pos.addItemsHint")}
+              </p>
             </div>
           ) : (
-            items.map(item => (
-              <div key={item.id} className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            items.map((item) => (
+              <div
+                key={item.id}
+                className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+              >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
+                      {item.productName}
+                    </p>
                     <p className="text-xs text-gray-400">
-                      {formatINR(item.sellingPrice)} {item.taxRate > 0 && `(+${item.taxRate}% GST)`}
+                      {formatINR(item.sellingPrice)}{" "}
+                      {item.taxRate > 0 && `(+${item.taxRate}% GST)`}
                     </p>
                   </div>
-                  <p className="font-bold text-sm text-gray-900 dark:text-gray-100 flex-shrink-0">{formatINR(item.total)}</p>
+                  <p className="font-bold text-sm text-gray-900 dark:text-gray-100 flex-shrink-0">
+                    {formatINR(item.total)}
+                  </p>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
@@ -804,7 +945,9 @@ export const POSLitePage = () => {
                     >
                       <Minus size={14} />
                     </button>
-                    <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                    <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">
+                      {item.quantity}
+                    </span>
                     <button
                       type="button"
                       onClick={() => updateQty(item.id, item.quantity + 1)}
@@ -833,29 +976,46 @@ export const POSLitePage = () => {
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                placeholder={t('pos.discount')}
-                value={orderDiscount || ''}
-                onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                placeholder={t("pos.discount")}
+                value={orderDiscount || ""}
+                onChange={(e) =>
+                  setOrderDiscount(parseFloat(e.target.value) || 0)
+                }
                 className="flex-1 h-9 text-xs"
               />
               <div className="relative shrink-0">
                 <select
                   value={orderDiscountType}
-                  onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
+                  onChange={(e) =>
+                    setOrderDiscountType(e.target.value as "flat" | "percent")
+                  }
                   className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>
                 </select>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
-                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">
+                  {t("common.total")} ({items.length})
+                </p>
+                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">
+                  {formatINR(finalTotal)}
+                </p>
               </div>
             </div>
           )}
@@ -880,7 +1040,7 @@ export const POSLitePage = () => {
               className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
             >
               <Printer size={18} className="mr-2" />
-              {t('pos.completeAndPrint')}
+              {t("pos.completeAndPrint")}
             </Button>
           </div>
         </div>
@@ -890,28 +1050,36 @@ export const POSLitePage = () => {
       <Modal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
-        title={t('pos.completePayment')}
+        title={t("pos.completePayment")}
         size="md"
         footer={
           <Button
             onClick={handleCheckout}
             loading={isCreating}
-            disabled={method === 'cash' && !isComplete}
+            disabled={method === "cash" && !isComplete}
             className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
           >
             <Printer size={18} className="mr-2" />
-            {t('pos.completeAndPrint')}
+            {t("pos.completeAndPrint")}
           </Button>
         }
       >
         <div className="space-y-6">
           {/* Total Display */}
           <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.totalAmount')}</p>
-            <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
-            {shouldShowGstBreakdown(gstBilling) && gstSummary.taxableValue > 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t("pos.totalAmount")}
+            </p>
+            <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">
+              {formatINR(finalTotal)}
+            </p>
+            {shouldShowGstBreakdown(gstBilling) &&
+            gstSummary.taxableValue > 0 ? (
               <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3">
-                <BillGstBreakdown summary={gstSummary} style={gstBilling.style} />
+                <BillGstBreakdown
+                  summary={gstSummary}
+                  style={gstBilling.style}
+                />
               </div>
             ) : null}
             {showCharges ? (
@@ -931,50 +1099,66 @@ export const POSLitePage = () => {
           {/* Bill Date Selector (Custom / Backdated Invoice) */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-              <Calendar size={14} className="text-blue-600 dark:text-blue-400" />
+              <Calendar
+                size={14}
+                className="text-blue-600 dark:text-blue-400"
+              />
               Bill Date (Select for Backdated / Custom Date Invoice)
             </label>
             <Input
               type="date"
-              max={new Date().toISOString().split('T')[0]}
+              max={new Date().toISOString().split("T")[0]}
               value={billDate}
-              onChange={e => setBillDate(e.target.value)}
+              onChange={(e) => setBillDate(e.target.value)}
               className="text-sm font-medium"
             />
           </div>
 
           {/* Payment Methods */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              {t("pos.paymentMethod")}
+            </label>
             <div className="grid grid-cols-4 gap-3">
-              {([
-                { id: 'cash' as const, label: t('pos.cash'), icon: Wallet },
-                { id: 'card' as const, label: t('pos.card'), icon: CreditCard },
-                { id: 'upi' as const, label: t('pos.upi'), icon: Smartphone },
-                { id: 'credit' as const, label: t('pos.credit'), icon: UserPlus },
-              ]).map(({ id, label, icon: Icon }) => (
+              {[
+                { id: "cash" as const, label: t("pos.cash"), icon: Wallet },
+                { id: "card" as const, label: t("pos.card"), icon: CreditCard },
+                { id: "upi" as const, label: t("pos.upi"), icon: Smartphone },
+                {
+                  id: "credit" as const,
+                  label: t("pos.credit"),
+                  icon: UserPlus,
+                },
+              ].map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setMethod(id)}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
-                      ? 'border-[#0a0a2e] bg-[#0a0a2e]/5'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                      ? "border-[#0a0a2e] bg-[#0a0a2e]/5"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300"
                   }`}
                 >
-                  <Icon size={24} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
-                  <span className={`text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>
+                  <Icon
+                    size={24}
+                    className={
+                      method === id ? "text-[#0a0a2e]" : "text-gray-400"
+                    }
+                  />
+                  <span
+                    className={`text-xs font-medium ${method === id ? "text-[#0a0a2e]" : "text-gray-500"}`}
+                  >
                     {label}
                   </span>
                 </button>
               ))}
             </div>
-            {method === 'upi' && settings?.receiptConfig?.upiId && (
+            {method === "upi" && (settings?.receiptConfig?.upiId || settings?.upiId) && (
               <div className="mt-3">
                 <UpiQrPanel
-                  upiId={settings.receiptConfig.upiId}
-                  payeeName={settings?.businessName || 'Store'}
+                  upiId={settings.receiptConfig?.upiId || settings.upiId || ""}
+                  payeeName={settings?.businessName || "Store"}
                   amount={finalTotal}
                 />
               </div>
@@ -984,20 +1168,20 @@ export const POSLitePage = () => {
           {/* Amount Paid / Received Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('pos.amountReceived')} ({method.toUpperCase()})
+              {t("pos.amountReceived")} ({method.toUpperCase()})
             </label>
             <Input
               type="number"
               step="0.01"
               value={amountPaid}
-              onChange={e => setAmountPaid(e.target.value)}
+              onChange={(e) => setAmountPaid(e.target.value)}
               placeholder="0.00"
               className="text-lg py-3 font-semibold"
             />
 
-            {method === 'cash' && (
+            {method === "cash" && (
               <div className="flex gap-2 mt-2">
-                {[100, 500, 1000, 2000].map(amt => (
+                {[100, 500, 1000, 2000].map((amt) => (
                   <button
                     key={amt}
                     type="button"
@@ -1016,77 +1200,93 @@ export const POSLitePage = () => {
             selectedCustomer ? (
               <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
                 <div className="font-bold flex items-center gap-1.5">
-                  <UserPlus size={15} className="text-amber-600 dark:text-amber-400" />
+                  <UserPlus
+                    size={15}
+                    className="text-amber-600 dark:text-amber-400"
+                  />
                   Partial Credit Allocation
                 </div>
                 <p>
-                  {formatINR(amountPaidNum)} paid via {method.toUpperCase()}. Remaining <strong className="text-amber-900 dark:text-amber-100">{formatINR(unpaidAmount)}</strong> will be added to <strong>{customers?.find(c => c.id === selectedCustomer)?.name}</strong>'s Credit Balance.
+                  {formatINR(amountPaidNum)} paid via {method.toUpperCase()}.
+                  Remaining{" "}
+                  <strong className="text-amber-900 dark:text-amber-100">
+                    {formatINR(unpaidAmount)}
+                  </strong>{" "}
+                  will be added to{" "}
+                  <strong>
+                    {customers?.find((c) => c.id === selectedCustomer)?.name}
+                  </strong>
+                  's Credit Balance.
                 </p>
               </div>
             ) : (
               <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-1">
                 <div className="font-bold flex items-center gap-1.5">
-                  <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />
+                  <AlertTriangle
+                    size={15}
+                    className="text-red-600 dark:text-red-400"
+                  />
                   Customer Selection Required for Credit
                 </div>
                 <p>
-                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please select a registered customer to record credit, or collect full payment.
+                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong>{" "}
+                  cannot be issued to a walk-in customer. Please select a
+                  registered customer to record credit, or collect full payment.
                 </p>
               </div>
             )
           ) : change > 0 ? (
             <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex justify-between items-center">
-              <span className="font-medium">{t('pos.change')}</span>
-              <span className="font-extrabold text-sm">{formatINR(change)}</span>
+              <span className="font-medium">{t("pos.change")}</span>
+              <span className="font-extrabold text-sm">
+                {formatINR(change)}
+              </span>
             </div>
           ) : null}
         </div>
       </Modal>
 
       {/* Print Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">
+      <Modal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        title={t("pos.printReceiptTitle")}
+        size="sm"
+      >
         <div className="space-y-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {completedInvoiceNumber && `${t('pos.invoicePrefix')} ${completedInvoiceNumber}`}
+            {completedInvoiceNumber &&
+              `${t("pos.invoicePrefix")} ${completedInvoiceNumber}`}
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
-
-          {/* Show / Hide Tax Info Toggle */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">Show Tax &amp; GST Info</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Include GST columns &amp; tax breakdown in bill</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showTaxBreakdown}
-                onChange={(e) => setShowTaxBreakdown(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t("pos.selectPrintFormat")}
+          </p>
 
           <div className="grid grid-cols-2 gap-4">
             <button
-              onClick={() => handlePrint('a4')}
+              onClick={() => handlePrint("a4")}
               className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
-                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">
+                  {t("pos.a4Paper")}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {t("pos.standardFormat")}
+                </p>
               </div>
             </button>
             <button
-              onClick={() => handlePrint('thermal')}
+              onClick={() => handlePrint("thermal")}
               className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
-                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100">
+                  {t("pos.thermal50mm")}
+                </p>
+                <p className="text-xs text-gray-400">{t("pos.posPrinter")}</p>
               </div>
             </button>
           </div>
@@ -1099,16 +1299,22 @@ export const POSLitePage = () => {
               leftIcon={<Bluetooth size={16} />}
               onClick={handlePrintBluetooth}
             >
-              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
+              {blePrinter.status === "connected"
+                ? `${t("pos.printToDevice")} ${blePrinter.deviceName}`
+                : t("pos.printViaBluetooth")}
             </Button>
           )}
 
           <Button
             variant="ghost"
-            onClick={() => { setIsPrintModalOpen(false); setCompletedSaleId(''); setCompletedInvoiceNumber('') }}
+            onClick={() => {
+              setIsPrintModalOpen(false);
+              setCompletedSaleId("");
+              setCompletedInvoiceNumber("");
+            }}
             className="w-full"
           >
-            {t('pos.skipPrinting')}
+            {t("pos.skipPrinting")}
           </Button>
         </div>
       </Modal>
@@ -1127,5 +1333,5 @@ export const POSLitePage = () => {
         onClose={pageTutorial.closeTour}
       />
     </div>
-  )
-}
+  );
+};

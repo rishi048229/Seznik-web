@@ -3,7 +3,7 @@ import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, Emitte
 import { ReceiptTemplate, getTemplateById, isRestaurantLayout } from '../constants/receiptTemplates';
 import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } from '../types/labelTemplate';
 import { CustomReceiptTemplate } from '../types/customReceipt';
-import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
+import { buildBillPdfUrl, buildUpiPayString, isValidUpiVpa } from '../utils/billQrService';
 import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
@@ -864,12 +864,28 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  private upiPayPayload(data: PrintSaleData, upiOverride?: string): string | null {
+    const upi = (upiOverride || data.upiId || '').trim();
+    if (!isValidUpiVpa(upi)) return null;
+    return buildUpiPayString(upi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
+  }
+
+  private upiQrHtml(data: PrintSaleData): string {
+    const payload = this.upiPayPayload(data);
+    if (!payload) return '';
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=1&data=${encodeURIComponent(payload)}`;
+    return `<div class="center" style="margin-top:8px;">
+      <div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY Rs.${data.grandTotal.toFixed(2)}</div>
+      <img src="${url}" width="130" height="130" alt="UPI payment QR" style="display:inline-block;" />
+    </div>`;
+  }
+
   public interpolateReceiptVariables(text: string, data: PrintSaleData): string {
     if (!text) return '';
     const dateStr = data.date || new Date().toLocaleDateString('en-GB');
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const billPdfUrl = buildBillPdfUrl(data);
-    const upiStr = data.upiId ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR` : '';
+    const upiStr = this.upiPayPayload(data) || '';
 
     return text
       .replace(/\{\{store_name\}\}/gi, data.storeName || 'Your Store')
@@ -1958,8 +1974,7 @@ class ThermalPrinterServiceManager {
           case 'barcode': {
             let rawVal = this.interpolateReceiptVariables(entry.value, data);
             if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
-              const merchantUpi = entry.upiId || data.upiId || 'store@upi';
-              rawVal = buildUpiPayString(merchantUpi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
+              rawVal = this.upiPayPayload(data, entry.upiId) || rawVal;
             } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
               rawVal = billPdfUrl;
             } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
@@ -2216,6 +2231,7 @@ class ThermalPrinterServiceManager {
           </table>
 
           <div class="divider"></div>
+          ${this.upiQrHtml(data)}
           <div class="center">${template.footerMessage}</div>
         </body>
       </html>
@@ -2351,6 +2367,8 @@ class ThermalPrinterServiceManager {
 
           <div class="divider"></div>
 
+          ${this.upiQrHtml(data)}
+
           <div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>
         </body>
       </html>
@@ -2462,7 +2480,7 @@ class ThermalPrinterServiceManager {
             </table>
           </div>
 
-          ${data.upiId ? `<div class="upi-note">Pay via UPI: <b>${data.upiId}</b></div>` : ''}
+          ${this.upiQrHtml(data)}
 
           <div class="footer">
             This is a computer-generated invoice from ${(data.storeName || 'the store')}. ${template.footerMessage}
@@ -3463,9 +3481,7 @@ class ThermalPrinterServiceManager {
           const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
           const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
           const logoWidthDots = Math.round(paperWidthDots * 0.4);
-          const upiString = data.upiId
-            ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.storeName || 'Store')}&am=${data.grandTotal.toFixed(2)}&cu=INR`
-            : null;
+          const upiString = this.upiPayPayload(data);
 
           for (let i = 0; i < copies; i++) {
             // printPic has no Promise parameter (fire-and-forget on the native side) and defaults
@@ -3756,8 +3772,7 @@ class ThermalPrinterServiceManager {
         case 'barcode': {
           let rawVal = this.interpolateReceiptVariables(entry.value, data);
           if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
-            const merchantUpi = entry.upiId || data.upiId || 'store@upi';
-            rawVal = buildUpiPayString(merchantUpi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
+            rawVal = this.upiPayPayload(data, entry.upiId) || rawVal;
           } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
             rawVal = buildBillPdfUrl(data);
           } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {

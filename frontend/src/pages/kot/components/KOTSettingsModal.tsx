@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Building2, FileText, Receipt, Store } from 'lucide-react'
+import { Building2, FileText, Percent, Receipt, Store } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/Switch'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
+import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
 import { DEFAULT_KOT_CONFIG, mergeKotConfig, ORDER_TYPE_OPTIONS } from '../kotConfig'
+import { KOTTaxBillingPanel } from './KOTTaxBillingPanel'
+import {
+  DEFAULT_RESTAURANT_PRESETS,
+  parseRestaurantBilling,
+  toRestaurantBillingPayload,
+  type BillChargePreset,
+} from '@/constants/restaurantBilling'
 import type { KotConfig, KotRoomType, ReceiptConfig } from '@/types/settings.types'
 
-export type KOTSettingsTab = 'business' | 'bill' | 'kot' | 'stores'
+export type KOTSettingsTab = 'business' | 'bill' | 'taxBilling' | 'kot' | 'stores'
 
 interface KOTSettingsModalProps {
   isOpen: boolean
@@ -21,6 +29,7 @@ interface KOTSettingsModalProps {
 const TABS: Array<{ id: KOTSettingsTab; label: string; icon: typeof Building2 }> = [
   { id: 'business', label: 'Business', icon: Building2 },
   { id: 'bill', label: 'Customer bill', icon: Receipt },
+  { id: 'taxBilling', label: 'Tax & Billing', icon: Percent },
   { id: 'kot', label: 'KOT & charges', icon: FileText },
   { id: 'stores', label: 'Franchises', icon: Store },
 ]
@@ -29,6 +38,15 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
   const { data: settings } = useSettings()
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
+  const {
+    form,
+    setShowBreakdown,
+    setStyle,
+    setPrintOnReceipt,
+    setItemWiseGst,
+    saveGstBilling,
+    isSaving: isSavingGstBilling,
+  } = useGstBillingSettings()
 
   const [tab, setTab] = useState<KOTSettingsTab>(initialTab)
   const [businessName, setBusinessName] = useState('')
@@ -50,8 +68,9 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
   })
   const [kot, setKot] = useState<Required<KotConfig>>(DEFAULT_KOT_CONFIG)
   const [invoicePrefix, setInvoicePrefix] = useState('INV')
+  const [chargePresets, setChargePresets] = useState<BillChargePreset[]>(DEFAULT_RESTAURANT_PRESETS)
 
-  const saving = isUpdating || isCreating
+  const saving = isUpdating || isCreating || isSavingGstBilling
 
   useEffect(() => {
     if (!isOpen) return
@@ -80,6 +99,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
       showTaxBreakdown: settings?.receiptConfig?.showTaxBreakdown ?? true,
     })
     setKot(mergeKotConfig(settings?.kotConfig))
+    setChargePresets(parseRestaurantBilling(settings?.invoiceConfig).presets)
   }, [isOpen, initialTab, settings])
 
   const persist = (data: Record<string, unknown>, label: string) => {
@@ -130,6 +150,19 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
     persist({ kotConfig: kot }, 'KOT settings')
   }
 
+  const saveTaxBilling = async () => {
+    try {
+      await saveGstBilling({
+        extraInvoiceConfig: {
+          restaurantBilling: toRestaurantBillingPayload({ presets: chargePresets }),
+        },
+        onSuccess: () => toast.success('Tax & Billing saved'),
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save Tax & Billing')
+    }
+  }
+
   const franchisesEnabled = settings?.locationConfig?.enabled ?? false
 
   const setKotField = <K extends keyof Required<KotConfig>>(key: K, value: Required<KotConfig>[K]) => {
@@ -148,6 +181,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
             onClick={() => {
               if (tab === 'business') saveBusiness()
               else if (tab === 'bill') saveBill()
+              else if (tab === 'taxBilling') void saveTaxBilling()
               else saveKot()
             }}
             loading={saving}
@@ -241,6 +275,18 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
           </div>
         )}
 
+        {tab === 'taxBilling' && (
+          <KOTTaxBillingPanel
+            form={form}
+            onShowBreakdownChange={setShowBreakdown}
+            onStyleChange={setStyle}
+            onPrintOnReceiptChange={setPrintOnReceipt}
+            onItemWiseGstChange={setItemWiseGst}
+            chargePresets={chargePresets}
+            onChargePresetsChange={setChargePresets}
+          />
+        )}
+
         {tab === 'kot' && (
           <div className="space-y-4">
             <div>
@@ -286,6 +332,11 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               value={String(kot.taxRate)}
               onChange={(e) => setKotField('taxRate', Number(e.target.value) || 0)}
             />
+            {kot.applyTaxOverride ? (
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                Per-item GST slabs from products are overridden — slab-wise breakdown may not reflect menu item rates.
+              </p>
+            ) : null}
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Service charge</p>
               <div className="grid grid-cols-2 gap-2 mb-2">

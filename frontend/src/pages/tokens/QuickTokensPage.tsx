@@ -224,6 +224,7 @@ export const QuickTokensPage = () => {
         businessAddress: settings?.businessAddress,
         customerName: `Token #${token.tokenNumber} · ${label}`,
         invoiceConfig: settings?.invoiceConfig,
+        businessLogoURL: settings?.businessLogoURL,
       })
       await blePrinter.print(bytes)
       toast.success(`Token #${token.tokenNumber} printed via Bluetooth!`)

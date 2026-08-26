@@ -619,14 +619,31 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           ? receiptConfig.templateId
           : localTemplateId || get().activeTemplateId;
 
-      const effectiveCustomTemplates = Array.isArray(receiptConfig.customTemplates) && receiptConfig.customTemplates.length > 0
+      let effectiveCustomTemplates = Array.isArray(receiptConfig.customTemplates) && receiptConfig.customTemplates.length > 0
         ? receiptConfig.customTemplates
         : initialTemplates;
 
-      const effectiveActiveCustomId =
+      let effectiveActiveCustomId =
         receiptConfig.activeCustomTemplateId !== undefined
           ? receiptConfig.activeCustomTemplateId
           : localActiveCustomId;
+
+      // One-time migration: upload device-only templates when cloud is empty
+      const serverHasTemplates = Array.isArray(receiptConfig.customTemplates) && receiptConfig.customTemplates.length > 0;
+      if (!serverHasTemplates && localCustomTemplates && localCustomTemplates.length > 0) {
+        try {
+          await settingsApi.updateReceiptConfig({
+            customTemplates: localCustomTemplates,
+            activeCustomTemplateId: localActiveCustomId,
+            templateId: effectiveTemplateId,
+            enableBillQrCode: localEnableBillQr,
+          });
+          effectiveCustomTemplates = localCustomTemplates;
+          effectiveActiveCustomId = localActiveCustomId;
+        } catch (migrateErr) {
+          console.warn('[usePrinterStore] Could not migrate local templates to server:', migrateErr);
+        }
+      }
 
       const effectiveEnableBillQr =
         typeof receiptConfig.enableBillQrCode === 'boolean'
@@ -734,3 +751,15 @@ usePrinterStore.getState().hydrateFromSettings().catch((e) => {
     console.error('[usePrinterStore] eager hydrate failed:', e);
   }
 });
+
+// Re-sync receipt templates when app returns to foreground (web/mobile parity)
+try {
+  const { AppState } = require('react-native');
+  AppState.addEventListener('change', (state: string) => {
+    if (state === 'active') {
+      usePrinterStore.getState().hydrateFromSettings().catch(() => {});
+    }
+  });
+} catch {
+  // non-RN environment
+}

@@ -14,6 +14,13 @@ export interface UpiQrParams {
   note?: string
 }
 
+/** True for a merchant VPA such as shop@okhdfcbank or 9876543210@paytm. */
+export function isValidUpiVpa(value: string | undefined | null): boolean {
+  const v = (value || '').trim()
+  if (!v || v.length > 256) return false
+  return /^[a-zA-Z0-9._-]{2,}@[a-zA-Z][a-zA-Z0-9.-]{1,}$/.test(v)
+}
+
 /**
  * Builds standard NPCI compliant UPI payment URL.
  * Preserves literal '@' in VPA so UPI scanners (GPay, PhonePe, Paytm, BHIM, Cred)

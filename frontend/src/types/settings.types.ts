@@ -55,6 +55,13 @@ export interface ReceiptConfig {
   showPaymentQR?: boolean
   paymentQrURL?: string
   upiId?: string
+  /** Custom receipt builder — synced web + mobile */
+  customTemplates?: import('./customReceipt').CustomReceiptTemplate[]
+  activeCustomTemplateId?: string | null
+  templateId?: string
+  enableBillQrCode?: boolean
+  receiptConfigUpdatedAt?: string
+  deletedTemplateIds?: string[]
 }
 
 export interface PersonalInfo {
@@ -95,9 +102,6 @@ export interface PrinterConfig {
   // uses the browser print dialog. (USB/network-IP were never implemented —
   // selecting them silently did nothing, which is why they were removed.)
   connectionType: 'bluetooth' | 'system_driver'
-  autoPrintOnSale: boolean
-  openCashDrawer: boolean
-  cutPaper: boolean
 
   // Thermal Receipt Format — company name/address/phone/GSTIN/footer/terms
   // live on Settings.receiptConfig (the same object the real print pipeline

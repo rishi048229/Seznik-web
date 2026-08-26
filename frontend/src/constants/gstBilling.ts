@@ -8,6 +8,12 @@ export interface GstBillingConfig {
   itemWiseGst: boolean
 }
 
+export interface ReceiptPrintGstOptions {
+  showTaxBreakdown: boolean
+  gstStyle: GstBreakdownStyle | undefined
+  itemWiseGst: boolean
+}
+
 export const DEFAULT_GST_BILLING: GstBillingConfig = {
   configured: false,
   showBreakdown: false,
@@ -57,7 +63,7 @@ export function shouldShowGstBreakdown(config: GstBillingConfig): boolean {
 
 export function shouldPrintGstBreakdown(config: GstBillingConfig, templateFlag: boolean): boolean {
   if (!config.configured) return templateFlag
-  return config.printOnReceipt && config.style !== 'compact'
+  return config.printOnReceipt
 }
 
 export function gstPrintOptionOverrides(config: GstBillingConfig): {
@@ -66,13 +72,37 @@ export function gstPrintOptionOverrides(config: GstBillingConfig): {
 } {
   if (!config.configured) return {}
   return {
-    showTaxBreakdown: config.printOnReceipt && config.style !== 'compact',
+    showTaxBreakdown: config.printOnReceipt,
     itemWiseGst: config.itemWiseGst,
   }
 }
 
 export function printGstStyle(config: GstBillingConfig): GstBreakdownStyle | undefined {
   return config.printOnReceipt ? config.style : undefined
+}
+
+/** Resolve GST print display from invoiceConfig.gstBilling with legacy receiptConfig fallback. */
+export function resolveReceiptPrintGst(
+  invoiceConfig: unknown,
+  receiptConfig?: { showTaxBreakdown?: boolean } | null
+): ReceiptPrintGstOptions {
+  const gst = parseGstBilling(invoiceConfig)
+  const legacyFlag = receiptConfig?.showTaxBreakdown ?? true
+
+  if (!gst.configured) {
+    return {
+      showTaxBreakdown: legacyFlag,
+      gstStyle: legacyFlag ? 'tax_invoice' : undefined,
+      itemWiseGst: legacyFlag,
+    }
+  }
+
+  const showTaxBreakdown = shouldPrintGstBreakdown(gst, legacyFlag)
+  return {
+    showTaxBreakdown,
+    gstStyle: printGstStyle(gst),
+    itemWiseGst: gst.itemWiseGst,
+  }
 }
 
 export const GST_BREAKDOWN_STYLE_OPTIONS: { value: GstBreakdownStyle; label: string; description: string }[] = [

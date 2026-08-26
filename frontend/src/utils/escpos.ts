@@ -8,7 +8,7 @@ export type EscPosAlign = 'left' | 'center' | 'right'
 // Printers on this command set generally only ship an 8-bit ASCII/CP437-ish
 // code page, so non-ASCII characters (₹, etc.) are swapped for safe equivalents
 // rather than risking mojibake on the receipt.
-function toPrinterSafeText(str: string): string {
+export function toPrinterSafeText(str: string): string {
   const withoutRupee = str.replace(/₹/g, 'Rs.')
   let result = ''
   for (const ch of withoutRupee) {
@@ -71,10 +71,17 @@ export class EscPosBuilder {
     return this.line(char.repeat(width))
   }
 
-  // Pads two strings to the given width, left-justified and right-justified.
+  // Pads two strings to exactly width cols using printer-safe character lengths.
   twoCol(left: string, right: string, width = 32): this {
-    const space = Math.max(1, width - left.length - right.length)
-    return this.line(left + ' '.repeat(space) + right)
+    const safeLeft = toPrinterSafeText(left ?? '')
+    const safeRight = toPrinterSafeText(right ?? '')
+    const availableLeft = width - safeRight.length - 1
+    if (availableLeft < 1) {
+      return this.line(safeRight.slice(-width).padStart(width, ' '))
+    }
+    const leftStr = safeLeft.length > availableLeft ? safeLeft.slice(0, availableLeft) : safeLeft
+    const padding = width - leftStr.length - safeRight.length
+    return this.line(leftStr + ' '.repeat(Math.max(0, padding)) + safeRight)
   }
 
   feed(lines = 3): this {
@@ -241,6 +248,23 @@ function trimImageCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
  * bitmap payloads lightweight (~800–1600 bytes) and prevents printer buffer
  * exhaustion and motor stuttering during receipt printing.
  */
+async function toRasterizableSrc(src: string): Promise<string> {
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
+  try {
+    const response = await fetch(src)
+    if (!response.ok) return src
+    const blob = await response.blob()
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || src))
+      reader.onerror = () => reject(new Error('Failed to read logo blob'))
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return src
+  }
+}
+
 export async function rasterizeImageForEscPos(
   src: string,
   maxWidthDots = 224,
@@ -248,12 +272,13 @@ export async function rasterizeImageForEscPos(
 ): Promise<{ packed: Uint8Array; widthBytes: number; heightDots: number } | null> {
   if (!src) return null
   try {
+    const rasterSrc = await toRasterizableSrc(src)
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image()
-      if (!src.startsWith('data:')) el.crossOrigin = 'anonymous'
+      if (!rasterSrc.startsWith('data:') && !rasterSrc.startsWith('blob:')) el.crossOrigin = 'anonymous'
       el.onload = () => resolve(el)
       el.onerror = () => reject(new Error('Failed to load logo image'))
-      el.src = src
+      el.src = rasterSrc
     })
 
     if (!img.width || !img.height) return null
@@ -306,7 +331,8 @@ export async function rasterizeImageForEscPos(
     }
 
     return { packed, widthBytes, heightDots }
-  } catch {
+  } catch (err) {
+    console.warn('[receipt] rasterizeImageForEscPos failed:', err)
     return null
   }
 }

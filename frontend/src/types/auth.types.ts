@@ -69,4 +69,6 @@ export interface CompleteOnboardingPayload {
   phone: string
   businessAddress: string
   businessLogoURL?: string | null
+  /** Merchant UPI VPA printed as a payment QR on bills. */
+  upiId: string
 }

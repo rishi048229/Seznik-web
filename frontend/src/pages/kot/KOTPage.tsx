@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChefHat, Clock, CreditCard, LayoutGrid, MoreVertical, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
+import { ChefHat, Clock, CreditCard, LayoutGrid, MoreVertical, Percent, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -99,6 +99,10 @@ export const KOTPage = () => {
               <DropdownMenuItem onClick={() => openSettings('bill')}>
                 <Receipt size={14} />
                 Customer bill
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openSettings('taxBilling')}>
+                <Percent size={14} />
+                Tax & Billing
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings('kot')}>
                 <UtensilsCrossed size={14} />

@@ -26,7 +26,7 @@ import {
 import QRCodeSVG from 'react-native-qrcode-svg';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { buildUpiPayString } from '@/utils/billQrService';
+import { buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
 import { useSettings } from '@/hooks/useSettings';
 
 interface Props {
@@ -54,8 +54,10 @@ export function DynamicUpiPaymentModal({
   const [upiInput, setUpiInput] = useState(settings?.upiId || '');
 
   const storeName = settings?.businessName || 'Seznik Store';
-  const effectiveUpiId = (settings?.upiId || upiInput || 'store@upi').trim();
-  const upiPayString = buildUpiPayString(effectiveUpiId, storeName, amount, invoiceNumber);
+  const effectiveUpiId = (settings?.upiId || upiInput || '').trim();
+  const upiPayString = isValidUpiVpa(effectiveUpiId)
+    ? buildUpiPayString(effectiveUpiId, storeName, amount, invoiceNumber)
+    : '';
 
   const handleSaveUpiId = async () => {
     const clean = upiInput.trim();
@@ -119,13 +121,19 @@ export function DynamicUpiPaymentModal({
               {/* High-Contrast Crisp Scannable QR Code */}
               <View style={styles.qrContainerWrapper}>
                 <View style={styles.qrWhiteBox}>
-                  <QRCodeSVG
-                    value={upiPayString}
-                    size={210}
-                    color="#000000"
-                    backgroundColor="#FFFFFF"
-                    quietZone={8}
-                  />
+                  {upiPayString ? (
+                    <QRCodeSVG
+                      value={upiPayString}
+                      size={210}
+                      color="#000000"
+                      backgroundColor="#FFFFFF"
+                      quietZone={8}
+                    />
+                  ) : (
+                    <Text style={{ color: '#64748B', textAlign: 'center', fontSize: 12, padding: 16 }}>
+                      Enter a valid UPI ID to generate the payment QR
+                    </Text>
+                  )}
                 </View>
               </View>
 

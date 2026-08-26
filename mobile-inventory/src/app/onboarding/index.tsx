@@ -12,10 +12,11 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon } from 'lucide-react-native';
+import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import QRCodeSVG from 'react-native-qrcode-svg';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
@@ -29,6 +30,7 @@ import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { useTranslation } from '@/store/useLanguageStore';
 import { persistBusinessLogo } from '@/utils/businessLogoStorage';
 import { useAuth } from '@/hooks/useAuth';
+import { buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -42,8 +44,9 @@ export default function OnboardingScreen() {
   const { currentLanguage, setLanguage, t } = useTranslation();
 
   const pickTypeOnly = user?.onboardingCompleted === true && !user?.businessType;
+  const lastStep = pickTypeOnly ? 2 : 3;
 
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [businessName, setBusinessName] = useState(user?.businessName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [businessAddress, setBusinessAddress] = useState('');
@@ -51,6 +54,7 @@ export default function OnboardingScreen() {
     user?.businessType ?? 'retail_shop'
   );
   const [logoUri, setLogoUri] = useState<string | null>(null);
+  const [upiId, setUpiId] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(currentLanguage);
 
   const theme = useAppTheme();
@@ -61,6 +65,11 @@ export default function OnboardingScreen() {
     () => BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label,
     [selectedBusinessType]
   );
+  const showPaymentStep = !pickTypeOnly && step === 2;
+  const showWorkspaceStep = pickTypeOnly ? step === 2 : step === 3;
+  const upiPreview = isValidUpiVpa(upiId)
+    ? buildUpiPayString(upiId.trim(), businessName.trim() || 'Your shop', 100, 'Sample bill')
+    : '';
 
   const validateShopDetails = () => {
     if (!businessName.trim()) {
@@ -109,35 +118,59 @@ export default function OnboardingScreen() {
   };
 
   const handleNext = async () => {
+    if (pickTypeOnly) {
+      if (step === 1) {
+        setStep(2);
+        return;
+      }
+      try {
+        await setLanguage(selectedLanguage);
+        await updateBusinessType(selectedBusinessType);
+        router.replace('/');
+      } catch (err: any) {
+        Alert.alert('Setup failed', err?.message || t('onboardingSetupFailed'));
+      }
+      return;
+    }
+
     if (step === 1) {
-      if (!pickTypeOnly && !validateShopDetails()) return;
+      if (!validateShopDetails()) return;
       setStep(2);
+      return;
+    }
+
+    if (step === 2) {
+      if (!isValidUpiVpa(upiId)) {
+        Alert.alert(
+          t('onboardingUpiRequired', 'UPI ID required'),
+          t(
+            'onboardingUpiRequiredMsg',
+            'Enter a valid UPI ID (e.g. shopname@okhdfcbank) to continue.'
+          )
+        );
+        return;
+      }
+      setStep(3);
       return;
     }
 
     try {
       await setLanguage(selectedLanguage);
-      if (pickTypeOnly) {
-        await updateBusinessType(selectedBusinessType);
-      } else {
-        let businessLogoURL: string | undefined;
-        if (logoUri) {
-          businessLogoURL = await cacheLogoForLaterS3(logoUri);
-        }
-        await completeOnboarding({
-          businessName: businessName.trim(),
-          businessType: selectedBusinessType,
-          phone: phone.trim(),
-          businessAddress: businessAddress.trim(),
-          ...(businessLogoURL ? { businessLogoURL } : {}),
-        });
+      let businessLogoURL: string | undefined;
+      if (logoUri) {
+        businessLogoURL = await cacheLogoForLaterS3(logoUri);
       }
+      await completeOnboarding({
+        businessName: businessName.trim(),
+        businessType: selectedBusinessType,
+        phone: phone.trim(),
+        businessAddress: businessAddress.trim(),
+        upiId: upiId.trim(),
+        ...(businessLogoURL ? { businessLogoURL } : {}),
+      });
       router.replace('/');
     } catch (err: any) {
-      Alert.alert(
-        'Setup failed',
-        err?.message || t('onboardingSetupFailed')
-      );
+      Alert.alert('Setup failed', err?.message || t('onboardingSetupFailed'));
     }
   };
 
@@ -158,13 +191,22 @@ export default function OnboardingScreen() {
           <View style={styles.mainWrapper}>
             <View style={styles.topRow}>
               <Text style={styles.stepIndicator}>
-                {pickTypeOnly ? t('onboardingChooseWorkspace') : t('onboardingStepOf').replace('{step}', String(step))}
+                {pickTypeOnly
+                  ? t('onboardingChooseWorkspace')
+                  : t('onboardingStepOf')
+                      .replace('{step}', String(step))
+                      .replace('{total}', String(lastStep))}
               </Text>
-              {step === 2 ? (
-                <TouchableOpacity onPress={() => setStep(1)} hitSlop={12}>
+              {step > 1 ? (
+                <TouchableOpacity
+                  onPress={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))}
+                  hitSlop={12}
+                >
                   <View style={styles.backRow}>
                     <ArrowLeft size={14} color={BRAND_COLORS.sky500} />
-                    <Text style={styles.backText}>{t('onboardingChangeType')}</Text>
+                    <Text style={styles.backText}>
+                      {pickTypeOnly ? t('onboardingChangeType') : t('onboardingBack', 'Back')}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               ) : null}
@@ -298,7 +340,64 @@ export default function OnboardingScreen() {
                     </>
                   )}
                 </View>
-              ) : (
+              ) : showPaymentStep ? (
+                <View style={styles.stepBox}>
+                  <View style={styles.iconCircle}>
+                    <QrCode size={32} color="#FFFFFF" />
+                  </View>
+                  <Text style={[styles.title, { color: theme.textPrimary }]}>
+                    {t('onboardingPaymentTitle', 'Enter your UPI ID')}
+                  </Text>
+                  <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                    {t(
+                      'onboardingPaymentDesc',
+                      'We use this UPI ID on every printed bill. Scanning the QR opens GPay, PhonePe, Paytm, or BHIM with the exact bill amount already filled.'
+                    )}
+                  </Text>
+                  <View
+                    style={[
+                      styles.hintCard,
+                      { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5' },
+                    ]}
+                  >
+                    <Text style={styles.hintText}>
+                      {t(
+                        'onboardingUpiHint',
+                        'Do not upload a QR image. Enter your UPI ID (like shopname@okhdfcbank). Each bill generates its own QR from this ID and that bill’s total.'
+                      )}
+                    </Text>
+                  </View>
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                    {t('onboardingUpiId', 'UPI ID')} *
+                  </Text>
+                  <TextInput
+                    style={inputStyle}
+                    value={upiId}
+                    onChangeText={setUpiId}
+                    placeholder={t('onboardingUpiPlaceholder', 'shopname@okhdfcbank')}
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                  />
+                  {upiPreview ? (
+                    <View
+                      style={[
+                        styles.qrPreview,
+                        { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                      ]}
+                    >
+                      <QRCodeSVG value={upiPreview} size={148} />
+                      <Text style={[styles.qrPreviewNote, { color: theme.textSecondary }]}>
+                        {t(
+                          'onboardingUpiPreviewNote',
+                          'Sample QR only. Each real bill encodes that bill’s exact amount.'
+                        )}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : showWorkspaceStep ? (
                 <View style={styles.stepBox}>
                   <View style={styles.iconCircle}>
                     <Layers size={32} color="#FFFFFF" />
@@ -335,7 +434,7 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                 </View>
-              )}
+              ) : null}
             </ScrollView>
 
             <TouchableOpacity
@@ -348,7 +447,7 @@ export default function OnboardingScreen() {
               ) : (
                 <>
                   <Text style={styles.nextBtnText}>
-                    {step === 1 ? t('onboardingNextStep') : t('onboardingUseSetup')}
+                    {step === lastStep ? t('onboardingUseSetup') : t('onboardingNextStep')}
                   </Text>
                   <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                 </>
@@ -550,4 +649,28 @@ const styles = StyleSheet.create({
   },
   langChipText: { fontSize: 14, fontWeight: '800', flex: 1 },
   langChipSub: { fontSize: 11, fontWeight: '600' },
+  hintCard: {
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+  },
+  hintText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#065F46',
+    lineHeight: 18,
+  },
+  qrPreview: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    gap: 10,
+  },
+  qrPreviewNote: {
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
 });

@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
-import type { InvoiceConfig } from '@/types/settings.types'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -19,16 +18,6 @@ import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
 import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel'
-import { BillChargesSettingsPanel } from '@/components/billing/BillChargesSettingsPanel'
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
-import { toGstBillingPayload } from '@/constants/gstBilling'
-import {
-  DEFAULT_RESTAURANT_PRESETS,
-  parseRestaurantBilling,
-  toRestaurantBillingPayload,
-  type BillChargePreset,
-} from '@/constants/restaurantBilling'
 import { BUSINESS_TYPE_OPTIONS, getBusinessTypeLabel, type BusinessType } from '@/constants/businessTypes'
 
 const DEFAULT_SETTINGS = {
@@ -71,21 +60,6 @@ export const SettingsPage = () => {
   const [isSavingType, setIsSavingType] = useState(false)
 
   const current = settings ?? DEFAULT_SETTINGS
-  const {
-    form: gstForm,
-    setShowBreakdown: setGstShowBreakdown,
-    setStyle: setGstStyle,
-    setPrintOnReceipt: setGstPrintOnReceipt,
-    setItemWiseGst: setGstItemWise,
-  } = useGstBillingSettings()
-  const [chargePresets, setChargePresets] = useState<BillChargePreset[]>(DEFAULT_RESTAURANT_PRESETS)
-  const [chargesDirty, setChargesDirty] = useState(false)
-
-  useEffect(() => {
-    if (!settings) return
-    setChargePresets(parseRestaurantBilling(settings.invoiceConfig).presets)
-    setChargesDirty(false)
-  }, [settings?.id, settings?.invoiceConfig])
 
   useEffect(() => {
     if (userProfile?.businessType) {
@@ -219,6 +193,7 @@ export const SettingsPage = () => {
       case 'invoice':
         handleSave(t('settings.invoiceSettingsLabel'), {
           receiptConfig: {
+            ...curReceipt,
             companyName:   val('settings-receipt-company'),
             address:       val('settings-receipt-address'),
             phone:         val('settings-receipt-phone'),
@@ -235,18 +210,7 @@ export const SettingsPage = () => {
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
           personalInfo:    curPersonal,
-          invoiceConfig: {
-            ...curInvoice,
-            gstBilling: toGstBillingPayload({
-              showBreakdown: gstForm.showBreakdown,
-              style: gstForm.style,
-              printOnReceipt: gstForm.printOnReceipt,
-              itemWiseGst: gstForm.itemWiseGst,
-            }),
-            ...(chargesDirty || Boolean((curInvoice as InvoiceConfig).restaurantBilling)
-              ? { restaurantBilling: toRestaurantBillingPayload({ presets: chargePresets }) }
-              : {}),
-          },
+          invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
         })
         break
@@ -517,32 +481,6 @@ export const SettingsPage = () => {
                   id="settings-receipt-gstin"
                   placeholder="GSTIN : 33AAAGP0685F1ZH"
                 />
-
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/40">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{t('settings.gstBillingTitle')}</p>
-                  <GstBillingSettingsPanel
-                    showBreakdown={gstForm.showBreakdown}
-                    style={gstForm.style}
-                    printOnReceipt={gstForm.printOnReceipt}
-                    itemWiseGst={gstForm.itemWiseGst}
-                    onShowBreakdownChange={setGstShowBreakdown}
-                    onStyleChange={setGstStyle}
-                    onPrintOnReceiptChange={setGstPrintOnReceipt}
-                    onItemWiseGstChange={setGstItemWise}
-                    showSaveButton={false}
-                    hintText=""
-                  />
-                </div>
-
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/40">
-                  <BillChargesSettingsPanel
-                    presets={chargePresets}
-                    onChange={(next) => {
-                      setChargesDirty(true)
-                      setChargePresets(next)
-                    }}
-                  />
-                </div>
 
                 {/* Terms & Conditions */}
                 <div>

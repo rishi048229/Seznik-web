@@ -25,11 +25,9 @@ import {
   MessageSquareHeart,
   BookOpen,
   Ticket,
-  Percent,
   UtensilsCrossed,
 } from 'lucide-react'
 import { FeedbackModal } from '@/components/common/FeedbackModal'
-import { GstBillingSettingsModal } from '@/components/billing/GstBillingSettingsModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -90,7 +88,6 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const [poppedPath, setPoppedPath] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true')
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
-  const [isTaxBillingOpen, setIsTaxBillingOpen] = useState(false)
 
   const toggleCollapsed = () => {
     setCollapsed(current => {
@@ -169,7 +166,6 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           <nav className={clsx('flex-1 overflow-y-auto py-4', collapsed ? 'px-3 lg:px-[15px]' : 'px-3')}>
             {navItems.map(item => {
               const isProducts = item.path === ROUTES.PRODUCTS
-              const isPrinters = item.path === ROUTES.PRINTERS
               const Icon = item.icon
               return (
                 <React.Fragment key={item.path}>
@@ -233,32 +229,6 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     </>
                   )}
                 </NavLink>
-                {isPrinters ? (
-                  <button
-                    type="button"
-                    onClick={() => { setIsTaxBillingOpen(true); onClose() }}
-                    title={collapsed ? t('nav.taxBilling') : undefined}
-                    className={clsx(
-                      'group relative flex items-center w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1',
-                      'active:scale-[0.98] text-gray-600 hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-gray-700/50',
-                      collapsed && 'lg:px-0 lg:justify-center',
-                      !collapsed && 'hover:translate-x-1'
-                    )}
-                  >
-                    <span
-                      className={clsx(
-                        'mr-3 flex-shrink-0 inline-flex items-center justify-center w-[18px] h-[18px]',
-                        collapsed && 'lg:mr-0',
-                        'transition-transform duration-200 ease-out group-hover:scale-110 group-active:scale-90'
-                      )}
-                    >
-                      <Percent size={18} className="flex-shrink-0" />
-                    </span>
-                    <span className={clsx('truncate whitespace-nowrap', collapsed && 'lg:hidden')}>
-                      {t('nav.taxBilling')}
-                    </span>
-                  </button>
-                ) : null}
                 </React.Fragment>
               )
             })}
@@ -316,7 +286,6 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       </aside>
 
       <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
-      <GstBillingSettingsModal isOpen={isTaxBillingOpen} onClose={() => setIsTaxBillingOpen(false)} />
     </>
   )
 }
