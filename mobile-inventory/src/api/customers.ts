@@ -31,8 +31,10 @@ export const customersApi = {
     });
   },
 
-  bulkCreateCustomers: async (customers: CreateCustomerPayload[]): Promise<{ success: boolean; count: number }> => {
-    return fetchApi<{ success: boolean; count: number }>('/customers/bulk-create', {
+  bulkCreateCustomers: async (
+    customers: CreateCustomerPayload[]
+  ): Promise<{ success: boolean; count: number; skipped?: number }> => {
+    return fetchApi<{ success: boolean; count: number; skipped?: number }>('/customers/bulk-create', {
       method: 'POST',
       body: JSON.stringify({ customers }),
     });

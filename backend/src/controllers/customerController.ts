@@ -50,6 +50,79 @@ export const createCustomer = async (req: Request, res: Response) => {
   }
 };
 
+// Bulk import, used by the mobile "Import Phone Contacts" flow. The client sends
+// the whole selected address book in one request rather than one POST per contact.
+// Phone numbers already on file for this user are skipped instead of erroring, so
+// re-running an import (or importing an overlapping selection) tops up the new
+// contacts rather than creating duplicates — there is no unique constraint on
+// phone, so this is enforced here.
+export const bulkCreateCustomers = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { customers } = req.body;
+
+    if (!Array.isArray(customers) || customers.length === 0) {
+      return res.status(400).json({ error: 'A non-empty "customers" array is required' });
+    }
+
+    const MAX_BULK = 2000;
+    if (customers.length > MAX_BULK) {
+      return res.status(400).json({ error: `Cannot import more than ${MAX_BULK} contacts at once` });
+    }
+
+    const normalizePhone = (value: unknown) => String(value ?? '').replace(/[^0-9+]/g, '');
+
+    // Keep only well-formed rows, and de-duplicate within the payload itself.
+    const seen = new Set<string>();
+    const candidates: { name: string; phone: string; email?: string; address?: string; creditLimit: number }[] = [];
+    for (const entry of customers) {
+      const name = String(entry?.name ?? '').trim();
+      const phone = normalizePhone(entry?.phone);
+      if (!name || !phone) continue;
+      if (seen.has(phone)) continue;
+      seen.add(phone);
+      candidates.push({
+        name,
+        phone,
+        email: entry?.email ? String(entry.email).trim() : undefined,
+        address: entry?.address ? String(entry.address).trim() : undefined,
+        creditLimit: Number(entry?.creditLimit) || 0,
+      });
+    }
+
+    if (candidates.length === 0) {
+      return res.status(400).json({ error: 'No contacts with both a name and a phone number were provided' });
+    }
+
+    const existing = await prisma.customer.findMany({
+      where: { userId, phone: { in: candidates.map((c) => c.phone) } },
+      select: { phone: true },
+    });
+    const existingPhones = new Set(existing.map((c) => c.phone));
+
+    const toCreate = candidates.filter((c) => !existingPhones.has(c.phone));
+
+    if (toCreate.length === 0) {
+      return res.json({ success: true, count: 0, skipped: candidates.length });
+    }
+
+    const result = await prisma.customer.createMany({
+      data: toCreate.map((c) => ({ ...c, userId })),
+      skipDuplicates: true,
+    });
+
+    res.status(201).json({
+      success: true,
+      count: result.count,
+      skipped: candidates.length - result.count,
+    });
+  } catch (error) {
+    console.error('bulkCreateCustomers error:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to import customers: ${detail}` });
+  }
+};
+
 export const updateCustomer = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;

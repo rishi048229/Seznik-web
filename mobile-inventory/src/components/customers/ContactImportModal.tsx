@@ -48,8 +48,8 @@ export interface PhoneContactItem {
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onImportSuccess: (importedCount: number) => void;
-  bulkCreateCustomers: (customers: CreateCustomerPayload[]) => Promise<{ success: boolean; count: number }>;
+  onImportSuccess: (importedCount: number, skippedCount: number) => void;
+  bulkCreateCustomers: (customers: CreateCustomerPayload[]) => Promise<{ success: boolean; count: number; skipped?: number }>;
 }
 
 export function ContactImportModal({ visible, onClose, onImportSuccess, bulkCreateCustomers }: Props) {
@@ -192,7 +192,10 @@ export function ContactImportModal({ visible, onClose, onImportSuccess, bulkCrea
 
       const res = await bulkCreateCustomers(payload);
       const count = res?.count ?? payload.length;
-      onImportSuccess(count);
+      // Contacts already on file are skipped server-side rather than duplicated,
+      // so report them separately instead of implying nothing happened.
+      const skipped = res?.skipped ?? 0;
+      onImportSuccess(count, skipped);
       handleClose();
     } catch (err: any) {
       Alert.alert('Import Failed', err?.message || 'Failed to import contacts as customers.');

@@ -449,8 +449,14 @@ export default function CustomersScreen() {
           visible={showContactModal}
           onClose={() => setShowContactModal(false)}
           bulkCreateCustomers={bulkCreateCustomers}
-          onImportSuccess={(count) => {
-            Alert.alert('Import Complete', `Successfully imported ${count} customers from your phone contacts!`);
+          onImportSuccess={(count, skipped) => {
+            const parts: string[] = [];
+            if (count > 0) parts.push(`Added ${count} new customer${count === 1 ? '' : 's'}.`);
+            if (skipped > 0) parts.push(`${skipped} ${skipped === 1 ? 'was' : 'were'} already saved, so ${skipped === 1 ? 'it was' : 'they were'} skipped.`);
+            Alert.alert(
+              count > 0 ? 'Import Complete' : 'Nothing New to Import',
+              parts.length > 0 ? parts.join('\n') : 'No contacts were imported.'
+            );
             refetch();
           }}
         />
