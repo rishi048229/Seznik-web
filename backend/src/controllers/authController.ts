@@ -656,7 +656,11 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('completeOnboarding error:', error);
-    res.status(500).json({ error: 'Server error' });
+    const message =
+      process.env.NODE_ENV !== 'production' && error instanceof Error
+        ? error.message
+        : 'Server error';
+    res.status(500).json({ error: message });
   }
 };
 
