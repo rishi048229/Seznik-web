@@ -3128,12 +3128,23 @@ class ThermalPrinterServiceManager {
       }
     }
 
-    // An empty template would otherwise be sent as a valid TSPL job with no
-    // content, so the printer feeds one blank label and reports success — which
-    // reads exactly like "printing does nothing". Say so instead.
+    // An empty template would otherwise go out as a valid TSPL job with no content:
+    // the printer feeds one blank label and reports success, which is exactly what
+    // "it prints nothing" looked like. Rather than fail, fall back to the same
+    // auto-layout the Test Label button uses (printCustomLabel -> buildTsplLabelFields),
+    // which is the path already proven to print on this hardware.
     if (!textFields.length && !barcodeFields.length && !qrFields.length && !imageFields.length) {
-      throw new Error(
-        `"${template.name || 'This label'}" has no elements on it yet. Open Label Studio and add a product name, price or barcode, then save.`
+      console.warn(
+        `Label template "${template.name}" has no printable elements; using the built-in auto-layout instead.`
+      );
+      const digits = (product.barcode || product.sku || '').replace(/\D/g, '');
+      return this.printCustomLabel(
+        product,
+        digits.length === 12 || digits.length === 13 ? 'ean13' : 'code128',
+        undefined,
+        this.safeInt(template.widthMm, 50),
+        this.safeInt(template.heightMm, 30),
+        this.safeInt(labelGapMm, 2)
       );
     }
 

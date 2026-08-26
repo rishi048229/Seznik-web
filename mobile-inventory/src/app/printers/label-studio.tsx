@@ -177,7 +177,13 @@ export default function LabelStudioScreen() {
     paperWidth,
   } = usePrinterStore();
 
-  const existing = params.id ? labelTemplates.find((t) => t.id === params.id) : undefined;
+  // Opening Label Studio from the Printers screen carries no id param. Previously
+  // that always started a brand-new blank template, so the saved/default design was
+  // silently ignored and any earlier work looked like it had been discarded — fall
+  // back to the active template, then to whatever single template exists.
+  const existing = params.id
+    ? labelTemplates.find((t) => t.id === params.id)
+    : labelTemplates.find((t) => t.id === activeLabelTemplateId) ?? labelTemplates[0];
   const [template, setTemplate] = useState<LabelTemplate>(() => existing || makeBlankTemplate(labelWidthMm, labelHeightMm));
   const [selectedId, setSelectedId] = useState<string | null>(() => template.elements[0]?.id || null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(products[0] || null);
