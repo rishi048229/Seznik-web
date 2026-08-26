@@ -50,7 +50,6 @@ import {
   ExternalLink,
   Ticket,
   ChefHat,
-  Smartphone,
 } from 'lucide-react'
 import { MobileLoginQrCard } from '@/components/dashboard/MobileLoginQrCard'
 
@@ -261,20 +260,21 @@ export const DashboardPage = () => {
             </Card>
           ) : null}
           <Card className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-100 dark:border-orange-800">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                <ChefHat size={22} className="text-orange-600 dark:text-orange-400" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                  <ChefHat size={22} className="text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Kitchen orders & tables</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                    Open the floor plan to manage tables, fire KOTs, and settle dine-in bills. The same orders stay available in the mobile app.
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Kitchen orders on mobile</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                  KOT tickets, tables, and send-to-kitchen live in the Seznik mobile app. Use web POS here for counter billing.
-                </p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
-                  <Smartphone size={12} />
-                  Scan the mobile login QR below to open kitchen tools on your phone.
-                </p>
-              </div>
+              <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.KOT)}>
+                Open KOT
+              </Button>
             </div>
           </Card>
         </div>

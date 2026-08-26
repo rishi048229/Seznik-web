@@ -25,6 +25,7 @@ export const getTables = async (req: Request, res: Response) => {
       return {
         id: t.id,
         name: t.name,
+        capacity: t.capacity,
         isActive: t.isActive,
         sortOrder: t.sortOrder,
         isOccupied: !!activeOrder,
@@ -51,7 +52,7 @@ export const getTables = async (req: Request, res: Response) => {
 export const createTable = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { name, sortOrder } = req.body;
+    const { name, sortOrder, capacity } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Table name is required' });
@@ -61,6 +62,7 @@ export const createTable = async (req: Request, res: Response) => {
       data: {
         name: name.trim(),
         sortOrder: Number(sortOrder) || 0,
+        capacity: capacity === null || capacity === '' || capacity === undefined ? null : Number(capacity),
         userId,
       },
     });
@@ -76,7 +78,7 @@ export const updateTable = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const { name, sortOrder, isActive } = req.body;
+    const { name, sortOrder, isActive, capacity } = req.body;
 
     const table = await prisma.restaurantTable.updateMany({
       where: { id: String(id), userId },
@@ -84,6 +86,9 @@ export const updateTable = async (req: Request, res: Response) => {
         ...(name !== undefined ? { name: name.trim() } : {}),
         ...(sortOrder !== undefined ? { sortOrder: Number(sortOrder) } : {}),
         ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+        ...(capacity !== undefined
+          ? { capacity: capacity === null || capacity === '' ? null : Number(capacity) }
+          : {}),
       },
     });
 

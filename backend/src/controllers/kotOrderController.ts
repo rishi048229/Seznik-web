@@ -1,6 +1,20 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 
+const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
+
+const enrichOrder = (o: { items: Array<{ unitPrice: number; quantity: number; taxRate: number; status?: string }> }) => {
+  const billable = o.items.filter((it) => it.status !== 'voided');
+  const subtotal = billable.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+  const tax = billable.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+  return {
+    ...o,
+    subtotal,
+    totalTax: tax,
+    grandTotal: subtotal + tax,
+  };
+};
+
 export const getOrders = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
@@ -8,8 +22,13 @@ export const getOrders = async (req: Request, res: Response) => {
 
     let statusFilter: any = undefined;
     if (status) {
-      const statusArr = String(status).split(',').map((s) => s.trim());
-      statusFilter = { in: statusArr };
+      const raw = String(status);
+      if (raw === 'running') {
+        statusFilter = { in: ACTIVE_STATUSES };
+      } else {
+        const statusArr = raw.split(',').map((s) => s.trim()).filter(Boolean);
+        statusFilter = { in: statusArr };
+      }
     }
 
     const orders = await prisma.kOTOrder.findMany({
@@ -28,18 +47,7 @@ export const getOrders = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    const enriched = orders.map((o) => {
-      const subtotal = o.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-      const tax = o.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
-      return {
-        ...o,
-        subtotal,
-        totalTax: tax,
-        grandTotal: subtotal + tax,
-      };
-    });
-
-    res.json(enriched);
+    res.json(orders.map(enrichOrder));
   } catch (error) {
     console.error('getOrders error:', error);
     res.status(500).json({ error: 'Failed to fetch KOT orders' });
@@ -93,6 +101,8 @@ export const createOrder = async (req: Request, res: Response) => {
       notes,
       priority = 'normal',
       status = 'open',
+      waiterName,
+      locationId,
       items = [],
     } = req.body;
 
@@ -124,6 +134,8 @@ export const createOrder = async (req: Request, res: Response) => {
           customerId: customerId || null,
           contactNumber: contactNumber?.trim() || null,
           notes: notes?.trim() || null,
+          waiterName: waiterName?.trim() || null,
+          locationId: locationId || null,
           priority,
           status,
           sentToKitchenAt: status === 'sent_to_kitchen' ? new Date() : null,
@@ -317,6 +329,69 @@ export const editOrder = async (req: Request, res: Response) => {
   }
 };
 
+export const sendToKitchen = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const id = String(req.params.id);
+
+    const order = await prisma.kOTOrder.findFirst({
+      where: { id, userId },
+      include: { items: true, table: true, customer: true, sale: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.status === 'billed' || order.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot send a billed or cancelled order to kitchen' });
+    }
+
+    const { waiterName, locationId } = req.body;
+    const unprinted = order.items.filter((it) => !it.sentToKitchenAt);
+    const now = new Date();
+
+    const result = await prisma.$transaction(async (tx) => {
+      if (unprinted.length > 0) {
+        await tx.kOTOrderItem.updateMany({
+          where: { id: { in: unprinted.map((it) => it.id) }, orderId: id },
+          data: { sentToKitchenAt: now, status: 'sent_to_kitchen' },
+        });
+      }
+
+      await tx.kOTOrder.update({
+        where: { id },
+        data: {
+          status: order.status === 'open' ? 'sent_to_kitchen' : order.status,
+          sentToKitchenAt: order.sentToKitchenAt || now,
+          ...(waiterName !== undefined ? { waiterName: String(waiterName).trim() || null } : {}),
+          ...(locationId !== undefined ? { locationId: locationId || null } : {}),
+        },
+      });
+
+      return tx.kOTOrder.findFirst({
+        where: { id, userId },
+        include: { table: true, customer: true, items: true, sale: true },
+      });
+    });
+
+    if (!result) {
+      return res.status(404).json({ error: 'Order not found after update' });
+    }
+
+    const newlySentIds = new Set(unprinted.map((it) => it.id));
+    const newlySentItems = result.items.filter((it) => newlySentIds.has(it.id));
+
+    res.json({
+      ...enrichOrder(result),
+      newlySentItems,
+    });
+  } catch (error) {
+    console.error('sendToKitchen error:', error);
+    res.status(500).json({ error: 'Failed to send order to kitchen' });
+  }
+};
+
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
@@ -349,7 +424,16 @@ export const generateBill = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const id = String(req.params.id);
-    const { paymentMethod = 'cash', discount = 0, amountPaid } = req.body;
+    const {
+      paymentMethod = 'cash',
+      discount = 0,
+      amountPaid,
+      customerId,
+      taxRate,
+      serviceCharge = 0,
+      roomCharge = 0,
+      roomChargeLabel,
+    } = req.body;
 
     const order = await prisma.kOTOrder.findFirst({
       where: { id, userId },
@@ -372,27 +456,54 @@ export const generateBill = async (req: Request, res: Response) => {
       // 2. Compute totals for active non-voided items only
       const billableItems = order.items.filter((it) => it.status !== 'voided');
       const subtotal = billableItems.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-      const totalTax = billableItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+      const itemTax = billableItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+      const overrideTaxRate = taxRate !== undefined && taxRate !== null && taxRate !== '' ? Number(taxRate) : null;
+      const totalTax =
+        overrideTaxRate !== null && !Number.isNaN(overrideTaxRate)
+          ? (subtotal * overrideTaxRate) / 100
+          : itemTax;
+      const service = Math.max(0, Number(serviceCharge) || 0);
+      const room = Math.max(0, Number(roomCharge) || 0);
       const totalDiscount = Number(discount) || 0;
-      const grandTotal = Math.max(0, subtotal + totalTax - totalDiscount);
+      const grandTotal = Math.max(0, subtotal + totalTax + service + room - totalDiscount);
       const paid = amountPaid !== undefined ? Number(amountPaid) : grandTotal;
       const change = Math.max(0, paid - grandTotal);
+      const resolvedCustomerId = customerId || order.customerId || null;
 
-      // 3. Format Sale item line array
       const saleItems = billableItems.map((it) => ({
         productId: it.productId || undefined,
         productName: it.productName,
         quantity: it.quantity,
         unitPrice: it.unitPrice,
-        taxRate: it.taxRate,
+        taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
         total: it.unitPrice * it.quantity,
       }));
+      if (service > 0) {
+        saleItems.push({
+          productId: undefined,
+          productName: 'Service Charge',
+          quantity: 1,
+          unitPrice: service,
+          taxRate: 0,
+          total: service,
+        });
+      }
+      if (room > 0) {
+        saleItems.push({
+          productId: undefined,
+          productName: String(roomChargeLabel || 'Room Charge'),
+          quantity: 1,
+          unitPrice: room,
+          taxRate: 0,
+          total: room,
+        });
+      }
 
       // 4. Create real Sale
       const sale = await tx.sale.create({
         data: {
           invoiceNumber,
-          customerId: order.customerId || null,
+          customerId: resolvedCustomerId,
           items: saleItems as any,
           subtotal,
           totalDiscount,

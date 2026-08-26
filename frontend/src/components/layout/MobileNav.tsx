@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, Ticket } from 'lucide-react'
+import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, Ticket, UtensilsCrossed } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
@@ -24,6 +24,9 @@ const getMoreItems = (
     { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
     ...(isNavFeatureVisible(businessType, 'tokens')
       ? [{ path: ROUTES.TOKENS, label: 'Quick Tokens', icon: <Ticket size={20} /> }]
+      : []),
+    ...(isNavFeatureVisible(businessType, 'kot')
+      ? [{ path: ROUTES.KOT, label: 'KOT', icon: <UtensilsCrossed size={20} /> }]
       : []),
     { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
     { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },

@@ -38,6 +38,32 @@ export interface ReceiptConfig {
   termsLine1: string
   termsLine2: string
   termsLine3: string
+  showLogo?: boolean
+  showCompanyHeader?: boolean
+  showAddress?: boolean
+  showPhone?: boolean
+  showGSTIN?: boolean
+  showTaxBreakdown?: boolean
+  upiId?: string
+}
+
+export type KotRoomType = 'none' | 'ac' | 'non_ac'
+
+export interface KotConfig {
+  defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
+  taxRate?: number
+  applyTaxOverride?: boolean
+  serviceChargeType?: 'percent' | 'flat'
+  serviceChargeValue?: number
+  acCharge?: number
+  nonAcCharge?: number
+  defaultRoomType?: KotRoomType
+  kotSlipTitle?: string
+  showWaiterOnSlip?: boolean
+}
+
+export interface LocationConfig {
+  enabled?: boolean
 }
 
 export interface PersonalInfo {
@@ -134,4 +160,7 @@ export interface UserSettings {
   notificationConfig: NotificationConfig
   receiptConfig: ReceiptConfig
   printerConfig?: PrinterConfig
+  locationConfig?: LocationConfig
+  kotConfig?: KotConfig
+  upiId?: string
 }

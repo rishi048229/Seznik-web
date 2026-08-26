@@ -36,6 +36,7 @@ const en = {
   'nav.settings': 'Settings',
   'nav.printers': 'Printers',
   'nav.taxBilling': 'Tax & Billing',
+  'nav.kot': 'KOT',
 
   // Common actions
   'action.save': 'Save',

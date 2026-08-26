@@ -32,6 +32,7 @@ const ALLOWED_SETTINGS_FIELDS = [
   'printerConfig',
   'labelConfig',
   'locationConfig',
+  'kotConfig',
   'upiId',
 ];
 

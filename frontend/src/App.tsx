@@ -30,6 +30,8 @@ const DashboardPage = lazyPage(() => import('@/pages/dashboard/DashboardPage'), 
 const POSPage = lazyPage(() => import('@/pages/pos/POSPage'), 'POSPage')
 const POSLitePage = lazyPage(() => import('@/pages/pos/POSLitePage'), 'POSLitePage')
 const QuickTokensPage = lazyPage(() => import('@/pages/tokens/QuickTokensPage'), 'QuickTokensPage')
+const KOTPage = lazyPage(() => import('@/pages/kot/KOTPage'), 'KOTPage')
+const KDSPage = lazyPage(() => import('@/pages/kot/KDSPage'), 'KDSPage')
 const ProductsPage = lazyPage(() => import('@/pages/products/ProductsPage'), 'ProductsPage')
 const CategoriesPage = lazyPage(() => import('@/pages/categories/CategoriesPage'), 'CategoriesPage')
 const CustomersPage = lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage')
@@ -177,7 +179,7 @@ const BusinessFeatureRoute = ({
   feature,
   children,
 }: {
-  feature: 'tokens'
+  feature: 'tokens' | 'kot'
   children: React.ReactNode
 }) => {
   const { userProfile } = useAuth()
@@ -218,6 +220,8 @@ function App() {
               <Route path={ROUTES.POS} element={<AuthenticatedRoute><MainLayout><POSPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.POS_LITE} element={<AuthenticatedRoute><MainLayout><POSLitePage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.TOKENS} element={<AuthenticatedRoute><BusinessFeatureRoute feature="tokens"><MainLayout><QuickTokensPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.KOT_KDS} element={<AuthenticatedRoute><BusinessFeatureRoute feature="kot"><MainLayout><KDSPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.KOT} element={<AuthenticatedRoute><BusinessFeatureRoute feature="kot"><MainLayout><KOTPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.PRODUCTS} element={<AuthenticatedRoute><MainLayout><ProductsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CATEGORIES} element={<AuthenticatedRoute><MainLayout><CategoriesPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CUSTOMERS} element={<AuthenticatedRoute><MainLayout><CustomersPage /></MainLayout></AuthenticatedRoute>} />
