@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { ROUTES } from '@/constants/routes'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useKotOrders, useUpdateKotStatus } from '@/hooks/useKotOrders'
 import { RUNNING_STATUS_QUERY } from '@/services/kotOrderService'
 import { formatElapsed } from './kotUtils'
 
 export const KDSPage = () => {
+  const { t } = useLanguage()
   const { data: orders = [], isLoading } = useKotOrders({
     status: RUNNING_STATUS_QUERY,
     refetchInterval: 8000,
@@ -22,12 +24,12 @@ export const KDSPage = () => {
   return (
     <div>
       <PageHeader
-        title="Kitchen Display"
-        breadcrumb={['KOT', 'Kitchen']}
+        title={t('kds.title')}
+        breadcrumb={[t('nav.kot'), t('kds.breadcrumbKitchen')]}
         action={
           <Link to={ROUTES.KOT}>
             <Button variant="outline" leftIcon={<ArrowLeft size={16} />}>
-              Floor Plan
+              {t('kds.floorPlan')}
             </Button>
           </Link>
         }
@@ -38,11 +40,11 @@ export const KDSPage = () => {
           <Spinner size="lg" />
         </div>
       ) : tickets.length === 0 ? (
-        <EmptyState icon={<Flame size={40} />} title="No running tickets" description="New KOTs sent to the kitchen will appear here." />
+        <EmptyState icon={<Flame size={40} />} title={t('kds.noRunningTickets')} description={t('kds.noRunningTicketsDesc')} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {tickets.map((order) => {
-            const tableName = order.table?.name || order.partyLabel || 'Walk-in'
+            const tableName = order.table?.name || order.partyLabel || t('kds.walkIn')
             const marking = isPending && variables?.id === order.id
             const isReady = order.status === 'ready' || order.status === 'served'
             return (
@@ -67,7 +69,7 @@ export const KDSPage = () => {
                   </span>
                 </div>
                 {order.waiterName && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Waiter: {order.waiterName}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('kds.waiterPrefix')} {order.waiterName}</p>
                 )}
                 <ul className="space-y-1.5 mb-4">
                   {order.items.map((it) => (
@@ -97,11 +99,11 @@ export const KDSPage = () => {
                       )
                     }
                   >
-                    Mark Ready
+                    {t('kds.markReady')}
                   </Button>
                 )}
                 {isReady && (
-                  <p className="text-center text-sm font-semibold text-emerald-600 dark:text-emerald-400">Ready to serve</p>
+                  <p className="text-center text-sm font-semibold text-emerald-600 dark:text-emerald-400">{t('kds.readyToServe')}</p>
                 )}
               </div>
             )

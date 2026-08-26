@@ -44,7 +44,7 @@ export const ProfilePage = () => {
 
   return (
     <div>
-      <PageHeader title="Profile" />
+      <PageHeader title={t('profile.title')} />
 
       <div className="max-w-3xl space-y-4">
         <Card className="p-5 sm:p-6">
@@ -111,7 +111,7 @@ export const ProfilePage = () => {
             <div className="flex items-start gap-3 sm:col-span-2">
               <Mail size={18} className="text-gray-400 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('profile.email')}</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{email || '—'}</p>
               </div>
             </div>
@@ -125,7 +125,7 @@ export const ProfilePage = () => {
               <div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('settings.security')}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Manage password and account security in settings.
+                  {t('profile.securityHint')}
                 </p>
               </div>
             </div>
@@ -142,7 +142,7 @@ export const ProfilePage = () => {
         <div className="flex justify-end">
           <Button variant="ghost" onClick={handleSignOut} className="text-red-600 dark:text-red-400">
             <LogOut size={16} className="mr-2" />
-            Sign Out
+            {t('profile.signOut')}
           </Button>
         </div>
       </div>

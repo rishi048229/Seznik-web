@@ -39,7 +39,7 @@ export default function OnboardingScreen() {
     updateBusinessType,
     isUpdatingBusinessType,
   } = useAuth();
-  const { currentLanguage, setLanguage } = useTranslation();
+  const { currentLanguage, setLanguage, t } = useTranslation();
 
   const pickTypeOnly = user?.onboardingCompleted === true && !user?.businessType;
 
@@ -64,15 +64,15 @@ export default function OnboardingScreen() {
 
   const validateShopDetails = () => {
     if (!businessName.trim()) {
-      Alert.alert('Shop name required', 'Please enter the name of your shop to continue.');
+      Alert.alert(t('onboardingShopNameRequired'), t('onboardingShopNameRequiredMsg'));
       return false;
     }
     if (!phone.trim()) {
-      Alert.alert('Phone number required', 'Please enter a phone number for your shop.');
+      Alert.alert(t('onboardingPhoneRequired'), t('onboardingPhoneRequiredMsg'));
       return false;
     }
     if (!businessAddress.trim()) {
-      Alert.alert('Shop address required', 'Please enter your shop address to continue.');
+      Alert.alert(t('onboardingAddressRequired'), t('onboardingAddressRequiredMsg'));
       return false;
     }
     return true;
@@ -81,7 +81,7 @@ export default function OnboardingScreen() {
   const handlePickLogo = async () => {
     const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permResult.granted) {
-      Alert.alert('Permission needed', 'Allow photo library access to add your shop logo.');
+      Alert.alert('Permission needed', t('onboardingLogoPermMsg'));
       return;
     }
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
@@ -136,7 +136,7 @@ export default function OnboardingScreen() {
     } catch (err: any) {
       Alert.alert(
         'Setup failed',
-        err?.message || 'Could not save your business profile. Please try again.'
+        err?.message || t('onboardingSetupFailed')
       );
     }
   };
@@ -158,13 +158,13 @@ export default function OnboardingScreen() {
           <View style={styles.mainWrapper}>
             <View style={styles.topRow}>
               <Text style={styles.stepIndicator}>
-                {pickTypeOnly ? 'Choose your workspace' : `Step ${step} of 2`}
+                {pickTypeOnly ? t('onboardingChooseWorkspace') : t('onboardingStepOf').replace('{step}', String(step))}
               </Text>
               {step === 2 ? (
                 <TouchableOpacity onPress={() => setStep(1)} hitSlop={12}>
                   <View style={styles.backRow}>
                     <ArrowLeft size={14} color={BRAND_COLORS.sky500} />
-                    <Text style={styles.backText}>Change type</Text>
+                    <Text style={styles.backText}>{t('onboardingChangeType')}</Text>
                   </View>
                 </TouchableOpacity>
               ) : null}
@@ -182,12 +182,10 @@ export default function OnboardingScreen() {
                     <Store size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
-                    {pickTypeOnly ? 'What type of business do you run?' : 'Enter your shop details'}
+                    {pickTypeOnly ? t('onboardingPickTypeTitle') : t('onboardingShopDetailsTitle')}
                   </Text>
                   <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                    {pickTypeOnly
-                      ? 'We will tailor your dashboard to kitchen service or general retail.'
-                      : 'This information appears on receipts and personalizes your workspace.'}
+                    {pickTypeOnly ? t('onboardingPickTypeDesc') : t('onboardingShopDetailsDesc')}
                   </Text>
 
                   {pickTypeOnly ? (
@@ -198,7 +196,7 @@ export default function OnboardingScreen() {
                         theme={theme}
                       />
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        App language
+                        {t('onboardingAppLanguage')}
                       </Text>
                       <LanguagePicker
                         selectedLanguage={selectedLanguage}
@@ -209,7 +207,7 @@ export default function OnboardingScreen() {
                   ) : (
                     <>
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        Name of shop *
+                        {t('onboardingShopName')} *
                       </Text>
                       <TextInput
                         style={inputStyle}
@@ -221,10 +219,10 @@ export default function OnboardingScreen() {
                       />
 
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        Shop logo
+                        {t('onboardingShopLogo')}
                       </Text>
                       <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-                        Optional — skip if you want to add it later.
+                        {t('onboardingLogoOptional')}
                       </Text>
                       {logoUri ? (
                         <View style={styles.logoRow}>
@@ -257,7 +255,7 @@ export default function OnboardingScreen() {
                       )}
 
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        Phone number *
+                        {t('onboardingPhone')} *
                       </Text>
                       <TextInput
                         style={inputStyle}
@@ -269,7 +267,7 @@ export default function OnboardingScreen() {
                       />
 
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        Shop address *
+                        {t('onboardingAddress')} *
                       </Text>
                       <TextInput
                         style={[inputStyle, styles.multiline]}
@@ -281,7 +279,7 @@ export default function OnboardingScreen() {
                       />
 
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        Type of business *
+                        {t('onboardingBusinessType')} *
                       </Text>
                       <BusinessTypePicker
                         selectedBusinessType={selectedBusinessType}
@@ -290,7 +288,7 @@ export default function OnboardingScreen() {
                       />
 
                       <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        App language
+                        {t('onboardingAppLanguage')}
                       </Text>
                       <LanguagePicker
                         selectedLanguage={selectedLanguage}
@@ -306,10 +304,10 @@ export default function OnboardingScreen() {
                     <Layers size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
-                    Your {selectedLabel} setup
+                    {t('onboardingConfirmTitle').replace('{type}', selectedLabel ?? 'workspace')}
                   </Text>
                   <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                    Confirm this workspace. You can change business type later in Settings.
+                    {t('onboardingConfirmDesc')}
                   </Text>
 
                   <View
@@ -350,7 +348,7 @@ export default function OnboardingScreen() {
               ) : (
                 <>
                   <Text style={styles.nextBtnText}>
-                    {step === 1 ? 'Next Step' : 'Use this setup'}
+                    {step === 1 ? t('onboardingNextStep') : t('onboardingUseSetup')}
                   </Text>
                   <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                 </>

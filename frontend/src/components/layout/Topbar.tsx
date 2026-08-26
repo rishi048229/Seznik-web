@@ -7,6 +7,7 @@ import { Sun, Moon, Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react
 import { Button } from '@/components/ui/Button'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ROUTES } from '@/constants/routes'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -16,6 +17,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
   const { user, userProfile } = useAuth()
   const { isDark, toggleTheme } = useTheme()
   const { data: settings } = useSettings()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -48,7 +50,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           </Button>
         )}
         <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-          {settings?.businessName || userProfile?.businessName || 'Dashboard'}
+          {settings?.businessName || userProfile?.businessName || t('nav.dashboard')}
         </h2>
       </div>
 
@@ -73,13 +75,13 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
         >
           <Plus size={16} className="sm:mr-1" />
-          <span className="hidden sm:inline">New Sale</span>
+          <span className="hidden sm:inline">{t('action.newSale')}</span>
         </Button>
         <button
           type="button"
           onClick={() => navigate(ROUTES.PROFILE)}
           className="flex items-center gap-2 focus:outline-none ml-1 hover:opacity-80 transition-opacity"
-          aria-label="Open profile"
+          aria-label={t('topbar.openProfile')}
         >
           <Avatar
             src={user?.photoURL ?? undefined}

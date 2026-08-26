@@ -17,7 +17,7 @@ const BANNER_GRADIENT = 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2
 
 export const OnboardingPage = () => {
   const { userProfile, completeOnboarding, updateBusinessType } = useAuth()
-  const { language, setLanguage } = useLanguage()
+  const { language, setLanguage, t } = useLanguage()
   const navigate = useNavigate()
 
   const pickTypeOnly = userProfile?.onboardingCompleted === true && !userProfile?.businessType
@@ -40,15 +40,15 @@ export const OnboardingPage = () => {
 
   const validateShopDetails = () => {
     if (!businessName.trim()) {
-      setError('Shop name is required.')
+      setError(t('onboarding.shopNameRequired'))
       return false
     }
     if (!phone.trim()) {
-      setError('Phone number is required.')
+      setError(t('onboarding.phoneRequired'))
       return false
     }
     if (!businessAddress.trim()) {
-      setError('Shop address is required.')
+      setError(t('onboarding.addressRequired'))
       return false
     }
     return true
@@ -80,7 +80,7 @@ export const OnboardingPage = () => {
       }
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save your business profile.')
+      setError(err instanceof Error ? err.message : t('onboarding.setupFailed'))
     } finally {
       setIsSaving(false)
     }
@@ -102,13 +102,10 @@ export const OnboardingPage = () => {
               />
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold leading-tight tracking-tight mb-4">
-              A workspace that
-              <br />
-              matches how you sell.
+              {t('onboarding.bannerTitle')}
             </h1>
             <p className="text-sm sm:text-base leading-relaxed opacity-75 max-w-xs">
-              Restaurants get kitchen tickets and table billing. Retail and online stores get a
-              general POS without kitchen tools. Multi-store stays available for everyone.
+              {t('onboarding.bannerDesc')}
             </p>
           </div>
 
@@ -154,7 +151,7 @@ export const OnboardingPage = () => {
                 1
               </div>
               <span className="text-sm font-semibold text-slate-900">
-                {pickTypeOnly ? 'Business type' : 'Shop details'}
+                {pickTypeOnly ? t('onboarding.stepBusinessType') : t('onboarding.stepShopDetails')}
               </span>
             </div>
             <div className="w-8 h-px bg-slate-200" />
@@ -167,7 +164,7 @@ export const OnboardingPage = () => {
                 2
               </div>
               <span className={`text-sm font-medium ${step === 2 ? 'text-slate-900' : 'text-slate-400'}`}>
-                Workspace
+                {t('onboarding.stepWorkspace')}
               </span>
             </div>
           </nav>
@@ -176,23 +173,23 @@ export const OnboardingPage = () => {
             <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-2">
               {step === 1
                 ? pickTypeOnly
-                  ? 'What type of business do you run?'
-                  : 'Enter your shop details'
-                : `Your ${selectedLabel} setup`}
+                  ? t('onboarding.pickTypeTitle')
+                  : t('onboarding.shopDetailsTitle')
+                : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
             </h2>
             <p className="text-sm text-slate-500">
               {step === 1
                 ? pickTypeOnly
-                  ? 'We will tailor your dashboard to kitchen service or general retail.'
-                  : 'This information appears on receipts and personalizes your workspace.'
-                : 'Confirm this workspace. You can change business type later if needed.'}
+                  ? t('onboarding.pickTypeDesc')
+                  : t('onboarding.shopDetailsDesc')
+                : t('onboarding.confirmDescAlt')}
             </p>
           </header>
 
           <form onSubmit={handleNext} className="flex flex-col gap-5">
             {step === 1 && !pickTypeOnly ? (
               <>
-                <Field label="Name of shop *">
+                <Field label={t('onboarding.shopName') + ' *'}>
                   <input
                     type="text"
                     value={businessName}
@@ -202,9 +199,9 @@ export const OnboardingPage = () => {
                     className={fieldClass}
                   />
                 </Field>
-                <Field label="Shop logo">
+                <Field label={t('onboarding.shopLogo')}>
                   <p className="text-xs text-slate-500 -mt-1 mb-2">
-                    Optional — skip if you want to add it later.
+                    {t('onboarding.logoOptional')}
                   </p>
                   <ImageUpload
                     value={logoUrl}
@@ -214,7 +211,7 @@ export const OnboardingPage = () => {
                     maxSizeMB={5}
                   />
                 </Field>
-                <Field label="Phone number *">
+                <Field label={t('onboarding.phone') + ' *'}>
                   <input
                     type="tel"
                     value={phone}
@@ -223,7 +220,7 @@ export const OnboardingPage = () => {
                     className={fieldClass}
                   />
                 </Field>
-                <Field label="Shop address *">
+                <Field label={t('onboarding.address') + ' *'}>
                   <textarea
                     value={businessAddress}
                     onChange={e => setBusinessAddress(e.target.value)}
@@ -237,7 +234,7 @@ export const OnboardingPage = () => {
 
             {step === 1 ? (
               <>
-                <Field label={pickTypeOnly ? undefined : 'Type of business *'}>
+                <Field label={pickTypeOnly ? undefined : t('onboarding.businessType') + ' *'}>
                   <div className="space-y-2">
                     {BUSINESS_TYPE_OPTIONS.map(option => {
                       const selected = selectedBusinessType === option.id
@@ -267,7 +264,7 @@ export const OnboardingPage = () => {
                     })}
                   </div>
                 </Field>
-                <Field label="App language">
+                <Field label={t('onboarding.appLanguage')}>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {LANGUAGES.map(lang => {
                       const selected = selectedLanguage === lang.code
@@ -323,7 +320,7 @@ export const OnboardingPage = () => {
                   <Spinner size="sm" className="text-white" />
                 ) : (
                   <>
-                    {step === 1 ? 'Continue' : 'Use this setup'}
+                    {step === 1 ? t('onboarding.continue') : t('onboarding.useSetup')}
                     <span aria-hidden="true">→</span>
                   </>
                 )}
@@ -334,7 +331,7 @@ export const OnboardingPage = () => {
                   onClick={() => setStep(1)}
                   className="text-center text-xs text-slate-400 uppercase tracking-widest font-medium hover:text-slate-600 transition-colors"
                 >
-                  Change business type
+                  {t('onboarding.changeBusinessType')}
                 </button>
               ) : null}
             </div>

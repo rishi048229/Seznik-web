@@ -66,6 +66,9 @@ const GREETINGS: Record<ChatLang, string> = {
   ta: "👋 வணக்கம்! நான் **Seznik உதவி போட்**. அச்சிடுதல், லேபிள்கள், தயாரிப்புகள், விற்பனை மற்றும் பலவற்றில் உதவ முடியும்!\n\nகேள்வி தட்டச்சு செய்யவும் அல்லது கீழே ஒரு தலைப்பைத் தேர்ந்தெடுக்கவும்.",
   te: "👋 నమస్కారం! నేను **Seznik హెల్ప్ బోట్**. ప్రింటింగ్, లేబుల్‌లు, ఉత్పత్తులు, అమ్మకాలు మరియు ఇతర విషయాలలో సహాయం చేయగలను!\n\nప్రశ్న టైప్ చేయండి లేదా కింద ఒక అంశాన్ని ఎంచుకోండి.",
   gu: "👋 નમસ્તે! હું **Seznik હેલ્પ બોટ** છું. હું પ્રિંટિંગ, લેબલ, પ્રોડક્ટ, વેચાણ અને વધુમાં મદદ કરી શકું છું!\n\nપ્રશ્ન ટાઈપ કરો અથવા નીચે વિષય પસંદ કરો.",
+  bn: "👋 Hi! I'm **Seznik Help Bot**. I can help you with printing, labels, products, sales, and more!\n\nType a question or pick a topic below.",
+  ml: "👋 Hi! I'm **Seznik Help Bot**. I can help you with printing, labels, products, sales, and more!\n\nType a question or pick a topic below.",
+  or: "👋 Hi! I'm **Seznik Help Bot**. I can help you with printing, labels, products, sales, and more!\n\nType a question or pick a topic below.",
 }
 
 const NO_RESULT: Record<ChatLang, string> = {
@@ -75,6 +78,9 @@ const NO_RESULT: Record<ChatLang, string> = {
   ta: "🤔 அதற்கான சரியான பதிலைக் கண்டுபிடிக்க முடியவில்லை.\n\n💡 *AI-இயக்கப்படும் பதில்கள் விரைவில் வரும்!*",
   te: "🤔 దానికి సరైన సమాధానం కనుగొనలేకపోయాను.\n\n💡 *AI-ఆధారిత సమాధానాలు త్వరలో వస్తాయి!*",
   gu: "🤔 તેના માટે ચોક્કસ જવાબ મળ્યો નથી.\n\n💡 *AI-સંચાલિત જવાબો ટૂંક સમયમાં આવશે!*",
+  bn: "🤔 I couldn't find an exact answer for that. Try rephrasing or pick a topic from the menu.\n\n💡 *AI-powered answers are coming soon!*",
+  ml: "🤔 I couldn't find an exact answer for that. Try rephrasing or pick a topic from the menu.\n\n💡 *AI-powered answers are coming soon!*",
+  or: "🤔 I couldn't find an exact answer for that. Try rephrasing or pick a topic from the menu.\n\n💡 *AI-powered answers are coming soon!*",
 }
 
 // ─── Simple markdown-like renderer ──────────────────────────────────────────

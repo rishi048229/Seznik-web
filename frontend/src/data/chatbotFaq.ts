@@ -1,8 +1,8 @@
 // Seznik POS Help Chatbot — Pre-fed FAQ Knowledge Base
-// Organized by category with multi-language support (en, hi, mr, ta, te, gu)
+// Organized by category with multi-language support (en, hi, mr, ta, te, gu, bn, ml, or)
 // Each entry has keywords for fuzzy matching and answers in all supported languages.
 
-export type ChatLang = 'en' | 'hi' | 'mr' | 'ta' | 'te' | 'gu'
+export type ChatLang = 'en' | 'hi' | 'mr' | 'ta' | 'te' | 'gu' | 'bn' | 'ml' | 'or'
 
 export const CHAT_LANGUAGES: { code: ChatLang; label: string; flag: string }[] = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -11,14 +11,17 @@ export const CHAT_LANGUAGES: { code: ChatLang; label: string; flag: string }[] =
   { code: 'ta', label: 'தமிழ்', flag: '🇮🇳' },
   { code: 'te', label: 'తెలుగు', flag: '🇮🇳' },
   { code: 'gu', label: 'ગુજરાતી', flag: '🇮🇳' },
+  { code: 'bn', label: 'বাংলা', flag: '🇮🇳' },
+  { code: 'ml', label: 'മലയാളം', flag: '🇮🇳' },
+  { code: 'or', label: 'ଓଡ଼ିଆ', flag: '🇮🇳' },
 ]
 
 export interface FaqEntry {
   id: number
   category: string
   keywords: string[]
-  question: Record<ChatLang, string>
-  answer: Record<ChatLang, string>
+  question: Partial<Record<ChatLang, string>> & { en: string }
+  answer: Partial<Record<ChatLang, string>> & { en: string }
 }
 
 export const FAQ_CATEGORIES = [

@@ -9,9 +9,11 @@ import type { UserRole, UserProfile } from '@/types/auth.types'
 import { getAllUsers } from '@/services/authService'
 import toast from 'react-hot-toast'
 import { ROUTES } from '@/constants/routes'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const AccessSelectionPage = () => {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const { user, setUserRole, signOut } = useAuth()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -62,12 +64,12 @@ export const AccessSelectionPage = () => {
 
   const handleRoleSelect = (role: UserRole) => {
     if (role === 'admin' && user?.role === 'agent') {
-      toast.error(`Access Denied: ${user?.email || 'Your account'} does not have Admin privileges`)
+      toast.error(t('access.deniedAdmin').replace('{email}', user?.email || 'Your account'))
       return
     }
 
     if (role === 'agent' && !hasAgents) {
-      toast.error('Agent access is disabled. Please log in as Admin first and create an Agent account under Settings → Permissions & Accounts.')
+      toast.error(t('access.agentDisabled'))
       return
     }
 
@@ -149,8 +151,8 @@ export const AccessSelectionPage = () => {
           <button
             onClick={handleCompleteLogout}
             className="text-[#070235]/60 hover:opacity-80 transition-opacity p-2 flex items-center justify-center"
-            aria-label="Logout"
-            title="Logout"
+            aria-label={t('access.logout')}
+            title={t('access.logout')}
           >
             <Lock size={20} />
           </button>
@@ -162,10 +164,10 @@ export const AccessSelectionPage = () => {
         <div className="max-w-3xl w-full">
           <div className="text-center mb-6 sm:mb-8">
             <h1 className="text-[#070235] font-extrabold text-2xl sm:text-3xl md:text-4xl tracking-tight mb-2 sm:mb-3">
-              Choose your workstation
+              {t('access.chooseWorkstation')}
             </h1>
             <p className="text-[#47464f] text-sm sm:text-base max-w-xl mx-auto">
-              Select the appropriate access level to continue to your Seznik dashboard. Your session will be logged for security.
+              {t('access.chooseWorkstationDesc')}
             </p>
           </div>
 
@@ -181,12 +183,12 @@ export const AccessSelectionPage = () => {
               <div className="w-14 h-14 bg-[#1e1b4b]/5 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
                 <Shield className="text-[#070235]" size={32} />
               </div>
-              <h2 className="text-[#070235] font-bold text-xl mb-2">Admin Access</h2>
+              <h2 className="text-[#070235] font-bold text-xl mb-2">{t('access.adminAccess')}</h2>
               <p className="text-[#47464f] text-sm leading-relaxed mb-6">
-                Full system management, reports, and settings. Access core infrastructure controls and financial auditing tools.
+                {t('access.adminAccessDesc')}
               </p>
               <button className="mt-auto w-full py-3 px-5 bg-[#070235] text-white font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#1e1b4b] transition-all active:scale-[0.98]">
-                <span>Login as Admin</span>
+                <span>{t('access.loginAsAdmin')}</span>
                 <ArrowRight size={16} />
               </button>
             </div>

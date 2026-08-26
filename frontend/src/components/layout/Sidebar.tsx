@@ -158,7 +158,9 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 className="w-32 h-auto object-contain"
               />
               <div className="text-[0.725rem] font-medium text-slate-400 tracking-wider">
-                {isRestaurantBusiness(userProfile?.businessType) ? 'RESTAURANT & CAFE POS' : 'PREMIUM RETAIL POS'}
+                {isRestaurantBusiness(userProfile?.businessType)
+                  ? t('sidebar.restaurantPos')
+                  : t('sidebar.retailPos')}
               </div>
             </div>
           </div>
@@ -267,7 +269,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             <button
               type="button"
               onClick={() => { setIsFeedbackOpen(true); onClose() }}
-              title={collapsed ? 'Review and suggest' : undefined}
+              title={collapsed ? t('sidebar.reviewSuggest') : undefined}
               className={clsx(
                 'w-full flex items-center gap-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100/80 dark:hover:bg-blue-900/40 transition-colors active:scale-[0.98]',
                 collapsed ? 'p-3 lg:p-2 lg:justify-center' : 'px-3 py-2.5'
@@ -275,8 +277,8 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             >
               <MessageSquareHeart size={18} className="flex-shrink-0" />
               <span className={clsx('text-left min-w-0', collapsed && 'lg:hidden')}>
-                <span className="block text-xs font-bold truncate">Review and suggest</span>
-                <span className="block text-[10px] text-blue-500/80 dark:text-blue-400/70 truncate">Share feedback & ideas</span>
+                <span className="block text-xs font-bold truncate">{t('sidebar.reviewSuggest')}</span>
+                <span className="block text-[10px] text-blue-500/80 dark:text-blue-400/70 truncate">{t('sidebar.reviewSuggestSub')}</span>
               </span>
             </button>
           </div>
@@ -286,7 +288,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             <button
               type="button"
               onClick={() => { navigate(ROUTES.PROFILE); onClose() }}
-              title={collapsed ? `${displayName} — View profile` : 'View profile'}
+              title={collapsed ? `${displayName} — ${t('profile.viewProfile')}` : t('profile.viewProfile')}
               className={clsx(
                 'w-full text-left bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700',
                 'hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md transition-all active:scale-[0.98]',

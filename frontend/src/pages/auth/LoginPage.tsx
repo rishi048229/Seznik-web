@@ -19,6 +19,7 @@ import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsLi
 import { validatePassword } from '@/utils/password'
 import { trackUserAction } from '@/utils/analytics'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 
 type EmailVerifyStep = 'idle' | 'sending' | 'sent' | 'verifying' | 'verified'
@@ -27,6 +28,7 @@ type ForgotStep = 'email' | 'otp' | 'new_password' | 'success'
 export const LoginPage = () => {
   const { loginWithEmail, registerWithEmail, loading } = useAuth()
   const pageTutorial = usePageTutorial('login')
+  const { t } = useLanguage()
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [email, setEmail] = useState('')
@@ -315,12 +317,10 @@ export const LoginPage = () => {
               <img src="/seznik_white_logo.png" alt="Seznik" className="w-28 sm:w-36 md:w-40 h-auto object-contain" />
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tracking-tight mb-3">
-              Precision in every
-              <br />
-              <span style={{ color: 'rgba(255,255,255,0.25)' }}>transaction.</span>
+              {t('login.bannerTitle')}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              A premium retail POS designed to turn complex inventory into a seamless digital editorial for your business.
+              {t('login.bannerDesc')}
             </p>
           </div>
 
@@ -351,12 +351,10 @@ export const LoginPage = () => {
           <div className="flex items-center justify-between gap-3 mb-6 sm:mb-8">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {isRegistering ? 'Create Your Account' : 'Welcome Back'}
+                {isRegistering ? t('login.createAccount') : t('login.welcomeBack')}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                {isRegistering
-                  ? 'Fill in your details below to set up your business'
-                  : 'Enter your credentials to access your terminal'}
+                {isRegistering ? t('login.registerSubtitle') : t('login.signInSubtitle')}
               </p>
             </div>
             {pageTutorial.tutorialData && (
