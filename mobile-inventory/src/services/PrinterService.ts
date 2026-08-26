@@ -7,6 +7,7 @@ import { buildBillPdfUrl, buildUpiPayString } from '../utils/billQrService';
 import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
+import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement } from '../../modules/josh-label-printer';
 import {
   enrichCustomReceiptEntries,
   isDiscountReceiptEntry,
@@ -17,6 +18,9 @@ import {
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
 const NativeTscPrinter = NativeModules.BluetoothTscPrinter;
+
+/** LPAPI BarcodeType.AUTO — let the SDK pick a symbology that fits the data. */
+const JOSH_BARCODE_TYPE_AUTO = 0;
 
 // Native discovery on Android runs a full BluetoothAdapter.startDiscovery() cycle,
 // which takes ~12s to fire ACTION_DISCOVERY_FINISHED. This is a safety ceiling only —
@@ -2692,6 +2696,155 @@ class ThermalPrinterServiceManager {
     return { text, qrcode, barcode, labelWidthMm, labelHeightMm };
   }
 
+  // ---------------------------------------------------------------------------
+  // DothanTech / Josh LPAPI label printers
+  //
+  // These are a separate transport, not another ESC/POS device: LPAPI owns its own
+  // Bluetooth connection and takes drawing calls in millimetres instead of raw TSPL
+  // bytes. LabelTemplate already stores geometry in mm, so it maps across directly
+  // without the dots conversion the TSPL path needs.
+  // ---------------------------------------------------------------------------
+
+  /** True only on a native build where the vendored LPAPI SDK actually linked. */
+  public isJoshLabelPrinterAvailable(): boolean {
+    return isJoshPrinterSupported();
+  }
+
+  public async joshStartDiscovery(): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+    return JoshLabelPrinter.startDiscovery();
+  }
+
+  public async joshStopDiscovery(): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+    return JoshLabelPrinter.stopDiscovery();
+  }
+
+  public async joshGetPairedPrinters(): Promise<{ address: string; name: string }[]> {
+    if (!JoshLabelPrinter) return [];
+    return JoshLabelPrinter.getPairedPrinters();
+  }
+
+  public async joshConnect(address: string): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+    return JoshLabelPrinter.connect(address);
+  }
+
+  public async joshDisconnect(): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+    return JoshLabelPrinter.disconnect();
+  }
+
+  public async joshIsConnected(): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+    try {
+      return await JoshLabelPrinter.isConnected();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Converts a designed LabelTemplate into LPAPI draw calls and prints it.
+   *
+   * Text sizing: fontSizePt is stored as a mm cap height (the same convention the
+   * TSPL path decodes via `fontSizePt / 3`), so it is passed straight through as
+   * LPAPI's fontHeight rather than being reinterpreted as points.
+   *
+   * Alignment is handed to LPAPI rather than pre-computed the way the TSPL path has
+   * to do it, because LPAPI aligns text inside the element box itself.
+   */
+  public async printLabelViaJosh(
+    product: Product,
+    template: LabelTemplate,
+    copies: number = 1,
+    labelGapMm: number = 2
+  ): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+
+    if (!(await this.joshIsConnected())) {
+      throw new Error('No label printer is connected. Connect it from Printers first.');
+    }
+
+    const alignToCode = (align?: 'left' | 'center' | 'right'): 0 | 1 | 2 =>
+      align === 'center' ? 1 : align === 'right' ? 2 : 0;
+
+    const elements: JoshLabelElement[] = [];
+
+    for (const el of template.elements) {
+      if (el.type === 'text') {
+        const value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
+        if (!value) continue;
+        elements.push({
+          type: 'text',
+          value,
+          x: el.xMm,
+          y: el.yMm,
+          width: el.widthMm,
+          height: el.heightMm,
+          fontHeight: el.fontSizePt,
+          bold: !!el.bold,
+          align: alignToCode(el.align),
+        });
+      } else if (el.type === 'barcode') {
+        const raw = this.resolveLabelCodeValue(product, el);
+        if (!raw) continue;
+        const digits = raw.replace(/\D/g, '');
+        const isEan13 = el.format === 'ean13' && (digits.length === 12 || digits.length === 13);
+        elements.push({
+          type: 'barcode',
+          // EAN-13 only accepts digits; CODE128 takes printable ASCII.
+          value: isEan13 ? digits : raw.replace(/[^\x20-\x7E]/g, ''),
+          x: el.xMm,
+          y: el.yMm,
+          width: el.widthMm,
+          height: el.heightMm,
+          // Reserve roughly a fifth of the box for the human-readable digits, which
+          // is what the on-screen designer renders too.
+          textHeight: Math.max(0, Math.min(3, el.heightMm * 0.2)),
+          barcodeType: JOSH_BARCODE_TYPE_AUTO,
+        });
+      } else if (el.type === 'qrcode') {
+        const content = this.resolveLabelCodeValue(product, el);
+        if (!content) continue;
+        elements.push({
+          type: 'qrcode',
+          value: content,
+          x: el.xMm,
+          y: el.yMm,
+          // QR codes are square: the smaller side governs so it never overflows the box.
+          size: Math.min(el.widthMm, el.heightMm),
+        });
+      } else if (el.type === 'rect' || el.type === 'curveRect') {
+        elements.push({
+          type: 'rectangle',
+          x: el.xMm,
+          y: el.yMm,
+          width: el.widthMm,
+          height: el.heightMm,
+          thickness: 0.3,
+          filled: !!el.fill && el.fill !== 'transparent',
+        });
+      }
+      // 'image' elements are intentionally skipped: LPAPI takes bitmaps through a
+      // separate printBitmap path rather than as a job element, so they are not
+      // part of this pass.
+    }
+
+    if (elements.length === 0) {
+      throw new Error('This label has nothing printable on it yet.');
+    }
+
+    return JoshLabelPrinter.printLabel({
+      widthMm: template.widthMm,
+      heightMm: template.heightMm,
+      rotation: 0,
+      copies: Math.max(1, copies),
+      gapMm: labelGapMm,
+      elements,
+    });
+  }
+
   /**
    * Prints a user-designed Label Studio template with the REAL product's data substituted for each
    * bound element (see src/types/labelTemplate.ts's `binding` field) — the template only stores
@@ -2705,7 +2858,57 @@ class ThermalPrinterServiceManager {
    * via the native SDK's confirmed-working `image` field (see buildTsplLabelFields's doc comment
    * on addBitmap) once that editor support exists.
    */
+  /**
+   * Resolves a template element's binding against the live product. Shared by every
+   * label path (TSPL, receipt-paper fallback, HTML preview and the LPAPI label
+   * printer) — these were three byte-identical copies before, which meant a new
+   * binding had to be added in each one to actually take effect everywhere.
+   */
+  private resolveLabelTextValue(product: Product, el: LabelTextElement): string {
+    switch (el.binding) {
+      case 'productName':
+        return product.name || 'Product';
+      case 'price':
+        return `Rs.${product.sellingPrice.toFixed(2)}`;
+      case 'sku':
+        return product.sku || '';
+      case 'barcodeText':
+        return product.barcode || product.sku || '';
+      case 'unit':
+        return product.unit || 'Pc';
+      case 'category':
+        return product.category?.name || '';
+      case 'custom':
+      case 'sequence':
+      default:
+        // A 'sequence'-bound element should always be resolved by printLabelSequence before it
+        // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
+        // only guards against calling these print paths directly with an un-substituted template.
+        return el.customText || '';
+    }
+  }
+
+  private resolveLabelCodeValue(product: Product, el: LabelBarcodeElement | LabelQrElement): string {
+    switch (el.binding) {
+      case 'barcode':
+        return product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
+      case 'sku':
+        return product.sku || product.barcode || `PROD-${product.id.slice(-6)}`;
+      case 'custom':
+      default:
+        return el.customValue || '';
+    }
+  }
+
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
+    // A connected LPAPI label printer takes priority over the TSPL path: it is a
+    // dedicated label device, and it is the one the user explicitly linked. Routing
+    // here rather than at each call site means Label Studio, the products page and
+    // printLabelSequence all reach it without their own branching.
+    if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) {
+      return this.printLabelViaJosh(product, template, copies, labelGapMm);
+    }
+
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
     // TSPL label jobs never go through initPrinter(), so they need their own socket check.
@@ -2715,41 +2918,7 @@ class ThermalPrinterServiceManager {
     const FONT3_CHAR_W = 16;
     const toDots = (mm: number) => Math.round(mm * DOTS_PER_MM);
 
-    const resolveTextValue = (el: LabelTextElement): string => {
-      switch (el.binding) {
-        case 'productName':
-          return product.name || 'Product';
-        case 'price':
-          return `Rs.${product.sellingPrice.toFixed(2)}`;
-        case 'sku':
-          return product.sku || '';
-        case 'barcodeText':
-          return product.barcode || product.sku || '';
-        case 'unit':
-          return product.unit || 'Pc';
-        case 'category':
-          return product.category?.name || '';
-        case 'custom':
-        case 'sequence':
-        default:
-          // A 'sequence'-bound element should always be resolved by printLabelSequence before it
-          // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
-          // only guards against calling these print paths directly with an un-substituted template.
-          return el.customText || '';
-      }
-    };
 
-    const resolveCodeValue = (el: LabelBarcodeElement | LabelQrElement): string => {
-      switch (el.binding) {
-        case 'barcode':
-          return product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
-        case 'sku':
-          return product.sku || product.barcode || `PROD-${product.id.slice(-6)}`;
-        case 'custom':
-        default:
-          return el.customValue || '';
-      }
-    };
 
     const textFields: any[] = [];
     const barcodeFields: any[] = [];
@@ -2758,7 +2927,7 @@ class ThermalPrinterServiceManager {
 
     for (const el of template.elements) {
       if (el.type === 'text') {
-        const value = this.sanitizeForThermalPrint(resolveTextValue(el));
+        const value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
         if (!value) continue;
         // fontSizePt is stored in mm (24 dots = 3mm at FONT_3's native 1x cell height) — derive the
         // nearest whole TSPL FONTMUL scale from it, same convention buildTsplLabelFields assumes.
@@ -2780,7 +2949,7 @@ class ThermalPrinterServiceManager {
           bold: !!el.bold,
         });
       } else if (el.type === 'barcode') {
-        const raw = resolveCodeValue(el);
+        const raw = this.resolveLabelCodeValue(product, el);
         const digits = raw.replace(/\D/g, '');
         let type = NativeTscPrinter.BARCODETYPE?.CODE128 ?? '128';
         let content = raw.replace(/[^\x20-\x7E]/g, '');
@@ -2806,7 +2975,7 @@ class ThermalPrinterServiceManager {
           code: content,
         });
       } else if (el.type === 'qrcode') {
-        const content = resolveCodeValue(el);
+        const content = this.resolveLabelCodeValue(product, el);
         if (!content) continue;
         let qrModules = 27;
         try {
@@ -2922,46 +3091,12 @@ class ThermalPrinterServiceManager {
   }
 
   public generateLabelFromTemplateHtml(product: Product, template: LabelTemplate): string {
-    const resolveTextValue = (el: LabelTextElement): string => {
-      switch (el.binding) {
-        case 'productName':
-          return product.name || 'Product';
-        case 'price':
-          return `Rs.${product.sellingPrice.toFixed(2)}`;
-        case 'sku':
-          return product.sku || '';
-        case 'barcodeText':
-          return product.barcode || product.sku || '';
-        case 'unit':
-          return product.unit || 'Pc';
-        case 'category':
-          return product.category?.name || '';
-        case 'custom':
-        case 'sequence':
-        default:
-          // A 'sequence'-bound element should always be resolved by printLabelSequence before it
-          // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
-          // only guards against calling these print paths directly with an un-substituted template.
-          return el.customText || '';
-      }
-    };
 
-    const resolveCodeValue = (el: LabelBarcodeElement | LabelQrElement): string => {
-      switch (el.binding) {
-        case 'barcode':
-          return product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
-        case 'sku':
-          return product.sku || product.barcode || `PROD-${product.id.slice(-6)}`;
-        case 'custom':
-        default:
-          return el.customValue || '';
-      }
-    };
 
     const elementsHtml = template.elements
       .map((el) => {
         if (el.type === 'text') {
-          const val = resolveTextValue(el);
+          const val = this.resolveLabelTextValue(product, el);
           return `
             <div style="
               position: absolute;
@@ -2977,7 +3112,7 @@ class ThermalPrinterServiceManager {
             ">${val}</div>`;
         }
         if (el.type === 'barcode' || el.type === 'qrcode') {
-          const val = resolveCodeValue(el);
+          const val = this.resolveLabelCodeValue(product, el);
           return `
             <div style="
               position: absolute;
@@ -3248,41 +3383,7 @@ class ThermalPrinterServiceManager {
     const toDots = (mm: number) => Math.round(mm * DOTS_PER_MM);
     const ALIGN = { left: NativeEscposPrinter.ALIGN?.LEFT ?? 0, center: NativeEscposPrinter.ALIGN?.CENTER ?? 1, right: NativeEscposPrinter.ALIGN?.RIGHT ?? 2 };
 
-    const resolveTextValue = (el: LabelTextElement): string => {
-      switch (el.binding) {
-        case 'productName':
-          return product.name || 'Product';
-        case 'price':
-          return `Rs.${product.sellingPrice.toFixed(2)}`;
-        case 'sku':
-          return product.sku || '';
-        case 'barcodeText':
-          return product.barcode || product.sku || '';
-        case 'unit':
-          return product.unit || 'Pc';
-        case 'category':
-          return product.category?.name || '';
-        case 'custom':
-        case 'sequence':
-        default:
-          // A 'sequence'-bound element should always be resolved by printLabelSequence before it
-          // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
-          // only guards against calling these print paths directly with an un-substituted template.
-          return el.customText || '';
-      }
-    };
 
-    const resolveCodeValue = (el: LabelBarcodeElement | LabelQrElement): string => {
-      switch (el.binding) {
-        case 'barcode':
-          return product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
-        case 'sku':
-          return product.sku || product.barcode || `PROD-${product.id.slice(-6)}`;
-        case 'custom':
-        default:
-          return el.customValue || '';
-      }
-    };
 
     // Elements print in a linear top-to-bottom stream on this hardware, so the design's Y order is
     // the only positional information that carries over — X position doesn't apply beyond alignment.
@@ -3298,7 +3399,7 @@ class ThermalPrinterServiceManager {
 
         for (const el of orderedElements) {
           if (el.type === 'text') {
-            let value = this.sanitizeForThermalPrint(resolveTextValue(el));
+            let value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
             if (value.length > maxLineLen) value = `${value.slice(0, maxLineLen - 1)}…`;
             if (!value) continue;
             if (typeof NativeEscposPrinter.printerAlign === 'function') {
@@ -3309,7 +3410,7 @@ class ThermalPrinterServiceManager {
             const scale = el.fontSizePt >= 4 ? 1 : 0;
             await NativeEscposPrinter.printText(`${value}\n`, { widthtimes: scale, heigthtimes: scale, cut: false });
           } else if (el.type === 'barcode') {
-            const raw = resolveCodeValue(el);
+            const raw = this.resolveLabelCodeValue(product, el);
             const digits = raw.replace(/\D/g, '');
             let nType = 0x49; // CODE128
             let content = raw.replace(/[^\x20-\x7E]/g, '');
@@ -3326,7 +3427,7 @@ class ThermalPrinterServiceManager {
               NativeEscposPrinter.printBarCode(content, nType, 2, height, 0, 2);
             }
           } else if (el.type === 'qrcode') {
-            const content = resolveCodeValue(el);
+            const content = this.resolveLabelCodeValue(product, el);
             if (!content) continue;
             if (typeof NativeEscposPrinter.printerAlign === 'function') {
               await NativeEscposPrinter.printerAlign(ALIGN.center);

@@ -55,6 +55,7 @@ import {
   getTemplateById,
 } from '@/constants/receiptTemplates';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
+import { JoshPrinterCard } from '@/components/printers/JoshPrinterCard';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -1347,6 +1348,12 @@ export default function PrintersScreen() {
                       </View>
                       {labelPaperMode === 'continuous' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
                     </TouchableOpacity>
+                  </View>
+
+                  {/* Dedicated LPAPI label printer — only renders on builds that
+                      include the vendored SDK, and takes over label jobs while linked. */}
+                  <View style={{ marginTop: 16 }}>
+                    <JoshPrinterCard />
                   </View>
 
                   {labelPaperMode === 'gap' ? (

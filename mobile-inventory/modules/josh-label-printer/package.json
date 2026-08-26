@@ -1,0 +1,7 @@
+{
+  "name": "josh-label-printer",
+  "version": "1.0.0",
+  "description": "Native bridge for DothanTech/Josh LPAPI Bluetooth label printers",
+  "main": "index.ts",
+  "private": true
+}
