@@ -535,8 +535,10 @@ export const PrintersPage = () => {
     return <SettingsPageSkeleton />
   }
 
+  const previewPaperMaxPx = config.paperSize === '80mm' ? 360 : 280
+
   return (
-    <div className="space-y-5 pb-12 w-full max-w-full overflow-hidden">
+    <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Top Header & Quick Actions */}
       <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3">
@@ -660,7 +662,7 @@ export const PrintersPage = () => {
 
       {/* Tab 1: Thermal Receipt Settings & Live Preview */}
       {activeTab === 'receipt' && (
-        <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+        <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
           <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -1057,8 +1059,8 @@ export const PrintersPage = () => {
           </div>
 
           {/* Live Preview Panel — 100% Reactive to all Section Toggles */}
-          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="w-full lg:w-5/12 flex flex-col min-w-0 max-w-full self-start lg:sticky lg:top-6">
+            <div className="flex items-center justify-center gap-2 mb-3">
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Live Preview — {config.paperSize}</span>
               {receiptConfig.compactMode && (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
@@ -1067,26 +1069,36 @@ export const PrintersPage = () => {
               )}
             </div>
 
-            {/* Scrollable Receipt Preview Container */}
-            <div className="w-full max-w-[400px] flex flex-col items-center max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar p-1 pb-4 max-w-full">
-              <div
-                className={`bg-white text-gray-900 p-4 rounded-t-xl shadow-xl border-t-8 border-blue-600 font-mono transition-all duration-300 max-w-full overflow-hidden ${
-                  config.paperSize === '58mm' ? 'w-[280px]' : 'w-[360px]'
-                }`}
-                style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.12)' }}
-              >
+            <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 p-3 sm:p-4 overflow-hidden">
+              <div className="max-h-[min(640px,calc(100dvh-12rem))] overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin">
+                <div
+                  className="mx-auto flex flex-col items-stretch max-w-full min-w-0"
+                  style={{ width: `min(100%, ${previewPaperMaxPx}px)` }}
+                >
+              <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden min-w-0">
                 {/* Live Store Logo Preview */}
                 {config.showLogo && (receiptConfig.logoURL || settings?.businessLogoURL) && (
-                  <div className="flex justify-center mb-3 pb-2 border-b border-dashed border-gray-300">
+                  <div className="flex justify-center px-3 pt-3 pb-2 border-b border-dashed border-gray-300">
                     <img
                       src={receiptConfig.logoURL || settings?.businessLogoURL}
                       alt="Store Logo"
-                      className="max-h-12 max-w-[160px] object-contain"
+                      className="max-h-12 max-w-[70%] object-contain"
                     />
                   </div>
                 )}
 
-                <pre className="whitespace-pre font-mono text-[11px] leading-[1.3] text-gray-900 overflow-x-auto no-scrollbar">
+                        <pre
+                          className="m-0 px-2.5 py-2 whitespace-pre font-mono text-gray-900 overflow-x-hidden"
+                          style={{
+                            width: '100%',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                            fontSize: config.paperSize === '80mm' ? '10.5px' : '10px',
+                            lineHeight: 1.35,
+                            fontVariantNumeric: 'tabular-nums',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          }}
+                        >
                   {compileReceiptTextLines({
                     sale: {
                       id: 'preview-1',
@@ -1118,25 +1130,32 @@ export const PrintersPage = () => {
 
                 {/* Live Payment QR Code Preview */}
                 {receiptConfig.showPaymentQR && (receiptConfig.upiId || receiptConfig.paymentQrURL) && (
-                  <div className="mt-3 pt-3 border-t border-dashed border-gray-300 text-center flex flex-col items-center">
-                    <span className="text-[10px] font-bold tracking-wider text-gray-800 mb-1">SCAN TO PAY ₹2,759.00 (UPI / QR)</span>
+                  <div className="px-2.5 pb-2 pt-2 border-t border-dashed border-gray-300 text-center flex flex-col items-center min-w-0">
+                    <span className="text-[9px] font-bold tracking-wider text-gray-800 mb-1 break-words">SCAN TO PAY ₹2,759.00 (UPI / QR)</span>
                     <img
                       src={receiptConfig.upiId ? getUpiQrImageUrl({ upiId: receiptConfig.upiId, payeeName: settings?.businessName || 'SEZNIK POS STORE', amount: 2759, note: 'INV/2026/00142' }, 140) : receiptConfig.paymentQrURL}
                       alt="Payment QR Code"
-                      className="w-28 h-28 object-contain border border-gray-200 rounded p-1 bg-white"
+                      className="w-24 h-24 max-w-full object-contain border border-gray-200 rounded p-1 bg-white"
                     />
                   </div>
                 )}
               </div>
               <div
-                className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[280px]' : 'w-[360px]'} max-w-full rounded-b-sm`}
-                style={{ backgroundImage: 'radial-gradient(circle, transparent, transparent 50%, #f1f5f9 50%, #f1f5f9 100%)', backgroundSize: '12px 12px' }}
+                className="h-3 w-full bg-white shrink-0"
+                style={{
+                  backgroundImage: 'radial-gradient(circle at 6px 12px, rgb(241 245 249) 6px, transparent 6.5px)',
+                  backgroundSize: '12px 12px',
+                  backgroundRepeat: 'repeat-x',
+                  backgroundPosition: '0 -6px',
+                }}
               />
               {config.cutPaper && (
-                <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2.5">
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2.5 pb-1">
                   <Scissors size={12} /> Auto paper cutter enabled
                 </div>
               )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
