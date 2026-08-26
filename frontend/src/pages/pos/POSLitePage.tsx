@@ -14,7 +14,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -40,6 +40,35 @@ interface CartItem {
   total: number
 }
 
+interface RecentQuickItem {
+  productId?: string
+  productName: string
+  sellingPrice: number
+  taxRate: number
+  priceIncludesGst: boolean
+}
+
+const GST_PRESETS = [0, 5, 12, 18, 28] as const
+const RECENT_STORAGE_KEY = 'pos_lite_recent_items'
+const LAST_BILL_STORAGE_KEY = 'pos_lite_last_bill'
+const MAX_RECENT = 16
+
+const chipClass = (active: boolean) =>
+  `inline-flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition-colors duration-150 ${
+    active
+      ? 'bg-[#0a0a2e] text-white'
+      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+  }`
+
+const readStored = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
 export const POSLitePage = () => {
   const { t } = useLanguage()
   const pageTutorial = usePageTutorial('pos-lite')
@@ -50,8 +79,13 @@ export const POSLitePage = () => {
   const { data: products } = useProducts()
 
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const [isScanMode, setIsScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [linkedProductId, setLinkedProductId] = useState<string | null>(null)
+  const [recentItems, setRecentItems] = useState<RecentQuickItem[]>(() => readStored(RECENT_STORAGE_KEY, []))
+  const [lastBill, setLastBill] = useState<CartItem[]>(() => readStored(LAST_BILL_STORAGE_KEY, []))
 
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
 
@@ -129,8 +163,76 @@ export const POSLitePage = () => {
       .slice(0, 6)
   }, [products, productName])
 
+  const catalogHits = useMemo(() => {
+    const list = (products ?? []).filter(p => p.isActive !== false)
+    const q = catalogQuery.trim().toLowerCase()
+    const filtered = q
+      ? list.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          (p.sku ?? '').toLowerCase().includes(q) ||
+          (p.barcode ?? '').toLowerCase().includes(q)
+        )
+      : list
+    const recentIds = new Set(recentItems.map(r => r.productId).filter((id): id is string => Boolean(id)))
+    return [...filtered]
+      .sort((a, b) => {
+        const ar = recentIds.has(a.id) ? 0 : 1
+        const br = recentIds.has(b.id) ? 0 : 1
+        if (ar !== br) return ar - br
+        return a.name.localeCompare(b.name)
+      })
+      .slice(0, 20)
+  }, [products, catalogQuery, recentItems])
+
+  const rememberRecent = (item: RecentQuickItem) => {
+    setRecentItems(prev => {
+      const key = item.productId || `${item.productName.toLowerCase()}|${item.sellingPrice}|${item.taxRate}`
+      const next = [
+        item,
+        ...prev.filter(r => (r.productId || `${r.productName.toLowerCase()}|${r.sellingPrice}|${r.taxRate}`) !== key),
+      ].slice(0, MAX_RECENT)
+      try {
+        localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore quota */
+      }
+      return next
+    })
+  }
+
+  const pushLine = (line: Omit<CartItem, 'total'>) => {
+    setItems(prev => {
+      const matchIdx = prev.findIndex(i => {
+        if (!line.id.startsWith('temp-')) return i.id === line.id
+        return (
+          i.id.startsWith('temp-') &&
+          i.productName.toLowerCase() === line.productName.toLowerCase() &&
+          i.sellingPrice === line.sellingPrice &&
+          i.taxRate === line.taxRate &&
+          Boolean(i.priceIncludesGst) === Boolean(line.priceIncludesGst)
+        )
+      })
+      if (matchIdx >= 0) {
+        return prev.map((i, idx) => {
+          if (idx !== matchIdx) return i
+          const qty = i.quantity + line.quantity
+          return { ...i, quantity: qty, total: i.sellingPrice * qty }
+        })
+      }
+      return [...prev, { ...line, total: line.sellingPrice * line.quantity }]
+    })
+    rememberRecent({
+      productId: line.id.startsWith('temp-') ? undefined : line.id,
+      productName: line.productName,
+      sellingPrice: line.sellingPrice,
+      taxRate: line.taxRate,
+      priceIncludesGst: line.priceIncludesGst ?? false,
+    })
+  }
+
   const handleSelectSuggestedProduct = (p: Product) => {
     const effectivePrice = getEffectivePrice(p)
+    setLinkedProductId(p.id)
     setProductName(p.name)
     setProductPrice(String(effectivePrice))
     setProductTaxRate(String(p.taxRate ?? 0))
@@ -148,13 +250,17 @@ export const POSLitePage = () => {
     const effectivePrice = getEffectivePrice(product)
     const existing = items.find(i => i.id === product.id)
     if (existing) {
-      setItems(prev => prev.map(i =>
-        i.id === product.id
-          ? { ...i, quantity: i.quantity + 1, total: i.sellingPrice * (i.quantity + 1) }
-          : i
-      ))
+      pushLine({
+        id: product.id,
+        productName: product.name,
+        quantity: 1,
+        sellingPrice: existing.sellingPrice,
+        discount: 0,
+        taxRate: existing.taxRate,
+        priceIncludesGst: existing.priceIncludesGst,
+      })
     } else {
-      setItems(prev => [...prev, {
+      pushLine({
         id: product.id,
         productName: product.name,
         quantity: 1,
@@ -162,8 +268,7 @@ export const POSLitePage = () => {
         discount: 0,
         taxRate: product.taxRate,
         priceIncludesGst: product.priceIncludesGst ?? false,
-        total: effectivePrice,
-      }])
+      })
     }
     toast.success(`${product.name} ${t('pos.addedViaScanSuffix')}`)
     if (isExpiringSoon(product.expiryDate)) {
@@ -215,23 +320,70 @@ export const POSLitePage = () => {
       return
     }
 
-    const newItem: CartItem = {
-      id: `temp-${Date.now()}-${Math.random()}`,
+    const newItem: Omit<CartItem, 'total'> = {
+      id: linkedProductId || `temp-${Date.now()}-${Math.random()}`,
       productName: productName.trim(),
       quantity: qty,
       sellingPrice: price,
       discount: 0,
       taxRate,
       priceIncludesGst: gstMode === 'inclusive',
-      total: price * qty,
     }
 
-    setItems(prev => [...prev, newItem])
+    pushLine(newItem)
     setProductName('')
     setProductPrice('')
     setProductQty('1')
     setProductTaxRate('0')
+    setLinkedProductId(null)
     toast.success(`${newItem.productName} ${t('pos.addedSuffix')}`)
+    requestAnimationFrame(() => nameInputRef.current?.focus())
+  }
+
+  const addFromRecent = (item: RecentQuickItem) => {
+    pushLine({
+      id: item.productId || `temp-${Date.now()}-${Math.random()}`,
+      productName: item.productName,
+      quantity: 1,
+      sellingPrice: item.sellingPrice,
+      discount: 0,
+      taxRate: item.taxRate,
+      priceIncludesGst: item.priceIncludesGst,
+    })
+    toast.success(`${item.productName} ${t('pos.addedSuffix')}`)
+  }
+
+  const addFromCatalog = (product: Product) => {
+    const effectivePrice = getEffectivePrice(product)
+    pushLine({
+      id: product.id,
+      productName: product.name,
+      quantity: 1,
+      sellingPrice: effectivePrice,
+      discount: 0,
+      taxRate: product.taxRate,
+      priceIncludesGst: product.priceIncludesGst ?? false,
+    })
+    toast.success(`${product.name} ${t('pos.addedSuffix')}`)
+    if (isExpiringSoon(product.expiryDate)) {
+      toast(`⚠ ${product.name} — ${formatExpiryMessage(product.expiryDate)}`, { icon: '⏳' })
+    }
+  }
+
+  const replayLastBill = () => {
+    if (lastBill.length === 0) return
+    lastBill.forEach(item => {
+      pushLine({
+        id: item.id.startsWith('temp-') ? `temp-${Date.now()}-${Math.random()}` : item.id,
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: item.taxRate,
+        priceIncludesGst: item.priceIncludesGst,
+      })
+    })
+    toast.success(t('pos.lastBillAdded'))
   }
 
   const removeItem = (id: string) => {
@@ -346,6 +498,12 @@ export const POSLitePage = () => {
           amountPaidNum,
           selectedCustomer,
         })
+        try {
+          localStorage.setItem(LAST_BILL_STORAGE_KEY, JSON.stringify(items))
+        } catch {
+          /* ignore quota */
+        }
+        setLastBill(items)
         setCompletedSaleId(saleId)
         setCompletedInvoiceNumber(invoiceNumber)
         clearCart()
@@ -458,6 +616,15 @@ export const POSLitePage = () => {
     }
   }
 
+  const previewQty = Math.max(1, parseInt(productQty, 10) || 1)
+  const previewPrice = parseFloat(productPrice) || 0
+  const previewTax = parseFloat(productTaxRate) || 0
+  const previewBase = previewPrice * previewQty
+  const previewLineTotal =
+    gstMode === 'inclusive' || previewTax <= 0
+      ? previewBase
+      : previewBase + (previewBase * previewTax) / 100
+
   return (
     <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
 
@@ -490,52 +657,57 @@ export const POSLitePage = () => {
         </button>
       </div>
 
-      {/* Left: Manual Entry Form + Product List */}
-      <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
-        <div data-tour="pos-lite-header" className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('pos.quickBillManualEntry')}</h2>
+      {/* Left: entry + fast-add tools */}
+      <div className={`flex-1 flex flex-col min-h-0 bg-gray-50 dark:bg-gray-900 ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
+        <div data-tour="pos-lite-header" className="shrink-0 px-4 sm:px-5 pt-3 pb-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{t('pos.quickBillManualEntry')}</h2>
+                <button
+                  onClick={pageTutorial.openTutorial}
+                  type="button"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150 shrink-0"
+                >
+                  <Video size={13} />
+                  {t('pos.videoGuide')}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">{t('pos.addProductManualHint')}</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {lastBill.length > 0 && (
+                <button
+                  type="button"
+                  onClick={replayLastBill}
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150"
+                >
+                  <RotateCcw size={14} />
+                  {t('pos.repeatLastBill')}
+                </button>
+              )}
               <button
-                onClick={pageTutorial.openTutorial}
+                data-tour="pos-lite-scan-btn"
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
+                onClick={toggleScanMode}
+                className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium transition-colors duration-150 ${
+                  isScanMode
+                    ? 'bg-[#0a0a2e] text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+                }`}
               >
-                <Video size={14} className="animate-pulse" />
-                <span>{t('pos.videoGuide')}</span>
+                {isScanMode ? <ScanLine size={15} /> : <Barcode size={15} />}
+                {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
               </button>
             </div>
-            <button
-              data-tour="pos-lite-scan-btn"
-              type="button"
-              onClick={toggleScanMode}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
-                isScanMode
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
-              }`}
-            >
-              {isScanMode ? <ScanLine size={16} className="animate-pulse" /> : <Barcode size={16} />}
-              {isScanMode ? t('pos.scanning') : t('pos.scanBarcode')}
-            </button>
           </div>
 
-          {/* Billing location (only shown when multi-location inventory is enabled) */}
-          <div className="mb-3">
+          <div className="mt-2">
             <LocationSelector onChange={setSelectedLocationId} />
           </div>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            {t('pos.addProductManualHint')}
-          </p>
-
-          {/* Barcode Scan Input Panel */}
           {isScanMode && (
-            <div className="mb-4 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
-                <ScanLine size={18} className="animate-pulse" />
-                {t('pos.scanModeActive')}
-              </div>
+            <div className="mt-3 p-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/20">
               <form onSubmit={handleScanSubmit} className="flex gap-2">
                 <Input
                   ref={scanInputRef}
@@ -554,148 +726,216 @@ export const POSLitePage = () => {
               </form>
             </div>
           )}
+        </div>
 
-          {/* Manual Product Entry Form */}
-          <Card className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2 relative" data-tour="pos-lite-name-input">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.productNameLabel')}
-                </label>
-                <Input
-                  value={productName}
-                  onChange={e => {
-                    setProductName(e.target.value)
-                    setShowNameSuggestions(true)
-                  }}
-                  onFocus={() => setShowNameSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
-                  placeholder={t('pos.enterProductName')}
-                  className="w-full"
-                />
-                {showNameSuggestions && productName.trim().length > 0 && nameSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
-                    <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
-                      Suggested Catalog Items ({nameSuggestions.length})
-                    </div>
-                    <div className="max-h-56 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-4">
+          <form
+            onSubmit={e => {
+              e.preventDefault()
+              addItem()
+            }}
+          >
+            <Card className="p-3 sm:p-4">
+              <div className="grid grid-cols-2 lg:grid-cols-12 gap-3">
+                <div className="col-span-2 lg:col-span-12 relative" data-tour="pos-lite-name-input">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    {t('pos.productNameLabel')}
+                  </label>
+                  <Input
+                    ref={nameInputRef}
+                    value={productName}
+                    onChange={e => {
+                      setProductName(e.target.value)
+                      setLinkedProductId(null)
+                      setShowNameSuggestions(true)
+                    }}
+                    onFocus={() => setShowNameSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
+                    placeholder={t('pos.enterProductName')}
+                    className="w-full"
+                    autoComplete="off"
+                  />
+                  {showNameSuggestions && productName.trim().length > 0 && nameSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 py-1 z-50 overflow-hidden">
                       {nameSuggestions.map(p => {
                         const price = getEffectivePrice(p)
                         return (
                           <button
                             key={p.id}
                             type="button"
-                            onMouseDown={(e) => {
+                            onMouseDown={e => {
                               e.preventDefault()
                               handleSelectSuggestedProduct(p)
                             }}
-                            className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                            className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors duration-150"
                           >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
-                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-                                {p.barcode && <span>Barcode: {p.barcode}</span>}
-                                {p.sku && <span>• SKU: {p.sku}</span>}
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
-                              <span className="block text-[10px] text-gray-400">GST: {p.taxRate ?? 0}%</span>
-                            </div>
+                            <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">{p.name}</span>
+                            <span className="text-xs text-gray-500 shrink-0">{formatINR(price)}</span>
                           </button>
                         )
                       })}
                     </div>
+                  )}
+                </div>
+                <div className="lg:col-span-4">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    {t('pos.priceLabel')}
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={productPrice}
+                    onChange={e => setProductPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full"
+                  />
+                </div>
+                <div className="lg:col-span-4">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    {t('pos.quantityLabel')}
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setProductQty(String(Math.max(1, previewQty - 1)))}
+                      className="h-9 w-9 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 transition-colors duration-150 flex items-center justify-center"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={productQty}
+                      onChange={e => setProductQty(e.target.value)}
+                      className="w-full text-center"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setProductQty(String(previewQty + 1))}
+                      className="h-9 w-9 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 transition-colors duration-150 flex items-center justify-center"
+                    >
+                      <Plus size={14} />
+                    </button>
                   </div>
-                )}
+                </div>
+                <div className="col-span-2 lg:col-span-4">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    {t('pos.gstLabel')}
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={productTaxRate}
+                    onChange={e => setProductTaxRate(e.target.value)}
+                    placeholder="0"
+                    className="w-full"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.priceLabel')}
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={productPrice}
-                  onChange={e => setProductPrice(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.quantityLabel')}
-                </label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={productQty}
-                  onChange={e => setProductQty(e.target.value)}
-                  placeholder="1"
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('pos.gstLabel')}
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={productTaxRate}
-                  onChange={e => setProductTaxRate(e.target.value)}
-                  placeholder="0"
-                  className="w-full"
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex flex-col md:flex-row items-start md:items-center gap-4">
-              {/* GST Mode Toggle */}
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                <button
-                  type="button"
-                  onClick={() => setGstMode('exclusive')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    gstMode === 'exclusive'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  }`}
-                >
+
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {GST_PRESETS.map(rate => (
+                  <button
+                    key={rate}
+                    type="button"
+                    aria-pressed={Number(productTaxRate) === rate}
+                    onClick={() => setProductTaxRate(String(rate))}
+                    className={chipClass(Number(productTaxRate) === rate)}
+                  >
+                    {rate}%
+                  </button>
+                ))}
+                <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:inline-block" />
+                <button type="button" aria-pressed={gstMode === 'exclusive'} onClick={() => setGstMode('exclusive')} className={chipClass(gstMode === 'exclusive')}>
                   {t('pos.gstExclusive')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setGstMode('inclusive')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    gstMode === 'inclusive'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  }`}
-                >
+                <button type="button" aria-pressed={gstMode === 'inclusive'} onClick={() => setGstMode('inclusive')} className={chipClass(gstMode === 'inclusive')}>
                   {t('pos.gstInclusive')}
                 </button>
+                <div className="ml-auto flex items-center gap-3">
+                  {previewPrice > 0 && (
+                    <p className="text-xs text-gray-400">
+                      {t('pos.lineTotal')} <span className="font-semibold text-gray-700 dark:text-gray-200">{formatINR(previewLineTotal)}</span>
+                    </p>
+                  )}
+                  <Button data-tour="pos-lite-add-cart-btn" type="submit" leftIcon={<Plus size={16} />}>
+                    {t('pos.addToCart')}
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500">
-                {gstMode === 'exclusive'
-                  ? t('pos.gstExclusiveHint')
-                  : t('pos.gstInclusiveHint')}
-              </p>
-              <Button
-                data-tour="pos-lite-add-cart-btn"
-                onClick={addItem}
-                leftIcon={<Plus size={16} />}
-                className="md:ml-auto w-full md:w-auto"
-              >
-                {t('pos.addToCart')}
-              </Button>
+            </Card>
+          </form>
+
+          <section data-tour="pos-lite-recent">
+            <div className="flex items-center gap-2 mb-2">
+              <History size={14} className="text-gray-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('pos.recentItems')}</h3>
+              <span className="text-[11px] text-gray-400">{t('pos.tapToAdd')}</span>
             </div>
-          </Card>
+            {recentItems.length === 0 ? (
+              <p className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                {t('pos.noRecentItems')}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+                {recentItems.map(item => (
+                  <button
+                    key={`${item.productId || item.productName}-${item.sellingPrice}-${item.taxRate}`}
+                    type="button"
+                    onClick={() => addFromRecent(item)}
+                    className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 transition-colors duration-150 hover:border-gray-400 dark:hover:border-gray-500"
+                  >
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {formatINR(item.sellingPrice)}
+                      {item.taxRate > 0 ? ` · ${item.taxRate}%` : ''}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {(products?.length ?? 0) > 0 && (
+            <section>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('pos.fastCatalog')}</h3>
+                <div className="relative w-44 sm:w-56">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={catalogQuery}
+                    onChange={e => setCatalogQuery(e.target.value)}
+                    placeholder={t('pos.searchCatalog')}
+                    className="w-full h-8 pl-7 pr-2 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+              {catalogHits.length === 0 ? (
+                <p className="text-sm text-gray-400 py-4 text-center">{t('pos.noCatalogHits')}</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+                  {catalogHits.map(product => {
+                    const price = getEffectivePrice(product)
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => addFromCatalog(product)}
+                        className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 transition-colors duration-150 hover:border-gray-400 dark:hover:border-gray-500"
+                      >
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{product.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatINR(price)}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
         </div>
 
-
-        {/* Mobile: View Cart sticky bar */}
         {items.length > 0 && (
           <div data-tour="pos-lite-tab-cart" className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
@@ -740,10 +980,20 @@ export const POSLitePage = () => {
         {/* Cart Items List */}
         <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-gray-100 dark:divide-gray-700">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
-              <ShoppingCart size={48} className="mb-3 opacity-30" />
+            <div className="flex flex-col items-center justify-center h-full py-10 px-6 text-gray-400">
+              <ShoppingCart size={36} className="mb-3 opacity-30" />
               <p className="text-sm font-medium">{t('pos.cartEmpty')}</p>
-              <p className="text-xs text-gray-400 mt-1">{t('pos.addItemsHint')}</p>
+              <p className="text-xs text-gray-400 mt-1 text-center">{t('pos.addItemsHint')}</p>
+              {lastBill.length > 0 && (
+                <button
+                  type="button"
+                  onClick={replayLastBill}
+                  className="mt-4 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-150"
+                >
+                  <RotateCcw size={14} />
+                  {t('pos.repeatLastBill')}
+                </button>
+              )}
             </div>
           ) : (
             items.map(item => (
@@ -789,8 +1039,21 @@ export const POSLitePage = () => {
         </div>
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-14 sm:pb-4 space-y-2 mt-auto">
-          {/* Order Discount */}
+        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-4 pb-14 sm:pb-4 space-y-2 mt-auto">
+          {items.length > 0 && (
+            <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex justify-between">
+                <span>{t('pos.subtotal')}</span>
+                <span>{formatINR(subtotal)}</span>
+              </div>
+              {taxAmount > 0 && (
+                <div className="flex justify-between">
+                  <span>GST</span>
+                  <span>{formatINR(taxAmount)}</span>
+                </div>
+              )}
+            </div>
+          )}
           {items.length > 0 && (
             <div className="flex items-center gap-2">
               <Input
@@ -890,16 +1153,14 @@ export const POSLitePage = () => {
                   key={id}
                   type="button"
                   onClick={() => setMethod(id)}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors duration-150 ${
                     method === id
-                      ? 'border-[#0a0a2e] bg-[#0a0a2e]/5'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                      ? 'bg-[#0a0a2e] text-white'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
                   }`}
                 >
-                  <Icon size={24} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
-                  <span className={`text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>
-                    {label}
-                  </span>
+                  <Icon size={20} strokeWidth={method === id ? 2.2 : 1.75} />
+                  <span className="text-xs font-medium">{label}</span>
                 </button>
               ))}
             </div>
