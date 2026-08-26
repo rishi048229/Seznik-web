@@ -13,6 +13,8 @@ import {
 } from '@/constants/businessTypes'
 import { LANGUAGES, type LanguageCode } from '@/i18n/translations'
 
+const BANNER_GRADIENT = 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)'
+
 export const OnboardingPage = () => {
   const { userProfile, completeOnboarding, updateBusinessType } = useAuth()
   const { language, setLanguage } = useLanguage()
@@ -85,93 +87,100 @@ export const OnboardingPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 overflow-x-hidden">
-      <div className="fixed top-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#1e1b4b]/10 blur-[120px] rounded-full -z-10" />
-      <div className="fixed bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-900/5 blur-[100px] rounded-full -z-10" />
-
-      <div className="w-full max-w-4xl grid md:grid-cols-12 overflow-hidden bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
-        <section className="hidden md:flex md:col-span-5 bg-gradient-to-br from-[#070235] to-[#3d3dcb] relative p-12 flex-col justify-between overflow-hidden">
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-12">
-              <img src="/seznik_logo.png" alt="Seznik Logo" className="w-10 h-10 object-contain" />
-              <img src="/seznik_logo.png" alt="Seznik" className="w-12 h-auto object-contain" />
+    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl">
+        <section
+          className="sm:w-[42%] px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
+          style={{ background: BANNER_GRADIENT, color: '#fff' }}
+        >
+          <div>
+            <div className="mb-8 sm:mb-12">
+              <img
+                src="/seznik_white_logo.png"
+                alt="Seznik"
+                className="w-32 sm:w-40 h-auto object-contain"
+              />
             </div>
-            <h2 className="text-3xl font-extrabold text-white leading-tight mb-4">
+            <h1 className="text-3xl sm:text-4xl font-bold leading-tight tracking-tight mb-4">
               A workspace that
               <br />
               matches how you sell.
-            </h2>
-            <p className="text-white/80 text-sm leading-relaxed max-w-xs">
+            </h1>
+            <p className="text-sm sm:text-base leading-relaxed opacity-75 max-w-xs">
               Restaurants get kitchen tickets and table billing. Retail and online stores get a
               general POS without kitchen tools. Multi-store stays available for everyone.
             </p>
           </div>
 
-          <div className="relative mt-12 z-10">
-            <div className="aspect-square w-full rounded-2xl bg-white/10 border border-white/10 overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-t from-[#070235]/80 to-transparent" />
-              <div className="absolute bottom-6 left-6 right-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#39b8fd]" />
-                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-bold">
-                    Personalized setup
-                  </span>
-                </div>
-                <p className="text-white font-semibold italic text-sm">
-                  Choose your business type and we will tailor the dashboard around it.
-                </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              {
+                icon: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                ),
+                label: 'PERSONALIZED SETUP',
+              },
+              {
+                icon: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                ),
+                label: 'MULTI-STORE READY',
+              },
+            ].map(badge => (
+              <div
+                key={badge.label}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide"
+                style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}
+              >
+                {badge.icon}
+                {badge.label}
               </div>
-            </div>
+            ))}
           </div>
-          <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-[#1e1b4b] rounded-full blur-3xl opacity-20" />
         </section>
 
-        <section className="col-span-12 md:col-span-7 p-6 sm:p-10 md:p-16 flex flex-col justify-center max-h-[90vh] overflow-y-auto">
-          <nav className="flex items-center gap-4 mb-8 sm:mb-10">
+        <section className="sm:w-[58%] px-8 py-10 sm:px-12 sm:py-14 bg-white flex flex-col justify-center max-h-[90vh] overflow-y-auto">
+          <nav className="flex items-center gap-3 mb-8">
             <div className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  step === 1
-                    ? 'bg-[#070235] text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  step === 1 ? 'bg-[#0a0a2e] text-white' : 'bg-slate-200 text-slate-600'
                 }`}
               >
                 1
               </div>
-              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              <span className="text-sm font-semibold text-slate-900">
                 {pickTypeOnly ? 'Business type' : 'Shop details'}
               </span>
             </div>
-            <div className="w-8 h-px bg-gray-300 dark:bg-gray-600" />
+            <div className="w-8 h-px bg-slate-200" />
             <div className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  step === 2
-                    ? 'bg-[#070235] text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  step === 2 ? 'bg-[#0a0a2e] text-white' : 'bg-slate-200 text-slate-500'
                 }`}
               >
                 2
               </div>
-              <span
-                className={`text-sm font-medium ${
-                  step === 2 ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'
-                }`}
-              >
+              <span className={`text-sm font-medium ${step === 2 ? 'text-slate-900' : 'text-slate-400'}`}>
                 Workspace
               </span>
             </div>
           </nav>
 
           <header className="mb-6">
-            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-2">
               {step === 1
                 ? pickTypeOnly
                   ? 'What type of business do you run?'
                   : 'Enter your shop details'
                 : `Your ${selectedLabel} setup`}
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
+            </h2>
+            <p className="text-sm text-slate-500">
               {step === 1
                 ? pickTypeOnly
                   ? 'We will tailor your dashboard to kitchen service or general retail.'
@@ -180,7 +189,7 @@ export const OnboardingPage = () => {
             </p>
           </header>
 
-          <form onSubmit={handleNext} className="space-y-5">
+          <form onSubmit={handleNext} className="flex flex-col gap-5">
             {step === 1 && !pickTypeOnly ? (
               <>
                 <Field label="Name of shop *">
@@ -194,7 +203,7 @@ export const OnboardingPage = () => {
                   />
                 </Field>
                 <Field label="Shop logo">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1 mb-2">
+                  <p className="text-xs text-slate-500 -mt-1 mb-2">
                     Optional — skip if you want to add it later.
                   </p>
                   <ImageUpload
@@ -228,72 +237,72 @@ export const OnboardingPage = () => {
 
             {step === 1 ? (
               <>
-              <Field label={pickTypeOnly ? undefined : 'Type of business *'}>
-                <div className="space-y-2">
-                  {BUSINESS_TYPE_OPTIONS.map(option => {
-                    const selected = selectedBusinessType === option.id
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setSelectedBusinessType(option.id)}
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                          selected
-                            ? 'border-[#070235] bg-[#070235]/5 dark:bg-[#070235]/10'
-                            : 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        <span className="text-2xl">{option.emoji}</span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
-                            {option.label}
+                <Field label={pickTypeOnly ? undefined : 'Type of business *'}>
+                  <div className="space-y-2">
+                    {BUSINESS_TYPE_OPTIONS.map(option => {
+                      const selected = selectedBusinessType === option.id
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setSelectedBusinessType(option.id)}
+                          className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3 ${
+                            selected
+                              ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 ring-1 ring-[#0a0a2e]'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-2xl">{option.emoji}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-slate-900">
+                              {option.label}
+                            </span>
+                            <span className="block text-xs text-slate-500 mt-0.5">
+                              {option.description}
+                            </span>
                           </span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {option.description}
+                          {selected ? <Check size={16} className="text-[#0a0a2e] shrink-0" /> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Field>
+                <Field label="App language">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {LANGUAGES.map(lang => {
+                      const selected = selectedLanguage === lang.code
+                      return (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => {
+                            setSelectedLanguage(lang.code)
+                            setLanguage(lang.code)
+                          }}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all flex items-center justify-between gap-2 ${
+                            selected
+                              ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 ring-1 ring-[#0a0a2e]'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm font-medium text-slate-900 truncate">
+                            {lang.label}
                           </span>
-                        </span>
-                        {selected ? <Check size={16} className="text-[#070235] shrink-0" /> : null}
-                      </button>
-                    )
-                  })}
-                </div>
-              </Field>
-              <Field label="App language">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {LANGUAGES.map(lang => {
-                    const selected = selectedLanguage === lang.code
-                    return (
-                      <button
-                        key={lang.code}
-                        type="button"
-                        onClick={() => {
-                          setSelectedLanguage(lang.code)
-                          setLanguage(lang.code)
-                        }}
-                        className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all flex items-center justify-between ${
-                          selected
-                            ? 'border-[#070235] bg-[#070235]/5 dark:bg-[#070235]/10'
-                            : 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {lang.label}
-                        </span>
-                        {selected ? <Check size={16} className="text-[#070235] shrink-0" /> : null}
-                      </button>
-                    )
-                  })}
-                </div>
-              </Field>
+                          {selected ? <Check size={14} className="text-[#0a0a2e] shrink-0" /> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Field>
               </>
             ) : (
-              <div className="rounded-2xl border-2 border-[#070235] bg-[#070235]/5 dark:bg-[#070235]/10 p-5">
-                <p className="text-base font-bold text-gray-900 dark:text-gray-100">{template.title}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">{template.subtitle}</p>
+              <div className="rounded-xl border border-[#0a0a2e] bg-[#0a0a2e]/5 p-5">
+                <p className="text-base font-semibold text-slate-900">{template.title}</p>
+                <p className="text-sm text-slate-500 mt-1 mb-4">{template.subtitle}</p>
                 <ul className="space-y-2">
                   {template.features.map(feature => (
-                    <li key={feature} className="flex items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
-                      <Check size={14} className="mt-0.5 text-[#070235] dark:text-sky-400 shrink-0" />
+                    <li key={feature} className="flex items-start gap-2 text-sm text-slate-800">
+                      <Check size={14} className="mt-0.5 text-[#0a0a2e] shrink-0" />
                       {feature}
                     </li>
                   ))}
@@ -301,20 +310,21 @@ export const OnboardingPage = () => {
               </div>
             )}
 
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {error ? <p className="text-red-500 text-sm font-medium">{error}</p> : null}
 
-            <div className="pt-2 flex flex-col gap-3">
+            <div className="pt-1 flex flex-col gap-3">
               <button
                 type="submit"
                 disabled={isSaving}
-                className="w-full bg-[#070235] hover:bg-[#3d3dcb] text-white py-4 rounded-full font-bold text-base shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
               >
                 {isSaving ? (
                   <Spinner size="sm" className="text-white" />
                 ) : (
                   <>
                     {step === 1 ? 'Continue' : 'Use this setup'}
-                    <span className="text-lg">→</span>
+                    <span aria-hidden="true">→</span>
                   </>
                 )}
               </button>
@@ -322,13 +332,15 @@ export const OnboardingPage = () => {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-center text-xs text-gray-400 uppercase tracking-widest font-medium hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="text-center text-xs text-slate-400 uppercase tracking-widest font-medium hover:text-slate-600 transition-colors"
                 >
                   Change business type
                 </button>
               ) : null}
             </div>
           </form>
+
+          <p className="text-center mt-8 text-[10px] text-slate-300">© 2026 Seznik POS. All rights reserved.</p>
         </section>
       </div>
     </div>
@@ -336,15 +348,13 @@ export const OnboardingPage = () => {
 }
 
 const fieldClass =
-  'w-full bg-gray-100 dark:bg-gray-700 border-none rounded-lg px-4 py-4 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:ring-2 focus:ring-[#070235]/20 focus:bg-white dark:focus:bg-gray-600 transition-all'
+  'w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] bg-white'
 
 function Field({ label, children }: { label?: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
       {label ? (
-        <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 ml-1">
-          {label}
-        </label>
+        <label className="block text-sm font-medium text-slate-700">{label}</label>
       ) : null}
       {children}
     </div>
