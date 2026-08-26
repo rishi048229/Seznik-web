@@ -2705,6 +2705,21 @@ class ThermalPrinterServiceManager {
   // without the dots conversion the TSPL path needs.
   // ---------------------------------------------------------------------------
 
+  /**
+   * Coerces a value to a finite integer for the TSPL bridge.
+   *
+   * The native printLabel reads most numbers with ReadableMap.getInt(), which throws
+   * on null, undefined or NaN instead of defaulting — and one throw aborts the whole
+   * label. A template that reaches us without widthMm/heightMm (older saved layouts,
+   * or a backend JSON round-trip that dropped them) turns straight into NaN here, so
+   * every number handed to the bridge goes through this first. The hardcoded test
+   * label never hit this, which is why it printed while designed labels did not.
+   */
+  private safeInt(value: unknown, fallback: number): number {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? n : fallback;
+  }
+
   /** True only on a native build where the vendored LPAPI SDK actually linked. */
   public isJoshLabelPrinterAvailable(): boolean {
     return isJoshPrinterSupported();
@@ -3014,7 +3029,9 @@ class ThermalPrinterServiceManager {
 
     const DOTS_PER_MM = 8;
     const FONT3_CHAR_W = 16;
-    const toDots = (mm: number) => Math.round(mm * DOTS_PER_MM);
+    // Guarded: a missing/non-finite mm value becomes NaN, and the native bridge
+    // throws on NaN rather than skipping that one field, which fails the label.
+    const toDots = (mm: number) => this.safeInt(Number(mm) * DOTS_PER_MM, 0);
 
 
 
@@ -3029,7 +3046,7 @@ class ThermalPrinterServiceManager {
         if (!value) continue;
         // fontSizePt is stored in mm (24 dots = 3mm at FONT_3's native 1x cell height) — derive the
         // nearest whole TSPL FONTMUL scale from it, same convention buildTsplLabelFields assumes.
-        const scale = Math.min(10, Math.max(1, Math.round(el.fontSizePt / 3)));
+        const scale = Math.min(10, Math.max(1, this.safeInt(Number(el.fontSizePt) / 3, 1)));
         const boxWidthDots = toDots(el.widthMm);
         const textWidthDots = value.length * FONT3_CHAR_W * scale;
         let xDots = toDots(el.xMm);
@@ -3060,7 +3077,7 @@ class ThermalPrinterServiceManager {
         if (!content) continue;
         // Fit the module width to the box the user actually drew, same "grow when there's spare
         // room, shrink when it must" approach as buildTsplLabelFields's narrow calculation.
-        const narrow = Math.min(4, Math.max(1, Math.floor(toDots(el.widthMm) / moduleCount)));
+        const narrow = Math.min(4, Math.max(1, this.safeInt(toDots(el.widthMm) / moduleCount, 1)));
         barcodeFields.push({
           x: toDots(el.xMm),
           y: toDots(el.yMm),
@@ -3084,7 +3101,7 @@ class ThermalPrinterServiceManager {
         // The box is square-constrained to whichever side (width/height) is tighter, same
         // structural guarantee against overflow as buildTsplLabelFields's QR sizing.
         const boxDots = Math.min(toDots(el.widthMm), toDots(el.heightMm));
-        const cellWidth = Math.max(2, Math.min(10, Math.floor(boxDots / qrModules)));
+        const cellWidth = Math.max(2, Math.min(10, this.safeInt(boxDots / qrModules, 2)));
         qrFields.push({
           x: toDots(el.xMm),
           y: toDots(el.yMm),
@@ -3111,14 +3128,25 @@ class ThermalPrinterServiceManager {
       }
     }
 
+    // An empty template would otherwise be sent as a valid TSPL job with no
+    // content, so the printer feeds one blank label and reports success — which
+    // reads exactly like "printing does nothing". Say so instead.
+    if (!textFields.length && !barcodeFields.length && !qrFields.length && !imageFields.length) {
+      throw new Error(
+        `"${template.name || 'This label'}" has no elements on it yet. Open Label Studio and add a product name, price or barcode, then save.`
+      );
+    }
+
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
         try {
           for (let i = 0; i < Math.max(1, copies); i++) {
             await NativeTscPrinter.printLabel({
-              width: template.widthMm,
-              height: template.heightMm,
-              gap: labelGapMm,
+              // Fall back to standard 50x30mm stock rather than sending NaN, which
+              // the bridge rejects — failing the entire label, not just one field.
+              width: this.safeInt(template.widthMm, 50),
+              height: this.safeInt(template.heightMm, 30),
+              gap: this.safeInt(labelGapMm, 2),
               direction: NativeTscPrinter.DIRECTION?.FORWARD ?? 0,
               reference: [0, 0],
               tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
@@ -3499,7 +3527,9 @@ class ThermalPrinterServiceManager {
     if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;
 
     const DOTS_PER_MM = 8;
-    const toDots = (mm: number) => Math.round(mm * DOTS_PER_MM);
+    // Guarded: a missing/non-finite mm value becomes NaN, and the native bridge
+    // throws on NaN rather than skipping that one field, which fails the label.
+    const toDots = (mm: number) => this.safeInt(Number(mm) * DOTS_PER_MM, 0);
     const ALIGN = { left: NativeEscposPrinter.ALIGN?.LEFT ?? 0, center: NativeEscposPrinter.ALIGN?.CENTER ?? 1, right: NativeEscposPrinter.ALIGN?.RIGHT ?? 2 };
 
 

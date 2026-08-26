@@ -108,3 +108,18 @@ export interface LabelTemplate {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * True when a template would actually put something on the label.
+ *
+ * A template whose elements were all deleted is still a valid object, and printing
+ * it produces a technically-successful job that feeds one blank label — which is
+ * indistinguishable from "printing is broken". Callers use this to fall back to the
+ * built-in auto-layout instead of silently printing nothing.
+ */
+export function templateHasPrintableContent(template?: LabelTemplate | null): boolean {
+  if (!template || !Array.isArray(template.elements)) return false;
+  return template.elements.some(
+    (el) => el.type === 'text' || el.type === 'barcode' || el.type === 'qrcode' || el.type === 'image'
+  );
+}

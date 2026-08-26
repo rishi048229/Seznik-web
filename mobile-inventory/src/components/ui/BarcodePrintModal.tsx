@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { templateHasPrintableContent } from '@/types/labelTemplate';
 import {
   View,
   Text,
@@ -67,12 +68,15 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       // With no active template, each mode falls back to its own auto-layout.
       let ok: boolean;
       let modeLabel: string;
-      if (labelPaperMode === 'gap' && activeLabelTemplate) {
-        ok = await ThermalPrinterService.printLabelFromTemplate(product, activeLabelTemplate, 1, labelGapMm);
-        modeLabel = `"${activeLabelTemplate.name}" template`;
-      } else if (labelPaperMode === 'continuous' && activeLabelTemplate) {
-        ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, activeLabelTemplate, paperWidth);
-        modeLabel = `"${activeLabelTemplate.name}" template (receipt roll)`;
+      // An emptied template must not win this branch: it would print a blank
+      // label instead of falling through to the auto-layout below.
+      const usableTemplate = templateHasPrintableContent(activeLabelTemplate) ? activeLabelTemplate : null;
+      if (labelPaperMode === 'gap' && usableTemplate) {
+        ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
+        modeLabel = `"${usableTemplate.name}" template`;
+      } else if (labelPaperMode === 'continuous' && usableTemplate) {
+        ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, usableTemplate, paperWidth);
+        modeLabel = `"${usableTemplate.name}" template (receipt roll)`;
       } else if (labelPaperMode === 'continuous') {
         // No active template — real ESC/POS barcode/QR auto-layout on the receipt roll (see
         // PrinterService.printLabelOnReceiptPaper's doc comment for why the old HTML fallback
