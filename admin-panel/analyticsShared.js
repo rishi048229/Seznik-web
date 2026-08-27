@@ -435,3 +435,93 @@ export const METRICS_SALES_SQL = `
 export function metricsSalesQuery(intervals) {
   return METRICS_SALES_SQL.replace(/__CURRENT__/g, intervals.currentFilter).replace(/__PREV__/g, intervals.prevFilter);
 }
+
+export function mapFeedbackRows(rows) {
+  return rows.map((row) => ({
+    id: row.id,
+    area: row.area,
+    rating: row.rating,
+    message: row.message,
+    platform: row.platform,
+    productId: row.productId,
+    productName: row.productName,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    displayName: row.displayName,
+    phone: row.phone,
+    email: row.email,
+    businessName: row.businessName,
+  }));
+}
+
+export function buildFeedbackQuery(query = {}) {
+  const page = Math.max(1, parseInt(query.page || '1', 10) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(query.limit || '50', 10) || 50));
+  const offset = (page - 1) * limit;
+  const platform = String(query.platform || 'all').toLowerCase();
+  const productId = String(query.productId || '').trim();
+  const search = String(query.search || '').trim();
+
+  const whereConditions = [];
+  const params = [];
+  let paramIndex = 1;
+
+  if (platform === 'web' || platform === 'mobile') {
+    whereConditions.push(`f.platform = $${paramIndex++}`);
+    params.push(platform);
+  } else if (platform === 'unknown') {
+    whereConditions.push(`f.platform = $${paramIndex++}`);
+    params.push('unknown');
+  }
+
+  if (productId) {
+    whereConditions.push(`f."productId" = $${paramIndex++}`);
+    params.push(productId);
+  }
+
+  if (search) {
+    whereConditions.push(`(
+      COALESCE(u."displayName", '') ILIKE $${paramIndex}
+      OR COALESCE(u."businessName", '') ILIKE $${paramIndex}
+      OR COALESCE(u.phone, '') ILIKE $${paramIndex}
+      OR COALESCE(u.email, '') ILIKE $${paramIndex}
+      OR COALESCE(f.message, '') ILIKE $${paramIndex}
+      OR COALESCE(f."productName", '') ILIKE $${paramIndex}
+    )`);
+    params.push(`%${search}%`);
+    paramIndex += 1;
+  }
+
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+  const countSql = `
+    SELECT COUNT(*)::int AS total
+    FROM "Feedback" f
+    JOIN "User" u ON u.id = f."userId"
+    ${whereClause}
+  `;
+
+  const dataSql = `
+    SELECT
+      f.id,
+      f.area,
+      f.rating,
+      f.message,
+      f.platform,
+      f."productId",
+      f."productName",
+      f."createdAt",
+      u."displayName",
+      u.phone,
+      u.email,
+      u."businessName"
+    FROM "Feedback" f
+    JOIN "User" u ON u.id = f."userId"
+    ${whereClause}
+    ORDER BY f."createdAt" DESC
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+  `;
+
+  params.push(limit, offset);
+
+  return { countSql, dataSql, params, page, limit };
+}

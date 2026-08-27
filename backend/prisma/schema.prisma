@@ -383,15 +383,21 @@ model CreditTransaction {
 }
 
 model Feedback {
-  id        String   @id @default(uuid())
+  id          String   @id @default(uuid())
   // What part of the app the feedback is about (e.g. "pos", "products", "general").
-  area      String   @default("general")
+  area        String   @default("general")
   // 1-5 star rating; optional so pure text feedback is also valid.
-  rating    Int?
-  message   String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  rating      Int?
+  message     String
+  platform    String   @default("unknown") // web | mobile | unknown (legacy)
+  productId   String   @default("general")
+  productName String   @default("Unknown")
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([productId])
 }
 
 // Pre-existing model not previously tracked in this file (restored from live DB

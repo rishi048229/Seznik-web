@@ -150,3 +150,26 @@ export interface HealthCheckResult {
   error?: string;
 }
 
+export interface FeedbackRecord {
+  id: string;
+  area: string;
+  rating: number | null;
+  message: string;
+  platform: string;
+  productId: string;
+  productName: string;
+  createdAt: string;
+  displayName: string | null;
+  phone: string | null;
+  email: string | null;
+  businessName: string | null;
+}
+
+export interface FeedbackListResponse {
+  items: FeedbackRecord[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+

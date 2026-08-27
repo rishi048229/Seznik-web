@@ -9,6 +9,7 @@ import {
   UserCheck,
   ExternalLink,
   HeartPulse,
+  MessageSquare,
   Menu,
   X,
   LogOut,
@@ -114,6 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'users', label: 'Registered Users', shortLabel: 'Users', icon: Users },
     { id: 'traffic', label: 'Traffic', shortLabel: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', shortLabel: 'Redirects', icon: ExternalLink },
+    { id: 'feedback', label: 'Reviews & Suggestions', shortLabel: 'Reviews', icon: MessageSquare },
     { id: 'health', label: 'System Health', shortLabel: 'Health', icon: HeartPulse },
   ];
 

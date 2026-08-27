@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "ci:check": "prisma generate && tsc --noEmit",
     "test:stress": "node tests/stressTest.js",
     "test:k6": "k6 run tests/stress-test.k6.js"

@@ -4,6 +4,8 @@ export interface FeedbackPayload {
   area: string
   rating?: number | null
   message: string
+  platform: 'web' | 'mobile'
+  productId: string
 }
 
 export const submitFeedback = async (data: FeedbackPayload): Promise<void> => {

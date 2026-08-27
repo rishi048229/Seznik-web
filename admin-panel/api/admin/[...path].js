@@ -7,6 +7,8 @@ import {
   getUsersWhereClause,
   applyTableAlias,
   metricsSalesQuery,
+  buildFeedbackQuery,
+  mapFeedbackRows,
 } from '../../analyticsShared.js';
 import { getPool, sendJson, readJsonBody } from '../../lib/adminDb.js';
 import {
@@ -273,6 +275,23 @@ export default async function handler(req, res) {
         [limit]
       );
       return sendJson(res, 200, result.rows);
+    }
+
+    if (method === 'GET' && route === 'feedback') {
+      const { countSql, dataSql, params, page, limit } = buildFeedbackQuery(query);
+      const countParams = params.slice(0, params.length - 2);
+      const [countRes, dataRes] = await Promise.all([
+        pool.query(countSql, countParams),
+        pool.query(dataSql, params),
+      ]);
+      const total = countRes.rows[0]?.total || 0;
+      return sendJson(res, 200, {
+        items: mapFeedbackRows(dataRes.rows),
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      });
     }
 
     return sendJson(res, 404, { error: `Unknown admin route: ${method} /api/admin/${route}` });

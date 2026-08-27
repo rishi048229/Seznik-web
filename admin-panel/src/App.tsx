@@ -8,8 +8,9 @@ import { DeviceSessionBreakdown } from './components/DeviceSessionBreakdown';
 import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
 import { HealthView } from './components/HealthView';
+import { FeedbackSection } from './components/FeedbackSection';
 
-const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'health'];
+const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'feedback', 'health'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -139,6 +140,8 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
           <TrafficView />
         ) : activeTab === 'redirects' ? (
           <RedirectsView />
+        ) : activeTab === 'feedback' ? (
+          <FeedbackSection />
         ) : activeTab === 'sections' ? (
           <SectionUsageSection
             title="Section & Feature Traffic Breakdown"

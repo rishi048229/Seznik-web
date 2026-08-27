@@ -10,6 +10,8 @@ import {
   getUsersWhereClause,
   applyTableAlias,
   metricsSalesQuery,
+  buildFeedbackQuery,
+  mapFeedbackRows,
 } from './analyticsShared.js';
 
 if (typeof process.loadEnvFile === 'function') {
@@ -292,6 +294,29 @@ app.get('/api/admin/products', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/admin/products:', err);
     res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+// GET /api/admin/feedback
+app.get('/api/admin/feedback', async (req, res) => {
+  try {
+    const { countSql, dataSql, params, page, limit } = buildFeedbackQuery(req.query);
+    const countParams = params.slice(0, params.length - 2);
+    const [countRes, dataRes] = await Promise.all([
+      pool.query(countSql, countParams),
+      pool.query(dataSql, params),
+    ]);
+    const total = countRes.rows[0]?.total || 0;
+    res.json({
+      items: mapFeedbackRows(dataRes.rows),
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    });
+  } catch (err) {
+    console.error('Error in /api/admin/feedback:', err);
+    res.status(500).json({ error: 'Failed to fetch feedback' });
   }
 });
 
