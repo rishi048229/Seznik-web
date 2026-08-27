@@ -84,7 +84,7 @@ const pageBtnStyle = (disabled: boolean): React.CSSProperties => ({
 });
 
 export const RedirectsView: React.FC = () => {
-  const [timeFrame, setTimeFrame] = useState<RedirectTimeFrame>('today');
+  const [timeFrame, setTimeFrame] = useState<RedirectTimeFrame>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
