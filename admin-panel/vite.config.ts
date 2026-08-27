@@ -478,8 +478,8 @@ export default defineConfig(({ mode }) => {
                 const { countSql, dataSql, params, page, limit } = analytics.buildFeedbackQuery(queryParams);
                 const countParams = params.slice(0, params.length - 2);
                 const [countRes, dataRes] = await Promise.all([
-                  pool.query(countSql, countParams),
-                  pool.query(dataSql, params),
+                  pool.query<{ total: number }>(String(countSql), countParams),
+                  pool.query(String(dataSql), params),
                 ]);
                 const total = countRes.rows[0]?.total || 0;
                 res.setHeader('Content-Type', 'application/json');
