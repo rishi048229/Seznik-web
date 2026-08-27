@@ -372,6 +372,54 @@ export async function setStoredAutoConnect(enabled: boolean): Promise<void> {
   }
 }
 
+/**
+ * The linked DothanTech/Josh LPAPI label printer. Device-local like the paired ESC/POS
+ * printers (a MAC address is only meaningful to the phone that bonded it). Persisting it
+ * is what lets label prints silently reconnect after an app restart instead of requiring
+ * a trip to the Printers screen before every shift.
+ */
+const JOSH_PRINTER_KEY = 'seznik_josh_label_printer';
+
+export interface StoredJoshPrinter {
+  address: string;
+  name: string;
+}
+
+export async function getStoredJoshPrinter(): Promise<StoredJoshPrinter | null> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(JOSH_PRINTER_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(JOSH_PRINTER_KEY);
+    }
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed.address === 'string' && parsed.address ? parsed : null;
+  } catch (error) {
+    console.error('Error reading saved label printer:', error);
+    return null;
+  }
+}
+
+export async function setStoredJoshPrinter(printer: StoredJoshPrinter | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (printer) window.localStorage.setItem(JOSH_PRINTER_KEY, JSON.stringify(printer));
+        else window.localStorage.removeItem(JOSH_PRINTER_KEY);
+      }
+      return;
+    }
+    if (printer) {
+      await SecureStore.setItemAsync(JOSH_PRINTER_KEY, JSON.stringify(printer));
+    } else {
+      await SecureStore.deleteItemAsync(JOSH_PRINTER_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving label printer:', error);
+  }
+}
+
 // Multi-store inventory: which store the user is currently billing/browsing from. Shared
 // between POS and Products via this one key, so picking a store on either screen carries
 // over to the other (a cashier is physically at one store for a whole shift, not per-item).

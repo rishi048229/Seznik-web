@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, PermissionsAndroid } from 'react-native';
 import { Tag, Bluetooth, PowerOff, RefreshCw, CheckCircle2 } from 'lucide-react-native';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
+import ThermalPrinterService from '@/services/PrinterService';
+import { getStoredJoshPrinter } from '@/services/secureStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 
@@ -41,7 +43,20 @@ export function JoshPrinterCard() {
 
     // Kicked off as promises rather than called straight from the effect body, so no
     // state update happens synchronously during the effect (which would cascade renders).
-    Promise.resolve().then(refreshConnection);
+    // joshEnsureConnected silently re-links the printer saved from a previous session,
+    // so a shop that connected once sees "ready" here without touching anything.
+    Promise.resolve()
+      .then(() => ThermalPrinterService.joshEnsureConnected())
+      .catch(() => {})
+      .then(refreshConnection);
+
+    // Surface the saved printer even before any scan, so reconnecting after the
+    // silent attempt failed (printer was off) is a single tap, not a discovery wait.
+    getStoredJoshPrinter()
+      .then((saved) => {
+        if (saved) setDevices((prev) => mergeDevices(prev, [{ address: saved.address, name: saved.name }]));
+      })
+      .catch(() => {});
 
     // Load already-paired printers so a returning user can reconnect without scanning.
     JoshLabelPrinter.getPairedPrinters()
@@ -113,7 +128,9 @@ export function JoshPrinterCard() {
     }
     setConnectingAddress(device.address);
     try {
-      const success = await JoshLabelPrinter.connect(device.address);
+      // Routed through PrinterService so the link is persisted — that's what lets
+      // label prints silently reconnect after an app restart.
+      const success = await ThermalPrinterService.joshConnect(device.address, device.name);
       if (success) {
         await refreshConnection();
         Alert.alert('Label Printer Linked', `${device.name} is ready. Label prints will now use it.`);
@@ -136,7 +153,9 @@ export function JoshPrinterCard() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await JoshLabelPrinter?.disconnect();
+            // Via PrinterService so the saved link is cleared too — otherwise the
+            // next label print would silently re-connect the printer just removed.
+            await ThermalPrinterService.joshDisconnect();
             await refreshConnection();
           } catch (e: any) {
             Alert.alert('Error', e?.message || 'Could not disconnect.');

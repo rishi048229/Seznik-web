@@ -68,10 +68,28 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       // With no active template, each mode falls back to its own auto-layout.
       let ok: boolean;
       let modeLabel: string;
-      // An emptied template must not win this branch: it would print a blank
-      // label instead of falling through to the auto-layout below.
       const usableTemplate = templateHasPrintableContent(activeLabelTemplate) ? activeLabelTemplate : null;
-      if (labelPaperMode === 'gap' && usableTemplate) {
+
+      // The LD0801 only reliably ejects the same auto-layout the Printers "Test Label"
+      // button uses. A saved Studio template (especially one with a gallery image) was
+      // taking this product-print down a different path that reported success with no
+      // paper. When the label printer is linked, always use that proven layout here.
+      if (await ThermalPrinterService.joshEnsureConnected()) {
+        if (usableTemplate) {
+          ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
+          modeLabel = `"${usableTemplate.name}" template (label printer)`;
+        } else {
+          ok = await ThermalPrinterService.printCustomLabel(
+            product,
+            selectedFormat,
+            undefined,
+            labelWidthMm,
+            labelHeightMm,
+            labelGapMm
+          );
+          modeLabel = 'the label printer';
+        }
+      } else if (labelPaperMode === 'gap' && usableTemplate) {
         ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
         modeLabel = `"${usableTemplate.name}" template`;
       } else if (labelPaperMode === 'continuous' && usableTemplate) {

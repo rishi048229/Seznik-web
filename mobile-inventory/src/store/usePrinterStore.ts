@@ -90,8 +90,9 @@ interface PrinterState {
 
   initListener: () => () => void;
   scanForDevices: () => Promise<void>;
-  /** Rejects when the printer can't be reached — callers must handle it rather than assuming success. */
-  connectDevice: (deviceId: string, deviceName?: string) => Promise<void>;
+  /** Rejects when the printer can't be reached — callers must handle it rather than assuming success.
+   *  `opts.auto` marks background auto-reconnect attempts, which yield to any user-initiated action. */
+  connectDevice: (deviceId: string, deviceName?: string, opts?: { auto?: boolean }) => Promise<void>;
   disconnectDevice: () => Promise<void>;
   /** Reconnects to the default (or most recently used) saved printer. No-op when autoConnect is off. */
   attemptAutoConnect: () => Promise<void>;
@@ -224,6 +225,11 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   },
 
   scanForDevices: async () => {
+    // The user asked to scan — a background auto-reconnect must not hold the radio
+    // hostage (an Android inquiry and an RFCOMM handshake fight each other, and the
+    // old behavior also blocked tapping any found printer until auto-connect gave up).
+    PrinterService.cancelAutoConnect();
+
     // Keep whatever is already on screen. Wiping the list meant a printer found seconds ago
     // vanished the moment the user tapped "Scan Again"; re-discovery simply refreshes each entry.
     set({ isScanning: true, warningText: '' });
@@ -259,8 +265,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
    * swallowing it here previously let the connect modal report success, close itself, and leave the
    * rest of the app printing into a socket that was never opened.
    */
-  connectDevice: async (deviceId: string, deviceName?: string) => {
-    await PrinterService.connect(deviceId, deviceName);
+  connectDevice: async (deviceId: string, deviceName?: string, opts?: { auto?: boolean }) => {
+    await PrinterService.connect(deviceId, deviceName, opts);
 
     const target =
       get().pairedPrinters.find((p) => p.id === deviceId) ||
@@ -298,6 +304,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
   disconnectDevice: async () => {
     try {
+      // A deliberate disconnect also means "stop trying to reconnect for me".
+      PrinterService.cancelAutoConnect();
       await PrinterService.disconnect();
       set({ activeDevice: null, connectionState: 'disconnected', warningText: '', isAutoReconnecting: false });
     } catch (e) {
@@ -326,17 +334,27 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     set({ isAutoReconnecting: true });
     try {
       for (let attempt = 0; attempt < AUTO_RECONNECT_DELAYS_MS.length; attempt++) {
-        // The user may have connected manually (or deliberately disconnected) while we waited.
-        if (get().connectionState === 'connected' || !get().autoConnect) return;
+        // The user may have connected manually, deliberately disconnected, or started a
+        // scan while we waited — all of those own the radio now, so the background
+        // reconnect steps aside instead of fighting them for it.
+        if (get().connectionState === 'connected' || !get().autoConnect || get().isScanning) return;
 
         await new Promise((resolve) => setTimeout(resolve, AUTO_RECONNECT_DELAYS_MS[attempt]));
 
-        if (get().connectionState === 'connected' || !get().autoConnect) return;
+        if (get().connectionState === 'connected' || !get().autoConnect || get().isScanning) return;
 
         try {
-          await get().connectDevice(target.id, target.name);
+          // Marked auto so a user tapping a different printer mid-attempt preempts
+          // this connect instead of getting "another connection is in progress".
+          await get().connectDevice(target.id, target.name, { auto: true });
           return;
-        } catch (e) {
+        } catch (e: any) {
+          // Cancellation means the user took over the radio (scan or manual connect) —
+          // stop the whole loop instead of queueing more attempts behind their action.
+          const msg = String(e?.message || '');
+          if (e?.name === 'ConnectCancelled' || msg.includes('cancelled') || msg.includes('Skipped automatic reconnect')) {
+            return;
+          }
           console.warn(`[usePrinterStore] auto-reconnect attempt ${attempt + 1} failed:`, e);
         }
       }

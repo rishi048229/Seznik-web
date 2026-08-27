@@ -1,2 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    Permissions required by the DothanTech LPAPI SDK, straight from the
+    manufacturer's quick start guide. Declared here (not only in the app)
+    so the module stays self-sufficient across expo prebuilds.
+
+    Android 12+ (API 31+) uses the runtime BLUETOOTH_CONNECT/SCAN pair; the
+    legacy BLUETOOTH/BLUETOOTH_ADMIN + location permissions only apply up to
+    API 30, where classic discovery is gated on fine location.
+  -->
+  <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+  <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+  <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 </manifest>

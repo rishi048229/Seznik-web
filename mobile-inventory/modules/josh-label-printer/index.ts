@@ -50,6 +50,17 @@ export type JoshLabelElement =
       height: number;
       thickness?: number;
       filled?: boolean;
+      /** Corner radius in mm — > 0 draws a rounded rectangle. */
+      cornerRadius?: number;
+    }
+  | {
+      type: 'ellipse';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      thickness?: number;
+      filled?: boolean;
     };
 
 export interface JoshLabelSpec {
@@ -59,6 +70,8 @@ export interface JoshLabelSpec {
   rotation?: number;
   copies?: number;
   gapMm?: number;
+  /** LPAPI GAP_TYPE: 0 = continuous, 2 = die-cut gap paper, 3 = black mark. Omit to keep the printer's own setting. */
+  gapType?: number;
   /** Printer darkness, typically 1-15 depending on model. */
   darkness?: number;
   speed?: number;
@@ -92,7 +105,16 @@ declare class JoshLabelPrinterNativeModule extends NativeModule<JoshLabelPrinter
   connect(address: string): Promise<boolean>;
   disconnect(): Promise<boolean>;
   isConnected(): Promise<boolean>;
-  getPrinterInfo(): Promise<{ name: string; address: string } | null>;
+  getPrinterInfo(): Promise<{
+    name: string;
+    address: string;
+    /** Print head resolution, e.g. 203. 0 when the printer didn't report it. */
+    dpi?: number;
+    /** Print head width in dots, e.g. 384. */
+    widthPx?: number;
+    /** Physical printable width in mm derived from dpi+widthPx, e.g. 48. 0 when unknown. */
+    widthMm?: number;
+  } | null>;
   printLabel(spec: JoshLabelSpec): Promise<boolean>;
 }
 

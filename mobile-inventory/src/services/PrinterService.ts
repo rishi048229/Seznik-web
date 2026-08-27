@@ -8,6 +8,7 @@ import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement } from '../../modules/josh-label-printer';
+import { getStoredJoshPrinter, setStoredJoshPrinter } from './secureStore';
 import {
   enrichCustomReceiptEntries,
   isDiscountReceiptEntry,
@@ -19,8 +20,11 @@ const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
 const NativeTscPrinter = NativeModules.BluetoothTscPrinter;
 
-/** LPAPI BarcodeType.AUTO — let the SDK pick a symbology that fits the data. */
-const JOSH_BARCODE_TYPE_AUTO = 0;
+/** DothanTech LPAPI 1D Barcode Types (IAtBitmap.BarcodeType1D) */
+const JOSH_BARCODE_TYPE_AUTO = 60;
+const JOSH_BARCODE_TYPE_CODE128 = 28;
+const JOSH_BARCODE_TYPE_EAN13 = 22;
+const JOSH_BARCODE_TYPE_UPC_A = 20;
 
 // Native discovery on Android runs a full BluetoothAdapter.startDiscovery() cycle,
 // which takes ~12s to fire ACTION_DISCOVERY_FINISHED. This is a safety ceiling only —
@@ -268,6 +272,15 @@ class ThermalPrinterServiceManager {
   /** Dedupes overlapping connect() calls — a double-tap, or a screen reconnecting under the user. */
   private connectInFlight: Promise<boolean> | null = null;
   private connectInFlightId: string | null = null;
+  /** True when the in-flight connect was started by auto-reconnect rather than the user. */
+  private connectInFlightIsAuto = false;
+  /**
+   * Cooperative cancellation for the in-flight connect's retry loop. A single native
+   * attempt can't be interrupted mid-handshake, but the loop checks this token between
+   * attempts, so a cancelled auto-connect yields the radio within one attempt timeout
+   * instead of grinding through every remaining retry.
+   */
+  private connectAbortToken: { aborted: boolean } | null = null;
   /**
    * Fired only for unexpected drops (printer switched off, out of range, battery dead) — never for a
    * user-initiated disconnect. That distinction is what keeps auto-reconnect from fighting the user.
@@ -649,30 +662,74 @@ class ThermalPrinterServiceManager {
    * failure — callers are expected to surface that, since a silently swallowed failure leaves the
    * rest of the app believing a printer is ready.
    */
-  public async connect(deviceId: string, deviceName?: string): Promise<boolean> {
+  public async connect(deviceId: string, deviceName?: string, opts?: { auto?: boolean }): Promise<boolean> {
+    const isAuto = !!opts?.auto;
+
     // Already connected to this exact printer — nothing to do.
     if (this.connectionState === 'connected' && this.activeDevice?.id === deviceId) {
       return true;
     }
 
     // A double-tap (or a screen reconnecting under the user) must not open two sockets. Join the
-    // existing attempt when it targets the same device; reject outright when it targets another,
-    // because two concurrent RFCOMM handshakes reliably fail both.
+    // existing attempt when it targets the same device. When it targets ANOTHER device, who wins
+    // depends on who is asking: a user's tap preempts a background auto-reconnect (this used to
+    // throw "Another printer connection is already in progress", locking the user out for the
+    // 60s+ the boot-time default-printer connect could take), while an auto attempt never
+    // preempts anything — it just bows out.
     if (this.connectInFlight) {
       if (this.connectInFlightId === deviceId) return this.connectInFlight;
-      throw new Error('Another printer connection is already in progress. Please wait for it to finish.');
+
+      if (isAuto) {
+        throw new Error('Skipped automatic reconnect: another printer connection is in progress.');
+      }
+
+      if (this.connectInFlightIsAuto) {
+        this.cancelAutoConnect();
+        // Two concurrent RFCOMM handshakes reliably fail both, so wait for the
+        // cancelled attempt to settle (bounded by its own per-attempt timeout)
+        // before opening the user's connection.
+        await this.connectInFlight.catch(() => {});
+      } else {
+        throw new Error('Another printer connection is already in progress. Please wait for it to finish.');
+      }
     }
 
+    const abortToken = { aborted: false };
+    this.connectAbortToken = abortToken;
     this.connectInFlightId = deviceId;
-    this.connectInFlight = this.performConnect(deviceId, deviceName).finally(() => {
+    this.connectInFlightIsAuto = isAuto;
+    this.connectInFlight = this.performConnect(deviceId, deviceName, abortToken).finally(() => {
       this.connectInFlight = null;
       this.connectInFlightId = null;
+      this.connectInFlightIsAuto = false;
+      if (this.connectAbortToken === abortToken) this.connectAbortToken = null;
     });
 
     return this.connectInFlight;
   }
 
-  private async performConnect(deviceId: string, deviceName?: string): Promise<boolean> {
+  /**
+   * Aborts an in-flight AUTOMATIC connect (no-op for a user-initiated one). Called when
+   * the user starts a scan or taps a printer themselves — their action owns the radio.
+   */
+  public cancelAutoConnect(): void {
+    if (this.connectInFlight && this.connectInFlightIsAuto && this.connectAbortToken) {
+      this.connectAbortToken.aborted = true;
+    }
+  }
+
+  private async performConnect(deviceId: string, deviceName?: string, abortToken?: { aborted: boolean }): Promise<boolean> {
+    const throwIfAborted = () => {
+      if (abortToken?.aborted) {
+        // Deliberately does NOT notifyStatusChange: the manual connect that caused the
+        // cancellation immediately asserts its own 'connecting' state, and flashing
+        // 'disconnected' in between makes the status pill flicker.
+        const err = new Error('Connection attempt cancelled.');
+        err.name = 'ConnectCancelled';
+        throw err;
+      }
+    };
+
     this.notifyStatusChange('connecting');
 
     if (this.isNativeModuleAvailable()) {
@@ -690,8 +747,11 @@ class ThermalPrinterServiceManager {
       const totalAttempts = CONNECT_RETRY_DELAYS_MS.length + 1;
 
       for (let attempt = 0; attempt < totalAttempts; attempt++) {
+        throwIfAborted();
+
         if (attempt > 0) {
           await this.delay(CONNECT_RETRY_DELAYS_MS[attempt - 1]);
+          throwIfAborted();
           // Re-assert 'connecting' — an EVENT_UNABLE_CONNECT from the failed attempt may have
           // flipped listeners to 'disconnected' while we're still actively retrying.
           this.notifyStatusChange('connecting');
@@ -2720,6 +2780,64 @@ class ThermalPrinterServiceManager {
     return Number.isFinite(n) ? n : fallback;
   }
 
+  /**
+   * Same guard for the LPAPI path, which works in fractional millimetres rather than
+   * integer dots. LPAPI accepts NaN coordinates without complaint and then produces a
+   * blank or failed job — exactly the "test label prints but my designed label doesn't"
+   * failure — so every mm value handed to the Josh bridge goes through this first.
+   */
+  private safeMm(value: unknown, fallback: number): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  /**
+   * Resolves a Label Studio image URI into something the native LPAPI bridge can open:
+   * file paths and content:// URIs pass straight through (the bridge handles both),
+   * while remote http(s) and data: URIs are materialised into the cache directory.
+   * Returns null when the image can't be resolved — the caller skips that element
+   * rather than failing the whole label.
+   */
+  private async resolveJoshImageUri(uri: string): Promise<string | null> {
+    const trimmed = String(uri || '').trim();
+    if (!trimmed) return null;
+
+    try {
+      const FileSystem = require('expo-file-system/legacy');
+
+      if (trimmed.startsWith('file://') || trimmed.startsWith('/')) {
+        const info = await FileSystem.getInfoAsync(trimmed);
+        return info.exists ? trimmed : null;
+      }
+
+      if (trimmed.startsWith('content://')) {
+        return trimmed;
+      }
+
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        // Deterministic cache name so the same product image isn't re-downloaded per copy.
+        let hash = 0;
+        for (let i = 0; i < trimmed.length; i++) hash = ((hash << 5) - hash + trimmed.charCodeAt(i)) | 0;
+        const target = `${FileSystem.cacheDirectory || ''}josh_label_img_${Math.abs(hash)}.img`;
+        const existing = await FileSystem.getInfoAsync(target);
+        if (existing.exists) return target;
+        const result = await FileSystem.downloadAsync(trimmed, target);
+        return result?.status === 200 ? target : null;
+      }
+
+      if (trimmed.startsWith('data:')) {
+        const base64 = trimmed.split(',')[1];
+        if (!base64) return null;
+        const target = `${FileSystem.cacheDirectory || ''}josh_label_img_${Date.now()}.img`;
+        await FileSystem.writeAsStringAsync(target, base64, { encoding: FileSystem.EncodingType.Base64 });
+        return target;
+      }
+    } catch (e) {
+      console.warn('[PrinterService] could not resolve label image for LPAPI printing:', e);
+    }
+    return null;
+  }
+
   /** True only on a native build where the vendored LPAPI SDK actually linked. */
   public isJoshLabelPrinterAvailable(): boolean {
     return isJoshPrinterSupported();
@@ -2734,11 +2852,20 @@ class ThermalPrinterServiceManager {
     product: { name: string; sellingPrice: number },
     rawCode: string,
     format: 'qr' | 'code128' | 'ean13',
-    widthMm: number,
-    heightMm: number,
+    widthMmRaw: number,
+    heightMmRaw: number,
     gapMm: number
   ): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
+
+    // Calibration values come from user-editable settings; a missing/corrupt value
+    // must fall back to the stock default instead of feeding NaN into the SDK.
+    // Width is additionally capped to the printer's own reported head width
+    // (LD0801: 48mm) — drawing wider would only get downscaled or clipped.
+    const headMm = await this.getJoshHeadWidthMm();
+    const calWidthMm = this.safeMm(widthMmRaw, 50);
+    const widthMm = headMm > 0 ? Math.min(calWidthMm, headMm) : calWidthMm;
+    const heightMm = this.safeMm(heightMmRaw, 30);
 
     const pad = Math.max(1.5, widthMm * 0.05);
     const innerWidth = widthMm - pad * 2;
@@ -2793,7 +2920,7 @@ class ThermalPrinterServiceManager {
         width: innerWidth,
         height: Math.max(3, codeSpace - 3),
         textHeight: Math.min(3, codeSpace * 0.3),
-        barcodeType: JOSH_BARCODE_TYPE_AUTO,
+        barcodeType: useEan13 ? JOSH_BARCODE_TYPE_EAN13 : JOSH_BARCODE_TYPE_CODE128,
       });
     }
 
@@ -2802,7 +2929,9 @@ class ThermalPrinterServiceManager {
       heightMm,
       rotation: 0,
       copies: 1,
-      gapMm,
+      gapMm: this.safeMm(gapMm, 3),
+      // Die-cut gap stock — this path is only reached in 'gap' label mode.
+      gapType: 2,
       elements,
     });
   }
@@ -2822,13 +2951,23 @@ class ThermalPrinterServiceManager {
     return JoshLabelPrinter.getPairedPrinters();
   }
 
-  public async joshConnect(address: string): Promise<boolean> {
+  public async joshConnect(address: string, name?: string): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
-    return JoshLabelPrinter.connect(address);
+    const ok = await JoshLabelPrinter.connect(address);
+    if (ok) {
+      // Remember the linked printer so label prints after an app restart reconnect
+      // silently instead of requiring a trip to the Printers screen first.
+      setStoredJoshPrinter({ address, name: name || address }).catch(() => {});
+      this.joshReconnectFailedAt = 0;
+    }
+    return ok;
   }
 
   public async joshDisconnect(): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
+    // A user-initiated disconnect means "stop using the label printer" — forget it,
+    // otherwise the next label print would silently re-link the device they just removed.
+    setStoredJoshPrinter(null).catch(() => {});
     return JoshLabelPrinter.disconnect();
   }
 
@@ -2839,6 +2978,78 @@ class ThermalPrinterServiceManager {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * The connected label printer's physical printable width in mm (LD0801: 48mm),
+   * reported by the printer itself. 0 when unknown/not connected.
+   */
+  private async getJoshHeadWidthMm(): Promise<number> {
+    if (!JoshLabelPrinter) return 0;
+    try {
+      const info = await JoshLabelPrinter.getPrinterInfo();
+      const w = Number(info?.widthMm);
+      return Number.isFinite(w) && w > 0 ? w : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Guards the TSPL fallback paths: once the user has linked a label printer, a label
+   * print that can't reach it must FAIL LOUDLY. Falling through to TSPL would send
+   * TSPL bytes to the connected ESC/POS receipt printer, which silently ignores them
+   * — the app then reports "printed" while nothing comes out of any printer.
+   * Typical reachability causes worth surfacing: the printer auto-powered off, or
+   * another app (e.g. the manufacturer's wePrint) is holding its Bluetooth link.
+   */
+  private async assertNoLinkedJoshPrinter(): Promise<void> {
+    const saved = await getStoredJoshPrinter().catch(() => null);
+    if (saved) {
+      throw new Error(
+        `Label printer "${saved.name}" is linked but not reachable. Turn it on, close other printer apps (like wePrint), and try again — or disconnect it from Printers to stop using it.`
+      );
+    }
+  }
+
+  /** Dedupes concurrent silent reconnects (e.g. a sequence print firing per label). */
+  private joshReconnectInFlight: Promise<boolean> | null = null;
+  /** When the saved printer was last unreachable — skip retrying for a cooldown window. */
+  private joshReconnectFailedAt = 0;
+  private static readonly JOSH_RECONNECT_COOLDOWN_MS = 30000;
+
+  /**
+   * True when a label printer is connected OR could be silently reconnected from the
+   * saved link. This is what the label routing checks call: "the user linked a label
+   * printer" should survive app restarts without them re-connecting manually, but a
+   * printer that is switched off must not tax every print with a fresh connect attempt
+   * — hence the failure cooldown.
+   */
+  public async joshEnsureConnected(): Promise<boolean> {
+    if (!this.isJoshLabelPrinterAvailable()) return false;
+    if (await this.joshIsConnected()) return true;
+
+    if (this.joshReconnectInFlight) return this.joshReconnectInFlight;
+    if (Date.now() - this.joshReconnectFailedAt < ThermalPrinterServiceManager.JOSH_RECONNECT_COOLDOWN_MS) {
+      return false;
+    }
+
+    this.joshReconnectInFlight = (async () => {
+      try {
+        const saved = await getStoredJoshPrinter();
+        if (!saved) return false;
+        const ok = await this.joshConnect(saved.address, saved.name);
+        if (!ok) this.joshReconnectFailedAt = Date.now();
+        return ok;
+      } catch {
+        this.joshReconnectFailedAt = Date.now();
+        return false;
+      } finally {
+        this.joshReconnectInFlight = null;
+      }
+    })();
+
+    return this.joshReconnectInFlight;
   }
 
   /**
@@ -2859,78 +3070,148 @@ class ThermalPrinterServiceManager {
   ): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
 
-    if (!(await this.joshIsConnected())) {
+    if (!(await this.joshEnsureConnected())) {
       throw new Error('No label printer is connected. Connect it from Printers first.');
     }
 
     const alignToCode = (align?: 'left' | 'center' | 'right'): 0 | 1 | 2 =>
       align === 'center' ? 1 : align === 'right' ? 2 : 0;
 
+    const rawWidthMm = this.safeMm(template.widthMm, 0);
+    const rawHeightMm = this.safeMm(template.heightMm, 0);
+    if (rawWidthMm <= 0 || rawHeightMm <= 0) {
+      throw new Error('This label template has an invalid size. Open it in Label Studio and re-save it.');
+    }
+
+    // Fit to the physical print head: the LD0801 reports a 48mm head while the stock
+    // template preset is 50mm wide. Scaling uniformly HERE (before drawing) keeps
+    // barcodes and text rendered crisp at their final printed size, instead of letting
+    // the SDK downscale a finished bitmap (which blurs bars enough to break scanning).
+    const headMm = await this.getJoshHeadWidthMm();
+    const fit = headMm > 0 && rawWidthMm > headMm ? headMm / rawWidthMm : 1;
+    const widthMm = rawWidthMm * fit;
+    const heightMm = rawHeightMm * fit;
+
     const elements: JoshLabelElement[] = [];
 
     for (const el of template.elements) {
+      // Geometry shared by every element type — sanitized once so a template that
+      // lost a value in a backend round-trip degrades to a skipped element, not a
+      // NaN handed to the SDK (which prints a blank label while reporting success).
+      const x = this.safeMm(el.xMm, 0) * fit;
+      const y = this.safeMm(el.yMm, 0) * fit;
+      const w = this.safeMm(el.widthMm, 0) * fit;
+      const h = this.safeMm(el.heightMm, 0) * fit;
+
       if (el.type === 'text') {
         const value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
         if (!value) continue;
         elements.push({
           type: 'text',
           value,
-          x: el.xMm,
-          y: el.yMm,
-          width: el.widthMm,
-          height: el.heightMm,
-          fontHeight: el.fontSizePt,
+          x,
+          y,
+          width: w,
+          height: h,
+          fontHeight: this.safeMm(el.fontSizePt, 3) * fit,
           bold: !!el.bold,
           align: alignToCode(el.align),
         });
       } else if (el.type === 'barcode') {
         const raw = this.resolveLabelCodeValue(product, el);
-        if (!raw) continue;
+        if (!raw || w <= 0 || h <= 0) continue;
         const digits = raw.replace(/\D/g, '');
         const isEan13 = el.format === 'ean13' && (digits.length === 12 || digits.length === 13);
+        const barcodeType = isEan13
+          ? JOSH_BARCODE_TYPE_EAN13
+          : el.format === 'code128'
+          ? JOSH_BARCODE_TYPE_CODE128
+          : JOSH_BARCODE_TYPE_AUTO;
+
         elements.push({
           type: 'barcode',
           // EAN-13 only accepts digits; CODE128 takes printable ASCII.
           value: isEan13 ? digits : raw.replace(/[^\x20-\x7E]/g, ''),
-          x: el.xMm,
-          y: el.yMm,
-          width: el.widthMm,
-          height: el.heightMm,
+          x,
+          y,
+          width: w,
+          height: h,
           // Reserve roughly a fifth of the box for the human-readable digits, which
           // is what the on-screen designer renders too.
-          textHeight: Math.max(0, Math.min(3, el.heightMm * 0.2)),
-          barcodeType: JOSH_BARCODE_TYPE_AUTO,
+          textHeight: Math.max(0, Math.min(3, h * 0.2)),
+          barcodeType,
         });
       } else if (el.type === 'qrcode') {
         const content = this.resolveLabelCodeValue(product, el);
-        if (!content) continue;
+        if (!content || w <= 0 || h <= 0) continue;
         elements.push({
           type: 'qrcode',
           value: content,
-          x: el.xMm,
-          y: el.yMm,
+          x,
+          y,
           // QR codes are square: the smaller side governs so it never overflows the box.
-          size: Math.min(el.widthMm, el.heightMm),
+          size: Math.min(w, h),
         });
       } else if (el.type === 'rect' || el.type === 'curveRect') {
+        if (w <= 0 || h <= 0) continue;
         elements.push({
           type: 'rectangle',
-          x: el.xMm,
-          y: el.yMm,
-          width: el.widthMm,
-          height: el.heightMm,
-          thickness: 0.3,
+          x,
+          y,
+          width: w,
+          height: h,
+          thickness: Math.max(0.1, this.safeMm(el.strokeWidth, 0.3)),
+          filled: !!el.fill && el.fill !== 'transparent',
+          cornerRadius: el.type === 'curveRect' ? Math.max(0.5, this.safeMm(el.cornerRadiusMm, 1.5)) : 0,
+        });
+      } else if (el.type === 'circle') {
+        if (w <= 0 || h <= 0) continue;
+        elements.push({
+          type: 'ellipse',
+          x,
+          y,
+          width: w,
+          height: h,
+          thickness: Math.max(0.1, this.safeMm(el.strokeWidth, 0.3)),
           filled: !!el.fill && el.fill !== 'transparent',
         });
+      } else if (el.type === 'line') {
+        // The designer stores a line as its bounding box; the longer side is the
+        // line's direction, the shorter one its visual weight.
+        const thickness = Math.max(0.1, this.safeMm(el.strokeWidth, Math.min(w, h) || 0.3));
+        if (w >= h) {
+          elements.push({ type: 'line', x, y: y + h / 2, x2: x + w, y2: y + h / 2, thickness });
+        } else {
+          elements.push({ type: 'line', x: x + w / 2, y, x2: x + w / 2, y2: y + h, thickness });
+        }
+      } else if (el.type === 'table') {
+        if (w <= 0 || h <= 0) continue;
+        const rows = Math.max(1, this.safeInt(el.rows, 1));
+        const cols = Math.max(1, this.safeInt(el.cols, 1));
+        const thickness = 0.2;
+        elements.push({ type: 'rectangle', x, y, width: w, height: h, thickness });
+        for (let r = 1; r < rows; r++) {
+          const yy = y + (h / rows) * r;
+          elements.push({ type: 'line', x, y: yy, x2: x + w, y2: yy, thickness });
+        }
+        for (let c = 1; c < cols; c++) {
+          const xx = x + (w / cols) * c;
+          elements.push({ type: 'line', x: xx, y, x2: xx, y2: y + h, thickness });
+        }
       } else if (el.type === 'image') {
-        if (!el.uri) continue;
+        if (!el.uri || w <= 0 || h <= 0) continue;
+        const resolvedUri = await this.resolveJoshImageUri(el.uri);
+        if (!resolvedUri) {
+          console.warn('[PrinterService] label image missing/unreadable, skipping element:', el.uri);
+          continue;
+        }
         elements.push({
           type: 'image',
-          uri: el.uri,
-          x: el.xMm,
-          y: el.yMm,
-          width: el.widthMm,
-          height: el.heightMm,
+          uri: resolvedUri,
+          x,
+          y,
+          width: w,
+          height: h,
           // Thermal heads are 1-bit: without a cutoff a coloured logo prints as a
           // grey smear. 'invert' flips which side of the cutoff becomes black.
           threshold: el.invert ? 64 : 192,
@@ -2939,15 +3220,37 @@ class ThermalPrinterServiceManager {
     }
 
     if (elements.length === 0) {
-      throw new Error('This label has nothing printable on it yet.');
+      // Same graceful degradation the TSPL path has: an empty template (fresh
+      // "New Label", or one whose bindings all resolved to blank) prints the
+      // proven test-label auto-layout instead of failing or feeding blank stock.
+      console.warn(
+        `Label template "${template.name}" has no printable elements; printing the standard auto-layout instead.`
+      );
+      const rawCode = product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
+      const digits = rawCode.replace(/\D/g, '');
+      let allOk = true;
+      for (let i = 0; i < Math.max(1, copies); i++) {
+        allOk =
+          (await this.printAutoLabelViaJosh(
+            product,
+            rawCode,
+            digits.length === 12 || digits.length === 13 ? 'ean13' : 'code128',
+            rawWidthMm,
+            rawHeightMm,
+            this.safeMm(labelGapMm, 2)
+          )) && allOk;
+      }
+      return allOk;
     }
 
     return JoshLabelPrinter.printLabel({
-      widthMm: template.widthMm,
-      heightMm: template.heightMm,
+      widthMm,
+      heightMm,
       rotation: 0,
       copies: Math.max(1, copies),
-      gapMm: labelGapMm,
+      gapMm: this.safeMm(labelGapMm, 3),
+      // Die-cut gap stock — the LPAPI printer path is only used for real label rolls.
+      gapType: 2,
       elements,
     });
   }
@@ -3018,9 +3321,33 @@ class ThermalPrinterServiceManager {
     // true, so a failed label print used to report "sent" while nothing came out
     // of the label printer. When a label printer is connected it is the only
     // acceptable destination — if it fails, the user needs to hear about it.
-    if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) {
-      return this.printLabelViaJosh(product, template, copies, labelGapMm);
+    if (await this.joshEnsureConnected()) {
+      try {
+        return await this.printLabelViaJosh(product, template, copies, labelGapMm);
+      } catch (joshErr: any) {
+        // The test-print auto-layout is the only path proven to eject paper on this
+        // printer. A designed template that the SDK can't draw (bad image, oversized
+        // canvas) must not fail silently — print the same layout the Test Label button
+        // uses so the cashier still gets a usable label.
+        console.warn('[PrinterService] designed label failed on Josh, using test-print layout:', joshErr?.message || joshErr);
+        const rawCode = product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
+        const digits = rawCode.replace(/\D/g, '');
+        let allOk = true;
+        for (let i = 0; i < Math.max(1, copies); i++) {
+          allOk =
+            (await this.printAutoLabelViaJosh(
+              product,
+              rawCode,
+              digits.length === 12 || digits.length === 13 ? 'ean13' : 'code128',
+              this.safeMm(template.widthMm, 50),
+              this.safeMm(template.heightMm, 30),
+              this.safeMm(labelGapMm, 3)
+            )) && allOk;
+        }
+        return allOk;
+      }
     }
+    await this.assertNoLinkedJoshPrinter();
 
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
@@ -3345,9 +3672,10 @@ class ThermalPrinterServiceManager {
     // destination. This is the no-saved-template path (products page with no
     // default label design), which would otherwise emit TSPL the label printer
     // never receives.
-    if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) {
+    if (await this.joshEnsureConnected()) {
       return this.printAutoLabelViaJosh(product, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
     }
+    await this.assertNoLinkedJoshPrinter();
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
@@ -3440,9 +3768,20 @@ class ThermalPrinterServiceManager {
     paperWidth: '58mm' | '80mm' = '58mm',
     copies: number = 1
   ): Promise<boolean> {
-    if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;
-
     const rawCode = product.barcode || product.sku || `PROD-${product.id?.slice(-6) || '1234'}`;
+
+    // A linked label printer beats the receipt roll even in 'continuous' mode.
+    // This path has no template and no label calibration handy, so the stock
+    // 50x30mm auto-layout applies (same default as the calibration screen).
+    if (await this.joshEnsureConnected()) {
+      let allOk = true;
+      for (let i = 0; i < Math.max(1, copies); i++) {
+        allOk = (await this.printAutoLabelViaJosh(product, rawCode, format, 50, 30, 2)) && allOk;
+      }
+      return allOk;
+    }
+
+    if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;
     // Cap the product name length so it stays on one line instead of wrapping mid-word and
     // throwing off the compact label look — purely a truncation guard now, NOT used for padding
     // (padding text with spaces AND setting hardware printerAlign(CENTER) was the actual bug: the
@@ -3535,6 +3874,15 @@ class ThermalPrinterServiceManager {
     paperWidth: '58mm' | '80mm' = '58mm',
     copies: number = 1
   ): Promise<boolean> {
+    // 'continuous' mode exists for stores whose ONLY printer is a receipt printer.
+    // When a dedicated label printer is linked, it always wins — otherwise Label
+    // Studio and the products page print to the receipt roll while the label
+    // printer the user just connected sits idle. Covers printLabelSequence's
+    // continuous branch too, since it lands here.
+    if (await this.joshEnsureConnected()) {
+      return this.printLabelViaJosh(product, template, copies);
+    }
+
     if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;
 
     const DOTS_PER_MM = 8;
@@ -4356,6 +4704,21 @@ class ThermalPrinterServiceManager {
       sellingPrice: 480.0,
       barcode: '8901234567890',
     };
+
+    // The test button must exercise the printer that real labels will use — with a
+    // linked label printer, a TSPL test would "pass" on the receipt printer while
+    // telling the user nothing about the device their labels actually go to.
+    if (await this.joshEnsureConnected()) {
+      return this.printAutoLabelViaJosh(
+        item,
+        item.barcode || '8901234567890',
+        format,
+        labelWidthMm,
+        labelHeightMm,
+        labelGapMm
+      );
+    }
+    await this.assertNoLinkedJoshPrinter();
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
