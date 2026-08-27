@@ -216,7 +216,7 @@ export const QuickTokensPage = () => {
       }
       const receiptConfig = settings?.receiptConfig
       const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
-      const bytes = generateReceiptEscPos({
+      const bytes = await generateReceiptEscPos({
         sale: token.sale as Sale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',
@@ -224,6 +224,7 @@ export const QuickTokensPage = () => {
         businessAddress: settings?.businessAddress,
         customerName: `Token #${token.tokenNumber} · ${label}`,
         invoiceConfig: settings?.invoiceConfig,
+        businessLogoURL: settings?.businessLogoURL,
       })
       await blePrinter.print(bytes)
       toast.success(`Token #${token.tokenNumber} printed via Bluetooth!`)

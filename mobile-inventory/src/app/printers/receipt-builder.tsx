@@ -38,8 +38,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
+import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '@/types/customReceipt';
 import { BRAND_COLORS } from '@/constants/theme';
 import * as Print from 'expo-print';
@@ -50,15 +49,6 @@ export default function ReceiptBuilderHubScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
-  const {
-    form: gstForm,
-    setShowBreakdown: setGstShowBreakdown,
-    setStyle: setGstStyle,
-    setPrintOnReceipt: setGstPrintOnReceipt,
-    setItemWiseGst: setGstItemWise,
-    saveGstBilling,
-    isSaving: isSavingGstBilling,
-  } = useGstBillingSettings();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const {
@@ -231,33 +221,11 @@ export default function ReceiptBuilderHubScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
-        <View
-          style={[
-            styles.qrBannerBox,
-            {
-              backgroundColor: theme.cardBg,
-              borderColor: theme.borderColor,
-              marginBottom: 14,
-            },
-          ]}
-        >
-          <Text style={[styles.qrBannerTitle, { color: theme.textPrimary, marginBottom: 4 }]}>Tax & Billing</Text>
-          <GstBillingSettingsPanel
-            theme={theme}
-            showBreakdown={gstForm.showBreakdown}
-            style={gstForm.style}
-            printOnReceipt={gstForm.printOnReceipt}
-            itemWiseGst={gstForm.itemWiseGst}
-            onShowBreakdownChange={setGstShowBreakdown}
-            onStyleChange={setGstStyle}
-            onPrintOnReceiptChange={setGstPrintOnReceipt}
-            onItemWiseGstChange={setGstItemWise}
-            onSave={() => saveGstBilling()}
-            isSaving={isSavingGstBilling}
-            hintText="Global GST settings apply to custom receipts and test prints from this builder."
-            compact
-          />
-        </View>
+        <TaxBillingPrinterSection
+          theme={theme}
+          compact
+          hintText="Global GST settings apply to custom receipts and test prints from this builder."
+        />
 
         {/* Top Two Main Action Cards (Matching Screenshot 3) */}
         <View style={styles.topCardsRow}>

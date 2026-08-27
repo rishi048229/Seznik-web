@@ -32,6 +32,7 @@ function getPageSkeleton(pathname: string) {
     return <DetailPageSkeleton />
   }
   if (pathname.startsWith(ROUTES.TOKENS)) return <TokensPageSkeleton />
+  if (pathname.startsWith(ROUTES.KOT)) return <TablePageSkeleton cards={4} rows={4} columns={4} />
   if (pathname.startsWith(ROUTES.CREDITS) || pathname.startsWith(ROUTES.DAYBOOK)) {
     return <TablePageSkeleton cards={4} rows={6} columns={5} />
   }

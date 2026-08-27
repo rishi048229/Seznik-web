@@ -85,10 +85,11 @@ jobs:
             cd backend
             npm install
             npx prisma generate
-            npx prisma db push || true
+            CI=true npx prisma db push || true
             npm run build
             
             echo "⚡ Reloading backend application with PM2..."
-            pm2 reload all || pm2 start dist/index.js --name "seznik-backend"
+            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+            pm2 save
             
             echo "✅ Live Backend Deployment Successful!"

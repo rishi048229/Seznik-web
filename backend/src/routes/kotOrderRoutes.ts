@@ -5,6 +5,7 @@ import {
   createOrder,
   addItemsToOrder,
   editOrder,
+  sendToKitchen,
   updateOrderStatus,
   generateBill,
 } from '../controllers/kotOrderController';
@@ -20,6 +21,7 @@ router.post('/', createOrder);
 router.post('/:id/items', addItemsToOrder);
 router.put('/:id', editOrder);
 router.put('/:id/edit', editOrder);
+router.post('/:id/send-to-kitchen', sendToKitchen);
 router.patch('/:id/status', updateOrderStatus);
 router.post('/:id/bill', generateBill);
 

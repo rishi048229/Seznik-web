@@ -20,4 +20,9 @@ export const QUERY_KEYS = {
   TOKEN_TYPES: 'token-types',
   TOKENS: 'tokens',
   QR_LOGIN: 'qr-login',
+  LOCATIONS: 'locations',
+  LOCATION_STOCK: 'location-stock',
+  STOCK_TRANSFERS: 'stock-transfers',
+  KOT_ORDERS: 'kot-orders',
+  RESTAURANT_TABLES: 'restaurant-tables',
 } as const

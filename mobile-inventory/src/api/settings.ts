@@ -50,8 +50,8 @@ export const settingsApi = {
   },
 
   updateReceiptConfig: async (receiptConfig: Record<string, any>): Promise<Settings> => {
-    return fetchApi<Settings>('/settings', {
-      method: 'POST',
+    return fetchApi<Settings>('/settings/receipt', {
+      method: 'PATCH',
       body: JSON.stringify({ receiptConfig }),
     });
   },

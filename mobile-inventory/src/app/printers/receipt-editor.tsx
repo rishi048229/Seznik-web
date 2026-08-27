@@ -68,8 +68,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
+import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import {
   CustomReceiptTemplate,
   CustomReceiptEntry,
@@ -248,15 +247,6 @@ export default function ReceiptEditorScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
-  const {
-    form: gstForm,
-    setShowBreakdown: setGstShowBreakdown,
-    setStyle: setGstStyle,
-    setPrintOnReceipt: setGstPrintOnReceipt,
-    setItemWiseGst: setGstItemWise,
-    saveGstBilling,
-    isSaving: isSavingGstBilling,
-  } = useGstBillingSettings();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const {
@@ -285,7 +275,6 @@ export default function ReceiptEditorScreen() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
   const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
-  const [taxBillingExpanded, setTaxBillingExpanded] = useState(false);
 
   const openLogoBgOption = (uri: string, onSelected: (finalUri: string) => void) => {
     setLogoBgModalUri(uri);
@@ -1010,43 +999,13 @@ export default function ReceiptEditorScreen() {
           </View>
         )}
 
-        <TouchableOpacity
-          onPress={() => setTaxBillingExpanded((prev) => !prev)}
-          style={[styles.paperWidthCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-          activeOpacity={0.85}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[styles.paperWidthTitle, { color: theme.textPrimary, marginBottom: 0 }]}>Tax & Billing</Text>
-            {taxBillingExpanded ? (
-              <ChevronUp size={18} color={theme.textSecondary} />
-            ) : (
-              <ChevronDown size={18} color={theme.textSecondary} />
-            )}
-          </View>
-          {taxBillingExpanded ? (
-            <View style={{ marginTop: 12 }}>
-              <GstBillingSettingsPanel
-                theme={theme}
-                showBreakdown={gstForm.showBreakdown}
-                style={gstForm.style}
-                printOnReceipt={gstForm.printOnReceipt}
-                itemWiseGst={gstForm.itemWiseGst}
-                onShowBreakdownChange={setGstShowBreakdown}
-                onStyleChange={setGstStyle}
-                onPrintOnReceiptChange={setGstPrintOnReceipt}
-                onItemWiseGstChange={setGstItemWise}
-                onSave={() => saveGstBilling()}
-                isSaving={isSavingGstBilling}
-                hintText="Per-item GST column also respects the global 'Show GST % on each item' toggle."
-                compact
-              />
-            </View>
-          ) : (
-            <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 6 }}>
-              Tap to configure GST breakdown for printed receipts
-            </Text>
-          )}
-        </TouchableOpacity>
+        <TaxBillingPrinterSection
+          theme={theme}
+          collapsible
+          defaultExpanded={false}
+          compact
+          hintText="Per-item GST column also respects the global 'Show GST % on each item' toggle."
+        />
 
         {/* Paper Width Roll Setting */}
         <View style={[styles.paperWidthCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>

@@ -47,3 +47,13 @@ export const updatePrinterConfig = async (_uid: string, settingsId: string, prin
   return settings
 }
 
+export const updateReceiptConfig = async (
+  _uid: string,
+  receiptConfigPatch: Partial<import('@/types/settings.types').ReceiptConfig>
+): Promise<UserSettings> => {
+  return fetchApi('/settings/receipt', {
+    method: 'PATCH',
+    body: JSON.stringify({ receiptConfig: receiptConfigPatch }),
+  })
+}
+

@@ -2,22 +2,22 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useSettings } from '@/hooks/useSettings'
 import { Avatar } from '@/components/ui/Avatar'
-import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu'
-import { Sun, Moon, LogOut, Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
+import { Sun, Moon, Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ROUTES } from '@/constants/routes'
-import toast from 'react-hot-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface TopbarProps {
   onMenuClick: () => void
 }
 
 export const Topbar = ({ onMenuClick }: TopbarProps) => {
-  const { user, userProfile, clearWorkspaceSelection } = useAuth()
+  const { user, userProfile } = useAuth()
   const { isDark, toggleTheme } = useTheme()
   const { data: settings } = useSettings()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -32,17 +32,6 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
                          location.pathname !== ROUTES.LOGIN &&
                          location.pathname !== ROUTES.ACCESS_SELECTION &&
                          location.pathname !== ROUTES.ONBOARDING
-
-  const handleSignOut = async () => {
-    try {
-      clearWorkspaceSelection()
-      toast.success('Signed out to RBA workstation panel')
-      navigate(ROUTES.ACCESS_SELECTION, { replace: true })
-    } catch (error) {
-      console.error('Sign out error:', error)
-      toast.error('Failed to sign out')
-    }
-  }
 
   return (
     <header className="sticky top-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800 px-3 lg:px-6 py-2.5 flex items-center justify-between gap-2">
@@ -61,7 +50,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           </Button>
         )}
         <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-          {settings?.businessName || userProfile?.businessName || 'Dashboard'}
+          {settings?.businessName || userProfile?.businessName || t('nav.dashboard')}
         </h2>
       </div>
 
@@ -86,35 +75,20 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
         >
           <Plus size={16} className="sm:mr-1" />
-          <span className="hidden sm:inline">New Sale</span>
+          <span className="hidden sm:inline">{t('action.newSale')}</span>
         </Button>
-        <DropdownMenu
-          trigger={
-            <button className="flex items-center gap-2 focus:outline-none ml-1 hover:opacity-80 transition-opacity">
-              <Avatar
-                src={user?.photoURL ?? undefined}
-                alt={user?.displayName ?? undefined}
-                size="sm"
-              />
-            </button>
-          }
-          align="right"
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.PROFILE)}
+          className="flex items-center gap-2 focus:outline-none ml-1 hover:opacity-80 transition-opacity"
+          aria-label={t('topbar.openProfile')}
         >
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-              {user?.displayName || 'User'}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-              {user?.email || ''}
-            </p>
-          </div>
-          <DropdownMenuItem onClick={handleSignOut}>
-            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-              <LogOut size={16} />
-              <span className="font-medium">Sign Out</span>
-            </div>
-          </DropdownMenuItem>
-        </DropdownMenu>
+          <Avatar
+            src={user?.photoURL ?? undefined}
+            alt={user?.displayName ?? undefined}
+            size="sm"
+          />
+        </button>
       </div>
     </header>
   )

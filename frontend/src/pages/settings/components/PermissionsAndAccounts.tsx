@@ -11,7 +11,7 @@ import { Pencil, Trash2, KeyRound, Plus, Shield, ShieldOff } from 'lucide-react'
 import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
 import { ADMIN_PERMISSIONS, AGENT_PERMISSIONS } from '@/types/auth.types'
 import { useAuth } from '@/contexts/AuthContext'
-import { getAllUsers, saveManagedUser, saveManagedUsers } from '@/services/authService'
+import { getAllUsers, saveManagedUser, saveManagedUsers, updateManagedUserPasswordDirectly } from '@/services/authService'
 import { validatePassword } from '@/utils/password'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -102,18 +102,15 @@ export const PermissionsAndAccounts = () => {
       businessName: '',
       plan: 'free',
       createdAt: new Date().toISOString(),
-
     }
 
-    try {
-      await saveManagedUser(user.uid, newUser)
-      setUsers([...users, newUser])
-      toast.success(t('permissions.userAddedSuccess'))
-      setIsAddUserOpen(false)
-      setForm({ name: '', email: '', role: 'agent', password: '' })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('permissions.errAddUserFailed'))
-    }
+    const updatedUsers = [...users, newUser]
+    setUsers(updatedUsers)
+    await saveManagedUsers(user.uid, updatedUsers)
+
+    toast.success(t('permissions.userAddedSuccess'))
+    setIsAddUserOpen(false)
+    setForm({ name: '', email: '', role: 'agent', password: '' })
   }
 
   const handleUpdatePermissions = async () => {
@@ -145,16 +142,16 @@ export const PermissionsAndAccounts = () => {
       return
     }
 
-    const updatedUsers = users.map(u =>
-      u.uid === selectedUser.uid
-        ? { ...u, password: passwordForm.newPassword }
-        : u
-    )
-    setUsers(updatedUsers)
-    await saveManagedUsers(user.uid, updatedUsers)
-    toast.success(t('permissions.passwordUpdated'))
-    setIsPasswordOpen(false)
-    setPasswordForm({ newPassword: '', confirmPassword: '' })
+    try {
+      const adminUid = user.uid || (user as any).id || ''
+      await updateManagedUserPasswordDirectly(adminUid, selectedUser.uid, passwordForm.newPassword)
+      toast.success(t('permissions.passwordUpdated'))
+      setIsPasswordOpen(false)
+      setPasswordForm({ newPassword: '', confirmPassword: '' })
+    } catch (err: any) {
+      console.error('Password update failed:', err)
+      toast.error(err.message || 'Failed to update agent password')
+    }
   }
 
   const handleResetPassword = async (targetUser?: ManagedUser) => {
@@ -162,14 +159,19 @@ export const PermissionsAndAccounts = () => {
     const userToReset = targetUser ?? selectedUser
     if (!userToReset) return
 
-    const updatedUsers = users.map(u =>
-      u.uid === userToReset.uid
-        ? { ...u, password: 'password123' }
-        : u
-    )
-    setUsers(updatedUsers)
-    await saveManagedUsers(user.uid, updatedUsers)
-    toast.success(t('permissions.passwordResetDefault'))
+    try {
+      const adminUid = user.uid || (user as any).id || ''
+      await updateManagedUserPasswordDirectly(adminUid, userToReset.uid, 'password123')
+      toast.success(t('permissions.passwordResetDefault'))
+    } catch (err: any) {
+      console.error('Password reset failed:', err)
+      toast.error(err.message || 'Failed to reset agent password')
+    }
+  }
+
+  const handleResetPasswordUser = async (user: ManagedUser) => {
+    setSelectedUser(user)
+    await handleResetPassword(user)
   }
 
   const handleDeleteUser = async (uid: string) => {
@@ -246,11 +248,6 @@ export const PermissionsAndAccounts = () => {
       ),
     },
   ]
-
-  const handleResetPasswordUser = async (user: ManagedUser) => {
-    setSelectedUser(user)
-    await handleResetPassword(user)
-  }
 
   if (!isAdmin) {
     return (

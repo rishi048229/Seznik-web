@@ -126,19 +126,25 @@ function RootLayoutNav() {
       isAuthenticated &&
       user?.accountType !== 'managed' &&
       user?.onboardingCompleted === false;
+    const needsBusinessType =
+      isAuthenticated &&
+      user?.accountType !== 'managed' &&
+      user?.onboardingCompleted !== false &&
+      !user?.businessType;
+    const needsSetup = needsOnboarding || needsBusinessType;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login' as any);
-    } else if (isAuthenticated && needsOnboarding && !onOnboarding) {
+    } else if (isAuthenticated && needsSetup && !onOnboarding) {
       router.replace('/onboarding' as any);
-    } else if (isAuthenticated && inAuthGroup && !needsOnboarding) {
+    } else if (isAuthenticated && inAuthGroup && !needsSetup) {
       router.replace('/');
-    } else if (isAuthenticated && onOnboarding && !needsOnboarding) {
+    } else if (isAuthenticated && onOnboarding && !needsSetup) {
       router.replace('/');
     }
 
     SplashScreen.hideAsync().catch(() => {});
-  }, [isLoading, isAuthenticated, segments, user?.onboardingCompleted, user?.accountType]);
+  }, [isLoading, isAuthenticated, segments, user?.onboardingCompleted, user?.accountType, user?.businessType]);
 
   if (isLoading) {
     return <AppSplashScreen />;

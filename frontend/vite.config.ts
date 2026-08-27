@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@shared': path.resolve(__dirname, '../shared'),
     },
   },
   server: {
@@ -26,6 +27,16 @@ export default defineConfig({
     port: 3000,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    },
+  },
+  build: {
+    rollupOptions: {
+      // Caps how many files Rollup reads/writes concurrently during the
+      // "rendering chunks" phase — that phase is what OOM-killed the build
+      // on a memory-constrained instance (t2/t3.micro-class, ~1GB RAM).
+      // Lower parallelism trades a bit of build time for a smaller peak
+      // memory footprint. Doesn't change the shipped output at all.
+      maxParallelFileOps: 2,
     },
   },
 })

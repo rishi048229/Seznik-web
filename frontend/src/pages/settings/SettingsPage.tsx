@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -8,26 +9,16 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
-import type { InvoiceConfig } from '@/types/settings.types'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 import { LANGUAGES } from '@/i18n/translations'
-import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles } from 'lucide-react'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel'
-import { BillChargesSettingsPanel } from '@/components/billing/BillChargesSettingsPanel'
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
-import { toGstBillingPayload } from '@/constants/gstBilling'
-import {
-  DEFAULT_RESTAURANT_PRESETS,
-  parseRestaurantBilling,
-  toRestaurantBillingPayload,
-  type BillChargePreset,
-} from '@/constants/restaurantBilling'
+import { BUSINESS_TYPE_OPTIONS, getBusinessTypeLabel, type BusinessType } from '@/constants/businessTypes'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -53,6 +44,7 @@ const DEFAULT_SETTINGS = {
 
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('business')
   const { data: settings, isLoading } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
@@ -61,23 +53,19 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
+  const { userProfile, updateBusinessType } = useAuth()
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(
+    userProfile?.businessType ?? 'retail_shop'
+  )
+  const [isSavingType, setIsSavingType] = useState(false)
 
   const current = settings ?? DEFAULT_SETTINGS
-  const {
-    form: gstForm,
-    setShowBreakdown: setGstShowBreakdown,
-    setStyle: setGstStyle,
-    setPrintOnReceipt: setGstPrintOnReceipt,
-    setItemWiseGst: setGstItemWise,
-  } = useGstBillingSettings()
-  const [chargePresets, setChargePresets] = useState<BillChargePreset[]>(DEFAULT_RESTAURANT_PRESETS)
-  const [chargesDirty, setChargesDirty] = useState(false)
 
   useEffect(() => {
-    if (!settings) return
-    setChargePresets(parseRestaurantBilling(settings.invoiceConfig).presets)
-    setChargesDirty(false)
-  }, [settings?.id, settings?.invoiceConfig])
+    if (userProfile?.businessType) {
+      setSelectedBusinessType(userProfile.businessType)
+    }
+  }, [userProfile?.businessType])
 
   if (current.businessLogoURL !== prevLogo) {
     setPrevLogo(current.businessLogoURL ?? '')
@@ -93,6 +81,14 @@ export const SettingsPage = () => {
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
     { key: 'language', label: t('settings.language'), icon: Globe, description: t('settings.descLanguage') },
   ]
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    const validTabs = ['business', 'personal', 'invoice', 'notifications', 'permissions', 'security', 'language'] as const
+    if (tab && validTabs.includes(tab as typeof validTabs[number])) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
 
@@ -134,6 +130,18 @@ export const SettingsPage = () => {
           toast.error(msg)
         },
       })
+    }
+  }
+
+  const handleSaveBusinessType = async () => {
+    setIsSavingType(true)
+    try {
+      await updateBusinessType(selectedBusinessType)
+      toast.success(`Workspace updated for ${getBusinessTypeLabel(selectedBusinessType)}.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update business type')
+    } finally {
+      setIsSavingType(false)
     }
   }
 
@@ -185,6 +193,7 @@ export const SettingsPage = () => {
       case 'invoice':
         handleSave(t('settings.invoiceSettingsLabel'), {
           receiptConfig: {
+            ...curReceipt,
             companyName:   val('settings-receipt-company'),
             address:       val('settings-receipt-address'),
             phone:         val('settings-receipt-phone'),
@@ -201,18 +210,7 @@ export const SettingsPage = () => {
           businessGSTIN:   curGSTIN,
           businessLogoURL: current.businessLogoURL ?? '',
           personalInfo:    curPersonal,
-          invoiceConfig: {
-            ...curInvoice,
-            gstBilling: toGstBillingPayload({
-              showBreakdown: gstForm.showBreakdown,
-              style: gstForm.style,
-              printOnReceipt: gstForm.printOnReceipt,
-              itemWiseGst: gstForm.itemWiseGst,
-            }),
-            ...(chargesDirty || Boolean((curInvoice as InvoiceConfig).restaurantBilling)
-              ? { restaurantBilling: toRestaurantBillingPayload({ presets: chargePresets }) }
-              : {}),
-          },
+          invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
         })
         break
@@ -358,6 +356,52 @@ export const SettingsPage = () => {
                     placeholder="+91 98765 43210"
                   />
                 </div>
+                {userProfile?.accountType !== 'managed' ? (
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Business type</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Current: {getBusinessTypeLabel(userProfile?.businessType)}. Changing this shows or hides kitchen features such as KOT and tokens.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {BUSINESS_TYPE_OPTIONS.map(option => {
+                        const selected = selectedBusinessType === option.id
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSelectedBusinessType(option.id)}
+                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                              selected
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            }`}
+                          >
+                            <span className="text-2xl">{option.emoji}</span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                {option.label}
+                              </span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                {option.description}
+                              </span>
+                            </span>
+                            {selected ? <Check size={16} className="text-blue-600 shrink-0" /> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <Button
+                      onClick={handleSaveBusinessType}
+                      loading={isSavingType}
+                      disabled={selectedBusinessType === userProfile?.businessType}
+                      className="w-full sm:w-auto"
+                    >
+                      Update business type
+                    </Button>
+                  </div>
+                ) : null}
                 <Input
                   label={t('settings.businessAddressLabel')}
                   defaultValue={current.businessAddress ?? ''}
@@ -437,32 +481,6 @@ export const SettingsPage = () => {
                   id="settings-receipt-gstin"
                   placeholder="GSTIN : 33AAAGP0685F1ZH"
                 />
-
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/40">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{t('settings.gstBillingTitle')}</p>
-                  <GstBillingSettingsPanel
-                    showBreakdown={gstForm.showBreakdown}
-                    style={gstForm.style}
-                    printOnReceipt={gstForm.printOnReceipt}
-                    itemWiseGst={gstForm.itemWiseGst}
-                    onShowBreakdownChange={setGstShowBreakdown}
-                    onStyleChange={setGstStyle}
-                    onPrintOnReceiptChange={setGstPrintOnReceipt}
-                    onItemWiseGstChange={setGstItemWise}
-                    showSaveButton={false}
-                    hintText=""
-                  />
-                </div>
-
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/40">
-                  <BillChargesSettingsPanel
-                    presets={chargePresets}
-                    onChange={(next) => {
-                      setChargesDirty(true)
-                      setChargePresets(next)
-                    }}
-                  />
-                </div>
 
                 {/* Terms & Conditions */}
                 <div>

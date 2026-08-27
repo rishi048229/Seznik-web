@@ -44,8 +44,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
+import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 import {
@@ -81,15 +80,6 @@ export default function PrintersScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
   const { settings } = useSettings();
-  const {
-    form: gstForm,
-    setShowBreakdown: setGstShowBreakdown,
-    setStyle: setGstStyle,
-    setPrintOnReceipt: setGstPrintOnReceipt,
-    setItemWiseGst: setGstItemWise,
-    saveGstBilling,
-    isSaving: isSavingGstBilling,
-  } = useGstBillingSettings();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -665,36 +655,11 @@ export default function PrintersScreen() {
                 </View>
               </TouchableOpacity>
 
-              <View
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: theme.cardBg,
-                    borderColor: theme.borderColor,
-                    padding: 14,
-                    marginBottom: 14,
-                  },
-                ]}
-              >
-                <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary, marginBottom: 4 }}>
-                  Tax & Billing
-                </Text>
-                <GstBillingSettingsPanel
-                  theme={theme}
-                  showBreakdown={gstForm.showBreakdown}
-                  style={gstForm.style}
-                  printOnReceipt={gstForm.printOnReceipt}
-                  itemWiseGst={gstForm.itemWiseGst}
-                  onShowBreakdownChange={setGstShowBreakdown}
-                  onStyleChange={setGstStyle}
-                  onPrintOnReceiptChange={setGstPrintOnReceipt}
-                  onItemWiseGstChange={setGstItemWise}
-                  onSave={() => saveGstBilling()}
-                  isSaving={isSavingGstBilling}
-                  hintText="Tax breakdown on printed slips follows your Tax & Billing settings below."
-                  compact
-                />
-              </View>
+              <TaxBillingPrinterSection
+                theme={theme}
+                compact
+                hintText="Tax breakdown on printed slips follows your Tax & Billing settings below."
+              />
 
               {/* Template Search Bar */}
               <View

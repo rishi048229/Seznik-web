@@ -1,37 +1,54 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft } from 'lucide-react'
+import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, Ticket, UtensilsCrossed, Store } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { useLanguage } from '@/contexts/LanguageContext'
+import type { BusinessType } from '@/constants/businessTypes'
+import type { TranslationKey } from '@/i18n/translations'
 
-const primaryItems = [
-  { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
-  { path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> },
-  { path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> },
-  { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
+const getPrimaryItems = (t: (key: TranslationKey) => string) => [
+  { path: ROUTES.DASHBOARD, label: t('mobileNav.home'), icon: <Home size={20} /> },
+  { path: ROUTES.POS, label: t('nav.pos'), icon: <ShoppingCart size={20} /> },
+  { path: ROUTES.PRODUCTS, label: t('nav.products'), icon: <Package size={20} /> },
+  { path: ROUTES.SALES, label: t('nav.sales'), icon: <FileText size={20} /> },
 ]
 
-const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) => {
+const getMoreItems = (
+  t: (key: TranslationKey) => string,
+  permissions: ReturnType<typeof useAuth>['permissions'],
+  businessType: BusinessType | null | undefined
+) => {
   const p = permissions ?? undefined
   return [
-    { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
-    { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
-    { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },
-    ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),
-    ...(canAccessPurchases(p) ? [{ path: ROUTES.PURCHASES, label: 'Purchases', icon: <TrendingUp size={20} /> }] : []),
-    ...(canAccessExpenses(p) ? [{ path: ROUTES.EXPENSES, label: 'Expenses', icon: <Wallet size={20} /> }] : []),
-    { path: ROUTES.CREDITS, label: 'Credits', icon: <CreditCard size={20} /> },
-    ...(canAccessReports(p) ? [{ path: ROUTES.REPORTS, label: 'Reports', icon: <BarChart3 size={20} /> }] : []),
-    { path: ROUTES.SETTINGS, label: 'Settings', icon: <Settings size={20} /> },
+    { path: ROUTES.POS_LITE, label: t('nav.posLite'), icon: <MoveLeft size={20} /> },
+    ...(isNavFeatureVisible(businessType, 'tokens')
+      ? [{ path: ROUTES.TOKENS, label: t('page.tokens'), icon: <Ticket size={20} /> }]
+      : []),
+    ...(isNavFeatureVisible(businessType, 'kot')
+      ? [{ path: ROUTES.KOT, label: t('nav.kot'), icon: <UtensilsCrossed size={20} /> }]
+      : []),
+    { path: ROUTES.LOCATIONS, label: t('nav.locations'), icon: <Store size={20} /> },
+    { path: ROUTES.CATEGORIES, label: t('nav.categories'), icon: <Tag size={20} /> },
+    { path: ROUTES.CUSTOMERS, label: t('nav.customers'), icon: <Users size={20} /> },
+    ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: t('nav.suppliers'), icon: <Truck size={20} /> }] : []),
+    ...(canAccessPurchases(p) ? [{ path: ROUTES.PURCHASES, label: t('nav.purchases'), icon: <TrendingUp size={20} /> }] : []),
+    ...(canAccessExpenses(p) ? [{ path: ROUTES.EXPENSES, label: t('nav.expenses'), icon: <Wallet size={20} /> }] : []),
+    { path: ROUTES.CREDITS, label: t('nav.credits'), icon: <CreditCard size={20} /> },
+    ...(canAccessReports(p) ? [{ path: ROUTES.REPORTS, label: t('nav.reports'), icon: <BarChart3 size={20} /> }] : []),
+    { path: ROUTES.SETTINGS, label: t('nav.settings'), icon: <Settings size={20} /> },
   ]
 }
 
 export const MobileNav = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const { permissions } = useAuth()
-  const moreItems = getMoreItems(permissions)
+  const { permissions, userProfile } = useAuth()
+  const { t } = useLanguage()
+  const primaryItems = getPrimaryItems(t)
+  const moreItems = getMoreItems(t, permissions, userProfile?.businessType)
 
   return (
     <>
@@ -59,7 +76,7 @@ export const MobileNav = () => {
             className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-[11px] font-medium text-gray-500 dark:text-gray-400"
           >
             <MoreHorizontal size={20} />
-            <span>More</span>
+            <span>{t('mobileNav.more')}</span>
           </button>
         </div>
       </nav>

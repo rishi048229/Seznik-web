@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { useAiExtractDocument, useBulkImportProducts } from '@/hooks/useProducts'
 import { type AiExtractedProduct } from '@/services/productService'
+import { preprocessImageForOcr } from '@/utils/imagePreprocess'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import {
@@ -37,7 +38,7 @@ interface AiDocumentUploadModalProps {
 }
 
 const SEZ_AI_LOADING_MESSAGES = [
-  '✨ SEZ AI is scanning your file and parsing all columns & rows...',
+  '✨ SEZ AI is scanning your CSV / file and parsing all columns & rows...',
   '🤖 SEZ AI is intelligent-mapping product names, prices & units...',
   '⚡ SEZ AI is detecting existing barcodes & preserving barcode numbers 100%...',
   '🏷️ SEZ AI is auto-assigning smart categories & calculating tax rates...',
@@ -53,9 +54,10 @@ const SEZ_AI_IMPORT_MESSAGES = [
 export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ isOpen, onClose }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
-  const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'text'>('image')
+  const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'csv' | 'text'>('image')
   const [searchFilter, setSearchFilter] = useState('')
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
+  const [elapsedSec, setElapsedSec] = useState(0)
 
   const [extractedProducts, setExtractedProducts] = useState<AiExtractedProduct[]>([])
   const [step, setStep] = useState<'upload' | 'analyzing' | 'review'>('upload')
@@ -75,6 +77,15 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       }, 2500)
       return () => clearInterval(interval)
     }
+  }, [step])
+
+  // A visible clock reassures during the wait, and turns "it feels slow" into
+  // a number we can actually compare between runs.
+  useEffect(() => {
+    if (step !== 'analyzing') return
+    setElapsedSec(0)
+    const tick = setInterval(() => setElapsedSec(s => s + 1), 1000)
+    return () => clearInterval(tick)
   }, [step])
 
   // Cycle interactive SEZ AI progress messages during import
@@ -102,14 +113,16 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       const reader = new FileReader()
       reader.onload = () => setFilePreview(reader.result as string)
       reader.readAsDataURL(file)
+    } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || file.type.includes('csv')) {
+      setFileTypeCategory('csv')
+      setFilePreview(null)
     } else if (
       lowerName.endsWith('.xlsx') ||
       lowerName.endsWith('.xls') ||
-      lowerName.endsWith('.csv') ||
+      lowerName.endsWith('.xlsm') ||
       lowerName.endsWith('.ods') ||
       file.type.includes('sheet') ||
-      file.type.includes('excel') ||
-      file.type.includes('csv')
+      file.type.includes('excel')
     ) {
       setFileTypeCategory('excel')
       setFilePreview(null)
@@ -137,7 +150,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     if (file) processSelectedFile(file)
   }
 
-  // Fast Direct Table Parser (for 100% standard column spreadsheets)
+  // Universal Format-Independent CSV & Spreadsheet Table Parser
   const parseExcelSheetDirectly = (sheet: XLSX.WorkSheet): AiExtractedProduct[] => {
     const jsonRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
     if (!jsonRows || jsonRows.length === 0) return []
@@ -149,50 +162,92 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       return keys.find(k => regex.test(k.trim()))
     }
 
-    const barcodeKey = findKey(/barcode|bar_code|bar code|barcode_no|barcodeno|code|ean|upc|item_code|product_code|itemcode|sku/i)
-    const nameKey = findKey(/name|product_name|product|item_name|item|description|title|particulars/i)
-    const sellingPriceKey = findKey(/selling|sell_price|sellingprice|sale_price|price|mrp|rate|sales_rate|selling_rate/i)
+    // High priority Barcode match (searched BEFORE SKU so SKU index column doesn't override real Barcode column!)
+    const barcodeKey = 
+      findKey(/^barcode$/i) ||
+      findKey(/^(barcode|bar_code|bar code|barcode_no|barcodeno|ean|upc|gtin|item_barcode|product_barcode)$/i) ||
+      findKey(/barcode|bar_code|bar code|ean|upc|gtin/i) ||
+      findKey(/^code$/i) ||
+      findKey(/sku/i)
+
+    const nameKey = 
+      findKey(/^name$/i) ||
+      findKey(/^(name|product_name|product|item_name|item|description|title|particulars)$/i) ||
+      findKey(/name|product|item|description|title/i)
+
+    const sellingPriceKey = 
+      findKey(/^price$/i) ||
+      findKey(/^(price|selling_price|sell_price|sellingprice|sale_price|mrp|rate|sales_rate|selling_rate)$/i) ||
+      findKey(/selling|sell|sale|price|mrp|rate/i)
+
     const costPriceKey = findKey(/cost|cost_price|costprice|purchase_price|buy_price|cost_rate|purchase_rate/i)
-    const categoryKey = findKey(/category|cat|category_name|group|department|type/i)
+    const categoryKey = findKey(/category|cat|category_name|group|department|productgroup|type/i)
     const stockKey = findKey(/stock|qty|quantity|current_stock|available_stock|balance|count/i)
     const taxKey = findKey(/tax|gst|tax_rate|gst_rate|vat/i)
-    const unitKey = findKey(/unit|uom|pack|unit_type/i)
+    const unitKey = findKey(/unit|uom|pack|unit_type|measurementunit/i)
 
-    // Standard table requires explicit header keys
-    if (!nameKey || (!sellingPriceKey && !barcodeKey)) return []
+    if (!nameKey && !sellingPriceKey && !barcodeKey) return []
 
     const products: AiExtractedProduct[] = []
 
     jsonRows.forEach((row, idx) => {
+      // Product Name
       let name = nameKey ? String(row[nameKey]).trim() : ''
-      // Ignore if name looks like currency e.g. "₹ 40.00"
-      if (name.startsWith('₹') || name.startsWith('Rs')) return
-      if (!name) return
+      if (name.startsWith('₹') || name.startsWith('Rs')) name = ''
+      if (!name) {
+        const altKey = keys.find(k => k !== barcodeKey && String(row[k]).trim().length > 0 && isNaN(Number(row[k])))
+        if (altKey) name = String(row[altKey]).trim()
+      }
+      if (!name) name = `Item ${idx + 1}`
 
+      // Barcode Resolution (Primary barcodeKey + token-level 7-16 digit scan fallback)
       let rawBarcode = barcodeKey ? String(row[barcodeKey]).trim() : ''
-      let isExistingBarcode = false
+      
+      // If barcode key picked up a short index e.g. "1", "2", or empty, scan ALL row values for a 7-16 digit barcode number
+      if (!rawBarcode || (rawBarcode.length < 6 && /^\d+$/.test(rawBarcode))) {
+        const foundLongDigit = keys.map(k => String(row[k]).trim()).find(v => /^\d{7,16}$/.test(v))
+        if (foundLongDigit) {
+          rawBarcode = foundLongDigit
+        }
+      }
 
+      let isExistingBarcode = false
       if (rawBarcode && rawBarcode !== 'null' && rawBarcode !== 'undefined' && rawBarcode !== '0') {
         isExistingBarcode = true
       } else {
         rawBarcode = 'SZ' + Math.floor(1000000000 + Math.random() * 9000000000).toString()
       }
 
+      // Selling Price
       const sellVal = sellingPriceKey ? parseFloat(String(row[sellingPriceKey]).replace(/[^0-9.]/g, '')) : NaN
-      const sellingPrice = !isNaN(sellVal) ? sellVal : 0
+      let sellingPrice = !isNaN(sellVal) ? sellVal : 0
 
+      if (sellingPrice === 0 && costPriceKey && row[costPriceKey]) {
+        const costVal = parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, ''))
+        if (!isNaN(costVal)) sellingPrice = costVal
+      }
+
+      // Cost Price
       const costVal = costPriceKey ? parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, '')) : NaN
       const costPrice = !isNaN(costVal) ? costVal : sellingPrice
 
+      // Category
       const categoryName = categoryKey && row[categoryKey] ? String(row[categoryKey]).trim() : 'General'
+
+      // Stock
       const stockVal = stockKey ? parseInt(String(row[stockKey]).replace(/[^0-9]/g, '')) : NaN
       const currentStock = !isNaN(stockVal) ? stockVal : 10
+
+      // Tax Rate
       const taxVal = taxKey ? parseFloat(String(row[taxKey]).replace(/[^0-9.]/g, '')) : NaN
       const taxRate = !isNaN(taxVal) ? taxVal : 0
-      const unitVal = unitKey && row[unitKey] ? String(row[unitKey]).trim().toLowerCase() : 'piece'
+
+      // Unit
+      const rawUnit = unitKey && row[unitKey] ? String(row[unitKey]).trim().toLowerCase() : ''
+      const unitVal = (!rawUnit || /^\d+(\.\d+)?$/.test(rawUnit)) ? 'piece' : rawUnit
 
       products.push({
-        id: `excel-direct-${Date.now()}-${idx}`,
+        id: `csv-format-${Date.now()}-${idx}`,
         name,
         sellingPrice,
         costPrice,
@@ -214,14 +269,14 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
   const handleStartExtraction = () => {
     if (!selectedFile) {
-      toast.error('Please select an Excel sheet, PDF, bill, or menu file first.')
+      toast.error('Please select a CSV file, Excel sheet, PDF, bill, or menu file first.')
       return
     }
 
     setStep('analyzing')
 
-    // If Excel or CSV file
-    if (fileTypeCategory === 'excel') {
+    // Handle CSV and Excel files seamlessly using XLSX parser + SEZ AI fallback
+    if (fileTypeCategory === 'csv' || fileTypeCategory === 'excel') {
       const reader = new FileReader()
       reader.onload = (e) => {
         try {
@@ -230,35 +285,34 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
           const firstSheetName = workbook.SheetNames[0]
           const sheet = workbook.Sheets[firstSheetName]
 
-          // 1. Try Fast Direct Standard Table Parser
+          // 1. Try Universal Format-Independent Table Parser
           const directProducts = parseExcelSheetDirectly(sheet)
           const directBarcodeCount = directProducts.filter(p => p.isExistingBarcode).length
 
-          // If direct parser extracted products with high barcode accuracy, use it instantly!
-          if (directProducts.length > 5 && directBarcodeCount > 0) {
+          // If parser extracted products with preserved barcodes, use it instantly!
+          if (directProducts.length > 0) {
             setExtractedProducts(directProducts)
             setStep('review')
             toast.success(`Extracted all ${directProducts.length} products with ${directBarcodeCount} barcodes preserved!`)
             return
           }
 
-          // 2. Universal SEZ AI Multi-Modal Sheet Extraction (HTML & CSV representation)
-          const htmlContent = XLSX.utils.sheet_to_html(sheet)
+          // 2. Universal SEZ AI Multi-Modal Sheet Extraction (CSV / HTML representation)
           const csvText = XLSX.utils.sheet_to_csv(sheet)
-          const textPayload = htmlContent && htmlContent.length < 200000 ? htmlContent : csvText
+          const htmlContent = XLSX.utils.sheet_to_html(sheet)
+          const textPayload = (csvText && csvText.trim().length > 0) ? csvText : htmlContent
 
           if (!textPayload || textPayload.trim().length === 0) {
             setStep('upload')
-            toast.error('The uploaded Excel spreadsheet appears to be empty.')
+            toast.error('The uploaded CSV / Excel file appears to be empty.')
             return
           }
 
           const base64Data = btoa(unescape(encodeURIComponent(textPayload)))
-          sendExtractionRequest(`data:text/html;base64,${base64Data}`, 'text/html')
+          sendExtractionRequest(`data:text/csv;base64,${base64Data}`, 'text/csv')
         } catch (err) {
           setStep('upload')
-          toast.error('Failed to parse Excel spreadsheet file. Sending to SEZ AI fallback...')
-          // Fallback to plain file reader
+          toast.error('Failed to parse CSV file. Sending to SEZ AI fallback...')
           readAndSendFile(selectedFile)
         }
       }
@@ -268,11 +322,30 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     }
   }
 
-  const readAndSendFile = (file: File) => {
+  const readAndSendFile = async (file: File) => {
+    // Photos and screenshots get downscaled + contrast-normalized first —
+    // oversized, unevenly-lit images are the main reason extraction fails.
+    if (file.type.startsWith('image/')) {
+      try {
+        const processed = await preprocessImageForOcr(file)
+        if (processed.isLowResolution) {
+          toast('This image is quite low resolution — extraction may miss items.', { icon: '⚠️' })
+        }
+        sendExtractionRequest(processed.dataUrl, processed.mimeType)
+        return
+      } catch {
+        // Preprocessing is an enhancement, never a gate — fall through to the raw file.
+      }
+    }
+
     const reader = new FileReader()
     reader.onload = () => {
       const base64Data = reader.result as string
       sendExtractionRequest(base64Data, file.type || 'image/jpeg')
+    }
+    reader.onerror = () => {
+      setStep('upload')
+      toast.error('Could not read that file. Please try another one.')
     }
     reader.readAsDataURL(file)
   }
@@ -379,6 +452,46 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
   const existingBarcodeCount = extractedProducts.filter(p => p.isExistingBarcode).length
   const autoBarcodeCount = extractedProducts.length - existingBarcodeCount
 
+  // Row-level quality flags. Extraction from a photo or handwriting is never
+  // perfect, so surface exactly which rows need a human look rather than
+  // relying on the user to eyeball every line.
+  const issuesById = useMemo(() => {
+    const barcodeCounts = new Map<string, number>()
+    const nameCounts = new Map<string, number>()
+    for (const p of extractedProducts) {
+      const bc = (p.barcode || '').trim()
+      if (bc) barcodeCounts.set(bc, (barcodeCounts.get(bc) ?? 0) + 1)
+      const nm = (p.name || '').trim().toLowerCase()
+      if (nm) nameCounts.set(nm, (nameCounts.get(nm) ?? 0) + 1)
+    }
+
+    const map = new Map<string, string[]>()
+    for (const p of extractedProducts) {
+      const issues: string[] = []
+      if (!p.name?.trim() || /^(item|extracted item)\s*\d*$/i.test(p.name.trim())) {
+        issues.push('Name could not be read')
+      }
+      if (!p.sellingPrice || p.sellingPrice <= 0) {
+        issues.push('No price found')
+      }
+      if (p.costPrice > p.sellingPrice && p.sellingPrice > 0) {
+        issues.push('Cost is higher than selling price')
+      }
+      const bc = (p.barcode || '').trim()
+      if (bc && (barcodeCounts.get(bc) ?? 0) > 1) {
+        issues.push('Duplicate barcode in this batch')
+      }
+      const nm = (p.name || '').trim().toLowerCase()
+      if (nm && (nameCounts.get(nm) ?? 0) > 1) {
+        issues.push('Duplicate name in this batch')
+      }
+      if (issues.length) map.set(p.id, issues)
+    }
+    return map
+  }, [extractedProducts])
+
+  const rowsNeedingReview = extractedProducts.filter(p => issuesById.has(p.id)).length
+
   return (
     <Modal
       isOpen={isOpen}
@@ -393,21 +506,21 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/10 via-blue-900/10 to-indigo-900/10 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-800/50 space-y-2">
               <div className="flex items-center gap-2 text-sm font-bold text-purple-900 dark:text-purple-200">
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
-                <span>Upload Excel Spreadsheets, Bills, Menus, or Handwritten Receipts</span>
+                <span>Upload CSV Files, Excel Spreadsheets, Bills, Menus, or Handwritten Receipts</span>
               </div>
               <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                SEZ AI intelligently maps column tables, sticker label grid sheets, supplier invoices, hotel menus, and price lists. It preserves existing barcodes 100%, auto-generates missing barcodes, and assigns smart categories!
+                SEZ AI intelligently maps CSV files, column tables, sticker label grid sheets, supplier invoices, hotel menus, and price lists. It preserves existing barcodes 100%, auto-generates missing barcodes, and assigns smart categories!
               </p>
               
               {/* Capacity Banner */}
               <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/40 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                 <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded-lg font-medium border border-emerald-200 dark:border-emerald-800/40">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span><strong>Excel / CSV / Custom Formats:</strong> Up to 5,000 products per file (100% Barcode Accuracy)</span>
+                  <span><strong>CSV & Excel Spreadsheets:</strong> Up to 5,000 products per file (100% Barcode Accuracy)</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg font-medium border border-blue-200 dark:border-blue-800/40">
                   <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <span><strong>Images & PDF Bills / Menus:</strong> Up to 1,000 items per file</span>
+                  <span><strong>Photos, Screenshots & PDFs:</strong> Handwritten bills, menus & invoices</span>
                 </div>
               </div>
             </div>
@@ -422,7 +535,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,application/pdf,.xlsx,.xls,.csv,.ods,text/plain"
+                accept="image/*,.heic,.heif,application/pdf,.csv,.xlsx,.xls,.xlsm,.ods,.tsv,.txt,text/csv,text/plain"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -440,7 +553,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               ) : selectedFile ? (
                 <div className="space-y-3">
                   <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center mx-auto">
-                    {fileTypeCategory === 'excel' ? (
+                    {fileTypeCategory === 'csv' || fileTypeCategory === 'excel' ? (
                       <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
                     ) : fileTypeCategory === 'pdf' ? (
                       <FileText className="w-8 h-8 text-blue-600" />
@@ -461,10 +574,13 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   </div>
                   <div>
                     <p className="text-base font-bold text-gray-900 dark:text-gray-100">
-                      Drop any Excel Sheet, PDF, Image, or Invoice file here
+                      Drop a bill, menu photo, screenshot, spreadsheet, or PDF here
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Supports Excel (.xlsx, .xls, .csv, .ods), JPG, PNG, WEBP & PDF files (Max 20MB)
+                      Handwritten bills · printed invoices · menu photos · screenshots · CSV, Excel (.xlsx, .xls, .ods) · PDF — max 20MB
+                    </p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
+                      Photos are auto-sharpened and light-corrected before reading, so slightly dim or angled shots are fine.
                     </p>
                   </div>
                   <Button type="button" size="sm" variant="outline" className="mt-2">
@@ -514,6 +630,10 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
                 Extracting items, mapping prices, creating categories, and preserving barcodes...
               </p>
+              <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 tabular-nums">
+                {elapsedSec}s elapsed
+                {elapsedSec > 30 && ' — large documents can take a little longer'}
+              </p>
             </div>
           </div>
         )}
@@ -552,6 +672,16 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 <p className="text-xl font-bold text-amber-900 dark:text-amber-100">{autoBarcodeCount}</p>
               </div>
             </div>
+
+            {/* Rows the extractor is unsure about */}
+            {rowsNeedingReview > 0 && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-rose-900 dark:text-rose-200">
+                  <strong>{rowsNeedingReview}</strong> {rowsNeedingReview === 1 ? 'row needs' : 'rows need'} a closer look — missing prices, unreadable names, or duplicates. They're marked in the list below and are still safe to import once corrected.
+                </p>
+              </div>
+            )}
 
             {/* Filter Search Bar & Bulk Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -624,10 +754,18 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map(product => (
+                    filteredProducts.map(product => {
+                      const rowIssues = issuesById.get(product.id)
+                      return (
                       <tr
                         key={product.id}
-                        className={product.selected ? 'bg-purple-50/30 dark:bg-purple-900/10' : 'opacity-60'}
+                        className={
+                          !product.selected
+                            ? 'opacity-60'
+                            : rowIssues
+                            ? 'bg-rose-50/40 dark:bg-rose-950/20'
+                            : 'bg-purple-50/30 dark:bg-purple-900/10'
+                        }
                       >
                         <td className="p-3 text-center">
                           <input
@@ -644,6 +782,12 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             onChange={e => handleUpdateProductField(product.id, 'name', e.target.value)}
                             className="w-full bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-2 py-1 text-xs font-semibold"
                           />
+                          {rowIssues && (
+                            <p className="mt-1 flex items-start gap-1 text-[10px] font-medium text-rose-700 dark:text-rose-300">
+                              <AlertCircle className="w-3 h-3 flex-shrink-0 mt-px" />
+                              <span>{rowIssues.join(' · ')}</span>
+                            </p>
+                          )}
                         </td>
                         <td className="p-2">
                           <input
@@ -733,7 +877,8 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           </button>
                         </td>
                       </tr>
-                    ))
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -746,15 +891,25 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   No products match your search filter.
                 </div>
               ) : (
-                filteredProducts.map(product => (
+                filteredProducts.map(product => {
+                  const rowIssues = issuesById.get(product.id)
+                  return (
                   <div
                     key={product.id}
                     className={`p-3.5 rounded-xl border text-xs space-y-3 transition-colors ${
-                      product.selected
-                        ? 'bg-purple-50/40 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/60'
-                        : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-60'
+                      !product.selected
+                        ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-60'
+                        : rowIssues
+                        ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/60'
+                        : 'bg-purple-50/40 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/60'
                     }`}
                   >
+                    {rowIssues && (
+                      <p className="flex items-start gap-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                        <span>{rowIssues.join(' · ')}</span>
+                      </p>
+                    )}
                     {/* Header Row: Checkbox, Name, Delete */}
                     <div className="flex items-start gap-2">
                       <input
@@ -865,7 +1020,8 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                       </div>
                     </div>
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
 

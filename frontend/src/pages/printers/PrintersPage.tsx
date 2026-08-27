@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProducts } from '@/hooks/useProducts'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
@@ -23,7 +23,17 @@ import {
   resolveElementText,
   type LabelData,
 } from '@/utils/labelPrint'
-import { generateReceiptEscPos } from '@/utils/receipt'
+import { generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { SAMPLE_RECEIPT_CONTEXT } from '@/utils/customReceiptEngine'
+import { createDefaultReceiptTemplate } from '@/types/customReceipt'
+import { ReceiptBuilderTab, type ReceiptBuilderTabHandle } from '@/pages/printers/receipt-builder/ReceiptBuilderTab'
+import { ReceiptLivePreviewPanel } from '@/pages/printers/receipt-builder/ReceiptLivePreviewPanel'
+import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
+import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
+import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
+import { runReceiptTemplateTestPrint, sampleTestSaleFromContext } from '@/utils/receiptTestPrint'
+import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
+import * as settingsService from '@/services/settingsService'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
@@ -36,6 +46,7 @@ import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { ImageUpload } from '@/components/forms/ImageUpload'
 import {
   Printer,
   QrCode,
@@ -45,7 +56,6 @@ import {
   Save,
   Bluetooth,
   Monitor,
-  Scissors,
   Layers,
   Unplug,
   ArrowUp,
@@ -57,6 +67,8 @@ import {
   Bold,
   Lock,
   Sparkles,
+  Check,
+  Image as ImageIcon,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
@@ -66,11 +78,7 @@ const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto
 // the same object the Settings page and the real print pipeline both use.
 const defaultPrinterConfig: PrinterConfig = {
   connectionType: 'system_driver',
-  autoPrintOnSale: true,
-  openCashDrawer: true,
-  cutPaper: true,
-
-  paperSize: '80mm',
+  paperSize: '58mm',
   showLogo: true,
   showGSTIN: true,
   showCustomerDetails: true,
@@ -82,9 +90,11 @@ const defaultPrinterConfig: PrinterConfig = {
   labelOffsetX: 0,
   labelOffsetY: 0,
   labelDirection: 0,
-  labelBarcodeOffsetX: 4,
+  labelBarcodeOffsetX: 0,
   labelBarcodeType: 'CODE128',
-  labelDensity: 10,
+  labelBarcodeHeight: 40,
+  labelPrinterMode: 'tspl',
+  labelDensity: 8,
   labelTemplate: defaultLabelTemplate,
 
   invoicePaperSize: 'A4',
@@ -98,6 +108,7 @@ const defaultPrinterConfig: PrinterConfig = {
 // Mirrors SettingsPage's DEFAULT_SETTINGS.receiptConfig exactly, so both
 // pages fall back to the same values before any settings row exists.
 const defaultReceiptConfig: ReceiptConfig = {
+  headerTitle: 'TAX INVOICE',
   companyName: '',
   address: '',
   phone: '',
@@ -107,6 +118,18 @@ const defaultReceiptConfig: ReceiptConfig = {
   termsLine1: '1. Goods once sold will not be taken back or exchanged',
   termsLine2: '2. All disputes are subject to local jurisdiction only',
   termsLine3: '',
+  compactMode: false,
+  showCompanyHeader: true,
+  showAddress: true,
+  showPhone: true,
+  showGSTIN: true,
+  showCustomerDetails: true,
+  showInvoiceNoAndDate: true,
+  showTaxBreakdown: true,
+  showSubtotalDiscount: true,
+  showFooterMessage: true,
+  showTerms: true,
+  showBarcode: true,
 }
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
@@ -119,6 +142,7 @@ const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string
   sideBySideBarcodeQr: { label: 'Barcode + QR (Image 1)', icon: '📐' },
   sku: { label: 'SKU / Code', icon: '🔢' },
   category: { label: 'Category', icon: '📁' },
+  sequenceNo: { label: 'Consecutive Label No.', icon: '#️⃣' },
   custom: { label: 'Custom Text', icon: '✎' },
   divider: { label: 'Divider Line', icon: '➖' },
 }
@@ -134,7 +158,20 @@ export const PrintersPage = () => {
 
   const [config, setConfig] = useState<PrinterConfig>(defaultPrinterConfig)
   const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig>(defaultReceiptConfig)
-  const [activeTab, setActiveTab] = useState<'receipt' | 'label' | 'invoice'>('receipt')
+  const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice'>('receipt')
+
+  // Snapshot of the last server payload written into the drafts above. A
+  // background settings refetch (window focus, or any other save invalidating
+  // the query) used to overwrite unsaved edits — most visibly a just-uploaded
+  // store logo, which then never reached the server and never printed.
+  const configRef = useRef(config)
+  const receiptConfigRef = useRef(receiptConfig)
+  const hydratedConfigRef = useRef<string | null>(null)
+  const hydratedReceiptRef = useRef<string | null>(null)
+  configRef.current = config
+  receiptConfigRef.current = receiptConfig
+  const { customTemplates, activeCustomTemplateId } = useReceiptBuilderSync()
+  const receiptBuilderRef = useRef<ReceiptBuilderTabHandle>(null)
 
   // Which real product's data is used to preview/print the label
   const [previewProductId, setPreviewProductId] = useState<string>('')
@@ -174,6 +211,9 @@ export const PrintersPage = () => {
         labelShowPrice?: boolean
         labelShowBarcode?: boolean
         labelShowBusinessName?: boolean
+        autoPrintOnSale?: boolean
+        openCashDrawer?: boolean
+        cutPaper?: boolean
       }
       // Older saved rows may still carry fields from earlier iterations of this
       // page (fake driver selection, dead USB/IP option, boolean-flag label
@@ -186,16 +226,37 @@ export const PrintersPage = () => {
       delete merged.labelShowPrice
       delete merged.labelShowBarcode
       delete merged.labelShowBusinessName
+      delete merged.autoPrintOnSale
+      delete merged.openCashDrawer
+      delete merged.cutPaper
       if (merged.connectionType !== 'bluetooth' && merged.connectionType !== 'system_driver') {
         merged.connectionType = 'system_driver'
       }
       if (!Array.isArray(merged.labelTemplate) || merged.labelTemplate.length === 0) {
         merged.labelTemplate = defaultLabelTemplate
       }
-      setConfig(merged)
+      const snapshot = JSON.stringify(merged)
+      const hasLocalEdits =
+        hydratedConfigRef.current !== null &&
+        JSON.stringify(configRef.current) !== hydratedConfigRef.current
+      if (!hasLocalEdits) {
+        hydratedConfigRef.current = snapshot
+        setConfig(merged)
+      }
     }
 
-    setReceiptConfig({ ...defaultReceiptConfig, ...settings.receiptConfig })
+    const mergedReceipt = { ...defaultReceiptConfig, ...settings.receiptConfig }
+    if (!mergedReceipt.logoURL && settings.businessLogoURL) {
+      mergedReceipt.logoURL = settings.businessLogoURL
+    }
+    const receiptSnapshot = JSON.stringify(mergedReceipt)
+    const receiptHasLocalEdits =
+      hydratedReceiptRef.current !== null &&
+      JSON.stringify(receiptConfigRef.current) !== hydratedReceiptRef.current
+    if (!receiptHasLocalEdits) {
+      hydratedReceiptRef.current = receiptSnapshot
+      setReceiptConfig(mergedReceipt)
+    }
   }, [settings])
 
   // Save configuration to Database — writes printerConfig AND receiptConfig
@@ -204,45 +265,49 @@ export const PrintersPage = () => {
   // something edited on the Settings page.
   const handleSave = async () => {
     if (!user) return
+    const uid = user.id || user.uid || ''
 
-    const fullPayload = {
+    const printerPayload = {
       businessName: settings?.businessName ?? user.displayName ?? '',
       businessAddress: settings?.businessAddress ?? '',
       businessPhone: settings?.businessPhone ?? '',
       businessGSTIN: settings?.businessGSTIN ?? '',
-      businessLogoURL: settings?.businessLogoURL ?? '',
+      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
+      upiId: receiptConfig.upiId?.trim() || settings?.upiId || undefined,
       personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
       invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
       notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
-      receiptConfig,
       printerConfig: config,
     }
 
-    if (settings?.id) {
-      updateSettingsMutation(
-        { settingsId: settings.id, data: fullPayload },
-        {
-          onSuccess: () => {
-            trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
-            toast.success('Printer settings saved!')
-          },
-          onError: (err) => {
-            console.error('Save printer config error:', err)
-            toast.error('Failed to save printer settings')
-          },
-        }
-      )
-    } else {
-      createSettingsMutation(fullPayload as Omit<UserSettings, 'id'>, {
-        onSuccess: () => {
-          trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
-          toast.success('Printer settings saved!')
-        },
-        onError: (err) => {
-          console.error('Create settings error:', err)
-          toast.error('Failed to save printer settings')
-        },
-      })
+    const onSaved = () => {
+      // Local edits are now persisted, so let the next server payload re-hydrate.
+      hydratedConfigRef.current = null
+      hydratedReceiptRef.current = null
+      trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
+      toast.success('Printer settings saved!')
+    }
+
+    const onError = (err: unknown) => {
+      console.error('Save printer config error:', err)
+      toast.error('Failed to save printer settings')
+    }
+
+    try {
+      await settingsService.updateReceiptConfig(uid, receiptConfig)
+      if (settings?.id) {
+        updateSettingsMutation(
+          { settingsId: settings.id, data: printerPayload },
+          { onSuccess: onSaved, onError }
+        )
+      } else {
+        createSettingsMutation({ ...printerPayload, receiptConfig } as Omit<UserSettings, 'id'>, {
+          onSuccess: onSaved,
+          onError,
+        })
+      }
+    } catch (err) {
+      onError(err)
     }
   }
 
@@ -366,46 +431,92 @@ export const PrintersPage = () => {
     `
   }
 
+  const storeLogoUrl = resolveStoreLogoUrl(receiptConfig, settings?.businessLogoURL)
+
+  const previewTemplate = useMemo(() => {
+    const base =
+      resolveActiveFromTemplates(customTemplates, activeCustomTemplateId) ||
+      createDefaultReceiptTemplate('Standard Shop Receipt')
+    const paperWidth: '58mm' | '80mm' = config.paperSize === '80mm' ? '80mm' : '58mm'
+    const sized = base.paperWidth === paperWidth ? base : { ...base, paperWidth }
+    return ensureTemplateHasLogoBlock(sized, storeLogoUrl)
+  }, [customTemplates, activeCustomTemplateId, config.paperSize, storeLogoUrl])
+
+  const receiptPreviewContext = useMemo(() => ({
+    ...SAMPLE_RECEIPT_CONTEXT,
+    storeName: receiptConfig.companyName || settings?.businessName || SAMPLE_RECEIPT_CONTEXT.storeName,
+    storeAddress: receiptConfig.address || settings?.businessAddress || SAMPLE_RECEIPT_CONTEXT.storeAddress,
+    storePhone: receiptConfig.phone || settings?.businessPhone || SAMPLE_RECEIPT_CONTEXT.storePhone,
+    storeGstin: receiptConfig.gstin || settings?.businessGSTIN || SAMPLE_RECEIPT_CONTEXT.storeGstin,
+    storeLogoUrl,
+    upiId: receiptConfig.upiId || settings?.upiId,
+    footerMessage: receiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
+  }), [receiptConfig, settings, storeLogoUrl])
+
   // Test Print via Bluetooth or Browser Spooler.
   // BLE only ever fires for the tab currently being tested — a thermal/label
   // printer can't render an A4 invoice, and each tab's bytes are shaped
   // specifically for that output, so cross-firing them would print garbage.
   const handleTestPrint = async () => {
     trackUserAction('feature_test_print', { tab: activeTab, mode: config.labelPrinterMode })
-    if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
-      try {
-        if (activeTab === 'receipt') {
-          const testSale: Sale = {
-            id: 'test_sale',
-            invoiceNumber: 'INV-TEST01',
-            items: [
-              { productId: 'p1', productName: 'Sample Wireless Mouse', quantity: 1, sellingPrice: 750.00, discount: 0, taxRate: 18, taxAmount: 135.00, total: 885.00 }
-            ],
-            subtotal: 750.00,
-            totalDiscount: 0,
-            totalTax: 135.00,
-            grandTotal: 885.00,
-            paymentMethod: 'cash',
-            amountPaid: 1000.00,
-            changeReturned: 115.00,
-            isQuickBill: false,
-            createdAt: new Date().toISOString(),
 
-          }
-          const bytes = generateReceiptEscPos({
-            sale: testSale,
-            receiptConfig,
-            paperSize: config.paperSize,
-            businessName: settings?.businessName,
-            businessAddress: settings?.businessAddress,
-            invoiceConfig: settings?.invoiceConfig,
-          })
-          await printEscPos(bytes)
-          toast.success('Test receipt sent to Bluetooth printer!')
-          return
-        }
-        if (activeTab === 'label') {
-          const mode = config.labelPrinterMode || 'tspl'
+    const effectiveReceiptConfig = {
+      ...receiptConfig,
+      showLogo: config.showLogo,
+      logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
+      showPaymentQR: receiptConfig.showPaymentQR ?? false,
+      paymentQrURL: receiptConfig.paymentQrURL || '',
+    }
+
+    if (activeTab === 'receiptBuilder') {
+      await receiptBuilderRef.current?.runTestPrint()
+      return
+    }
+
+    if (activeTab === 'receipt') {
+      const templateId =
+        activeCustomTemplateId ||
+        resolveActiveFromTemplates(customTemplates, activeCustomTemplateId)?.id ||
+        customTemplates[0]?.id
+
+      if (!templateId) {
+        toast.error('No receipt template found — create one in Receipt Builder')
+        return
+      }
+
+      try {
+        const mode = await runReceiptTemplateTestPrint({
+          sale: sampleTestSaleFromContext(),
+          receiptConfig: {
+            ...receiptConfig,
+            logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
+          },
+          customTemplates,
+          templateId,
+          paperSize: config.paperSize,
+          businessName: settings?.businessName,
+          businessAddress: settings?.businessAddress,
+          customerName: receiptPreviewContext.customerName,
+          logoURL: storeLogoUrl,
+          businessLogoURL: settings?.businessLogoURL,
+          invoiceConfig: settings?.invoiceConfig,
+          connectionType: config.connectionType,
+          bleConnected: bleState.status === 'connected',
+        })
+        toast.success(
+          mode === 'ble' ? 'Test receipt sent to Bluetooth printer!' : 'Test receipt opened in browser print dialog'
+        )
+      } catch (err) {
+        console.error('Receipt test print error:', err)
+        toast.error(err instanceof Error ? err.message : 'Test print failed')
+      }
+      return
+    }
+
+    if (activeTab === 'label') {
+      const mode = config.labelPrinterMode || 'tspl'
+      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+        try {
           const bytes = mode === 'tspl'
             ? generateLabelTspl(
                 config.labelTemplate,
@@ -423,105 +534,58 @@ export const PrintersPage = () => {
           await printEscPos(bytes)
           toast.success(`Label sent to printer in ${mode.toUpperCase()} mode!`)
           return
+        } catch (err) {
+          console.error('BLE Print error:', err)
+          toast.error('BLE print error. Falling back to browser print.')
         }
-        // Invoice tab falls through to the browser dialog below — no thermal
-        // printer can render an A4 sheet.
-      } catch (err) {
-        console.error('BLE Print error:', err)
-        toast.error('BLE print error. Falling back to browser print.')
       }
-    }
 
-    // Fallback: Browser Print Dialog
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      toast.error('Please allow popups to test printing')
+      // Browser label fallback
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        toast.error('Please allow popups to test printing')
+        return
+      }
+      const htmlContent = renderLabelHtml()
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+      setTimeout(() => {
+        printWindow.focus()
+        printWindow.print()
+      }, 500)
       return
     }
 
-    let htmlContent = ''
-    if (activeTab === 'receipt') {
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Test Receipt Print</title>
-          <style>
-            body { font-family: monospace; width: ${config.paperSize === '58mm' ? '58mm' : '80mm'}; margin: 0 auto; padding: 10px; }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .line { border-top: 1px dashed #000; margin: 8px 0; }
-            .row { display: flex; justify-content: space-between; }
-          </style>
-        </head>
-        <body>
-          <div class="center bold" style="font-size: 16px;">${receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}</div>
-          ${config.showGSTIN && receiptConfig.gstin ? `<div class="center">GSTIN: ${receiptConfig.gstin}</div>` : ''}
-          <div class="line"></div>
-          <div class="row"><span>Inv #: TEST-001</span><span>Date: ${new Date().toLocaleDateString()}</span></div>
-          ${config.showCustomerDetails ? `<div class="row"><span>Customer: John Doe</span><span>Phone: 9876543210</span></div>` : ''}
-          <div class="line"></div>
-          <div class="row bold"><span>Item</span><span>Qty</span><span>Amt</span></div>
-          <div class="row"><span>Wireless Mouse</span><span>1</span><span>₹750.00</span></div>
-          <div class="row"><span>USB-C Hub</span><span>2</span><span>₹1,800.00</span></div>
-          <div class="line"></div>
-          <div class="row bold"><span>Grand Total</span><span>₹2,550.00</span></div>
-          <div class="line"></div>
-          <div class="center">${receiptConfig.footerMessage}</div>
-          ${config.showBarcode ? `<div class="center" style="margin-top:10px; font-weight:bold;">||||||||||||||||||||||||||</div><div class="center" style="font-size:10px;">TEST-001</div>` : ''}
-        </body>
-        </html>
-      `
-    } else if (activeTab === 'label') {
-      htmlContent = renderLabelHtml()
-    } else {
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Test A4 Invoice</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0a0a2e; padding-bottom: 20px; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .table th, .table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-            .table th { background: #0a0a2e; color: #fff; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <h1 style="color:#0a0a2e; margin:0;">${receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}</h1>
-              <p style="margin:5px 0;">Retail & Wholesale Inventory Solutions</p>
-            </div>
-            <div style="text-align:right;">
-              <h2>INVOICE</h2>
-              <p>Invoice #: INV-2026-0089</p>
-              <p>Date: ${new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-          <table class="table">
-            <thead>
-              <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Tax</th><th>Total</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Seznik POS Terminal Machine</td><td>1</td><td>₹25,000.00</td><td>18%</td><td>₹29,500.00</td></tr>
-              <tr><td>Thermal Paper Roll 80mm (Pack of 10)</td><td>5</td><td>₹450.00</td><td>18%</td><td>₹2,655.00</td></tr>
-            </tbody>
-          </table>
-          <h3 style="text-align:right; margin-top:20px;">Grand Total: ₹32,155.00</h3>
-        </body>
-        </html>
-      `
+    // Invoice Tab
+    const testInvoiceSale: Sale = {
+      id: 'test_invoice',
+      invoiceNumber: 'INV-2026-0089',
+      items: [
+        { productId: 'p1', productName: 'Seznik POS Terminal Machine', quantity: 1, sellingPrice: 25000.00, discount: 0, taxRate: 18, taxAmount: 4500.00, total: 29500.00 },
+        { productId: 'p2', productName: 'Thermal Paper Roll 80mm (Pack of 10)', quantity: 5, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 405.00, total: 2655.00 },
+      ],
+      subtotal: 27250.00,
+      totalDiscount: 0,
+      totalTax: 4905.00,
+      grandTotal: 32155.00,
+      paymentMethod: 'cash',
+      amountPaid: 32155.00,
+      changeReturned: 0,
+      isQuickBill: false,
+      createdAt: new Date().toISOString(),
     }
-
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
+    const invoiceHTML = generateReceiptHTML({
+      sale: testInvoiceSale,
+      receiptConfig: effectiveReceiptConfig,
+      businessName: settings?.businessName,
+      businessAddress: settings?.businessAddress,
+      customerName: 'Sample Corporate Client',
+      width: '210mm',
+      logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
+      settingsTaxName: 'GST',
+      invoiceConfig: settings?.invoiceConfig,
+    })
+    printReceipt(invoiceHTML, '210mm', 'Test Invoice')
   }
 
   if (isLoading) {
@@ -529,7 +593,7 @@ export const PrintersPage = () => {
   }
 
   return (
-    <div className="space-y-5 pb-12 w-full max-w-full overflow-hidden">
+    <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Top Header & Quick Actions */}
       <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3">
@@ -629,10 +693,13 @@ export const PrintersPage = () => {
         </div>
       </div>
 
+      <GstPrintDisplaySection className="mb-2" />
+
       {/* Main Tabs Navigation Header */}
       <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
         {([
           { key: 'receipt', label: 'Receipt', icon: FileText },
+          { key: 'receiptBuilder', label: 'Receipt Builder', icon: Sparkles },
           { key: 'label', label: 'Labels', icon: Tag },
           { key: 'invoice', label: 'A4 Invoice', icon: Layers },
         ] as const).map(t => (
@@ -653,8 +720,21 @@ export const PrintersPage = () => {
 
       {/* Tab 1: Thermal Receipt Settings & Live Preview */}
       {activeTab === 'receipt' && (
-        <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+        <div className="space-y-4 w-full min-w-0">
+        <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
           <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-indigo-950 dark:text-indigo-100">Receipt layout lives in Receipt Builder</p>
+                <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300 mt-1 leading-relaxed">
+                  Blocks, logo, tax rows, QR, and paper width are edited in Receipt Builder. This tab is for the printer and the store details that appear on the bill.
+                </p>
+              </div>
+              <Button type="button" size="sm" onClick={() => setActiveTab('receiptBuilder')} className="shrink-0">
+                Open Receipt Builder
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
@@ -703,11 +783,11 @@ export const PrintersPage = () => {
             <div className="pt-1">
               <div className="flex items-center justify-between mb-2">
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Invoice & Receipt Details
+                  Store details printed on the bill
                   <FieldInfo textKey="tip.printer.receiptDetails" />
                 </label>
                 <span className="text-[10px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                  Synced with Settings → Invoice
+                  Used in Receipt Builder blocks
                 </span>
               </div>
               <div className="space-y-3">
@@ -774,118 +854,69 @@ export const PrintersPage = () => {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.showLogo} onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))} label="Store logo" info={<FieldInfo textKey="tip.printer.showLogo" />} />
-              <Switch checked={config.showGSTIN} onChange={v => setConfig(prev => ({ ...prev, showGSTIN: v }))} label="GSTIN / Tax number" info={<FieldInfo textKey="tip.printer.showGSTIN" />} />
-              <Switch checked={config.showCustomerDetails} onChange={v => setConfig(prev => ({ ...prev, showCustomerDetails: v }))} label="Customer details" info={<FieldInfo textKey="tip.printer.showCustomerDetails" />} />
-              <Switch checked={config.showBarcode} onChange={v => setConfig(prev => ({ ...prev, showBarcode: v }))} label="Invoice barcode" info={<FieldInfo textKey="tip.printer.showBarcode" />} />
-              <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
-              <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
-              <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
+            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <ImageIcon size={16} />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Store logo</span>
+                  <p className="text-[11px] text-gray-500">Used by logo/image blocks in Receipt Builder</p>
+                </div>
+              </div>
+              <ImageUpload
+                label="Store Logo Image (PNG / JPG / WebP)"
+                value={receiptConfig.logoURL || settings?.businessLogoURL || ''}
+                onChange={(url) => setReceiptConfig(prev => ({ ...prev, logoURL: url, showLogo: true }))}
+                previewSize="md"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+              />
+            </div>
+
+            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <QrCode size={16} />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-gray-900 dark:text-gray-100">UPI / payment QR</span>
+                  <p className="text-[11px] text-gray-500">Used by QR blocks in Receipt Builder</p>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={receiptConfig.upiId || ''}
+                onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                placeholder="yourname@okhdfcbank"
+              />
+              <ImageUpload
+                label="Or upload a static payment QR image"
+                value={receiptConfig.paymentQrURL || ''}
+                onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
+                previewSize="md"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+              />
             </div>
           </div>
 
-          {/* Live Preview Panel */}
-          <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
-            <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview — {config.paperSize}</span>
-            <div
-              className={`bg-white text-gray-900 p-6 rounded-t-xl shadow-2xl border-t-8 border-blue-600 font-mono text-xs transition-all duration-300 ${
-                config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'
-              }`}
-              style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
-            >
-              <div className="text-center space-y-1 pb-3 border-b border-dashed border-gray-400">
-                {config.showLogo && (
-                  <div className="w-10 h-10 bg-indigo-950 text-white rounded-lg flex items-center justify-center font-extrabold mx-auto mb-1">
-                    S
-                  </div>
-                )}
-                <h4 className="font-extrabold text-sm uppercase tracking-tight text-slate-900">
-                  {receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE'}
-                </h4>
-                {receiptConfig.address && <p className="text-[10px] text-gray-600">{receiptConfig.address}</p>}
-                {config.showGSTIN && (
-                  <p className="text-[10px] font-semibold text-gray-700">
-                    GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}
-                  </p>
-                )}
-              </div>
-
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-0.5 text-[10px]">
-                <div className="flex justify-between">
-                  <span>Inv: #INV-2026-9042</span>
-                  <span>{new Date().toLocaleDateString()}</span>
-                </div>
-                {config.showCustomerDetails && (
-                  <div className="flex justify-between text-gray-600">
-                    <span>Cust: Rahul Sharma</span>
-                    <span>Ph: +91 98765 43210</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="py-3 border-b border-dashed border-gray-400">
-                <div className="flex justify-between font-bold pb-1 text-[11px]">
-                  <span>Item</span>
-                  <div className="space-x-3">
-                    <span>Qty</span>
-                    <span>Amt</span>
-                  </div>
-                </div>
-                <div className="space-y-1 text-[10px]">
-                  <div className="flex justify-between">
-                    <span className="truncate max-w-[110px]">Wireless Keyboard</span>
-                    <div className="space-x-3">
-                      <span>1</span>
-                      <span>₹1,499</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="truncate max-w-[110px]">Optical Mouse Pro</span>
-                    <div className="space-x-3">
-                      <span>2</span>
-                      <span>₹1,200</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="py-2 border-b border-dashed border-gray-400 space-y-1 text-[11px]">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>₹2,699.00</span>
-                </div>
-                <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>GST (18%)</span>
-                  <span>₹485.82</span>
-                </div>
-                <div className="flex justify-between font-extrabold text-sm pt-1 border-t border-gray-300">
-                  <span>GRAND TOTAL</span>
-                  <span>₹3,184.82</span>
-                </div>
-              </div>
-
-              <div className="pt-3 text-center space-y-2">
-                <p className="text-[10px] text-gray-600 italic">{receiptConfig.footerMessage}</p>
-                {config.showBarcode && (
-                  <div className="pt-1">
-                    <div className="font-extrabold tracking-widest text-sm text-gray-800">||||| | |||| |||| |||||</div>
-                    <span className="text-[9px] font-mono text-gray-500">INV-2026-9042</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div
-              className={`h-3 bg-white dark:bg-gray-800 ${config.paperSize === '58mm' ? 'w-[240px]' : 'w-[300px]'}`}
-              style={{ backgroundImage: 'radial-gradient(circle, transparent, transparent 50%, #f1f5f9 50%, #f1f5f9 100%)', backgroundSize: '12px 12px' }}
+          <div className="w-full lg:w-5/12 lg:sticky lg:top-6">
+            <ReceiptLivePreviewPanel
+              template={previewTemplate}
+              context={receiptPreviewContext}
             />
-            {config.cutPaper && (
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-2">
-                <Scissors size={12} /> Auto paper cutter enabled
-              </div>
-            )}
           </div>
         </div>
+        </div>
+      )}
+
+      {activeTab === 'receiptBuilder' && (
+        <ReceiptBuilderTab
+          ref={receiptBuilderRef}
+          connectionType={config.connectionType}
+          bleConnected={bleState.status === 'connected'}
+          receiptConfigOverride={receiptConfig}
+        />
       )}
 
       {/* Tab 2: Label Designer */}
@@ -1234,11 +1265,11 @@ export const PrintersPage = () => {
             </div>
 
             {/* Live Preview */}
-            <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+            <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
               <span className="text-xs font-semibold text-gray-400 mb-3">
                 Live Preview — {config.labelWidth}mm × {config.labelHeight}mm
               </span>
-              <div className="p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px]">
+              <div className="p-6 sm:p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px] max-w-full overflow-hidden relative">
                 <div
                   className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
                   style={{
@@ -1362,9 +1393,9 @@ export const PrintersPage = () => {
             </div>
           </div>
 
-          <div className="w-full lg:w-5/12 flex flex-col items-center sticky top-6">
+          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
             <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview</span>
-            <div className="w-[320px] bg-white text-gray-900 p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between">
+            <div className="w-full max-w-[320px] bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
               <div>
                 <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
                   <div>

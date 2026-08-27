@@ -29,6 +29,7 @@ export interface InvoiceConfig {
 }
 
 export interface ReceiptConfig {
+  headerTitle?: string
   companyName: string
   address: string
   phone: string
@@ -38,6 +39,29 @@ export interface ReceiptConfig {
   termsLine1: string
   termsLine2: string
   termsLine3: string
+  compactMode?: boolean
+  showLogo?: boolean
+  showCompanyHeader?: boolean
+  showAddress?: boolean
+  showPhone?: boolean
+  showGSTIN?: boolean
+  showCustomerDetails?: boolean
+  showInvoiceNoAndDate?: boolean
+  showTaxBreakdown?: boolean
+  showSubtotalDiscount?: boolean
+  showFooterMessage?: boolean
+  showTerms?: boolean
+  showBarcode?: boolean
+  showPaymentQR?: boolean
+  paymentQrURL?: string
+  upiId?: string
+  /** Custom receipt builder — synced web + mobile */
+  customTemplates?: import('./customReceipt').CustomReceiptTemplate[]
+  activeCustomTemplateId?: string | null
+  templateId?: string
+  enableBillQrCode?: boolean
+  receiptConfigUpdatedAt?: string
+  deletedTemplateIds?: string[]
 }
 
 export interface PersonalInfo {
@@ -56,6 +80,7 @@ export type LabelElementType =
   | 'sideBySideBarcodeQr'
   | 'sku'
   | 'category'
+  | 'sequenceNo'
   | 'custom'
   | 'divider'
 
@@ -77,9 +102,6 @@ export interface PrinterConfig {
   // uses the browser print dialog. (USB/network-IP were never implemented —
   // selecting them silently did nothing, which is why they were removed.)
   connectionType: 'bluetooth' | 'system_driver'
-  autoPrintOnSale: boolean
-  openCashDrawer: boolean
-  cutPaper: boolean
 
   // Thermal Receipt Format — company name/address/phone/GSTIN/footer/terms
   // live on Settings.receiptConfig (the same object the real print pipeline
@@ -120,6 +142,30 @@ export interface PrinterConfig {
   invoiceShowTerms: boolean
   invoiceTermsText: string
   invoiceShowPaymentQR: boolean
+  paymentQrURL?: string
+  upiId?: string
+}
+
+// Multi-location inventory feature flag. Purely opt-in — when `enabled` is
+// false/undefined, no location selector renders anywhere and stock/price
+// behave exactly as a single-location install always has.
+export interface LocationConfig {
+  enabled?: boolean
+}
+
+export type KotRoomType = 'none' | 'ac' | 'non_ac'
+
+export interface KotConfig {
+  defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
+  taxRate?: number
+  applyTaxOverride?: boolean
+  serviceChargeType?: 'percent' | 'flat'
+  serviceChargeValue?: number
+  acCharge?: number
+  nonAcCharge?: number
+  defaultRoomType?: KotRoomType
+  kotSlipTitle?: string
+  showWaiterOnSlip?: boolean
 }
 
 export interface UserSettings {
@@ -134,4 +180,7 @@ export interface UserSettings {
   notificationConfig: NotificationConfig
   receiptConfig: ReceiptConfig
   printerConfig?: PrinterConfig
+  locationConfig?: LocationConfig
+  kotConfig?: KotConfig
+  upiId?: string
 }

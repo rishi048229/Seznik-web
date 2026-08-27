@@ -468,6 +468,38 @@ export default defineConfig(({ mode }) => {
               }
             }
 
+            // 9. GET /api/admin/feedback
+            if (pathname === '/api/admin/feedback') {
+              try {
+                const analyticsPath = resolve(process.cwd(), 'analyticsShared.js');
+                const mtime = statSync(analyticsPath).mtimeMs;
+                const analytics = await import(`${pathToFileURL(analyticsPath).href}?mtime=${mtime}`);
+                const queryParams = Object.fromEntries(parsedUrl.searchParams.entries());
+                const { countSql, dataSql, params, page, limit } = analytics.buildFeedbackQuery(queryParams);
+                const countParams = params.slice(0, params.length - 2);
+                const [countRes, dataRes] = await Promise.all([
+                  pool.query(countSql, countParams),
+                  pool.query(dataSql, params),
+                ]);
+                const total = countRes.rows[0]?.total || 0;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  items: analytics.mapFeedbackRows(dataRes.rows),
+                  page,
+                  limit,
+                  total,
+                  totalPages: Math.max(1, Math.ceil(total / limit)),
+                }));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/feedback:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch feedback from database' }));
+                return;
+              }
+            }
+
             next();
           });
         },

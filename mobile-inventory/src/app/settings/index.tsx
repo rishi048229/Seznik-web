@@ -27,7 +27,6 @@ import {
   Shield,
   Globe,
   Printer,
-  Percent,
   ChevronRight,
   Check,
   ImageIcon,
@@ -53,15 +52,6 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
-import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
-import {
-  BillChargePreset,
-  DEFAULT_RESTAURANT_PRESETS,
-  createPresetId,
-  parseRestaurantBilling,
-  toRestaurantBillingPayload,
-} from '@/constants/restaurantBilling';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 
 const SUPPORT_PHONE = '+918237869618';
@@ -72,19 +62,10 @@ export default function SettingsScreen() {
   const { user, updateBusinessType, isUpdatingBusinessType } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
   const { settings, isError: isSettingsError, isRefetching: isSettingsRefetching, refetch: refetchSettings } = useSettings();
-  const {
-    form: gstForm,
-    setShowBreakdown: setGstShowBreakdown,
-    setStyle: setGstStyle,
-    setPrintOnReceipt: setGstPrintOnReceipt,
-    setItemWiseGst: setGstItemWise,
-    saveGstBilling,
-    isSaving: isSavingGstBilling,
-  } = useGstBillingSettings();
   const queryClient = useQueryClient();
 
   const [activeSection, setActiveSection] = useState<
-    'menu' | 'profile' | 'invoice' | 'permissions' | 'language' | 'notifications' | 'support'
+    'menu' | 'profile' | 'permissions' | 'language' | 'notifications' | 'support'
   >('menu');
 
   // Business Profile Form State — seeded from the real backend Settings once loaded, not hardcoded.
@@ -95,7 +76,6 @@ export default function SettingsScreen() {
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [upiId, setUpiId] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [chargePresets, setChargePresets] = useState<BillChargePreset[]>(DEFAULT_RESTAURANT_PRESETS);
   const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>('retail_shop');
 
   // Seed the form once real Settings arrive from the backend — done as a conditional setState
@@ -110,8 +90,6 @@ export default function SettingsScreen() {
     setStoreAddress(settings.businessAddress || '');
     setLogoUri(settings.businessLogoURL || null);
     setUpiId(settings.upiId || '');
-    const restaurant = parseRestaurantBilling(settings.invoiceConfig);
-    setChargePresets(restaurant.presets);
     setHasSeededProfile(true);
   }
   if (user && !hasSeededBusinessType) {
@@ -154,27 +132,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleSaveGstBilling = async () => {
-    try {
-      await saveGstBilling({
-        extraInvoiceConfig: {
-          restaurantBilling: toRestaurantBillingPayload({ presets: chargePresets }),
-        },
-        onSuccess: () => {
-          Alert.alert('GST Billing Saved', 'Customer bills will use this GST breakdown from the next sale.');
-          setActiveSection('menu');
-        },
-      });
-    } catch (e: any) {
-      Alert.alert('Could Not Save', e?.message || 'Please check your connection and try again.');
-    }
-  };
-
   const handleSaveSettings = async () => {
-    if (activeSection === 'invoice') {
-      await handleSaveGstBilling();
-      return;
-    }
     if (activeSection !== 'profile') {
       Alert.alert('Settings Saved!', 'Your store configuration has been updated.');
       setActiveSection('menu');
@@ -271,8 +229,6 @@ export default function SettingsScreen() {
             ? t('settings', 'Store Configuration')
             : activeSection === 'profile'
             ? 'Business Profile'
-            : activeSection === 'invoice'
-            ? 'Tax & Billing'
             : activeSection === 'permissions'
             ? 'Staff Permissions'
             : activeSection === 'support'
@@ -313,7 +269,6 @@ export default function SettingsScreen() {
               <View style={styles.menuGrid}>
               {[
                 { id: 'profile', icon: Building, label: 'Business Profile', color: BRAND_COLORS.blue600 },
-                { id: 'invoice', icon: Percent, label: 'Tax & Billing', color: '#0F766E' },
                 { id: 'permissions', icon: Users, label: 'Staff Permissions', color: '#F59E0B' },
                 { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
                 { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
@@ -391,151 +346,6 @@ export default function SettingsScreen() {
                   <Text style={[styles.menuSub, { color: theme.textSecondary }]}>{t('rateApp', 'Rate the app & leave feedback')}</Text>
                 </View>
                 <ChevronRight size={18} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          ) : activeSection === 'invoice' ? (
-            <View>
-              <GstBillingSettingsPanel
-                theme={theme}
-                showBreakdown={gstForm.showBreakdown}
-                style={gstForm.style}
-                printOnReceipt={gstForm.printOnReceipt}
-                itemWiseGst={gstForm.itemWiseGst}
-                onShowBreakdownChange={setGstShowBreakdown}
-                onStyleChange={setGstStyle}
-                onPrintOnReceiptChange={setGstPrintOnReceipt}
-                onItemWiseGstChange={setGstItemWise}
-                showSaveButton={false}
-              />
-
-              <Text style={[styles.sectionHeader, { color: theme.textSecondary, marginTop: 18 }]}>
-                    BILL CHARGES
-                  </Text>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10, lineHeight: 16 }}>
-                    Configure service charge, packing, delivery, or other add-ons. Cashiers toggle these presets at checkout.
-                  </Text>
-
-                  {chargePresets.map((preset, index) => (
-                    <View
-                      key={preset.id}
-                      style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 8, flexDirection: 'column', alignItems: 'stretch' }]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                        <TextInput
-                          style={[styles.chargePresetInput, { flex: 1, color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                          value={preset.label}
-                          onChangeText={(text) => {
-                            setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, label: text } : p)));
-                          }}
-                          placeholder="Charge label"
-                          placeholderTextColor="#94A3B8"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setChargePresets((prev) => prev.filter((_, i) => i !== index))}
-                          style={{ marginLeft: 8, padding: 8 }}
-                        >
-                          <Trash2 size={16} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, type: 'percent' } : p)))}
-                          style={[styles.chargeTypeBtn, preset.type === 'percent' && { backgroundColor: BRAND_COLORS.blue600 }]}
-                        >
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: preset.type === 'percent' ? '#FFF' : theme.textSecondary }}>%</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, type: 'flat' } : p)))}
-                          style={[styles.chargeTypeBtn, preset.type === 'flat' && { backgroundColor: BRAND_COLORS.blue600 }]}
-                        >
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: preset.type === 'flat' ? '#FFF' : theme.textSecondary }}>₹</Text>
-                        </TouchableOpacity>
-                        <TextInput
-                          style={[styles.chargePresetInput, { flex: 1, color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                          value={String(preset.value)}
-                          onChangeText={(text) => {
-                            setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, value: Math.max(0, parseFloat(text) || 0) } : p)));
-                          }}
-                          keyboardType="numeric"
-                          placeholder={preset.type === 'percent' ? '10' : '50'}
-                          placeholderTextColor="#94A3B8"
-                        />
-                      </View>
-
-                      {preset.type === 'percent' ? (
-                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                          <TouchableOpacity
-                            onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, applyOn: 'net_subtotal' } : p)))}
-                            style={[styles.chargeTypeBtn, { flex: 1 }, preset.applyOn !== 'gross' && { backgroundColor: BRAND_COLORS.blue600 }]}
-                          >
-                            <Text style={{ fontSize: 10, fontWeight: '800', color: preset.applyOn !== 'gross' ? '#FFF' : theme.textSecondary, textAlign: 'center' }}>
-                              On net (after discount)
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, applyOn: 'gross' } : p)))}
-                            style={[styles.chargeTypeBtn, { flex: 1 }, preset.applyOn === 'gross' && { backgroundColor: BRAND_COLORS.blue600 }]}
-                          >
-                            <Text style={{ fontSize: 10, fontWeight: '800', color: preset.applyOn === 'gross' ? '#FFF' : theme.textSecondary, textAlign: 'center' }}>
-                              On gross (before discount)
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : null}
-
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 11, color: theme.textSecondary, marginRight: 8 }}>Show at checkout</Text>
-                          <Switch
-                            value={preset.enabled}
-                            onValueChange={(val) => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, enabled: val } : p)))}
-                            trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
-                          />
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 11, color: theme.textSecondary, marginRight: 8 }}>Default on</Text>
-                          <Switch
-                            value={preset.defaultSelected}
-                            onValueChange={(val) => setChargePresets((prev) => prev.map((p, i) => (i === index ? { ...p, defaultSelected: val } : p)))}
-                            trackColor={{ false: '#64748B', true: '#7C3AED' }}
-                          />
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-
-                  <TouchableOpacity
-                    onPress={() =>
-                      setChargePresets((prev) => [
-                        ...prev,
-                        {
-                          id: createPresetId(),
-                          label: 'New Charge',
-                          kind: 'other',
-                          type: 'percent',
-                          value: 5,
-                          enabled: true,
-                          defaultSelected: false,
-                          applyOn: 'net_subtotal',
-                        },
-                      ])
-                    }
-                    style={[styles.chargeAddBtn, { borderColor: theme.borderColor }]}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: BRAND_COLORS.blue600 }}>+ Add Charge Preset</Text>
-                  </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleSaveGstBilling}
-                disabled={isSavingGstBilling}
-                style={[styles.saveBtn, isSavingGstBilling && { opacity: 0.6 }]}
-              >
-                {isSavingGstBilling ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.saveBtnText}>Save GST Billing</Text>
-                )}
               </TouchableOpacity>
             </View>
           ) : activeSection === 'profile' ? (
@@ -822,7 +632,4 @@ const styles = StyleSheet.create({
   },
   businessTypeEmoji: { fontSize: 20, marginRight: 10 },
   businessTypeLabel: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
-  chargePresetInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13 },
-  chargeTypeBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(100,116,139,0.15)' },
-  chargeAddBtn: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 8 },
 });

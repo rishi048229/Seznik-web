@@ -6,6 +6,7 @@ import { generateToken } from '../utils/jwt';
 import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
 import { isValidBusinessType } from '../constants/businessTypes';
+import { isValidUpiVpa } from '../utils/upiVpa';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 request per email per minute
@@ -41,6 +42,7 @@ const serializeOwnerAuthUser = (user: {
   id: string;
   email?: string | null;
   displayName?: string | null;
+  phone?: string | null;
   businessName?: string | null;
   businessType?: string | null;
   role?: string | null;
@@ -49,6 +51,7 @@ const serializeOwnerAuthUser = (user: {
   id: user.id,
   email: user.email,
   displayName: user.displayName,
+  phone: user.phone ?? null,
   businessName: user.businessName,
   businessType: user.businessType ?? null,
   role: user.role || 'admin',
@@ -493,8 +496,43 @@ export const getProfile = async (req: Request, res: Response) => {
 export const setRole = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { role, password } = req.body;
+    const { role, password, agentUid } = req.body;
 
+    // 1. If switching to a specific agent account from access selection
+    if (role === 'agent' && agentUid) {
+      const managedUser = await prisma.managedUser.findFirst({
+        where: { uid: agentUid, adminId: userId },
+      });
+
+      if (!managedUser) {
+        return res.status(404).json({ error: 'Selected agent account not found' });
+      }
+
+      if (password) {
+        const isMatch = await bcrypt.compare(password, managedUser.password || '');
+        if (!isMatch) {
+          return res.status(400).json({ error: 'Invalid password for selected agent' });
+        }
+      }
+
+      // Generate new token for the managed user
+      const token = generateToken(managedUser.id, managedUser.role || 'agent');
+      return res.json({
+        user: {
+          id: managedUser.id,
+          uid: managedUser.uid,
+          email: managedUser.email,
+          displayName: managedUser.displayName,
+          role: managedUser.role || 'agent',
+          permissions: managedUser.permissions,
+          accountType: 'managed',
+          onboardingCompleted: true,
+        },
+        token,
+      });
+    }
+
+    // 2. Regular user role confirmation (Admin or Direct user)
     let user = await prisma.user.findUnique({ where: { id: userId } });
     if (user) {
       if (password) {
@@ -508,7 +546,7 @@ export const setRole = async (req: Request, res: Response) => {
         data: { role: role || user.role || 'admin' },
       });
       const { password: _, ...userWithoutPassword } = updatedUser;
-      return res.json(userWithoutPassword);
+      return res.json({ user: userWithoutPassword });
     }
 
     let managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
@@ -527,7 +565,7 @@ export const setRole = async (req: Request, res: Response) => {
         data: { role: role || managedUser.role || 'agent' },
       });
       const { password: _, ...userWithoutPassword } = updatedManaged;
-      return res.json(userWithoutPassword);
+      return res.json({ user: userWithoutPassword });
     }
 
     return res.status(404).json({ error: 'User not found' });
@@ -537,10 +575,45 @@ export const setRole = async (req: Request, res: Response) => {
   }
 };
 
+export const updateManagedUserPassword = async (req: Request, res: Response) => {
+  try {
+    const adminId = (req as any).user.id;
+    const { uid, newPassword } = req.body;
+
+    if (!uid || !newPassword) {
+      return res.status(400).json({ error: 'Agent ID and new password are required' });
+    }
+
+    const managed = await prisma.managedUser.findFirst({
+      where: { uid, adminId },
+    });
+
+    if (!managed) {
+      return res.status(404).json({ error: 'Agent account not found' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, await bcrypt.genSalt(10));
+    await prisma.managedUser.update({
+      where: { id: managed.id },
+      data: { password: hashedPassword },
+    });
+
+    res.json({ message: 'Agent password updated successfully' });
+  } catch (error) {
+    console.error('updateManagedUserPassword error:', error);
+    res.status(500).json({ error: 'Failed to update agent password' });
+  }
+};
+
 export const completeOnboarding = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const businessName = String(req.body.businessName || '').trim();
+    const businessAddress = String(req.body.businessAddress || '').trim();
+    const phone = String(req.body.phone || '').trim();
+    const businessLogoURL =
+      typeof req.body.businessLogoURL === 'string' ? String(req.body.businessLogoURL).trim() : '';
+    const upiId = String(req.body.upiId || '').trim();
     const { businessType } = req.body;
 
     if (!businessName) {
@@ -549,10 +622,54 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     if (!isValidBusinessType(businessType)) {
       return res.status(400).json({ error: 'A valid business type is required' });
     }
+    if (!phone || !PHONE_RE.test(phone)) {
+      return res.status(400).json({ error: 'A valid phone number is required' });
+    }
+    if (!businessAddress) {
+      return res.status(400).json({ error: 'Shop address is required' });
+    }
+    if (!isValidUpiVpa(upiId)) {
+      return res.status(400).json({ error: 'A valid UPI ID is required (e.g. shopname@okhdfcbank)' });
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { businessName, businessType, onboardingCompleted: true },
+      data: { businessName, businessType, phone, onboardingCompleted: true },
+    });
+
+    const currentSettings = await prisma.settings.findUnique({ where: { userId } });
+    const existingReceipt =
+      currentSettings?.receiptConfig &&
+      typeof currentSettings.receiptConfig === 'object' &&
+      !Array.isArray(currentSettings.receiptConfig)
+        ? (currentSettings.receiptConfig as Record<string, unknown>)
+        : {};
+    const receiptConfig = {
+      ...existingReceipt,
+      upiId,
+      showPaymentQR: true,
+      receiptConfigUpdatedAt: new Date().toISOString(),
+    };
+
+    await prisma.settings.upsert({
+      where: { userId },
+      update: {
+        businessName,
+        businessAddress,
+        businessPhone: phone,
+        upiId,
+        receiptConfig,
+        ...(businessLogoURL ? { businessLogoURL } : {}),
+      },
+      create: {
+        userId,
+        businessName,
+        businessAddress,
+        businessPhone: phone,
+        upiId,
+        receiptConfig,
+        ...(businessLogoURL ? { businessLogoURL } : {}),
+      },
     });
 
     const { password, ...userWithoutPassword } = user;
@@ -561,7 +678,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
       accountType: 'user',
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('completeOnboarding error:', error);
+    const message =
+      process.env.NODE_ENV !== 'production' && error instanceof Error
+        ? error.message
+        : 'Server error';
+    res.status(500).json({ error: message });
   }
 };
 

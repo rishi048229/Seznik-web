@@ -8,6 +8,7 @@ import type {
   InvoiceRecord,
   AdminProduct,
   HealthCheckResult,
+  FeedbackListResponse,
 } from '../types/admin';
 
 function isLocalDev(): boolean {
@@ -230,4 +231,21 @@ export async function fetchAdminHealth(): Promise<HealthCheckResult> {
 
 export async function fetchBackendHealth(): Promise<HealthCheckResult> {
   return fetchHealthEndpoint(getBackendHealthUrl());
+}
+
+export async function fetchFeedbackRecords(params: {
+  page?: number;
+  limit?: number;
+  platform?: string;
+  productId?: string;
+  search?: string;
+} = {}): Promise<FeedbackListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.page) searchParams.set('page', String(params.page));
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  if (params.platform && params.platform !== 'all') searchParams.set('platform', params.platform);
+  if (params.productId) searchParams.set('productId', params.productId);
+  if (params.search) searchParams.set('search', params.search);
+  const qs = searchParams.toString();
+  return fetchAdminEndpoint<FeedbackListResponse>(`/feedback${qs ? `?${qs}` : ''}`);
 }

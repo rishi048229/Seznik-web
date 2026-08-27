@@ -931,4 +931,159 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
   }
 };
 
+export const getExpiringProducts = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const days = Number(req.query.days) || 30;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+
+    const products = await prisma.product.findMany({
+      where: {
+        userId,
+        isActive: true,
+        expiryDate: { not: null, lte: cutoff },
+      },
+      orderBy: { expiryDate: 'asc' },
+    });
+
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch expiring products' });
+  }
+};
+
+/**
+ * A Gemini model this API key can actually call right now, with the real
+ * output-token ceiling Google reports for it.
+ */
+interface UsableModel {
+  name: string;
+  outputTokenLimit: number;
+}
+
+const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const modelDiscoveryCache = new Map<string, { models: UsableModel[]; fetchedAt: number }>();
+
+/** Ceiling on a single Gemini call so one hung request can't stall the upload. */
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+
+/**
+ * Ranks models so we try the best general-purpose document-reading model first.
+ *
+ * Google's `-latest` aliases win outright: they track whatever the current GA
+ * model is, so they keep working across model retirements without anyone
+ * touching this file. Pinned versions follow as concrete fallbacks, newest
+ * first, with previews well below GA and lite variants below full ones.
+ */
+const scoreModel = (name: string): number => {
+  let score = 0;
+
+  if (/-latest$/.test(name)) {
+    score += 1000;
+  } else {
+    const version = name.match(/gemini-(\d+)(?:\.(\d+))?/);
+    if (version) {
+      score += Number(version[1]) * 100 + Number(version[2] ?? 0) * 10;
+    }
+  }
+
+  if (name.includes('flash')) score += 50;
+  else if (name.includes('pro')) score += 30;
+
+  if (name.includes('lite')) score -= 60;                    // weakest at messy handwriting
+  if (/preview|exp|experimental/.test(name)) score -= 200;   // never prefer preview over GA
+  if (/thinking/.test(name)) score -= 10;
+  if (/-\d{3,}$/.test(name)) score -= 5;                     // dated snapshot pins
+  return score;
+};
+
+/**
+ * Asks Google which models this key can use instead of hardcoding names.
+ *
+ * Hardcoded lists rot: Google retires models (the 1.5 family is gone for new
+ * projects) and different keys/tiers see different catalogues, so a fixed list
+ * eventually 404s for everyone. Discovering at runtime — and reading each
+ * model's own outputTokenLimit rather than assuming one — keeps this working
+ * as the catalogue changes underneath us. Cached for an hour per key.
+ */
+const discoverUsableModels = async (apiKey: string): Promise<UsableModel[]> => {
+  const cached = modelDiscoveryCache.get(apiKey);
+  if (cached && Date.now() - cached.fetchedAt < MODEL_CACHE_TTL_MS) {
+    return cached.models;
+  }
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
+    );
+    if (!res.ok) {
+      console.warn(`Gemini ListModels failed (${res.status}):`, (await res.text()).slice(0, 300));
+      return [];
+    }
+
+    const data: any = await res.json();
+    const models: UsableModel[] = (data?.models ?? [])
+      .filter((m: any) => Array.isArray(m?.supportedGenerationMethods)
+        && m.supportedGenerationMethods.includes('generateContent'))
+      .map((m: any) => ({
+        name: String(m.name || '').replace(/^models\//, ''),
+        outputTokenLimit: Number(m.outputTokenLimit) || 8192,
+      }))
+      .filter((m: UsableModel) => m.name.startsWith('gemini-'))
+      // Drop everything that isn't a general-purpose text/vision model.
+      // The `-image` variants matter most here: they GENERATE images rather
+      // than read them, so they rank deceptively well on name alone while
+      // being completely wrong for OCR extraction.
+      .filter((m: UsableModel) => !/embedding|aqa|imagen|veo|tts|audio|live|robotics|computer-use|-image$|-image-/i.test(m.name))
+      .sort((a: UsableModel, b: UsableModel) => scoreModel(b.name) - scoreModel(a.name));
+
+    if (models.length > 0) {
+      modelDiscoveryCache.set(apiKey, { models, fetchedAt: Date.now() });
+    }
+    return models;
+  } catch (err: any) {
+    console.warn('Gemini ListModels request threw:', err?.message || err);
+    return [];
+  }
+};
+
+/**
+ * Last-resort candidates if model discovery itself is unreachable.
+ * Only evergreen aliases — a pinned version here would be the exact kind of
+ * stale name that broke this feature in the first place.
+ */
+const FALLBACK_MODELS: UsableModel[] = [
+  { name: 'gemini-flash-latest', outputTokenLimit: 65536 },
+  { name: 'gemini-pro-latest', outputTokenLimit: 65536 },
+];
+
+
+export const checkAiStatus = async (_req: Request, res: Response) => {
+  const rawKeyString = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+  const apiKeys = rawKeyString
+    .split(/[,;\n]/)
+    .map(k => k.replace(/["'\r]/g, '').trim())
+    .filter(k => k.length >= 10);
+
+  const isConfigured = apiKeys.length > 0;
+  const maskedKey = isConfigured
+    ? `${apiKeys[0].slice(0, 6)}...${apiKeys[0].slice(-4)} (length: ${apiKeys[0].length})`
+    : 'NOT_FOUND';
+
+  // Report what the key can really reach, so a bad key or a retired model
+  // shows up here instead of only failing mid-upload.
+  const available = isConfigured ? await discoverUsableModels(apiKeys[0]) : [];
+
+  res.json({
+    status: !isConfigured ? 'missing_api_key' : available.length > 0 ? 'ready' : 'no_models_available',
+    geminiConfigured: isConfigured,
+    keyCount: apiKeys.length,
+    keyMasked: maskedKey,
+    modelsAvailable: available.slice(0, 12).map(m => ({ model: m.name, maxOutputTokens: m.outputTokenLimit })),
+    modelsWillTry: (available.length > 0 ? available : FALLBACK_MODELS).slice(0, 4).map(m => m.name),
+    usingFallbackList: isConfigured && available.length === 0,
+    timestamp: new Date().toISOString()
+  });
+};
 

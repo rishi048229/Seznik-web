@@ -10,6 +10,7 @@ export const useSettings = () => {
     queryKey: [QUERY_KEYS.SETTINGS, uid],
     queryFn: () => settingsService.getSettings(uid || ''),
     enabled: !!user,
+    refetchOnWindowFocus: true,
   })
 }
 

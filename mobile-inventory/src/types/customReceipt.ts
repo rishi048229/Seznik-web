@@ -148,17 +148,19 @@ export const TEMPLATE_VARIABLES = [
 
 export const createDefaultReceiptTemplate = (name = 'Shop Custom Receipt'): CustomReceiptTemplate => {
   const now = new Date().toISOString();
+  const ts = Date.now();
   return {
-    id: `receipt-tpl-${Date.now()}`,
+    id: `receipt-tpl-${ts}`,
     name,
     description: 'Custom editable thermal receipt layout',
     paperWidth: '58mm',
-    isDefault: false,
+    isDefault: true,
     createdAt: now,
     updatedAt: now,
     entries: [
+      { id: `entry-0-${ts}`, type: 'image', enabled: true, align: 'center', widthPercent: 60 },
       {
-        id: `entry-1-${Date.now()}`,
+        id: `entry-1-${ts}`,
         type: 'text',
         enabled: true,
         text: '{{store_name}}',
@@ -167,10 +169,10 @@ export const createDefaultReceiptTemplate = (name = 'Shop Custom Receipt'): Cust
         align: 'center',
       },
       {
-        id: `entry-2-${Date.now()}`,
+        id: `entry-2-${ts}`,
         type: 'text',
         enabled: true,
-        text: '{{store_address}}\nPh: {{store_phone}}',
+        text: '{{store_address}}\nPh: {{store_phone}}\nGSTIN: {{store_gstin}}',
         size: 'small',
         align: 'center',
       },

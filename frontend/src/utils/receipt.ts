@@ -1,76 +1,135 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
-import type { ReceiptConfig } from '@/types/settings.types'
-import { EscPosBuilder } from './escpos'
-import { parseGstBilling, type GstBreakdownStyle } from '@/constants/gstBilling'
-import { computeGstBillSummary, gstLinesFromSaleItems, type GstBillSummary } from '@/utils/gst'
+import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
+import { EscPosBuilder, rasterizeImageForEscPos } from './escpos'
+import { compileReceiptTextLines, getCols } from './receiptEngine'
+import {
+  appendCustomTemplateToEscPos,
+  compileCustomReceiptHtml,
+  compileCustomReceiptTextLines,
+  resolveActiveCustomTemplate,
+  saleToReceiptContext,
+} from './customReceiptEngine'
+import type { CustomReceiptTemplate } from '@/types/customReceipt'
+import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from './upiQr'
+import { resolveStoreLogoUrl, prefetchPrintableLogoSrc, isBrowserLoadableImageSrc, preferPrintableSrc, inlineHtmlImageSources } from './receiptLogo'
+import { ensureTemplateHasLogoBlock } from './ensureReceiptTemplates'
+import { resolveReceiptPrintGst, type GstBreakdownStyle } from '@/constants/gstBilling'
+import { gstSummaryFromCart } from '@/utils/gst'
 
-interface GenerateReceiptHTMLParams {
+function escapeHtmlAttr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+}
+
+function thermalReceiptContainerStyle(paperSize: '58mm' | '80mm', fontSize: string): string {
+  return [
+    "font-family:'Courier New',Courier,monospace",
+    `font-size:${fontSize}`,
+    'font-weight:400',
+    'line-height:1.3',
+    'color:#000',
+    'width:100%',
+    'max-width:100%',
+    'padding:0',
+    'box-sizing:border-box',
+    'text-align:left',
+    'overflow:hidden',
+  ].join(';')
+}
+
+function receiptLogoImgHtml(
+  src: string | undefined,
+  maxHeightPx: number,
+  maxWidthPx: number,
+  align: 'left' | 'center' | 'right' = 'center'
+): string {
+  if (!isBrowserLoadableImageSrc(src)) return ''
+  const escaped = escapeHtmlAttr(src!.trim())
+  const textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center'
+  return `<div style="text-align:${textAlign};margin:0 auto 8px auto;padding-bottom:4px;border-bottom:1px dashed #000;display:block;overflow:visible;"><img src="${escaped}" alt="Store Logo" style="max-height:${maxHeightPx}px;max-width:${maxWidthPx}px;width:auto;height:auto;object-fit:contain;margin:0 auto;display:block;" /></div>`
+}
+
+function withPrintableLogo(
+  receiptConfig: Partial<ReceiptConfig> | null | undefined,
+  printableLogo?: string
+): Partial<ReceiptConfig> | null | undefined {
+  if (!printableLogo) return receiptConfig
+  const next: Partial<ReceiptConfig> = { ...(receiptConfig || {}), logoURL: printableLogo }
+  if (Array.isArray(next.customTemplates)) {
+    next.customTemplates = next.customTemplates.map((t) => ensureTemplateHasLogoBlock(t, printableLogo))
+  }
+  return next
+}
+
+export const resolveEffectiveReceiptConfig = (
+  settings?: Partial<UserSettings> | null,
+  overrides?: Partial<ReceiptConfig> | null
+): ReceiptConfig => {
+  const pConf = settings?.printerConfig
+  const rConf = settings?.receiptConfig
+
+  const merged: ReceiptConfig = {
+    headerTitle: rConf?.headerTitle || 'TAX INVOICE',
+    companyName: rConf?.companyName || settings?.businessName || '',
+    address: rConf?.address || settings?.businessAddress || '',
+    phone: rConf?.phone || settings?.businessPhone || '',
+    gstin: rConf?.gstin || settings?.businessGSTIN || '',
+    logoURL: resolveStoreLogoUrl(rConf, settings?.businessLogoURL) || '',
+    footerMessage: rConf?.footerMessage || 'Thank you for your purchase!',
+    termsLine1: rConf?.termsLine1 || '1. Goods once sold will not be taken back or exchanged',
+    termsLine2: rConf?.termsLine2 || '2. All disputes are subject to local jurisdiction only',
+    termsLine3: rConf?.termsLine3 || '',
+    compactMode: rConf?.compactMode ?? false,
+    showCompanyHeader: rConf?.showCompanyHeader ?? true,
+    showAddress: rConf?.showAddress ?? true,
+    showPhone: rConf?.showPhone ?? true,
+    showGSTIN: rConf?.showGSTIN ?? true,
+    showCustomerDetails: rConf?.showCustomerDetails ?? true,
+    showInvoiceNoAndDate: rConf?.showInvoiceNoAndDate ?? true,
+    showSubtotalDiscount: rConf?.showSubtotalDiscount ?? true,
+    showTaxBreakdown: rConf?.showTaxBreakdown ?? true,
+    showFooterMessage: rConf?.showFooterMessage ?? true,
+    showTerms: rConf?.showTerms ?? true,
+    showBarcode: rConf?.showBarcode ?? true,
+    showLogo: rConf?.showLogo ?? pConf?.showLogo ?? true,
+    showPaymentQR: rConf?.showPaymentQR ?? pConf?.invoiceShowPaymentQR ?? Boolean((rConf?.upiId || settings?.upiId || '').trim()),
+    upiId: rConf?.upiId || settings?.upiId || '',
+    paymentQrURL: rConf?.paymentQrURL || pConf?.paymentQrURL || '',
+    customTemplates: rConf?.customTemplates,
+    activeCustomTemplateId: rConf?.activeCustomTemplateId ?? null,
+    templateId: rConf?.templateId,
+    enableBillQrCode: rConf?.enableBillQrCode,
+  }
+
+  const withOverrides = { ...merged, ...(overrides || {}) }
+  const printGst = resolveReceiptPrintGst(settings?.invoiceConfig, withOverrides)
+  withOverrides.showTaxBreakdown = printGst.showTaxBreakdown
+  return withOverrides
+}
+
+export function getReceiptPrintGstOptions(
+  invoiceConfig: unknown,
+  receiptConfig?: Partial<ReceiptConfig> | null
+) {
+  return resolveReceiptPrintGst(invoiceConfig, receiptConfig)
+}
+
+export interface GenerateReceiptHTMLParams {
   sale: Sale
-  receiptConfig?: ReceiptConfig | null
+  receiptConfig?: Partial<ReceiptConfig> | null
   businessName?: string
   businessAddress?: string
   customerName?: string
   width?: '50mm' | '80mm' | '210mm'
   logoURL?: string
-  settingsTaxRate?: number   // from settings.taxConfig.taxRate
-  settingsTaxName?: string   // from settings.taxConfig.taxName
+  settingsTaxRate?: number
+  settingsTaxName?: string
   invoiceConfig?: unknown
+  templateOverride?: CustomReceiptTemplate
 }
 
-type GstPrintMode = 'unchanged' | 'compact' | GstBreakdownStyle
-
-function resolveGstPrint(sale: Sale, invoiceConfig: unknown) {
-  const config = parseGstBilling(invoiceConfig)
-  const summary = computeGstBillSummary(gstLinesFromSaleItems(sale.items ?? []))
-  if (!config.configured) {
-    return { mode: 'unchanged' as const, itemWiseGst: true, summary }
-  }
-  if (!config.printOnReceipt || config.style === 'compact') {
-    return { mode: 'compact' as const, itemWiseGst: config.itemWiseGst, summary }
-  }
-  return { mode: config.style, itemWiseGst: config.itemWiseGst, summary }
-}
-
-function saleChargeLines(sale: Sale) {
-  return Array.isArray(sale.billCharges) ? sale.billCharges.filter((c) => c.amount > 0) : []
-}
-
-function a4TaxRowsHtml(
-  mode: GstPrintMode,
-  summary: GstBillSummary,
-  totalTax: number,
-  effectiveTaxName: string,
-  effectiveTaxRate: number,
-): string {
-  const row = (label: string, value: string) => `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">${label}</span>
-        <span style="font-size:12px;">${value}</span>
-      </div>`
-  if (mode === 'unchanged') {
-    return totalTax > 0 ? row(`${effectiveTaxName} (${Number(effectiveTaxRate).toFixed(2)}%)`, totalTax.toFixed(2)) : ''
-  }
-  if (mode === 'compact') {
-    const gst = summary.totalGst || totalTax
-    return gst > 0 ? row('GST', gst.toFixed(2)) : ''
-  }
-  if (mode === 'slab_wise') {
-    return summary.slabs
-      .map((slab) => {
-        if (slab.gstRate === 0) return row('Nil / Exempt', slab.taxableValue.toFixed(2))
-        return (
-          row(`Taxable @ ${slab.gstRate}%`, slab.taxableValue.toFixed(2)) +
-          row(`CGST @ ${slab.cgstRate}%`, slab.cgstAmount.toFixed(2)) +
-          row(`SGST @ ${slab.sgstRate}%`, slab.sgstAmount.toFixed(2))
-        )
-      })
-      .join('')
-  }
-  return (
-    row('Taxable Value', summary.taxableValue.toFixed(2)) +
-    row('CGST', summary.cgstAmount.toFixed(2)) +
-    row('SGST', summary.sgstAmount.toFixed(2))
-  )
+function formatDate(date: any): string {
+  const dateObj = typeof date === 'object' && (date as any)?.toDate ? (date as any).toDate() : (typeof date === 'string' || typeof date === 'number') ? new Date(date) : new Date()
+  return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 // ─── Number to words (Indian system) ─────────────────────────────────────────
@@ -108,17 +167,24 @@ export const generateReceiptHTML = ({
   settingsTaxRate,
   settingsTaxName,
   invoiceConfig,
+  templateOverride,
 }: GenerateReceiptHTMLParams): string => {
-  const companyName = receiptConfig?.companyName || businessName || 'Your Company'
-  const companyAddress = receiptConfig?.address || businessAddress || ''
-  const companyPhone = receiptConfig?.phone || ''
-  const companyGSTIN = receiptConfig?.gstin || ''
-  const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
+  const printGst = getReceiptPrintGstOptions(invoiceConfig, receiptConfig)
+  const effectiveConfig = {
+    ...receiptConfig,
+    showTaxBreakdown: printGst.showTaxBreakdown,
+  }
+  const gstStyle = printGst.gstStyle
+  const itemWiseGst = printGst.itemWiseGst
+  const companyName = effectiveConfig?.companyName || businessName || 'Your Company'
+  const companyAddress = effectiveConfig?.address || businessAddress || ''
+  const companyPhone = effectiveConfig?.phone || ''
+  const companyGSTIN = effectiveConfig?.gstin || ''
+  const footerMessage = effectiveConfig?.footerMessage || 'Thank you for your purchase!'
 
   const saleItems = sale.items ?? []
   const dateRaw = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
   const dateObj = typeof dateRaw === 'object' && dateRaw?.toDate ? dateRaw.toDate() : (typeof dateRaw === 'string' || typeof dateRaw === 'number') ? new Date(dateRaw) : new Date()
-
 
   const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const dueDateStr = dateStr // same day unless terms differ
@@ -130,24 +196,45 @@ export const generateReceiptHTML = ({
           : 'Credit'
 
   const isThermal = width === '50mm' || width === '80mm'
-
   const is80mm = width === '80mm'
+  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
+  const pageMargin = width === '80mm' ? '2mm 2mm 8mm 2mm' : isThermal ? '2mm 1mm 8mm 1mm' : '10mm 12mm'
 
-  const totalTax = sale.totalTax || 0
-  const taxableAmount = saleItems.reduce(
+  const showTaxBreakdown = effectiveConfig?.showTaxBreakdown ?? true
+  const lineDisc = saleItems.reduce((s, i) => s + (i.discount || 0), 0)
+  const orderDisc = Math.max(0, (sale.totalDiscount || lineDisc) - lineDisc)
+  const gstSummary = gstSummaryFromCart(
+    saleItems.map((i) => ({
+      sellingPrice: i.sellingPrice,
+      quantity: i.quantity,
+      discount: i.discount || 0,
+      taxRate: i.taxRate || 0,
+      priceIncludesGst: i.priceIncludesGst,
+    })),
+    orderDisc
+  )
+  const totalTax = sale.totalTax || gstSummary.totalGst || 0
+  const uniqueItemTaxRates = Array.from(new Set(saleItems.map(item => item.taxRate || 0).filter(rate => rate > 0)))
+  const hasMixedTaxRates = uniqueItemTaxRates.length > 1
+  const taxableAmount = gstSummary.taxableValue || saleItems.reduce(
     (sum, item) => sum + (item.sellingPrice * item.quantity - (item.discount || 0)),
     0
   )
-  const uniqueItemTaxRates = Array.from(new Set(saleItems.map(item => item.taxRate || 0).filter(rate => rate > 0)))
-  const hasMixedTaxRates = uniqueItemTaxRates.length > 1
   const inferredTaxRate = taxableAmount > 0 ? (totalTax / taxableAmount) * 100 : 0
   const effectiveTaxRate = hasMixedTaxRates
     ? inferredTaxRate
     : (saleItems[0]?.taxRate ?? inferredTaxRate ?? settingsTaxRate ?? 0)
   const effectiveTaxName = settingsTaxName || 'GST'
-  const gstPrint = resolveGstPrint(sale, invoiceConfig)
 
-  // ─── Font sizes ──────────────────────────────────────────────────────────
+  const formatTaxRate = (rate: number): string => {
+    if (!rate || isNaN(rate)) return '0'
+    const rounded = Math.round(rate * 100) / 100
+    return rounded.toString()
+  }
+
+  const billTotal = Number(sale.grandTotal ?? (sale as any).finalTotal ?? (sale as any).total ?? 0)
+
+  // Typography Tokens
   // Thermal: 58mm vs 80mm vs A4
   const headerFS = is80mm ? '17px' : isThermal ? '15px' : '20px'
   const baseFS = is80mm ? '13px' : isThermal ? '12px' : '14px'
@@ -159,23 +246,94 @@ export const generateReceiptHTML = ({
   const sep = `<div style="border-top:1px dashed #000;margin:${isThermal ? '2px' : '3px'} 0;"></div>`
   const sepS = `<div style="border-top:2px solid #000;margin:${isThermal ? '2px' : '3px'} 0;"></div>`
 
-  // ─── Tax calculations ────────────────────────────────────────────────────
-  // For A4: Show IGST (interstate) as single tax column matching reference
-  // For Thermal: Show SGST + CGST split (intrastate) matching thermal reference
-  
-
   // ══════════════════════════════════════════════════════════════════════════
   // A4 INVOICE HTML
   // ══════════════════════════════════════════════════════════════════════════
-  if (!isThermal) {
-    const effectiveLogo = logoURL || receiptConfig?.logoURL || ''
+  const resolvedLogo = preferPrintableSrc(
+    logoURL,
+    resolveStoreLogoUrl(receiptConfig ?? undefined, logoURL),
+    receiptConfig?.logoURL
+  )
+  const effectiveLogo = (effectiveConfig?.showLogo ?? true) && isBrowserLoadableImageSrc(resolvedLogo) ? resolvedLogo! : ''
+  const isPaymentQrEnabled = effectiveConfig?.showPaymentQR ?? false
+  const effectivePaymentQR = isPaymentQrEnabled
+    ? (isValidUpiVpa(effectiveConfig?.upiId)
+        ? getUpiQrImageUrl({
+            upiId: effectiveConfig.upiId!,
+            payeeName: companyName,
+            amount: billTotal,
+            note: sale.invoiceNumber || 'Bill Payment',
+          }, 180)
+        : (effectiveConfig?.paymentQrURL || ''))
+    : ''
 
+  const buildA4TaxSummaryHtml = (): string => {
+    if (!showTaxBreakdown || totalTax <= 0) return ''
+    if (gstStyle === 'compact') {
+      return `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">GST</span>
+        <span style="font-size:12px;">${totalTax.toFixed(2)}</span>
+      </div>`
+    }
+    if (gstStyle === 'slab_wise') {
+      return gstSummary.slabs
+        .filter((s) => s.gstRate > 0)
+        .map(
+          (s) => `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">Taxable @ ${s.gstRate}%</span>
+        <span style="font-size:12px;">${s.taxableValue.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">CGST @ ${s.cgstRate}%</span>
+        <span style="font-size:12px;">${s.cgstAmount.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">SGST @ ${s.sgstRate}%</span>
+        <span style="font-size:12px;">${s.sgstAmount.toFixed(2)}</span>
+      </div>`
+        )
+        .join('')
+    }
+    return `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">Taxable Value</span>
+        <span style="font-size:12px;">${gstSummary.taxableValue.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">CGST</span>
+        <span style="font-size:12px;">${gstSummary.cgstAmount.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+        <span style="font-size:12px;color:#6b7280;">SGST</span>
+        <span style="font-size:12px;">${gstSummary.sgstAmount.toFixed(2)}</span>
+      </div>`
+  }
+
+  if (!isThermal) {
     // Items table rows for A4 — larger font sizes to fill A4 page
     const a4ItemRows = saleItems.map((item: SaleItem, index: number) => {
       const lineSubtotal = item.sellingPrice * item.quantity
       const itemRate = item.taxRate || effectiveTaxRate
       const igstAmt = item.taxAmount || (lineSubtotal * (itemRate / 100))
-      const baseAmt = lineSubtotal + igstAmt - (item.discount || 0)
+      const baseAmt = lineSubtotal + (showTaxBreakdown ? igstAmt : 0) - (item.discount || 0)
+
+      if (!showTaxBreakdown) {
+        return `
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
+          <td style="padding:10px 12px;font-size:14px;">
+            <div style="font-weight:700;">${item.productName}</div>
+          </td>
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
+          <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
+          <td style="padding:10px 12px;font-size:14px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
+          <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right;">${baseAmt.toFixed(2)}</td>
+        </tr>`
+      }
+
+      const showItemTaxCol = itemWiseGst && itemRate > 0
       return `
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
@@ -188,8 +346,8 @@ export const generateReceiptHTML = ({
           <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
           <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
           <td style="padding:10px 12px;font-size:14px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${itemRate}%</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:right;">${igstAmt.toFixed(2)}</td>
+          ${showItemTaxCol ? `<td style="padding:10px 12px;font-size:14px;text-align:center;">${formatTaxRate(itemRate)}%</td>
+          <td style="padding:10px 12px;font-size:14px;text-align:right;">${igstAmt.toFixed(2)}</td>` : ''}
           <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right;">${baseAmt.toFixed(2)}</td>
         </tr>`
     }).join('')
@@ -197,6 +355,7 @@ export const generateReceiptHTML = ({
     const totalInWords = numberToWords(sale.grandTotal)
     const paymentMade = sale.amountPaid || 0
     const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
+    const invoiceTitle = showTaxBreakdown ? 'TAX INVOICE' : 'INVOICE'
 
     return `
 <div style="font-family:Arial,sans-serif;color:#000;width:100%;min-height:267mm;box-sizing:border-box;border:1px solid #374151;padding:0;">
@@ -204,14 +363,14 @@ export const generateReceiptHTML = ({
   <!-- ── HEADER ── -->
   <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 24px;background:#f8fafc;border-bottom:2px solid #374151;">
     <div>
-      ${effectiveLogo ? `<img src="${effectiveLogo}" alt="Logo" style="max-height:55px;max-width:180px;object-fit:contain;margin-bottom:6px;display:block;" />` : ''}
+      ${effectiveLogo ? `<img src="${escapeHtmlAttr(effectiveLogo)}" alt="Logo" style="max-height:55px;max-width:180px;width:auto;height:auto;object-fit:contain;margin-bottom:6px;display:block;" />` : ''}
       <div style="font-size:22px;font-weight:900;color:#1e3a8a;">${companyName}</div>
       ${companyAddress ? `<div style="font-size:12px;color:#4b5563;margin-top:2px;">${companyAddress}</div>` : ''}
       ${companyPhone ? `<div style="font-size:12px;color:#4b5563;">Phone: ${companyPhone}</div>` : ''}
       ${companyGSTIN ? `<div style="font-size:12px;font-weight:700;color:#1e3a8a;">GSTIN: ${companyGSTIN}</div>` : ''}
     </div>
     <div style="text-align:right;">
-      <div style="font-size:26px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">TAX INVOICE</div>
+      <div style="font-size:26px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">${invoiceTitle}</div>
       <div style="font-size:14px;font-weight:700;margin-top:4px;"># ${sale.invoiceNumber || '---'}</div>
       <div style="font-size:12px;color:#6b7280;margin-top:2px;">Date: ${dateStr}</div>
       <div style="font-size:12px;color:#6b7280;">Due Date: ${dueDateStr}</div>
@@ -239,15 +398,18 @@ export const generateReceiptHTML = ({
         <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">HSN/SAC</th>
         <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">Qty</th>
         <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">Rate</th>
+        ${showTaxBreakdown && itemWiseGst ? `
         <th colspan="2" style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;border-left:1px solid rgba(255,255,255,0.3);">IGST</th>
-        <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">Base Amount</th>
+        ` : ''}
+        <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">${showTaxBreakdown ? 'Base Amount' : 'Amount'}</th>
       </tr>
+      ${showTaxBreakdown && itemWiseGst ? `
       <tr style="background:#1e3a8a;color:#fff;">
         <th colspan="5" style="padding:2px;"></th>
         <th style="padding:5px 12px;text-align:center;font-size:12px;border-left:1px solid rgba(255,255,255,0.3);">%</th>
         <th style="padding:5px 12px;text-align:right;font-size:12px;">Amt</th>
         <th style="padding:2px;"></th>
-      </tr>
+      </tr>` : ''}
     </thead>
     <tbody>
       ${a4ItemRows}
@@ -256,11 +418,16 @@ export const generateReceiptHTML = ({
 
   <!-- ── TOTALS + WORDS ── -->
   <div style="display:flex;border-top:2px solid #374151;border-bottom:1px solid #374151;">
-    <!-- Left: words + notes -->
+    <!-- Left: words + notes + payment QR -->
     <div style="flex:1;padding:10px 14px;border-right:1px solid #374151;">
       <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">Total In Words</div>
       <div style="font-size:12px;font-weight:700;font-style:italic;">${totalInWords}</div>
       ${footerMessage ? `<div style="font-size:11px;margin-top:8px;color:#374151;"><span style="font-weight:600;">Notes</span><br/>${footerMessage}</div>` : ''}
+      ${effectivePaymentQR ? `
+      <div style="margin-top:12px;padding-top:8px;border-top:1px dashed #cbd5e1;">
+        <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Scan &amp; Pay Exact Bill (&#x20B9;${billTotal.toFixed(2)}) via UPI:</div>
+        <img src="${effectivePaymentQR}" alt="Payment QR" style="width:110px;height:110px;object-fit:contain;display:block;" />
+      </div>` : ''}
     </div>
     <!-- Right: summary -->
     <div style="width:260px;flex-shrink:0;padding:10px 14px;">
@@ -268,12 +435,7 @@ export const generateReceiptHTML = ({
         <span style="font-size:12px;color:#6b7280;">Sub Total</span>
         <span style="font-size:12px;font-weight:600;">${sale.subtotal.toFixed(2)}</span>
       </div>
-      ${a4TaxRowsHtml(gstPrint.mode, gstPrint.summary, totalTax, effectiveTaxName, effectiveTaxRate)}
-      ${saleChargeLines(sale).map((charge) => `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">${charge.label}</span>
-        <span style="font-size:12px;">${charge.amount.toFixed(2)}</span>
-      </div>`).join('')}
+      ${(showTaxBreakdown && totalTax > 0) ? buildA4TaxSummaryHtml() : ''}
       ${sale.totalDiscount > 0 ? `
       <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
         <span style="font-size:12px;color:#6b7280;">Discount</span>
@@ -320,152 +482,122 @@ export const generateReceiptHTML = ({
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // THERMAL (50 mm) RECEIPT HTML
+  // THERMAL (58 mm / 80 mm) RECEIPT HTML
   // ══════════════════════════════════════════════════════════════════════════
+  const paperSizeKey = width === '80mm' ? '80mm' : '58mm'
+  const customTemplateRaw = templateOverride ?? resolveActiveCustomTemplate(effectiveConfig ?? undefined)
+  const customTemplate = customTemplateRaw
+    ? ensureTemplateHasLogoBlock(customTemplateRaw, resolvedLogo || effectiveLogo)
+    : null
 
-  // For thermal: split effectiveTaxRate into SGST + CGST (intrastate)
-  const halfTaxRate = effectiveTaxRate / 2
-  const sgstAmt = totalTax / 2
-  const cgstAmt = totalTax - sgstAmt
-  const taxableAmt = sale.subtotal - (sale.totalDiscount || 0)
-  const paymentMade = sale.amountPaid || 0
-  const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
-
-  // Thermal item rows — Line 1: item name (left) + tax rate (right), Line 2: Qty | Rate | Disc | Amt
-  const thermalItemRows = saleItems
-    .map((item: SaleItem, index: number) => {
-      const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstTagHtml = item.priceIncludesGst
-        ? '<span style="font-size:10px;font-weight:900;color:#1e3a8a;margin-left:4px;">(Incl. GST)</span>'
-        : (item.taxRate && item.taxRate > 0)
-          ? '<span style="font-size:10px;font-weight:900;color:#d97706;margin-left:4px;">(+GST Excl.)</span>'
-          : ''
-      return `
-      <div style="margin:2px 0 4px 0;">
-        <div style="display:flex;justify-content:space-between;font-size:${baseFS};font-weight:700;">
-          <span>${index + 1}. ${item.productName}${gstTagHtml}</span>
-          ${gstPrint.itemWiseGst ? `<span>${(item.taxRate || effectiveTaxRate).toFixed(2)}%</span>` : '<span></span>'}
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:${smallFS};font-weight:600;">
-          <span style="min-width:36px;">${item.quantity} Pc</span>
-          <span style="flex:1;text-align:right;padding-right:6px;">${item.sellingPrice.toFixed(2)}</span>
-          <span style="min-width:36px;text-align:right;padding-right:6px;">${item.discount > 0 ? item.discount.toFixed(2) : '-'}</span>
-          <span style="min-width:52px;text-align:right;font-weight:800;">${lineTotal.toFixed(2)}</span>
-        </div>
-      </div>`
+  if (customTemplate) {
+    const showLogo = effectiveConfig?.showLogo ?? true
+    const storeLogoUrl = showLogo ? preferPrintableSrc(resolvedLogo, effectiveLogo, logoURL, effectiveConfig?.logoURL) : undefined
+    const context = saleToReceiptContext(sale, {
+      businessName: companyName,
+      businessAddress: companyAddress,
+      businessPhone: companyPhone,
+      businessGSTIN: companyGSTIN,
+      businessLogoURL: storeLogoUrl,
+      upiId: effectiveConfig?.upiId,
+      footerMessage,
+      customerName,
     })
-    .join('')
+    const bodyHtml = compileCustomReceiptHtml(
+      customTemplate,
+      context,
+      paperSizeKey,
+      storeLogoUrl,
+      smallFS,
+      (src, widthPercent, align) =>
+        receiptLogoImgHtml(src, 56, Math.max(80, Math.round(180 * Math.min(widthPercent, 100) / 100)), align),
+      {
+        showLogo,
+        itemWiseGst,
+        gstStyle,
+        showTaxBreakdown: printGst.showTaxBreakdown,
+      }
+    )
 
-  const money = (n: number) => `\u20B9${n.toFixed(2)}`
-  const summaryRow = (label: string, value: string, bold = false, fs = smallFS) => `
-    <div style="display:flex;justify-content:space-between;font-size:${fs};font-weight:${bold ? 900 : 800};margin:2px 0;">
-      <span>${label}</span>
-      <span>${value}</span>
-    </div>`
-  const thermalTaxBlock = (() => {
-    if (gstPrint.mode === 'unchanged') {
-      return `${summaryRow('Taxable Amt', money(taxableAmt))}
-    ${totalTax > 0 ? summaryRow(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt)) : ''}
-    ${totalTax > 0 ? summaryRow(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt)) : ''}`
-    }
-    if (gstPrint.mode === 'compact') {
-      const gst = gstPrint.summary.totalGst || totalTax
-      return gst > 0 ? summaryRow('GST', money(gst)) : ''
-    }
-    if (gstPrint.mode === 'slab_wise') {
-      return gstPrint.summary.slabs
-        .map((slab) => {
-          if (slab.gstRate === 0) return summaryRow('Nil / Exempt', money(slab.taxableValue))
-          return `${summaryRow(`Taxable @ ${slab.gstRate}%`, money(slab.taxableValue))}${summaryRow(`CGST @ ${slab.cgstRate}%`, money(slab.cgstAmount))}${summaryRow(`SGST @ ${slab.sgstRate}%`, money(slab.sgstAmount))}`
-        })
-        .join('')
-    }
-    return `${summaryRow('Taxable Amt', money(gstPrint.summary.taxableValue))}${summaryRow('CGST', money(gstPrint.summary.cgstAmount))}${summaryRow('SGST', money(gstPrint.summary.sgstAmount))}`
-  })()
+    return `
+  <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS)}">
+${bodyHtml}
+  </div>`
+  }
+
+  const textLines = compileReceiptTextLines({
+    sale,
+    receiptConfig: effectiveConfig,
+    businessName,
+    businessAddress,
+    businessPhone: effectiveConfig?.phone,
+    businessGSTIN: effectiveConfig?.gstin,
+    customerName,
+    paperSize: paperSizeKey,
+    gstStyle,
+    itemWiseGst,
+  })
 
   return `
-  <div style="
-    font-family:'Courier New',Courier,monospace;
-    font-size:${baseFS};
-    font-weight:700;
-    line-height:1.25;
-    color:#000;
-    width:100%;
-    max-width:100%;
-    padding:1mm 0;
-    box-sizing:border-box;
-    text-align:center;
-    overflow:hidden;
-  ">
-
-    <!-- ── THERMAL HEADER ── -->
-    <div style="text-align:center;margin-bottom:4px;">
-      ${logoURL ? `<img src="${logoURL}" alt="Logo" style="max-width:80px;max-height:50px;object-fit:contain;margin-bottom:4px;display:block;margin-left:auto;margin-right:auto;" />` : ''}
-      <div style="font-size:${headerFS};font-weight:900;letter-spacing:1px;">TAX INVOICE</div>
-      <div style="font-size:${headerFS};font-weight:900;margin-top:1px;">${companyName}</div>
-      ${companyAddress ? `<div style="font-size:${smallFS};margin-top:1px;">${companyAddress}</div>` : ''}
-      ${companyPhone ? `<div style="font-size:${smallFS};">Phone No: ${companyPhone}</div>` : ''}
-      ${companyGSTIN ? `<div style="font-size:${smallFS};">GSTIN: ${companyGSTIN}</div>` : ''}
-    </div>
-
-    ${sep}
-
-    <!-- ── THERMAL META ── -->
-    <div style="font-size:${smallFS};font-weight:800;line-height:1.7;text-align:left;">
-      <div>Invoice No : ${sale.invoiceNumber || '---'}</div>
-      <div>Date       : ${dateStr}</div>
-      <div>Bill To    : ${methodLabel}</div>
-      ${customerName ? `<div>Mobile     : ${customerName}</div>` : ''}
-    </div>
-
-    ${sep}
-
-    <!-- ── THERMAL COLUMN HEADERS ── -->
-    <div style="font-size:${smallFS};font-weight:900;margin-bottom:1px;text-align:left;">SN ITEMS</div>
-    <div style="display:flex;justify-content:space-between;font-size:${smallFS};font-weight:900;">
-      <span style="min-width:36px;text-align:left;">Qty</span>
-      <span style="flex:1;text-align:right;padding-right:6px;">Rate</span>
-      <span style="min-width:36px;text-align:right;padding-right:6px;">Disc</span>
-      <span style="min-width:52px;text-align:right;">Amt</span>
-    </div>
-    ${sep}
-
-    <!-- ── THERMAL ITEMS ── -->
-    ${thermalItemRows}
-
-    ${sep}
-
-    <!-- ── THERMAL TOTALS ── -->
-    ${summaryRow('Sub Total', money(sale.subtotal))}
-    ${(sale.totalDiscount || 0) > 0 ? summaryRow('Discount', `(-) ${money(sale.totalDiscount || 0)}`) : ''}
-    ${thermalTaxBlock}
-    ${saleChargeLines(sale).map((charge) => summaryRow(charge.label, money(charge.amount))).join('')}
-
-    ${sepS}
-
-    ${summaryRow('Total Amount', money(sale.grandTotal), true, totalFS)}
-    ${summaryRow('Paid Amount', money(paymentMade), true)}
-    ${summaryRow('Balance Amount', money(balanceDue), true)}
-
-    ${sep}
-
-    <!-- ── THERMAL FOOTER ── -->
-    ${footerMessage ? `<div style="font-size:${smallFS};margin-top:4px;font-weight:800;">${footerMessage}</div>` : ''}
+  <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS)}">
+${receiptLogoImgHtml(effectiveLogo, 56, 180)}
+${textLines.map((l) => `<div style="white-space:pre;overflow:hidden;width:100%;font-family:'Courier New',Courier,monospace;">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
+${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY &#x20B9;${billTotal.toFixed(2)} VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:130px;height:130px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // printReceipt
 // ─────────────────────────────────────────────────────────────────────────────
+async function inlineDocumentImages(doc: Document): Promise<void> {
+  const images = Array.from(doc.images || [])
+  await Promise.all(
+    images.map(async (img) => {
+      const src = img.getAttribute('src') || img.src
+      const inlined = await prefetchPrintableLogoSrc(src)
+      if (inlined && inlined !== src) img.src = inlined
+    })
+  )
+}
+
+async function waitForDocumentImages(doc: Document): Promise<void> {
+  const images = Array.from(doc.images || [])
+  await Promise.all(
+    images.map((img) => {
+      const ready = () => (typeof img.decode === 'function' ? img.decode().catch(() => undefined) : Promise.resolve())
+      if (img.complete && img.naturalHeight !== 0) return ready()
+      return new Promise<void>((resolve) => {
+        const done = () => {
+          ready().finally(() => resolve())
+        }
+        img.addEventListener('load', done, { once: true })
+        img.addEventListener('error', () => resolve(), { once: true })
+        setTimeout(() => resolve(), 2500)
+      })
+    })
+  )
+}
+
 export const printReceipt = (
   receiptHTML: string,
   width: '50mm' | '80mm' | '210mm' = '50mm',
   title = 'Receipt',
   onDone?: () => void,
 ) => {
+  void runBrowserReceiptPrint(receiptHTML, width, title, onDone)
+}
+
+async function runBrowserReceiptPrint(
+  receiptHTML: string,
+  width: '50mm' | '80mm' | '210mm',
+  title: string,
+  onDone?: () => void,
+) {
+  const preparedReceiptHtml = await inlineHtmlImageSources(receiptHTML)
   const isThermal = width === '50mm' || width === '80mm'
   const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
   const pageMargin = width === '80mm' ? '2mm 2mm 10mm 2mm' : isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
+  const iframeWidth = width === '210mm' ? '210mm' : paperWidth
 
   const fullHTML = `<!DOCTYPE html>
 <html>
@@ -480,6 +612,7 @@ export const printReceipt = (
     @media print {
       @page { size: ${paperWidth} auto; margin: ${pageMargin}; }
       html, body { width: 100%; margin: 0; padding: 0; }
+      img { max-width: 100% !important; display: block !important; visibility: visible !important; opacity: 1 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -489,11 +622,12 @@ export const printReceipt = (
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    #receipt { width: 100%; margin: 0; padding: 0; }
+    #receipt { width: 100%; max-width: 100%; margin: 0; padding: 0; overflow: hidden; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; image-rendering: auto; opacity: 1; }
   </style>
 </head>
 <body>
-  <div id="receipt">${receiptHTML}</div>
+  <div id="receipt">${preparedReceiptHtml}</div>
 </body>
 </html>`
 
@@ -502,24 +636,57 @@ export const printReceipt = (
 
   const iframe = document.createElement('iframe')
   iframe.id = 'receipt-iframe'
-  iframe.style.cssText =
-    'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:none;visibility:hidden'
+  iframe.setAttribute('aria-hidden', 'true')
+  // Keep full opacity — Chrome often skips printing images inside opacity:0 / visibility:hidden frames.
+  iframe.style.cssText = [
+    'position:fixed',
+    'left:0',
+    'top:0',
+    `width:${iframeWidth}`,
+    'min-height:240mm',
+    'height:auto',
+    'border:0',
+    'transform:translateX(-200vw)',
+    'pointer-events:none',
+  ].join(';')
   document.body.appendChild(iframe)
 
-  iframe.onload = () => {
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      } finally {
-        setTimeout(() => {
-          iframe.remove()
-          onDone?.()
-        }, 2000)
-      }
-    }, 300)
+  const executePrint = () => {
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } finally {
+      setTimeout(() => {
+        iframe.remove()
+        onDone?.()
+      }, 2000)
+    }
   }
 
+  const prepareAndPrint = async (doc: Document | null | undefined) => {
+    if (doc) {
+      await inlineDocumentImages(doc)
+      await waitForDocumentImages(doc)
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+      await new Promise<void>((resolve) => setTimeout(resolve, 150))
+    }
+    executePrint()
+  }
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document
+  if (doc) {
+    doc.open()
+    doc.write(fullHTML)
+    doc.close()
+    await prepareAndPrint(doc)
+    return
+  }
+
+  iframe.onload = () => {
+    void prepareAndPrint(iframe.contentDocument || iframe.contentWindow?.document)
+  }
   iframe.srcdoc = fullHTML
 }
 
@@ -529,166 +696,122 @@ export const printReceipt = (
 // ─────────────────────────────────────────────────────────────────────────────
 interface GenerateReceiptEscPosParams {
   sale: Sale
-  receiptConfig?: ReceiptConfig | null
+  receiptConfig?: Partial<ReceiptConfig> | null
   paperSize?: '58mm' | '80mm'
   businessName?: string
   businessAddress?: string
   customerName?: string
   settingsTaxRate?: number
   invoiceConfig?: unknown
+  templateOverride?: CustomReceiptTemplate
+  businessLogoURL?: string
 }
 
-export const generateReceiptEscPos = ({
+export const generateReceiptEscPos = async ({
   sale,
   receiptConfig,
   paperSize = '58mm',
   businessName,
   businessAddress,
   customerName,
-  settingsTaxRate,
+  templateOverride,
+  businessLogoURL,
   invoiceConfig,
-}: GenerateReceiptEscPosParams): Uint8Array => {
-  // 80mm printers (like Veer thermal receipt driver) use 48 characters/line (576 dots width).
-  // 58mm printers use 32 characters/line (384 dots width).
-  const lineWidth = paperSize === '80mm' ? 48 : 32
-
-  const companyName = receiptConfig?.companyName || businessName || 'Your Company'
-  const companyAddress = receiptConfig?.address || businessAddress || ''
-  const companyPhone = receiptConfig?.phone || ''
-  const companyGSTIN = receiptConfig?.gstin || ''
-  const footerMessage = receiptConfig?.footerMessage || 'Thank you for your purchase!'
-
-  const saleItems = sale.items ?? []
-  const dateRaw2 = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined
-  const dateObj = typeof dateRaw2 === 'object' && dateRaw2?.toDate ? dateRaw2.toDate() : (typeof dateRaw2 === 'string' || typeof dateRaw2 === 'number') ? new Date(dateRaw2) : new Date()
-
-
-  const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-  const methodLabel =
-    sale.paymentMethod === 'cash' ? 'Cash Sale'
-      : sale.paymentMethod === 'card' ? 'Card'
-        : sale.paymentMethod === 'upi' ? 'UPI'
-          : 'Credit'
-
-  const totalTax = sale.totalTax || 0
-  const taxableAmount = saleItems.reduce(
-    (sum, item) => sum + (item.sellingPrice * item.quantity - (item.discount || 0)),
-    0
-  )
-  const uniqueItemTaxRates = Array.from(new Set(saleItems.map(item => item.taxRate || 0).filter(rate => rate > 0)))
-  const hasMixedTaxRates = uniqueItemTaxRates.length > 1
-  const inferredTaxRate = taxableAmount > 0 ? (totalTax / taxableAmount) * 100 : 0
-  const effectiveTaxRate = hasMixedTaxRates
-    ? inferredTaxRate
-    : (saleItems[0]?.taxRate ?? inferredTaxRate ?? settingsTaxRate ?? 0)
-  const halfTaxRate = effectiveTaxRate / 2
-  const sgstAmt = totalTax / 2
-  const cgstAmt = totalTax - sgstAmt
-  const taxableAmt = sale.subtotal - (sale.totalDiscount || 0)
-  const paymentMade = sale.amountPaid || 0
-  const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
-  const gstPrint = resolveGstPrint(sale, invoiceConfig)
-
-  const money = (n: number) => `Rs.${n.toFixed(2)}`
+}: GenerateReceiptEscPosParams): Promise<Uint8Array> => {
+  const printGst = getReceiptPrintGstOptions(invoiceConfig, receiptConfig)
+  const effectiveConfig = {
+    ...receiptConfig,
+    showTaxBreakdown: printGst.showTaxBreakdown,
+  }
+  const showLogo = effectiveConfig?.showLogo ?? true
+  const rawLogo = resolveStoreLogoUrl(effectiveConfig ?? undefined, businessLogoURL)
+  const printableLogo = showLogo
+    ? preferPrintableSrc(await prefetchPrintableLogoSrc(rawLogo), rawLogo, businessLogoURL)
+    : undefined
+  const printConfig = withPrintableLogo(effectiveConfig, printableLogo || undefined)
+  const resolvedLogo = printableLogo || rawLogo
+  const customTemplateRaw = templateOverride ?? resolveActiveCustomTemplate(printConfig ?? undefined)
+  const customTemplate = customTemplateRaw
+    ? ensureTemplateHasLogoBlock(customTemplateRaw, resolvedLogo)
+    : null
+  const effectivePaper = (customTemplate?.paperWidth || paperSize) as '58mm' | '80mm'
+  const context = saleToReceiptContext(sale, {
+    businessName,
+    businessAddress,
+    businessPhone: printConfig?.phone ?? effectiveConfig?.phone,
+    businessGSTIN: printConfig?.gstin ?? effectiveConfig?.gstin,
+    businessLogoURL: resolvedLogo,
+    upiId: printConfig?.upiId ?? effectiveConfig?.upiId,
+    footerMessage: printConfig?.footerMessage ?? effectiveConfig?.footerMessage,
+    customerName,
+  })
 
   const b = new EscPosBuilder()
-  b.init(paperSize)
+  b.init(effectivePaper)
 
-  // ── Header ──
-  b.align('center')
-  b.bold(true).line('TAX INVOICE')
-  b.line(companyName)
-  b.bold(false)
-  if (companyAddress) b.line(companyAddress)
-  if (companyPhone) b.line(`Phone No: ${companyPhone}`)
-  if (companyGSTIN) b.line(`GSTIN: ${companyGSTIN}`)
-  b.hr(lineWidth)
-
-  // ── Meta ──
-  b.align('left')
-  b.line(`Invoice No : ${sale.invoiceNumber || '---'}`)
-  b.line(`Date       : ${dateStr}`)
-  b.line(`Bill To    : ${methodLabel}`)
-  if (customerName) b.line(`Mobile     : ${customerName}`)
-  b.hr(lineWidth)
-
-  // ── Items ──
-  b.bold(true).line('SN ITEMS').bold(false)
-  b.hr(lineWidth)
-  saleItems.forEach((item: SaleItem, index: number) => {
-    const lineTotal = item.sellingPrice * item.quantity - (item.discount || 0)
-    const gstTagEsc = item.priceIncludesGst
-      ? ' (Incl)'
-      : (item.taxRate && item.taxRate > 0)
-        ? ' (+GST)'
-        : ''
-    b.bold(true)
-    if (gstPrint.itemWiseGst) {
-      b.twoCol(`${index + 1}. ${item.productName}${gstTagEsc}`, `${(item.taxRate || effectiveTaxRate).toFixed(2)}%`, lineWidth)
-    } else {
-      b.line(`${index + 1}. ${item.productName}${gstTagEsc}`)
-    }
-    b.bold(false)
-    b.line(`  ${item.quantity} Pc  Rate:${item.sellingPrice.toFixed(2)}  Disc:${item.discount > 0 ? item.discount.toFixed(2) : '-'}  Amt:${lineTotal.toFixed(2)}`)
-  })
-  b.hr(lineWidth)
-
-  // ── Summary ──
-  b.twoCol('Sub Total', money(sale.subtotal), lineWidth)
-  if ((sale.totalDiscount || 0) > 0) b.twoCol('Discount', `(-) ${money(sale.totalDiscount || 0)}`, lineWidth)
-  if (gstPrint.mode === 'unchanged') {
-    b.twoCol('Taxable Amt', money(taxableAmt), lineWidth)
-    if (totalTax > 0) {
-      b.twoCol(`SGST ${halfTaxRate.toFixed(2)}%`, money(sgstAmt), lineWidth)
-      b.twoCol(`CGST ${halfTaxRate.toFixed(2)}%`, money(cgstAmt), lineWidth)
-    }
-  } else if (gstPrint.mode === 'compact') {
-    const gst = gstPrint.summary.totalGst || totalTax
-    if (gst > 0) b.twoCol('GST', money(gst), lineWidth)
-  } else if (gstPrint.mode === 'slab_wise') {
-    gstPrint.summary.slabs.forEach((slab) => {
-      if (slab.gstRate === 0) {
-        b.twoCol('Nil / Exempt', money(slab.taxableValue), lineWidth)
-      } else {
-        b.twoCol(`Taxable @ ${slab.gstRate}%`, money(slab.taxableValue), lineWidth)
-        b.twoCol(`CGST @ ${slab.cgstRate}%`, money(slab.cgstAmount), lineWidth)
-        b.twoCol(`SGST @ ${slab.sgstRate}%`, money(slab.sgstAmount), lineWidth)
-      }
+  if (customTemplate) {
+    await appendCustomTemplateToEscPos(b, customTemplate, context, effectivePaper, {
+      fallbackLogoUrl: resolvedLogo,
+      showLogo,
+      itemWiseGst: printGst.itemWiseGst,
+      gstStyle: printGst.gstStyle,
+      showTaxBreakdown: printGst.showTaxBreakdown,
     })
-  } else {
-    b.twoCol('Taxable Amt', money(gstPrint.summary.taxableValue), lineWidth)
-    b.twoCol('CGST', money(gstPrint.summary.cgstAmount), lineWidth)
-    b.twoCol('SGST', money(gstPrint.summary.sgstAmount), lineWidth)
+    b.feed(2)
+    b.cut()
+    return b.toBytes()
   }
-  saleChargeLines(sale).forEach((charge) => {
-    b.twoCol(charge.label, money(charge.amount), lineWidth)
+
+  const textLines = compileReceiptTextLines({
+    sale,
+    receiptConfig: printConfig ?? effectiveConfig,
+    businessName,
+    businessAddress,
+    businessPhone: printConfig?.phone ?? effectiveConfig?.phone,
+    businessGSTIN: printConfig?.gstin ?? effectiveConfig?.gstin,
+    customerName,
+    paperSize: effectivePaper,
+    gstStyle: printGst.gstStyle,
+    itemWiseGst: printGst.itemWiseGst,
   })
-  b.hr(lineWidth, '=')
 
-  b.bold(true)
-  b.twoCol('Total Amount', money(sale.grandTotal), lineWidth)
-  b.bold(false)
-  b.twoCol('Paid Amount', money(paymentMade), lineWidth)
-  b.twoCol('Balance Amount', money(balanceDue), lineWidth)
-  b.hr(lineWidth)
-
-  // ── Terms ──
-  const t1 = receiptConfig?.termsLine1?.trim()
-  const t2 = receiptConfig?.termsLine2?.trim()
-  const t3 = receiptConfig?.termsLine3?.trim()
-  if (t1 || t2 || t3 || !receiptConfig) {
-    b.align('center').bold(true).line('Terms and Conditions').bold(false).align('left')
-    if (t1) b.line(t1)
-    else if (!receiptConfig) b.line('1. Goods once sold will not be taken back or exchanged')
-    if (t2) b.line(t2)
-    if (t3) b.line(t3)
+  const logoSrc = showLogo ? (resolvedLogo || '') : ''
+  if (logoSrc) {
+    const maxWidthDots = effectivePaper === '80mm' ? 320 : 224
+    const maxHeightDots = effectivePaper === '80mm' ? 96 : 72
+    const rasterSrc = (await prefetchPrintableLogoSrc(logoSrc)) || logoSrc
+    const raster = await rasterizeImageForEscPos(rasterSrc, maxWidthDots, maxHeightDots)
+    if (raster) {
+      b.align('center')
+      b.image(raster.packed, raster.widthBytes, raster.heightDots)
+      b.feed(1)
+      b.align('left')
+    }
   }
 
-  // ── Footer ──
-  b.align('center')
-  b.line(footerMessage)
-  b.feed(3)
+  textLines.forEach(line => {
+    b.line(line)
+  })
+
+  if (receiptConfig?.showPaymentQR && (isValidUpiVpa(receiptConfig?.upiId) || receiptConfig?.paymentQrURL)) {
+    const billTotal = Number(sale.grandTotal ?? (sale as any).finalTotal ?? (sale as any).total ?? 0)
+    b.feed(1)
+    b.align('center')
+    b.bold(true)
+    b.line(`SCAN TO PAY Rs.${billTotal.toFixed(2)}`)
+    b.bold(false)
+    const qrPayload = isValidUpiVpa(receiptConfig.upiId)
+      ? buildUpiPayLink({
+          upiId: receiptConfig.upiId!,
+          payeeName: businessName || 'SEZNIK',
+          amount: billTotal,
+          note: sale.invoiceNumber || 'Bill Payment',
+        })
+      : receiptConfig.paymentQrURL!
+    b.qr(qrPayload, effectivePaper === '80mm' ? 6 : 4)
+  }
+
+  b.feed(2)
   b.cut()
 
   return b.toBytes()

@@ -41,7 +41,7 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     calculator: true,
     purchases: true,
     suppliers: true,
-    stores: false,
+    stores: true,
   },
   online_store: {
     kot: false,
@@ -60,6 +60,47 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     stores: true,
   },
 };
+
+export const BUSINESS_TEMPLATES: Record<
+  BusinessType,
+  { title: string; subtitle: string; features: string[] }
+> = {
+  restaurant_cafe: {
+    title: 'Restaurant & Cafe workspace',
+    subtitle: 'Kitchen tickets, table billing, and counter service — plus the shared store tools.',
+    features: [
+      'Kitchen Order Tickets (KOT) on mobile',
+      'Table billing and floor management',
+      'Quick counter tokens',
+      'POS, inventory, and billing',
+      'Multi-store / franchise locations',
+    ],
+  },
+  online_store: {
+    title: 'Online Store workspace',
+    subtitle: 'Inventory, orders, and multi-location stock — without kitchen tools.',
+    features: [
+      'POS and barcode billing',
+      'Inventory and catalog',
+      'Purchases and suppliers',
+      'Multi-store / franchise locations',
+    ],
+  },
+  retail_shop: {
+    title: 'Retail Shop workspace',
+    subtitle: 'In-store POS and stock management — without kitchen tools.',
+    features: [
+      'POS and barcode billing',
+      'Inventory and catalog',
+      'Purchases and suppliers',
+      'Multi-store / franchise locations',
+    ],
+  },
+};
+
+export function isRestaurantBusiness(type: BusinessType | null | undefined): boolean {
+  return type === 'restaurant_cafe';
+}
 
 export function getBusinessTypeLabel(type: BusinessType | null | undefined): string {
   if (!type) return 'Not set';

@@ -135,8 +135,8 @@ model Settings {
   receiptConfig      Json?
   printerConfig      Json?
   locationConfig     Json?
-  // Pre-existing columns not previously tracked in this file (restored from live DB
-  // introspection so `db push` stays additive-only and never proposes dropping real data).
+  kotConfig          Json?
+  // Merchant UPI VPA (e.g. shop@okhdfcbank). Required when a receipt QR is UPI.
   upiId              String?
   labelConfig        Json?
   userId             String   @unique
@@ -205,6 +205,10 @@ model Product {
   lowStockThreshold Float     @default(0)
   unit              String    @default("piece")
   isActive          Boolean   @default(true)
+
+  brand       String?
+  description String?   @db.Text
+  expiryDate  DateTime?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -288,6 +292,7 @@ model Location {
   stockHistory StockHistory[]
   transfersOut StockTransfer[]        @relation("TransferFrom")
   transfersIn  StockTransfer[]        @relation("TransferTo")
+  kotOrders    KOTOrder[]
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
 }
@@ -378,15 +383,21 @@ model CreditTransaction {
 }
 
 model Feedback {
-  id        String   @id @default(uuid())
+  id          String   @id @default(uuid())
   // What part of the app the feedback is about (e.g. "pos", "products", "general").
-  area      String   @default("general")
+  area        String   @default("general")
   // 1-5 star rating; optional so pure text feedback is also valid.
-  rating    Int?
-  message   String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  rating      Int?
+  message     String
+  platform    String   @default("unknown") // web | mobile | unknown (legacy)
+  productId   String   @default("general")
+  productName String   @default("Unknown")
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([productId])
 }
 
 // Pre-existing model not previously tracked in this file (restored from live DB
@@ -465,6 +476,7 @@ model Token {
 model RestaurantTable {
   id        String     @id @default(uuid())
   name      String
+  capacity  Int?
   isActive  Boolean    @default(true)
   sortOrder Int        @default(0)
   userId    String
@@ -500,8 +512,9 @@ model KOTOrder {
   // Phone number for takeaway/delivery orders — separate from an attached Customer record,
   // which stays optional (most takeaway/delivery orders never need a full customer profile).
   contactNumber   String?
-  // First entry into sent_to_kitchen — powers a future "time since fired" display; not used
-  // by any Phase 1 controller/UI beyond being set once.
+  waiterName      String?
+  locationId      String?
+  location        Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
   sentToKitchenAt DateTime?
   // Set once billed. SetNull (not Cascade): the order predates and outlives the sale it produces.
   saleId          String?          @unique
@@ -532,8 +545,8 @@ model KOTOrderItem {
   // Quick-pick add-on/modifier tags, e.g. ["No Onion", "Extra Spicy"] — separate from the
   // free-text notes field above so the kitchen ticket can print them as a distinct tag list.
   modifiers   String[] @default([])
-  // Reserved for a future Kitchen Display System (per-item ticking); unused by Phase 1.
   status      String   @default("pending")
+  sentToKitchenAt DateTime?
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())

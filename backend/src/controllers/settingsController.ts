@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { mergeReceiptConfig, type ReceiptConfigLike } from '../utils/mergeReceiptConfig';
 
 export const getSettings = async (req: Request, res: Response) => {
   try {
@@ -32,7 +33,7 @@ const ALLOWED_SETTINGS_FIELDS = [
   'printerConfig',
   'labelConfig',
   'locationConfig',
-  'upiId',
+  'kotConfig',
 ];
 
 const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {
@@ -59,7 +60,11 @@ export const createSettings = async (req: Request, res: Response) => {
     res.status(201).json(settings);
   } catch (error) {
     console.error('Failed to create settings:', error);
-    res.status(500).json({ error: 'Failed to create settings' });
+    // Authenticated internal endpoint — surface the real error (e.g. Prisma's
+    // "Unknown argument `locationConfig`" when the deployed schema/client is
+    // stale) instead of a generic message that gives no diagnostic signal.
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to create settings: ${detail}` });
   }
 };
 
@@ -77,7 +82,8 @@ export const updateSettings = async (req: Request, res: Response) => {
     res.json(settings);
   } catch (error) {
     console.error('Failed to update settings:', error);
-    res.status(500).json({ error: 'Failed to update settings' });
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to update settings: ${detail}` });
   }
 };
 
@@ -114,6 +120,40 @@ export const updateNotificationConfig = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to update notification config:', error);
     res.status(500).json({ error: 'Failed to update notification config' });
+  }
+};
+
+export const updateReceiptConfig = async (req: Request, res: Response) => {
+  try {
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
+    const patch = (req.body?.receiptConfig ?? req.body) as ReceiptConfigLike;
+
+    const current = await prisma.settings.findUnique({ where: { userId } });
+    const existing = (current?.receiptConfig ?? {}) as ReceiptConfigLike;
+    const merged = mergeReceiptConfig(existing, patch);
+
+    const upiRaw = typeof patch.upiId === 'string' ? patch.upiId.trim() : undefined;
+    const updateData: { receiptConfig: any; upiId?: string | null } = { receiptConfig: merged as any };
+    const createData: { userId: string; receiptConfig: any; upiId?: string | null } = {
+      userId,
+      receiptConfig: merged as any,
+    };
+    if (upiRaw !== undefined) {
+      updateData.upiId = upiRaw || null;
+      createData.upiId = upiRaw || null;
+    }
+
+    const settings = await prisma.settings.upsert({
+      where: { userId },
+      update: updateData,
+      create: createData,
+    });
+    res.json(settings);
+  } catch (error) {
+    console.error('Failed to update receipt config:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to update receipt config: ${detail}` });
   }
 };
 

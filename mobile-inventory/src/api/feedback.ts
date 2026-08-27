@@ -5,6 +5,9 @@ export interface Feedback {
   area: string;
   rating?: number | null;
   message: string;
+  platform: string;
+  productId: string;
+  productName: string;
   userId: string;
   createdAt: string;
 }
@@ -13,6 +16,8 @@ export interface CreateFeedbackPayload {
   area?: string;
   rating?: number | null;
   message: string;
+  platform: 'web' | 'mobile';
+  productId: string;
 }
 
 export const feedbackApi = {

@@ -8,7 +8,7 @@ export type EscPosAlign = 'left' | 'center' | 'right'
 // Printers on this command set generally only ship an 8-bit ASCII/CP437-ish
 // code page, so non-ASCII characters (₹, etc.) are swapped for safe equivalents
 // rather than risking mojibake on the receipt.
-function toPrinterSafeText(str: string): string {
+export function toPrinterSafeText(str: string): string {
   const withoutRupee = str.replace(/₹/g, 'Rs.')
   let result = ''
   for (const ch of withoutRupee) {
@@ -71,10 +71,17 @@ export class EscPosBuilder {
     return this.line(char.repeat(width))
   }
 
-  // Pads two strings to the given width, left-justified and right-justified.
+  // Pads two strings to exactly width cols using printer-safe character lengths.
   twoCol(left: string, right: string, width = 32): this {
-    const space = Math.max(1, width - left.length - right.length)
-    return this.line(left + ' '.repeat(space) + right)
+    const safeLeft = toPrinterSafeText(left ?? '')
+    const safeRight = toPrinterSafeText(right ?? '')
+    const availableLeft = width - safeRight.length - 1
+    if (availableLeft < 1) {
+      return this.line(safeRight.slice(-width).padStart(width, ' '))
+    }
+    const leftStr = safeLeft.length > availableLeft ? safeLeft.slice(0, availableLeft) : safeLeft
+    const padding = width - leftStr.length - safeRight.length
+    return this.line(leftStr + ' '.repeat(Math.max(0, padding)) + safeRight)
   }
 
   feed(lines = 3): this {
@@ -128,7 +135,204 @@ export class EscPosBuilder {
     return this
   }
 
+  // Raster bit-image via the standard "GS v 0" command — the only way a
+  // logo can actually appear on a thermal receipt (there is no HTML/<img>
+  // on real hardware; the previous implementation only ever rendered the
+  // logo in the on-screen A4/browser preview and silently did nothing here,
+  // which is why it never showed up on an actual printed receipt).
+  // `packed` is 1-bit-per-pixel data (1 = black), MSB-first, each row
+  // padded out to a whole number of bytes — see rasterizeImageForEscPos().
+  image(packed: Uint8Array, widthBytes: number, heightDots: number): this {
+    this.push(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, heightDots & 0xff, (heightDots >> 8) & 0xff)
+    for (const b of packed) this.bytes.push(b)
+    return this
+  }
+
   toBytes(): Uint8Array {
     return new Uint8Array(this.bytes)
+  }
+}
+
+/**
+ * Auto-crops transparent and solid white outer margins from an image canvas
+ * so the actual logo artwork scales cleanly without wasting dot lines.
+ */
+function trimImageCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+  const w = canvas.width
+  const h = canvas.height
+  if (w <= 0 || h <= 0) return canvas
+
+  const imgData = ctx.getImageData(0, 0, w, h)
+  const data = imgData.data
+
+  let top = 0
+  let bottom = h
+  let left = 0
+  let right = w
+
+  // Find top boundary
+  topLoop: for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4
+      const alpha = data[idx + 3]
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+      if (alpha > 30 && lum < 240) {
+        top = y
+        break topLoop
+      }
+    }
+  }
+
+  // Find bottom boundary
+  bottomLoop: for (let y = h - 1; y >= top; y--) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4
+      const alpha = data[idx + 3]
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+      if (alpha > 30 && lum < 240) {
+        bottom = y + 1
+        break bottomLoop
+      }
+    }
+  }
+
+  // Find left boundary
+  leftLoop: for (let x = 0; x < w; x++) {
+    for (let y = top; y < bottom; y++) {
+      const idx = (y * w + x) * 4
+      const alpha = data[idx + 3]
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+      if (alpha > 30 && lum < 240) {
+        left = x
+        break leftLoop
+      }
+    }
+  }
+
+  // Find right boundary
+  rightLoop: for (let x = w - 1; x >= left; x--) {
+    for (let y = top; y < bottom; y++) {
+      const idx = (y * w + x) * 4
+      const alpha = data[idx + 3]
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+      if (alpha > 30 && lum < 240) {
+        right = x + 1
+        break rightLoop
+      }
+    }
+  }
+
+  const trimmedW = right - left
+  const trimmedH = bottom - top
+  if (trimmedW <= 0 || trimmedH <= 0 || (trimmedW === w && trimmedH === h)) {
+    return canvas
+  }
+
+  const trimmedCanvas = document.createElement('canvas')
+  trimmedCanvas.width = trimmedW
+  trimmedCanvas.height = trimmedH
+  const trimmedCtx = trimmedCanvas.getContext('2d')
+  if (!trimmedCtx) return canvas
+  trimmedCtx.drawImage(canvas, left, top, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH)
+  return trimmedCanvas
+}
+
+/**
+ * Loads an image (data: URI or http(s) URL) and converts it into 1bpp
+ * packed raster data ready for EscPosBuilder.image().
+ *
+ * Proportionally scales to fit within both maxWidthDots and maxHeightDots,
+ * trims blank borders, and aligns width to 8-dot byte boundaries. This keeps
+ * bitmap payloads lightweight (~800–1600 bytes) and prevents printer buffer
+ * exhaustion and motor stuttering during receipt printing.
+ */
+async function toRasterizableSrc(src: string): Promise<string> {
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
+  try {
+    const response = await fetch(src)
+    if (!response.ok) return src
+    const blob = await response.blob()
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || src))
+      reader.onerror = () => reject(new Error('Failed to read logo blob'))
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return src
+  }
+}
+
+export async function rasterizeImageForEscPos(
+  src: string,
+  maxWidthDots = 224,
+  maxHeightDots = 72
+): Promise<{ packed: Uint8Array; widthBytes: number; heightDots: number } | null> {
+  if (!src) return null
+  try {
+    const rasterSrc = await toRasterizableSrc(src)
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      if (!rasterSrc.startsWith('data:') && !rasterSrc.startsWith('blob:')) el.crossOrigin = 'anonymous'
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('Failed to load logo image'))
+      el.src = rasterSrc
+    })
+
+    if (!img.width || !img.height) return null
+
+    // 1. Render to initial canvas to inspect and trim transparent / solid white borders
+    const rawCanvas = document.createElement('canvas')
+    rawCanvas.width = img.width
+    rawCanvas.height = img.height
+    const rawCtx = rawCanvas.getContext('2d')
+    if (!rawCtx) return null
+    rawCtx.drawImage(img, 0, 0)
+
+    const trimmedCanvas = trimImageCanvas(rawCanvas)
+    const srcW = trimmedCanvas.width
+    const srcH = trimmedCanvas.height
+
+    // 2. Proportionally scale to fit both maxWidthDots and maxHeightDots
+    const scale = Math.min(1, maxWidthDots / srcW, maxHeightDots / srcH)
+    let widthDots = Math.max(8, Math.round(srcW * scale))
+    // Align width to a multiple of 8 dots for clean 1bpp row packing
+    widthDots = Math.ceil(widthDots / 8) * 8
+    const heightDots = Math.max(1, Math.round(srcH * scale))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = widthDots
+    canvas.height = heightDots
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+
+    // Clean white background first so transparent logos composite onto clean white
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, widthDots, heightDots)
+    ctx.drawImage(trimmedCanvas, 0, 0, widthDots, heightDots)
+
+    const { data } = ctx.getImageData(0, 0, widthDots, heightDots)
+    const widthBytes = widthDots / 8
+    const packed = new Uint8Array(widthBytes * heightDots)
+
+    // High-contrast 1bpp thresholding (luminance < 170 => black dot = 1)
+    for (let y = 0; y < heightDots; y++) {
+      for (let x = 0; x < widthDots; x++) {
+        const i = (y * widthDots + x) * 4
+        const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+        const isDark = luminance < 170
+        if (isDark) {
+          const byteIndex = y * widthBytes + (x >> 3)
+          packed[byteIndex] |= 0x80 >> (x & 7)
+        }
+      }
+    }
+
+    return { packed, widthBytes, heightDots }
+  } catch (err) {
+    console.warn('[receipt] rasterizeImageForEscPos failed:', err)
+    return null
   }
 }

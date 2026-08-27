@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding } from '@/services/authService'
-import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
+import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding, updateBusinessType } from '@/services/authService'
+import type { UserProfile, UserRole, UserPermissions, CompleteOnboardingPayload, BusinessType } from '@/types/auth.types'
 import { getAuthToken } from '@/services/api'
 
 interface AuthContextType {
@@ -12,8 +12,9 @@ interface AuthContextType {
   loginWithEmail: (email: string, pass: string) => Promise<void>
   registerWithEmail: (email: string, pass: string, fName: string, lName: string, phone: string) => Promise<void>
   signOut: () => Promise<void>
-  setUserRole: (role: UserRole, name: string, password: string) => Promise<void>
-  completeOnboarding: (businessName: string) => Promise<void>
+  setUserRole: (role: UserRole, name: string, password: string, agentUid?: string) => Promise<void>
+  completeOnboarding: (payload: CompleteOnboardingPayload) => Promise<void>
+  updateBusinessType: (businessType: BusinessType) => Promise<void>
   clearWorkspaceSelection: () => void
   hasRole: () => boolean
   permissions: UserPermissions | null
@@ -89,20 +90,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserProfile(null)
   }
 
-  const handleSetUserRole = async (role: UserRole, name: string, password: string) => {
+  const handleSetUserRole = async (role: UserRole, name: string, password: string, agentUid?: string) => {
     if (!user) throw new Error('No user logged in')
-    await setUserRoleAndProfile(user.id || user.uid, role, name, password)
-    const updatedProfile = await getUserProfile()
+    const res = await setUserRoleAndProfile(user.id || user.uid, role, name, password, agentUid)
+    const updatedProfile = res?.user || await getUserProfile()
+    setUser(updatedProfile)
     setUserProfile(updatedProfile ? { ...updatedProfile, role } : null)
     setHasSelectedWorkspace(true)
     localStorage.setItem('hasSelectedWorkspace', 'true')
   }
 
-  const handleCompleteOnboarding = async (businessName: string) => {
+  const handleCompleteOnboarding = async (payload: CompleteOnboardingPayload) => {
     if (!user) throw new Error('No user logged in')
-    await completeOnboarding(user.id || user.uid, businessName)
+    const updated = await completeOnboarding(payload)
     const updatedProfile = await getUserProfile()
-    setUserProfile(updatedProfile)
+    const nextProfile = updatedProfile ?? { ...user, ...updated, onboardingCompleted: true }
+    setUser(nextProfile)
+    setUserProfile(nextProfile)
+  }
+
+  const handleUpdateBusinessType = async (businessType: BusinessType) => {
+    if (!user) throw new Error('No user logged in')
+    const updated = await updateBusinessType(businessType)
+    const updatedProfile = await getUserProfile()
+    const nextProfile = updatedProfile ?? { ...user, ...updated, businessType }
+    setUser(nextProfile)
+    setUserProfile(prev => prev ? { ...nextProfile, role: prev.role } : nextProfile)
   }
 
   const handleClearWorkspaceSelection = () => {
@@ -127,6 +140,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signOut: handleSignOut,
         setUserRole: handleSetUserRole,
         completeOnboarding: handleCompleteOnboarding,
+        updateBusinessType: handleUpdateBusinessType,
         clearWorkspaceSelection: handleClearWorkspaceSelection,
         hasRole,
         permissions: userProfile?.permissions || null,

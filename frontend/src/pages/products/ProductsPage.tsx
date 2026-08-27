@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -11,8 +11,16 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
-import { ProductDetailModal } from './components/ProductDetailModal'
+import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
 import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
+import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
+import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
+import {
+  exportProductsToExcel,
+  buildProductsHtmlReport,
+  triggerPrintReport,
+  exportProductsToImage,
+} from '@/utils/exportEngine'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
@@ -27,13 +35,42 @@ import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
+import { useLocations, useProductLocationStock, useUpsertProductLocationStock, useLocationStock } from '@/hooks/useLocations'
+import { LocationSelector } from '@/components/common/LocationSelector'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate, resolveElementText, type LabelData } from '@/utils/labelPrint'
+import {
+  generateLabelEscPos,
+  generateLabelTspl,
+  defaultLabelTemplate,
+  PRESET_CENTERED_STANDARD,
+  PRESET_RETAIL_DUAL_CODE,
+  PRESET_MINIMAL_TAG,
+  resolveElementText,
+  type LabelData
+} from '@/utils/labelPrint'
+import type { LabelElement } from '@/types/settings.types'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
+import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
+import { isExpiringSoon, isExpired, daysUntilExpiry, formatExpiryMessage } from '@/utils/expiry'
 
+export interface LabelSizePreset {
+  id: string
+  label: string
+  width: number
+  height: number
+  description: string
+}
 
-type UnitType = 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
+export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
+  { id: '50x30', label: '50 × 30 mm', width: 50, height: 30, description: 'Standard' },
+  { id: '50x25', label: '50 × 25 mm', width: 50, height: 25, description: 'Compact' },
+  { id: '40x30', label: '40 × 30 mm', width: 40, height: 30, description: 'Small' },
+  { id: '40x20', label: '40 × 20 mm', width: 40, height: 20, description: 'Mini' },
+  { id: '60x40', label: '60 × 40 mm', width: 60, height: 40, description: 'Large' },
+  { id: 'custom', label: 'Custom', width: 50, height: 30, description: 'Manual' },
+]
+
 type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
 
 interface ProductFormState {
@@ -50,23 +87,16 @@ interface ProductFormState {
   lowStockThreshold: string
   unit: UnitType
   imageURL: string
+  // Optional details — never required, purely informational when filled in.
+  brand: string
+  description: string
+  expiryDate: string
 }
 
 const BARCODE_TYPE_OPTIONS = [
   { value: 'CODE128', label: 'Code 128' },
   { value: 'EAN13', label: 'EAN-13' },
   { value: 'QR', label: 'QR Code' },
-]
-
-// Standard Indian GST slabs, plus a custom escape hatch for anything unusual.
-const GST_SLAB_OPTIONS = [
-  { value: '0', label: '0% — Exempt' },
-  { value: '3', label: '3% — Gold, precious stones' },
-  { value: '5', label: '5% — Essentials' },
-  { value: '12', label: '12% — Standard' },
-  { value: '18', label: '18% — Standard' },
-  { value: '28', label: '28% — Luxury' },
-  { value: 'custom', label: 'Custom rate…' },
 ]
 
 // Generates a barcode value matching the chosen symbology so the label
@@ -85,16 +115,6 @@ const generateBarcodeValue = (type: BarcodeType): string => {
   return `SZ${Date.now().toString().slice(-8)}${rand}`
 }
 
-const UNIT_OPTIONS = [
-  { value: 'piece', label: 'Piece' },
-  { value: 'kg', label: 'Kg' },
-  { value: 'gram', label: 'Gram' },
-  { value: 'liter', label: 'Liter' },
-  { value: 'meter', label: 'Meter' },
-  { value: 'dozen', label: 'Dozen' },
-  { value: 'box', label: 'Box' },
-]
-
 const defaultForm: ProductFormState = {
   name: '',
   categoryId: '',
@@ -109,6 +129,9 @@ const defaultForm: ProductFormState = {
   lowStockThreshold: '10',
   unit: 'piece',
   imageURL: '',
+  brand: '',
+  description: '',
+  expiryDate: '',
 }
 
 const PAGE_SIZE = 8
@@ -126,6 +149,7 @@ export const ProductsPage = () => {
   const { mutate: bulkDeleteProducts, isPending: isBulkDeleting } = useBulkDeleteProducts()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<ProductFormState>(defaultForm)
@@ -136,22 +160,76 @@ export const ProductsPage = () => {
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
   const [showAiModal, setShowAiModal] = useState(false)
+  const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
+  const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
+  const [showExportModal, setShowExportModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
+  const locationFeatureEnabled = settings?.locationConfig?.enabled ?? false
+  const { data: allLocations = [] } = useLocations()
+  const activeLocations = allLocations.filter(l => l.isActive)
+  const { data: productLocationStock = [] } = useProductLocationStock(locationFeatureEnabled ? editId : null)
+  const { mutate: upsertLocationStock } = useUpsertProductLocationStock()
+
+  // Store switcher — lets the owner browse/manage this catalog scoped to one
+  // store at a time (same shared selection as POS/Scan-to-Bill, via
+  // LocationSelector's localStorage key, so picking a store anywhere in the
+  // app stays consistent). Products can carry different stock/price per
+  // store, or be entirely absent from one — "browseStoreId" is null when the
+  // feature is off or no store is picked, which falls back to every
+  // product's flat currentStock/sellingPrice exactly as before.
+  const [browseStoreId, setBrowseStoreId] = useState<string | null>(null)
+  const [showOnlyThisStore, setShowOnlyThisStore] = useState(false)
+  const { data: browseStoreStock = [] } = useLocationStock(browseStoreId)
+  const browseStoreStockMap = new Map(browseStoreStock.map(r => [r.productId, r]))
+  const browseStoreName = allLocations.find(l => l.id === browseStoreId)?.name ?? ''
+
+  const getBrowseStock = (product: { id: string; currentStock: number }): number =>
+    browseStoreId ? (browseStoreStockMap.get(product.id)?.stock ?? 0) : product.currentStock
+  const getBrowsePrice = (product: { id: string; sellingPrice: number }): number =>
+    browseStoreId ? (browseStoreStockMap.get(product.id)?.priceOverride ?? product.sellingPrice) : product.sellingPrice
+  const isCarriedAtBrowseStore = (product: { id: string }): boolean =>
+    !browseStoreId || browseStoreStockMap.has(product.id)
   const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
   const [labelQty, setLabelQty] = useState<number>(1)
   const [labelFormat, setLabelFormat] = useState<'CODE128' | 'EAN13' | 'QR'>('CODE128')
+  const [selectedLabelSizeId, setSelectedLabelSizeId] = useState<string>('50x30')
+  const [labelWidth, setLabelWidth] = useState<number>(50)
+  const [labelHeight, setLabelHeight] = useState<number>(30)
+  const [selectedLayoutPresetId, setSelectedLayoutPresetId] = useState<string>('standard')
   const [detailProduct, setDetailProduct] = useState<Product | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  const activeLabelTemplate = selectedLayoutPresetId === 'dual'
+    ? PRESET_RETAIL_DUAL_CODE
+    : selectedLayoutPresetId === 'minimal'
+    ? PRESET_MINIMAL_TAG
+    : selectedLayoutPresetId === 'custom_settings' && settings?.printerConfig?.labelTemplate
+    ? settings.printerConfig.labelTemplate
+    : PRESET_CENTERED_STANDARD
 
   const openDetail = (product: Product) => {
     setDetailProduct(product)
     setIsDetailOpen(true)
   }
+
+  const searchSuggestions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return (products ?? [])
+      .filter((p: Product) => p.isActive !== false && (
+        p.name.toLowerCase().includes(q) ||
+        p.sku?.toLowerCase().includes(q) ||
+        p.barcode?.toLowerCase().includes(q) ||
+        (p.brand && p.brand.toLowerCase().includes(q))
+      ))
+      .slice(0, 6)
+  }, [products, search])
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -217,17 +295,49 @@ export const ProductsPage = () => {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Category quick filter bar horizontal scroll logic
+  const categoryScrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkCategoryScroll = () => {
+    const el = categoryScrollRef.current
+    if (el) {
+      setCanScrollLeft(el.scrollLeft > 5)
+      setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5)
+    }
+  }
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    const el = categoryScrollRef.current
+    if (el) {
+      const scrollAmount = direction === 'left' ? -280 : 280
+      el.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+      setTimeout(checkCategoryScroll, 300)
+    }
+  }
+
+  const handleCategoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (categoryScrollRef.current && (e.deltaY !== 0 || e.deltaX !== 0)) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        categoryScrollRef.current.scrollLeft += e.deltaY
+      }
+    }
+  }
+
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
   const filtered = activeProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !categoryFilter || p.categoryId === categoryFilter
+    const stockHere = getBrowseStock(p)
     const matchesStock = !stockFilter ||
-      (stockFilter === 'in-stock' && p.currentStock > p.lowStockThreshold) ||
-      (stockFilter === 'low-stock' && p.currentStock > 0 && p.currentStock <= p.lowStockThreshold) ||
-      (stockFilter === 'out-of-stock' && p.currentStock <= 0)
-    return matchesSearch && matchesCategory && matchesStock
+      (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
+      (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
+      (stockFilter === 'out-of-stock' && stockHere <= 0)
+    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p)
+    return matchesSearch && matchesCategory && matchesStock && matchesStoreScope
   })
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
@@ -259,6 +369,9 @@ export const ProductsPage = () => {
   const totalInventoryValue = activeProducts.reduce((sum, p) => sum + (p.costPrice * p.currentStock), 0)
   const lowStockProducts = activeProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.lowStockThreshold)
   const outOfStockProducts = activeProducts.filter(p => p.currentStock <= 0)
+  const expiringProducts = activeProducts
+    .filter(p => isExpiringSoon(p.expiryDate))
+    .sort((a, b) => (daysUntilExpiry(a.expiryDate) ?? 0) - (daysUntilExpiry(b.expiryDate) ?? 0))
 
   // Category distribution
   const categoryCounts = activeProducts.reduce<Record<string, number>>((acc, p) => {
@@ -289,7 +402,28 @@ export const ProductsPage = () => {
     setLabelProduct(product)
     setLabelFormat((product.barcodeType as 'CODE128' | 'EAN13' | 'QR') || 'CODE128')
     setLabelQty(1)
+
+    const savedW = settings?.printerConfig?.labelWidth || 50
+    const savedH = settings?.printerConfig?.labelHeight || 30
+    const matched = LABEL_SIZE_PRESETS.find(p => p.id !== 'custom' && p.width === savedW && p.height === savedH)
+    if (matched) {
+      setSelectedLabelSizeId(matched.id)
+    } else {
+      setSelectedLabelSizeId('custom')
+    }
+    setLabelWidth(savedW)
+    setLabelHeight(savedH)
+    setSelectedLayoutPresetId(settings?.printerConfig?.labelTemplate ? 'custom_settings' : 'standard')
     setIsLabelModalOpen(true)
+  }
+
+  const handleSelectSizePreset = (presetId: string) => {
+    setSelectedLabelSizeId(presetId)
+    const preset = LABEL_SIZE_PRESETS.find(p => p.id === presetId)
+    if (preset && preset.id !== 'custom') {
+      setLabelWidth(preset.width)
+      setLabelHeight(preset.height)
+    }
   }
 
   const handlePrintToBlePrinter = async () => {
@@ -315,26 +449,26 @@ export const ProductsPage = () => {
     }
 
     try {
-      const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
+      const template = activeLabelTemplate
       const singleBytes = mode === 'tspl'
         ? generateLabelTspl(
             template,
             labelFormat,
             data,
-            settings?.printerConfig?.labelWidth || 50,
-            settings?.printerConfig?.labelHeight || 30,
+            labelWidth,
+            labelHeight,
             settings?.printerConfig?.labelOffsetX || 0,
             settings?.printerConfig?.labelOffsetY || 0,
             undefined,
             settings?.printerConfig?.labelDirection ?? 0,
-            settings?.printerConfig?.labelBarcodeOffsetX ?? 4
+            settings?.printerConfig?.labelBarcodeOffsetX ?? 0
           )
         : generateLabelEscPos(template, labelFormat, data)
 
       for (let i = 0; i < labelQty; i++) {
         await sendBleData(singleBytes)
       }
-      trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'ble' })
+      trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'ble', width: labelWidth, height: labelHeight })
       toast.success(`${labelQty} label(s) sent to ${bleDeviceName || 'Seznik Dev Printer'}!`)
     } catch (err) {
       console.error('BLE Print error:', err)
@@ -345,14 +479,14 @@ export const ProductsPage = () => {
 
   const handleBrowserPrintLabels = () => {
     if (!labelProduct) return
-    trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'browser' })
+    trackUserAction('feature_print_label', { quantity: labelQty, format: labelFormat, mode: 'browser', width: labelWidth, height: labelHeight })
     const printWin = window.open('', '_blank')
     if (!printWin) {
       toast.error('Please allow popups to print labels')
       return
     }
 
-    const template = settings?.printerConfig?.labelTemplate || defaultLabelTemplate
+    const template = activeLabelTemplate
     const barcodeVal = labelProduct.barcode || labelProduct.sku || '000000'
     const labelData: LabelData = {
       businessName: settings?.businessName || 'SEZNIK RETAIL',
@@ -362,12 +496,12 @@ export const ProductsPage = () => {
       sku: labelProduct.sku,
     }
 
-    const widthMm = settings?.printerConfig?.labelWidth || 50
-    const heightMm = settings?.printerConfig?.labelHeight || 30
+    const widthMm = labelWidth
+    const heightMm = labelHeight
     const offX = settings?.printerConfig?.labelOffsetX || 0
     const offY = settings?.printerConfig?.labelOffsetY || 0
 
-    const renderElementsHtml = template.map(el => {
+    const renderElementsHtml = template.map((el: LabelElement) => {
       const align = el.align || 'center'
       const weight = el.bold ? 'font-weight:700;' : 'font-weight:400;'
       const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
@@ -476,6 +610,9 @@ export const ProductsPage = () => {
       lowStockThreshold: String(row.lowStockThreshold),
       unit: row.unit,
       imageURL: row.imageURL ?? '',
+      brand: row.brand ?? '',
+      description: row.description ?? '',
+      expiryDate: row.expiryDate ? new Date(row.expiryDate).toISOString().slice(0, 10) : '',
     })
     setEditId(row.id)
     setIsFormOpen(true)
@@ -509,6 +646,12 @@ export const ProductsPage = () => {
       unit: form.unit,
       imageURL: form.imageURL || '',
       isActive: true,
+      // Optional details — sent as null (not omitted) when cleared, so
+      // editing a product to remove a brand/description/expiry actually
+      // clears it server-side instead of leaving the old value in place.
+      brand: form.brand.trim() || null,
+      description: form.description.trim() || null,
+      expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
     }
 
     if (editId) {
@@ -595,47 +738,79 @@ export const ProductsPage = () => {
           title={t('page.products')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
-              {selectedIds.size > 0 && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  leftIcon={<Trash2 size={16} />}
-                  onClick={handleBulkDelete}
-                  loading={isBulkDeleting}
-                >
-                  Delete Selected ({selectedIds.size})
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold"
-                leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
-                onClick={() => setShowAiModal(true)}
-              >
-                SEZ AI Bulk Upload
-              </Button>
-              <Button
-                data-tour="scan-stock-btn"
-                variant="outline"
-                leftIcon={<Barcode size={16} />}
-                onClick={() => setShowBarcodeModal(true)}
-              >
-                Scan to Update Stock
-              </Button>
-              <Button
-                variant="outline"
-                leftIcon={<Barcode size={16} />}
-                onClick={() => setShowManualBarcodeModal(true)}
-              >
-                Manual Stock Update
-              </Button>
-              <Button data-tour="add-product-btn" leftIcon={<Plus size={16} />} onClick={openCreate}>
-                {t('products.addProduct')}
-              </Button>
-            </div>
+            <Button
+              data-tour="add-product-btn"
+              leftIcon={<Plus size={16} />}
+              onClick={openCreate}
+              className="shrink-0 whitespace-nowrap font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {t('products.addProduct')}
+            </Button>
           }
         />
+
+        {/* Quick Tools Action Bar — Horizontally scrollable on all screen sizes */}
+        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth py-1 mb-4 min-w-0">
+          {selectedIds.size > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              leftIcon={<Trash2 size={16} />}
+              onClick={handleBulkDelete}
+              loading={isBulkDeleting}
+              className="shrink-0 whitespace-nowrap"
+            >
+              Delete Selected ({selectedIds.size})
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 font-bold shrink-0 whitespace-nowrap"
+            leftIcon={<Tag size={16} className="text-blue-600 dark:text-blue-400" />}
+            onClick={() => {
+              const targetProds = selectedIds.size > 0
+                ? activeProducts.filter(p => selectedIds.has(p.id))
+                : activeProducts
+              setConsecutiveProducts(targetProds)
+              setShowConsecutiveModal(true)
+            }}
+          >
+            {selectedIds.size > 0 ? `Consecutive Labels (${selectedIds.size})` : 'Consecutive Billing Labels'}
+          </Button>
+          <Button
+            variant="outline"
+            className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold shrink-0 whitespace-nowrap"
+            leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
+            onClick={() => setShowAiModal(true)}
+          >
+            SEZ AI Bulk Upload
+          </Button>
+          <Button
+            data-tour="scan-stock-btn"
+            variant="outline"
+            leftIcon={<Barcode size={16} />}
+            onClick={() => setShowBarcodeModal(true)}
+            className="shrink-0 whitespace-nowrap"
+          >
+            Scan to Update Stock
+          </Button>
+          <Button
+            variant="outline"
+            leftIcon={<Barcode size={16} />}
+            onClick={() => setShowManualBarcodeModal(true)}
+            className="shrink-0 whitespace-nowrap"
+          >
+            Manual Stock Update
+          </Button>
+          <Button
+            variant="outline"
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800 font-bold shrink-0 whitespace-nowrap"
+            leftIcon={<Download size={16} className="text-emerald-600 dark:text-emerald-400" />}
+            onClick={() => setShowExportModal(true)}
+          >
+            {selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export Products'}
+          </Button>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -701,47 +876,142 @@ export const ProductsPage = () => {
           </div>
         </div>
 
-        <div data-tour="search-input" className="relative w-full sm:w-72 shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        <div data-tour="search-input" className="relative w-full sm:w-80 shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={16} />
           <Input
             placeholder={t('products.searchPlaceholder')}
             value={search}
-            onChange={e => { setSearch(e.target.value); setCurrentPage(1) }}
+            onChange={e => {
+              setSearch(e.target.value)
+              setShowSearchSuggestions(true)
+              setCurrentPage(1)
+            }}
+            onFocus={() => setShowSearchSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 250)}
             className="pl-9 w-full text-xs h-9"
           />
+          {showSearchSuggestions && search.trim().length > 0 && searchSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
+              <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                Matching Products ({searchSuggestions.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {searchSuggestions.map((p: Product) => {
+                  const stock = getBrowseStock(p)
+                  const price = getBrowsePrice(p)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setSearch(p.name)
+                        setShowSearchSuggestions(false)
+                        setCurrentPage(1)
+                      }}
+                      className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                          {p.sku && <span>SKU: {p.sku}</span>}
+                          {p.barcode && <span>• {p.barcode}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
+                        <span className={`block text-[10px] ${stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                          {stock <= 0 ? 'Out of Stock' : `${stock} in stock`}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Category Quick Filter Pills (Horizontal Scrollable on Mobile) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-4 max-w-full no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setCategoryFilter('')}
-          className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
-            !categoryFilter
-              ? 'bg-[#0a0a2e] text-white shadow-xs'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
+      {/* Store switcher — browse/manage this catalog scoped to one store at a
+          time. Only rendered when multi-store inventory is enabled and at
+          least one active store exists. */}
+      {locationFeatureEnabled && activeLocations.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <LocationSelector onChange={setBrowseStoreId} />
+          {browseStoreId && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showOnlyThisStore}
+                onChange={e => setShowOnlyThisStore(e.target.checked)}
+                className="rounded"
+              />
+              Only show products carried at {browseStoreName}
+            </label>
+          )}
+        </div>
+      )}
+
+      {/* Category Quick Filter Pills (Fully Horizontal Scrollable on Mobile, Tablet & Desktop) */}
+      <div className="relative mb-4 group min-w-0">
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => scrollCategories('left')}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -ml-2"
+            aria-label="Scroll Left"
+          >
+            <ChevronLeft size={15} />
+          </button>
+        )}
+
+        <div
+          ref={categoryScrollRef}
+          onScroll={checkCategoryScroll}
+          onWheel={handleCategoryWheel}
+          className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 max-w-full no-scrollbar scroll-smooth overscroll-x-contain touch-pan-x cursor-grab active:cursor-grabbing select-none"
         >
-          All Categories ({activeProducts.length})
-        </button>
-        {categoryOptions.map(c => {
-          const count = activeProducts.filter(p => p.categoryId === c.value).length
-          return (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
-              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
-                categoryFilter === c.value
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              {c.label} ({count})
-            </button>
-          )
-        })}
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+              !categoryFilter
+                ? 'bg-[#0a0a2e] text-white shadow-xs ring-2 ring-blue-500/20'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            All Categories ({activeProducts.length})
+          </button>
+          {categoryOptions.map(c => {
+            const count = activeProducts.filter(p => p.categoryId === c.value).length
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                  categoryFilter === c.value
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/20'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {c.label} ({count})
+              </button>
+            )
+          })}
+        </div>
+
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollCategories('right')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -mr-2"
+            aria-label="Scroll Right"
+          >
+            <ChevronRight size={15} />
+          </button>
+        )}
       </div>
 
       {/* Main Content */}
@@ -778,9 +1048,11 @@ export const ProductsPage = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {paginated.map(product => {
-                        const stockPercent = Math.min((product.currentStock / (product.lowStockThreshold * 3)) * 100, 100)
-                        const isLowStock = product.currentStock > 0 && product.currentStock <= product.lowStockThreshold
-                        const isOutOfStock = product.currentStock <= 0
+                        const storeStock = getBrowseStock(product)
+                        const storePrice = getBrowsePrice(product)
+                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3)) * 100, 100)
+                        const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
+                        const isOutOfStock = storeStock <= 0
                         return (
                           <tr
                             key={product.id}
@@ -806,10 +1078,24 @@ export const ProductsPage = () => {
                                   )}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                                    {product.name}
-                                  </p>
-                                  <p className="text-[11px] text-gray-400">{product.unit}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                                      {product.name}
+                                    </p>
+                                    {isExpiringSoon(product.expiryDate) && (
+                                      <span
+                                        title={formatExpiryMessage(product.expiryDate)}
+                                        className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                                          isExpired(product.expiryDate)
+                                            ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                            : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                        }`}
+                                      >
+                                        {isExpired(product.expiryDate) ? t('products.expired') : t('products.expiringSoonBadge')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-gray-400">{formatDisplayUnit(product.unit)}{product.brand ? ` · ${product.brand}` : ''}</p>
                                 </div>
                               </div>
                             </td>
@@ -832,8 +1118,11 @@ export const ProductsPage = () => {
                                 <span className={`text-sm font-semibold ${
                                   isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
                                 }`}>
-                                  {product.currentStock} Units
+                                  {storeStock} Units
                                 </span>
+                                {browseStoreId && (
+                                  <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
+                                )}
                                 <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
@@ -845,7 +1134,10 @@ export const ProductsPage = () => {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
+                              <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
+                              {browseStoreId && storePrice !== product.sellingPrice && (
+                                <p className="text-[10px] text-gray-400 line-through">{formatINR(product.sellingPrice)}</p>
+                              )}
                             </td>
                             <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
@@ -965,16 +1257,29 @@ export const ProductsPage = () => {
         {/* Right Sidebar - Stats */}
         <div className="space-y-6">
           {/* Total Inventory Value */}
-          <Card data-tour="inventory-value-widget" className="p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative">
-            <div className="relative z-10">
-              <p className="text-xs font-bold uppercase tracking-widest opacity-80">{t('products.totalInventoryValue')}</p>
-              <p className="text-3xl font-black mt-1">{formatINR(totalInventoryValue)}</p>
-              <div className="mt-4 flex items-center gap-2 text-[10px] bg-white/20 w-fit px-2 py-1 rounded-full font-bold">
+          <Card data-tour="inventory-value-widget" className="p-5 sm:p-6 bg-gradient-to-br from-blue-700 to-sky-500 text-white overflow-hidden relative min-w-0">
+            <div className="relative z-10 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-80 truncate">{t('products.totalInventoryValue')}</p>
+              <p
+                className={`font-black mt-1.5 tracking-tight break-words truncate ${
+                  totalInventoryValue >= 100000000
+                    ? 'text-xl sm:text-2xl xl:text-2xl'
+                    : totalInventoryValue >= 10000000
+                    ? 'text-2xl sm:text-3xl'
+                    : totalInventoryValue >= 1000000
+                    ? 'text-2xl sm:text-3xl'
+                    : 'text-3xl'
+                }`}
+                title={formatINR(totalInventoryValue)}
+              >
+                {formatINR(totalInventoryValue)}
+              </p>
+              <div className="mt-4 flex items-center gap-2 text-[10px] bg-white/20 w-fit px-2.5 py-1 rounded-full font-bold">
                 <TrendingUp size={12} />
                 {activeProducts.length} products
               </div>
             </div>
-            <div className="absolute -right-4 -bottom-4 opacity-10">
+            <div className="absolute -right-4 -bottom-4 opacity-10 pointer-events-none">
               <Layers size={96} />
             </div>
           </Card>
@@ -1019,6 +1324,45 @@ export const ProductsPage = () => {
               )}
             </div>
           </Card>
+
+          {/* Expiring Soon */}
+          {expiringProducts.length > 0 && (
+            <Card className="p-6">
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
+                <AlertTriangle size={18} className="text-amber-500" />
+                {t('products.expiringSoon')}
+              </h4>
+              <div className="space-y-3">
+                {expiringProducts.slice(0, 3).map(product => {
+                  const expired = isExpired(product.expiryDate)
+                  return (
+                    <div
+                      key={product.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${
+                        expired ? 'bg-red-50 dark:bg-red-900/20 border-red-500' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-500'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                        <p className={`text-[10px] font-medium ${expired ? 'text-red-600' : 'text-amber-600'}`}>
+                          {formatExpiryMessage(product.expiryDate)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => openEdit(product)}
+                        className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                      >
+                        {t('action.edit')}
+                      </button>
+                    </div>
+                  )
+                })}
+                {expiringProducts.length > 3 && (
+                  <p className="text-[10px] text-gray-400 text-center">+{expiringProducts.length - 3} more</p>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Top Categories */}
           <Card className="p-6">
@@ -1354,6 +1698,99 @@ export const ProductsPage = () => {
               onChange={e => setForm(prev => ({ ...prev, unit: e.target.value as UnitType }))}
             />
           </div>
+
+          {/* Stock by Location — only shown when multi-location inventory is enabled */}
+          {locationFeatureEnabled && activeLocations.length > 0 && (
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
+                {t('locations.stockAtLocation') || 'Stock by Location'}
+              </p>
+              {!editId ? (
+                <p className="text-xs text-gray-400 italic">
+                  Save this product first, then come back to set its stock per location.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {activeLocations.map(loc => {
+                    const row = productLocationStock.find(r => r.locationId === loc.id)
+                    return (
+                      <div key={loc.id} className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 w-28 truncate shrink-0">
+                          {loc.name}
+                        </span>
+                        <input
+                          type="number"
+                          defaultValue={row?.stock ?? 0}
+                          onBlur={e => upsertLocationStock({
+                            productId: editId,
+                            locationId: loc.id,
+                            data: { stock: Number(e.target.value) || 0 },
+                          })}
+                          placeholder="Stock"
+                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                        />
+                        <input
+                          type="number"
+                          defaultValue={row?.priceOverride ?? ''}
+                          onBlur={e => upsertLocationStock({
+                            productId: editId,
+                            locationId: loc.id,
+                            data: { priceOverride: e.target.value === '' ? null : Number(e.target.value) },
+                          })}
+                          placeholder={`Price (default ${form.sellingPrice || '0'})`}
+                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Additional Details — entirely optional, never validated as required */}
+          <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
+              {t('products.additionalDetails')} <span className="font-normal">({t('common.optional')})</span>
+            </p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    {t('products.brand')}
+                  </label>
+                  <Input
+                    value={form.brand}
+                    onChange={e => setForm(prev => ({ ...prev, brand: e.target.value }))}
+                    placeholder={t('products.brandPlaceholder')}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    {t('products.expiryDate')}
+                    <FieldInfo textKey="tip.product.expiryDate" />
+                  </label>
+                  <Input
+                    type="date"
+                    value={form.expiryDate}
+                    onChange={e => setForm(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('products.description')}
+                </label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder={t('products.descriptionPlaceholder')}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm resize-none"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </Modal>
 
@@ -1488,6 +1925,104 @@ export const ProductsPage = () => {
               </div>
             </div>
 
+            {/* Label Dimensions Preset Selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag size={13} className="text-blue-500" />
+                  Label Sticker Size
+                </label>
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                  {labelWidth}mm × {labelHeight}mm
+                </span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {LABEL_SIZE_PRESETS.map(p => {
+                  const isSelected = selectedLabelSizeId === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelectSizePreset(p.id)}
+                      className={`p-2 rounded-xl border text-center transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{p.label}</div>
+                      <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>{p.description}</div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Custom Size Inputs (Shown when Custom is selected) */}
+              {selectedLabelSizeId === 'custom' && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50 mt-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                      Width (mm)
+                    </label>
+                    <Input
+                      type="number"
+                      min="20"
+                      max="110"
+                      value={String(labelWidth)}
+                      onChange={e => setLabelWidth(Math.max(10, parseInt(e.target.value) || 50))}
+                      placeholder="50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                      Height (mm)
+                    </label>
+                    <Input
+                      type="number"
+                      min="15"
+                      max="150"
+                      value={String(labelHeight)}
+                      onChange={e => setLabelHeight(Math.max(10, parseInt(e.target.value) || 30))}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Label Layout Template Preset Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers size={13} className="text-blue-500" />
+                Layout Template Preset
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'standard', label: 'Standard', desc: 'Store + Name + Barcode + Price' },
+                  { id: 'dual', label: 'Dual Code', desc: 'Barcode + QR Side-by-Side' },
+                  { id: 'minimal', label: 'Minimal', desc: 'Name + Barcode + Price' },
+                  { id: 'custom_settings', label: 'From Settings', desc: 'Custom Template' },
+                ].map(tmpl => {
+                  const isSelected = selectedLayoutPresetId === tmpl.id
+                  return (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => setSelectedLayoutPresetId(tmpl.id)}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-400/30 font-semibold'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{tmpl.label}</div>
+                      <div className="text-[10px] text-gray-400 dark:text-gray-400 mt-0.5 leading-tight line-clamp-1">{tmpl.desc}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* Interactive Settings Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -1522,14 +2057,15 @@ export const ProductsPage = () => {
 
             {/* Live Canvas Sticker Preview */}
             <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({settings?.printerConfig?.labelWidth || 50}mm × {settings?.printerConfig?.labelHeight || 30}mm)</span>
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({labelWidth}mm × {labelHeight}mm)</span>
               <div
                 className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
                 style={{
+                  minHeight: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
                   transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
                 }}
               >
-                {(settings?.printerConfig?.labelTemplate || defaultLabelTemplate).map(el => {
+                {activeLabelTemplate.map((el: LabelElement) => {
                   const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
                   const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
                   const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-blue-400' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
@@ -1575,7 +2111,7 @@ export const ProductsPage = () => {
                   }
                   const text = resolveElementText(el, labelData)
                   if (!text) return null
-                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1' : ''
+                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1 font-bold text-gray-900 dark:text-white' : ''
                   return (
                     <div
                       key={el.id}
@@ -1627,6 +2163,8 @@ export const ProductsPage = () => {
         product={detailProduct}
         categoryName={detailProduct ? getCategoryName(detailProduct.categoryId) : undefined}
         supplierName={detailProduct ? (suppliers?.find(s => s.id === detailProduct.supplierId)?.name || 'None') : undefined}
+        selectedStoreId={browseStoreId}
+        selectedStoreName={browseStoreName}
         onEdit={openEdit}
         onDelete={(p) => {
           if (confirm(`Delete product "${p.name}"?`)) {
@@ -1644,6 +2182,13 @@ export const ProductsPage = () => {
         onClose={() => setShowAiModal(false)}
       />
 
+      <ConsecutiveLabelModal
+        isOpen={showConsecutiveModal}
+        onClose={() => setShowConsecutiveModal(false)}
+        selectedProducts={consecutiveProducts}
+        allProducts={activeProducts}
+      />
+
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal
         isOpen={pageTutorial.isTutorialOpen}
@@ -1656,6 +2201,43 @@ export const ProductsPage = () => {
         steps={pageTutorial.tutorialData.tourSteps}
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
+      />
+
+      {/* Multi-Format Products Catalog & Valuation Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="Export Products & Inventory"
+        subtitle={browseStoreName ? `Store: ${browseStoreName}` : 'All Stores / Global Catalog'}
+        totalCount={selectedIds.size > 0 ? selectedIds.size : activeProducts.length}
+        itemLabel={selectedIds.size > 0 ? 'selected products' : 'products'}
+        storeName={browseStoreName || undefined}
+        businessName={settings?.businessName || 'SEZNIK ENTERPRISES'}
+        businessGSTIN={settings?.businessGSTIN}
+        businessPhone={settings?.businessPhone}
+        onExport={async (format) => {
+          const targetProducts = selectedIds.size > 0
+            ? activeProducts.filter(p => selectedIds.has(p.id))
+            : activeProducts
+
+          const meta = {
+            businessName: settings?.businessName || 'SEZNIK ENTERPRISES',
+            businessAddress: settings?.businessAddress || '',
+            businessPhone: settings?.businessPhone || '',
+            businessGSTIN: settings?.businessGSTIN || '',
+            businessLogoURL: settings?.businessLogoURL || '',
+            storeName: browseStoreName || undefined,
+          }
+
+          if (format === 'excel') {
+            exportProductsToExcel(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+          } else if (format === 'pdf') {
+            const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            triggerPrintReport(html, 'Products-Inventory-Report')
+          } else if (format === 'image') {
+            exportProductsToImage(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+          }
+        }}
       />
     </div>
   )

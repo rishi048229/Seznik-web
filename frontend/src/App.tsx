@@ -13,11 +13,40 @@ import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserPermissions } from '@/types/auth.types'
+import { needsBusinessSetup, isNavFeatureVisible } from '@/utils/businessFeatures'
 
-// Helper to lazy-load named exports as default components
+// Helper to lazy-load named exports as default components.
+//
+// Retries once on a failed chunk load (import().catch below) before giving
+// up. A stale browser tab left open across a redeploy still references the
+// PREVIOUS build's hashed chunk filenames — those files no longer exist on
+// the server once a new build has shipped, so the dynamic import 404s. That
+// used to throw straight into render with nothing catching it, blanking the
+// whole app until the user figured out to hit refresh themselves. Now it
+// reloads once automatically (fetching a fresh index.html with the correct
+// current hashes) instead of surfacing that as a blank screen; a genuinely
+// persistent failure still surfaces normally via ErrorBoundary rather than
+// reload-looping forever.
+const CHUNK_RELOAD_KEY = 'chunk-reload-attempted'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const lazyPage = <T extends Record<string, any>>(importFn: () => Promise<T>, name: keyof T) =>
-  lazy(() => importFn().then(module => ({ default: module[name] as React.ComponentType })))
+  lazy(() =>
+    importFn()
+      .then(module => {
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+        return { default: module[name] as React.ComponentType }
+      })
+      .catch(err => {
+        if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+          sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+          window.location.reload()
+          // Never resolves — the reload above replaces this page before
+          // React would get a chance to render anything from this branch.
+          return new Promise<{ default: React.ComponentType }>(() => {})
+        }
+        throw err
+      })
+  )
 
 // Lazy-loaded pages (named exports → default for React.lazy)
 // NOTE: the marketing landing page (src/pages/landing/) is built but intentionally
@@ -29,8 +58,11 @@ const DashboardPage = lazyPage(() => import('@/pages/dashboard/DashboardPage'), 
 const POSPage = lazyPage(() => import('@/pages/pos/POSPage'), 'POSPage')
 const POSLitePage = lazyPage(() => import('@/pages/pos/POSLitePage'), 'POSLitePage')
 const QuickTokensPage = lazyPage(() => import('@/pages/tokens/QuickTokensPage'), 'QuickTokensPage')
+const KOTPage = lazyPage(() => import('@/pages/kot/KOTPage'), 'KOTPage')
+const KDSPage = lazyPage(() => import('@/pages/kot/KDSPage'), 'KDSPage')
 const ProductsPage = lazyPage(() => import('@/pages/products/ProductsPage'), 'ProductsPage')
 const CategoriesPage = lazyPage(() => import('@/pages/categories/CategoriesPage'), 'CategoriesPage')
+const LocationsPage = lazyPage(() => import('@/pages/locations/LocationsPage'), 'LocationsPage')
 const CustomersPage = lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage')
 const CustomerDetailPage = lazyPage(() => import('@/pages/customers/CustomerDetailPage'), 'CustomerDetailPage')
 const SuppliersPage = lazyPage(() => import('@/pages/suppliers/SuppliersPage'), 'SuppliersPage')
@@ -45,6 +77,7 @@ const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
 const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
+const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage'), 'ProfilePage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 
 const LoadingFallback = <RouteLoadingFallback />
@@ -67,7 +100,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 // Route guard for login page
 const LoginRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
-  const needsOnboarding = userProfile?.onboardingCompleted === false
+  const needsSetup = needsBusinessSetup(userProfile)
 
   if (loading) {
     return LoadingFallback
@@ -75,7 +108,7 @@ const LoginRoute = ({ children }: { children: React.ReactNode }) => {
 
   // If already authenticated, continue to dashboard if role selected, else access selection.
   if (user) {
-    if (needsOnboarding) {
+    if (needsSetup) {
       return <Navigate to={ROUTES.ONBOARDING} replace />
     }
     if (hasSelectedWorkspace && userProfile?.role) {
@@ -90,7 +123,7 @@ const LoginRoute = ({ children }: { children: React.ReactNode }) => {
 // Route guard for role selection
 const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, hasSelectedWorkspace, loading } = useAuth()
-  const needsOnboarding = userProfile?.onboardingCompleted === false
+  const needsSetup = needsBusinessSetup(userProfile)
   
   if (loading) {
     return LoadingFallback
@@ -102,7 +135,7 @@ const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   // New users must finish onboarding before creating/selecting credentials.
-  if (needsOnboarding) {
+  if (needsSetup) {
     return <Navigate to={ROUTES.ONBOARDING} replace />
   }
 
@@ -116,7 +149,7 @@ const RoleSelectionRoute = ({ children }: { children: React.ReactNode }) => {
 // Route guard for onboarding
 const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, userProfile, loading } = useAuth()
-  const needsOnboarding = userProfile?.onboardingCompleted === false
+  const needsSetup = needsBusinessSetup(userProfile)
 
   if (loading) {
     return LoadingFallback
@@ -126,7 +159,7 @@ const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to={ROUTES.LOGIN} replace />
   }
 
-  if (!needsOnboarding) {
+  if (!needsSetup) {
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
   }
 
@@ -146,6 +179,10 @@ const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to={ROUTES.LOGIN} replace />
   }
 
+  if (needsBusinessSetup(userProfile)) {
+    return <Navigate to={ROUTES.ONBOARDING} replace />
+  }
+
   // If user doesn't have role, redirect to access selection
   if (!hasSelectedWorkspace || !userProfile?.role) {
     return <Navigate to={ROUTES.ACCESS_SELECTION} replace />
@@ -163,6 +200,20 @@ const PermissionRoute = ({ permission, children }: { permission: keyof UserPermi
     return <>{children}</>
   }
   if (!permissions || !permissions[permission]) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />
+  }
+  return <>{children}</>
+}
+
+const BusinessFeatureRoute = ({
+  feature,
+  children,
+}: {
+  feature: 'tokens' | 'kot'
+  children: React.ReactNode
+}) => {
+  const { userProfile } = useAuth()
+  if (!isNavFeatureVisible(userProfile?.businessType, feature)) {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
   return <>{children}</>
@@ -198,9 +249,12 @@ function App() {
               <Route path={ROUTES.DASHBOARD} element={<AuthenticatedRoute><MainLayout><DashboardPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.POS} element={<AuthenticatedRoute><MainLayout><POSPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.POS_LITE} element={<AuthenticatedRoute><MainLayout><POSLitePage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.TOKENS} element={<AuthenticatedRoute><MainLayout><QuickTokensPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.TOKENS} element={<AuthenticatedRoute><BusinessFeatureRoute feature="tokens"><MainLayout><QuickTokensPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.KOT_KDS} element={<AuthenticatedRoute><BusinessFeatureRoute feature="kot"><MainLayout><KDSPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
+              <Route path={ROUTES.KOT} element={<AuthenticatedRoute><BusinessFeatureRoute feature="kot"><MainLayout><KOTPage /></MainLayout></BusinessFeatureRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.PRODUCTS} element={<AuthenticatedRoute><MainLayout><ProductsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CATEGORIES} element={<AuthenticatedRoute><MainLayout><CategoriesPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.LOCATIONS} element={<AuthenticatedRoute><MainLayout><LocationsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.CUSTOMERS} element={<AuthenticatedRoute><MainLayout><CustomersPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="/customers/:id" element={<AuthenticatedRoute><MainLayout><CustomerDetailPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.SUPPLIERS} element={<AuthenticatedRoute><PermissionRoute permission="canAccessSuppliers"><MainLayout><SuppliersPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
@@ -215,6 +269,7 @@ function App() {
               <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ProfitLossPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><TaxReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
               <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
+              <Route path={ROUTES.PROFILE} element={<AuthenticatedRoute><MainLayout><ProfilePage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.PRINTERS} element={<AuthenticatedRoute><MainLayout><PrintersPage /></MainLayout></AuthenticatedRoute>} />
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>

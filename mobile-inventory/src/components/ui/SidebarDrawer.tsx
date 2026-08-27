@@ -32,7 +32,6 @@ import {
   ChefHat,
   PlusCircle,
   LayoutGrid,
-  Percent,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -41,7 +40,6 @@ import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
 import { NavFeatureId } from '@/constants/businessTypes';
 import { isNavFeatureVisible } from '@/utils/businessFeatures';
-import { GstBillingSettingsModal } from '@/components/billing/GstBillingSettingsModal';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.82, 340);
@@ -59,7 +57,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const { user, logout, hasPermission } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
   const businessType = user?.businessType;
-  const [taxBillingOpen, setTaxBillingOpen] = useState(false);
 
   const isFeatureVisible = (feature?: NavFeatureId) => {
     if (!feature) return true;
@@ -128,7 +125,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
         { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
-        { id: 'tax-billing', label: t('taxBilling', 'Tax & Billing'), icon: Percent, modal: 'taxBilling' as const },
       ],
     },
     {
@@ -155,7 +151,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       items: [
         { id: 'reports', label: t('reports', 'P&L Reports & GST Output'), icon: BarChart3, route: '/reports' },
         { id: 'settings', label: t('settings', 'Settings & Staff Users'), icon: Settings, route: '/settings' },
-        { id: 'feedback', label: t('feedback', 'Review & Suggest'), icon: Star, route: '/feedback' },
       ],
     },
   ].filter((group) => group.items.length > 0);
@@ -216,11 +211,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                       <TouchableOpacity
                         key={item.id}
                         onPress={() => {
-                          if ('modal' in item && item.modal === 'taxBilling') {
-                            onClose();
-                            setTimeout(() => setTaxBillingOpen(true), 150);
-                            return;
-                          }
                           if ('route' in item && item.route) {
                             handleNavigate(item.route);
                           }
@@ -288,6 +278,27 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
 
             <View style={[styles.drawerFooter, { borderTopColor: theme.borderColor }]}>
               <TouchableOpacity
+                onPress={() => handleNavigate('/feedback')}
+                style={styles.reviewBanner}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel={t('reviewBannerTitle', 'Reviews & Suggestions')}
+              >
+                <View style={styles.reviewBannerIcon}>
+                  <Star size={16} color="#D97706" fill="#F59E0B" />
+                </View>
+                <View style={styles.reviewBannerCopy}>
+                  <Text style={styles.reviewBannerTitle} numberOfLines={1}>
+                    {t('reviewBannerTitle', 'Reviews & Suggestions')}
+                  </Text>
+                  <Text style={styles.reviewBannerSub} numberOfLines={1}>
+                    {t('reviewBannerSub', 'Rate the app or send an idea')}
+                  </Text>
+                </View>
+                <ChevronRight size={16} color="rgba(255, 255, 255, 0.85)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => {
                   onClose();
                   logout();
@@ -304,7 +315,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       </View>
     </Modal>
-    <GstBillingSettingsModal visible={taxBillingOpen} onClose={() => setTaxBillingOpen(false)} />
     </>
   );
 }
@@ -423,6 +433,39 @@ const styles = StyleSheet.create({
   drawerFooter: {
     padding: 16,
     borderTopWidth: 1,
+    gap: 10,
+  },
+  reviewBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D97706',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+  },
+  reviewBannerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#FFFBEB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  reviewBannerCopy: {
+    flex: 1,
+    marginRight: 6,
+  },
+  reviewBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  reviewBannerSub: {
+    color: 'rgba(255, 255, 255, 0.82)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 1,
   },
   logoutBtn: {
     flexDirection: 'row',
