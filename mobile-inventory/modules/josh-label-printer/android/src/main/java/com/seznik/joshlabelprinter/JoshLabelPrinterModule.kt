@@ -104,7 +104,7 @@ class JoshLabelPrinterModule : Module() {
 
     override fun onPrinterDiscovery(address: IDzPrinter.PrinterAddress?, arg: Any?) {
       val mac = address?.macAddress ?: return
-      val name = address.shownName ?: address.device?.name ?: mac
+      val name = address.shownName?.takeIf { it.isNotEmpty() } ?: mac
       discovered[mac] = address
       sendEvent("onPrinterFound", bundleOf("address" to mac, "name" to name))
     }
@@ -173,12 +173,11 @@ class JoshLabelPrinterModule : Module() {
   private fun finiteInt(v: Any?, fallback: Int): Int = finite(v, fallback.toDouble()).toInt()
 
   private fun printableWidthMm(): Double {
-    val info = api?.printerInfo ?: return 0.0
-    val w01mm = info.getInt(IDzPrinter.PrinterInfoName.PRINTABLE_WIDTH_01MM, 0)
-    if (w01mm > 0) return w01mm / 10.0
-    val wMm = info.getInt(IDzPrinter.PrinterInfoName.PRINTABLE_WIDTH, 0)
-    if (wMm > 0) return wMm.toDouble()
-    return 0.0
+    val info = api?.printerInfo ?: return 48.0
+    val px = info.deviceWidth
+    val dpi = info.deviceDPI
+    if (px <= 0 || dpi <= 0) return 48.0
+    return px.toDouble() / dpi.toDouble() * 25.4
   }
 
   override fun definition() = ModuleDefinition {
@@ -220,8 +219,8 @@ class JoshLabelPrinterModule : Module() {
           promise.resolve(null)
         } else {
           val info = instance.printerInfo
-          val mac = instance.printerAddress?.macAddress ?: info?.deviceAddress ?: ""
-          val name = instance.printerAddress?.shownName ?: instance.printerAddress?.device?.name ?: info?.deviceName ?: mac
+          val mac = info?.deviceAddress ?: ""
+          val name = info?.deviceName ?: mac
           val dpi = info?.deviceDPI ?: 203
           val px = info?.deviceWidth ?: 384
           val widthMm = printableWidthMm().takeIf { it > 0 } ?: 48.0
