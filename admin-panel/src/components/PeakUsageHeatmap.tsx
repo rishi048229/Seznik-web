@@ -3,7 +3,8 @@ import { Activity, Clock, Calendar, Palette, Info } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
 import { fetchHeatmapData } from '../services/api';
 import { EmptyState } from './EmptyState';
-import { TimeRangeSelect, timeRangeLabel } from './TimeRangeSelect';
+
+type HeatmapScope = 'today' | '3d';
 
 interface HoveredCellInfo {
   date: string;
@@ -228,14 +229,24 @@ const HeatmapColorLegend: React.FC<{
   </div>
 );
 
-function getSkeletonDayCount(viewTodayOnly: boolean, embedded: boolean, timeRange: string) {
-  if (viewTodayOnly) return 1;
-  if (embedded) return 3;
-  if (timeRange === '24h') return 2;
-  if (timeRange === '3d') return 3;
-  if (timeRange === '7d') return 7;
-  if (timeRange === '30d') return 7;
-  return 3;
+const EMBEDDED_HEATMAP_ROW_HEIGHT = 16;
+const FULL_HEATMAP_ROW_HEIGHT = 28;
+
+function getEmbeddedDayCap(scope: HeatmapScope): number {
+  return scope === 'today' ? 1 : 3;
+}
+
+function getHeatmapDayOverride(embedded: boolean, scope: HeatmapScope): number | undefined {
+  if (!embedded) return undefined;
+  return getEmbeddedDayCap(scope);
+}
+
+function getSkeletonDayCount(scope: HeatmapScope) {
+  return scope === 'today' ? 1 : 3;
+}
+
+function scopeLabel(scope: HeatmapScope): string {
+  return scope === 'today' ? 'Today' : 'Last 3 Days';
 }
 
 const HeatmapLegendSkeleton: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
@@ -267,13 +278,20 @@ const HeatmapGridSkeleton: React.FC<{
   cellGap: number;
   hourCount: number;
   dayCount: number;
-  minWidth: number;
-}> = ({ embedded, hourGridTemplate, cellGap, hourCount, dayCount, minWidth }) => (
+  spreadRows?: boolean;
+  isTodayView?: boolean;
+}> = ({ embedded, hourGridTemplate, cellGap, hourCount, dayCount, spreadRows = false, isTodayView = false }) => (
   <div
-    className={`heatmap-grid-scroll heatmap-grid-skeleton${embedded ? ' heatmap-grid-fit' : ''}`}
+    className={[
+      'heatmap-grid-scroll heatmap-grid-skeleton',
+      embedded ? 'heatmap-grid-fit' : '',
+      spreadRows ? 'heatmap-grid-fit--spread-rows' : '',
+      isTodayView ? 'heatmap-grid-fit--today' : '',
+    ].filter(Boolean).join(' ')}
     style={{
       flex: 1,
       minHeight: 0,
+      width: '100%',
       overflowX: 'auto',
       overflowY: 'hidden',
       padding: embedded ? '2px 2px 0' : '4px 2px 2px',
@@ -292,7 +310,7 @@ const HeatmapGridSkeleton: React.FC<{
         gridTemplateColumns: hourGridTemplate,
         gap: cellGap,
         padding: embedded ? '4px 8px 2px' : '8px 10px 4px',
-        minWidth,
+        width: '100%',
       }}
     >
       <div />
@@ -308,7 +326,7 @@ const HeatmapGridSkeleton: React.FC<{
       className={embedded ? 'heatmap-day-rows' : undefined}
       style={{
         padding: embedded ? undefined : '0 10px 10px',
-        minWidth,
+        width: '100%',
         flex: embedded ? 1 : undefined,
         display: embedded ? 'flex' : undefined,
         flexDirection: embedded ? 'column' : undefined,
@@ -325,7 +343,7 @@ const HeatmapGridSkeleton: React.FC<{
             gap: cellGap,
             alignItems: 'stretch',
             marginBottom: embedded ? 0 : 4,
-            flex: embedded ? 1 : undefined,
+            flex: embedded && spreadRows ? 1 : undefined,
           }}
         >
           <div className="heatmap-skeleton-grid__day-label">
@@ -494,16 +512,12 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
 };
 
 export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const [timeRange, setTimeRange] = useState(embedded ? '3d' : '7d');
-  const [rangeData, setRangeData] = useState<HeatmapCell[] | HeatmapResponse | undefined>(undefined);
-  const [rangeLoading, setRangeLoading] = useState(true);
-  const [rangeError, setRangeError] = useState<string | null>(null);
+  const [scope, setScope] = useState<HeatmapScope>('3d');
+  const [heatmapData, setHeatmapData] = useState<HeatmapCell[] | HeatmapResponse | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [hoveredCell, setHoveredCell] = useState<HoveredCellInfo | null>(null);
   const [viewFilter, setViewFilter] = useState<'all' | 'business'>('all');
-  const [viewTodayOnly, setViewTodayOnly] = useState(false);
-  const [todayData, setTodayData] = useState<HeatmapResponse | null>(null);
-  const [todayLoading, setTodayLoading] = useState(false);
-  const [todayError, setTodayError] = useState<string | null>(null);
   const [paletteId, setPaletteId] = useState<HeatmapPalette>(() => {
     return (localStorage.getItem('seznik_heatmap_palette') as HeatmapPalette) || 'traffic';
   });
@@ -522,32 +536,30 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
   };
 
   useEffect(() => {
-    if (viewTodayOnly) return;
-
     let cancelled = false;
     let isFirst = true;
 
     const load = () => {
       if (isFirst) {
-        setRangeLoading(true);
+        setLoading(true);
         isFirst = false;
       }
-      setRangeError(null);
-      fetchHeatmapData(timeRange, embedded ? 3 : undefined)
+      setError(null);
+      fetchHeatmapData(scope, getHeatmapDayOverride(embedded, scope))
         .then((result) => {
           if (!cancelled) {
-            setRangeData(result);
-            setRangeError(null);
+            setHeatmapData(result);
+            setError(null);
           }
         })
         .catch((err: Error) => {
           if (!cancelled) {
-            setRangeError(err?.message || 'Failed to load heatmap');
-            setRangeData(undefined);
+            setError(err?.message || 'Failed to load heatmap');
+            setHeatmapData(undefined);
           }
         })
         .finally(() => {
-          if (!cancelled) setRangeLoading(false);
+          if (!cancelled) setLoading(false);
         });
     };
 
@@ -557,54 +569,9 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
       cancelled = true;
       clearInterval(timer);
     };
-  }, [timeRange, viewTodayOnly, embedded]);
+  }, [scope, embedded]);
 
-  // Live fetch for "Today Only" — calendar today in IST from API
-  useEffect(() => {
-    if (!viewTodayOnly) {
-      setTodayData(null);
-      setTodayError(null);
-      return;
-    }
-
-    let cancelled = false;
-    let isFirst = true;
-
-    const load = () => {
-      if (isFirst) {
-        setTodayLoading(true);
-        isFirst = false;
-      }
-      setTodayError(null);
-      fetchHeatmapData('today')
-        .then((result) => {
-          if (!cancelled) {
-            setTodayData(result);
-            setTodayError(null);
-          }
-        })
-        .catch((err: Error) => {
-          if (!cancelled) {
-            setTodayError(err?.message || 'Failed to load today\'s heatmap');
-            setTodayData(null);
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setTodayLoading(false);
-        });
-    };
-
-    load();
-    const timer = setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [viewTodayOnly]);
-
-  const activeData: HeatmapCell[] | HeatmapResponse | undefined = viewTodayOnly
-    ? todayData ?? undefined
-    : rangeData;
+  const activeData: HeatmapCell[] | HeatmapResponse | undefined = heatmapData;
 
   const cells: HeatmapCell[] = Array.isArray(activeData)
     ? activeData
@@ -620,7 +587,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
 
   const currentWeekRange = (!Array.isArray(activeData) && activeData?.currentWeekRange)
     ? activeData.currentWeekRange
-    : viewTodayOnly
+    : scope === 'today'
       ? 'Today (IST)'
       : 'Current Active Week';
 
@@ -714,10 +681,17 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
 
   const labelColWidth = embedded ? 44 : 58;
   const hourGridTemplate = `${labelColWidth}px repeat(${activeHours.length}, minmax(0, 1fr))`;
-  const cellGap = embedded ? 2 : 4;
-  const gridMinWidth = viewFilter === 'business' ? 420 : 560;
-  const skeletonDayCount = getSkeletonDayCount(viewTodayOnly, embedded, timeRange);
-  const isHeatmapLoading = viewTodayOnly ? todayLoading && !todayData : rangeLoading && !rangeData;
+  const cellGap = embedded ? 3 : 4;
+  const skeletonDayCount = getSkeletonDayCount(scope);
+  const spreadRows = embedded;
+  const isTodayView = scope === 'today';
+  const gridClassName = [
+    'heatmap-grid-scroll',
+    embedded ? 'heatmap-grid-fit' : '',
+    spreadRows ? 'heatmap-grid-fit--spread-rows' : '',
+    isTodayView ? 'heatmap-grid-fit--today' : '',
+  ].filter(Boolean).join(' ');
+  const isHeatmapLoading = loading && !heatmapData;
 
   return (
     <div
@@ -764,7 +738,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
                 Peak Usage Heatmap
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                {viewTodayOnly ? 'Today · IST' : `${timeRangeLabel(timeRange)} · IST`}
+                {scopeLabel(scope)} · IST
                 {' · '}
                 <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{weekDateRangeStr}</span>
               </p>
@@ -834,36 +808,29 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
       >
         <HeatmapRangeInfoButton
           palette={activePalette}
-          rangeLabel={viewTodayOnly ? 'Today (IST)' : `${timeRangeLabel(timeRange)} (IST)`}
+          rangeLabel={`${scopeLabel(scope)} (IST)`}
           dateRange={weekDateRangeStr}
           compact={embedded}
           variant="toolbar"
         />
 
         <div style={controlGroup}>
-          <button type="button" onClick={() => setViewTodayOnly(false)} style={toggleBtn(!viewTodayOnly)}>
-            Full Range
-          </button>
           <button
             type="button"
-            onClick={() => setViewTodayOnly(true)}
-            style={{ ...toggleBtn(viewTodayOnly, 'green'), display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            onClick={() => setScope('today')}
+            style={{ ...toggleBtn(scope === 'today', 'green'), display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
             <Calendar size={11} />
             Today
           </button>
+          <button type="button" onClick={() => setScope('3d')} style={toggleBtn(scope === '3d')}>
+            3 Days
+          </button>
         </div>
-
-        {!viewTodayOnly && !embedded && <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />}
-        {!viewTodayOnly && embedded && (
-          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', padding: '4px 8px' }}>
-            Last 3 Days
-          </span>
-        )}
 
         <div style={controlGroup}>
           <button type="button" onClick={() => setViewFilter('all')} style={toggleBtn(viewFilter === 'all')}>
-            24 Hours
+            All Hours
           </button>
           <button type="button" onClick={() => setViewFilter('business')} style={toggleBtn(viewFilter === 'business')}>
             Business (8–22)
@@ -908,9 +875,9 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         />
       )}
 
-      {(todayError && viewTodayOnly) || (rangeError && !viewTodayOnly) ? (
+      {error ? (
         <div style={{ fontSize: '0.75rem', color: '#EF4444' }}>
-          {viewTodayOnly ? todayError : rangeError}
+          {error}
         </div>
       ) : null}
 
@@ -921,7 +888,8 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
           cellGap={cellGap}
           hourCount={activeHours.length}
           dayCount={skeletonDayCount}
-          minWidth={gridMinWidth}
+          spreadRows={embedded}
+          isTodayView={isTodayView}
         />
       ) : cells.length === 0 ? (
         <EmptyState
@@ -931,18 +899,20 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         />
       ) : (
         <div
-          className={`heatmap-grid-scroll${embedded ? ' heatmap-grid-fit' : ''}`}
+          className={gridClassName}
           style={{
             flex: 1,
             minHeight: 0,
+            width: '100%',
             overflowX: 'auto',
-            overflowY: 'hidden',
+            overflowY: embedded ? 'hidden' : 'auto',
             padding: embedded ? '2px 2px 0' : '4px 2px 2px',
             background: 'var(--bg-main)',
             borderRadius: '10px',
             border: '1px solid var(--border-color)',
             display: embedded ? 'flex' : undefined,
             flexDirection: embedded ? 'column' : undefined,
+            ['--heatmap-row-height' as string]: isTodayView ? '56px' : `${embedded ? EMBEDDED_HEATMAP_ROW_HEIGHT : FULL_HEATMAP_ROW_HEIGHT}px`,
           }}
         >
           {/* Hour labels */}
@@ -953,7 +923,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
               gridTemplateColumns: hourGridTemplate,
               gap: cellGap,
               padding: embedded ? '4px 8px 2px' : '8px 10px 4px',
-              minWidth: viewFilter === 'business' ? '420px' : '560px',
+              width: '100%',
             }}
           >
             <div />
@@ -985,7 +955,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
             className={embedded ? 'heatmap-day-rows' : undefined}
             style={{
               padding: embedded ? undefined : '0 10px 10px',
-              minWidth: viewFilter === 'business' ? '420px' : '560px',
+              width: '100%',
             }}
           >
             {rowDates.map((dateInfo) => (
@@ -1001,18 +971,19 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
                 }}
               >
                 <div
+                  className={embedded ? 'heatmap-day-label' : undefined}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: embedded ? '2px 1px' : '4px 2px',
-                    borderRadius: embedded ? '4px' : '6px',
+                    padding: embedded ? '1px' : '4px 2px',
+                    borderRadius: embedded ? '3px' : '6px',
                     background: dateInfo.isToday ? 'rgba(59, 130, 246, 0.14)' : 'transparent',
                     border: dateInfo.isToday ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent',
                     userSelect: 'none',
-                    minHeight: embedded ? 0 : 28,
-                    height: embedded ? '100%' : undefined,
+                    minHeight: spreadRows ? '100%' : (embedded ? EMBEDDED_HEATMAP_ROW_HEIGHT : 28),
+                    height: spreadRows ? '100%' : undefined,
                   }}
                   title={dateInfo.fullDate}
                 >
@@ -1047,6 +1018,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
                   return (
                     <div
                       key={h}
+                      className={embedded ? 'heatmap-cell' : undefined}
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         setHoveredCell({
@@ -1061,18 +1033,18 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
                       }}
                       onMouseLeave={() => setHoveredCell(null)}
                       style={{
-                        minHeight: embedded ? 0 : 28,
-                        height: embedded ? '100%' : undefined,
+                        minHeight: spreadRows ? '100%' : (embedded ? EMBEDDED_HEATMAP_ROW_HEIGHT : 28),
+                        height: spreadRows ? '100%' : undefined,
                         borderRadius: embedded ? 3 : 4,
                         ...styleObj,
-                        transform: isHovered ? 'scale(1.15)' : 'scale(1)',
+                        transform: isHovered && !embedded ? 'scale(1.15)' : 'scale(1)',
                         zIndex: isHovered ? 20 : 1,
                         outline: isHovered
                           ? '2px solid #FFFFFF'
                           : isCurrentHour
                             ? '2px solid rgba(16, 185, 129, 0.6)'
                             : 'none',
-                        transition: 'transform 0.12s ease, outline 0.12s ease',
+                        transition: embedded ? 'outline 0.12s ease' : 'transform 0.12s ease, outline 0.12s ease',
                         cursor: 'pointer',
                         boxSizing: 'border-box',
                       }}

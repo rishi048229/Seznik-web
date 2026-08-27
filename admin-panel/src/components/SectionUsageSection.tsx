@@ -21,7 +21,7 @@ export const SectionUsageSection: React.FC<SectionUsageSectionProps> = ({
   embedded = false,
   onViewAllSessions,
 }) => {
-  const [timeRange, setTimeRange] = useState('7d');
+  const [timeRange, setTimeRange] = useState('all');
   const [sections, setSections] = useState<SectionUsage[]>([]);
   const [loading, setLoading] = useState(true);
 

@@ -37,7 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
   setActiveTab,
-  timeRange = '7d',
+  timeRange = 'all',
   onSelectTimeRange,
   setTimeRange,
   showTimeRange = false,

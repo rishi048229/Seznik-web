@@ -33,7 +33,7 @@ const TIMEFRAMES: { id: TrafficTimeFrame; label: string }[] = [
 ];
 
 export const TrafficView: React.FC = () => {
-  const [timeFrame, setTimeFrame] = useState<TrafficTimeFrame>('7d');
+  const [timeFrame, setTimeFrame] = useState<TrafficTimeFrame>('all');
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

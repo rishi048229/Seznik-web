@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use(async (req, res, next) => {
             const parsedUrl = new URL(req.url || '/', 'http://localhost');
             const pathname = parsedUrl.pathname;
-            const timeRange = parsedUrl.searchParams.get('timeRange') || '24h';
+            const timeRange = parsedUrl.searchParams.get('timeRange') || 'all';
             const intervals = getTimeIntervals(timeRange);
             const send = (status: number, body: unknown) => {
               res.statusCode = status;
@@ -482,7 +482,7 @@ export default defineConfig(({ mode }) => {
                   pool.query<{ total: number }>(String(countSql), countParams),
                   pool.query(String(dataSql), params),
                 ]);
-                const total = countRes.rows[0]?.total || 0;
+                const total = Number((countRes.rows[0] as { total?: number } | undefined)?.total) || 0;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
                   items: analytics.mapFeedbackRows(dataRes.rows),

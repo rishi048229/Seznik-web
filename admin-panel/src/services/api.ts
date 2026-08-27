@@ -93,11 +93,11 @@ export async function fetchDashboardMetrics(timeRange: string = 'all'): Promise<
   };
 }
 
-export async function fetchUserRecords(timeRange: string = '7d'): Promise<UserRecord[]> {
+export async function fetchUserRecords(timeRange: string = 'all'): Promise<UserRecord[]> {
   return await fetchAdminEndpoint<UserRecord[]>(`/users?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
-export async function fetchSectionUsage(timeRange: string = '7d'): Promise<SectionUsage[]> {
+export async function fetchSectionUsage(timeRange: string = 'all'): Promise<SectionUsage[]> {
   return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
@@ -151,7 +151,7 @@ function normalizeHeatmapToIst(data: HeatmapResponse): HeatmapResponse {
   };
 }
 
-export async function fetchHeatmapData(timeRange: string = '7d', days?: number): Promise<HeatmapResponse> {
+export async function fetchHeatmapData(timeRange: string = 'all', days?: number): Promise<HeatmapResponse> {
   const daysQuery = days != null && days > 0 ? `&days=${days}` : '';
   const res = await fetchAdminEndpoint<any>(`/heatmap?timeRange=${encodeURIComponent(timeRange)}${daysQuery}`);
   if (Array.isArray(res)) {
@@ -168,7 +168,7 @@ export async function fetchHeatmapData(timeRange: string = '7d', days?: number):
   return normalizeHeatmapToIst(res);
 }
 
-export async function fetchDeviceSessionBreakdown(timeRange: string = '7d'): Promise<DeviceSessionBreakdownData> {
+export async function fetchDeviceSessionBreakdown(timeRange: string = 'all'): Promise<DeviceSessionBreakdownData> {
   return await fetchAdminEndpoint<DeviceSessionBreakdownData>(`/devices?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
@@ -176,7 +176,7 @@ export async function fetchProducts(limit: number = 100): Promise<AdminProduct[]
   return await fetchAdminEndpoint<AdminProduct[]>(`/products?limit=${limit}`);
 }
 
-export async function fetchInvoices(timeRange: string = '24h', platform: string = 'all', limit: number = 100): Promise<InvoiceRecord[]> {
+export async function fetchInvoices(timeRange: string = 'all', platform: string = 'all', limit: number = 100): Promise<InvoiceRecord[]> {
   return await fetchAdminEndpoint<InvoiceRecord[]>(`/invoices?timeRange=${encodeURIComponent(timeRange)}&platform=${encodeURIComponent(platform)}&limit=${limit}`);
 }
 

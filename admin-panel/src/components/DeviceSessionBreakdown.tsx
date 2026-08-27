@@ -6,7 +6,7 @@ import { EmptyState } from './EmptyState';
 import { TimeRangeSelect, timeRangeLabel } from './TimeRangeSelect';
 
 export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const [timeRange, setTimeRange] = useState('7d');
+  const [timeRange, setTimeRange] = useState('all');
   const [data, setData] = useState<DeviceSessionBreakdownData | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

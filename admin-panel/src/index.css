@@ -506,7 +506,7 @@ html, body, #root {
 .heatmap-panel--embedded .heatmap-grid-scroll {
   overflow-x: auto;
   overflow-y: hidden;
-  min-height: 0;
+  min-height: 120px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -519,16 +519,72 @@ html, body, #root {
   flex-direction: column;
   gap: 2px;
   padding: 0 8px 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .heatmap-grid-fit .heatmap-day-row {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  height: var(--heatmap-row-height, 14px);
+  min-height: var(--heatmap-row-height, 14px);
   margin-bottom: 0 !important;
 }
 
 .heatmap-grid-fit .heatmap-hour-row {
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-main);
+}
+
+.heatmap-grid-fit .heatmap-hour-row,
+.heatmap-grid-fit .heatmap-day-rows,
+.heatmap-grid-fit .heatmap-day-row {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.heatmap-grid-fit .heatmap-day-label {
+  overflow: hidden;
+  line-height: 1;
+}
+
+.heatmap-grid-fit .heatmap-cell {
+  min-width: 0;
+}
+
+.heatmap-grid-fit:not(.heatmap-grid-fit--spread-rows) .heatmap-cell {
+  height: var(--heatmap-row-height, 14px);
+  min-height: var(--heatmap-row-height, 14px);
+  flex-shrink: 0;
+}
+
+.heatmap-grid-fit.heatmap-grid-fit--spread-rows .heatmap-day-rows {
+  justify-content: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.heatmap-grid-fit.heatmap-grid-fit--spread-rows .heatmap-day-row {
+  flex: 1 1 0;
+  height: auto;
+  min-height: var(--heatmap-row-height, 16px);
+}
+
+.heatmap-grid-fit.heatmap-grid-fit--spread-rows .heatmap-cell,
+.heatmap-grid-fit.heatmap-grid-fit--spread-rows .heatmap-day-label {
+  height: 100%;
+  min-height: var(--heatmap-row-height, 16px);
+}
+
+.heatmap-grid-fit.heatmap-grid-fit--today .heatmap-day-rows {
+  min-height: 88px;
+}
+
+.heatmap-grid-fit.heatmap-grid-fit--today .heatmap-day-row {
+  flex: 1 1 auto;
+  min-height: var(--heatmap-row-height, 56px);
 }
 
 .heatmap-color-legend {
@@ -1296,7 +1352,8 @@ html, body, #root {
   .heatmap-grid-fit .heatmap-hour-row,
   .heatmap-grid-fit .heatmap-day-rows,
   .heatmap-grid-fit .heatmap-day-row {
-    min-width: 560px;
+    width: 100%;
+    min-width: 0;
   }
 
   .kpi-cards-grid {

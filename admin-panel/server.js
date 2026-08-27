@@ -163,7 +163,7 @@ app.post('/api/admin/users/:id/unban', async (req, res) => {
 
 // GET /api/admin/sections
 app.get('/api/admin/sections', async (req, res) => {
-  const timeRange = req.query.timeRange || '24h';
+  const timeRange = req.query.timeRange || 'all';
   try {
     const topFeatures = await computeRealTopFeatures(pool, timeRange);
     res.json(topFeatures);
@@ -175,7 +175,7 @@ app.get('/api/admin/sections', async (req, res) => {
 
 // GET /api/admin/heatmap
 app.get('/api/admin/heatmap', async (req, res) => {
-  const timeRange = req.query.timeRange || '24h';
+  const timeRange = req.query.timeRange || 'all';
   const daysParam = parseInt(req.query.days, 10);
   const dayCountOverride = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : undefined;
   try {
@@ -189,7 +189,7 @@ app.get('/api/admin/heatmap', async (req, res) => {
 
 // GET /api/admin/devices
 app.get('/api/admin/devices', async (req, res) => {
-  const timeRange = req.query.timeRange || '24h';
+  const timeRange = req.query.timeRange || 'all';
   const intervals = getTimeIntervals(timeRange);
 
   try {
@@ -223,7 +223,7 @@ app.get('/api/admin/devices', async (req, res) => {
 
 // GET /api/admin/invoices - Invoices list with platform filter
 app.get('/api/admin/invoices', async (req, res) => {
-  const timeRange = req.query.timeRange || '24h';
+  const timeRange = req.query.timeRange || 'all';
   const platform = req.query.platform || 'all'; // 'all' | 'mobile' | 'web'
   const limit = Math.min(100, parseInt(req.query.limit || '50', 10));
   const intervals = getTimeIntervals(timeRange);

@@ -13,8 +13,8 @@ const IST_DATE_SQL = `${IST_NOW_SQL}::date`;
 const EVENT_IST_SQL = `(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE '${IST_TZ}')`;
 const EVENT_IST_DATE_SQL = `${EVENT_IST_SQL}::date`;
 
-export function getTimeIntervals(timeRange = '24h') {
-  const tr = (timeRange || '24h').toLowerCase();
+export function getTimeIntervals(timeRange = 'all') {
+  const tr = (timeRange || 'all').toLowerCase();
   const istDate = IST_DATE_SQL;
   const istNow = IST_NOW_SQL;
   const eventIstDate = EVENT_IST_DATE_SQL;
@@ -132,7 +132,7 @@ function featureFromQuery(res, timeRange, meta) {
   };
 }
 
-export async function computeRealTopFeatures(pool, timeRange = '7d') {
+export async function computeRealTopFeatures(pool, timeRange = 'all') {
   const intervals = getTimeIntervals(timeRange);
 
   const [
@@ -193,8 +193,8 @@ export async function computeRealTopFeatures(pool, timeRange = '7d') {
     .sort((a, b) => b.viewCount - a.viewCount);
 }
 
-export function getHeatmapDayCount(timeRange = '7d') {
-  const tr = (timeRange || '7d').toLowerCase();
+export function getHeatmapDayCount(timeRange = 'all') {
+  const tr = (timeRange || 'all').toLowerCase();
   if (tr === 'today') return 1;
   if (tr === '24h') return 2;
   if (tr === '3d') return 3;
@@ -301,7 +301,7 @@ export function buildMetricsResponse({ userRes, salesRes, productRes, topFeature
   };
 }
 
-export async function computeRealHeatmapData(pool, timeRange = '24h', dayCountOverride) {
+export async function computeRealHeatmapData(pool, timeRange = 'all', dayCountOverride) {
   const intervals = getTimeIntervals(timeRange);
   const dayCount = dayCountOverride ?? getHeatmapDayCount(timeRange);
 

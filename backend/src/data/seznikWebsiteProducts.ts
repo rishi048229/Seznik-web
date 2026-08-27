@@ -1,1 +1,1 @@
-export * from '../../../shared/seznikWebsiteProducts';
+../../../shared/seznikWebsiteProducts.ts

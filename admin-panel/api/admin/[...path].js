@@ -180,13 +180,13 @@ export default async function handler(req, res) {
     }
 
     if (method === 'GET' && route === 'sections') {
-      const timeRange = query.timeRange || '24h';
+      const timeRange = query.timeRange || 'all';
       const topFeatures = await computeRealTopFeatures(pool, timeRange);
       return sendJson(res, 200, topFeatures);
     }
 
     if (method === 'GET' && route === 'heatmap') {
-      const timeRange = query.timeRange || '24h';
+      const timeRange = query.timeRange || 'all';
       const daysParam = parseInt(query.days, 10);
       const dayCountOverride = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : undefined;
       const heatmapData = await computeRealHeatmapData(pool, timeRange, dayCountOverride);
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
     }
 
     if (method === 'GET' && route === 'devices') {
-      const timeRange = query.timeRange || '24h';
+      const timeRange = query.timeRange || 'all';
       const intervals = getTimeIntervals(timeRange);
       const salesRes = await pool.query(`
         SELECT
@@ -216,7 +216,7 @@ export default async function handler(req, res) {
     }
 
     if (method === 'GET' && route === 'invoices') {
-      const timeRange = query.timeRange || '24h';
+      const timeRange = query.timeRange || 'all';
       const platform = query.platform || 'all';
       const limit = Math.min(200, parseInt(query.limit || '50', 10));
       const intervals = getTimeIntervals(timeRange);

@@ -48,7 +48,6 @@ export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('business')
   const { data: settings, isLoading } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
-  const [prevLogo, setPrevLogo] = useState(settings?.businessLogoURL ?? '')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
@@ -67,10 +66,11 @@ export const SettingsPage = () => {
     }
   }, [userProfile?.businessType])
 
-  if (current.businessLogoURL !== prevLogo) {
-    setPrevLogo(current.businessLogoURL ?? '')
-    setBusinessLogo(current.businessLogoURL ?? '')
-  }
+  useEffect(() => {
+    if (settings?.businessLogoURL !== undefined) {
+      setBusinessLogo(settings.businessLogoURL ?? '')
+    }
+  }, [settings?.businessLogoURL])
 
   const settingsTabs = [
     { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: t('settings.descBusiness') },
