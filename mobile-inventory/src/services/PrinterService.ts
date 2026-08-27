@@ -2944,10 +2944,14 @@ class ThermalPrinterServiceManager {
 
   public async joshConnect(address: string, name?: string): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
+    // Release ESC/POS Bluetooth socket if holding the device so LPAPI RFCOMM channel is free
+    if (this.activeAddress === address || (await this.isConnected())) {
+      try {
+        await this.disconnect();
+      } catch {}
+    }
     const ok = await JoshLabelPrinter.connect(address);
     if (ok) {
-      // Remember the linked printer so label prints after an app restart reconnect
-      // silently instead of requiring a trip to the Printers screen first.
       setStoredJoshPrinter({ address, name: name || address }).catch(() => {});
       this.joshReconnectFailedAt = 0;
     }

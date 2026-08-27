@@ -165,6 +165,30 @@ export function JoshPrinterCard() {
     ]);
   };
 
+  const [isTestPrinting, setIsTestPrinting] = useState(false);
+
+  const handleTestPrint = async () => {
+    setIsTestPrinting(true);
+    try {
+      const sample = {
+        name: 'Sample Item 500g',
+        sellingPrice: 250.0,
+        barcode: '8901234567890',
+        id: 'sample-1',
+      };
+      const ok = await ThermalPrinterService.printCustomLabel(sample, 'ean13', undefined, 50, 30, 3);
+      if (ok) {
+        Alert.alert('Test Label Sent! 🖨️', 'Printed test label via Josh Label Printer.');
+      } else {
+        Alert.alert('Print Error', 'Could not send test label.');
+      }
+    } catch (e: any) {
+      Alert.alert('Print Error', e?.message || 'Failed to print test label.');
+    } finally {
+      setIsTestPrinting(false);
+    }
+  };
+
   // On iOS, or on a JS-only client that has not been rebuilt with the SDK, there is
   // nothing actionable to show — the ESC/POS label path stays in charge.
   if (!supported) return null;
@@ -210,12 +234,31 @@ export function JoshPrinterCard() {
         </TouchableOpacity>
 
         {connected ? (
-          <TouchableOpacity onPress={handleDisconnect} style={[styles.secondaryBtn, { borderColor: '#EF4444' }]}>
-            <PowerOff size={14} color="#EF4444" style={{ marginRight: 6 }} />
-            <Text style={[styles.secondaryBtnText, { color: '#EF4444' }]} numberOfLines={1}>
-              Disconnect
-            </Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              onPress={handleTestPrint}
+              disabled={isTestPrinting}
+              style={[styles.secondaryBtn, { borderColor: '#10B981', marginRight: 8 }]}
+            >
+              {isTestPrinting ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <>
+                  <Tag size={14} color="#10B981" style={{ marginRight: 6 }} />
+                  <Text style={[styles.secondaryBtnText, { color: '#10B981' }]} numberOfLines={1}>
+                    Test Label
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleDisconnect} style={[styles.secondaryBtn, { borderColor: '#EF4444' }]}>
+              <PowerOff size={14} color="#EF4444" style={{ marginRight: 6 }} />
+              <Text style={[styles.secondaryBtnText, { color: '#EF4444' }]} numberOfLines={1}>
+                Disconnect
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity
             onPress={() => JoshLabelPrinter?.getPairedPrinters().then((p) => setDevices((prev) => mergeDevices(prev, p))).catch(() => {})}

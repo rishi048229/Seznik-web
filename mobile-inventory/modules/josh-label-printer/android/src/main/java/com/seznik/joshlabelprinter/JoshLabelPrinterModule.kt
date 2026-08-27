@@ -263,6 +263,9 @@ class JoshLabelPrinterModule : Module() {
       try {
         val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
         val paired = btAdapter?.bondedDevices?.map { dev ->
+          val addr = IDzPrinter.PrinterAddress(dev.address, dev.name ?: dev.address, IDzPrinter.AddressType.DUAL)
+          discovered[dev.address] = addr
+          if (dev.name != null) discovered[dev.name] = addr
           mapOf("address" to (dev.address ?: ""), "name" to (dev.name ?: dev.address ?: ""))
         } ?: emptyList()
         promise.resolve(paired)
@@ -275,8 +278,27 @@ class JoshLabelPrinterModule : Module() {
       try {
         val instance = requireApi()
         val known = discovered[address]
-        val ok = if (known != null) instance.openPrinterByAddressSync(known)
-                 else instance.openPrinterSync(address)
+        val ok = when {
+          known != null -> {
+            instance.openPrinterByAddressSync(known) || instance.openPrinterByAddress(known)
+          }
+          else -> {
+            val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+            val bondedDev = btAdapter?.bondedDevices?.find {
+              it.address.equals(address, ignoreCase = true) || it.name.equals(address, ignoreCase = true)
+            }
+            if (bondedDev != null) {
+              val addr = IDzPrinter.PrinterAddress(bondedDev.address, bondedDev.name ?: bondedDev.address, IDzPrinter.AddressType.DUAL)
+              discovered[address] = addr
+              discovered[bondedDev.address] = addr
+              instance.openPrinterByAddressSync(addr) || instance.openPrinter(bondedDev) || instance.openPrinterSync(bondedDev.name ?: bondedDev.address)
+            } else {
+              val addr = IDzPrinter.PrinterAddress(address, IDzPrinter.AddressType.DUAL)
+              discovered[address] = addr
+              instance.openPrinterByAddressSync(addr) || instance.openPrinterSync(address) || instance.openPrinter(address)
+            }
+          }
+        }
         if (ok) lastState = "connected"
         promise.resolve(ok)
       } catch (e: Throwable) {
