@@ -268,6 +268,22 @@ export default function PrintersScreen() {
 
   /** connectDevice rejects on failure — surface it with a retry instead of leaving the row silent. */
   const handleConnectDevice = async (deviceId: string, deviceName?: string) => {
+    // If the device is a dedicated Label printer (e.g. LD0801, LP..., or contains Label/Josh),
+    // route it directly to the Josh Label Printer connector instead of failing on the ESC/POS socket!
+    const isLabelPrinter = /^(LD|LP|JOSH|HM-|B11|B21|B3S|M110|M200)/i.test(deviceName || '') || (deviceName || '').toLowerCase().includes('label');
+    if (isLabelPrinter && JoshLabelPrinter) {
+      try {
+        const ok = await ThermalPrinterService.joshConnect(deviceId, deviceName);
+        if (ok) {
+          Alert.alert('Label Printer Linked! 🏷️', `${deviceName || deviceId} is ready. Label Studio & Product labels will now print here.`);
+          setActiveTab('label');
+          return;
+        }
+      } catch (err: any) {
+        // Fall through
+      }
+    }
+
     try {
       await connectDevice(deviceId, deviceName);
     } catch (e: any) {
@@ -579,6 +595,9 @@ export default function PrintersScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Dedicated LPAPI Sticker/Label Printer Card */}
+        <JoshPrinterCard />
 
         {/* 3-Tab Segmented Control (Invoice printing tab hidden per specification) */}
         <View style={[styles.segmentedBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>

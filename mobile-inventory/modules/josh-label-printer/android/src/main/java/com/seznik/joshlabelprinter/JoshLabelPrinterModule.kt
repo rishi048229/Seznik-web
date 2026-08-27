@@ -277,30 +277,38 @@ class JoshLabelPrinterModule : Module() {
     AsyncFunction("connect") { address: String, promise: Promise ->
       try {
         val instance = requireApi()
+        try {
+          instance.stopDiscovery()
+        } catch (e: Throwable) {}
+
         val known = discovered[address]
+        val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+        val bondedDev = btAdapter?.bondedDevices?.find {
+          it.address.equals(address, ignoreCase = true) || (it.name != null && it.name.equals(address, ignoreCase = true))
+        }
+
         val ok = when {
           known != null -> {
             instance.openPrinterByAddressSync(known) || instance.openPrinterByAddress(known)
           }
+          bondedDev != null -> {
+            val addr = IDzPrinter.PrinterAddress(bondedDev.address, bondedDev.name ?: bondedDev.address, IDzPrinter.AddressType.DUAL)
+            discovered[address] = addr
+            discovered[bondedDev.address] = addr
+            instance.openPrinterByAddressSync(addr) || instance.openPrinter(bondedDev) || instance.openPrinterByAddress(addr) || instance.openPrinterSync(bondedDev.name ?: bondedDev.address)
+          }
           else -> {
-            val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
-            val bondedDev = btAdapter?.bondedDevices?.find {
-              it.address.equals(address, ignoreCase = true) || it.name.equals(address, ignoreCase = true)
-            }
-            if (bondedDev != null) {
-              val addr = IDzPrinter.PrinterAddress(bondedDev.address, bondedDev.name ?: bondedDev.address, IDzPrinter.AddressType.DUAL)
-              discovered[address] = addr
-              discovered[bondedDev.address] = addr
-              instance.openPrinterByAddressSync(addr) || instance.openPrinter(bondedDev) || instance.openPrinterSync(bondedDev.name ?: bondedDev.address)
-            } else {
-              val addr = IDzPrinter.PrinterAddress(address, IDzPrinter.AddressType.DUAL)
-              discovered[address] = addr
-              instance.openPrinterByAddressSync(addr) || instance.openPrinterSync(address) || instance.openPrinter(address)
-            }
+            val addr = IDzPrinter.PrinterAddress(address, IDzPrinter.AddressType.DUAL)
+            discovered[address] = addr
+            instance.openPrinterByAddressSync(addr) || instance.openPrinterByAddress(addr) || instance.openPrinterSync(address) || instance.openPrinter(address)
           }
         }
-        if (ok) lastState = "connected"
-        promise.resolve(ok)
+        if (ok || instance.isPrinterOpened) {
+          lastState = "connected"
+          promise.resolve(true)
+        } else {
+          promise.resolve(false)
+        }
       } catch (e: Throwable) {
         promise.reject(CodedException("ERR_JOSH_CONNECT", e.message ?: "Could not connect", e))
       }
