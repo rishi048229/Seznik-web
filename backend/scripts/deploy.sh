@@ -20,8 +20,9 @@ npm ci --only=production
 echo "⚙️ 3. Generating Prisma ORM Client..."
 npx prisma generate
 
-echo "🗄️ 4. Running Database Migrations..."
-npx prisma migrate deploy
+echo "🗄️ 4. Applying additive schema (never drops data)..."
+npx prisma db execute --file prisma/ensure-additive-columns.sql || echo "additive SQL skipped"
+CI=true npx prisma db push || echo "db push skipped"
 
 echo "🔨 5. Compiling TypeScript to JavaScript..."
 npm run build

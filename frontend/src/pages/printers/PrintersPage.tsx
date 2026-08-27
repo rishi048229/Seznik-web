@@ -146,7 +146,7 @@ export const PrintersPage = () => {
   const pageTutorial = usePageTutorial('printers')
   const { user } = useAuth()
   const { data: products } = useProducts()
-  const { data: settings, isLoading } = useSettings()
+  const { data: settings, isLoading, isError } = useSettings()
   const { mutate: updateSettingsMutation, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettingsMutation, isPending: isCreating } = useCreateSettings()
   const saving = isUpdating || isCreating
@@ -227,23 +227,20 @@ export const PrintersPage = () => {
   // something edited on the Settings page.
   const handleSave = async () => {
     if (!user) return
+    if (isError) {
+      toast.error('Could not load settings. Refresh and try again — your business profile was not overwritten.')
+      return
+    }
 
-    const fullPayload = {
-      businessName: settings?.businessName ?? user.displayName ?? '',
-      businessAddress: settings?.businessAddress ?? '',
-      businessPhone: settings?.businessPhone ?? '',
-      businessGSTIN: settings?.businessGSTIN ?? '',
-      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
-      personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
-      invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
-      notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
+    const printerPayload = {
       receiptConfig,
       printerConfig: config,
+      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
     }
 
     if (settings?.id) {
       updateSettingsMutation(
-        { settingsId: settings.id, data: fullPayload },
+        { settingsId: settings.id, data: printerPayload },
         {
           onSuccess: () => {
             trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
@@ -251,22 +248,35 @@ export const PrintersPage = () => {
           },
           onError: (err) => {
             console.error('Save printer config error:', err)
-            toast.error('Failed to save printer settings')
+            toast.error(err instanceof Error ? err.message : 'Failed to save printer settings')
           },
         }
       )
-    } else {
-      createSettingsMutation(fullPayload as Omit<UserSettings, 'id'>, {
+      return
+    }
+
+    createSettingsMutation(
+      {
+        businessName: settings?.businessName ?? user.displayName ?? '',
+        businessAddress: settings?.businessAddress ?? '',
+        businessPhone: settings?.businessPhone ?? '',
+        businessGSTIN: settings?.businessGSTIN ?? '',
+        personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
+        invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
+        notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
+        ...printerPayload,
+      } as Omit<UserSettings, 'id'>,
+      {
         onSuccess: () => {
           trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
           toast.success('Printer settings saved!')
         },
         onError: (err) => {
           console.error('Create settings error:', err)
-          toast.error('Failed to save printer settings')
+          toast.error(err instanceof Error ? err.message : 'Failed to save printer settings')
         },
-      })
-    }
+      }
+    )
   }
 
   // Keep the connection-type setting truthful: whenever the real BLE link

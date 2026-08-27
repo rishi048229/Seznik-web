@@ -2,12 +2,7 @@ import { fetchApi } from './api'
 import type { UserSettings, InvoiceConfig, NotificationConfig, PrinterConfig } from '@/types/settings.types'
 
 export const getSettings = async (_uid: string): Promise<UserSettings | null> => {
-  try {
-    const settings = await fetchApi('/settings')
-    return settings
-  } catch {
-    return null
-  }
+  return fetchApi('/settings')
 }
 
 export const createSettings = async (_uid: string, data: Omit<UserSettings, 'id'>): Promise<string> => {

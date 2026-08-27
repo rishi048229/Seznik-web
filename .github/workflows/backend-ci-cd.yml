@@ -85,7 +85,8 @@ jobs:
             cd backend
             npm install
             npx prisma generate
-            CI=true npx prisma db push || true
+            npx prisma db execute --file prisma/ensure-additive-columns.sql || echo "additive SQL skipped"
+            CI=true npx prisma db push || echo "db push skipped"
             npm run build
             
             echo "⚡ Reloading backend application with PM2..."

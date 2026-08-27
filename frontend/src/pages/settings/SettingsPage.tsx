@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS = {
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
   const [activeTab, setActiveTab] = useState('business')
-  const { data: settings, isLoading } = useSettings()
+  const { data: settings, isLoading, isError, refetch } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
   const [prevLogo, setPrevLogo] = useState(settings?.businessLogoURL ?? '')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
@@ -94,6 +94,10 @@ export const SettingsPage = () => {
     )
 
   const handleSave = (key: string, data: Record<string, unknown>) => {
+    if (isError) {
+      toast.error('Could not load your settings. Refresh the page and try again.')
+      return
+    }
     const safeData = clean(data)
     if (hasSettings && settings) {
       updateSettings(
@@ -220,7 +224,17 @@ export const SettingsPage = () => {
         <SettingsPageSkeleton />
       ) : (
         <>
-          {!hasSettings && (
+          {isError && (
+            <Card className="p-3 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Could not load your business profile. Your data is still saved — refresh and try again.
+              </p>
+              <Button className="mt-2" variant="outline" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </Card>
+          )}
+          {!hasSettings && !isError && (
             <Card className="p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 {t('settings.noSettingsYet')}
