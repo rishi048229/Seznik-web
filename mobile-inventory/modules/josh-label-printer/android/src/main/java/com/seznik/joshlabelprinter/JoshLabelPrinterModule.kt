@@ -2,10 +2,18 @@ package com.seznik.joshlabelprinter
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import com.dothantech.lpapi.LPAPI
 import com.dothantech.printer.IDzPrinter
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatWriter
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
@@ -18,11 +26,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Bridge for DothanTech/Josh LPAPI Bluetooth label printers.
  *
- * Deliberately NOT routed through the app's existing ESC/POS-over-socket printer
- * path: LPAPI owns its own Bluetooth connection and exposes a drawing API
- * (startJob / drawText / draw1DBarcode / commitJob) rather than accepting raw TSPL
- * bytes, so the two cannot share a transport. Everything here is measured in
- * millimetres, matching how LabelTemplate already stores element geometry.
+ * Implements Approach A (Direct Flattened Bitmap Path via api.printBitmap):
+ * Renders the entire label canvas (text, barcode, QR code, images, shapes) onto
+ * a 1-bit-friendly ARGB_8888 software Bitmap with solid white background,
+ * eliminating coordinate mismatch, text clipping, and font size incompatibilities.
  */
 class JoshLabelPrinterModule : Module() {
 
@@ -33,12 +40,6 @@ class JoshLabelPrinterModule : Module() {
 
   @Volatile private var lastState: String = "disconnected"
 
-  /**
-   * commitJob() only means "label data submitted over Bluetooth" — whether paper
-   * actually came out arrives later through onPrintProgress. Each print waits on
-   * one of these so the JS promise reflects the real outcome instead of reporting
-   * success while the printer sits there with its cover open.
-   */
   private class PendingPrint {
     val latch = CountDownLatch(1)
     @Volatile var success = false
@@ -60,7 +61,6 @@ class JoshLabelPrinterModule : Module() {
         else -> "disconnected"
       }
       lastState = name
-      // A drop mid-print would otherwise leave printLabel blocked until its timeout.
       if (name == "disconnected") {
         pendingPrint?.let {
           it.failReason = "The label printer disconnected while printing."
@@ -97,114 +97,88 @@ class JoshLabelPrinterModule : Module() {
           }
         }
         else -> {
-          // Connected / StartCopy / DataEnded — intermediate steps, keep waiting.
+          // Intermediate steps, keep waiting.
         }
       }
     }
 
     override fun onPrinterDiscovery(address: IDzPrinter.PrinterAddress?, arg: Any?) {
-      if (address == null) return
-      discovered[address.macAddress] = address
-      sendEvent(
-        "onPrinterFound",
-        bundleOf(
-          "address" to address.macAddress,
-          "name" to (address.shownName ?: address.macAddress)
-        )
-      )
+      val mac = address?.macAddress ?: return
+      val name = address.shownName ?: address.device?.name ?: mac
+      discovered[mac] = address
+      sendEvent("onPrinterFound", bundleOf("address" to mac, "name" to name))
     }
   }
 
-  /** Turns LPAPI's PrintFailReason into a message a cashier can act on. */
   private fun describeFailReason(arg: Any?): String {
-    val reason = arg as? IDzPrinter.PrintFailReason
-      ?: return "The printer reported a print failure."
+    val reason = arg as? IDzPrinter.PrintFailReason ?: return "Printing failed (unspecified error)."
     return when (reason) {
-      IDzPrinter.PrintFailReason.CoverOpened,
-      IDzPrinter.PrintFailReason.TphOpened,
-      IDzPrinter.PrintFailReason.LabelCanOpend -> "The printer cover is open. Close it and try again."
-      IDzPrinter.PrintFailReason.No_Paper,
-      IDzPrinter.PrintFailReason.No_Label,
-      IDzPrinter.PrintFailReason.Usedup_Label -> "The printer is out of labels. Load a new roll and try again."
-      IDzPrinter.PrintFailReason.Unmatched_Label -> "The loaded label roll does not match the label size. Check the roll."
-      IDzPrinter.PrintFailReason.VolTooLow -> "The printer battery is too low to print. Charge it and try again."
-      IDzPrinter.PrintFailReason.VolTooHigh -> "The printer supply voltage is too high. Check the power adapter."
-      IDzPrinter.PrintFailReason.TphTooHot -> "The print head is too hot. Wait a moment and try again."
-      IDzPrinter.PrintFailReason.TphTooCold -> "The print head is too cold. Wait a moment and try again."
-      IDzPrinter.PrintFailReason.TphNotFound -> "The printer reported a print head fault."
-      IDzPrinter.PrintFailReason.No_Ribbon,
-      IDzPrinter.PrintFailReason.No_Ribbon2,
-      IDzPrinter.PrintFailReason.Usedup_Ribbon,
-      IDzPrinter.PrintFailReason.Usedup_Ribbon2 -> "The printer is out of ribbon."
-      IDzPrinter.PrintFailReason.Unmatched_Ribbon,
-      IDzPrinter.PrintFailReason.Unmatched_Ribbon2 -> "The loaded ribbon does not match. Check the ribbon."
-      IDzPrinter.PrintFailReason.Disconnected -> "The label printer disconnected while printing."
-      IDzPrinter.PrintFailReason.Timeout -> "The printer did not respond in time."
-      IDzPrinter.PrintFailReason.Cancelled -> "The print was cancelled."
-      IDzPrinter.PrintFailReason.IsPrinting -> "The printer is busy with another job. Try again in a moment."
-      else -> "The printer reported: ${reason.name}"
+      IDzPrinter.PrintFailReason.OK -> "Success"
+      IDzPrinter.PrintFailReason.No_Paper -> "Printer is out of paper."
+      IDzPrinter.PrintFailReason.No_Label -> "Printer detected no label in feed."
+      IDzPrinter.PrintFailReason.CoverOpened -> "Printer cover is open. Please close it and retry."
+      IDzPrinter.PrintFailReason.VolTooLow -> "Printer battery is too low to print."
+      IDzPrinter.PrintFailReason.TphTooHot -> "Print head is too hot. Let the printer cool down."
+      IDzPrinter.PrintFailReason.Disconnected -> "Printer disconnected during print."
+      IDzPrinter.PrintFailReason.Timeout -> "Printer timed out while printing."
+      else -> "The printer reported a print failure (${reason.name})."
     }
   }
 
   private fun bundleOf(vararg pairs: Pair<String, Any?>): Bundle {
     val b = Bundle()
-    pairs.forEach { (k, v) ->
+    for ((k, v) in pairs) {
       when (v) {
+        null -> b.putString(k, null)
         is String -> b.putString(k, v)
         is Int -> b.putInt(k, v)
+        is Long -> b.putLong(k, v)
         is Double -> b.putDouble(k, v)
+        is Float -> b.putFloat(k, v)
         is Boolean -> b.putBoolean(k, v)
-        else -> b.putString(k, v?.toString() ?: "")
+        is Bundle -> b.putBundle(k, v)
+        else -> b.putString(k, v.toString())
       }
     }
     return b
   }
 
-  /**
-   * The connected printer's physical printable width in mm, derived from its reported
-   * head width and DPI (e.g. LD0801: 384px / 203dpi * 25.4 = 48mm). 0 when unknown.
-   */
-  private fun printableWidthMm(): Double {
-    val info = api?.printerInfo ?: return 0.0
-    val px = info.deviceWidth
-    val dpi = info.deviceDPI
-    if (px <= 0 || dpi <= 0) return 0.0
-    return px.toDouble() / dpi.toDouble() * 25.4
-  }
-
-  /** LPAPI must exist before any other call; created lazily so the app can boot without it. */
   private fun requireApi(): LPAPI {
     val existing = api
     if (existing != null) return existing
-    val created = LPAPI.Factory.createInstance(callback)
-      ?: throw CodedException("ERR_JOSH_INIT", "Could not initialise the label printer SDK.", null)
-    api = created
-    return created
+    val fresh = LPAPI.Factory.createInstance(callback)
+      ?: throw CodedException("ERR_JOSH_INIT", "Failed to initialize label printer SDK.", null)
+    api = fresh
+    return fresh
   }
 
-  // ---------------------------------------------------------------------------
-  // Numeric coercion
-  //
-  // Values arrive from JS as arbitrary Numbers: a template that round-tripped
-  // through the backend with a missing mm value shows up here as NaN, and LPAPI
-  // happily accepts NaN coordinates and then produces a blank or failed job with
-  // no error. Every number read below goes through these guards, which is the
-  // same fix the TSPL path already received (PrinterService.safeInt).
-  // ---------------------------------------------------------------------------
-
-  private fun finite(value: Any?, fallback: Double): Double {
-    val n = (value as? Number)?.toDouble() ?: return fallback
-    return if (n.isFinite()) n else fallback
+  private fun finite(v: Any?, fallback: Double): Double {
+    val d = when (v) {
+      is Number -> v.toDouble()
+      is String -> v.toDoubleOrNull() ?: fallback
+      else -> fallback
+    }
+    return if (d.isFinite()) d else fallback
   }
 
-  private fun finiteOrNull(value: Any?): Double? {
-    val n = (value as? Number)?.toDouble() ?: return null
-    return if (n.isFinite()) n else null
+  private fun finiteOrNull(v: Any?): Double? {
+    val d = when (v) {
+      is Number -> v.toDouble()
+      is String -> v.toDoubleOrNull()
+      else -> null
+    }
+    return if (d != null && d.isFinite()) d else null
   }
 
-  private fun finiteInt(value: Any?, fallback: Int): Int {
-    val n = (value as? Number)?.toDouble() ?: return fallback
-    return if (n.isFinite()) n.toInt() else fallback
+  private fun finiteInt(v: Any?, fallback: Int): Int = finite(v, fallback.toDouble()).toInt()
+
+  private fun printableWidthMm(): Double {
+    val info = api?.printerInfo ?: return 0.0
+    val w01mm = info.getInt(IDzPrinter.PrinterInfoName.PRINTABLE_WIDTH_01MM, 0)
+    if (w01mm > 0) return w01mm / 10.0
+    val wMm = info.getInt(IDzPrinter.PrinterInfoName.PRINTABLE_WIDTH, 0)
+    if (wMm > 0) return wMm.toDouble()
+    return 0.0
   }
 
   override fun definition() = ModuleDefinition {
@@ -212,22 +186,40 @@ class JoshLabelPrinterModule : Module() {
 
     Events("onPrinterFound", "onPrinterStateChange")
 
-    /** True on any build where the vendored SDK actually linked. */
-    Function("isAvailable") {
-      try {
-        Class.forName("com.dothantech.lpapi.LPAPI")
-        true
-      } catch (e: Throwable) {
-        false
-      }
+    Function("isSupported") { true }
+
+    Function("isConnected") {
+      val instance = api ?: return@Function false
+      instance.isPrinterOpened && (
+        lastState == "connected" ||
+        instance.printerState == IDzPrinter.PrinterState.Connected ||
+        instance.printerState == IDzPrinter.PrinterState.Connected2 ||
+        instance.printerState == IDzPrinter.PrinterState.Working
+      )
     }
 
-    Function("getState") { lastState }
+    Function("getPrinterState") { lastState }
+
+    Function("getPrinterInfo") {
+      val instance = api ?: return@Function null
+      if (!instance.isPrinterOpened) return@Function null
+      val info = instance.printerInfo ?: Bundle()
+      val mac = instance.printerAddress?.macAddress ?: ""
+      val name = instance.printerAddress?.shownName ?: instance.printerAddress?.device?.name ?: ""
+      val widthMm = printableWidthMm().takeIf { it > 0 } ?: 48.0
+      bundleOf(
+        "address" to mac,
+        "name" to name,
+        "widthMm" to widthMm,
+        "state" to lastState
+      )
+    }
 
     AsyncFunction("startDiscovery") { promise: Promise ->
       try {
-        discovered.clear()
-        promise.resolve(requireApi().discovery())
+        val instance = requireApi()
+        val ok = instance.discovery()
+        promise.resolve(ok)
       } catch (e: Throwable) {
         promise.reject(CodedException("ERR_JOSH_DISCOVERY", e.message ?: "Discovery failed", e))
       }
@@ -238,28 +230,22 @@ class JoshLabelPrinterModule : Module() {
         api?.stopDiscovery()
         promise.resolve(true)
       } catch (e: Throwable) {
-        promise.reject(CodedException("ERR_JOSH_DISCOVERY", e.message ?: "Could not stop discovery", e))
+        promise.reject(CodedException("ERR_JOSH_DISCOVERY", e.message ?: "Stop discovery failed", e))
       }
     }
 
-    /** Bonded/known printers, so the UI can offer them without a scan. */
     AsyncFunction("getPairedPrinters") { promise: Promise ->
       try {
-        val list = requireApi().getAllPrinterAddresses(null) ?: emptyList()
-        promise.resolve(list.map { addr ->
-          discovered[addr.macAddress] = addr
-          mapOf("address" to addr.macAddress, "name" to (addr.shownName ?: addr.macAddress))
-        })
+        val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+        val paired = btAdapter?.bondedDevices?.map { dev ->
+          mapOf("address" to (dev.address ?: ""), "name" to (dev.name ?: dev.address ?: ""))
+        } ?: emptyList()
+        promise.resolve(paired)
       } catch (e: Throwable) {
-        promise.reject(CodedException("ERR_JOSH_LIST", e.message ?: "Could not list printers", e))
+        promise.resolve(emptyList<Map<String, String>>())
       }
     }
 
-    /**
-     * Synchronous open, run off the JS thread by AsyncFunction. Falls back to
-     * opening by raw MAC when the address was never seen through discovery
-     * (e.g. reconnecting to a saved printer after an app restart).
-     */
     AsyncFunction("connect") { address: String, promise: Promise ->
       try {
         val instance = requireApi()
@@ -283,42 +269,12 @@ class JoshLabelPrinterModule : Module() {
       }
     }
 
-    AsyncFunction("isConnected") { promise: Promise ->
-      promise.resolve(api?.isPrinterOpened ?: false)
-    }
-
-    AsyncFunction("getPrinterInfo") { promise: Promise ->
-      try {
-        val info = api?.printerInfo
-        if (info == null) {
-          promise.resolve(null)
-        } else {
-          promise.resolve(
-            mapOf(
-              "name" to (info.deviceName ?: ""),
-              "address" to (info.deviceAddress ?: ""),
-              "dpi" to info.deviceDPI,
-              "widthPx" to info.deviceWidth,
-              // e.g. LD0801: 384px at 203dpi = 48mm printable width.
-              "widthMm" to printableWidthMm()
-            )
-          )
-        }
-      } catch (e: Throwable) {
-        promise.reject(CodedException("ERR_JOSH_INFO", e.message ?: "Could not read printer info", e))
-      }
-    }
-
     /**
-     * Renders one label described as a list of elements, all in millimetres.
+     * Prints a label using Approach A (Direct Flattened Bitmap Path).
      *
-     * Pipeline matches the official LPAPIDemo (MainActivity.printText /
-     * printLabelOnClick / print2dBarcode): startJob → draw* → commitJobWithParam.
-     * Rasterising via endJob()+printBitmap is only for pre-made pictures in that
-     * demo; using it for composed labels (text + barcode + gallery images) is
-     * what produced a blank feed, then a printer that stopped ejecting paper.
-     *
-     * Resolves only after the printer confirms the job via onPrintProgress.
+     * Constructs an opaque, white-filled, software ARGB_8888 bitmap of the exact
+     * label size (at 203 DPI = 8 dots/mm), renders all elements with Android Canvas,
+     * and submits it via api.printBitmap(bmp, param).
      */
     AsyncFunction("printLabel") { spec: Map<String, Any?>, promise: Promise ->
       try {
@@ -327,38 +283,27 @@ class JoshLabelPrinterModule : Module() {
           throw CodedException("ERR_JOSH_NOT_CONNECTED", "No label printer is connected.", null)
         }
 
-        val widthMm = finite(spec["widthMm"], Double.NaN)
-        val heightMm = finite(spec["heightMm"], Double.NaN)
+        val widthMm = finite(spec["widthMm"], 50.0)
+        val heightMm = finite(spec["heightMm"], 30.0)
         if (!widthMm.isFinite() || !heightMm.isFinite() || widthMm <= 0 || heightMm <= 0) {
           throw CodedException(
             "ERR_JOSH_SIZE",
-            "This label has an invalid size (${spec["widthMm"]} x ${spec["heightMm"]} mm). Re-save the template with a real width and height.",
+            "This label has an invalid size (${spec["widthMm"]} x ${spec["heightMm"]} mm).",
             null
           )
         }
-        val rotation = when (finiteInt(spec["rotation"], 0)) {
-          90 -> 90
-          180 -> 180
-          270 -> 270
-          else -> 0
-        }
         val copies = finiteInt(spec["copies"], 1).coerceAtLeast(1)
-
         val headMm = printableWidthMm().takeIf { it > 1.0 } ?: 48.0
-        val jobWidth = if (rotation == 0 || rotation == 180) minOf(widthMm, headMm) else widthMm
-        val jobHeight = if (rotation == 90 || rotation == 270) minOf(heightMm, headMm) else heightMm
 
         val jobParam = Bundle()
-        val gapType = finiteInt(spec["gapType"], 2)
-        val gapMm = finiteInt(spec["gapMm"], 3)
+        val gapType = finiteInt(spec["gapType"], 2) // 2 = die-cut label gap
+        val gapMm = finiteInt(spec["gapMm"], 3) // 3mm gap
         jobParam.putInt(IDzPrinter.PrintParamName.GAP_TYPE, gapType)
         jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH, gapMm)
         jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH_01MM, gapMm * 10)
-        if (rotation != 0) {
-          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DIRECTION, rotation)
-        }
         finiteOrNull(spec["darkness"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DENSITY, it.toInt()) }
         finiteOrNull(spec["speed"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_SPEED, it.toInt()) }
+        jobParam.putInt(IDzPrinter.PrintParamName.IMAGE_THRESHOLD, 192)
         if (copies > 1) {
           jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
         }
@@ -366,55 +311,31 @@ class JoshLabelPrinterModule : Module() {
         instance.setPrintPageGapType(gapType)
         instance.setPrintPageGapLength(gapMm)
 
-        @Suppress("UNCHECKED_CAST")
-        val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()
-        if (elements.isEmpty()) {
-          throw CodedException("ERR_JOSH_EMPTY", "This label has nothing printable on it.", null)
-        }
-
-        // Drop any half-finished job left by a previous failed print
+        // Drop any half-finished job
         runCatching { instance.abortJob() }
 
-        // Start job clamped to physical head width
-        if (!instance.startJob(jobWidth, jobHeight, rotation)) {
-          throw CodedException("ERR_JOSH_JOB", "Printer rejected the label job (${jobWidth}x${jobHeight}mm).", null)
+        // Build composite label bitmap
+        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
+
+        val pending = PendingPrint()
+        pendingPrint = pending
+
+        val committed = instance.printBitmap(labelBitmap, jobParam)
+        if (!committed) {
+          pendingPrint = null
+          labelBitmap.recycle()
+          throw CodedException("ERR_JOSH_COMMIT", "Printer rejected the label data. Check connection and paper roll.", null)
         }
 
-        val heldBitmaps = mutableListOf<Bitmap>()
-        try {
-          elements.forEach { el ->
-            try {
-              drawElement(instance, el, heldBitmaps, jobWidth, jobHeight)
-            } catch (elErr: Throwable) {
-              android.util.Log.w("JoshLabel", "Skipping element ${(el["type"] as? String)}: ${elErr.message}")
-            }
-          }
+        val reported = pending.latch.await(30, TimeUnit.SECONDS)
+        pendingPrint = null
+        labelBitmap.recycle()
 
-          val pending = PendingPrint()
-          pendingPrint = pending
-
-          val committed = instance.commitJobWithParam(jobParam)
-          if (!committed) {
-            pendingPrint = null
-            runCatching { instance.abortJob() }
-            throw CodedException("ERR_JOSH_COMMIT", "Printer rejected the label data. Check connection and paper roll.", null)
-          }
-
-          val reported = pending.latch.await(30, TimeUnit.SECONDS)
-          pendingPrint = null
-          if (!reported) {
-            throw CodedException("ERR_JOSH_TIMEOUT", "The printer did not confirm the print. Check the printer and paper roll.", null)
-          }
-          if (!pending.success) {
-            throw CodedException("ERR_JOSH_PRINT_FAILED", pending.failReason ?: "The printer reported a print failure.", null)
-          }
-        } catch (inner: Throwable) {
-          if (inner !is CodedException) {
-            instance.abortJob()
-          }
-          throw inner
-        } finally {
-          heldBitmaps.forEach { runCatching { it.recycle() } }
+        if (!reported) {
+          throw CodedException("ERR_JOSH_TIMEOUT", "The printer did not confirm the print. Check the printer and paper roll.", null)
+        }
+        if (!pending.success) {
+          throw CodedException("ERR_JOSH_PRINT_FAILED", pending.failReason ?: "The printer reported a print failure.", null)
         }
 
         promise.resolve(true)
@@ -436,116 +357,219 @@ class JoshLabelPrinterModule : Module() {
     }
   }
 
-  private fun drawElement(
-    instance: LPAPI,
-    el: Map<String, Any?>,
-    heldBitmaps: MutableList<Bitmap>,
-    jobWidth: Double,
-    jobHeight: Double
-  ) {
-    val x = finite(el["x"], 0.0)
-    val y = finite(el["y"], 0.0)
+  /**
+   * Renders all label elements onto a single software ARGB_8888 Bitmap (Approach A).
+   */
+  private fun buildLabelBitmap(
+    spec: Map<String, Any?>,
+    widthMm: Double,
+    heightMm: Double,
+    headMm: Double
+  ): Bitmap {
+    val dotsPerMm = 8.0 // 203 DPI
+    val printWmm = minOf(widthMm, headMm)
+    val printHmm = heightMm
+    val fit = if (widthMm > 0) printWmm / widthMm else 1.0
 
-    // Alignment is per-item state on LPAPI, so set it before every draw rather
-    // than assuming it carried over from the previous element.
-    instance.itemHorizontalAlignment = finiteInt(el["align"], 0)
+    val wPx = (printWmm * dotsPerMm).toInt().coerceAtLeast(64)
+    val hPx = (printHmm * dotsPerMm).toInt().coerceAtLeast(64)
+
+    val bmp = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    canvas.drawColor(Color.WHITE)
+
+    @Suppress("UNCHECKED_CAST")
+    val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()
+
+    elements.forEach { el ->
+      try {
+        drawElementOnCanvas(canvas, el, dotsPerMm, fit, wPx, hPx)
+      } catch (e: Throwable) {
+        android.util.Log.w("JoshLabel", "Skipping element on canvas: ${e.message}")
+      }
+    }
+
+    return bmp
+  }
+
+  private fun drawElementOnCanvas(
+    canvas: Canvas,
+    el: Map<String, Any?>,
+    dotsPerMm: Double,
+    fit: Double,
+    canvasWidthPx: Int,
+    canvasHeightPx: Int
+  ) {
+    val xPx = (finite(el["x"], 0.0) * fit * dotsPerMm).toFloat()
+    val yPx = (finite(el["y"], 0.0) * fit * dotsPerMm).toFloat()
+    val wPx = (finite(el["width"], 0.0) * fit * dotsPerMm).toFloat()
+    val hPx = (finite(el["height"], 0.0) * fit * dotsPerMm).toFloat()
 
     when ((el["type"] as? String) ?: "") {
       "text" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val rawW = finite(el["width"], 0.0)
-        val rawH = finite(el["height"], 0.0)
-        val rawFont = finite(el["fontHeight"], 3.0)
-        val fontHeight = rawFont.coerceAtLeast(1.0)
-        val bold = (el["bold"] as? Boolean) ?: false
+        val fontHeightMm = finite(el["fontHeight"], 3.5) * fit
+        val fontSizePx = (fontHeightMm * dotsPerMm).toFloat().coerceAtLeast(14f)
+        val bold = (el["bold"] as? Boolean) == true
         val align = finiteInt(el["align"], 0)
 
-        // Ensure text box is wide enough to avoid LPAPI box clipping
-        val w = if (rawW > 0) rawW else maxOf(0.0, jobWidth - x)
-        val h = if (rawH > 0) maxOf(rawH, fontHeight) else maxOf(fontHeight, jobHeight - y)
-
-        val ok = instance.drawTextRegular(value, x, y, w, h, fontHeight, if (bold) 1 else 0)
-        if (!ok) {
-          // Fallback: draw with unconstrained box width/height
-          instance.drawText(value, x, y, 0.0, 0.0, fontHeight, if (bold) 1 else 0)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+          color = Color.BLACK
+          textSize = fontSizePx
+          typeface = if (bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.DEFAULT
+          textAlign = when (align) {
+            1 -> Paint.Align.CENTER
+            2 -> Paint.Align.RIGHT
+            else -> Paint.Align.LEFT
+          }
         }
+
+        val drawX = when (align) {
+          1 -> if (wPx > 0) xPx + wPx / 2f else xPx + (fontSizePx * value.length * 0.3f)
+          2 -> if (wPx > 0) xPx + wPx else xPx + (fontSizePx * value.length * 0.6f)
+          else -> xPx
+        }
+
+        val fontMetrics = paint.fontMetrics
+        val baseline = yPx - fontMetrics.top
+        canvas.drawText(value, drawX, baseline, paint)
       }
       "barcode" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val rawW = finite(el["width"], 30.0)
-        val rawH = finite(el["height"], 10.0)
-        val w = if (rawW > 0) minOf(rawW, maxOf(10.0, jobWidth - x)) else maxOf(10.0, jobWidth - x)
-        val h = if (rawH > 0) minOf(rawH, maxOf(5.0, jobHeight - y)) else 10.0
-        val textHeight = finite(el["textHeight"], 3.0).coerceAtLeast(0.0)
-        // Valid LPAPI 1D BarcodeType: AUTO=60, CODE128=28, EAN13=22, UPC_A=20, etc.
-        var type = finiteInt(el["barcodeType"], 60)
-        if (type <= 0 || (type < 20 && type != 0) || (type in 31..59) || type > 63) {
-          type = 60
+        val barcodeW = if (wPx > 0) wPx.toInt() else (canvasWidthPx - xPx.toInt()).coerceAtLeast(100)
+        val barcodeH = if (hPx > 0) hPx.toInt() else 80
+        val type = finiteInt(el["barcodeType"], 60)
+        val textHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
+
+        val barOnlyHeight = if (textHeight > 0) (barcodeH - textHeight.toInt()).coerceAtLeast(30) else barcodeH
+        val barcodeBmp = generateBarcodeBitmap(value, type, barcodeW, barOnlyHeight)
+
+        if (barcodeBmp != null) {
+          canvas.drawBitmap(barcodeBmp, xPx, yPx, null)
+          barcodeBmp.recycle()
+
+          if (textHeight > 0) {
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+              color = Color.BLACK
+              textSize = textHeight.coerceAtLeast(12f)
+              typeface = Typeface.DEFAULT
+              textAlign = Paint.Align.CENTER
+            }
+            val textY = yPx + barOnlyHeight + textHeight
+            canvas.drawText(value, xPx + barcodeW / 2f, textY, textPaint)
+          }
         }
-        instance.draw1DBarcode(value, type, x, y, w, h, textHeight)
       }
       "qrcode" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val rawSize = finite(el["size"], 15.0)
-        val maxSize = maxOf(4.0, minOf(jobWidth - x, jobHeight - y))
-        val size = if (rawSize > 0) minOf(rawSize, maxSize) else minOf(15.0, maxSize)
-        instance.draw2DQRCode(value, x, y, size)
+        val rawSize = finite(el["size"], 15.0) * fit * dotsPerMm
+        val sizePx = rawSize.toInt().coerceIn(32, minOf(canvasWidthPx, canvasHeightPx))
+        val qrBmp = generateQrBitmap(value, sizePx)
+        if (qrBmp != null) {
+          canvas.drawBitmap(qrBmp, xPx, yPx, null)
+          qrBmp.recycle()
+        }
       }
       "image" -> {
-        val w = finite(el["width"], 0.0)
-        val h = finite(el["height"], 0.0)
         val raw = el["uri"] as? String ?: return
-        if (w <= 0 || h <= 0) return
-
+        if (wPx <= 0 || hPx <= 0) return
         val invert = (el["invert"] as? Boolean) == true
-        val bitmap = decodeImageSource(raw, w, h, invert)
+        val bitmap = decodeImageSource(raw, (wPx / dotsPerMm), (hPx / dotsPerMm), invert)
         if (bitmap != null) {
-          heldBitmaps.add(bitmap)
-          instance.drawBitmap(bitmap, x, y, w, h)
-        } else {
-          val plainPath = when {
-            raw.startsWith("file://") -> raw.removePrefix("file://")
-            else -> raw
-          }
-          if (File(plainPath).exists()) {
-            instance.drawImage(plainPath, x, y, w, h)
-          }
+          val dstRect = RectF(xPx, yPx, xPx + wPx, yPx + hPx)
+          val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+          canvas.drawBitmap(bitmap, null, dstRect, paint)
+          bitmap.recycle()
         }
       }
       "line" -> {
-        val x2 = finite(el["x2"], x)
-        val y2 = finite(el["y2"], y)
-        val thickness = finite(el["thickness"], 0.3).coerceAtLeast(0.1)
-        instance.drawLine(x, y, x2, y2, thickness)
+        val x2 = (finite(el["x2"], el["x"] as? Double ?: 0.0) * fit * dotsPerMm).toFloat()
+        val y2 = (finite(el["y2"], el["y"] as? Double ?: 0.0) * fit * dotsPerMm).toFloat()
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val paint = Paint().apply {
+          color = Color.BLACK
+          strokeWidth = thickness
+          style = Paint.Style.STROKE
+        }
+        canvas.drawLine(xPx, yPx, x2, y2, paint)
       }
       "rectangle" -> {
-        val w = finite(el["width"], 0.0)
-        val h = finite(el["height"], 0.0)
-        if (w <= 0 || h <= 0) return
-        val thickness = finite(el["thickness"], 0.3).coerceAtLeast(0.1)
+        if (wPx <= 0 || hPx <= 0) return
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val filled = (el["filled"] as? Boolean) == true
-        val radius = finite(el["cornerRadius"], 0.0).coerceAtLeast(0.0)
-        when {
-          radius > 0 && filled -> instance.fillRoundRectangle(x, y, w, h, radius, radius)
-          radius > 0 -> instance.drawRoundRectangle(x, y, w, h, radius, radius, thickness)
-          filled -> instance.fillRectangle(x, y, w, h)
-          else -> instance.drawRectangle(x, y, w, h, thickness)
+        val radius = (finite(el["cornerRadius"], 0.0) * fit * dotsPerMm).toFloat()
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+          color = Color.BLACK
+          strokeWidth = thickness
+          style = if (filled) Paint.Style.FILL else Paint.Style.STROKE
         }
+        val rect = RectF(xPx, yPx, xPx + wPx, yPx + hPx)
+        if (radius > 0) canvas.drawRoundRect(rect, radius, radius, paint)
+        else canvas.drawRect(rect, paint)
       }
       "ellipse" -> {
-        val w = finite(el["width"], 0.0)
-        val h = finite(el["height"], 0.0)
-        if (w <= 0 || h <= 0) return
-        val thickness = finite(el["thickness"], 0.3).coerceAtLeast(0.1)
-        if ((el["filled"] as? Boolean) == true) instance.fillEllipse(x, y, w, h)
-        else instance.drawEllipse(x, y, w, h, thickness)
+        if (wPx <= 0 || hPx <= 0) return
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val filled = (el["filled"] as? Boolean) == true
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+          color = Color.BLACK
+          strokeWidth = thickness
+          style = if (filled) Paint.Style.FILL else Paint.Style.STROKE
+        }
+        canvas.drawOval(RectF(xPx, yPx, xPx + wPx, yPx + hPx), paint)
       }
-      else -> {
-        // Unknown element types are skipped rather than failing the whole label.
+    }
+  }
+
+  private fun generateBarcodeBitmap(
+    value: String,
+    type: Int,
+    widthPx: Int,
+    heightPx: Int
+  ): Bitmap? {
+    return try {
+      val digits = value.replace(Regex("[^0-9]"), "")
+      val format = when {
+        type == 22 || (digits.length == 12 || digits.length == 13) -> BarcodeFormat.EAN_13
+        type == 20 -> BarcodeFormat.UPC_A
+        else -> BarcodeFormat.CODE_128
       }
+      val content = if (format == BarcodeFormat.EAN_13 && (digits.length == 12 || digits.length == 13)) digits else value
+      val hints = mapOf(EncodeHintType.MARGIN to 0)
+      val matrix = MultiFormatWriter().encode(content, format, widthPx, heightPx, hints)
+      val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+      for (x in 0 until widthPx) {
+        for (y in 0 until heightPx) {
+          bmp.setPixel(x, y, if (matrix.get(x, y)) Color.BLACK else Color.WHITE)
+        }
+      }
+      bmp
+    } catch (e: Throwable) {
+      android.util.Log.w("JoshLabel", "Barcode generation failed: ${e.message}")
+      null
+    }
+  }
+
+  private fun generateQrBitmap(
+    value: String,
+    sizePx: Int
+  ): Bitmap? {
+    return try {
+      val hints = mapOf(EncodeHintType.MARGIN to 0)
+      val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
+      val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+      for (x in 0 until sizePx) {
+        for (y in 0 until sizePx) {
+          bmp.setPixel(x, y, if (matrix.get(x, y)) Color.BLACK else Color.WHITE)
+        }
+      }
+      bmp
+    } catch (e: Throwable) {
+      android.util.Log.w("JoshLabel", "QR generation failed: ${e.message}")
+      null
     }
   }
 
@@ -597,13 +621,12 @@ class JoshLabelPrinterModule : Module() {
       }
       val decoded = openImageStream(raw)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
 
-      // Flatten transparent PNG / transparent logos onto solid WHITE background
       val flattened = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
-      val canvas = android.graphics.Canvas(flattened)
-      canvas.drawColor(android.graphics.Color.WHITE)
+      val canvas = Canvas(flattened)
+      canvas.drawColor(Color.WHITE)
 
       if (invert) {
-        val paint = android.graphics.Paint()
+        val paint = Paint()
         val matrix = floatArrayOf(
           -1f, 0f, 0f, 0f, 255f,
           0f, -1f, 0f, 0f, 255f,

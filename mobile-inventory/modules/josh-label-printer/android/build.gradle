@@ -32,4 +32,5 @@ dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib:${safeExtGet('kotlinVersion', '2.0.21')}"
   // Vendored DothanTech/Josh label-printer SDK — not published to any Maven repo.
   implementation files('libs/LPAPI.jar')
+  implementation 'com.google.zxing:core:3.5.3'
 }
