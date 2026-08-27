@@ -876,6 +876,12 @@ class ThermalPrinterServiceManager {
       throw new Error('Bluetooth thermal printer is not connected. Please connect your printer in Printers settings.');
     }
 
+    // A dedicated LPAPI label printer must not be connected via the ESC/POS socket
+    const isLabel = /^(LD|LP|JOSH|HM-|B11|B21|B3S|M110|M200)/i.test(target.name || '') || (target.name || '').toLowerCase().includes('label');
+    if (isLabel) {
+      return;
+    }
+
     try {
       await this.connect(target.id, target.name);
     } catch {

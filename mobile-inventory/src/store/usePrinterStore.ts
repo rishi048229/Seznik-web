@@ -331,6 +331,10 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       pairedPrinters[0];
     if (!target) return;
 
+    // Do NOT auto-reconnect to a dedicated label printer over the receipt ESC/POS socket!
+    const isLabel = /^(LD|LP|JOSH|HM-|B11|B21|B3S|M110|M200)/i.test(target.name || '') || (target.name || '').toLowerCase().includes('label');
+    if (isLabel) return;
+
     set({ isAutoReconnecting: true });
     try {
       for (let attempt = 0; attempt < AUTO_RECONNECT_DELAYS_MS.length; attempt++) {

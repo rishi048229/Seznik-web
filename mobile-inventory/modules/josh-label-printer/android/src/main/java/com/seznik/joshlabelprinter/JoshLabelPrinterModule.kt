@@ -47,6 +47,7 @@ class JoshLabelPrinterModule : Module() {
   }
 
   @Volatile private var pendingPrint: PendingPrint? = null
+  @Volatile private var pendingConnectLatch: CountDownLatch? = null
 
   private val callback = object : LPAPI.Callback {
     override fun onProgressInfo(info: IDzPrinter.ProgressInfo?, arg: Any?) {}
@@ -61,6 +62,9 @@ class JoshLabelPrinterModule : Module() {
         else -> "disconnected"
       }
       lastState = name
+      if (name == "connected" || name == "disconnected") {
+        pendingConnectLatch?.countDown()
+      }
       if (name == "disconnected") {
         pendingPrint?.let {
           it.failReason = "The label printer disconnected while printing."
@@ -277,6 +281,18 @@ class JoshLabelPrinterModule : Module() {
     AsyncFunction("connect") { address: String, promise: Promise ->
       try {
         val instance = requireApi()
+        
+        if (instance.isPrinterOpened && (
+          lastState == "connected" ||
+          instance.printerState == IDzPrinter.PrinterState.Connected ||
+          instance.printerState == IDzPrinter.PrinterState.Connected2 ||
+          instance.printerState == IDzPrinter.PrinterState.Working
+        )) {
+          lastState = "connected"
+          promise.resolve(true)
+          return@AsyncFunction
+        }
+
         try {
           instance.stopDiscovery()
         } catch (e: Throwable) {}
@@ -287,29 +303,47 @@ class JoshLabelPrinterModule : Module() {
           it.address.equals(address, ignoreCase = true) || (it.name != null && it.name.equals(address, ignoreCase = true))
         }
 
-        val ok = when {
-          known != null -> {
-            instance.openPrinterByAddressSync(known) || instance.openPrinterByAddress(known)
-          }
-          bondedDev != null -> {
-            val addr = IDzPrinter.PrinterAddress(bondedDev.address, bondedDev.name ?: bondedDev.address, IDzPrinter.AddressType.DUAL)
-            discovered[address] = addr
-            discovered[bondedDev.address] = addr
-            instance.openPrinterByAddressSync(addr) || instance.openPrinter(bondedDev) || instance.openPrinterByAddress(addr) || instance.openPrinterSync(bondedDev.name ?: bondedDev.address)
-          }
-          else -> {
-            val addr = IDzPrinter.PrinterAddress(address, IDzPrinter.AddressType.DUAL)
-            discovered[address] = addr
-            instance.openPrinterByAddressSync(addr) || instance.openPrinterByAddress(addr) || instance.openPrinterSync(address) || instance.openPrinter(address)
-          }
+        val mac = bondedDev?.address ?: known?.macAddress ?: address
+        val name = bondedDev?.name ?: known?.shownName ?: address
+        val addr = known ?: (bondedDev?.let { IDzPrinter.PrinterAddress(it.address, it.name ?: it.address, IDzPrinter.AddressType.DUAL) }) ?: IDzPrinter.PrinterAddress(mac, name, IDzPrinter.AddressType.DUAL)
+        
+        discovered[mac] = addr
+        discovered[name] = addr
+        discovered[address] = addr
+
+        val latch = CountDownLatch(1)
+        pendingConnectLatch = latch
+
+        // Initiate connection
+        var initiated = instance.openPrinterByAddressSync(addr)
+        if (!initiated && bondedDev != null) {
+          initiated = instance.openPrinter(bondedDev)
         }
-        if (ok || instance.isPrinterOpened) {
+        if (!initiated) {
+          initiated = instance.openPrinterByAddress(addr) || instance.openPrinterSync(name) || instance.openPrinter(name) || instance.openPrinter(mac)
+        }
+
+        if (initiated) {
+          latch.await(6, TimeUnit.SECONDS)
+        }
+
+        pendingConnectLatch = null
+
+        val isConnected = instance.isPrinterOpened && (
+          lastState == "connected" ||
+          instance.printerState == IDzPrinter.PrinterState.Connected ||
+          instance.printerState == IDzPrinter.PrinterState.Connected2 ||
+          instance.printerState == IDzPrinter.PrinterState.Working
+        )
+
+        if (isConnected) {
           lastState = "connected"
           promise.resolve(true)
         } else {
           promise.resolve(false)
         }
       } catch (e: Throwable) {
+        pendingConnectLatch = null
         promise.reject(CodedException("ERR_JOSH_CONNECT", e.message ?: "Could not connect", e))
       }
     }

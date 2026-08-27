@@ -596,9 +596,6 @@ export default function PrintersScreen() {
           </View>
         </View>
 
-        {/* Dedicated LPAPI Sticker/Label Printer Card */}
-        <JoshPrinterCard />
-
         {/* 3-Tab Segmented Control (Invoice printing tab hidden per specification) */}
         <View style={[styles.segmentedBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
           {(['receipt', 'label', 'templates'] as const).map((tab) => {
