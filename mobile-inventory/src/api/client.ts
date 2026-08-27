@@ -4,7 +4,7 @@ import { getAuthToken, removeAuthToken, removeStoredUser } from '@/services/secu
 import { useAuthStore } from '@/store/useAuthStore';
 
 // Environment Configurable Base URLs
-const PROD_DEFAULT_API_URL = 'https://api.seznik.com/api';
+const PROD_DEFAULT_API_URL = 'http://54.175.133.69:5000/api';
 const DEFAULT_PORT = (
   process.env.EXPO_PUBLIC_API_PORT ||
   process.env.EXPO_PUBLIC_PORT ||

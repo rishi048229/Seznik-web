@@ -14,13 +14,13 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.seznik.com/api"
+        "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5000/api"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.seznik.com/api"
+        "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5000/api"
       }
     }
   },
