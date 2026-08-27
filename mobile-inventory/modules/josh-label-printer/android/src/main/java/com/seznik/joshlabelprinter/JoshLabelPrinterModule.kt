@@ -344,13 +344,27 @@ class JoshLabelPrinterModule : Module() {
         }
         val copies = finiteInt(spec["copies"], 1).coerceAtLeast(1)
 
-        finiteOrNull(spec["gapType"])?.let { instance.setPrintPageGapType(it.toInt()) }
-        finiteOrNull(spec["gapMm"])?.let { gap ->
-          val gapInt = gap.toInt().coerceAtLeast(0)
-          instance.setPrintPageGapLength(gapInt)
+        val headMm = printableWidthMm().takeIf { it > 1.0 } ?: 48.0
+        val jobWidth = if (rotation == 0 || rotation == 180) minOf(widthMm, headMm) else widthMm
+        val jobHeight = if (rotation == 90 || rotation == 270) minOf(heightMm, headMm) else heightMm
+
+        val jobParam = Bundle()
+        val gapType = finiteInt(spec["gapType"], 2)
+        val gapMm = finiteInt(spec["gapMm"], 3)
+        jobParam.putInt(IDzPrinter.PrintParamName.GAP_TYPE, gapType)
+        jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH, gapMm)
+        jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH_01MM, gapMm * 10)
+        if (rotation != 0) {
+          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DIRECTION, rotation)
         }
-        finiteOrNull(spec["darkness"])?.let { instance.setPrintDarkness(it.toInt()) }
-        finiteOrNull(spec["speed"])?.let { instance.setPrintSpeed(it.toInt()) }
+        finiteOrNull(spec["darkness"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DENSITY, it.toInt()) }
+        finiteOrNull(spec["speed"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_SPEED, it.toInt()) }
+        if (copies > 1) {
+          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
+        }
+
+        instance.setPrintPageGapType(gapType)
+        instance.setPrintPageGapLength(gapMm)
 
         @Suppress("UNCHECKED_CAST")
         val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()
@@ -361,16 +375,16 @@ class JoshLabelPrinterModule : Module() {
         // Drop any half-finished job left by a previous failed print
         runCatching { instance.abortJob() }
 
-        // Official demo starts jobs with the specified label width and height.
-        if (!instance.startJob(widthMm, heightMm, rotation)) {
-          throw CodedException("ERR_JOSH_JOB", "Printer rejected the label job (${widthMm}x${heightMm}mm).", null)
+        // Start job clamped to physical head width
+        if (!instance.startJob(jobWidth, jobHeight, rotation)) {
+          throw CodedException("ERR_JOSH_JOB", "Printer rejected the label job (${jobWidth}x${jobHeight}mm).", null)
         }
 
         val heldBitmaps = mutableListOf<Bitmap>()
         try {
           elements.forEach { el ->
             try {
-              drawElement(instance, el, heldBitmaps)
+              drawElement(instance, el, heldBitmaps, jobWidth, jobHeight)
             } catch (elErr: Throwable) {
               android.util.Log.w("JoshLabel", "Skipping element ${(el["type"] as? String)}: ${elErr.message}")
             }
@@ -379,7 +393,7 @@ class JoshLabelPrinterModule : Module() {
           val pending = PendingPrint()
           pendingPrint = pending
 
-          val committed = instance.commitJob()
+          val committed = instance.commitJobWithParam(jobParam)
           if (!committed) {
             pendingPrint = null
             runCatching { instance.abortJob() }
@@ -422,7 +436,13 @@ class JoshLabelPrinterModule : Module() {
     }
   }
 
-  private fun drawElement(instance: LPAPI, el: Map<String, Any?>, heldBitmaps: MutableList<Bitmap>) {
+  private fun drawElement(
+    instance: LPAPI,
+    el: Map<String, Any?>,
+    heldBitmaps: MutableList<Bitmap>,
+    jobWidth: Double,
+    jobHeight: Double
+  ) {
     val x = finite(el["x"], 0.0)
     val y = finite(el["y"], 0.0)
 
@@ -433,18 +453,31 @@ class JoshLabelPrinterModule : Module() {
     when ((el["type"] as? String) ?: "") {
       "text" -> {
         val value = el["value"] as? String ?: return
-        val w = finite(el["width"], 0.0)
-        val h = finite(el["height"], 0.0)
+        if (value.isEmpty()) return
+        val rawW = finite(el["width"], 0.0)
+        val rawH = finite(el["height"], 0.0)
         val rawFont = finite(el["fontHeight"], 3.0)
         val fontHeight = rawFont.coerceAtLeast(1.0)
         val bold = (el["bold"] as? Boolean) ?: false
-        // drawTextRegular's trailing int is the style bitmask; 1 = bold.
-        instance.drawTextRegular(value, x, y, w, h, fontHeight, if (bold) 1 else 0)
+        val align = finiteInt(el["align"], 0)
+
+        // Ensure text box is wide enough to avoid LPAPI box clipping
+        val w = if (rawW > 0) rawW else maxOf(0.0, jobWidth - x)
+        val h = if (rawH > 0) maxOf(rawH, fontHeight) else maxOf(fontHeight, jobHeight - y)
+
+        val ok = instance.drawTextRegular(value, x, y, w, h, fontHeight, if (bold) 1 else 0)
+        if (!ok) {
+          // Fallback: draw with unconstrained box width/height
+          instance.drawText(value, x, y, 0.0, 0.0, fontHeight, if (bold) 1 else 0)
+        }
       }
       "barcode" -> {
         val value = el["value"] as? String ?: return
-        val w = finite(el["width"], 30.0)
-        val h = finite(el["height"], 10.0)
+        if (value.isEmpty()) return
+        val rawW = finite(el["width"], 30.0)
+        val rawH = finite(el["height"], 10.0)
+        val w = if (rawW > 0) minOf(rawW, maxOf(10.0, jobWidth - x)) else maxOf(10.0, jobWidth - x)
+        val h = if (rawH > 0) minOf(rawH, maxOf(5.0, jobHeight - y)) else 10.0
         val textHeight = finite(el["textHeight"], 3.0).coerceAtLeast(0.0)
         // Valid LPAPI 1D BarcodeType: AUTO=60, CODE128=28, EAN13=22, UPC_A=20, etc.
         var type = finiteInt(el["barcodeType"], 60)
@@ -455,8 +488,10 @@ class JoshLabelPrinterModule : Module() {
       }
       "qrcode" -> {
         val value = el["value"] as? String ?: return
-        val size = finite(el["size"], 15.0)
-        if (size <= 0) return
+        if (value.isEmpty()) return
+        val rawSize = finite(el["size"], 15.0)
+        val maxSize = maxOf(4.0, minOf(jobWidth - x, jobHeight - y))
+        val size = if (rawSize > 0) minOf(rawSize, maxSize) else minOf(15.0, maxSize)
         instance.draw2DQRCode(value, x, y, size)
       }
       "image" -> {
