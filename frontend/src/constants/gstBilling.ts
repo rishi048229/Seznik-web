@@ -105,6 +105,14 @@ export function resolveReceiptPrintGst(
   }
 }
 
+/** Resolve GST print display from draft form state (unsaved) for live preview. */
+export function resolveReceiptPrintGstFromForm(
+  form: Omit<GstBillingConfig, 'configured'>,
+  receiptConfig?: { showTaxBreakdown?: boolean } | null
+): ReceiptPrintGstOptions {
+  return resolveReceiptPrintGst({ gstBilling: toGstBillingPayload(form) }, receiptConfig)
+}
+
 export const GST_BREAKDOWN_STYLE_OPTIONS: { value: GstBreakdownStyle; label: string; description: string }[] = [
   {
     value: 'compact',

@@ -2,34 +2,36 @@ import toast from 'react-hot-toast'
 import { Printer } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel'
-import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
+import type { GstBillingFormState } from '@/hooks/useGstBillingSettings'
+import type { GstBreakdownStyle } from '@/constants/gstBilling'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { useSettings } from '@/hooks/useSettings'
-import { resolveActiveCustomTemplate } from '@/utils/customReceiptEngine'
 
-interface GstPrintDisplaySectionProps {
+export interface GstPrintDisplaySectionProps {
   className?: string
+  form: GstBillingFormState
+  onStyleChange: (style: GstBreakdownStyle) => void
+  onPrintOnReceiptChange: (printOnReceipt: boolean) => void
+  onItemWiseGstChange: (itemWiseGst: boolean) => void
+  onSave: () => Promise<void>
+  isSaving?: boolean
 }
 
-/** GST layout options for thermal / browser receipt prints — configured on Printers page. */
-export function GstPrintDisplaySection({ className = '' }: GstPrintDisplaySectionProps) {
+/** GST layout options for thermal / browser receipt prints — shown on Printers page receipt tab. */
+export function GstPrintDisplaySection({
+  className = '',
+  form,
+  onStyleChange,
+  onPrintOnReceiptChange,
+  onItemWiseGstChange,
+  onSave,
+  isSaving = false,
+}: GstPrintDisplaySectionProps) {
   const { t } = useLanguage()
-  const {
-    form,
-    setStyle,
-    setPrintOnReceipt,
-    setItemWiseGst,
-    saveGstBilling,
-    isSaving,
-  } = useGstBillingSettings()
-  const { data: settings } = useSettings()
-  const hasCustomTemplate = Boolean(resolveActiveCustomTemplate(settings?.receiptConfig))
 
   const handleSave = async () => {
     try {
-      await saveGstBilling({
-        onSuccess: () => toast.success(t('settings.gstPrintDisplaySaved')),
-      })
+      await onSave()
+      toast.success(t('settings.gstPrintDisplaySaved'))
     } catch {
       toast.error('Failed to save GST print settings')
     }
@@ -56,19 +58,17 @@ export function GstPrintDisplaySection({ className = '' }: GstPrintDisplaySectio
           printOnReceipt={form.printOnReceipt}
           itemWiseGst={form.itemWiseGst}
           onShowBreakdownChange={() => {}}
-          onStyleChange={setStyle}
-          onPrintOnReceiptChange={setPrintOnReceipt}
-          onItemWiseGstChange={setItemWiseGst}
+          onStyleChange={onStyleChange}
+          onPrintOnReceiptChange={onPrintOnReceiptChange}
+          onItemWiseGstChange={onItemWiseGstChange}
           showSaveButton={false}
           variant="print"
         />
       </div>
 
-      {hasCustomTemplate ? (
-        <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 leading-relaxed">
-          GST style applies to the tax section of your receipt template. Use Test Print to preview changes.
-        </p>
-      ) : null}
+      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 leading-relaxed">
+        Changes update the live preview instantly. Save when you are ready to keep them for printing.
+      </p>
 
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isSaving} size="sm">

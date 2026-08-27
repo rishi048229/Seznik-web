@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { ImageIcon } from 'lucide-react'
 import type { CustomReceiptEntry, CustomReceiptTemplate } from '@/types/customReceipt'
-import { interpolateReceiptVariables, type ReceiptPrintContext } from '@/utils/customReceiptEngine'
+import {
+  compileGstBreakdownPairs,
+  interpolateReceiptVariables,
+  resolveShowTaxColumn,
+  type CustomReceiptGstOpts,
+  type ReceiptPrintContext,
+} from '@/utils/customReceiptEngine'
 import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from '@/utils/upiQr'
 import { getReceiptPreviewFontStyle, getReceiptPreviewMaxWidth } from './receiptPreviewStyles'
 import { isReceiptEntryEnabled, resolveReceiptImageSrc } from '@/utils/receiptLogo'
@@ -10,6 +16,7 @@ import { isReceiptEntryEnabled, resolveReceiptImageSrc } from '@/utils/receiptLo
 interface CustomReceiptPreviewProps {
   template: CustomReceiptTemplate
   context: ReceiptPrintContext
+  gstOpts?: CustomReceiptGstOpts
   className?: string
 }
 
@@ -51,7 +58,7 @@ function ReceiptLogoImage({
   )
 }
 
-export function CustomReceiptPreview({ template, context, className = '' }: CustomReceiptPreviewProps) {
+export function CustomReceiptPreview({ template, context, gstOpts, className = '' }: CustomReceiptPreviewProps) {
   const paperWidth = template.paperWidth || '58mm'
   const paperMax = getReceiptPreviewMaxWidth(paperWidth)
   const fontStyle = getReceiptPreviewFontStyle(paperWidth)
@@ -121,7 +128,33 @@ export function CustomReceiptPreview({ template, context, className = '' }: Cust
       }
       case 'left_right_text': {
         if (isDiscountEntry(entry) && context.totalDiscount <= 0) return null
-        if (isTaxEntry(entry) && context.totalTax <= 0) return null
+        if (isTaxEntry(entry)) {
+          if (context.totalTax <= 0) return null
+          const gstPairs = compileGstBreakdownPairs(context, gstOpts)
+          if (gstPairs.length > 0) {
+            return (
+              <div key={entry.id || idx}>
+                {gstPairs.map((pair, pairIdx) => (
+                  <div
+                    key={`${entry.id || idx}-gst-${pairIdx}`}
+                    className="flex justify-between text-black my-0.5"
+                    style={{ fontSize: '0.95em', fontFamily: 'inherit' }}
+                  >
+                    <span>{pair.left}</span>
+                    <span>{pair.right}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+          if (gstOpts?.showTaxBreakdown === false) return null
+          return (
+            <div key={entry.id || idx} className="flex justify-between text-black my-0.5" style={{ fontSize: '0.95em', fontFamily: 'inherit' }}>
+              <span className={entry.bold ? 'font-bold' : ''}>{vars(entry.left)}</span>
+              <span className={entry.bold ? 'font-bold' : ''}>{vars(entry.right)}</span>
+            </div>
+          )
+        }
         return (
           <div key={entry.id || idx} className="flex justify-between text-black my-0.5" style={{ fontSize: '0.95em', fontFamily: 'inherit' }}>
             <span className={entry.bold ? 'font-bold' : ''}>{vars(entry.left)}</span>
@@ -129,7 +162,8 @@ export function CustomReceiptPreview({ template, context, className = '' }: Cust
           </div>
         )
       }
-      case 'table':
+      case 'table': {
+        const showTaxColumn = resolveShowTaxColumn(entry, gstOpts?.itemWiseGst)
         return (
           <div key={entry.id || idx} className="my-1 text-black" style={{ fontFamily: 'inherit' }}>
             <div className="flex justify-between border-b border-dashed border-black pb-1 mb-1 font-bold" style={{ fontSize: '0.9em' }}>
@@ -139,7 +173,7 @@ export function CustomReceiptPreview({ template, context, className = '' }: Cust
             {context.items.map((it, sIdx) => (
               <div key={sIdx} className="mb-1.5">
                 <div className="font-bold" style={{ fontSize: '0.95em' }}>{sIdx + 1}. {it.productName}</div>
-                {entry.showTaxColumn && it.gstRate ? (
+                {showTaxColumn && it.gstRate ? (
                   <div className="text-gray-700 ml-3" style={{ fontSize: '0.85em' }}>{it.gstRate}% GST</div>
                 ) : null}
                 <div className="flex justify-between ml-3" style={{ fontSize: '0.9em' }}>
@@ -150,6 +184,7 @@ export function CustomReceiptPreview({ template, context, className = '' }: Cust
             ))}
           </div>
         )
+      }
       case 'multi_format':
         return (
           <div key={entry.id || idx} className="flex flex-wrap gap-1 text-black my-0.5" style={{ fontSize: '0.95em', fontFamily: 'inherit' }}>
