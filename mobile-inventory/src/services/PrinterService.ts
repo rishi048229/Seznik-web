@@ -2933,6 +2933,10 @@ class ThermalPrinterServiceManager {
     });
   }
 
+  public isJoshSupported(): boolean {
+    return Boolean(JoshLabelPrinter);
+  }
+
   public async joshStartDiscovery(): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
     return JoshLabelPrinter.startDiscovery();

@@ -271,7 +271,7 @@ export default function PrintersScreen() {
     // If the device is a dedicated Label printer (e.g. LD0801, LP..., or contains Label/Josh),
     // route it directly to the Josh Label Printer connector instead of failing on the ESC/POS socket!
     const isLabelPrinter = /^(LD|LP|JOSH|HM-|B11|B21|B3S|M110|M200)/i.test(deviceName || '') || (deviceName || '').toLowerCase().includes('label');
-    if (isLabelPrinter && JoshLabelPrinter) {
+    if (isLabelPrinter && ThermalPrinterService.isJoshSupported()) {
       try {
         const ok = await ThermalPrinterService.joshConnect(deviceId, deviceName);
         if (ok) {
