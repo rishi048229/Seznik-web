@@ -33,6 +33,8 @@ import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
 import { runReceiptTemplateTestPrint, sampleTestSaleFromContext } from '@/utils/receiptTestPrint'
 import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
+import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
+import { resolveReceiptPrintGstFromForm } from '@/constants/gstBilling'
 import * as settingsService from '@/services/settingsService'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
@@ -171,6 +173,14 @@ export const PrintersPage = () => {
   configRef.current = config
   receiptConfigRef.current = receiptConfig
   const { customTemplates, activeCustomTemplateId } = useReceiptBuilderSync()
+  const {
+    form: gstForm,
+    setStyle: setGstStyle,
+    setPrintOnReceipt: setGstPrintOnReceipt,
+    setItemWiseGst: setGstItemWiseGst,
+    saveGstBilling,
+    isSaving: isSavingGst,
+  } = useGstBillingSettings()
   const receiptBuilderRef = useRef<ReceiptBuilderTabHandle>(null)
 
   // Which real product's data is used to preview/print the label
@@ -453,6 +463,15 @@ export const PrintersPage = () => {
     footerMessage: receiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
   }), [receiptConfig, settings, storeLogoUrl])
 
+  const previewGstOpts = useMemo(() => {
+    const resolved = resolveReceiptPrintGstFromForm(gstForm, receiptConfig)
+    return {
+      showTaxBreakdown: resolved.showTaxBreakdown,
+      gstStyle: resolved.gstStyle,
+      itemWiseGst: resolved.itemWiseGst,
+    }
+  }, [gstForm, receiptConfig])
+
   // Test Print via Bluetooth or Browser Spooler.
   // BLE only ever fires for the tab currently being tested — a thermal/label
   // printer can't render an A4 invoice, and each tab's bytes are shaped
@@ -693,8 +712,6 @@ export const PrintersPage = () => {
         </div>
       </div>
 
-      <GstPrintDisplaySection className="mb-2" />
-
       {/* Main Tabs Navigation Header */}
       <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
         {([
@@ -898,12 +915,22 @@ export const PrintersPage = () => {
                 accept="image/png,image/jpeg,image/jpg,image/webp"
               />
             </div>
+
+            <GstPrintDisplaySection
+              form={gstForm}
+              onStyleChange={setGstStyle}
+              onPrintOnReceiptChange={setGstPrintOnReceipt}
+              onItemWiseGstChange={setGstItemWiseGst}
+              onSave={() => saveGstBilling()}
+              isSaving={isSavingGst}
+            />
           </div>
 
           <div className="w-full lg:w-5/12 lg:sticky lg:top-6">
             <ReceiptLivePreviewPanel
               template={previewTemplate}
               context={receiptPreviewContext}
+              gstOpts={previewGstOpts}
             />
           </div>
         </div>
@@ -916,6 +943,13 @@ export const PrintersPage = () => {
           connectionType={config.connectionType}
           bleConnected={bleState.status === 'connected'}
           receiptConfigOverride={receiptConfig}
+          previewGstOpts={previewGstOpts}
+          gstForm={gstForm}
+          onGstStyleChange={setGstStyle}
+          onGstPrintOnReceiptChange={setGstPrintOnReceipt}
+          onGstItemWiseGstChange={setGstItemWiseGst}
+          onSaveGst={() => saveGstBilling()}
+          isSavingGst={isSavingGst}
         />
       )}
 

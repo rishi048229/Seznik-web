@@ -240,7 +240,7 @@ function renderTableItemHtml(
   return parts.join('')
 }
 
-function resolveShowTaxColumn(entry: CustomReceiptEntry, globalItemWiseGst?: boolean): boolean {
+export function resolveShowTaxColumn(entry: CustomReceiptEntry, globalItemWiseGst?: boolean): boolean {
   if (entry.type !== 'table') return false
   if (entry.showTaxColumn === true) return true
   if (entry.showTaxColumn === false) return false

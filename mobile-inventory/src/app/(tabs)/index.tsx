@@ -139,16 +139,16 @@ export default function DashboardScreen() {
     activeDevice,
     paperWidth,
     setPaperWidth,
-    topMargin,
-    autoCut,
-    fontSize,
-    printCopies,
-    activeTemplateId,
-    customTemplates,
-    activeCustomTemplateId,
-    enableBillQrCode,
-    disconnectDevice,
-  } = usePrinterStore();
+  disconnectDevice,
+  topMargin,
+  autoCut,
+  fontSize,
+  printCopies,
+  activeTemplateId,
+  customTemplates,
+  activeCustomTemplateId,
+  enableBillQrCode,
+} = usePrinterStore();
   const storeProfile = useStoreProfile();
   const { persistSaleInBackground, isCreating } = useSales();
   const { customers, refetch: refetchCustomers } = useCustomers();
@@ -843,75 +843,60 @@ export default function DashboardScreen() {
                     : t('noBluetoothFound', 'No Bluetooth device linked. Tap Scan & Connect to link receipt printer.')}
                 </Text>
 
-                {/* Connect / Disconnect live on their own row when a printer is linked:
-                    squeezing them next to Test Print and the paper toggle left the
-                    flex:1 button too narrow for its own label, which then spilled
-                    outside the button. */}
-                {connectionState === 'connected' ? (
-                  <View style={[styles.printerActionRow, { marginBottom: 8 }]}>
+                {/* Action Buttons: Connect, paper width, then test/disconnect when linked */}
+                <View style={styles.printerActionsWrap}>
+                  <View style={styles.printerPrimaryRow}>
                     <TouchableOpacity
-                      style={[styles.printerConnectBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                      style={[styles.printerConnectBtn, { backgroundColor: connectionState === 'connected' ? BRAND_COLORS.blue600 : '#10B981' }]}
                       onPress={() => setShowDirectPrinterModal(true)}
                       activeOpacity={0.8}
                     >
-                      <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
+                      <Bluetooth size={14} color="#FFF" style={styles.printerConnectBtnIcon} />
                       <Text style={styles.printerConnectBtnText} numberOfLines={1}>
-                        {t('reconnect', 'Reconnect')}
+                        {connectionState === 'connected' ? t('changeReconnect', 'Change / Reconnect') : t('scanAndConnect', 'Scan & Connect')}
                       </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.printerDisconnectBtn, { borderColor: '#EF4444' }]}
-                      onPress={handleDisconnectPrinter}
-                      activeOpacity={0.8}
-                    >
-                      <PowerOff size={14} color="#EF4444" style={{ marginRight: 6 }} />
-                      <Text style={styles.printerDisconnectBtnText} numberOfLines={1}>
-                        {t('disconnect', 'Disconnect')}
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+                      <TouchableOpacity
+                        style={[styles.paperToggleBtn, paperWidth === '58mm' && styles.paperToggleActive]}
+                        onPress={() => setPaperWidth('58mm')}
+                      >
+                        <Text style={[styles.paperToggleText, paperWidth === '58mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>58mm</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.paperToggleBtn, paperWidth === '80mm' && styles.paperToggleActive]}
+                        onPress={() => setPaperWidth('80mm')}
+                      >
+                        <Text style={[styles.paperToggleText, paperWidth === '80mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>80mm</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                ) : null}
 
-                {/* Action Buttons: Scan/Connect + Test Print + Paper Switch */}
-                <View style={styles.printerActionRow}>
                   {connectionState === 'connected' ? (
-                    <TouchableOpacity
-                      style={[styles.printerTestBtn, { flex: 1, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                      onPress={handleTestPrint}
-                      activeOpacity={0.8}
-                    >
-                      <Zap size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 4 }} />
-                      <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]} numberOfLines={1}>{t('testPrint', 'Test Print')}</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.printerConnectBtn, { backgroundColor: '#10B981' }]}
-                      onPress={() => setShowDirectPrinterModal(true)}
-                      activeOpacity={0.8}
-                    >
-                      <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.printerConnectBtnText} numberOfLines={1}>
-                        {t('scanAndConnect', 'Scan & Connect')}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* 58mm / 80mm toggle */}
-                  <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
-                    <TouchableOpacity
-                      style={[styles.paperToggleBtn, paperWidth === '58mm' && styles.paperToggleActive]}
-                      onPress={() => setPaperWidth('58mm')}
-                    >
-                      <Text style={[styles.paperToggleText, paperWidth === '58mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>58mm</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.paperToggleBtn, paperWidth === '80mm' && styles.paperToggleActive]}
-                      onPress={() => setPaperWidth('80mm')}
-                    >
-                      <Text style={[styles.paperToggleText, paperWidth === '80mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>80mm</Text>
-                    </TouchableOpacity>
-                  </View>
+                    <View style={styles.printerSecondaryRow}>
+                      <TouchableOpacity
+                        style={[styles.printerTestBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                        onPress={handleTestPrint}
+                        activeOpacity={0.8}
+                      >
+                        <Zap size={14} color={BRAND_COLORS.sky500} style={styles.printerSecondaryBtnIcon} />
+                        <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
+                          {t('testPrint', 'Test Print')}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.printerDisconnectBtn, { borderColor: 'rgba(239, 68, 68, 0.35)', backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
+                        onPress={handleDisconnectPrinter}
+                        activeOpacity={0.8}
+                      >
+                        <PowerOff size={14} color="#EF4444" style={styles.printerSecondaryBtnIcon} />
+                        <Text style={styles.printerDisconnectBtnText} numberOfLines={1}>
+                          {t('disconnect', 'Disconnect')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </View>
               </View>
 
@@ -1571,18 +1556,32 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
-  printerActionRow: {
+  printerActionsWrap: {
+    gap: 8,
+  },
+  printerPrimaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  printerSecondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+  },
   printerConnectBtn: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 12,
+  },
+  printerConnectBtnIcon: {
+    marginRight: 6,
+    flexShrink: 0,
   },
   printerConnectBtnText: {
     color: '#FFFFFF',
@@ -1590,37 +1589,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     flexShrink: 1,
   },
-  printerDisconnectBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 9,
-    borderRadius: 12,
-    borderWidth: 1,
-    backgroundColor: 'rgba(239, 68, 68, 0.10)',
-  },
-  printerDisconnectBtnText: {
-    color: '#EF4444',
-    fontWeight: '800',
-    fontSize: 12,
-    flexShrink: 1,
-  },
   printerTestBtn: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  printerSecondaryBtnIcon: {
+    marginRight: 4,
+    flexShrink: 0,
   },
   printerTestBtnText: {
     fontSize: 12,
     fontWeight: '800',
     flexShrink: 1,
   },
+  printerDisconnectBtn: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  printerDisconnectBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EF4444',
+    flexShrink: 1,
+  },
   paperToggleContainer: {
+    flexShrink: 0,
     flexDirection: 'row',
     borderRadius: 10,
     borderWidth: 1,

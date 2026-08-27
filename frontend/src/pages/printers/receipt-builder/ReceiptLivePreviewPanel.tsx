@@ -1,11 +1,12 @@
 import type { CustomReceiptTemplate } from '@/types/customReceipt'
-import type { ReceiptPrintContext } from '@/utils/customReceiptEngine'
+import type { CustomReceiptGstOpts, ReceiptPrintContext } from '@/utils/customReceiptEngine'
 import { CustomReceiptPreview } from './CustomReceiptPreview'
 import { getReceiptPreviewMaxWidth } from './receiptPreviewStyles'
 
 interface ReceiptLivePreviewPanelProps {
   template: CustomReceiptTemplate
   context: ReceiptPrintContext
+  gstOpts?: CustomReceiptGstOpts
   compactMode?: boolean
   className?: string
 }
@@ -13,6 +14,7 @@ interface ReceiptLivePreviewPanelProps {
 export function ReceiptLivePreviewPanel({
   template,
   context,
+  gstOpts,
   compactMode = false,
   className = '',
 }: ReceiptLivePreviewPanelProps) {
@@ -36,7 +38,7 @@ export function ReceiptLivePreviewPanel({
             className="mx-auto flex flex-col items-stretch max-w-full min-w-0"
             style={{ width: `min(100%, ${previewPaperMaxPx}px)` }}
           >
-            <CustomReceiptPreview template={template} context={context} />
+            <CustomReceiptPreview template={template} context={context} gstOpts={gstOpts} />
             <div
               className="h-3 w-full bg-white shrink-0"
               style={{

@@ -19,6 +19,10 @@ import { runReceiptTemplateTestPrint, sampleTestSaleFromContext } from '@/utils/
 import type { ReceiptConfig } from '@/types/settings.types'
 import { ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
+import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
+import type { GstBillingFormState } from '@/hooks/useGstBillingSettings'
+import type { GstBreakdownStyle } from '@/constants/gstBilling'
+import type { CustomReceiptGstOpts } from '@/utils/customReceiptEngine'
 
 export interface ReceiptBuilderTabHandle {
   runTestPrint: () => Promise<void>
@@ -30,10 +34,28 @@ interface ReceiptBuilderTabProps {
   bleConnected?: boolean
   /** Local receipt fields from Printers page (may include unsaved logo). */
   receiptConfigOverride?: Partial<ReceiptConfig>
+  previewGstOpts?: CustomReceiptGstOpts
+  gstForm?: GstBillingFormState
+  onGstStyleChange?: (style: GstBreakdownStyle) => void
+  onGstPrintOnReceiptChange?: (printOnReceipt: boolean) => void
+  onGstItemWiseGstChange?: (itemWiseGst: boolean) => void
+  onSaveGst?: () => Promise<void>
+  isSavingGst?: boolean
 }
 
 export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuilderTabProps>(function ReceiptBuilderTab(
-  { connectionType = 'system_driver', bleConnected = false, receiptConfigOverride },
+  {
+    connectionType = 'system_driver',
+    bleConnected = false,
+    receiptConfigOverride,
+    previewGstOpts,
+    gstForm,
+    onGstStyleChange,
+    onGstPrintOnReceiptChange,
+    onGstItemWiseGstChange,
+    onSaveGst,
+    isSavingGst = false,
+  },
   ref
 ) {
   const { t } = useLanguage()
@@ -358,10 +380,25 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
               </div>
             </>
           )}
+
+          {gstForm && onGstStyleChange && onGstPrintOnReceiptChange && onGstItemWiseGstChange && onSaveGst ? (
+            <GstPrintDisplaySection
+              form={gstForm}
+              onStyleChange={onGstStyleChange}
+              onPrintOnReceiptChange={onGstPrintOnReceiptChange}
+              onItemWiseGstChange={onGstItemWiseGstChange}
+              onSave={onSaveGst}
+              isSaving={isSavingGst}
+            />
+          ) : null}
         </div>
 
         <div className="w-full lg:w-5/12 lg:sticky lg:top-6 self-start">
-          <ReceiptLivePreviewPanel template={previewTemplate} context={previewContext} />
+          <ReceiptLivePreviewPanel
+            template={previewTemplate}
+            context={previewContext}
+            gstOpts={previewGstOpts}
+          />
         </div>
       </div>
     </div>
