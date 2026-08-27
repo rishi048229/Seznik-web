@@ -43,13 +43,15 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
 
   const [selectedFormat, setSelectedFormat] = useState<BarcodeFormat>('qr');
+  const [printMode, setPrintMode] = useState<'direct' | 'template'>('direct');
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
   const [seqProgress, setSeqProgress] = useState(0);
 
+  const usableTemplate = templateHasPrintableContent(activeLabelTemplate) ? activeLabelTemplate : null;
   const hasSequenceElement =
-    activeLabelTemplate?.elements.some((el) => el.type === 'text' && el.binding === 'sequence') ?? false;
+    printMode === 'template' && (usableTemplate?.elements.some((el) => el.type === 'text' && el.binding === 'sequence') ?? false);
 
   if (!product) return null;
 
@@ -60,24 +62,35 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const handlePrintLabel = async () => {
     setIsPrinting(true);
     try {
-      // Priority: a saved Label Studio template (real user-designed layout, bound to this
-      // product's real data) always wins when one's active — which native pipeline it goes through
-      // depends on labelPaperMode: TSPL for 'gap' (die-cut label printer), ESC/POS sequential
-      // rendering for 'continuous' (receipt roll) — sending TSPL commands to the receipt printer is
-      // exactly what printed as gibberish text before printLabelTemplateOnReceiptPaper existed.
-      // With no active template, each mode falls back to its own auto-layout.
       let ok: boolean;
       let modeLabel: string;
-      const usableTemplate = templateHasPrintableContent(activeLabelTemplate) ? activeLabelTemplate : null;
 
-      // The LD0801 only reliably ejects the same auto-layout the Printers "Test Label"
-      // button uses. A saved Studio template (especially one with a gallery image) was
-      // taking this product-print down a different path that reported success with no
-      // paper. When the label printer is linked, always use that proven layout here.
-      if (await ThermalPrinterService.joshEnsureConnected()) {
-        if (usableTemplate) {
+      if (printMode === 'template' && usableTemplate) {
+        if (await ThermalPrinterService.joshEnsureConnected()) {
           ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
           modeLabel = `"${usableTemplate.name}" template (label printer)`;
+        } else if (labelPaperMode === 'continuous') {
+          ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, usableTemplate, paperWidth);
+          modeLabel = `"${usableTemplate.name}" template (receipt roll)`;
+        } else {
+          ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
+          modeLabel = `"${usableTemplate.name}" template (TSPL)`;
+        }
+      } else {
+        // Direct Product Barcode/QR Print (Real product data, no static template text)
+        if (await ThermalPrinterService.joshEnsureConnected()) {
+          ok = await ThermalPrinterService.printCustomLabel(
+            product,
+            selectedFormat,
+            undefined,
+            labelWidthMm,
+            labelHeightMm,
+            labelGapMm
+          );
+          modeLabel = `Label Printer (${selectedFormat.toUpperCase()})`;
+        } else if (labelPaperMode === 'continuous') {
+          ok = await ThermalPrinterService.printLabelOnReceiptPaper(product, selectedFormat, paperWidth);
+          modeLabel = `Receipt Roll (${selectedFormat.toUpperCase()})`;
         } else {
           ok = await ThermalPrinterService.printCustomLabel(
             product,
@@ -87,26 +100,12 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             labelHeightMm,
             labelGapMm
           );
-          modeLabel = 'the label printer';
+          modeLabel = `TSPL Label Printer (${selectedFormat.toUpperCase()})`;
         }
-      } else if (labelPaperMode === 'gap' && usableTemplate) {
-        ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
-        modeLabel = `"${usableTemplate.name}" template`;
-      } else if (labelPaperMode === 'continuous' && usableTemplate) {
-        ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, usableTemplate, paperWidth);
-        modeLabel = `"${usableTemplate.name}" template (receipt roll)`;
-      } else if (labelPaperMode === 'continuous') {
-        // No active template — real ESC/POS barcode/QR auto-layout on the receipt roll (see
-        // PrinterService.printLabelOnReceiptPaper's doc comment for why the old HTML fallback
-        // rendered unreadable text instead of a real barcode).
-        ok = await ThermalPrinterService.printLabelOnReceiptPaper(product, selectedFormat, paperWidth);
-        modeLabel = 'the receipt roll';
-      } else {
-        ok = await ThermalPrinterService.printCustomLabel(product, selectedFormat, undefined, labelWidthMm, labelHeightMm, labelGapMm);
-        modeLabel = 'the TSPL label printer';
       }
+
       if (ok) {
-        Alert.alert('Label Sent', `Printed via ${modeLabel} (${activeDevice?.name || 'connected printer'}).`);
+        Alert.alert('Label Sent! 🖨️', `Printed via ${modeLabel}.`);
       } else {
         Alert.alert('Print Error', 'Could not send label to printer.');
       }
@@ -206,29 +205,78 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>SELECT BARCODE FORMAT</Text>
           <View style={[styles.formatBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <TouchableOpacity
-              onPress={() => setSelectedFormat('qr')}
-              style={[styles.formatTab, selectedFormat === 'qr' && styles.formatTabActive]}
+              onPress={() => {
+                setSelectedFormat('qr');
+                setPrintMode('direct');
+              }}
+              style={[styles.formatTab, printMode === 'direct' && selectedFormat === 'qr' && styles.formatTabActive]}
             >
-              <QrCode size={14} color={selectedFormat === 'qr' ? '#FFF' : theme.textSecondary} />
-              <Text style={[styles.formatTabText, selectedFormat === 'qr' && styles.formatTabTextActive]}>QR Code</Text>
+              <QrCode size={14} color={printMode === 'direct' && selectedFormat === 'qr' ? '#FFF' : theme.textSecondary} />
+              <Text style={[styles.formatTabText, printMode === 'direct' && selectedFormat === 'qr' && styles.formatTabTextActive]}>QR Code</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => setSelectedFormat('code128')}
-              style={[styles.formatTab, selectedFormat === 'code128' && styles.formatTabActive]}
+              onPress={() => {
+                setSelectedFormat('code128');
+                setPrintMode('direct');
+              }}
+              style={[styles.formatTab, printMode === 'direct' && selectedFormat === 'code128' && styles.formatTabActive]}
             >
-              <Barcode size={14} color={selectedFormat === 'code128' ? '#FFF' : theme.textSecondary} />
-              <Text style={[styles.formatTabText, selectedFormat === 'code128' && styles.formatTabTextActive]}>Code128</Text>
+              <Barcode size={14} color={printMode === 'direct' && selectedFormat === 'code128' ? '#FFF' : theme.textSecondary} />
+              <Text style={[styles.formatTabText, printMode === 'direct' && selectedFormat === 'code128' && styles.formatTabTextActive]}>Code128</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => setSelectedFormat('ean13')}
-              style={[styles.formatTab, selectedFormat === 'ean13' && styles.formatTabActive]}
+              onPress={() => {
+                setSelectedFormat('ean13');
+                setPrintMode('direct');
+              }}
+              style={[styles.formatTab, printMode === 'direct' && selectedFormat === 'ean13' && styles.formatTabActive]}
             >
-              <Barcode size={14} color={selectedFormat === 'ean13' ? '#FFF' : theme.textSecondary} />
-              <Text style={[styles.formatTabText, selectedFormat === 'ean13' && styles.formatTabTextActive]}>EAN-13</Text>
+              <Barcode size={14} color={printMode === 'direct' && selectedFormat === 'ean13' ? '#FFF' : theme.textSecondary} />
+              <Text style={[styles.formatTabText, printMode === 'direct' && selectedFormat === 'ean13' && styles.formatTabTextActive]}>EAN-13</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Optional Saved Template Switcher */}
+          {usableTemplate ? (
+            <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 4, gap: 6 }}>
+              <TouchableOpacity
+                onPress={() => setPrintMode('direct')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 6,
+                  paddingHorizontal: 8,
+                  borderRadius: 6,
+                  backgroundColor: printMode === 'direct' ? BRAND_COLORS.blue600 : theme.cardBg,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: printMode === 'direct' ? BRAND_COLORS.blue600 : theme.borderColor,
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: printMode === 'direct' ? '#FFF' : theme.textSecondary }}>
+                  🏷️ Product Barcode
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setPrintMode('template')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 6,
+                  paddingHorizontal: 8,
+                  borderRadius: 6,
+                  backgroundColor: printMode === 'template' ? BRAND_COLORS.navyInk : theme.cardBg,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: printMode === 'template' ? BRAND_COLORS.navyInk : theme.borderColor,
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: printMode === 'template' ? '#FFF' : theme.textSecondary }} numberOfLines={1}>
+                  🎨 Template: {usableTemplate.name}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {/* Live Preview Card */}
           <View style={styles.previewContainer}>
@@ -262,7 +310,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           <View style={[styles.printerStatusPill, { backgroundColor: activeDevice ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)' }]}>
             <Printer size={14} color={activeDevice ? '#10B981' : '#EF4444'} />
             <Text style={[styles.printerStatusText, { color: activeDevice ? '#10B981' : '#EF4444' }]}>
-              {activeDevice ? `Printer: ${activeDevice.name} (${paperWidth})` : 'No Bluetooth Printer Connected'}
+              {activeDevice ? `Printer: ${activeDevice.name} (${paperWidth})` : 'Bluetooth Label Printer'}
             </Text>
           </View>
 
@@ -290,11 +338,9 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                 <>
                   <Printer size={16} color="#FFF" />
                   <Text style={[styles.actionBtnText, { color: '#FFF' }]}>
-                    {activeLabelTemplate
-                      ? `Print "${activeLabelTemplate.name}"`
-                      : labelPaperMode === 'continuous'
-                        ? 'Print on Receipt Roll'
-                        : 'Print TSPL Label'}
+                    {printMode === 'template' && usableTemplate
+                      ? `Print "${usableTemplate.name}"`
+                      : `Print ${selectedFormat.toUpperCase()} Label`}
                   </Text>
                 </>
               )}

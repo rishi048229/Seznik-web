@@ -2864,7 +2864,7 @@ class ThermalPrinterServiceManager {
    * assuming the 50x30mm default.
    */
   private async printAutoLabelViaJosh(
-    product: { name: string; sellingPrice: number },
+    product: { name: string; sellingPrice: number; barcode?: string | null; sku?: string | null; id?: string },
     rawCode: string,
     format: 'qr' | 'code128' | 'ean13',
     widthMmRaw: number,
@@ -2873,24 +2873,20 @@ class ThermalPrinterServiceManager {
   ): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
 
-    // Calibration values come from user-editable settings; a missing/corrupt value
-    // must fall back to the stock default instead of feeding NaN into the SDK.
-    // Width is additionally capped to the printer's own reported head width
-    // (LD0801: 48mm) — drawing wider would only get downscaled or clipped.
     const headMm = await this.getJoshHeadWidthMm();
     const calWidthMm = this.safeMm(widthMmRaw, 50);
     const widthMm = headMm > 0 ? Math.min(calWidthMm, headMm) : calWidthMm;
     const heightMm = this.safeMm(heightMmRaw, 30);
 
-    const pad = Math.max(1.5, widthMm * 0.05);
+    const pad = Math.max(1.5, widthMm * 0.04);
     const innerWidth = widthMm - pad * 2;
-    const nameHeight = Math.max(2.5, heightMm * 0.16);
-    const priceHeight = Math.max(3, heightMm * 0.2);
+    const nameHeight = Math.max(2.8, Math.min(4.5, heightMm * 0.15));
+    const priceHeight = Math.max(3.2, Math.min(5.0, heightMm * 0.18));
 
     const elements: JoshLabelElement[] = [
       {
         type: 'text',
-        value: this.sanitizeForThermalPrint(product.name || 'Product').slice(0, 32),
+        value: this.sanitizeForThermalPrint(product.name || 'Product').slice(0, 36),
         x: pad,
         y: pad,
         width: innerWidth,
@@ -2901,9 +2897,9 @@ class ThermalPrinterServiceManager {
       },
       {
         type: 'text',
-        value: `Rs.${(product.sellingPrice ?? 0).toFixed(2)}`,
+        value: `Rs. ${(product.sellingPrice ?? 0).toFixed(2)}`,
         x: pad,
-        y: pad + nameHeight + 0.8,
+        y: pad + nameHeight + 0.6,
         width: innerWidth,
         height: priceHeight,
         fontHeight: priceHeight,
@@ -2912,7 +2908,7 @@ class ThermalPrinterServiceManager {
       },
     ];
 
-    const codeTop = pad + nameHeight + priceHeight + 2;
+    const codeTop = pad + nameHeight + priceHeight + 1.6;
     const codeSpace = Math.max(4, heightMm - codeTop - pad);
 
     if (format === 'qr') {
@@ -2927,15 +2923,20 @@ class ThermalPrinterServiceManager {
     } else {
       const digits = rawCode.replace(/\D/g, '');
       const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
+      const textHeight = Math.min(2.8, codeSpace * 0.28);
+      const barHeight = Math.max(4, codeSpace - textHeight);
+      const barWidth = Math.min(innerWidth, widthMm * 0.88);
+
       elements.push({
         type: 'barcode',
         value: useEan13 ? digits : rawCode.replace(/[^\x20-\x7E]/g, ''),
-        x: pad,
+        x: pad + Math.max(0, (innerWidth - barWidth) / 2),
         y: codeTop,
-        width: innerWidth,
-        height: Math.max(3, codeSpace - 3),
-        textHeight: Math.min(3, codeSpace * 0.3),
+        width: barWidth,
+        height: barHeight + textHeight,
+        textHeight: textHeight,
         barcodeType: useEan13 ? JOSH_BARCODE_TYPE_EAN13 : JOSH_BARCODE_TYPE_CODE128,
+        align: 1,
       });
     }
 
