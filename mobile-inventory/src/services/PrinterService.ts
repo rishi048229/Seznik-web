@@ -2802,20 +2802,19 @@ class ThermalPrinterServiceManager {
     const trimmed = String(uri || '').trim();
     if (!trimmed) return null;
 
+    if (
+      trimmed.startsWith('file://') ||
+      trimmed.startsWith('content://') ||
+      trimmed.startsWith('data:') ||
+      trimmed.startsWith('/')
+    ) {
+      return trimmed;
+    }
+
     try {
-      const FileSystem = require('expo-file-system/legacy');
-
-      if (trimmed.startsWith('file://') || trimmed.startsWith('/')) {
-        const info = await FileSystem.getInfoAsync(trimmed);
-        return info.exists ? trimmed : null;
-      }
-
-      if (trimmed.startsWith('content://')) {
-        return trimmed;
-      }
+      const FileSystem = require('expo-file-system');
 
       if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-        // Deterministic cache name so the same product image isn't re-downloaded per copy.
         let hash = 0;
         for (let i = 0; i < trimmed.length; i++) hash = ((hash << 5) - hash + trimmed.charCodeAt(i)) | 0;
         const target = `${FileSystem.cacheDirectory || ''}josh_label_img_${Math.abs(hash)}.img`;
@@ -2824,18 +2823,10 @@ class ThermalPrinterServiceManager {
         const result = await FileSystem.downloadAsync(trimmed, target);
         return result?.status === 200 ? target : null;
       }
-
-      if (trimmed.startsWith('data:')) {
-        const base64 = trimmed.split(',')[1];
-        if (!base64) return null;
-        const target = `${FileSystem.cacheDirectory || ''}josh_label_img_${Date.now()}.img`;
-        await FileSystem.writeAsStringAsync(target, base64, { encoding: FileSystem.EncodingType.Base64 });
-        return target;
-      }
     } catch (e) {
-      console.warn('[PrinterService] could not resolve label image for LPAPI printing:', e);
+      console.warn('[PrinterService] could not resolve remote image for LPAPI printing:', e);
     }
-    return null;
+    return trimmed;
   }
 
   /** True only on a native build where the vendored LPAPI SDK actually linked. */
@@ -3212,17 +3203,12 @@ class ThermalPrinterServiceManager {
           y,
           width: w,
           height: h,
-          // Thermal heads are 1-bit: without a cutoff a coloured logo prints as a
-          // grey smear. 'invert' flips which side of the cutoff becomes black.
-          threshold: el.invert ? 64 : 192,
+          invert: !!el.invert,
         });
       }
     }
 
     if (elements.length === 0) {
-      // Same graceful degradation the TSPL path has: an empty template (fresh
-      // "New Label", or one whose bindings all resolved to blank) prints the
-      // proven test-label auto-layout instead of failing or feeding blank stock.
       console.warn(
         `Label template "${template.name}" has no printable elements; printing the standard auto-layout instead.`
       );
@@ -3243,36 +3229,23 @@ class ThermalPrinterServiceManager {
       return allOk;
     }
 
-    return JoshLabelPrinter.printLabel({
-      widthMm,
-      heightMm,
-      rotation: 0,
-      copies: Math.max(1, copies),
-      gapMm: this.safeMm(labelGapMm, 3),
-      // Die-cut gap stock — the LPAPI printer path is only used for real label rolls.
-      gapType: 2,
-      elements,
-    });
+    for (let c = 0; c < Math.max(1, copies); c++) {
+      await JoshLabelPrinter.printLabel({
+        widthMm,
+        heightMm,
+        rotation: 0,
+        copies: 1,
+        gapMm: this.safeMm(labelGapMm, 3),
+        gapType: 2,
+        elements,
+      });
+    }
+    return true;
   }
 
   /**
    * Prints a user-designed Label Studio template with the REAL product's data substituted for each
-   * bound element (see src/types/labelTemplate.ts's `binding` field) — the template only stores
-   * WHICH field to show, never a captured value, so printing a different product through the same
-   * template shows THAT product's actual name/price/barcode, not placeholder/test data.
-   *
-   * Phase 1 scope: only 'text', 'barcode', 'qrcode' elements become native TSPL commands (same
-   * mm->dot math and exact-QR-sizing approach as buildTsplLabelFields/getQrModuleCount above).
-   * Image/Rect/CurveRect/Circle/Line/Table elements are silently skipped — Label Studio's editor
-   * doesn't create them yet either; the planned fix is compositing them into one flattened bitmap
-   * via the native SDK's confirmed-working `image` field (see buildTsplLabelFields's doc comment
-   * on addBitmap) once that editor support exists.
-   */
-  /**
-   * Resolves a template element's binding against the live product. Shared by every
-   * label path (TSPL, receipt-paper fallback, HTML preview and the LPAPI label
-   * printer) — these were three byte-identical copies before, which meant a new
-   * binding had to be added in each one to actually take effect everywhere.
+   * bound element (see src/types/labelTemplate.ts's `binding` field).
    */
   private resolveLabelTextValue(product: Product, el: LabelTextElement): string {
     switch (el.binding) {
@@ -3291,9 +3264,6 @@ class ThermalPrinterServiceManager {
       case 'custom':
       case 'sequence':
       default:
-        // A 'sequence'-bound element should always be resolved by printLabelSequence before it
-        // reaches here (rewritten to binding:'custom' with the real per-copy value) — this case
-        // only guards against calling these print paths directly with an un-substituted template.
         return el.customText || '';
     }
   }
@@ -3311,41 +3281,8 @@ class ThermalPrinterServiceManager {
   }
 
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
-    // A connected LPAPI label printer takes priority over the TSPL path: it is a
-    // dedicated label device, and it is the one the user explicitly linked. Routing
-    // here rather than at each call site means Label Studio, the products page and
-    // printLabelSequence all reach it without their own branching.
-    //
-    // Errors deliberately propagate instead of falling through to the shared
-    // catch below: that catch ends in a System-Print/PDF fallback which returns
-    // true, so a failed label print used to report "sent" while nothing came out
-    // of the label printer. When a label printer is connected it is the only
-    // acceptable destination — if it fails, the user needs to hear about it.
     if (await this.joshEnsureConnected()) {
-      try {
-        return await this.printLabelViaJosh(product, template, copies, labelGapMm);
-      } catch (joshErr: any) {
-        // The test-print auto-layout is the only path proven to eject paper on this
-        // printer. A designed template that the SDK can't draw (bad image, oversized
-        // canvas) must not fail silently — print the same layout the Test Label button
-        // uses so the cashier still gets a usable label.
-        console.warn('[PrinterService] designed label failed on Josh, using test-print layout:', joshErr?.message || joshErr);
-        const rawCode = product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
-        const digits = rawCode.replace(/\D/g, '');
-        let allOk = true;
-        for (let i = 0; i < Math.max(1, copies); i++) {
-          allOk =
-            (await this.printAutoLabelViaJosh(
-              product,
-              rawCode,
-              digits.length === 12 || digits.length === 13 ? 'ean13' : 'code128',
-              this.safeMm(template.widthMm, 50),
-              this.safeMm(template.heightMm, 30),
-              this.safeMm(labelGapMm, 3)
-            )) && allOk;
-        }
-        return allOk;
-      }
+      return await this.printLabelViaJosh(product, template, copies, labelGapMm);
     }
     await this.assertNoLinkedJoshPrinter();
 

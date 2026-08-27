@@ -344,22 +344,13 @@ class JoshLabelPrinterModule : Module() {
         }
         val copies = finiteInt(spec["copies"], 1).coerceAtLeast(1)
 
-        // Same Bundle keys the official demo's getPrintParam() writes.
-        // GAP_LENGTH is millimetres (wePrint / demo default = 3). GAP_LENGTH_01MM
-        // of (mm*10) was sending 20–30 as if it were millimetres, so the printer
-        // hunted for a 20–30mm gap and never ejected a label.
-        val jobParam = Bundle()
-        finiteOrNull(spec["gapType"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.GAP_TYPE, it.toInt()) }
+        finiteOrNull(spec["gapType"])?.let { instance.setPrintPageGapType(it.toInt()) }
         finiteOrNull(spec["gapMm"])?.let { gap ->
           val gapInt = gap.toInt().coerceAtLeast(0)
-          jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH, gapInt)
           instance.setPrintPageGapLength(gapInt)
         }
-        finiteOrNull(spec["darkness"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DENSITY, it.toInt()) }
-        finiteOrNull(spec["speed"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_SPEED, it.toInt()) }
-        if (copies > 1) {
-          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
-        }
+        finiteOrNull(spec["darkness"])?.let { instance.setPrintDarkness(it.toInt()) }
+        finiteOrNull(spec["speed"])?.let { instance.setPrintSpeed(it.toInt()) }
 
         @Suppress("UNCHECKED_CAST")
         val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()
@@ -367,8 +358,7 @@ class JoshLabelPrinterModule : Module() {
           throw CodedException("ERR_JOSH_EMPTY", "This label has nothing printable on it.", null)
         }
 
-        // Drop any half-finished job left by a previous failed print (the "nothing
-        // comes out after one blank" state). Harmless if no job is open.
+        // Drop any half-finished job left by a previous failed print
         runCatching { instance.abortJob() }
 
         // Official demo starts jobs with the specified label width and height.
@@ -376,9 +366,6 @@ class JoshLabelPrinterModule : Module() {
           throw CodedException("ERR_JOSH_JOB", "Printer rejected the label job (${widthMm}x${heightMm}mm).", null)
         }
 
-        // Image bitmaps must stay alive until commitJob returns — recycling them
-        // immediately after drawBitmap (as we did) left the SDK holding a dead
-        // buffer, which printed blank and then jammed subsequent jobs.
         val heldBitmaps = mutableListOf<Bitmap>()
         try {
           elements.forEach { el ->
@@ -392,17 +379,17 @@ class JoshLabelPrinterModule : Module() {
           val pending = PendingPrint()
           pendingPrint = pending
 
-          val committed = if (jobParam.isEmpty) instance.commitJob() else instance.commitJobWithParam(jobParam)
+          val committed = instance.commitJob()
           if (!committed) {
             pendingPrint = null
             runCatching { instance.abortJob() }
-            throw CodedException("ERR_JOSH_COMMIT", "Printer rejected the label data.", null)
+            throw CodedException("ERR_JOSH_COMMIT", "Printer rejected the label data. Check connection and paper roll.", null)
           }
 
-          val reported = pending.latch.await(40, TimeUnit.SECONDS)
+          val reported = pending.latch.await(30, TimeUnit.SECONDS)
           pendingPrint = null
           if (!reported) {
-            throw CodedException("ERR_JOSH_TIMEOUT", "The printer did not confirm the print. Check the printer and try again.", null)
+            throw CodedException("ERR_JOSH_TIMEOUT", "The printer did not confirm the print. Check the printer and paper roll.", null)
           }
           if (!pending.success) {
             throw CodedException("ERR_JOSH_PRINT_FAILED", pending.failReason ?: "The printer reported a print failure.", null)
@@ -475,16 +462,23 @@ class JoshLabelPrinterModule : Module() {
       "image" -> {
         val w = finite(el["width"], 0.0)
         val h = finite(el["height"], 0.0)
-        val threshold = finiteOrNull(el["threshold"])?.toInt()
         val raw = el["uri"] as? String ?: return
-        // Never use the SDK's path-based drawImage: the vendor demo (and wePrint)
-        // always decode to a Bitmap first, and full-resolution gallery photos fed
-        // through drawImage rendered as blank labels. Decoding ourselves also lets
-        // us downsample a 12MP photo to print resolution before handing it over.
-        val bitmap = decodeImageSource(raw, w, h) ?: return
-        heldBitmaps.add(bitmap)
-        if (threshold != null) instance.drawBitmapWithThreshold(bitmap, x, y, w, h, threshold)
-        else instance.drawBitmap(bitmap, x, y, w, h)
+        if (w <= 0 || h <= 0) return
+
+        val invert = (el["invert"] as? Boolean) == true
+        val bitmap = decodeImageSource(raw, w, h, invert)
+        if (bitmap != null) {
+          heldBitmaps.add(bitmap)
+          instance.drawBitmap(bitmap, x, y, w, h)
+        } else {
+          val plainPath = when {
+            raw.startsWith("file://") -> raw.removePrefix("file://")
+            else -> raw
+          }
+          if (File(plainPath).exists()) {
+            instance.drawImage(plainPath, x, y, w, h)
+          }
+        }
       }
       "line" -> {
         val x2 = finite(el["x2"], x)
@@ -520,42 +514,80 @@ class JoshLabelPrinterModule : Module() {
     }
   }
 
-  /** Opens any of the image source forms JS may hand over: content://, file://, plain path. */
+  /** Opens any of the image source forms JS may hand over: content://, file://, data: URI, plain path. */
   private fun openImageStream(raw: String): java.io.InputStream? {
     return try {
       when {
         raw.startsWith("content://") ->
           appContext.reactContext?.contentResolver?.openInputStream(Uri.parse(raw))
-        raw.startsWith("file://") ->
-          Uri.parse(raw).path?.let { p -> File(p).takeIf { it.exists() }?.inputStream() }
+        raw.startsWith("file://") -> {
+          val path = Uri.parse(raw).path
+          if (path != null && File(path).exists()) File(path).inputStream()
+          else appContext.reactContext?.contentResolver?.openInputStream(Uri.parse(raw))
+        }
+        raw.startsWith("data:") -> {
+          val base64 = raw.substringAfter("base64,")
+          val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+          java.io.ByteArrayInputStream(bytes)
+        }
         else -> File(raw).takeIf { it.exists() }?.inputStream()
       }
     } catch (e: Throwable) {
+      android.util.Log.e("JoshLabel", "openImageStream error: ${e.message}", e)
       null
     }
   }
 
   /**
-   * Decodes an image downsampled to roughly its printed size (203dpi ≈ 8 dots/mm).
-   * Gallery photos are often 12MP+; decoding them full-size for a 20mm logo wastes
-   * memory and proved unreliable through the SDK, so scale during decode instead.
+   * Decodes an image downsampled to print resolution (~8 dots/mm = 203dpi) and composites
+   * transparent areas onto a pure WHITE background so thermal thresholding produces crisp output.
    */
-  private fun decodeImageSource(raw: String, targetWmm: Double, targetHmm: Double): Bitmap? {
+  private fun decodeImageSource(raw: String, targetWmm: Double, targetHmm: Double, invert: Boolean = false): Bitmap? {
     return try {
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       openImageStream(raw)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
       if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-      val targetW = (targetWmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(8, 1600)
-      val targetH = (targetHmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(8, 1600)
+      val targetW = (targetWmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(16, 2048)
+      val targetH = (targetHmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(16, 2048)
       var sample = 1
       while (bounds.outWidth / (sample * 2) >= targetW && bounds.outHeight / (sample * 2) >= targetH) {
         sample *= 2
       }
 
-      val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-      openImageStream(raw)?.use { BitmapFactory.decodeStream(it, null, opts) }
+      val opts = BitmapFactory.Options().apply {
+        inSampleSize = sample
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+        inMutable = true
+      }
+      val decoded = openImageStream(raw)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+
+      // Flatten transparent PNG / transparent logos onto solid WHITE background
+      val flattened = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
+      val canvas = android.graphics.Canvas(flattened)
+      canvas.drawColor(android.graphics.Color.WHITE)
+
+      if (invert) {
+        val paint = android.graphics.Paint()
+        val matrix = floatArrayOf(
+          -1f, 0f, 0f, 0f, 255f,
+          0f, -1f, 0f, 0f, 255f,
+          0f, 0f, -1f, 0f, 255f,
+          0f, 0f, 0f, 1f, 0f
+        )
+        paint.colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(matrix))
+        canvas.drawBitmap(decoded, 0f, 0f, paint)
+      } else {
+        canvas.drawBitmap(decoded, 0f, 0f, null)
+      }
+
+      if (decoded != flattened) {
+        decoded.recycle()
+      }
+
+      flattened
     } catch (e: Throwable) {
+      android.util.Log.e("JoshLabel", "decodeImageSource failed: ${e.message}", e)
       null
     }
   }

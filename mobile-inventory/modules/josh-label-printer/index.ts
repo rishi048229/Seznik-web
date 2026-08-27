@@ -32,12 +32,14 @@ export type JoshLabelElement =
   | { type: 'qrcode'; value: string; x: number; y: number; size?: number; align?: 0 | 1 | 2 }
   | {
       type: 'image';
-      /** Local file path or file:// URI. */
+      /** Local file path, file:// URI, or base64 data URI. */
       uri: string;
       x: number;
       y: number;
       width?: number;
       height?: number;
+      /** Invert colors (black becomes white, white becomes black). */
+      invert?: boolean;
       /** 0-255 grey cutoff. Omit to let the SDK decide. */
       threshold?: number;
     }
