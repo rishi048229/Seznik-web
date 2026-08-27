@@ -314,17 +314,17 @@ class JoshLabelPrinterModule : Module() {
         val latch = CountDownLatch(1)
         pendingConnectLatch = latch
 
-        // Initiate connection
-        var initiated = instance.openPrinterByAddressSync(addr)
+        // Non-blocking connection initiation
+        var initiated = instance.openPrinterByAddress(addr)
         if (!initiated && bondedDev != null) {
           initiated = instance.openPrinter(bondedDev)
         }
         if (!initiated) {
-          initiated = instance.openPrinterByAddress(addr) || instance.openPrinterSync(name) || instance.openPrinter(name) || instance.openPrinter(mac)
+          initiated = instance.openPrinter(name) || instance.openPrinter(mac) || instance.openPrinterByAddressSync(addr)
         }
 
         if (initiated) {
-          latch.await(6, TimeUnit.SECONDS)
+          latch.await(4, TimeUnit.SECONDS)
         }
 
         pendingConnectLatch = null
@@ -662,42 +662,60 @@ class JoshLabelPrinterModule : Module() {
     }
   }
 
-  /** Opens any of the image source forms JS may hand over: content://, file://, data: URI, plain path. */
-  private fun openImageStream(raw: String): java.io.InputStream? {
+  /** Reads bytes from any image source (HTTP, HTTPS, content://, file://, data: URI, raw base64, or local path). */
+  private fun openImageBytes(raw: String): ByteArray? {
     return try {
+      val trimmed = raw.trim()
       when {
-        raw.startsWith("content://") ->
-          appContext.reactContext?.contentResolver?.openInputStream(Uri.parse(raw))
-        raw.startsWith("file://") -> {
-          val path = Uri.parse(raw).path
-          if (path != null && File(path).exists()) File(path).inputStream()
-          else appContext.reactContext?.contentResolver?.openInputStream(Uri.parse(raw))
+        trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true) -> {
+          val url = java.net.URL(trimmed)
+          val conn = url.openConnection() as java.net.HttpURLConnection
+          conn.connectTimeout = 4000
+          conn.readTimeout = 4000
+          conn.instanceFollowRedirects = true
+          conn.setRequestProperty("User-Agent", "Mozilla/5.0 SeznikMobile")
+          conn.inputStream.use { it.readBytes() }
         }
-        raw.startsWith("data:") -> {
-          val base64 = raw.substringAfter("base64,")
-          val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-          java.io.ByteArrayInputStream(bytes)
+        trimmed.startsWith("content://", ignoreCase = true) -> {
+          appContext.reactContext?.contentResolver?.openInputStream(Uri.parse(trimmed))?.use { it.readBytes() }
         }
-        else -> File(raw).takeIf { it.exists() }?.inputStream()
+        trimmed.startsWith("file://", ignoreCase = true) -> {
+          val path = Uri.parse(trimmed).path
+          if (path != null && File(path).exists()) File(path).readBytes()
+          else appContext.reactContext?.contentResolver?.openInputStream(Uri.parse(trimmed))?.use { it.readBytes() }
+        }
+        trimmed.startsWith("data:", ignoreCase = true) -> {
+          val base64 = trimmed.substringAfter("base64,")
+          android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        }
+        File(trimmed).exists() -> {
+          File(trimmed).readBytes()
+        }
+        trimmed.length > 100 && (trimmed.startsWith("/9j/") || trimmed.startsWith("iVBOR") || trimmed.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$"))) -> {
+          android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
+        }
+        else -> null
       }
     } catch (e: Throwable) {
-      android.util.Log.e("JoshLabel", "openImageStream error: ${e.message}", e)
+      android.util.Log.e("JoshLabel", "openImageBytes failed for image: ${e.message}")
       null
     }
   }
 
   /**
-   * Decodes an image downsampled to print resolution (~8 dots/mm = 203dpi) and composites
-   * transparent areas onto a pure WHITE background so thermal thresholding produces crisp output.
+   * Decodes an image downsampled to print resolution (~8 dots/mm = 203dpi), composites
+   * transparent areas onto a pure WHITE background, and applies Floyd-Steinberg error-diffusion
+   * dithering so that photos, logos, and colored artwork print crisp and visible on thermal paper.
    */
   private fun decodeImageSource(raw: String, targetWmm: Double, targetHmm: Double, invert: Boolean = false): Bitmap? {
     return try {
+      val bytes = openImageBytes(raw) ?: return null
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-      openImageStream(raw)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
       if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-      val targetW = (targetWmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(16, 2048)
-      val targetH = (targetHmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(16, 2048)
+      val targetW = (targetWmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(16, 1024)
+      val targetH = (targetHmm.coerceAtLeast(1.0) * 8).toInt().coerceIn(16, 1024)
       var sample = 1
       while (bounds.outWidth / (sample * 2) >= targetW && bounds.outHeight / (sample * 2) >= targetH) {
         sample *= 2
@@ -708,31 +726,62 @@ class JoshLabelPrinterModule : Module() {
         inPreferredConfig = Bitmap.Config.ARGB_8888
         inMutable = true
       }
-      val decoded = openImageStream(raw)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+      val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return null
 
-      val flattened = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
-      val canvas = Canvas(flattened)
-      canvas.drawColor(Color.WHITE)
-
-      if (invert) {
-        val paint = Paint()
-        val matrix = floatArrayOf(
-          -1f, 0f, 0f, 0f, 255f,
-          0f, -1f, 0f, 0f, 255f,
-          0f, 0f, -1f, 0f, 255f,
-          0f, 0f, 0f, 1f, 0f
-        )
-        paint.colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(matrix))
-        canvas.drawBitmap(decoded, 0f, 0f, paint)
-      } else {
-        canvas.drawBitmap(decoded, 0f, 0f, null)
-      }
-
-      if (decoded != flattened) {
+      val scaled = Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+      if (scaled != decoded) {
         decoded.recycle()
       }
 
-      flattened
+      val flattened = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+      val canvas = Canvas(flattened)
+      canvas.drawColor(Color.WHITE)
+      canvas.drawBitmap(scaled, 0f, 0f, null)
+      scaled.recycle()
+
+      // Floyd-Steinberg error-diffusion dithering to 1-bit monochrome
+      val pixels = IntArray(targetW * targetH)
+      flattened.getPixels(pixels, 0, targetW, 0, 0, targetW, targetH)
+      flattened.recycle()
+
+      val gray = IntArray(targetW * targetH) { i ->
+        val p = pixels[i]
+        val a = (p shr 24) and 0xFF
+        if (a < 128) 255
+        else {
+          val r = (p shr 16) and 0xFF
+          val g = (p shr 8) and 0xFF
+          val b = p and 0xFF
+          (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255)
+        }
+      }
+
+      for (y in 0 until targetH) {
+        for (x in 0 until targetW) {
+          val idx = y * targetW + x
+          val oldVal = gray[idx]
+          val newVal = if (if (invert) oldVal > 128 else oldVal < 160) 0 else 255
+          pixels[idx] = if (newVal == 0) Color.BLACK else Color.WHITE
+          val err = oldVal - (if (invert) 255 - newVal else newVal)
+
+          if (x + 1 < targetW) {
+            gray[idx + 1] = (gray[idx + 1] + err * 7 / 16).coerceIn(0, 255)
+          }
+          if (y + 1 < targetH) {
+            if (x - 1 >= 0) {
+              gray[idx + targetW - 1] = (gray[idx + targetW - 1] + err * 3 / 16).coerceIn(0, 255)
+            }
+            gray[idx + targetW] = (gray[idx + targetW] + err * 5 / 16).coerceIn(0, 255)
+            if (x + 1 < targetW) {
+              gray[idx + targetW + 1] = (gray[idx + targetW + 1] + err * 1 / 16).coerceIn(0, 255)
+            }
+          }
+        }
+      }
+
+      val dithered = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+      dithered.setPixels(pixels, 0, targetW, 0, 0, targetW, targetH)
+      dithered
     } catch (e: Throwable) {
       android.util.Log.e("JoshLabel", "decodeImageSource failed: ${e.message}", e)
       null
