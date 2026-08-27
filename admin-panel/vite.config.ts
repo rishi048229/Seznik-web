@@ -22,6 +22,7 @@ import {
   sessionCookieHeader,
   clearSessionCookieHeader,
 } from './lib/adminAuth.js';
+import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -35,8 +36,8 @@ export default defineConfig(({ mode }) => {
     'postgresql://postgres:SeznikPass2026!@seznik-pos-db-dev.cgt6m60qe16b.us-east-1.rds.amazonaws.com:5432/postgres?schema=public';
 
   const pool = new pg.Pool({
-    connectionString: dbUrl,
-    ssl: dbUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined,
+    connectionString: pgConnectionString(dbUrl),
+    ssl: pgSslConfig(dbUrl),
     connectionTimeoutMillis: 10000,
   });
 

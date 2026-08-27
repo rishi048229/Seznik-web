@@ -13,6 +13,7 @@ import {
   buildFeedbackQuery,
   mapFeedbackRows,
 } from './analyticsShared.js';
+import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
 
 if (typeof process.loadEnvFile === 'function') {
   try {
@@ -26,8 +27,8 @@ const PORT = process.env.ADMIN_PORT || 5005;
 // PostgreSQL Connection Pool using database connection string
 const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:SeznikPass2026!@seznik-pos-db-dev.cgt6m60qe16b.us-east-1.rds.amazonaws.com:5432/postgres?schema=public';
 const pool = new pg.Pool({
-  connectionString: dbUrl,
-  ssl: dbUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined,
+  connectionString: pgConnectionString(dbUrl),
+  ssl: pgSslConfig(dbUrl),
 });
 
 app.use(cors());

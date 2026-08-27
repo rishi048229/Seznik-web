@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { pgConnectionString, pgSslConfig } from './pgSsl.js';
 
 let pool;
 
@@ -10,8 +11,8 @@ export function getPool() {
 
   if (!pool) {
     pool = new pg.Pool({
-      connectionString: dbUrl,
-      ssl: dbUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined,
+      connectionString: pgConnectionString(dbUrl),
+      ssl: pgSslConfig(dbUrl),
       max: 1,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,

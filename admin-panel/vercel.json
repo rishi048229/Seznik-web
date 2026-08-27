@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/admin/[...path].js": {
-      "includeFiles": "analyticsShared.js"
+      "includeFiles": "{analyticsShared.js,certs/rds-global-bundle.pem}"
     }
   },
   "rewrites": [
