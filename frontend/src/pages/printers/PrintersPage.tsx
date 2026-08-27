@@ -146,7 +146,7 @@ export const PrintersPage = () => {
   const pageTutorial = usePageTutorial('printers')
   const { user } = useAuth()
   const { data: products } = useProducts()
-  const { data: settings, isLoading, isError } = useSettings()
+  const { data: settings, isLoading, isError, refetch } = useSettings()
   const { mutate: updateSettingsMutation, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettingsMutation, isPending: isCreating } = useCreateSettings()
   const saving = isUpdating || isCreating
@@ -228,7 +228,7 @@ export const PrintersPage = () => {
   const handleSave = async () => {
     if (!user) return
     if (isError) {
-      toast.error('Could not load settings. Refresh and try again — your business profile was not overwritten.')
+      toast.error('Settings are still loading from the server. Wait a moment and try again.')
       return
     }
 
@@ -545,6 +545,16 @@ export const PrintersPage = () => {
 
   return (
     <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
+      {isError && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            Could not load printer settings yet. Your business profile was not changed.
+          </p>
+          <Button variant="outline" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      )}
       {/* Top Header & Quick Actions */}
       <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3">
@@ -580,6 +590,7 @@ export const PrintersPage = () => {
           <Button
             onClick={handleSave}
             loading={saving}
+            disabled={isError}
             className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white flex items-center gap-2 shadow-lg shadow-[#0a0a2e]/20 text-xs sm:text-sm"
           >
             <Save size={16} />

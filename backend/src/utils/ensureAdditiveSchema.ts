@@ -6,13 +6,13 @@ const ADDITIVE_COLUMNS = [
   `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "kotConfig" JSONB`,
 ] as const
 
-export const ensureAdditiveSchema = async () => {
+let ensured: Promise<void> | null = null
+
+const runEnsure = async () => {
   for (const sql of ADDITIVE_COLUMNS) {
     await prisma.$executeRawUnsafe(sql)
   }
 
-  // Restore store names that were never copied onto Settings (or look blank
-  // because settings GET was failing). Only fills empty Settings.businessName.
   await prisma.$executeRawUnsafe(`
     UPDATE "Settings" AS s
     SET "businessName" = u."businessName"
@@ -22,4 +22,18 @@ export const ensureAdditiveSchema = async () => {
       AND u."businessName" IS NOT NULL
       AND btrim(u."businessName") <> ''
   `)
+}
+
+export const ensureAdditiveSchema = async () => {
+  if (!ensured) {
+    ensured = runEnsure().catch((err) => {
+      ensured = null
+      throw err
+    })
+  }
+  return ensured
+}
+
+export const resetAdditiveSchemaCache = () => {
+  ensured = null
 }

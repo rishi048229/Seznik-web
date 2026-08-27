@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { ensureAdditiveSchema } from '../utils/ensureAdditiveSchema';
+import { ensureAdditiveSchema, resetAdditiveSchemaCache } from '../utils/ensureAdditiveSchema';
 
 const getOwnerUserId = async (rawUserId: string): Promise<string> => {
   if (!rawUserId) return rawUserId;
@@ -18,10 +18,12 @@ const isMissingColumnError = (error: unknown) =>
   error instanceof Error && /column .* does not exist/i.test(error.message);
 
 const withSettingsSchema = async <T>(fn: () => Promise<T>): Promise<T> => {
+  await ensureAdditiveSchema();
   try {
     return await fn();
   } catch (error) {
     if (!isMissingColumnError(error)) throw error;
+    resetAdditiveSchemaCache();
     await ensureAdditiveSchema();
     return fn();
   }
@@ -41,7 +43,7 @@ export const getSettings = async (req: Request, res: Response) => {
     res.json(settings);
   } catch (error) {
     console.error('Failed to fetch settings:', error);
-    res.status(500).json({ error: 'Failed to fetch settings' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch settings' });
   }
 };
 

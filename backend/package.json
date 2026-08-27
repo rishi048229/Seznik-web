@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "prisma:generate": "prisma generate",
+    "prisma:ensure": "node scripts/ensure-additive-columns.cjs",
     "prisma:migrate": "prisma migrate dev",
     "ci:check": "prisma generate && tsc --noEmit",
     "test:stress": "node tests/stressTest.js",
