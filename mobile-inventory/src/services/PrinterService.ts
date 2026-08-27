@@ -2945,11 +2945,11 @@ class ThermalPrinterServiceManager {
   public async joshConnect(address: string, name?: string): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
     // Release ESC/POS Bluetooth socket if holding the device so LPAPI RFCOMM channel is free
-    if (this.activeAddress === address || (await this.isConnected())) {
-      try {
-        await this.disconnect();
-      } catch {}
-    }
+    try {
+      if (NativeBluetoothManager && typeof NativeBluetoothManager.disconnect === 'function') {
+        await NativeBluetoothManager.disconnect(address);
+      }
+    } catch {}
     const ok = await JoshLabelPrinter.connect(address);
     if (ok) {
       setStoredJoshPrinter({ address, name: name || address }).catch(() => {});
