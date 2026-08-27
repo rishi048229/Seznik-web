@@ -3009,31 +3009,19 @@ class ThermalPrinterServiceManager {
   private joshReconnectFailedAt = 0;
   private static readonly JOSH_RECONNECT_COOLDOWN_MS = 30000;
 
-  /**
-   * True when a label printer is connected OR could be silently reconnected from the
-   * saved link. This is what the label routing checks call: "the user linked a label
-   * printer" should survive app restarts without them re-connecting manually, but a
-   * printer that is switched off must not tax every print with a fresh connect attempt
-   * — hence the failure cooldown.
-   */
   public async joshEnsureConnected(): Promise<boolean> {
     if (!this.isJoshLabelPrinterAvailable()) return false;
     if (await this.joshIsConnected()) return true;
 
     if (this.joshReconnectInFlight) return this.joshReconnectInFlight;
-    if (Date.now() - this.joshReconnectFailedAt < ThermalPrinterServiceManager.JOSH_RECONNECT_COOLDOWN_MS) {
-      return false;
-    }
 
     this.joshReconnectInFlight = (async () => {
       try {
         const saved = await getStoredJoshPrinter();
         if (!saved) return false;
         const ok = await this.joshConnect(saved.address, saved.name);
-        if (!ok) this.joshReconnectFailedAt = Date.now();
         return ok;
       } catch {
-        this.joshReconnectFailedAt = Date.now();
         return false;
       } finally {
         this.joshReconnectInFlight = null;

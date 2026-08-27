@@ -131,9 +131,15 @@ export function isJoshPrinterSupported(): boolean {
   if (Platform.OS !== 'android') return false;
   if (!JoshLabelPrinter) return false;
   try {
-    return JoshLabelPrinter.isAvailable();
+    if (typeof (JoshLabelPrinter as any).isAvailable === 'function') {
+      return !!(JoshLabelPrinter as any).isAvailable();
+    }
+    if (typeof (JoshLabelPrinter as any).isSupported === 'function') {
+      return !!(JoshLabelPrinter as any).isSupported();
+    }
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 

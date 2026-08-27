@@ -186,7 +186,11 @@ class JoshLabelPrinterModule : Module() {
 
     Events("onPrinterFound", "onPrinterStateChange")
 
+    Function("isAvailable") { true }
     Function("isSupported") { true }
+
+    Function("getState") { lastState }
+    Function("getPrinterState") { lastState }
 
     Function("isConnected") {
       val instance = api ?: return@Function false
@@ -198,21 +202,43 @@ class JoshLabelPrinterModule : Module() {
       )
     }
 
-    Function("getPrinterState") { lastState }
-
-    Function("getPrinterInfo") {
-      val instance = api ?: return@Function null
-      if (!instance.isPrinterOpened) return@Function null
-      val info = instance.printerInfo ?: Bundle()
-      val mac = instance.printerAddress?.macAddress ?: ""
-      val name = instance.printerAddress?.shownName ?: instance.printerAddress?.device?.name ?: ""
-      val widthMm = printableWidthMm().takeIf { it > 0 } ?: 48.0
-      bundleOf(
-        "address" to mac,
-        "name" to name,
-        "widthMm" to widthMm,
-        "state" to lastState
+    AsyncFunction("isConnected") { promise: Promise ->
+      val instance = api
+      val connected = instance != null && instance.isPrinterOpened && (
+        lastState == "connected" ||
+        instance.printerState == IDzPrinter.PrinterState.Connected ||
+        instance.printerState == IDzPrinter.PrinterState.Connected2 ||
+        instance.printerState == IDzPrinter.PrinterState.Working
       )
+      promise.resolve(connected)
+    }
+
+    AsyncFunction("getPrinterInfo") { promise: Promise ->
+      try {
+        val instance = api
+        if (instance == null || !instance.isPrinterOpened) {
+          promise.resolve(null)
+        } else {
+          val info = instance.printerInfo
+          val mac = instance.printerAddress?.macAddress ?: info?.deviceAddress ?: ""
+          val name = instance.printerAddress?.shownName ?: instance.printerAddress?.device?.name ?: info?.deviceName ?: mac
+          val dpi = info?.deviceDPI ?: 203
+          val px = info?.deviceWidth ?: 384
+          val widthMm = printableWidthMm().takeIf { it > 0 } ?: 48.0
+          promise.resolve(
+            mapOf(
+              "address" to mac,
+              "name" to name,
+              "dpi" to dpi,
+              "widthPx" to px,
+              "widthMm" to widthMm,
+              "state" to lastState
+            )
+          )
+        }
+      } catch (e: Throwable) {
+        promise.resolve(null)
+      }
     }
 
     AsyncFunction("startDiscovery") { promise: Promise ->
