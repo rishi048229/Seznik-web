@@ -25,12 +25,20 @@ import {
 } from '@/utils/labelPrint'
 import { generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { SAMPLE_RECEIPT_CONTEXT } from '@/utils/customReceiptEngine'
-import { createDefaultReceiptTemplate } from '@/types/customReceipt'
+import { createDefaultReceiptTemplate, type BarcodeReceiptEntry, type CustomReceiptTemplate } from '@/types/customReceipt'
 import { ReceiptBuilderTab, type ReceiptBuilderTabHandle } from '@/pages/printers/receipt-builder/ReceiptBuilderTab'
 import { ReceiptLivePreviewPanel } from '@/pages/printers/receipt-builder/ReceiptLivePreviewPanel'
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
 import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
+import {
+  inferQrPurpose,
+  applyQrSection,
+  applyUpiQrToTemplate,
+  patchSectionEntry,
+  mapTemplateToSimple,
+  type QrPurpose,
+} from '@/pages/printers/receipt-builder/receiptSimpleSections'
 import { runReceiptTemplateTestPrint, sampleTestSaleFromContext } from '@/utils/receiptTestPrint'
 import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
 import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
@@ -172,7 +180,7 @@ export const PrintersPage = () => {
   const hydratedReceiptRef = useRef<string | null>(null)
   configRef.current = config
   receiptConfigRef.current = receiptConfig
-  const { customTemplates, activeCustomTemplateId } = useReceiptBuilderSync()
+  const { customTemplates, activeCustomTemplateId, saveTemplate } = useReceiptBuilderSync()
   const {
     form: gstForm,
     setStyle: setGstStyle,
@@ -182,6 +190,82 @@ export const PrintersPage = () => {
     isSaving: isSavingGst,
   } = useGstBillingSettings()
   const receiptBuilderRef = useRef<ReceiptBuilderTabHandle>(null)
+
+  const activeCustomTemplate = useMemo(
+    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId) || customTemplates[0],
+    [customTemplates, activeCustomTemplateId]
+  )
+  const activeQrEntry = useMemo(
+    () => activeCustomTemplate?.entries.find((e): e is BarcodeReceiptEntry => e.type === 'barcode'),
+    [activeCustomTemplate]
+  )
+  const activeQrPurpose = useMemo<QrPurpose>(
+    () => (activeQrEntry ? inferQrPurpose(activeQrEntry) : 'upi'),
+    [activeQrEntry]
+  )
+  const mappedSimple = useMemo(
+    () => (activeCustomTemplate ? mapTemplateToSimple(activeCustomTemplate) : null),
+    [activeCustomTemplate]
+  )
+  const activeQrCaptionText = useMemo(() => {
+    if (mappedSimple?.qrCaption) return mappedSimple.qrCaption.text
+    if (activeQrPurpose === 'upi') return 'Scan to pay with UPI'
+    if (activeQrPurpose === 'digital_bill') return 'Scan QR to View & Download Bill PDF'
+    return 'Scan for store website & reviews'
+  }, [mappedSimple?.qrCaption, activeQrPurpose])
+
+  const handleQrPurposeChange = (purpose: QrPurpose) => {
+    if (!activeCustomTemplate) return
+    let updated: CustomReceiptTemplate
+    if (purpose === 'upi') {
+      updated = applyUpiQrToTemplate(activeCustomTemplate, receiptConfig.upiId || settings?.upiId || '')
+      updated = applyQrSection(updated, { purpose: 'upi', caption: 'Scan to pay with UPI' })
+    } else if (purpose === 'digital_bill') {
+      updated = applyQrSection(activeCustomTemplate, {
+        purpose: 'digital_bill',
+        caption: 'Scan QR to View & Download Bill PDF',
+      })
+    } else {
+      const customVal =
+        activeQrEntry && activeQrEntry.qrType === 'custom' && !activeQrEntry.value?.includes('{{')
+          ? activeQrEntry.value
+          : 'https://yourstore.com'
+      updated = applyQrSection(activeCustomTemplate, {
+        purpose: 'custom',
+        caption: 'Scan for store website & reviews',
+      })
+      updated = patchSectionEntry(updated, 'qr', (entry) =>
+        entry.type === 'barcode' ? { ...entry, value: customVal, qrType: 'custom' } : entry
+      )
+    }
+    setReceiptConfig((prev) => ({
+      ...prev,
+      customTemplates: (customTemplates || []).map((t) => (t.id === updated.id ? updated : t)),
+    }))
+    saveTemplate(updated)
+  }
+
+  const handleQrCaptionChange = (newCaption: string) => {
+    if (!activeCustomTemplate) return
+    const updated = applyQrSection(activeCustomTemplate, { caption: newCaption })
+    setReceiptConfig((prev) => ({
+      ...prev,
+      customTemplates: (customTemplates || []).map((t) => (t.id === updated.id ? updated : t)),
+    }))
+    saveTemplate(updated)
+  }
+
+  const handleCustomQrUrlChange = (url: string) => {
+    if (!activeCustomTemplate) return
+    const updated = patchSectionEntry(activeCustomTemplate, 'qr', (entry) =>
+      entry.type === 'barcode' ? { ...entry, value: url, qrType: 'custom' } : entry
+    )
+    setReceiptConfig((prev) => ({
+      ...prev,
+      customTemplates: (customTemplates || []).map((t) => (t.id === updated.id ? updated : t)),
+    }))
+    saveTemplate(updated)
+  }
 
   // Which real product's data is used to preview/print the label
   const [previewProductId, setPreviewProductId] = useState<string>('')
@@ -891,29 +975,119 @@ export const PrintersPage = () => {
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                  <QrCode size={16} />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-gray-900 dark:text-gray-100">UPI / payment QR</span>
-                  <p className="text-[11px] text-gray-500">Used by QR blocks in Receipt Builder</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <QrCode size={16} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-gray-900 dark:text-gray-100">QR Code on Receipt</span>
+                    <p className="text-[11px] text-gray-500">Choose what to display when customers scan the QR</p>
+                  </div>
                 </div>
               </div>
-              <input
-                type="text"
-                value={receiptConfig.upiId || ''}
-                onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                placeholder="yourname@okhdfcbank"
-              />
-              <ImageUpload
-                label="Or upload a static payment QR image"
-                value={receiptConfig.paymentQrURL || ''}
-                onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
-                previewSize="md"
-                accept="image/png,image/jpeg,image/jpg,image/webp"
-              />
+
+              {/* QR Purpose Dropdown */}
+              <div>
+                <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                  QR Code Type / Purpose
+                </label>
+                <select
+                  value={activeQrPurpose}
+                  onChange={(e) => handleQrPurposeChange(e.target.value as QrPurpose)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium text-gray-900 dark:text-gray-100"
+                >
+                  <option value="upi">💳 UPI / Payment QR (Accept payments via GPay, PhonePe, Paytm)</option>
+                  <option value="digital_bill">📄 Digital Bill / Invoice PDF QR (Customer scans to view & download bill)</option>
+                  <option value="custom">🔗 Custom Website / Promo Link (Your store website, review link, etc.)</option>
+                </select>
+              </div>
+
+              {/* Option 1: UPI ID */}
+              {activeQrPurpose === 'upi' && (
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                      Store UPI ID / VPA (To Receive Payments)
+                    </label>
+                    <input
+                      type="text"
+                      value={receiptConfig.upiId || ''}
+                      onChange={(e) => {
+                        const nextUpi = e.target.value.trim()
+                        setReceiptConfig((prev) => ({ ...prev, upiId: nextUpi }))
+                        if (activeCustomTemplate) {
+                          const updated = applyUpiQrToTemplate(activeCustomTemplate, nextUpi)
+                          saveTemplate(updated)
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-mono"
+                      placeholder="yourname@okhdfcbank or 9876543210@paytm"
+                    />
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
+                      Auto-Pay: Prefills your UPI ID and the live bill amount when scanned by PhonePe, Google Pay, or Paytm.
+                    </p>
+                  </div>
+                  <ImageUpload
+                    label="Or upload a static payment QR image"
+                    value={receiptConfig.paymentQrURL || ''}
+                    onChange={(url) => setReceiptConfig((prev) => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
+                    previewSize="md"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                  />
+                </div>
+              )}
+
+              {/* Option 2: Digital Bill */}
+              {activeQrPurpose === 'digital_bill' && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs space-y-1">
+                  <div className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                    <FileText size={14} className="text-blue-600" />
+                    Digital Tax Invoice Link
+                  </div>
+                  <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                    Customers can scan this QR code on their printed receipt with any smartphone camera to open and download their full PDF receipt online.
+                  </p>
+                </div>
+              )}
+
+              {/* Option 3: Custom Link */}
+              {activeQrPurpose === 'custom' && (
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                      Custom Website / Review Link URL
+                    </label>
+                    <input
+                      type="url"
+                      value={activeQrEntry && activeQrEntry.qrType === 'custom' && !activeQrEntry.value?.includes('{{') ? activeQrEntry.value : ''}
+                      onChange={(e) => handleCustomQrUrlChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-mono"
+                      placeholder="https://yourstore.com/review or https://instagram.com/yourstore"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Customers scan this QR code to visit your website, Google review page, or promo campaign.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Statement printed below QR (editable) */}
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 space-y-1">
+                <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block">
+                  QR Statement / Caption (Printed below code)
+                </label>
+                <input
+                  type="text"
+                  value={activeQrCaptionText}
+                  onChange={(e) => handleQrCaptionChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100 font-medium"
+                  placeholder="e.g. Scan to pay with UPI or Scan to download bill PDF"
+                />
+                <p className="text-[10px] text-gray-500">
+                  This custom text statement will appear directly under the QR code on every receipt.
+                </p>
+              </div>
             </div>
 
             <GstPrintDisplaySection

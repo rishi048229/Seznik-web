@@ -495,8 +495,21 @@ export function applyQrSection(
       next = {
         ...next,
         entries: patchById(next.entries, mapped.qrCaption.id, (entry) =>
-          isTextLike(entry) ? { ...entry, text: patch.caption! } : entry
+          isTextLike(entry) ? { ...entry, text: patch.caption!, enabled: true } : entry
         ),
+      }
+    } else if (mapped.qr) {
+      const captionBlock: TextReceiptEntry = {
+        id: newId('entry-qr-caption'),
+        type: 'text',
+        enabled: true,
+        text: patch.caption!,
+        size: 'small',
+        align: 'center',
+      }
+      next = {
+        ...next,
+        entries: insertAfter(next.entries, mapped.qr.id, [captionBlock]),
       }
     }
   }
