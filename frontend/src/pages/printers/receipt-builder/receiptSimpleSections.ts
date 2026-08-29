@@ -484,6 +484,20 @@ export function applyLeftRightSide(
   })
 }
 
+export function defaultQrCaptionForPurpose(purpose: QrPurpose): string {
+  switch (purpose) {
+    case 'upi':
+      return 'Scan to pay with UPI'
+    case 'digital_bill':
+      return 'Scan QR to View & Download Bill PDF'
+    case 'custom':
+      return 'Scan for store website & reviews'
+    case 'none':
+    default:
+      return ''
+  }
+}
+
 export function applyQrSection(
   template: CustomReceiptTemplate,
   patch: { purpose?: QrPurpose; caption?: string }
@@ -506,17 +520,26 @@ export function applyQrSection(
   }
 
   if (patch.purpose) {
+    next = setSectionEnabled(next, 'qr', true)
     next = patchSectionEntry(next, 'qr', (entry) =>
       entry.type === 'barcode' ? applyQrPurpose(entry, patch.purpose!) : entry
     )
   }
-  if (patch.caption !== undefined) {
+
+  const captionText =
+    patch.caption !== undefined
+      ? patch.caption
+      : patch.purpose
+        ? defaultQrCaptionForPurpose(patch.purpose)
+        : undefined
+
+  if (captionText !== undefined) {
     const mapped = mapTemplateToSimple(next)
     if (mapped.qrCaption) {
       next = {
         ...next,
         entries: patchById(next.entries, mapped.qrCaption.id, (entry) =>
-          isTextLike(entry) ? { ...entry, text: patch.caption!, enabled: true } : entry
+          isTextLike(entry) ? { ...entry, text: captionText, enabled: true } : entry
         ),
       }
     } else if (mapped.qr) {
@@ -524,7 +547,7 @@ export function applyQrSection(
         id: newId('entry-qr-caption'),
         type: 'text',
         enabled: true,
-        text: patch.caption!,
+        text: captionText,
         size: 'small',
         align: 'center',
       }

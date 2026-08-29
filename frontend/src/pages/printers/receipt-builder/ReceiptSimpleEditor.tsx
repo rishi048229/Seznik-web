@@ -17,6 +17,7 @@ import {
   applyQrSection,
   applyStoreDetails,
   appendBlocks,
+  defaultQrCaptionForPurpose,
   inferQrPurpose,
   isSectionEnabled,
   mapTemplateToSimple,
@@ -423,14 +424,20 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
                 }
               />
             ) : null}
-            {mapped.qrCaption ? (
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 space-y-1">
+              <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 block">
+                Statement below QR (Printed on bill)
+              </label>
               <input
                 className={inputCls}
-                value={mapped.qrCaption.text}
-                placeholder="Caption under QR"
+                value={mapped.qrCaption?.text ?? defaultQrCaptionForPurpose(inferQrPurpose(mapped.qr))}
+                placeholder="e.g. Scan to pay with UPI or Scan to download bill PDF"
                 onChange={(e) => onChange(applyQrSection(template, { caption: e.target.value }))}
               />
-            ) : null}
+              <p className="text-[10px] text-gray-500">
+                You can edit this custom text sentence to display anything below the QR code.
+              </p>
+            </div>
           </>
         ) : null}
       </SectionCard>

@@ -191,9 +191,14 @@ export const PrintersPage = () => {
   } = useGstBillingSettings()
   const receiptBuilderRef = useRef<ReceiptBuilderTabHandle>(null)
 
+  const effectiveCustomTemplates = useMemo(
+    () => (receiptConfig.customTemplates?.length ? receiptConfig.customTemplates : customTemplates),
+    [receiptConfig.customTemplates, customTemplates]
+  )
+
   const activeCustomTemplate = useMemo(
-    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId) || customTemplates[0],
-    [customTemplates, activeCustomTemplateId]
+    () => resolveActiveFromTemplates(effectiveCustomTemplates, activeCustomTemplateId) || effectiveCustomTemplates[0],
+    [effectiveCustomTemplates, activeCustomTemplateId]
   )
   const activeQrEntry = useMemo(
     () => activeCustomTemplate?.entries.find((e): e is BarcodeReceiptEntry => e.type === 'barcode'),
@@ -240,9 +245,10 @@ export const PrintersPage = () => {
         entry.type === 'barcode' ? { ...entry, value: customVal, qrType: 'custom', enabled: true } : entry
       )
     }
+    const nextList = (effectiveCustomTemplates || []).map((t) => (t.id === updated.id ? updated : t))
     setReceiptConfig((prev) => ({
       ...prev,
-      customTemplates: (customTemplates || []).map((t) => (t.id === updated.id ? updated : t)),
+      customTemplates: nextList,
     }))
     saveTemplate(updated)
   }
@@ -250,9 +256,10 @@ export const PrintersPage = () => {
   const handleQrCaptionChange = (newCaption: string) => {
     if (!activeCustomTemplate) return
     const updated = applyQrSection(activeCustomTemplate, { caption: newCaption })
+    const nextList = (effectiveCustomTemplates || []).map((t) => (t.id === updated.id ? updated : t))
     setReceiptConfig((prev) => ({
       ...prev,
-      customTemplates: (customTemplates || []).map((t) => (t.id === updated.id ? updated : t)),
+      customTemplates: nextList,
     }))
     saveTemplate(updated)
   }
@@ -262,9 +269,10 @@ export const PrintersPage = () => {
     const updated = patchSectionEntry(activeCustomTemplate, 'qr', (entry) =>
       entry.type === 'barcode' ? { ...entry, value: url, qrType: 'custom' } : entry
     )
+    const nextList = (effectiveCustomTemplates || []).map((t) => (t.id === updated.id ? updated : t))
     setReceiptConfig((prev) => ({
       ...prev,
-      customTemplates: (customTemplates || []).map((t) => (t.id === updated.id ? updated : t)),
+      customTemplates: nextList,
     }))
     saveTemplate(updated)
   }
