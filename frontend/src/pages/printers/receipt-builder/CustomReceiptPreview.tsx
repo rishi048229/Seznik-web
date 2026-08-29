@@ -229,11 +229,6 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
   return (
     <div className={`mx-auto bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden min-w-0 ${className}`} style={{ width: '100%', maxWidth: paperMax }}>
       <div className="px-2.5 py-2 text-gray-900 overflow-x-hidden" style={fontStyle}>
-        {!hasEnabledImageBlock && logoUrl ? (
-          <div className="flex justify-center my-1">
-            <ReceiptLogoImage src={logoUrl} widthPercent={60} />
-          </div>
-        ) : null}
         {template.entries.map(renderEntry)}
       </div>
     </div>
