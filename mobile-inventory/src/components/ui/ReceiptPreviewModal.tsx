@@ -6,33 +6,50 @@ import {
   TouchableOpacity,
   Pressable,
   ScrollView,
+  TextInput,
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Linking,
+  Platform,
+  Image,
 } from 'react-native';
-import { X, Printer, ExternalLink, FileText, CheckCircle2 } from 'lucide-react-native';
+import {
+  X,
+  Printer,
+  ExternalLink,
+  FileText,
+  CheckCircle2,
+  Edit3,
+  Eye,
+  Plus,
+  Trash2,
+  Share2,
+  Store,
+  User,
+  ShoppingBag,
+  CreditCard,
+  QrCode,
+  Sparkles,
+  Bluetooth,
+} from 'lucide-react-native';
+import QRCode from 'react-native-qrcode-svg';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
-import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
-import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
-
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
-import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
+import { buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
   saleData: PrintSaleData | null;
   onClose: () => void;
-  /** POS checkout closes after print; invoice history keeps the preview open. */
   autoCloseAfterPrint?: boolean;
-  /** When true and a printer is connected, print as soon as the preview opens — no save wait. */
   autoPrintOnOpen?: boolean;
-  /** True while the sale is being saved in the background — shown as a banner only, never blocks print. */
   isSaleSaving?: boolean;
 }
 
@@ -61,18 +78,24 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const [isPrinting, setIsPrinting] = useState(false);
   const [hasPrinted, setHasPrinted] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'preview' | 'edit'>('preview');
   const theme = useAppTheme();
   const autoPrintStartedRef = useRef(false);
-  /** Keeps the last receipt visible while the modal animates closed — parent nulls saleData on onClose. */
   const pinnedSaleDataRef = useRef<PrintSaleData | null>(null);
+
+  // Local Editable Copy
+  const [editableSale, setEditableSale] = useState<PrintSaleData | null>(null);
 
   useEffect(() => {
     if (saleData) {
       pinnedSaleDataRef.current = saleData;
+      const initial = applyStoreProfileToPrintData(saleData, storeProfile);
+      setEditableSale(JSON.parse(JSON.stringify(initial)));
     }
     if (!visible) {
       pinnedSaleDataRef.current = null;
       autoPrintStartedRef.current = false;
+      setActiveTab('preview');
     }
   }, [saleData, visible]);
 
@@ -85,23 +108,39 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     }
   }, [visible, saleData?.invoiceNumber]);
 
-  const resolvedSaleData = useMemo(() => {
-    const source = saleData ?? pinnedSaleDataRef.current;
-    if (!source) return null;
-    return applyStoreProfileToPrintData(source, storeProfile);
-  }, [
-    saleData,
-    visible,
-    storeProfile.storeName,
-    storeProfile.storeAddress,
-    storeProfile.storePhone,
-    storeProfile.storeGstin,
-    storeProfile.storeLogoUrl,
-    storeProfile.upiId,
-  ]);
-
   const activeCustomTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
   const template = getTemplateById(activeTemplateId);
+
+  // Live Recalculations for editable items
+  const computedTotals = useMemo(() => {
+    if (!editableSale || !editableSale.items) {
+      return { subtotal: 0, totalTax: 0, totalDiscount: 0, grandTotal: 0 };
+    }
+    let sub = 0;
+    let disc = 0;
+    let tax = 0;
+
+    editableSale.items.forEach((item) => {
+      const lineBase = (item.unitPrice || 0) * (item.quantity || 1);
+      const lineDisc = item.discount || 0;
+      const taxable = Math.max(0, lineBase - lineDisc);
+      const lineTax = (taxable * (item.gstRate || 0)) / 100;
+
+      sub += lineBase;
+      disc += lineDisc;
+      tax += lineTax;
+    });
+
+    const extraCharges = editableSale.extraChargesTotal || 0;
+    const grand = Math.max(0, sub - disc + tax + extraCharges);
+
+    return {
+      subtotal: sub,
+      totalDiscount: disc,
+      totalTax: tax,
+      grandTotal: grand,
+    };
+  }, [editableSale]);
 
   const printOptions: ReceiptPrintOptions = useMemo(
     () => ({
@@ -112,93 +151,129 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       autoCut,
       fontSize,
       copies: printCopies,
-      storeName: resolvedSaleData?.storeName,
-      storeAddress: resolvedSaleData?.storeAddress,
-      storePhone: resolvedSaleData?.storePhone,
-      storeGstin: resolvedSaleData?.storeGstin,
-      storeLogoUrl: resolvedSaleData?.storeLogoUrl,
-      upiId: resolvedSaleData?.upiId,
-      ...gstPrintOptionOverrides(parseGstBilling(storeProfile.settings?.invoiceConfig)),
+      storeName: editableSale?.storeName,
+      storeAddress: editableSale?.storeAddress,
+      storePhone: editableSale?.storePhone,
+      storeGstin: editableSale?.storeGstin,
+      storeLogoUrl: editableSale?.storeLogoUrl,
+      upiId: editableSale?.upiId,
     }),
     [
+      template,
       activeCustomTemplate,
-      autoCut,
       enableBillQrCode,
+      topMargin,
+      autoCut,
       fontSize,
       printCopies,
-      resolvedSaleData,
-      template,
-      topMargin,
-      storeProfile.settings?.invoiceConfig,
+      editableSale?.storeName,
+      editableSale?.storeAddress,
+      editableSale?.storePhone,
+      editableSale?.storeGstin,
+      editableSale?.storeLogoUrl,
+      editableSale?.upiId,
     ]
   );
+
+  // Handlers for modifying editable sale items
+  const handleItemChange = (index: number, field: string, value: any) => {
+    if (!editableSale) return;
+    const nextItems = [...editableSale.items];
+    const current = { ...nextItems[index], [field]: value };
+    const unitPrice = Number(current.unitPrice || 0);
+    const qty = Number(current.quantity || 1);
+    const disc = Number(current.discount || 0);
+    current.total = Math.max(0, unitPrice * qty - disc);
+
+    nextItems[index] = current;
+    setEditableSale({
+      ...editableSale,
+      items: nextItems,
+      subtotal: computedTotals.subtotal,
+      totalDiscount: computedTotals.totalDiscount,
+      totalTax: computedTotals.totalTax,
+      grandTotal: computedTotals.grandTotal,
+    });
+  };
+
+  const handleAddItem = () => {
+    if (!editableSale) return;
+    const newItem = {
+      productName: 'New Item',
+      quantity: 1,
+      unitPrice: 100,
+      total: 100,
+      unit: 'Pc',
+      gstRate: 0,
+      discount: 0,
+    };
+    setEditableSale({
+      ...editableSale,
+      items: [...editableSale.items, newItem],
+    });
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (!editableSale || editableSale.items.length <= 1) {
+      Alert.alert('Cannot Remove', 'Receipt must have at least one item.');
+      return;
+    }
+    const nextItems = editableSale.items.filter((_, i) => i !== index);
+    setEditableSale({
+      ...editableSale,
+      items: nextItems,
+    });
+  };
 
   const finishAfterPrint = useCallback(() => {
     setHasPrinted(true);
     if (autoCloseAfterPrint) {
-      onClose();
-    } else {
-      Alert.alert('Print Sent', 'Receipt sent to your thermal printer.');
-      setHasPrinted(false);
+      setTimeout(() => {
+        onClose();
+      }, 700);
     }
   }, [autoCloseAfterPrint, onClose]);
 
-  const handlePrintThermal = useCallback(async () => {
+  // Multi-Channel Print Triggers
+  const handlePrintThermal = async () => {
+    if (!editableSale) return;
     if (isPrinting) return;
-    if (hasPrinted && autoCloseAfterPrint) return;
 
     if (!activeDevice || connectionState !== 'connected') {
-      Alert.alert(
-        'No Printer Connected',
-        'Connect a Bluetooth thermal printer to print this receipt.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Connect Printer', onPress: () => setShowConnectModal(true) },
-        ]
-      );
+      setShowConnectModal(true);
       return;
     }
 
-    if (!resolvedSaleData) return;
-
     setIsPrinting(true);
     try {
-      const ok = await ThermalPrinterService.printReceipt(resolvedSaleData, paperWidth, printOptions);
-      if (ok) {
-        finishAfterPrint();
-      }
+      const payload: PrintSaleData = {
+        ...editableSale,
+        subtotal: computedTotals.subtotal,
+        totalDiscount: computedTotals.totalDiscount,
+        totalTax: computedTotals.totalTax,
+        grandTotal: computedTotals.grandTotal,
+      };
+      await ThermalPrinterService.printReceipt(payload, paperWidth, printOptions);
+      finishAfterPrint();
     } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Could not print receipt.');
+      Alert.alert('Print Error', e?.message || 'Failed to print thermal receipt.');
     } finally {
       setIsPrinting(false);
     }
-  }, [
-    activeDevice,
-    autoCloseAfterPrint,
-    connectionState,
-    finishAfterPrint,
-    hasPrinted,
-    isPrinting,
-    paperWidth,
-    printOptions,
-    resolvedSaleData,
-  ]);
-
-  // POS fast checkout: print the moment the preview opens — don't wait for the server save.
-  useEffect(() => {
-    if (!visible || !autoPrintOnOpen || !resolvedSaleData || autoPrintStartedRef.current) return;
-    if (!activeDevice || connectionState !== 'connected') return;
-    autoPrintStartedRef.current = true;
-    handlePrintThermal();
-  }, [visible, autoPrintOnOpen, resolvedSaleData, activeDevice, connectionState, handlePrintThermal]);
+  };
 
   const handleSystemPrint = async () => {
-    if (isPrinting || !resolvedSaleData) return;
-    if (hasPrinted && autoCloseAfterPrint) return;
-
+    if (!editableSale) return;
     setIsPrinting(true);
     try {
-      const html = ThermalPrinterService.generateReceiptHtml(resolvedSaleData, paperWidth, printOptions);
+      const payload: PrintSaleData = {
+        ...editableSale,
+        subtotal: computedTotals.subtotal,
+        totalDiscount: computedTotals.totalDiscount,
+        totalTax: computedTotals.totalTax,
+        grandTotal: computedTotals.grandTotal,
+      };
+      const html = ThermalPrinterService.generateReceiptHtml(payload, paperWidth, printOptions);
       const Print = require('expo-print');
       await Print.printAsync({ html });
       if (autoCloseAfterPrint) {
@@ -213,235 +288,824 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     }
   };
 
-  const activeTemplateName = activeCustomTemplate ? activeCustomTemplate.name : template.name;
+  const handleWhatsAppShare = () => {
+    if (!editableSale) return;
+    const custPhone = editableSale.customerPhone?.replace(/\D/g, '') || '';
+    const lines = [
+      `*${(editableSale.storeName || 'TAX INVOICE').toUpperCase()}*`,
+      editableSale.storeAddress || '',
+      editableSale.storePhone ? `Phone: ${editableSale.storePhone}` : '',
+      `---------------------------------`,
+      `*INVOICE: ${editableSale.invoiceNumber}*`,
+      `Date: ${editableSale.date}`,
+      `Customer: ${editableSale.customerName || 'Cash Customer'}`,
+      `---------------------------------`,
+      ...editableSale.items.map(
+        (it) => `${it.productName} x ${it.quantity} = Rs. ${(it.unitPrice * it.quantity - (it.discount || 0)).toFixed(2)}`
+      ),
+      `---------------------------------`,
+      `*Grand Total: Rs. ${computedTotals.grandTotal.toFixed(2)}*`,
+      `Payment: ${(editableSale.paymentMethod || 'CASH').toUpperCase()}`,
+      `---------------------------------`,
+      `Thank you for your business!`,
+    ].filter(Boolean);
+
+    const text = encodeURIComponent(lines.join('\n'));
+    const url = custPhone ? `https://wa.me/91${custPhone}?text=${text}` : `https://wa.me/?text=${text}`;
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
+  };
+
+  const upiQrString = useMemo(() => {
+    if (!editableSale?.upiId || !isValidUpiVpa(editableSale.upiId)) return '';
+    return buildUpiPayString(editableSale.upiId, editableSale.storeName || 'Shop', computedTotals.grandTotal, editableSale.invoiceNumber);
+  }, [editableSale?.upiId, editableSale?.storeName, computedTotals.grandTotal, editableSale?.invoiceNumber]);
+
+  const modalVisible = visible && !!editableSale;
   const printDisabled = isPrinting || (hasPrinted && autoCloseAfterPrint);
-  const modalVisible = visible && !!resolvedSaleData;
 
   return (
     <>
-    {modalVisible && resolvedSaleData ? (
-    <Modal
-      visible={modalVisible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close receipt preview"
-        />
-        <View
-          style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-          pointerEvents="auto"
+      {modalVisible && editableSale ? (
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={onClose}
+          statusBarTranslucent
         >
-          {/* Header */}
-          <View style={styles.headerRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
-              <FileText size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
-              <View>
-                <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                  Thermal Receipt Preview
-                </Text>
-                <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600' }} numberOfLines={1}>
-                  Using template: {activeTemplateName}
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={onClose}
-              style={styles.closeBtn}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
+          <View style={styles.overlay} pointerEvents="box-none">
+            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+            <View
+              style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+              pointerEvents="auto"
             >
-              <X size={22} color={theme.textSecondary} />
-            </Pressable>
-          </View>
+              {/* Top Header Bar */}
+              <View style={styles.headerRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                  <FileText size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
+                  <View>
+                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                      Realistic Receipt & Bill
+                    </Text>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '700' }}>
+                      INV #{editableSale.invoiceNumber}
+                    </Text>
+                  </View>
+                </View>
 
-          {/* Active Printer Pill - Tappable to connect directly */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => !hasPrinted && setShowConnectModal(true)}
-            style={[styles.printerStatusPill, { backgroundColor: activeDevice && connectionState === 'connected' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)' }]}
-          >
-            <Printer size={13} color={activeDevice && connectionState === 'connected' ? '#10B981' : '#F59E0B'} />
-            <Text style={[styles.printerStatusText, { color: activeDevice && connectionState === 'connected' ? '#10B981' : '#B45309' }]}>
-              {activeDevice && connectionState === 'connected' ? `Printer: ${activeDevice.name} (${paperWidth})` : `No Printer Connected • Tap to Connect`}
-            </Text>
-          </TouchableOpacity>
+                {/* View Tabs: Preview vs Edit */}
+                <View style={styles.tabContainer}>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('preview')}
+                    style={[styles.tabBtn, activeTab === 'preview' && styles.tabBtnActive]}
+                  >
+                    <Eye size={13} color={activeTab === 'preview' ? '#FFFFFF' : theme.textSecondary} />
+                    <Text style={[styles.tabBtnText, activeTab === 'preview' && styles.tabBtnTextActive]}>
+                      Preview
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('edit')}
+                    style={[styles.tabBtn, activeTab === 'edit' && styles.tabBtnActive]}
+                  >
+                    <Edit3 size={13} color={activeTab === 'edit' ? '#FFFFFF' : theme.textSecondary} />
+                    <Text style={[styles.tabBtnText, activeTab === 'edit' && styles.tabBtnTextActive]}>
+                      Edit
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-          {isSaleSaving ? (
-            <View style={[styles.savingBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-              <ActivityIndicator size="small" color="#D97706" />
-              <Text style={styles.savingBannerText}>Saving sale in background…</Text>
-            </View>
-          ) : null}
-
-          {/* Thermal Paper Scroll Container */}
-          <ScrollView
-            style={styles.paperScrollView}
-            contentContainerStyle={styles.paperScrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator
-            nestedScrollEnabled
-            bounces
-          >
-            {resolvedSaleData && activeCustomTemplate ? (
-              <CustomReceiptMockup
-                template={activeCustomTemplate}
-                storeName={resolvedSaleData.storeName || 'Your Store Name'}
-                storeAddress={resolvedSaleData.storeAddress || ''}
-                storePhone={resolvedSaleData.storePhone || ''}
-                storeGstin={resolvedSaleData.storeGstin || ''}
-                storeLogoUrl={resolvedSaleData.storeLogoUrl}
-                invoiceNumber={resolvedSaleData.invoiceNumber}
-                date={resolvedSaleData.date}
-                customerName={resolvedSaleData.customerName || 'Walk-in Customer'}
-                items={resolvedSaleData.items}
-                subtotal={resolvedSaleData.subtotal}
-                totalDiscount={resolvedSaleData.totalDiscount}
-                totalTax={resolvedSaleData.totalTax}
-                grandTotal={resolvedSaleData.grandTotal}
-                paperWidth={paperWidth}
-                upiId={resolvedSaleData.upiId || ''}
-              />
-            ) : resolvedSaleData ? (
-              <ReceiptTemplateMockup
-                template={template}
-                storeName={resolvedSaleData.storeName || 'Your Store Name'}
-                storeAddress={resolvedSaleData.storeAddress || ''}
-                storePhone={resolvedSaleData.storePhone || ''}
-                storeLogoUrl={resolvedSaleData.storeLogoUrl}
-                invoiceNumber={resolvedSaleData.invoiceNumber}
-                date={resolvedSaleData.date}
-                customerName={resolvedSaleData.customerName || 'Walk-in Customer'}
-                items={resolvedSaleData.items}
-                subtotal={resolvedSaleData.subtotal}
-                totalDiscount={resolvedSaleData.totalDiscount}
-                totalTax={resolvedSaleData.totalTax}
-                grandTotal={resolvedSaleData.grandTotal}
-              />
-            ) : null}
-          </ScrollView>
-
-          {hasPrinted && autoCloseAfterPrint ? (
-            <View style={[styles.printedBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-              <CheckCircle2 size={16} color="#10B981" />
-              <Text style={styles.printedBannerText}>Receipt sent — closing...</Text>
-            </View>
-          ) : (
-            <>
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  onPress={handleSystemPrint}
-                  disabled={printDisabled}
-                  style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.navyInk }, printDisabled && styles.actionBtnDisabled]}
-                >
-                  <ExternalLink size={15} color="#FFFFFF" />
-                  <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>System Print</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handlePrintThermal}
-                  disabled={printDisabled}
-                  style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }, printDisabled && styles.actionBtnDisabled]}
-                >
-                  {isPrinting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Printer size={15} color="#FFFFFF" />
-                      <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Print Bill</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
+                  <X size={20} color={theme.textSecondary} />
+                </Pressable>
               </View>
 
-              {!autoCloseAfterPrint ? (
-                <Pressable onPress={onClose} style={styles.doneBtn} accessibilityRole="button">
-                  <Text style={styles.doneBtnText}>Done</Text>
-                </Pressable>
-              ) : null}
-            </>
-          )}
-        </View>
-      </View>
-    </Modal>
-    ) : null}
+              {/* Printer Status Pill */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => !hasPrinted && setShowConnectModal(true)}
+                style={[
+                  styles.printerStatusPill,
+                  {
+                    backgroundColor:
+                      activeDevice && connectionState === 'connected'
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : 'rgba(245, 158, 11, 0.12)',
+                  },
+                ]}
+              >
+                <Bluetooth size={13} color={activeDevice && connectionState === 'connected' ? '#10B981' : '#F59E0B'} />
+                <Text
+                  style={[
+                    styles.printerStatusText,
+                    { color: activeDevice && connectionState === 'connected' ? '#10B981' : '#B45309' },
+                  ]}
+                >
+                  {activeDevice && connectionState === 'connected'
+                    ? `Bluetooth: ${activeDevice.name} (${paperWidth})`
+                    : `No Printer Connected • Tap to Connect`}
+                </Text>
+              </TouchableOpacity>
 
-    <DirectPrinterConnectModal
-      visible={showConnectModal && !hasPrinted}
-      onClose={() => setShowConnectModal(false)}
-      onConnected={() => {
-        setShowConnectModal(false);
-        setTimeout(() => {
-          handlePrintThermal();
-        }, 400);
-      }}
-      showContinueWithoutPrinter={true}
-      onContinueWithoutPrinter={() => {
-        setShowConnectModal(false);
-        handleSystemPrint();
-      }}
-    />
+              {/* TAB 1: PHOTOREALISTIC RECEIPT TICKET PREVIEW */}
+              {activeTab === 'preview' ? (
+                <ScrollView
+                  style={styles.paperScrollView}
+                  contentContainerStyle={styles.paperScrollContent}
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <View
+                    style={[
+                      styles.realisticPaper,
+                      { width: paperWidth === '58mm' ? 290 : 330 },
+                    ]}
+                  >
+                    {/* Top Serrated Edge Simulation */}
+                    <View style={styles.tearEdgeTop} />
+
+                    {/* Store Header */}
+                    <View style={styles.receiptHeader}>
+                      {editableSale.storeLogoUrl ? (
+                        <Image
+                          source={{ uri: editableSale.storeLogoUrl }}
+                          style={styles.storeLogo}
+                          resizeMode="contain"
+                        />
+                      ) : null}
+                      <Text style={styles.thermalTitle}>{editableSale.storeName || 'SEZNIK RETAIL'}</Text>
+                      {editableSale.storeAddress ? (
+                        <Text style={styles.thermalSub}>{editableSale.storeAddress}</Text>
+                      ) : null}
+                      {editableSale.storePhone ? (
+                        <Text style={styles.thermalSub}>Tel: {editableSale.storePhone}</Text>
+                      ) : null}
+                      {editableSale.storeGstin ? (
+                        <Text style={styles.thermalGstin}>GSTIN: {editableSale.storeGstin}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.dashedLine} />
+
+                    {/* Invoice Meta */}
+                    <View style={styles.metaBlock}>
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.monoLabel}>INVOICE NO:</Text>
+                        <Text style={styles.monoValueBold}>#{editableSale.invoiceNumber}</Text>
+                      </View>
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.monoLabel}>DATE:</Text>
+                        <Text style={styles.monoValue}>{editableSale.date}</Text>
+                      </View>
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.monoLabel}>CUSTOMER:</Text>
+                        <Text style={styles.monoValueBold}>{editableSale.customerName || 'Walk-in'}</Text>
+                      </View>
+                      {editableSale.customerPhone ? (
+                        <View style={styles.rowBetween}>
+                          <Text style={styles.monoLabel}>PHONE:</Text>
+                          <Text style={styles.monoValue}>{editableSale.customerPhone}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.monoLabel}>PAYMENT:</Text>
+                        <Text style={styles.monoValueBold}>
+                          {(editableSale.paymentMethod || 'CASH').toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.dashedLine} />
+
+                    {/* Table Header */}
+                    <View style={styles.tableHeaderRow}>
+                      <Text style={[styles.monoHeader, { flex: 2.2 }]}>ITEM</Text>
+                      <Text style={[styles.monoHeader, { flex: 0.8, textAlign: 'center' }]}>QTY</Text>
+                      <Text style={[styles.monoHeader, { flex: 1, textAlign: 'right' }]}>RATE</Text>
+                      <Text style={[styles.monoHeader, { flex: 1.2, textAlign: 'right' }]}>AMT</Text>
+                    </View>
+
+                    {/* Item Lines */}
+                    {editableSale.items.map((item, idx) => (
+                      <View key={idx} style={styles.itemRow}>
+                        <Text style={[styles.monoItemName, { flex: 2.2 }]} numberOfLines={2}>
+                          {item.productName}
+                        </Text>
+                        <Text style={[styles.monoItemText, { flex: 0.8, textAlign: 'center' }]}>
+                          {item.quantity}
+                        </Text>
+                        <Text style={[styles.monoItemText, { flex: 1, textAlign: 'right' }]}>
+                          {item.unitPrice.toFixed(0)}
+                        </Text>
+                        <Text style={[styles.monoItemBold, { flex: 1.2, textAlign: 'right' }]}>
+                          {(item.unitPrice * item.quantity - (item.discount || 0)).toFixed(2)}
+                        </Text>
+                      </View>
+                    ))}
+
+                    <View style={styles.dashedLine} />
+
+                    {/* Totals Breakdown */}
+                    <View style={styles.totalsBlock}>
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.monoLabel}>SUBTOTAL:</Text>
+                        <Text style={styles.monoValue}>₹{computedTotals.subtotal.toFixed(2)}</Text>
+                      </View>
+                      {computedTotals.totalDiscount > 0 ? (
+                        <View style={styles.rowBetween}>
+                          <Text style={styles.monoLabel}>DISCOUNT:</Text>
+                          <Text style={styles.monoValue}>-₹{computedTotals.totalDiscount.toFixed(2)}</Text>
+                        </View>
+                      ) : null}
+                      {computedTotals.totalTax > 0 ? (
+                        <View style={styles.rowBetween}>
+                          <Text style={styles.monoLabel}>GST TAX:</Text>
+                          <Text style={styles.monoValue}>+₹{computedTotals.totalTax.toFixed(2)}</Text>
+                        </View>
+                      ) : null}
+
+                      {/* Grand Total Box */}
+                      <View style={styles.grandTotalBox}>
+                        <Text style={styles.grandTotalLabel}>GRAND TOTAL:</Text>
+                        <Text style={styles.grandTotalValue}>₹{computedTotals.grandTotal.toFixed(2)}</Text>
+                      </View>
+                    </View>
+
+                    {/* Scannable UPI QR */}
+                    {upiQrString ? (
+                      <View style={styles.qrSection}>
+                        <Text style={styles.qrHeader}>•• SCAN TO PAY VIA UPI ••</Text>
+                        <View style={styles.qrFrame}>
+                          <QRCode value={upiQrString} size={paperWidth === '58mm' ? 84 : 100} />
+                        </View>
+                        <Text style={styles.qrFooter}>UPI ID: {editableSale.upiId}</Text>
+                      </View>
+                    ) : null}
+
+                    {/* Barcode Simulation */}
+                    <View style={styles.barcodeSection}>
+                      <Text style={styles.barcodeText}>*#{editableSale.invoiceNumber}*</Text>
+                      <View style={styles.barcodeLines} />
+                    </View>
+
+                    {/* Footer Policy */}
+                    <View style={styles.footerSection}>
+                      <Text style={styles.footerMsg}>Thank you for shopping with us!</Text>
+                      <Text style={styles.footerTerms}>Goods once sold cannot be returned.</Text>
+                    </View>
+
+                    {/* Bottom Tear Edge */}
+                    <View style={styles.tearEdgeBottom} />
+                  </View>
+                </ScrollView>
+              ) : (
+                /* TAB 2: LIVE DETAILS & ITEMS INLINE EDITOR */
+                <ScrollView
+                  style={styles.paperScrollView}
+                  contentContainerStyle={styles.editScrollContent}
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Store Info Editor */}
+                  <View style={[styles.editCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.editSectionTitle, { color: theme.textPrimary }]}>
+                      <Store size={14} color={BRAND_COLORS.blue600} /> Store Header
+                    </Text>
+                    <View style={styles.editRow}>
+                      <TextInput
+                        style={[styles.editInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                        value={editableSale.storeName}
+                        onChangeText={(t) => setEditableSale({ ...editableSale, storeName: t })}
+                        placeholder="Business Name"
+                        placeholderTextColor={theme.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.editRow}>
+                      <TextInput
+                        style={[styles.editInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                        value={editableSale.storePhone}
+                        onChangeText={(t) => setEditableSale({ ...editableSale, storePhone: t })}
+                        placeholder="Contact Phone"
+                        placeholderTextColor={theme.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.editRow}>
+                      <TextInput
+                        style={[styles.editInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                        value={editableSale.storeGstin}
+                        onChangeText={(t) => setEditableSale({ ...editableSale, storeGstin: t })}
+                        placeholder="GSTIN No"
+                        placeholderTextColor={theme.textSecondary}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Customer & Bill Info */}
+                  <View style={[styles.editCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.editSectionTitle, { color: theme.textPrimary }]}>
+                      <User size={14} color={BRAND_COLORS.blue600} /> Customer & Invoice
+                    </Text>
+                    <View style={styles.editRow}>
+                      <TextInput
+                        style={[styles.editInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                        value={editableSale.customerName}
+                        onChangeText={(t) => setEditableSale({ ...editableSale, customerName: t })}
+                        placeholder="Customer Name"
+                        placeholderTextColor={theme.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.editRow}>
+                      <TextInput
+                        style={[styles.editInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                        value={editableSale.customerPhone}
+                        onChangeText={(t) => setEditableSale({ ...editableSale, customerPhone: t })}
+                        placeholder="Customer Phone (for WhatsApp)"
+                        placeholderTextColor={theme.textSecondary}
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Line Items Editor */}
+                  <View style={[styles.editCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={styles.rowBetween}>
+                      <Text style={[styles.editSectionTitle, { color: theme.textPrimary }]}>
+                        <ShoppingBag size={14} color={BRAND_COLORS.blue600} /> Items List
+                      </Text>
+                      <TouchableOpacity onPress={handleAddItem} style={styles.addSmallBtn}>
+                        <Plus size={13} color="#FFFFFF" />
+                        <Text style={styles.addSmallBtnText}>Add Item</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {editableSale.items.map((item, idx) => (
+                      <View key={idx} style={[styles.itemEditBox, { borderColor: theme.borderColor }]}>
+                        <View style={styles.rowBetween}>
+                          <TextInput
+                            style={[styles.itemNameInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                            value={item.productName}
+                            onChangeText={(t) => handleItemChange(idx, 'productName', t)}
+                            placeholder="Item Name"
+                            placeholderTextColor={theme.textSecondary}
+                          />
+                          <TouchableOpacity onPress={() => handleRemoveItem(idx)} style={styles.trashBtn}>
+                            <Trash2 size={16} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.itemParamsRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.fieldLabel}>Qty</Text>
+                            <TextInput
+                              style={[styles.paramInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                              value={String(item.quantity)}
+                              onChangeText={(t) => handleItemChange(idx, 'quantity', parseInt(t) || 1)}
+                              keyboardType="numeric"
+                            />
+                          </View>
+                          <View style={{ flex: 1.5, marginHorizontal: 6 }}>
+                            <Text style={styles.fieldLabel}>Price (₹)</Text>
+                            <TextInput
+                              style={[styles.paramInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                              value={String(item.unitPrice)}
+                              onChangeText={(t) => handleItemChange(idx, 'unitPrice', parseFloat(t) || 0)}
+                              keyboardType="numeric"
+                            />
+                          </View>
+                          <View style={{ flex: 1.2 }}>
+                            <Text style={styles.fieldLabel}>Disc (₹)</Text>
+                            <TextInput
+                              style={[styles.paramInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                              value={String(item.discount || 0)}
+                              onChangeText={(t) => handleItemChange(idx, 'discount', parseFloat(t) || 0)}
+                              keyboardType="numeric"
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* UPI VPA Editor */}
+                  <View style={[styles.editCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.editSectionTitle, { color: theme.textPrimary }]}>
+                      <QrCode size={14} color={BRAND_COLORS.blue600} /> Payment UPI VPA
+                    </Text>
+                    <TextInput
+                      style={[styles.editInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                      value={editableSale.upiId}
+                      onChangeText={(t) => setEditableSale({ ...editableSale, upiId: t })}
+                      placeholder="merchant@upi"
+                      placeholderTextColor={theme.textSecondary}
+                    />
+                  </View>
+                </ScrollView>
+              )}
+
+              {/* Action Buttons Bar */}
+              <View style={styles.bottomBar}>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    onPress={handlePrintThermal}
+                    disabled={printDisabled}
+                    style={[styles.primaryActionBtn, printDisabled && styles.actionBtnDisabled]}
+                  >
+                    {isPrinting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Printer size={16} color="#FFFFFF" />
+                        <Text style={styles.primaryActionText}>Thermal Print</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSystemPrint}
+                    disabled={printDisabled}
+                    style={[styles.secondaryActionBtn, { borderColor: theme.borderColor }]}
+                  >
+                    <ExternalLink size={15} color={theme.textPrimary} />
+                    <Text style={[styles.secondaryActionText, { color: theme.textPrimary }]}>A4 Print</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={handleWhatsAppShare} style={styles.whatsAppBtn}>
+                    <Share2 size={15} color="#10B981" />
+                    <Text style={styles.whatsAppBtnText}>WhatsApp</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+
+      <DirectPrinterConnectModal
+        visible={showConnectModal && !hasPrinted}
+        onClose={() => setShowConnectModal(false)}
+        onConnected={() => {
+          setShowConnectModal(false);
+          setTimeout(() => {
+            handlePrintThermal();
+          }, 400);
+        }}
+        showContinueWithoutPrinter={true}
+        onContinueWithoutPrinter={() => {
+          setShowConnectModal(false);
+          handleSystemPrint();
+        }}
+      />
     </>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 440, maxHeight: '88%', borderRadius: 24, padding: 18, borderWidth: 1, flexShrink: 1, zIndex: 1, elevation: 8 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, zIndex: 2 },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '92%',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    flexShrink: 1,
+    elevation: 10,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   modalTitle: { fontSize: 16, fontWeight: '900' },
   closeBtn: {
-    padding: 8,
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    zIndex: 3,
+    padding: 6,
+    borderRadius: 10,
+    marginLeft: 6,
   },
-  printerStatusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, marginVertical: 8 },
-  printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
-  paperScrollView: { flexGrow: 1, flexShrink: 1, minHeight: 120, maxHeight: 460 },
-  paperScrollContent: { paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center' },
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 14 },
-  actionBtnDisabled: { opacity: 0.5 },
-  actionBtnText: { fontSize: 13, fontWeight: '800', marginLeft: 6 },
-  printedBanner: {
+  tabContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  printedBannerText: { fontSize: 13, fontWeight: '800', color: '#10B981' },
-  savingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 4,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  savingBannerText: { flex: 1, fontSize: 11, fontWeight: '700', color: '#B45309' },
-  doneBtn: {
-    marginTop: 10,
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: 'rgba(100, 116, 139, 0.15)',
+    borderRadius: 10,
+    padding: 3,
   },
-  doneBtnText: { fontSize: 14, fontWeight: '800', color: '#64748B' },
+  tabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    gap: 4,
+  },
+  tabBtnActive: {
+    backgroundColor: BRAND_COLORS.blue600,
+  },
+  tabBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  tabBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  printerStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
+  paperScrollView: { flexGrow: 1, flexShrink: 1, minHeight: 200, maxHeight: 480 },
+  paperScrollContent: { paddingVertical: 8, alignItems: 'center' },
+  editScrollContent: { paddingVertical: 6, gap: 10 },
+
+  /* Realistic Thermal Ticket Styles */
+  realisticPaper: {
+    backgroundColor: '#FAF9F5',
+    borderRadius: 4,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  tearEdgeTop: {
+    height: 3,
+    borderBottomWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    marginBottom: 8,
+  },
+  tearEdgeBottom: {
+    height: 3,
+    borderTopWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    marginTop: 12,
+  },
+  receiptHeader: { alignItems: 'center', marginBottom: 6 },
+  storeLogo: { width: 100, height: 35, marginBottom: 4 },
+  thermalTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#000000',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    textTransform: 'uppercase',
+  },
+  thermalSub: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginTop: 2,
+  },
+  thermalGstin: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#000000',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginTop: 2,
+  },
+  dashedLine: {
+    borderBottomWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#000000',
+    marginVertical: 6,
+  },
+  metaBlock: { gap: 2 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  monoLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#475569',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  monoValue: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  monoValueBold: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderColor: '#000000',
+    paddingBottom: 3,
+    marginBottom: 4,
+  },
+  monoHeader: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    textTransform: 'uppercase',
+  },
+  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2 },
+  monoItemName: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  monoItemText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  monoItemBold: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  totalsBlock: { gap: 3 },
+  grandTotalBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#000000',
+    padding: 5,
+    marginTop: 4,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+  },
+  grandTotalLabel: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  grandTotalValue: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  qrSection: { alignItems: 'center', marginVertical: 8 },
+  qrHeader: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 4,
+  },
+  qrFrame: {
+    padding: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderRadius: 4,
+  },
+  qrFooter: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#475569',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginTop: 3,
+  },
+  barcodeSection: { alignItems: 'center', marginTop: 4 },
+  barcodeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  barcodeLines: {
+    width: 140,
+    height: 18,
+    backgroundColor: '#000000',
+    opacity: 0.75,
+    marginTop: 2,
+    borderRadius: 1,
+  },
+  footerSection: { alignItems: 'center', marginTop: 6, gap: 2 },
+  footerMsg: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  footerTerms: {
+    fontSize: 8.5,
+    fontWeight: '600',
+    color: '#64748B',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+
+  /* Inline Editor Styles */
+  editCard: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 8,
+  },
+  editSectionTitle: { fontSize: 13, fontWeight: '800', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  editRow: { width: '100%' },
+  editInput: {
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  addSmallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRAND_COLORS.blue600,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addSmallBtnText: { fontSize: 10.5, fontWeight: '800', color: '#FFFFFF' },
+  itemEditBox: {
+    padding: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 6,
+    gap: 6,
+  },
+  itemNameInput: {
+    flex: 1,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  trashBtn: { padding: 6, marginLeft: 4 },
+  itemParamsRow: { flexDirection: 'row', alignItems: 'center' },
+  fieldLabel: { fontSize: 9.5, fontWeight: '700', color: '#94A3B8', marginBottom: 2 },
+  paramInput: {
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  /* Bottom Actions */
+  bottomBar: { paddingTop: 10, borderTopWidth: 1, borderColor: 'rgba(100, 116, 139, 0.2)' },
+  actionRow: { flexDirection: 'row', gap: 8 },
+  primaryActionBtn: {
+    flex: 1.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BRAND_COLORS.blue600,
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 6,
+    elevation: 3,
+  },
+  primaryActionText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF' },
+  secondaryActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 5,
+  },
+  secondaryActionText: { fontSize: 12, fontWeight: '800' },
+  whatsAppBtn: {
+    flex: 1.1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 5,
+  },
+  whatsAppBtnText: { fontSize: 12, fontWeight: '800', color: '#10B981' },
+  actionBtnDisabled: { opacity: 0.5 },
 });

@@ -424,7 +424,49 @@ export default function PosLiteScreen() {
           Scan barcodes or manually add line-items with instant calculations
         </Text>
 
-        <ScrollView style={{ flex: 1, marginTop: 16 }} contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* Quick-Add Frequent Items Chips */}
+        {products && products.length > 0 ? (
+          <View style={{ marginTop: 12, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textSecondary, textTransform: 'uppercase' }}>
+                Quick-Add Items
+              </Text>
+              <Text style={{ fontSize: 10, color: theme.textSecondary }}>Tap to add</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
+              {products.slice(0, 10).map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => {
+                    addItem(p, 1);
+                    Vibration.vibrate(40);
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: theme.cardBg,
+                    borderColor: theme.borderColor,
+                    borderWidth: 1,
+                    paddingVertical: 7,
+                    paddingHorizontal: 10,
+                    borderRadius: 12,
+                    gap: 6,
+                  }}
+                >
+                  <Plus size={12} color={BRAND_COLORS.blue600} />
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: theme.textPrimary }} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: BRAND_COLORS.blue600 }}>
+                    ₹{p.sellingPrice.toFixed(0)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <ScrollView style={{ flex: 1, marginTop: 8 }} contentContainerStyle={{ paddingBottom: 100 }}>
           {cartItems.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
