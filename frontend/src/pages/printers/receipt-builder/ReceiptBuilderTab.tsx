@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
 import type { CustomReceiptEntry, CustomReceiptTemplate } from '@/types/customReceipt'
 import { createEmptyBlock } from '@/types/customReceipt'
 import { SAMPLE_RECEIPT_CONTEXT } from '@/utils/customReceiptEngine'
@@ -59,6 +60,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
   ref
 ) {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const {
     settings,
     receiptConfig,
