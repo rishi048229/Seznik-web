@@ -114,12 +114,27 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
             )
           }
           rawVal = buildUpiPayLink({ upiId: upi, payeeName: context.storeName, amount: context.grandTotal, note: context.invoiceNumber })
+        } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
+          const invoiceNo = encodeURIComponent(context.invoiceNumber || 'INV-2026-0001')
+          rawVal = typeof window !== 'undefined'
+            ? `${window.location.origin}/receipt/${invoiceNo}`
+            : `https://api.seznik.com/receipt/${invoiceNo}`
+        } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
+          rawVal = context.invoiceNumber || 'INV-2026-0001'
         }
-        const qrSize = entry.size === 'large' ? 110 : entry.size === 'small' ? 75 : 95
+
+        const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 85 : 100
         return (
           <div key={entry.id || idx} className={`my-2 flex ${entry.align === 'left' ? 'justify-start' : entry.align === 'right' ? 'justify-end' : 'justify-center'}`}>
             {isQr ? (
-              <QRCodeSVG value={rawVal || 'https://seznik.com'} size={qrSize} />
+              <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 inline-block">
+                <QRCodeSVG
+                  value={rawVal || 'https://seznik.com'}
+                  size={qrSize}
+                  level="M"
+                  includeMargin={true}
+                />
+              </div>
             ) : (
               <span className="font-mono text-xs">*{rawVal}*</span>
             )}

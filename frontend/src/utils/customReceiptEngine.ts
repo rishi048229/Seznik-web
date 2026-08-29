@@ -496,13 +496,21 @@ export function compileCustomReceiptHtml(
             note: data.invoiceNumber,
           })
         }
+      } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
+        const invoiceNo = encodeURIComponent(data.invoiceNumber || 'INV-2026-0001')
+        rawVal = typeof window !== 'undefined'
+          ? `${window.location.origin}/receipt/${invoiceNo}`
+          : `https://api.seznik.com/receipt/${invoiceNo}`
+      } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
+        rawVal = data.invoiceNumber || 'INV-2026-0001'
       }
+
       const align = entry.align || 'center'
       const isQr = entry.format === 'qr' || entry.codeType === 'qr_code'
       if (isQr && rawVal) {
-        const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=1&data=${encodeURIComponent(rawVal)}`
+        const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(rawVal)}`
         parts.push(
-          `<div style="text-align:${align};margin:8px 0;width:100%;"><img src="${qrImg}" width="130" height="130" alt="Payment QR" style="display:inline-block;image-rendering:pixelated;" /></div>`
+          `<div style="text-align:${align};margin:10px 0;width:100%;"><img src="${qrImg}" width="120" height="120" alt="QR Code" style="display:inline-block;image-rendering:pixelated;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;" /></div>`
         )
       } else {
         parts.push(
@@ -688,8 +696,17 @@ export async function appendCustomTemplateToEscPos(
               note: data.invoiceNumber,
             })
           }
+        } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
+          const invoiceNo = encodeURIComponent(data.invoiceNumber || 'INV-2026-0001')
+          rawVal = typeof window !== 'undefined'
+            ? `${window.location.origin}/receipt/${invoiceNo}`
+            : `https://api.seznik.com/receipt/${invoiceNo}`
+        } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
+          rawVal = data.invoiceNumber || 'INV-2026-0001'
         }
+
         if (entry.format === 'qr' || entry.codeType === 'qr_code') {
+          b.feed(1)
           b.align(toEscPosAlign(entry.align || 'center'))
           b.qr(rawVal || 'https://seznik.com', qrModuleSize(entry))
           b.feed(1)

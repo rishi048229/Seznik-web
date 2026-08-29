@@ -943,10 +943,10 @@ class ThermalPrinterServiceManager {
   private upiQrHtml(data: PrintSaleData): string {
     const payload = this.upiPayPayload(data);
     if (!payload) return '';
-    const url = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=1&data=${encodeURIComponent(payload)}`;
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(payload)}`;
     return `<div class="center" style="margin-top:8px;">
       <div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY Rs.${data.grandTotal.toFixed(2)}</div>
-      <img src="${url}" width="130" height="130" alt="UPI payment QR" style="display:inline-block;" />
+      <img src="${url}" width="120" height="120" alt="UPI payment QR" style="display:inline-block;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;" />
     </div>`;
   }
 
@@ -2056,10 +2056,10 @@ class ThermalPrinterServiceManager {
             const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 70 : 95;
 
             if (isQr) {
-              const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize * 2}x${qrSize * 2}&data=${encodeURIComponent(rawVal)}&margin=0`;
+              const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${Math.max(qrSize * 2, 240)}x${Math.max(qrSize * 2, 240)}&data=${encodeURIComponent(rawVal)}&margin=4`;
               return `
                 <div style="text-align: ${align}; margin: 8px 0;">
-                  <img src="${qrApiUrl}" width="${qrSize}" height="${qrSize}" alt="QR Code" style="display: inline-block; image-rendering: pixelated;" />
+                  <img src="${qrApiUrl}" width="${qrSize}" height="${qrSize}" alt="QR Code" style="display: inline-block; image-rendering: pixelated; background: #fff; padding: 4px; border: 1px solid #e2e8f0; border-radius: 6px;" />
                 </div>`;
             } else {
               return `

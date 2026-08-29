@@ -253,7 +253,7 @@ export function CustomReceiptMockup({
                     color="#000000"
                     backgroundColor="#FFFFFF"
                     ecl="M"
-                    quietZone={2}
+                    quietZone={6}
                   />
                 </View>
               </View>
