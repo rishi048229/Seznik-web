@@ -30,6 +30,20 @@ const controlStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const pageBtnStyle = (disabled: boolean): React.CSSProperties => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '32px',
+  height: '32px',
+  borderRadius: '6px',
+  border: '1px solid var(--border-color)',
+  background: 'var(--bg-main)',
+  color: disabled ? 'var(--text-muted)' : 'var(--text-main)',
+  opacity: disabled ? 0.4 : 1,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+});
+
 const CATEGORIES = Array.from(new Set(SEZNIK_WEBSITE_PRODUCTS.map((p) => p.categoryName))).sort();
 
 const PRODUCT_URL_BY_ID = new Map(SEZNIK_WEBSITE_PRODUCTS.map((p) => [p.id, p.productUrl]));
@@ -297,34 +311,79 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ items, total, onRefr
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
           </span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {[
-              { icon: ChevronsLeft, disabled: currentPage <= 1, onClick: () => setCurrentPage(1) },
-              { icon: ChevronLeft, disabled: currentPage <= 1, onClick: () => setCurrentPage((p) => p - 1) },
-              { icon: ChevronRight, disabled: currentPage >= totalPages, onClick: () => setCurrentPage((p) => p + 1) },
-              { icon: ChevronsRight, disabled: currentPage >= totalPages, onClick: () => setCurrentPage(totalPages) },
-            ].map(({ icon: Icon, disabled, onClick }, idx) => (
-              <button
-                key={idx}
-                type="button"
-                disabled={disabled}
-                onClick={onClick}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-main)',
-                  opacity: disabled ? 0.4 : 1,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                }}
-              >
-                <Icon size={16} />
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage <= 1}
+              style={pageBtnStyle(currentPage <= 1)}
+              title="First page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              style={pageBtnStyle(currentPage <= 1)}
+              title="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((pageNumber, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev && pageNumber - prev > 1;
+                const isActive = pageNumber === currentPage;
+
+                return (
+                  <React.Fragment key={pageNumber}>
+                    {showEllipsis && (
+                      <span style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>…</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(pageNumber)}
+                      style={{
+                        minWidth: '32px',
+                        height: '32px',
+                        padding: '0 8px',
+                        borderRadius: '6px',
+                        border: isActive ? 'none' : '1px solid var(--border-color)',
+                        background: isActive ? 'var(--accent-blue)' : 'var(--bg-main)',
+                        color: isActive ? '#FFFFFF' : 'var(--text-main)',
+                        fontWeight: isActive ? 700 : 500,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {pageNumber}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              style={pageBtnStyle(currentPage >= totalPages)}
+              title="Next page"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage >= totalPages}
+              style={pageBtnStyle(currentPage >= totalPages)}
+              title="Last page"
+            >
+              <ChevronsRight size={16} />
+            </button>
           </div>
         </div>
       )}
