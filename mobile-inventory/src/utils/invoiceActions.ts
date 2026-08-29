@@ -1,6 +1,5 @@
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import type { Sale } from '@/types/sale';
@@ -110,6 +109,22 @@ export async function printInvoiceThermal(
   return printInvoiceReceipt(sale, storeProfile, '58mm', {}, connectionState);
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 export async function saveInvoicePdfLocally(
   sale: Sale,
   storeProfile: StoreProfileWithSettings,
@@ -117,7 +132,11 @@ export async function saveInvoicePdfLocally(
 ): Promise<string> {
   const saleData = saleToPrintSaleData(sale, storeProfile);
   const html = ThermalPrinterService.generateA4InvoiceHtml(saleData, options);
-  const { uri: tempUri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
+  const { uri: tempUri } = await withTimeout(
+    Print.printToFileAsync({ html, width: 595, height: 842 }),
+    12000,
+    'PDF generate'
+  );
   await FileSystem.makeDirectoryAsync(INVOICE_PDF_DIR, { intermediates: true }).catch(() => {});
 
   const safeName = sale.invoiceNumber.replace(/[^\w.-]+/g, '_');
@@ -136,37 +155,30 @@ export async function saveInvoicePdfLocally(
   return destUri;
 }
 
-export async function openInvoicePdf(uri: string, invoiceNumber?: string) {
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'application/pdf',
-      UTI: 'com.adobe.pdf',
-      dialogTitle: invoiceNumber ? `Invoice #${invoiceNumber}` : 'Invoice',
-    });
-    return;
-  }
-
-  Alert.alert('Invoice Saved', `PDF saved on this device:\n${uri}`);
+/** Save the A4 invoice PDF on-device. Does not open the share sheet. */
+export async function downloadInvoicePdf(
+  sale: Sale,
+  storeProfile: StoreProfileWithSettings,
+  options: ReceiptPrintOptions = {}
+): Promise<string> {
+  return saveInvoicePdfLocally(sale, storeProfile, options);
 }
 
-/** Save the A4 invoice PDF, then open it immediately. */
 export async function saveAndOpenInvoicePdf(
   sale: Sale,
   storeProfile: StoreProfileWithSettings,
   options: ReceiptPrintOptions = {}
 ): Promise<string> {
-  const destUri = await saveInvoicePdfLocally(sale, storeProfile, options);
-  await openInvoicePdf(destUri, sale.invoiceNumber);
-  return destUri;
+  return downloadInvoicePdf(sale, storeProfile, options);
 }
 
-/** Opens share sheet — prefer saveAndOpenInvoicePdf for on-device storage. */
-export async function downloadInvoicePdf(
+export function getA4InvoiceHtml(
   sale: Sale,
   storeProfile: StoreProfileWithSettings,
   options: ReceiptPrintOptions = {}
-) {
-  return saveAndOpenInvoicePdf(sale, storeProfile, options);
+): string {
+  const saleData = saleToPrintSaleData(sale, storeProfile);
+  return ThermalPrinterService.generateA4InvoiceHtml(saleData, options);
 }
 
 export async function printInvoiceA4(
@@ -176,4 +188,25 @@ export async function printInvoiceA4(
 ) {
   const saleData = saleToPrintSaleData(sale, storeProfile);
   await ThermalPrinterService.printA4Invoice(saleData, options);
+}
+
+export function shareInvoiceWhatsApp(sale: Sale, storeName?: string) {
+  const itemsSummary = (sale.items || [])
+    .map((it: any) => `• ${it.quantity}x ${it.productName || it.name || 'Item'} - ₹${(it.total || 0).toFixed(2)}`)
+    .join('\n');
+
+  const text =
+    `*Invoice Receipt: ${sale.invoiceNumber}*\n` +
+    `Store: *${storeName || 'Our Store'}*\n` +
+    `Date: ${new Date(sale.createdAt).toLocaleDateString('en-GB')}\n` +
+    (sale.customerName ? `Customer: ${sale.customerName}\n` : '') +
+    `\n*Items:*\n${itemsSummary}\n\n` +
+    `*Total Amount: ₹${(sale.grandTotal || 0).toFixed(2)}*\n` +
+    `Payment Mode: ${(sale.paymentMethod || 'cash').toUpperCase()}\n\n` +
+    `Thank you for your business!`;
+
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  Linking.openURL(url).catch(() => {
+    Alert.alert('Sharing Error', 'Unable to open WhatsApp.');
+  });
 }

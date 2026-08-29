@@ -11,7 +11,9 @@
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.rishi048229.seznikapp",
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow Seznik POS to scan barcodes and the login QR from your dashboard."
+        "NSCameraUsageDescription": "Allow Seznik POS to scan barcodes and the login QR from your dashboard.",
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {
@@ -21,12 +23,15 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.rishi048229.seznikapp",
+      "requestLegacyExternalStorage": true,
       "permissions": [
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {

@@ -26,6 +26,7 @@ import {
   Printer,
   Download,
   Eye,
+  Share2,
   Calendar,
   SlidersHorizontal,
   Bluetooth,
@@ -36,7 +37,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
-import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
+import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
@@ -44,12 +45,11 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
-import type { PrintSaleData } from '@/services/PrinterService';
 import {
   formatInvoiceDateTime,
   printInvoiceReceipt,
-  saveAndOpenInvoicePdf,
-  saleToPrintSaleData,
+  downloadInvoicePdf,
+  shareInvoiceWhatsApp,
 } from '@/utils/invoiceActions';
 import {
   DateRangePreset,
@@ -100,8 +100,8 @@ export default function InvoicesTabScreen() {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [showSortMenu, setShowSortMenu] = useState(false);
 
-  const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
-  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [previewSale, setPreviewSale] = useState<Sale | null>(null);
+  const [showA4Preview, setShowA4Preview] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [pendingPrintSale, setPendingPrintSale] = useState<Sale | null>(null);
   const [busySaleId, setBusySaleId] = useState<string | null>(null);
@@ -184,13 +184,10 @@ export default function InvoicesTabScreen() {
     storeProfile,
   ]);
 
-  const openReceiptPreview = useCallback(
-    (sale: Sale) => {
-      setPreviewSaleData(saleToPrintSaleData(sale, storeProfile));
-      setShowReceiptPreview(true);
-    },
-    [storeProfile]
-  );
+  const openA4Preview = useCallback((sale: Sale) => {
+    setPreviewSale(sale);
+    setShowA4Preview(true);
+  }, []);
 
   const handlePrint = async (sale: Sale) => {
     if (connectionState !== 'connected') {
@@ -226,19 +223,11 @@ export default function InvoicesTabScreen() {
     }
   };
 
-  const handleDownload = async (sale: Sale) => {
-    setBusySaleId(sale.id);
-    setBusyAction('download');
-    try {
-      const template = getTemplateById(activeTemplateId);
-      const customTemplate = customTemplates?.find((item) => item.id === activeCustomTemplateId) || null;
-      await saveAndOpenInvoicePdf(sale, storeProfile, { template, customTemplate });
-    } catch (err: any) {
-      Alert.alert(t('pdfError', 'PDF Error'), err?.message || 'Failed to save PDF');
-    } finally {
-      setBusySaleId(null);
-      setBusyAction(null);
-    }
+  const handleDownload = (sale: Sale) => {
+    const template = getTemplateById(activeTemplateId);
+    const customTemplate = customTemplates?.find((item) => item.id === activeCustomTemplateId) || null;
+    openA4Preview(sale);
+    downloadInvoicePdf(sale, storeProfile, { template, customTemplate }).catch(() => {});
   };
 
   const getPaymentIcon = (method: string) => {
@@ -317,7 +306,7 @@ export default function InvoicesTabScreen() {
           { label: t('cash', 'Cash'), value: 'cash' },
           { label: t('upi', 'UPI'), value: 'upi' },
           { label: t('card', 'Card'), value: 'card' },
-          { label: t('udhaar', 'Udhaar'), value: 'credit' },
+          { label: t('credit', 'Credit'), value: 'credit' },
         ].map((filter) => {
           const active = selectedPaymentMethod === filter.value;
           return (
@@ -422,61 +411,73 @@ export default function InvoicesTabScreen() {
                 const isBusy = busySaleId === item.id;
                 return (
                   <View style={[styles.invoiceCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                    <TouchableOpacity style={styles.invoiceMain} onPress={() => openReceiptPreview(item)} activeOpacity={0.85}>
-                      <View style={{ flex: 1 }}>
+                    <View style={styles.invoiceRow}>
+                      <TouchableOpacity style={styles.invoiceMain} onPress={() => openA4Preview(item)} activeOpacity={0.85}>
                         <View style={styles.invoiceTopRow}>
-                          <Text style={[styles.invoiceNumber, { color: theme.textPrimary }]}>{item.invoiceNumber}</Text>
+                          <Text style={[styles.invoiceNumber, { color: theme.textPrimary }]} numberOfLines={1}>
+                            {item.invoiceNumber}
+                          </Text>
                           <View style={styles.paymentBadge}>
                             {getPaymentIcon(item.paymentMethod)}
                             <Text style={styles.paymentBadgeText}>{item.paymentMethod.toUpperCase()}</Text>
                           </View>
                         </View>
-                        <Text style={[styles.invoiceMeta, { color: theme.textSecondary }]}>
+                        <Text style={[styles.invoiceMeta, { color: theme.textSecondary }]} numberOfLines={1}>
                           {formatInvoiceDateTime(item.createdAt)}
                           {item.customerName ? ` · ${item.customerName}` : ''}
+                          {` · ${item.items?.length || 0} items`}
                         </Text>
-                        <Text style={[styles.itemCount, { color: theme.textSecondary }]}>{item.items?.length || 0} items</Text>
-                      </View>
+                      </TouchableOpacity>
+
                       <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>{formatCurrency(item.grandTotal)}</Text>
-                    </TouchableOpacity>
 
-                    <View style={[styles.actionRow, { borderTopColor: theme.borderColor }]}>
-                      <TouchableOpacity
-                        onPress={() => openReceiptPreview(item)}
-                        style={[styles.iconActionBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('view', 'View')}
-                      >
-                        <Eye size={18} color={theme.textPrimary} />
-                      </TouchableOpacity>
+                      <View style={styles.iconActions}>
+                        <TouchableOpacity
+                          onPress={() => openA4Preview(item)}
+                          style={[styles.iconActionBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('view', 'View')}
+                        >
+                          <Eye size={15} color={theme.textPrimary} />
+                        </TouchableOpacity>
 
-                      <TouchableOpacity
-                        onPress={() => handleDownload(item)}
-                        disabled={isBusy}
-                        style={[styles.iconActionBtn, styles.downloadIconBtn]}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('download', 'Download')}
-                      >
-                        {isBusy && busyAction === 'download' ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <Download size={18} color="#FFFFFF" />
-                        )}
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDownload(item)}
+                          disabled={isBusy}
+                          style={[styles.iconActionBtn, styles.downloadIconBtn]}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('download', 'Download')}
+                        >
+                          {isBusy && busyAction === 'download' ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Download size={15} color="#FFFFFF" />
+                          )}
+                        </TouchableOpacity>
 
-                      <TouchableOpacity
-                        onPress={() => handlePrint(item)}
-                        disabled={isBusy}
-                        style={[styles.iconActionBtn, styles.printIconBtn]}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('print', 'Print')}
-                      >
-                        {isBusy && busyAction === 'print' ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <Printer size={18} color="#FFFFFF" />
-                        )}
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => shareInvoiceWhatsApp(item, storeProfile.storeName)}
+                          style={[styles.iconActionBtn, styles.whatsappIconBtn]}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('shareWhatsApp', 'Share on WhatsApp')}
+                        >
+                          <Share2 size={15} color="#FFFFFF" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => handlePrint(item)}
+                          disabled={isBusy}
+                          style={[styles.iconActionBtn, styles.printIconBtn]}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('print', 'Print')}
+                        >
+                          {isBusy && busyAction === 'print' ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Printer size={15} color="#FFFFFF" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 );
@@ -494,13 +495,12 @@ export default function InvoicesTabScreen() {
           )}
         </View>
 
-        <ReceiptPreviewModal
-          visible={showReceiptPreview}
-          saleData={previewSaleData}
-          autoCloseAfterPrint={false}
+        <A4InvoicePreviewModal
+          visible={showA4Preview}
+          sale={previewSale}
           onClose={() => {
-            setShowReceiptPreview(false);
-            setPreviewSaleData(null);
+            setShowA4Preview(false);
+            setPreviewSale(null);
           }}
         />
 
@@ -649,25 +649,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   customRangeText: { fontSize: 12, fontWeight: '700', flex: 1 },
-  invoiceCard: { borderRadius: 16, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
-  invoiceMain: { flexDirection: 'row', alignItems: 'flex-start', padding: 14 },
-  invoiceTopRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  invoiceNumber: { fontSize: 15, fontWeight: '900' },
-  paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(37,99,235,0.1)' },
-  paymentBadgeText: { fontSize: 9, fontWeight: '900', color: BRAND_COLORS.blue600, marginLeft: 3 },
-  invoiceMeta: { fontSize: 11, marginTop: 4 },
-  itemCount: { fontSize: 10, marginTop: 2 },
-  invoiceAmount: { fontSize: 16, fontWeight: '900', marginLeft: 8 },
-  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  invoiceCard: { borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  invoiceRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, gap: 8 },
+  invoiceMain: { flex: 1, minWidth: 0 },
+  invoiceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  invoiceNumber: { fontSize: 13, fontWeight: '900', flexShrink: 1 },
+  paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5, backgroundColor: 'rgba(37,99,235,0.1)' },
+  paymentBadgeText: { fontSize: 8, fontWeight: '900', color: BRAND_COLORS.blue600, marginLeft: 3 },
+  invoiceMeta: { fontSize: 10, marginTop: 2 },
+  invoiceAmount: { fontSize: 13, fontWeight: '900' },
+  iconActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   iconActionBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   downloadIconBtn: { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
+  whatsappIconBtn: { backgroundColor: '#16A34A', borderColor: '#16A34A' },
   printIconBtn: { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.navyInk },
   emptyContainer: { paddingVertical: 60, alignItems: 'center' },
   emptyTitle: { fontSize: 16, fontWeight: '800', marginTop: 12 },

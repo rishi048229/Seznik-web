@@ -8,7 +8,6 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
-  Linking,
   Alert,
   StyleSheet,
   StatusBar,
@@ -50,7 +49,8 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
-import { printInvoiceA4, saveAndOpenInvoicePdf } from '@/utils/invoiceActions';
+import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
+import { printInvoiceA4, downloadInvoicePdf, shareInvoiceWhatsApp } from '@/utils/invoiceActions';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
@@ -65,7 +65,7 @@ export default function SalesHistoryScreen() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [isPrintingThermal, setIsPrintingThermal] = useState(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfPreviewSale, setPdfPreviewSale] = useState<Sale | null>(null);
 
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -139,15 +139,9 @@ export default function SalesHistoryScreen() {
     }
   };
 
-  const handleDownloadPdf = async (sale: Sale) => {
-    setIsDownloadingPdf(true);
-    try {
-      await saveAndOpenInvoicePdf(sale, storeProfile);
-    } catch (err: any) {
-      Alert.alert('PDF Error', err?.message || 'Failed to generate invoice PDF');
-    } finally {
-      setIsDownloadingPdf(false);
-    }
+  const handleDownloadPdf = (sale: Sale) => {
+    setPdfPreviewSale(sale);
+    downloadInvoicePdf(sale, storeProfile).catch(() => {});
   };
 
   const handlePrintA4 = async (sale: Sale) => {
@@ -159,20 +153,7 @@ export default function SalesHistoryScreen() {
   };
 
   const handleShareWhatsApp = (sale: Sale) => {
-    const itemsSummary = (sale.items || [])
-      .map((it: any) => `• ${it.quantity}x ${it.productName || 'Item'} - ₹${(it.total || 0).toFixed(2)}`)
-      .join('\n');
-
-    const text = `*Invoice Receipt: ${sale.invoiceNumber}*\nStore: *${storeProfile.storeName || 'Our Store'}*\nDate: ${new Date(
-      sale.createdAt
-    ).toLocaleDateString('en-GB')}\n\n*Items:*\n${itemsSummary}\n\n*Total Amount: ₹${sale.grandTotal.toFixed(
-      2
-    )}*\nPayment Mode: ${sale.paymentMethod.toUpperCase()}\n\nThank you for your business! 🙏`;
-
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Sharing Error', 'Unable to open WhatsApp.');
-    });
+    shareInvoiceWhatsApp(sale, storeProfile.storeName);
   };
 
   const handleDeleteSale = (sale: Sale) => {
@@ -287,7 +268,7 @@ export default function SalesHistoryScreen() {
               { label: t('cash', 'Cash'), value: 'cash' },
               { label: t('upi', 'UPI'), value: 'upi' },
               { label: t('card', 'Card'), value: 'card' },
-              { label: t('udhaar', 'Udhaar'), value: 'credit' },
+              { label: t('credit', 'Credit'), value: 'credit' },
             ].map((filter) => {
               const active = selectedPaymentMethod === filter.value;
               return (
@@ -491,14 +472,9 @@ export default function SalesHistoryScreen() {
 
                       <TouchableOpacity
                         onPress={() => handleDownloadPdf(selectedSale)}
-                        disabled={isDownloadingPdf}
                         style={[styles.actionBtnSecondary, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.25)' }]}
                       >
-                        {isDownloadingPdf ? (
-                          <ActivityIndicator color={BRAND_COLORS.blue600} size="small" />
-                        ) : (
-                          <Download size={16} color={BRAND_COLORS.blue600} />
-                        )}
+                        <Download size={16} color={BRAND_COLORS.blue600} />
                         <Text style={[styles.actionBtnSecondaryText, { color: BRAND_COLORS.blue600 }]}>Download PDF</Text>
                       </TouchableOpacity>
                     </View>
@@ -538,6 +514,12 @@ export default function SalesHistoryScreen() {
         <DirectPrinterConnectModal
           visible={showPrinterModal}
           onClose={() => setShowPrinterModal(false)}
+        />
+
+        <A4InvoicePreviewModal
+          visible={!!pdfPreviewSale}
+          sale={pdfPreviewSale}
+          onClose={() => setPdfPreviewSale(null)}
         />
       </View>
     </ScreenBackground>
