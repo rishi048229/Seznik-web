@@ -16,6 +16,7 @@ import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
+import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -52,6 +53,8 @@ export const POSPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
+  const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [isScanMode, setIsScanMode] = useState(false)
@@ -360,7 +363,8 @@ export const POSPage = () => {
           ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
           : ''
 
-        setIsPrintModalOpen(true)
+        setCurrentSaleForReceipt(printedSale)
+        setIsRealisticReceiptOpen(true)
         if (shouldAutoPrint(settings)) {
           void printCompletedSale({
             sale: printedSale,
@@ -377,6 +381,39 @@ export const POSPage = () => {
         toast.error(msg)
       },
     })
+  }
+
+  const handlePreviewCurrentBill = () => {
+    if (items.length === 0) {
+      toast.error('Add items to cart to preview receipt')
+      return
+    }
+    const tempSale: Partial<Sale> = {
+      id: `draft-${Date.now()}`,
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      createdAt: new Date().toISOString(),
+      subtotal: totals.subtotal,
+      totalDiscount: orderDiscountAmount,
+      totalTax: taxAmount,
+      grandTotal: finalTotal,
+      paymentMethod: method,
+      amountPaid: amountPaidNum || finalTotal,
+      changeReturned: change,
+      isQuickBill: false,
+      items: items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: item.taxRate || 0,
+        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * (item.taxRate || 0)) / 100,
+        total: item.sellingPrice * item.quantity - item.discount,
+      })),
+      customerId: selectedCustomer,
+    }
+    setCurrentSaleForReceipt(tempSale)
+    setIsRealisticReceiptOpen(true)
   }
 
   // Build sale object from lastSaleData (cart items are already cleared)
@@ -993,18 +1030,29 @@ export const POSPage = () => {
             </div>
           )}
 
-          {/* Payment Button */}
-          <div data-tour="pos-checkout-btn">
+          {/* Payment & Preview Action Buttons */}
+          <div data-tour="pos-checkout-btn" className="space-y-2">
             <Button
               onClick={() => {
                 setAmountPaid(finalTotal.toString())
                 setIsPaymentOpen(true)
               }}
               disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
             >
               <Printer size={18} className="mr-2" />
               {t('pos.completeAndPrint')}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviewCurrentBill}
+              disabled={items.length === 0}
+              leftIcon={<FileText size={15} className="text-indigo-600" />}
+              className="w-full h-9 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            >
+              Preview &amp; Edit Bill (Live Receipt)
             </Button>
           </div>
         </div>
@@ -1150,72 +1198,17 @@ export const POSPage = () => {
         </div>
       </Modal>
 
-      {/* Print Format Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => { setIsPrintModalOpen(false); }} title={t('pos.printReceiptTitle')} size="sm">
-        <div className="space-y-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
-
-          {/* Show / Hide Tax Info Toggle */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">Show Tax &amp; GST Info</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Include GST columns &amp; tax breakdown in bill</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showTaxBreakdown}
-                onChange={(e) => setShowTaxBreakdown(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => handlePrint('a4')}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <FileText size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
-                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
-              </div>
-            </button>
-            <button
-              onClick={() => handlePrint('thermal')}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
-                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
-              </div>
-            </button>
-          </div>
-
-          {blePrinter.isSupported && (
-            <Button
-              variant="outline"
-              className="w-full"
-              loading={isBlePrinting}
-              leftIcon={<Bluetooth size={16} />}
-              onClick={handlePrintBluetooth}
-            >
-              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
-            </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            onClick={() => { setIsPrintModalOpen(false); }}
-            className="w-full"
-          >
-            {t('pos.skipPrinting')}
-          </Button>
-        </div>
-      </Modal>
+      {/* Hyper-Realistic & Editable Receipt Preview Modal */}
+      <RealisticReceiptModal
+        isOpen={isRealisticReceiptOpen}
+        onClose={() => setIsRealisticReceiptOpen(false)}
+        sale={currentSaleForReceipt}
+        settings={settings}
+        initialCustomerName={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : ''}
+        initialCustomerPhone={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.phone : ''}
+        blePrinter={blePrinter}
+        onDone={finishPrintFlow}
+      />
 
       {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}
       <QuickEditProductModal

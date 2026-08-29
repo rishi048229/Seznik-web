@@ -13,8 +13,9 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
+import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw, Edit2, Check, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -111,6 +112,9 @@ export const POSLitePage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
+  const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const blePrinter = useBlePrinter()
@@ -541,7 +545,8 @@ export const POSLitePage = () => {
           ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
           : ''
 
-        setIsPrintModalOpen(true)
+        setCurrentSaleForReceipt(printedSale)
+        setIsRealisticReceiptOpen(true)
         if (shouldAutoPrint(settings)) {
           void printCompletedSale({
             sale: printedSale,
@@ -558,6 +563,51 @@ export const POSLitePage = () => {
         toast.error(msg)
       },
     })
+  }
+
+  const handleUpdateCartItem = (itemId: string, patch: Partial<CartItem>) => {
+    setItems(prev => prev.map(it => {
+      if (it.id !== itemId) return it
+      const updated = { ...it, ...patch }
+      const q = updated.quantity || 1
+      const p = updated.sellingPrice || 0
+      const d = updated.discount || 0
+      updated.total = Math.max(0, q * p - d)
+      return updated
+    }))
+  }
+
+  const handlePreviewCurrentBill = () => {
+    if (items.length === 0) {
+      toast.error('Add items to cart to preview receipt')
+      return
+    }
+    const tempSale: Partial<Sale> = {
+      id: `draft-${Date.now()}`,
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      createdAt: new Date().toISOString(),
+      subtotal: subtotal,
+      totalDiscount: orderDiscountAmount,
+      totalTax: taxAmount,
+      grandTotal: finalTotal,
+      paymentMethod: method,
+      amountPaid: amountPaidNum || finalTotal,
+      changeReturned: change,
+      isQuickBill: true,
+      items: items.map(item => ({
+        productId: item.id,
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: item.taxRate || 0,
+        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * (item.taxRate || 0)) / 100,
+        total: item.total,
+      })),
+      customerId: selectedCustomer,
+    }
+    setCurrentSaleForReceipt(tempSale)
+    setIsRealisticReceiptOpen(true)
   }
 
   const buildTempSale = (): Sale | null => {
@@ -1038,42 +1088,93 @@ export const POSLitePage = () => {
             </div>
           ) : (
             items.map(item => (
-              <div key={item.id} className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
-                    <p className="text-xs text-gray-400">
-                      {formatINR(item.sellingPrice)} {item.taxRate > 0 && `(+${item.taxRate}% GST)`}
-                    </p>
+              <div key={item.id} className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-700/60 last:border-0">
+                {editingItemId === item.id ? (
+                  <div className="space-y-2 bg-blue-50/50 dark:bg-blue-950/30 p-2.5 rounded-xl border border-blue-200 dark:border-blue-800/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <Input
+                        value={item.productName}
+                        onChange={e => handleUpdateCartItem(item.id, { productName: e.target.value })}
+                        placeholder="Item Name"
+                        className="h-7 text-xs font-semibold flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingItemId(null)}
+                        className="p-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded"
+                        title="Done editing"
+                      >
+                        <Check size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Unit Price (₹)</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.sellingPrice}
+                          onChange={e => handleUpdateCartItem(item.id, { sellingPrice: parseFloat(e.target.value) || 0 })}
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Line Total</span>
+                        <div className="h-7 flex items-center font-bold text-gray-900 dark:text-gray-100">
+                          {formatINR(item.total)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p className="font-bold text-sm text-gray-900 dark:text-gray-100 flex-shrink-0">{formatINR(item.total)}</p>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => updateQty(item.id, item.quantity - 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateQty(item.id, item.quantity + 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                    className="text-gray-400 hover:text-red-500 p-1 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
+                        <p className="text-xs text-gray-400">
+                          {formatINR(item.sellingPrice)} {item.taxRate > 0 && `(+${item.taxRate}% GST)`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{formatINR(item.total)}</p>
+                        <button
+                          type="button"
+                          onClick={() => setEditingItemId(item.id)}
+                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Edit item line"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateQty(item.id, item.quantity - 1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateQty(item.id, item.quantity + 1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                        className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))
           )}
@@ -1126,15 +1227,26 @@ export const POSLitePage = () => {
             </div>
           )}
 
-          {/* Payment Button */}
-          <div data-tour="pos-lite-checkout-btn">
+          {/* Payment & Preview Action Buttons */}
+          <div data-tour="pos-lite-checkout-btn" className="space-y-2">
             <Button
               onClick={() => setIsPaymentOpen(true)}
               disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
             >
               <Printer size={18} className="mr-2" />
               {t('pos.completeAndPrint')}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviewCurrentBill}
+              disabled={items.length === 0}
+              leftIcon={<FileText size={15} className="text-indigo-600" />}
+              className="w-full h-9 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            >
+              Preview &amp; Edit Bill (Live Receipt)
             </Button>
           </div>
         </div>
@@ -1278,75 +1390,17 @@ export const POSLitePage = () => {
         </div>
       </Modal>
 
-      {/* Print Modal */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">
-        <div className="space-y-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {completedInvoiceNumber && `${t('pos.invoicePrefix')} ${completedInvoiceNumber}`}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.selectPrintFormat')}</p>
-
-          {/* Show / Hide Tax Info Toggle */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">Show Tax &amp; GST Info</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Include GST columns &amp; tax breakdown in bill</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showTaxBreakdown}
-                onChange={(e) => setShowTaxBreakdown(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => handlePrint('a4')}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
-                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
-              </div>
-            </button>
-            <button
-              onClick={() => handlePrint('thermal')}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
-                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
-              </div>
-            </button>
-          </div>
-
-          {blePrinter.isSupported && (
-            <Button
-              variant="outline"
-              className="w-full"
-              loading={isBlePrinting}
-              leftIcon={<Bluetooth size={16} />}
-              onClick={handlePrintBluetooth}
-            >
-              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
-            </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            onClick={() => { setIsPrintModalOpen(false); setCompletedSaleId(''); setCompletedInvoiceNumber('') }}
-            className="w-full"
-          >
-            {t('pos.skipPrinting')}
-          </Button>
-        </div>
-      </Modal>
+      {/* Hyper-Realistic & Editable Receipt Preview Modal */}
+      <RealisticReceiptModal
+        isOpen={isRealisticReceiptOpen}
+        onClose={() => setIsRealisticReceiptOpen(false)}
+        sale={currentSaleForReceipt}
+        settings={settings}
+        initialCustomerName={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : ''}
+        initialCustomerPhone={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.phone : ''}
+        blePrinter={blePrinter}
+        onDone={finishPrintFlow}
+      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal

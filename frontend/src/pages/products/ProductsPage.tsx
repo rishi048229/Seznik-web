@@ -810,6 +810,36 @@ export const ProductsPage = () => {
           >
             {selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export Products'}
           </Button>
+
+          {isBleSupported && (
+            <button
+              type="button"
+              onClick={() => {
+                if (bleStatus !== 'connected') {
+                  connectBlePrinter()
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border shrink-0 whitespace-nowrap transition-all shadow-xs ${
+                bleStatus === 'connected'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                  : bleStatus === 'connecting'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 animate-pulse'
+                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100'
+              }`}
+            >
+              <Bluetooth size={14} className={bleStatus === 'connected' ? 'text-emerald-600' : 'text-gray-400'} />
+              <span>
+                {bleStatus === 'connected'
+                  ? `Printer: ${bleDeviceName || 'Connected'}`
+                  : bleStatus === 'connecting'
+                  ? 'Connecting Printer...'
+                  : 'Connect Label Printer'}
+              </span>
+              {bleStatus === 'connected' && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
