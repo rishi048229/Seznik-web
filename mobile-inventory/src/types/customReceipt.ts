@@ -28,8 +28,10 @@ export interface ImageReceiptEntry extends BaseReceiptEntry {
   type: 'image';
   imageUri?: string;
   imageBase64?: string;
+  /** Cloud / web-portal URL — same field the web receipt builder persists. */
+  imageURL?: string;
   align: 'left' | 'center' | 'right';
-  widthPercent: number; // e.g. 40, 60, 80, 100
+  widthPercent: number;
 }
 
 export interface TextSpecialReceiptEntry extends BaseReceiptEntry {
@@ -73,6 +75,8 @@ export interface TableReceiptEntry extends BaseReceiptEntry {
   tableType: 'simple' | 'advanced';
   showTaxColumn?: boolean;
   showDiscountColumn?: boolean;
+  /** Serial 1. 2. 3. on line items. Unset = on for restaurant/cafe, off otherwise. */
+  showItemNumbers?: boolean;
   columnHeaders?: {
     item?: string;
     qty?: string;
@@ -144,6 +148,9 @@ export const TEMPLATE_VARIABLES = [
   { key: '{{upi_qr}}', label: 'UPI QR String', sample: 'upi://pay?pa=store@upi' },
   { key: '{{bill_pdf_url}}', label: 'Digital Bill PDF URL', sample: 'https://api.seznik.com/receipt/INV-2026-0042' },
   { key: '{{footer_message}}', label: 'Thank You Message', sample: 'Thank you! Visit again.' },
+  { key: '{{token_no}}', label: 'Token / Order No', sample: '42' },
+  { key: '{{table_no}}', label: 'Table No', sample: '12' },
+  { key: '{{waiter_name}}', label: 'Waiter Name', sample: 'RAJ' },
 ];
 
 export const createDefaultReceiptTemplate = (name = 'Shop Custom Receipt'): CustomReceiptTemplate => {

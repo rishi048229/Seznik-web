@@ -89,6 +89,24 @@ describe('customReceiptEngine', () => {
     expect(amountLine).toBeDefined()
     expect(amountLine).not.toContain('Very Long Product')
   })
+
+  it('does not number line items unless the store is a restaurant or the table opts in', () => {
+    const tpl = createDefaultReceiptTemplate('Numbers')
+    const retail = compileCustomReceiptTextLines(tpl, SAMPLE_RECEIPT_CONTEXT, '58mm')
+    expect(retail.some((l) => l.startsWith('1. '))).toBe(false)
+
+    const restaurant = compileCustomReceiptTextLines(tpl, SAMPLE_RECEIPT_CONTEXT, '58mm', { isRestaurant: true })
+    expect(restaurant.some((l) => l.includes('1. Premium Basmati'))).toBe(true)
+  })
+
+  it('interpolates restaurant token and table fields', () => {
+    const out = interpolateReceiptVariables('Token {{token_no}} / TNo {{table_no}}', {
+      ...SAMPLE_RECEIPT_CONTEXT,
+      tokenNo: '42',
+      tableNo: '12',
+    })
+    expect(out).toBe('Token 42 / TNo 12')
+  })
 })
 
 describe('mergeReceiptConfig', () => {

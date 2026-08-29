@@ -5,6 +5,8 @@ import { RealisticReceiptModal } from "@/components/common/RealisticReceiptModal
 
 import { useCustomers } from "@/hooks/useCustomers";
 import { useSettings } from "@/hooks/useSettings";
+import { useAuth } from "@/contexts/AuthContext";
+import { isRestaurantBusiness } from "@/constants/businessTypes";
 import { useLocationStock } from "@/hooks/useLocations";
 import { LocationSelector } from "@/components/common/LocationSelector";
 import { UpiQrPanel } from "@/components/common/UpiQrPanel";
@@ -80,6 +82,8 @@ export const POSLitePage = () => {
   const { mutate: createSale, isPending: isCreating } = useCreateSale();
   const { data: customers } = useCustomers();
   const { data: settings } = useSettings();
+  const { user } = useAuth();
+  const isRestaurant = isRestaurantBusiness(user?.businessType);
   const { data: products } = useProducts();
 
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -542,6 +546,7 @@ export const POSLitePage = () => {
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: "GST",
       invoiceConfig: settings?.invoiceConfig,
+      isRestaurant,
     });
 
     printReceipt(
@@ -574,6 +579,7 @@ export const POSLitePage = () => {
         customerName,
         invoiceConfig: settings?.invoiceConfig,
         businessLogoURL: settings?.businessLogoURL,
+        isRestaurant,
       });
       await blePrinter.print(bytes);
       finishPrintFlow();

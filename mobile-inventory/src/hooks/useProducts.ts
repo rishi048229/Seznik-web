@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { productsApi } from '@/api/products';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
 import { writeCatalogCache } from '@/services/catalogCache';
 import { productsQueryKey } from '@/services/prefetchAppData';
 import { CreateProductPayload, Product, StockAdjustmentPayload } from '@/types/product';
@@ -17,6 +18,8 @@ export function useProducts() {
       if (userId) {
         await writeCatalogCache(userId, list);
       }
+      // Check conditional statements and trigger low-stock notifications
+      useNotificationStore.getState().evaluateStockConditions(list).catch(() => {});
       return list;
     },
     enabled: !!userId,

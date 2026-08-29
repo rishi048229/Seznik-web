@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, Platform } from 'react-native';
+import QRCodeSVG from 'react-native-qrcode-svg';
 import { isRestaurantLayout, ReceiptTemplate } from '@/constants/receiptTemplates';
 import { parseGstBilling, shouldPrintGstBreakdown } from '@/constants/gstBilling';
 import { DEFAULT_RESTAURANT_PRESETS, resolveBillCharges } from '@/constants/restaurantBilling';
+import { buildUpiPayString } from '@/utils/billQrService';
 
 interface MockupItem {
   productName: string;
@@ -19,6 +21,7 @@ interface ReceiptTemplateMockupProps {
   storeAddress?: string;
   storePhone?: string;
   storeLogoUrl?: string;
+  upiId?: string;
   items?: MockupItem[];
   subtotal?: number;
   totalDiscount?: number;
@@ -45,6 +48,7 @@ export function ReceiptTemplateMockup({
   storeAddress,
   storePhone,
   storeLogoUrl,
+  upiId,
   items: propItems,
   subtotal: propSubtotal,
   totalDiscount = 0,
@@ -94,10 +98,14 @@ export function ReceiptTemplateMockup({
   const taxable = Math.max(0, subtotal - totalDiscount);
   const halfTax = totalTax / 2;
 
+  const upiPayPayload = upiId ? buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber) : '';
+
   return (
     <View style={styles.paper}>
       {storeLogoUrl ? (
-        <Image source={{ uri: storeLogoUrl }} style={styles.storeLogo} resizeMode="contain" />
+        <View style={styles.logoContainer}>
+          <Image source={{ uri: storeLogoUrl }} style={styles.storeLogo} resizeMode="contain" />
+        </View>
       ) : (
         <View style={[styles.iconBadge, { backgroundColor: template.accentColor }]}>
           <Text style={styles.iconEmoji}>{template.emoji}</Text>
@@ -168,6 +176,26 @@ export function ReceiptTemplateMockup({
           </View>
         </>
       )}
+
+      {upiPayPayload ? (
+        <>
+          <View style={styles.divider} />
+          <View style={{ alignItems: 'center', marginVertical: 6 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#0F172A', marginBottom: 5, letterSpacing: 0.5 }}>
+              SCAN TO PAY ₹{grandTotal.toFixed(2)} VIA UPI
+            </Text>
+            <View style={{ backgroundColor: '#FFFFFF', padding: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' }}>
+              <QRCodeSVG
+                value={upiPayPayload}
+                size={120}
+                color="#000000"
+                backgroundColor="#FFFFFF"
+                ecl="M"
+              />
+            </View>
+          </View>
+        </>
+      ) : null}
 
       <View style={styles.divider} />
       <Text style={[styles.footer, { color: template.accentColor }]}>{template.footerMessage}</Text>
@@ -406,7 +434,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#CBD5E1',
   },
   iconBadge: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  storeLogo: { width: 72, height: 72, borderRadius: 12, marginBottom: 8, backgroundColor: '#FFFFFF' },
+  logoContainer: { width: '100%', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  storeLogo: { maxWidth: 180, maxHeight: 56, width: 180, height: 56, backgroundColor: 'transparent' },
   iconEmoji: { fontSize: 22, lineHeight: 26 },
   storeName: { fontSize: 15, fontWeight: '900', color: '#0F172A', textAlign: 'center' },
   tagline: { fontSize: 11, fontWeight: '700', marginTop: 2, textAlign: 'center' },

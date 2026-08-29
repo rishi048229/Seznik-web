@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -74,6 +74,7 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import ThermalPrinterService from '@/services/PrinterService';
 import {
   buildReceiptPrintOptions,
+  buildTestReceiptPrintOptions,
   generateProvisionalInvoice,
   printSaleReceiptNow,
 } from '@/utils/fastSaleCheckout';
@@ -98,6 +99,8 @@ import type { Product } from '@/types/product';
 import { useTranslation } from '@/store/useLanguageStore';
 import { RevenueTrendChart } from '@/components/dashboard/RevenueTrendChart';
 import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -119,6 +122,13 @@ export default function DashboardScreen() {
   const [timeframe, setTimeframe] = useState<'month' | 'daily' | 'monthly'>('month');
   const { trend, isLoading: isTrendLoading, refetch: refetchTrend } = useRevenueTrend(timeframe);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  // Automatically evaluate and notify low-stock items on dashboard data load
+  useEffect(() => {
+    if (stats?.lowStockProducts && stats.lowStockProducts.length > 0) {
+      useNotificationStore.getState().evaluateStockConditions(stats.lowStockProducts).catch(() => {});
+    }
+  }, [stats?.lowStockProducts]);
 
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true);
@@ -269,6 +279,7 @@ export default function DashboardScreen() {
       storeGstin: settings?.businessGSTIN || storeProfile.storeGstin,
       storeLogoUrl: settings?.businessLogoURL || storeProfile.storeLogoUrl,
       upiId: settings?.upiId || storeProfile.upiId,
+      footerMessage: storeProfile.footerMessage,
     });
 
     // Close the form and print immediately — don't wait on the server round-trip.
@@ -433,7 +444,7 @@ export default function DashboardScreen() {
   ) => {
     setRestockingId(product.id);
     try {
-      const newStock = (product.currentStock || 0) + delta;
+      const newStock = Math.max(0, (product.currentStock || 0) + delta);
       await productsApi.updateProduct(product.id, { currentStock: newStock });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       // The dashboard's own low-stock list comes from the reports query, so it
@@ -474,25 +485,20 @@ export default function DashboardScreen() {
       return;
     }
     try {
-      await ThermalPrinterService.printSaleReceipt({
-        storeName: settings?.businessName || 'SEZNIK TEST STORE',
-        storeAddress: settings?.businessAddress || 'Thermal Print Diagnostic',
-        storePhone: settings?.businessPhone || '+91 98765 43210',
-        invoiceNumber: `TEST-${Date.now().toString().slice(-4)}`,
-        date: new Date().toLocaleDateString('en-GB'),
-        customerName: 'Hardware Diagnostic Check',
-        items: [
-          { productName: 'Alignment & Text Density', quantity: 1, unitPrice: 100, total: 100 },
-          { productName: 'Paper Feed Speed Test', quantity: 1, unitPrice: 50, total: 50 },
-        ],
-        subtotal: 150,
-        totalTax: 0,
-        totalDiscount: 0,
-        grandTotal: 150,
-        amountPaid: 150,
-        changeReturned: 0,
-        paymentMethod: 'TEST PRINT',
-      });
+      await ThermalPrinterService.printTestReceipt(
+        paperWidth,
+        buildTestReceiptPrintOptions({
+          activeTemplateId,
+          customTemplates,
+          activeCustomTemplateId,
+          enableBillQrCode,
+          topMargin,
+          autoCut,
+          fontSize,
+          settings,
+          copies: 1,
+        })
+      );
       Alert.alert('Test Receipt Sent! 🖨️', 'Diagnostic print job sent to your thermal printer.');
     } catch (err: any) {
       Alert.alert('Print Error', err?.message || 'Failed to print test receipt.');
@@ -524,6 +530,8 @@ export default function DashboardScreen() {
 
           {/* Quick Header Actions Strip */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <NotificationBell style={{ marginRight: 6 }} />
+
             <TouchableOpacity
               onPress={() => {
                 if (!permission?.granted) requestPermission();

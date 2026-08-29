@@ -53,6 +53,8 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { NotificationModal } from '@/components/notifications/NotificationModal';
 
 const SUPPORT_PHONE = '+918237869618';
 const SUPPORT_EMAIL = 'tech_support@seznik.in';
@@ -111,6 +113,14 @@ export default function SettingsScreen() {
 
   const [rawPickedLogo, setRawPickedLogo] = useState<string | null>(null);
   const [showLogoBgModal, setShowLogoBgModal] = useState<boolean>(false);
+  const [showNotifHistoryModal, setShowNotifHistoryModal] = useState<boolean>(false);
+
+  const {
+    preferences: notifPrefs,
+    updatePreferences: updateNotifPrefs,
+    sendTestNotification,
+    unreadCount,
+  } = useNotificationStore();
 
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -231,6 +241,8 @@ export default function SettingsScreen() {
             ? 'Business Profile'
             : activeSection === 'permissions'
             ? 'Staff Permissions'
+            : activeSection === 'notifications'
+            ? 'Notifications & Alerts'
             : activeSection === 'support'
             ? 'Help & Support'
             : t('appLanguage', 'Language & Locale')}
@@ -270,6 +282,7 @@ export default function SettingsScreen() {
               {[
                 { id: 'profile', icon: Building, label: 'Business Profile', color: BRAND_COLORS.blue600 },
                 { id: 'permissions', icon: Users, label: 'Staff Permissions', color: '#F59E0B' },
+                { id: 'notifications', icon: Bell, label: 'Notifications', color: '#EF4444', badge: unreadCount > 0 ? `${unreadCount}` : undefined },
                 { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
                 { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
                 { id: 'stores', icon: Store, label: t('stores', 'Stores'), color: '#2563EB', link: '/stores' },
@@ -280,6 +293,7 @@ export default function SettingsScreen() {
                   label={item.label}
                   icon={item.icon}
                   color={item.color}
+                  badge={item.badge}
                   onPress={() => (item.link ? router.push(item.link as any) : setActiveSection(item.id as any))}
                   theme={theme}
                 />
@@ -528,6 +542,94 @@ export default function SettingsScreen() {
                 <Text style={styles.saveBtnText}>Save Staff Permissions</Text>
               </TouchableOpacity>
             </View>
+          ) : activeSection === 'notifications' ? (
+            /* Stock & App Notifications Section */
+            <View>
+              <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>INVENTORY & STOCK ALERTS</Text>
+
+              <View style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Low Stock Alerts</Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                    Trigger alert when items reach or drop below their reorder threshold.
+                  </Text>
+                </View>
+                <Switch
+                  value={notifPrefs.lowStockAlertsEnabled}
+                  onValueChange={(val) => updateNotifPrefs({ lowStockAlertsEnabled: val })}
+                  trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
+                />
+              </View>
+
+              <View style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Out of Stock Alerts</Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                    Critical immediate notification when a product hits 0 units.
+                  </Text>
+                </View>
+                <Switch
+                  value={notifPrefs.outOfStockAlertsEnabled}
+                  onValueChange={(val) => updateNotifPrefs({ outOfStockAlertsEnabled: val })}
+                  trackColor={{ false: '#64748B', true: '#EF4444' }}
+                />
+              </View>
+
+              <Text style={[styles.sectionHeader, { color: theme.textSecondary, marginTop: 20 }]}>DELIVERY PREFERENCES</Text>
+
+              <View style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Device Push Notifications</Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                    Show system notifications on your device screen even when app is minimized.
+                  </Text>
+                </View>
+                <Switch
+                  value={notifPrefs.pushNotificationsEnabled}
+                  onValueChange={(val) => updateNotifPrefs({ pushNotificationsEnabled: val })}
+                  trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
+                />
+              </View>
+
+              <View style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[styles.permTitle, { color: theme.textPrimary }]}>Sound & Vibration</Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                    Play audible notification alert sound for critical stock events.
+                  </Text>
+                </View>
+                <Switch
+                  value={notifPrefs.soundEnabled}
+                  onValueChange={(val) => updateNotifPrefs({ soundEnabled: val })}
+                  trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
+                />
+              </View>
+
+              {/* Notification Center & Test Buttons */}
+              <View style={{ marginTop: 24, gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setShowNotifHistoryModal(true)}
+                  style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                >
+                  <Bell size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.saveBtnText}>Open Notification Center</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    await sendTestNotification();
+                    Alert.alert(
+                      'Test Notification Sent! 🔔',
+                      'A demo low-stock alert has been generated. Tap Open Notification Center or check your notifications.'
+                    );
+                  }}
+                  style={[styles.saveBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1 }]}
+                >
+                  <Sparkles size={16} color={theme.textPrimary} style={{ marginRight: 6 }} />
+                  <Text style={[styles.saveBtnText, { color: theme.textPrimary }]}>Send Test Low Stock Alert</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : (
             /* Language Switcher Section */
             <View>
@@ -567,6 +669,11 @@ export default function SettingsScreen() {
           setShowLogoBgModal(false);
         }}
         onCancel={() => setShowLogoBgModal(false)}
+      />
+
+      <NotificationModal
+        visible={showNotifHistoryModal}
+        onClose={() => setShowNotifHistoryModal(false)}
       />
     </View>
     </ScreenBackground>

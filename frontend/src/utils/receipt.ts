@@ -15,6 +15,7 @@ import { resolveStoreLogoUrl, prefetchPrintableLogoSrc, isBrowserLoadableImageSr
 import { ensureTemplateHasLogoBlock } from './ensureReceiptTemplates'
 import { resolveReceiptPrintGst, type GstBreakdownStyle } from '@/constants/gstBilling'
 import { gstSummaryFromCart } from '@/utils/gst'
+import { receiptLogoMaxDots, receiptQrEscPosModuleSize } from '@shared/receiptPrintGeometry'
 
 function escapeHtmlAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
@@ -118,6 +119,8 @@ export interface GenerateReceiptHTMLParams {
   receiptConfig?: Partial<ReceiptConfig> | null
   businessName?: string
   businessAddress?: string
+  businessPhone?: string
+  businessGSTIN?: string
   customerName?: string
   width?: '50mm' | '80mm' | '210mm'
   logoURL?: string
@@ -125,6 +128,10 @@ export interface GenerateReceiptHTMLParams {
   settingsTaxName?: string
   invoiceConfig?: unknown
   templateOverride?: CustomReceiptTemplate
+  isRestaurant?: boolean
+  tableNo?: string
+  waiterName?: string
+  tokenNo?: string
 }
 
 function formatDate(date: any): string {
@@ -161,6 +168,8 @@ export const generateReceiptHTML = ({
   receiptConfig,
   businessName,
   businessAddress,
+  businessPhone,
+  businessGSTIN,
   customerName,
   width = '50mm',
   logoURL,
@@ -168,6 +177,10 @@ export const generateReceiptHTML = ({
   settingsTaxName,
   invoiceConfig,
   templateOverride,
+  isRestaurant,
+  tableNo,
+  waiterName,
+  tokenNo,
 }: GenerateReceiptHTMLParams): string => {
   const printGst = getReceiptPrintGstOptions(invoiceConfig, receiptConfig)
   const effectiveConfig = {
@@ -178,8 +191,8 @@ export const generateReceiptHTML = ({
   const itemWiseGst = printGst.itemWiseGst
   const companyName = effectiveConfig?.companyName || businessName || 'Your Company'
   const companyAddress = effectiveConfig?.address || businessAddress || ''
-  const companyPhone = effectiveConfig?.phone || ''
-  const companyGSTIN = effectiveConfig?.gstin || ''
+  const companyPhone = effectiveConfig?.phone || businessPhone || ''
+  const companyGSTIN = effectiveConfig?.gstin || businessGSTIN || ''
   const footerMessage = effectiveConfig?.footerMessage || 'Thank you for your purchase!'
 
   const saleItems = sale.items ?? []
@@ -502,6 +515,9 @@ export const generateReceiptHTML = ({
       upiId: effectiveConfig?.upiId,
       footerMessage,
       customerName,
+      tableNo,
+      waiterName,
+      tokenNo,
     })
     const bodyHtml = compileCustomReceiptHtml(
       customTemplate,
@@ -516,6 +532,7 @@ export const generateReceiptHTML = ({
         itemWiseGst,
         gstStyle,
         showTaxBreakdown: printGst.showTaxBreakdown,
+        isRestaurant,
       }
     )
 
@@ -536,6 +553,7 @@ ${bodyHtml}
     paperSize: paperSizeKey,
     gstStyle,
     itemWiseGst,
+    isRestaurant,
   })
 
   return `
@@ -700,11 +718,17 @@ interface GenerateReceiptEscPosParams {
   paperSize?: '58mm' | '80mm'
   businessName?: string
   businessAddress?: string
+  businessPhone?: string
+  businessGSTIN?: string
   customerName?: string
   settingsTaxRate?: number
   invoiceConfig?: unknown
   templateOverride?: CustomReceiptTemplate
   businessLogoURL?: string
+  isRestaurant?: boolean
+  tableNo?: string
+  waiterName?: string
+  tokenNo?: string
 }
 
 export const generateReceiptEscPos = async ({
@@ -713,10 +737,16 @@ export const generateReceiptEscPos = async ({
   paperSize = '58mm',
   businessName,
   businessAddress,
+  businessPhone,
+  businessGSTIN,
   customerName,
   templateOverride,
   businessLogoURL,
   invoiceConfig,
+  isRestaurant,
+  tableNo,
+  waiterName,
+  tokenNo,
 }: GenerateReceiptEscPosParams): Promise<Uint8Array> => {
   const printGst = getReceiptPrintGstOptions(invoiceConfig, receiptConfig)
   const effectiveConfig = {
@@ -736,14 +766,17 @@ export const generateReceiptEscPos = async ({
     : null
   const effectivePaper = (customTemplate?.paperWidth || paperSize) as '58mm' | '80mm'
   const context = saleToReceiptContext(sale, {
-    businessName,
-    businessAddress,
-    businessPhone: printConfig?.phone ?? effectiveConfig?.phone,
-    businessGSTIN: printConfig?.gstin ?? effectiveConfig?.gstin,
+    businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName,
+    businessAddress: businessAddress || printConfig?.address || effectiveConfig?.address,
+    businessPhone: businessPhone || printConfig?.phone || effectiveConfig?.phone,
+    businessGSTIN: businessGSTIN || printConfig?.gstin || effectiveConfig?.gstin,
     businessLogoURL: resolvedLogo,
-    upiId: printConfig?.upiId ?? effectiveConfig?.upiId,
-    footerMessage: printConfig?.footerMessage ?? effectiveConfig?.footerMessage,
+    upiId: printConfig?.upiId || effectiveConfig?.upiId,
+    footerMessage: printConfig?.footerMessage || effectiveConfig?.footerMessage,
     customerName,
+    tableNo,
+    waiterName,
+    tokenNo,
   })
 
   const b = new EscPosBuilder()
@@ -756,6 +789,7 @@ export const generateReceiptEscPos = async ({
       itemWiseGst: printGst.itemWiseGst,
       gstStyle: printGst.gstStyle,
       showTaxBreakdown: printGst.showTaxBreakdown,
+      isRestaurant,
     })
     b.feed(2)
     b.cut()
@@ -767,18 +801,18 @@ export const generateReceiptEscPos = async ({
     receiptConfig: printConfig ?? effectiveConfig,
     businessName,
     businessAddress,
-    businessPhone: printConfig?.phone ?? effectiveConfig?.phone,
-    businessGSTIN: printConfig?.gstin ?? effectiveConfig?.gstin,
+    businessPhone: printConfig?.phone || effectiveConfig?.phone || businessPhone,
+    businessGSTIN: printConfig?.gstin || effectiveConfig?.gstin || businessGSTIN,
     customerName,
     paperSize: effectivePaper,
     gstStyle: printGst.gstStyle,
     itemWiseGst: printGst.itemWiseGst,
+    isRestaurant,
   })
 
   const logoSrc = showLogo ? (resolvedLogo || '') : ''
   if (logoSrc) {
-    const maxWidthDots = effectivePaper === '80mm' ? 320 : 224
-    const maxHeightDots = effectivePaper === '80mm' ? 96 : 72
+    const { maxWidth: maxWidthDots, maxHeight: maxHeightDots } = receiptLogoMaxDots(effectivePaper)
     const rasterSrc = (await prefetchPrintableLogoSrc(logoSrc)) || logoSrc
     const raster = await rasterizeImageForEscPos(rasterSrc, maxWidthDots, maxHeightDots)
     if (raster) {
@@ -793,22 +827,23 @@ export const generateReceiptEscPos = async ({
     b.line(line)
   })
 
-  if (receiptConfig?.showPaymentQR && (isValidUpiVpa(receiptConfig?.upiId) || receiptConfig?.paymentQrURL)) {
+  if ((printConfig?.showPaymentQR || effectiveConfig?.showPaymentQR) && (isValidUpiVpa(printConfig?.upiId || effectiveConfig?.upiId) || printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL)) {
     const billTotal = Number(sale.grandTotal ?? (sale as any).finalTotal ?? (sale as any).total ?? 0)
     b.feed(1)
     b.align('center')
     b.bold(true)
     b.line(`SCAN TO PAY Rs.${billTotal.toFixed(2)}`)
     b.bold(false)
-    const qrPayload = isValidUpiVpa(receiptConfig.upiId)
+    const payeeUpi = printConfig?.upiId || effectiveConfig?.upiId
+    const qrPayload = isValidUpiVpa(payeeUpi)
       ? buildUpiPayLink({
-          upiId: receiptConfig.upiId!,
-          payeeName: businessName || 'SEZNIK',
+          upiId: payeeUpi!,
+          payeeName: businessName || printConfig?.companyName || 'SEZNIK',
           amount: billTotal,
           note: sale.invoiceNumber || 'Bill Payment',
         })
-      : receiptConfig.paymentQrURL!
-    b.qr(qrPayload, effectivePaper === '80mm' ? 6 : 4)
+      : (printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL)!
+    b.qr(qrPayload, receiptQrEscPosModuleSize(effectivePaper))
   }
 
   b.feed(2)

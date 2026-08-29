@@ -20,7 +20,7 @@ import { runReceiptTemplateTestPrint, sampleTestSaleFromContext } from '@/utils/
 import type { ReceiptConfig } from '@/types/settings.types'
 import { ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
-import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
+import { isRestaurantBusiness } from '@/constants/businessTypes'
 import type { GstBillingFormState } from '@/hooks/useGstBillingSettings'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
 import type { CustomReceiptGstOpts } from '@/utils/customReceiptEngine'
@@ -61,6 +61,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
 ) {
   const { t } = useLanguage()
   const { user } = useAuth()
+  const isRestaurant = isRestaurantBusiness(user?.businessType)
   const {
     settings,
     receiptConfig,
@@ -125,7 +126,13 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     storeLogoUrl,
     upiId: storeUpiId,
     footerMessage: effectiveReceiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
-  }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId, user])
+    ...(isRestaurant ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' } : {}),
+  }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId, user, isRestaurant])
+
+  const gstOpts = useMemo(
+    () => ({ ...previewGstOpts, isRestaurant }),
+    [previewGstOpts, isRestaurant]
+  )
 
   const updateDraft = useCallback((updater: (tpl: CustomReceiptTemplate) => CustomReceiptTemplate) => {
     if (!selectedTemplate) return
@@ -178,14 +185,18 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
         templateId: tpl.id,
         templateDraft: ensureTemplateHasLogoBlock(tpl, storeLogoUrl),
         paperSize: tpl.paperWidth,
+        settings,
         businessName: previewContext.storeName,
         businessAddress: previewContext.storeAddress,
+        businessPhone: previewContext.storePhone,
+        businessGSTIN: previewContext.storeGstin,
         customerName: previewContext.customerName,
         logoURL: storeLogoUrl,
         businessLogoURL: settings?.businessLogoURL,
         invoiceConfig: settings?.invoiceConfig,
         connectionType,
         bleConnected,
+        isRestaurant,
       })
       toast.success('Test print sent')
     } catch (e) {
@@ -198,11 +209,12 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     customTemplates,
     previewContext,
     storeLogoUrl,
-    settings?.businessLogoURL,
+    settings,
     connectionType,
     bleConnected,
     storeUpiId,
     t,
+    isRestaurant,
   ])
 
   useImperativeHandle(ref, () => ({ runTestPrint: handleTestPrint }), [handleTestPrint])
@@ -330,6 +342,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
               logoFallback={storeLogoUrl || settings?.businessLogoURL}
               upiId={storeUpiId}
               onUpiIdChange={handleUpiIdChange}
+              isRestaurant={isRestaurant}
               onChange={(next) => updateDraft((current) => ({ ...next, updatedAt: current.updatedAt }))}
             />
           ) : (
@@ -352,6 +365,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
                     logoFallback={storeLogoUrl || settings?.businessLogoURL}
                     storeUpiId={storeUpiId}
                     onStoreUpiIdChange={handleUpiIdChange}
+                    isRestaurant={isRestaurant}
                     onChange={(updated) =>
                       updateDraft((t) => ({
                         ...t,
@@ -399,7 +413,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
           <ReceiptLivePreviewPanel
             template={previewTemplate}
             context={previewContext}
-            gstOpts={previewGstOpts}
+            gstOpts={gstOpts}
           />
         </div>
       </div>

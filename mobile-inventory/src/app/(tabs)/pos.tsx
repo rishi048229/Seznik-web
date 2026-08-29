@@ -48,6 +48,8 @@ import { useSales } from '@/hooks/useSales';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useCartStore } from '@/store/useCartStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { PaymentMethod } from '@/types/sale';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -345,8 +347,13 @@ function PosScreen() {
     }
 
     if (matched) {
-      addItem(matched, 1);
-      setScanToast({ message: `+1 ${matched.name} (₹${matched.sellingPrice.toFixed(2)})` });
+      if (typeof matched.currentStock === 'number' && matched.currentStock <= 0) {
+        setScanToast({ message: `🚨 Out of Stock: "${matched.name}" (0 left)`, isError: true });
+        addItem(matched, 1);
+      } else {
+        addItem(matched, 1);
+        setScanToast({ message: `+1 ${matched.name} (₹${matched.sellingPrice.toFixed(2)})` });
+      }
     } else {
       setScanToast({ message: `Unrecognized: "${raw.length > 20 ? raw.slice(0, 20) + '...' : raw}"`, isError: true });
     }
@@ -476,9 +483,41 @@ function PosScreen() {
 
     const provisionalInv = generateProvisionalInvoice();
     const saleData = buildSaleData(provisionalInv);
-    const saleItems = toSaleItems();
+    const rawItems = toSaleItems();
+    const cleanSaleItems = rawItems
+      .filter((i) => i.productId && i.quantity > 0)
+      .map((i) => ({
+        productId: String(i.productId),
+        productName: String(i.productName || 'Item'),
+        barcode: i.barcode || undefined,
+        quantity: Number(i.quantity) || 1,
+        unitPrice: Number(i.unitPrice) || 0,
+        costPrice: typeof i.costPrice === 'number' ? i.costPrice : 0,
+        taxRate: typeof i.taxRate === 'number' ? i.taxRate : 0,
+        priceIncludesGst: Boolean(i.priceIncludesGst),
+        discountType: i.discountType,
+        discountValue: typeof i.discountValue === 'number' ? i.discountValue : 0,
+        discountAmount: typeof i.discountAmount === 'number' ? i.discountAmount : 0,
+        discountApplied: Boolean(i.discountApplied),
+        total: Number(i.total) || 0,
+      }));
+
+    if (cleanSaleItems.length === 0) {
+      checkoutLockRef.current = false;
+      Alert.alert('Empty Cart', 'Please add at least one item to complete the sale.');
+      return;
+    }
+
+    const validCustomerId =
+      selectedCustomerId &&
+      selectedCustomerId.trim() !== '' &&
+      selectedCustomerId !== 'walkin' &&
+      !selectedCustomerId.startsWith('temp-')
+        ? selectedCustomerId.trim()
+        : undefined;
+
     const salePayload = {
-      items: saleItems,
+      items: cleanSaleItems,
       subtotal: saleData.subtotal,
       totalDiscount: saleData.totalDiscount,
       totalTax: saleData.totalTax,
@@ -488,7 +527,7 @@ function PosScreen() {
       paymentMethod,
       amountPaid: saleData.amountPaid ?? grandTotalNow,
       changeReturned: saleData.changeReturned ?? 0,
-      customerId: selectedCustomerId || undefined,
+      customerId: validCustomerId,
       isQuickBill: false,
       // Multi-store inventory: stamps which store's stock this whole sale decrements. Omitted
       // entirely when no store is selected, so the backend takes its flat-stock path unchanged.
@@ -498,6 +537,24 @@ function PosScreen() {
     setPreviewSaleData(saleData);
     setShowReceiptPreviewModal(true);
     setIsSavingSalePreview(true);
+
+    // Check and trigger real-time low-stock/out-of-stock notifications for sold items
+    const currentCartItems = useCartStore.getState().items;
+    const soldItemsToCheck = currentCartItems.map((item: CartItem) => {
+      const p = products.find((prod) => prod.id === item.product.id);
+      const currStock = typeof p?.currentStock === 'number' ? p.currentStock : (item.product.currentStock ?? 0);
+      const newStock = Math.max(0, currStock - item.quantity);
+      const threshold = p?.lowStockThreshold ?? item.product.lowStockThreshold ?? 5;
+      return {
+        productId: item.product.id,
+        productName: item.product.name,
+        currentStock: newStock,
+        lowStockThreshold: threshold,
+        unit: item.product.unit || 'pcs',
+      };
+    });
+
+    useNotificationStore.getState().checkSoldItemsStock(soldItemsToCheck).catch(() => {});
 
     // Cart clears immediately so the next customer can be served while print + save run.
     setCreditAmountReceivedInput('0');
@@ -524,6 +581,7 @@ function PosScreen() {
           storeGstin: printData.storeGstin,
           storeLogoUrl: printData.storeLogoUrl,
           upiId: printData.upiId,
+          footerMessage: printData.footerMessage,
           ...(gstPrintOptionOverrides(gstBilling)),
         })
       );
@@ -531,11 +589,13 @@ function PosScreen() {
 
     persistSaleInBackground(salePayload, {
       onSuccess: (sale) => {
+        checkoutLockRef.current = false;
         const finalInv = sale.invoiceNumber || provisionalInv;
         setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
         setIsSavingSalePreview(false);
       },
       onError: (err) => {
+        checkoutLockRef.current = false;
         setIsSavingSalePreview(false);
         Alert.alert(
           t('saleFailed', 'Sale Not Saved'),
@@ -614,6 +674,8 @@ function PosScreen() {
         {/* Secondary tools — uniform neutral buttons so they read as a toolbar, not a
             competing set of colored calls-to-action next to the primary search/browse flow. */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <NotificationBell style={{ marginRight: 6 }} />
+
           <TouchableOpacity
             onPress={cycleVoiceLang}
             disabled={isVoiceListening}

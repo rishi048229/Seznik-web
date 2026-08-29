@@ -43,6 +43,7 @@ import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '@/types/cus
 import { BRAND_COLORS } from '@/constants/theme';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { buildSampleTestSale, buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 
 export default function ReceiptBuilderHubScreen() {
   const router = useRouter();
@@ -62,6 +63,9 @@ export default function ReceiptBuilderHubScreen() {
     enableBillQrCode,
     setEnableBillQrCode,
     paperWidth,
+    topMargin,
+    autoCut,
+    fontSize,
   } = usePrinterStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,33 +75,34 @@ export default function ReceiptBuilderHubScreen() {
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   // Sample data for test print / preview
-  const samplePrintData: PrintSaleData = useMemo(() => ({
-    storeName: settings?.businessName || 'SEZNIK SUPERSTORE',
-    storeAddress: settings?.businessAddress || '123 Market Road, City Centre',
-    storePhone: settings?.businessPhone || '+91 98765 43210',
-    storeGstin: settings?.businessGSTIN || '27AAAAA0000A1Z5',
-    storeLogoUrl: settings?.businessLogoURL || undefined,
-    upiId: settings?.upiId || 'seznik@upi',
-    invoiceNumber: 'INV-2026-0042',
-    date: new Date().toLocaleDateString('en-GB'),
-    customerName: 'Aarav Sharma',
-    customerPhone: '+91 99887 76655',
-    items: [
-      { productName: 'Premium Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
-      { productName: 'Cold Pressed Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Bottle', gstRate: 5 },
-      { productName: 'Organic Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
-    ],
-    subtotal: 1090,
-    totalDiscount: 50,
-    taxableAmt: 1040,
-    sgst: 20.25,
-    cgst: 20.25,
-    totalTax: 40.5,
-    grandTotal: 1080.5,
-    amountPaid: 1100,
-    changeReturned: 19.5,
-    paymentMethod: 'UPI',
-  }), [settings]);
+  const samplePrintData: PrintSaleData = useMemo(
+    () =>
+      buildSampleTestSale(settings, {
+        storeName: settings?.businessName || 'SEZNIK SUPERSTORE',
+        storeGstin: settings?.businessGSTIN || '27AAAAA0000A1Z5',
+        upiId: settings?.upiId || 'seznik@upi',
+        invoiceNumber: 'INV-2026-0042',
+        date: new Date().toLocaleDateString('en-GB'),
+        customerName: 'Aarav Sharma',
+        customerPhone: '+91 99887 76655',
+        items: [
+          { productName: 'Premium Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
+          { productName: 'Cold Pressed Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Bottle', gstRate: 5 },
+          { productName: 'Organic Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
+        ],
+        subtotal: 1090,
+        totalDiscount: 50,
+        taxableAmt: 1040,
+        sgst: 20.25,
+        cgst: 20.25,
+        totalTax: 40.5,
+        grandTotal: 1080.5,
+        amountPaid: 1100,
+        changeReturned: 19.5,
+        paymentMethod: 'UPI',
+      }),
+    [settings]
+  );
 
   const filteredTemplates = useMemo(() => {
     return customTemplates.filter((t) => {
@@ -162,8 +167,18 @@ export default function ReceiptBuilderHubScreen() {
     setIsActionLoading(true);
     try {
       const ok = await ThermalPrinterService.printReceipt(samplePrintData, template.paperWidth || paperWidth, {
-        customTemplate: template,
-        includeBillQr: enableBillQrCode,
+        ...buildTestReceiptPrintOptions({
+          activeTemplateId,
+          customTemplates,
+          activeCustomTemplateId,
+          enableBillQrCode,
+          topMargin,
+          autoCut,
+          fontSize,
+          settings,
+          customTemplate: template,
+          copies: 1,
+        }),
       });
       if (ok) {
         Alert.alert('Print Successful', 'Test receipt sent to thermal printer!');

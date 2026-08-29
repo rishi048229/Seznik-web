@@ -304,12 +304,14 @@ export default function PosLiteScreen() {
       },
       {
         onSuccess: (sale) => {
+          checkoutLockRef.current = false;
           const finalInv = sale.invoiceNumber || provisionalInv;
           setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
           setLastInvoiceNumber(finalInv);
           setIsSavingSalePreview(false);
         },
         onError: (err) => {
+          checkoutLockRef.current = false;
           setIsSavingSalePreview(false);
           Alert.alert(
             'Sale Not Saved',

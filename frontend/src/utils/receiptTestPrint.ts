@@ -1,9 +1,9 @@
 import type { Sale } from '@/types/sale.types'
-import type { ReceiptConfig } from '@/types/settings.types'
+import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
 import type { CustomReceiptTemplate } from '@/types/customReceipt'
 import { SAMPLE_RECEIPT_CONTEXT } from '@/utils/customReceiptEngine'
 import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
-import { generateReceiptEscPos, generateReceiptHTML, printReceipt } from '@/utils/receipt'
+import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { printEscPos } from '@/utils/blePrinter'
 import { prefetchPrintableLogoSrc, resolveStoreLogoUrl } from '@/utils/receiptLogo'
 
@@ -70,14 +70,19 @@ interface RunReceiptTemplateTestPrintParams {
   templateId: string
   templateDraft?: CustomReceiptTemplate
   paperSize?: '58mm' | '80mm'
+  /** Full settings row — same merge POS uses so logo/phone/address/UPI match a real bill. */
+  settings?: Partial<UserSettings> | null
   businessName?: string
   businessAddress?: string
+  businessPhone?: string
+  businessGSTIN?: string
   customerName?: string
   logoURL?: string
   businessLogoURL?: string
   invoiceConfig?: unknown
   connectionType: 'bluetooth' | 'system_driver'
   bleConnected: boolean
+  isRestaurant?: boolean
 }
 
 export async function runReceiptTemplateTestPrint({
@@ -87,37 +92,58 @@ export async function runReceiptTemplateTestPrint({
   templateId,
   templateDraft,
   paperSize = '58mm',
+  settings,
   businessName,
   businessAddress,
+  businessPhone,
+  businessGSTIN,
   customerName,
   logoURL,
   businessLogoURL,
   invoiceConfig,
   connectionType,
   bleConnected,
+  isRestaurant,
 }: RunReceiptTemplateTestPrintParams): Promise<'ble' | 'browser'> {
-  const resolvedLogo = resolveStoreLogoUrl(receiptConfig, businessLogoURL || logoURL)
+  const mergedReceipt = resolveEffectiveReceiptConfig(settings, {
+    ...receiptConfig,
+    customTemplates,
+    activeCustomTemplateId: templateId,
+  })
+  const resolvedLogo = resolveStoreLogoUrl(
+    mergedReceipt,
+    businessLogoURL || logoURL || settings?.businessLogoURL
+  )
   const rawTemplate = resolveTemplateForPrint(customTemplates, templateId, templateDraft)
   const printableLogo = await prefetchPrintableLogoSrc(resolvedLogo)
   const logoForPrint = printableLogo || resolvedLogo
   const template = rawTemplate ? ensureTemplateHasLogoBlock(rawTemplate, logoForPrint) : null
   const effectiveConfig = {
-    ...buildReceiptConfigForTemplate(receiptConfig, customTemplates, templateId, template ?? templateDraft),
+    ...buildReceiptConfigForTemplate(mergedReceipt, customTemplates, templateId, template ?? templateDraft),
     ...(logoForPrint ? { logoURL: logoForPrint } : {}),
   }
   const effectivePaper = (template?.paperWidth || paperSize) as '58mm' | '80mm'
+  const identity = {
+    businessName: businessName || mergedReceipt.companyName || settings?.businessName,
+    businessAddress: businessAddress || mergedReceipt.address || settings?.businessAddress,
+    businessPhone: businessPhone || mergedReceipt.phone || settings?.businessPhone,
+    businessGSTIN: businessGSTIN || mergedReceipt.gstin || settings?.businessGSTIN,
+    isRestaurant,
+    ...(isRestaurant
+      ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' }
+      : {}),
+  }
 
   if (connectionType === 'bluetooth' && bleConnected) {
     const bytes = await generateReceiptEscPos({
       sale,
       receiptConfig: effectiveConfig,
       paperSize: effectivePaper,
-      businessName,
-      businessAddress,
+      ...identity,
       customerName,
       templateOverride: template ?? undefined,
-      businessLogoURL: logoForPrint || businessLogoURL || logoURL,
-      invoiceConfig,
+      businessLogoURL: logoForPrint || businessLogoURL || logoURL || settings?.businessLogoURL,
+      invoiceConfig: invoiceConfig ?? settings?.invoiceConfig,
     })
     await printEscPos(bytes)
     return 'ble'
@@ -126,14 +152,13 @@ export async function runReceiptTemplateTestPrint({
   const receiptHTML = generateReceiptHTML({
     sale,
     receiptConfig: effectiveConfig,
-    businessName,
-    businessAddress,
+    ...identity,
     customerName: customerName || SAMPLE_RECEIPT_CONTEXT.customerName,
     width: effectivePaper === '80mm' ? '80mm' : '50mm',
-    logoURL: logoForPrint || logoURL || receiptConfig.logoURL,
+    logoURL: logoForPrint || logoURL || mergedReceipt.logoURL || settings?.businessLogoURL,
     settingsTaxName: 'GST',
     templateOverride: template ?? undefined,
-    invoiceConfig,
+    invoiceConfig: invoiceConfig ?? settings?.invoiceConfig,
   })
   printReceipt(receiptHTML, effectivePaper === '80mm' ? '80mm' : '50mm', 'Test Receipt')
   return 'browser'

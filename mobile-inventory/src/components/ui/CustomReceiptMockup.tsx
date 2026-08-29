@@ -10,6 +10,8 @@ import {
   isTaxReceiptEntry,
   shouldShowItemDiscount,
 } from '@/utils/receiptDiscount';
+import { RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, receiptQrPreviewPx } from '@shared/receiptPrintGeometry';
+import { resolveReceiptImageSrc } from '@/utils/receiptLogo';
 
 interface CustomReceiptMockupProps {
   template: CustomReceiptTemplate;
@@ -167,7 +169,8 @@ export function CustomReceiptMockup({
       }
 
       case 'image': {
-        const widthPct = `${Math.min(entry.widthPercent || 40, 100)}%` as any;
+        const logoSrc = resolveReceiptImageSrc(entry, storeLogoUrl);
+        const widthPct = `${Math.min(entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 100)}%` as any;
         return (
           <View
             key={entry.id || idx}
@@ -179,14 +182,16 @@ export function CustomReceiptMockup({
               },
             ]}
           >
-            {(entry.imageUri || storeLogoUrl) ? (
+            {logoSrc ? (
               <Image
-                source={{ uri: entry.imageUri || storeLogoUrl }}
+                source={{ uri: logoSrc }}
                 style={[
                   styles.thermalLogoImage,
                   {
+                    maxWidth: 180,
                     width: widthPct,
-                    height: 52,
+                    maxHeight: 56,
+                    height: 56,
                     resizeMode: 'contain',
                   },
                 ]}
@@ -194,7 +199,7 @@ export function CustomReceiptMockup({
             ) : (
               <View style={styles.imagePlaceholder}>
                 <ImageIcon size={18} color="#000000" />
-                <Text style={styles.imagePlaceholderText}>STORE LOGO ({entry.widthPercent || 40}%)</Text>
+                <Text style={styles.imagePlaceholderText}>STORE LOGO ({entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT}%)</Text>
               </View>
             )}
           </View>
@@ -244,7 +249,9 @@ export function CustomReceiptMockup({
           rawVal = invoiceNumber || 'INV-2026-0042';
         }
 
-        const qrSize = entry.size === 'large' ? (is80mm ? 130 : 110) : entry.size === 'small' ? 75 : 95;
+        const qrSize = receiptQrPreviewPx(
+          entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
+        );
 
         return (
           <View
@@ -410,7 +417,7 @@ export function CustomReceiptMockup({
       <View style={[styles.paper, { maxWidth: paperMaxWidth }]}>
         {!hasImageEntry && storeLogoUrl ? (
           <View style={[styles.entryBlock, { alignItems: 'center', marginVertical: 4 }]}>
-            <Image source={{ uri: storeLogoUrl }} style={[styles.thermalLogoImage, { width: '40%', height: 52 }]} resizeMode="contain" />
+            <Image source={{ uri: storeLogoUrl }} style={[styles.thermalLogoImage, { maxWidth: 180, width: '40%', maxHeight: 56, height: 56 }]} resizeMode="contain" />
           </View>
         ) : null}
         {enabledEntries.length === 0 ? (

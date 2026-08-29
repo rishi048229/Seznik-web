@@ -55,6 +55,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   generateEAN13Barcode,
   generateCode128Barcode,
@@ -371,8 +372,16 @@ export default function ProductsScreen() {
 
   const handleApplyQuickStockChange = async () => {
     if (!scannedProductForStock) return;
-    const delta = parseInt(scanQtyDelta) || 1;
-    const finalChange = scanModeType === 'add' ? delta : -delta;
+    const delta = Math.max(1, parseInt(scanQtyDelta) || 1);
+    const currentStock = Math.max(0, scannedProductForStock.currentStock);
+
+    if (scanModeType === 'reduce' && currentStock <= 0) {
+      Alert.alert('Out of Stock', `"${scannedProductForStock.name}" is already at 0 units.`);
+      return;
+    }
+
+    const allowedDeduct = Math.min(delta, currentStock);
+    const finalChange = scanModeType === 'add' ? delta : -allowedDeduct;
 
     try {
       await adjustStock({
@@ -383,9 +392,10 @@ export default function ProductsScreen() {
         },
       });
 
+      const newStock = Math.max(0, currentStock + finalChange);
       Alert.alert(
         'Stock Updated!',
-        `Updated ${scannedProductForStock.name} stock to ${scannedProductForStock.currentStock + finalChange} ${scannedProductForStock.unit || 'pcs'}.`
+        `Updated ${scannedProductForStock.name} stock to ${newStock} ${scannedProductForStock.unit || 'pcs'}.`
       );
 
       setScannedProductForStock(null);
@@ -471,10 +481,10 @@ export default function ProductsScreen() {
       const discVal = parseFloat(discountValue) || 0;
       const payload = {
         name: name.trim(),
-        sellingPrice: parseFloat(sellingPrice) || 0,
-        costPrice: parseFloat(costPrice) || 0,
-        currentStock: parseInt(stock) || 0,
-        lowStockThreshold: parseInt(lowStockThreshold) || 10,
+        sellingPrice: Math.max(0, parseFloat(sellingPrice) || 0),
+        costPrice: Math.max(0, parseFloat(costPrice) || 0),
+        currentStock: Math.max(0, parseInt(stock) || 0),
+        lowStockThreshold: Math.max(0, parseInt(lowStockThreshold) || 10),
         unit: unit.trim() || 'Piece',
         imageUrl: imageUrl || undefined,
         barcode: barcode.trim() || undefined,
@@ -574,6 +584,8 @@ export default function ProductsScreen() {
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <NotificationBell style={{ marginRight: 6 }} />
+
             <TouchableOpacity
               onPress={() => setShowAiModal(true)}
               style={[styles.headerBtn, { backgroundColor: 'rgba(37, 99, 235, 0.15)', marginRight: 6 }]}

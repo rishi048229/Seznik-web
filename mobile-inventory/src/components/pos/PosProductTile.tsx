@@ -32,17 +32,35 @@ export const PosProductTile = memo(function PosProductTile({
   onDecrement,
 }: PosProductTileProps) {
   const inCart = cartQty > 0;
+  const rawStock = typeof product.currentStock === 'number'
+    ? product.currentStock
+    : typeof (product as any).stockQty === 'number'
+    ? (product as any).stockQty
+    : undefined;
+
+  const stock = rawStock !== undefined ? Math.max(0, rawStock) : undefined;
+  const threshold = product.lowStockThreshold ?? (product as any).reorderThreshold ?? 5;
+  const isOutOfStock = stock !== undefined && stock <= 0;
+  const isLowStock = !isOutOfStock && stock !== undefined && stock <= threshold;
 
   return (
     <Pressable
       onPress={inCart ? undefined : () => onAdd(product)}
-      android_ripple={inCart ? undefined : { color: 'rgba(37, 99, 235, 0.18)' }}
+      android_ripple={inCart ? undefined : { color: isOutOfStock ? 'rgba(239, 68, 68, 0.12)' : 'rgba(37, 99, 235, 0.18)' }}
       style={({ pressed }) => [
         styles.productTile,
         {
-          backgroundColor: inCart ? 'rgba(37, 99, 235, 0.12)' : cardBg,
-          borderColor: inCart ? BRAND_COLORS.blue600 : borderColor,
-          opacity: pressed ? 0.92 : 1,
+          backgroundColor: inCart
+            ? 'rgba(37, 99, 235, 0.12)'
+            : isOutOfStock
+            ? (isDark ? '#231515' : '#FFF5F5')
+            : cardBg,
+          borderColor: inCart
+            ? BRAND_COLORS.blue600
+            : isOutOfStock
+            ? 'rgba(239, 68, 68, 0.35)'
+            : borderColor,
+          opacity: isOutOfStock && !inCart ? 0.78 : pressed ? 0.92 : 1,
         },
       ]}
     >
@@ -56,10 +74,16 @@ export const PosProductTile = memo(function PosProductTile({
               </Text>
             </View>
           ) : null}
-          {product.currentStock <= product.lowStockThreshold ? (
+          {isOutOfStock ? (
+            <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+              <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>
+                🚨 Out
+              </Text>
+            </View>
+          ) : isLowStock ? (
             <View style={styles.stockBadge}>
               <Text style={styles.stockBadgeText}>
-                {lowStockLabel}: {product.currentStock}
+                {lowStockLabel}: {stock}
               </Text>
             </View>
           ) : null}
@@ -76,12 +100,12 @@ export const PosProductTile = memo(function PosProductTile({
         )}
       </View>
 
-      <Text style={[styles.tileName, { color: textPrimary }]} numberOfLines={2}>
+      <Text style={[styles.tileName, { color: isOutOfStock ? textSecondary : textPrimary }]} numberOfLines={2}>
         {product.name}
       </Text>
 
       <View style={styles.tileFooterRow}>
-        <Text style={styles.tilePrice}>₹{product.sellingPrice.toFixed(2)}</Text>
+        <Text style={[styles.tilePrice, isOutOfStock && { color: textSecondary }]}>₹{product.sellingPrice.toFixed(2)}</Text>
 
         {inCart ? (
           <View style={styles.inCartStepperRow}>
@@ -106,6 +130,10 @@ export const PosProductTile = memo(function PosProductTile({
             >
               <Plus size={12} color="#FFFFFF" />
             </TouchableOpacity>
+          </View>
+        ) : isOutOfStock ? (
+          <View style={[styles.outOfStockPill, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+            <Text style={styles.outOfStockPillText}>0 in stock</Text>
           </View>
         ) : (
           <View style={[styles.addCircle, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}>
@@ -156,4 +184,14 @@ const styles = StyleSheet.create({
   },
   inCartQtyText: { fontSize: 11, fontWeight: '900', marginHorizontal: 6, minWidth: 14, textAlign: 'center' },
   addCircle: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  outOfStockPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  outOfStockPillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
 });

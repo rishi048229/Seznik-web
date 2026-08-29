@@ -51,7 +51,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
-import { trackUserAction } from '@/utils/analytics'
+import { isRestaurantBusiness } from '@/constants/businessTypes'
 import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -160,6 +160,7 @@ const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string
 export const PrintersPage = () => {
   const pageTutorial = usePageTutorial('printers')
   const { user } = useAuth()
+  const isRestaurant = isRestaurantBusiness(user?.businessType)
   const { data: products } = useProducts()
   const { data: settings, isLoading } = useSettings()
   const { mutate: updateSettingsMutation, isPending: isUpdating } = useUpdateSettings()
@@ -573,7 +574,8 @@ export const PrintersPage = () => {
     storeLogoUrl,
     upiId: receiptConfig.upiId || settings?.upiId,
     footerMessage: receiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
-  }), [receiptConfig, settings, storeLogoUrl, user])
+    ...(isRestaurant ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' } : {}),
+  }), [receiptConfig, settings, storeLogoUrl, user, isRestaurant])
 
   const previewGstOpts = useMemo(() => {
     const resolved = resolveReceiptPrintGstFromForm(gstForm, receiptConfig)
@@ -581,8 +583,9 @@ export const PrintersPage = () => {
       showTaxBreakdown: resolved.showTaxBreakdown,
       gstStyle: resolved.gstStyle,
       itemWiseGst: resolved.itemWiseGst,
+      isRestaurant,
     }
-  }, [gstForm, receiptConfig])
+  }, [gstForm, receiptConfig, isRestaurant])
 
   // Test Print via Bluetooth or Browser Spooler.
   // BLE only ever fires for the tab currently being tested — a thermal/label
@@ -620,19 +623,28 @@ export const PrintersPage = () => {
           sale: sampleTestSaleFromContext(),
           receiptConfig: {
             ...receiptConfig,
-            logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
+            logoURL: storeLogoUrl || receiptConfig.logoURL || settings?.businessLogoURL || '',
+            showLogo: config.showLogo ?? receiptConfig.showLogo ?? true,
+            showPaymentQR: receiptConfig.showPaymentQR,
+            upiId: receiptConfig.upiId || settings?.upiId || '',
+            customTemplates,
+            activeCustomTemplateId: templateId,
           },
           customTemplates,
           templateId,
           paperSize: config.paperSize,
-          businessName: settings?.businessName,
-          businessAddress: settings?.businessAddress,
+          settings,
+          businessName: receiptPreviewContext.storeName,
+          businessAddress: receiptPreviewContext.storeAddress,
+          businessPhone: receiptPreviewContext.storePhone,
+          businessGSTIN: receiptPreviewContext.storeGstin,
           customerName: receiptPreviewContext.customerName,
           logoURL: storeLogoUrl,
           businessLogoURL: settings?.businessLogoURL,
           invoiceConfig: settings?.invoiceConfig,
           connectionType: config.connectionType,
           bleConnected: bleState.status === 'connected',
+          isRestaurant,
         })
         toast.success(
           mode === 'ble' ? 'Test receipt sent to Bluetooth printer!' : 'Test receipt opened in browser print dialog'

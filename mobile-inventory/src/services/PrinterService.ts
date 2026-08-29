@@ -1,5 +1,5 @@
 import * as Print from 'expo-print';
-import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, EmitterSubscription } from 'react-native';
+import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, EmitterSubscription, Image } from 'react-native';
 import { ReceiptTemplate, getTemplateById, isRestaurantLayout } from '../constants/receiptTemplates';
 import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } from '../types/labelTemplate';
 import { CustomReceiptTemplate } from '../types/customReceipt';
@@ -15,6 +15,16 @@ import {
   isTaxReceiptEntry,
   shouldShowItemDiscount,
 } from '../utils/receiptDiscount';
+import {
+  RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  receiptLogoPrintWidthDots,
+  receiptQrBitmapDots,
+  receiptQrHtmlPx,
+  type ReceiptQrSize,
+} from '@shared/receiptPrintGeometry';
+import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/receiptLogo';
+import { isRestaurantBusiness } from '../constants/businessTypes';
+import { useAuthStore } from '../store/useAuthStore';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
@@ -63,6 +73,8 @@ export interface PrintSaleData {
   storeLogoUrl?: string;
   /** UPI VPA (Settings.upiId), e.g. "store@upi" — printed as a scannable payment QR code near the bottom. */
   upiId?: string;
+  /** Saved receipt footer (`receiptConfig.footerMessage`) for `{{footer_message}}`. */
+  footerMessage?: string;
   invoiceNumber: string;
   date: string;
   customerName?: string;
@@ -87,6 +99,7 @@ export interface PrintSaleData {
   /** Restaurant bill layout — table / waiter shown in the meta row */
   tableNo?: string;
   waiterName?: string;
+  tokenNo?: string;
 }
 
 /**
@@ -175,10 +188,13 @@ export interface ReceiptPrintOptions {
   storeGstin?: string;
   storeLogoUrl?: string;
   upiId?: string;
+  footerMessage?: string;
   /** When set, overrides ReceiptTemplate.showTaxBreakdown. */
   showTaxBreakdown?: boolean;
   /** Print each line's GST % under the item name. */
   itemWiseGst?: boolean;
+  /** When unset on the table block, restaurant/cafe bills number items; retail does not. */
+  isRestaurant?: boolean;
 }
 
 function effectiveShowTaxBreakdown(
@@ -195,6 +211,20 @@ function effectiveShowTaxBreakdown(
 function effectiveShowItemGst(options: ReceiptPrintOptions, showBreakdown: boolean): boolean {
   if (options.itemWiseGst !== undefined) return options.itemWiseGst;
   return showBreakdown;
+}
+
+function resolvePrintIsRestaurant(options: ReceiptPrintOptions): boolean {
+  if (options.isRestaurant !== undefined) return options.isRestaurant;
+  return isRestaurantBusiness(useAuthStore.getState().user?.businessType);
+}
+
+function resolveShowItemNumbers(
+  entry: { showItemNumbers?: boolean },
+  isRestaurant?: boolean
+): boolean {
+  if (entry.showItemNumbers === true) return true;
+  if (entry.showItemNumbers === false) return false;
+  return isRestaurant === true;
 }
 
 function gstTotalsHtml(data: PrintSaleData): string {
@@ -313,9 +343,11 @@ class ThermalPrinterServiceManager {
    * the native module's own ESC/POS commands:
    *   - printerInit()       → sends ESC @ (resets character size, line spacing, alignment, etc.)
    *   - printerLeftSpace(0) → zeroes left margin (GS L) — prevents stale non-zero margins
-   *   - printerLineSpace(0) → restores default line spacing (ESC 2 / ESC 3)
    *   - printerAlign(LEFT)  → ensures left justification (ESC a)
    *   - setWidth(dots)      → tells the SDK the paper width so column calculations match
+   *
+   * Matches web ESC/POS init (ESC @, left margin, print width). We do not send printerLineSpace(0)
+   * (ESC 2 / ESC 3): cheap firmware that ignores ESC prints the ASCII digits "2" / "3" as text.
    *
    * Without this sequence the printer carries over stale state (e.g. center alignment
    * from a QR code, or doubled character width from a KOT ticket) which makes subsequent
@@ -339,11 +371,7 @@ class ThermalPrinterServiceManager {
       if (typeof NativeEscposPrinter.printerLeftSpace === 'function') {
         await NativeEscposPrinter.printerLeftSpace(0);
       }
-      // 4. Default line spacing — a previous job may have altered it
-      if (typeof NativeEscposPrinter.printerLineSpace === 'function') {
-        await NativeEscposPrinter.printerLineSpace(0);
-      }
-      // 5. Force left alignment
+      // 4. Force left alignment
       if (typeof NativeEscposPrinter.printerAlign === 'function') {
         await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
       }
@@ -946,7 +974,7 @@ class ThermalPrinterServiceManager {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(payload)}`;
     return `<div class="center" style="margin-top:8px;">
       <div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY Rs.${data.grandTotal.toFixed(2)}</div>
-      <img src="${url}" width="120" height="120" alt="UPI payment QR" style="display:inline-block;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;" />
+      <img src="${url}" alt="UPI payment QR" style="width:130px;height:130px;object-fit:contain;display:inline-block;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" />
     </div>`;
   }
 
@@ -977,7 +1005,10 @@ class ThermalPrinterServiceManager {
       .replace(/\{\{payment_method\}\}/gi, data.paymentMethod || 'CASH')
       .replace(/\{\{upi_qr\}\}/gi, upiStr)
       .replace(/\{\{bill_pdf_url\}\}/gi, billPdfUrl)
-      .replace(/\{\{footer_message\}\}/gi, 'Thank you for your business!');
+      .replace(/\{\{footer_message\}\}/gi, data.footerMessage || 'Thank you for your business!')
+      .replace(/\{\{token_no\}\}/gi, data.tokenNo || '')
+      .replace(/\{\{table_no\}\}/gi, data.tableNo || '')
+      .replace(/\{\{waiter_name\}\}/gi, data.waiterName || '');
   }
 
   public formatCustomReceiptText(
@@ -993,6 +1024,7 @@ class ThermalPrinterServiceManager {
         ? options.showTaxBreakdown
         : data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise';
     const showItemGst = effectiveShowItemGst(options, showBreakdown);
+    const isRestaurant = resolvePrintIsRestaurant(options);
 
     // Top margin
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
@@ -1066,7 +1098,7 @@ class ThermalPrinterServiceManager {
           lines.push('-'.repeat(width));
 
           data.items.forEach((item, idx) => {
-            const namePrefix = `${idx + 1}. `;
+            const namePrefix = resolveShowItemNumbers(entry, isRestaurant) ? `${idx + 1}. ` : '';
             const rawName = String(item.productName || 'Item');
             if (namePrefix.length + rawName.length <= width) {
               lines.push(namePrefix + rawName);
@@ -1919,6 +1951,7 @@ class ThermalPrinterServiceManager {
     paperWidth: '58mm' | '80mm' = '58mm',
     options: ReceiptPrintOptions = {}
   ): string {
+    const logoReadyTemplate = ensureTemplateHasLogoBlock(customTemplate, data.storeLogoUrl || options.storeLogoUrl);
     const widthPx = paperWidth === '58mm' ? '280px' : '380px';
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
@@ -1928,9 +1961,10 @@ class ThermalPrinterServiceManager {
         ? options.showTaxBreakdown
         : data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise';
     const showItemGst = effectiveShowItemGst(options, showBreakdown);
+    const isRestaurant = resolvePrintIsRestaurant(options);
 
     const blocksHtml = enrichCustomReceiptEntries(
-      customTemplate.entries.filter((e) => e.enabled),
+      logoReadyTemplate.entries.filter((e) => e.enabled),
       data.totalDiscount || 0
     )
       .map((entry) => {
@@ -1954,11 +1988,12 @@ class ThermalPrinterServiceManager {
           }
 
           case 'image': {
-            const uri = entry.imageUri || entry.imageBase64 || data.storeLogoUrl;
+            const uri = resolveReceiptImageSrc(entry, data.storeLogoUrl);
             if (!uri) return '';
             const align = entry.align || 'center';
-            const widthPct = entry.widthPercent || 40;
-            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-width: ${widthPct}%; max-height: 80px; object-fit: contain;" /></div>`;
+            const widthPct = entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT;
+            const maxW = Math.max(80, Math.round(180 * Math.min(widthPct, 100) / 100));
+            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-height: 56px; max-width: ${maxW}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" /></div>`;
           }
 
           case 'text_special': {
@@ -2003,18 +2038,19 @@ class ThermalPrinterServiceManager {
             const itemHeader = entry.columnHeaders?.item || 'Item';
             const totalHeader = entry.columnHeaders?.total || 'Total';
             const itemsRows = data.items
-              .map(
-                (item, idx) => `
+              .map((item, idx) => {
+                const namePrefix = resolveShowItemNumbers(entry, isRestaurant) ? `${idx + 1}. ` : '';
+                return `
                 <div style="margin-bottom: 5px;">
-                  <div><b>${idx + 1}. ${item.productName}</b></div>
+                  <div><b>${namePrefix}${item.productName}</b></div>
                   ${(showItemGst || entry.showTaxColumn) && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${item.gstRate.toFixed(1)}% GST</div>` : ''}
                   <div style="display: flex; justify-content: space-between; font-size: 0.95em;">
                     <span>&nbsp;&nbsp;${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}</span>
                     <span>${item.total.toFixed(2)}</span>
                   </div>
                   ${shouldShowItemDiscount(item.discount) ? `<div style="font-size: 0.85em; color: #059669; font-weight: bold; margin-left: 12px;">Discount: -₹${item.discount!.toFixed(2)}</div>` : ''}
-                </div>`
-              )
+                </div>`;
+              })
               .join('');
 
             return `
@@ -2053,7 +2089,9 @@ class ThermalPrinterServiceManager {
 
             const align = entry.align || 'center';
             const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
-            const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 70 : 95;
+            const qrSize = receiptQrHtmlPx(
+              entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
+            );
 
             if (isQr) {
               const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${Math.max(qrSize * 2, 240)}x${Math.max(qrSize * 2, 240)}&data=${encodeURIComponent(rawVal)}&margin=4`;
@@ -2405,7 +2443,7 @@ class ThermalPrinterServiceManager {
           <div class="center" style="margin-bottom: 6px;">
             ${
               data.storeLogoUrl
-                ? `<img src="${data.storeLogoUrl}" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover;" />`
+                ? `<img src="${data.storeLogoUrl}" style="max-height: 56px; max-width: 180px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />`
                 : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: ${template.accentColor}; font-size: 22px; line-height: 1;">${template.emoji}</div>`
             }
           </div>
@@ -2489,7 +2527,7 @@ class ThermalPrinterServiceManager {
             .store-name { font-size: 22px; font-weight: 900; }
             .muted { color: #6B7280; font-size: 11px; margin-top: 2px; }
             .invoice-title { font-size: 20px; font-weight: 900; color: ${template.accentColor}; text-align: right; }
-            .logo { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; margin-bottom: 8px; }
+            .logo { max-height: 55px; max-width: 180px; width: auto; height: auto; object-fit: contain; margin-bottom: 8px; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             th, td { border: 1px solid #D1D5DB; padding: 8px 10px; font-size: 11.5px; }
             th { background: #F3F4F6; text-align: left; font-weight: 800; text-transform: uppercase; font-size: 10px; }
@@ -3982,6 +4020,49 @@ class ThermalPrinterServiceManager {
     `;
   }
 
+  private async logoPrintWidthDots(
+    uri: string | undefined,
+    paperWidth: '58mm' | '80mm',
+    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+  ): Promise<number> {
+    let imageWidth = 0
+    let imageHeight = 0
+    const src = String(uri || '').trim()
+    if (src) {
+      try {
+        const size = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          Image.getSize(src, (width, height) => resolve({ width, height }), reject)
+        })
+        imageWidth = size.width
+        imageHeight = size.height
+      } catch {
+        // Unknown aspect: treat as square so the web height cap still applies.
+      }
+    }
+    return receiptLogoPrintWidthDots(paperWidth, widthPercent, imageWidth, imageHeight)
+  }
+
+  /**
+   * printPic is fire-and-forget on some native builds. Await when it returns a Promise,
+   * otherwise give the printer a moment to finish the bitmap before the next ESC/POS command.
+   */
+  private async printEscPosBitmap(
+    base64: string,
+    opts: { width: number; center?: boolean; autoCut?: boolean; paperSize?: number }
+  ): Promise<void> {
+    if (typeof NativeEscposPrinter.printPic !== 'function') return;
+    const result = NativeEscposPrinter.printPic(base64, { autoCut: false, ...opts });
+    if (result && typeof result.then === 'function') {
+      await result;
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  private receiptQrDots(paperWidth: '58mm' | '80mm', size?: ReceiptQrSize): number {
+    return receiptQrBitmapDots(paperWidth, size)
+  }
+
   /**
    * Helper alias for printReceipt accepting options object with optional paperWidth
    */
@@ -4000,6 +4081,16 @@ class ThermalPrinterServiceManager {
   public async printReceipt(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
 
     const copies = Math.max(1, options.copies || 1);
+    const saleData: PrintSaleData = {
+      ...data,
+      storeLogoUrl: data.storeLogoUrl || options.storeLogoUrl,
+      footerMessage: data.footerMessage || options.footerMessage,
+      upiId: data.upiId || options.upiId,
+      storeName: data.storeName || options.storeName,
+      storeAddress: data.storeAddress || options.storeAddress,
+      storePhone: data.storePhone || options.storePhone,
+      storeGstin: data.storeGstin || options.storeGstin,
+    };
 
     try {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
@@ -4014,7 +4105,7 @@ class ThermalPrinterServiceManager {
           const customTemplate = this.resolveActiveCustomTemplate(options);
           if (customTemplate) {
             for (let i = 0; i < copies; i++) {
-              await this.printCustomReceiptEscpos(data, customTemplate, paperWidth, options);
+              await this.printCustomReceiptEscpos(saleData, customTemplate, paperWidth, options);
             }
             return true;
           }
@@ -4022,22 +4113,19 @@ class ThermalPrinterServiceManager {
           // sanitizeForThermalPrint strips/normalizes anything the GBK-default native printText()
           // can't render (emoji, em/en dashes, curly quotes, ...) — without this, free-text fields
           // like footerMessage (e.g. "...stopping by — see you tomorrow!") print as garbled bytes.
-          const textContent = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
+          const textContent = this.sanitizeForThermalPrint(this.formatReceiptText(saleData, paperWidth, options));
           const scale = options.fontSize === 'large' ? 1 : 0;
           const printOptions = { widthtimes: scale, heigthtimes: scale, cut: false };
 
-          const logoBase64 = data.storeLogoUrl ? await this.uriToBase64(data.storeLogoUrl) : null;
+          const logoBase64 = saleData.storeLogoUrl ? await this.uriToBase64(saleData.storeLogoUrl) : null;
           const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-          const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
-          const logoWidthDots = Math.round(paperWidthDots * 0.4);
-          const upiString = this.upiPayPayload(data);
+          const logoWidthDots = await this.logoPrintWidthDots(saleData.storeLogoUrl, paperWidth, 100);
+          const upiString = this.upiPayPayload(saleData);
 
           for (let i = 0; i < copies; i++) {
-            // printPic has no Promise parameter (fire-and-forget on the native side) and defaults
-            // autoCut:true internally — must pass autoCut:false explicitly, or the printer cuts
-            // the paper immediately after the logo, before the rest of the receipt prints.
+            // printPic defaults autoCut:true internally — must pass autoCut:false explicitly.
             if (logoBase64 && typeof NativeEscposPrinter.printPic === 'function') {
-              NativeEscposPrinter.printPic(logoBase64, { width: logoWidthDots, center: true, autoCut: false, paperSize: paperSizeDots });
+              await this.printEscPosBitmap(logoBase64, { width: logoWidthDots, center: true, autoCut: false, paperSize: paperSizeDots });
             }
 
             await NativeEscposPrinter.printText(textContent, printOptions);
@@ -4049,7 +4137,7 @@ class ThermalPrinterServiceManager {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
                 }
-                await NativeEscposPrinter.printQRCode(upiString, 200, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(paperWidth), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
                 }
@@ -4062,12 +4150,12 @@ class ThermalPrinterServiceManager {
             try {
               const { usePrinterStore } = require('../store/usePrinterStore');
               const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
-              const billPdfUrl = buildBillPdfUrl(data);
+              const billPdfUrl = buildBillPdfUrl(saleData);
               if (shouldPrintBillQr && billPdfUrl && typeof NativeEscposPrinter.printQRCode === 'function') {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
                 }
-                await NativeEscposPrinter.printQRCode(billPdfUrl, 180, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                await NativeEscposPrinter.printQRCode(billPdfUrl, this.receiptQrDots(paperWidth), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
                 }
@@ -4100,7 +4188,7 @@ class ThermalPrinterServiceManager {
 
       // If running in web browser without native ESC/POS, use web print preview
       if (Platform.OS === 'web') {
-        const html = this.generateReceiptHtml(data, paperWidth, options);
+        const html = this.generateReceiptHtml(saleData, paperWidth, options);
         for (let i = 0; i < copies; i++) {
           await Print.printAsync({ html });
         }
@@ -4117,16 +4205,15 @@ class ThermalPrinterServiceManager {
   private async printStoreLogoBitmap(
     storeLogoUrl: string | undefined,
     paperWidth: '58mm' | '80mm',
-    widthPercent = 40
+    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
   ): Promise<boolean> {
     if (!storeLogoUrl || typeof NativeEscposPrinter.printPic !== 'function') return false;
     try {
       const base64 = await this.uriToBase64(storeLogoUrl);
       if (!base64) return false;
       const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-      const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
-      const logoWidthDots = Math.round(paperWidthDots * (widthPercent / 100));
-      NativeEscposPrinter.printPic(base64, {
+      const logoWidthDots = await this.logoPrintWidthDots(storeLogoUrl, paperWidth, widthPercent);
+      await this.printEscPosBitmap(base64, {
         width: logoWidthDots,
         center: true,
         autoCut: false,
@@ -4149,8 +4236,14 @@ class ThermalPrinterServiceManager {
     await this.initPrinter(paperWidth);
 
     const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-    const paperWidthDots = paperWidth === '80mm' ? 576 : 384;
     const widthCols = paperWidth === '58mm' ? 32 : 48;
+    const logoReadyTemplate = ensureTemplateHasLogoBlock(customTemplate, data.storeLogoUrl);
+    const fontBump = options.fontSize === 'large' ? 1 : 0;
+
+    const topMargin = Math.max(0, options.topMargin || 0);
+    if (topMargin > 0) {
+      await NativeEscposPrinter.printText('\n'.repeat(topMargin), { widthtimes: 0, heigthtimes: 0, cut: false });
+    }
 
     const padLine = (left: string, right: string) => {
       const leftStr = String(left ?? '');
@@ -4173,21 +4266,22 @@ class ThermalPrinterServiceManager {
         ? options.showTaxBreakdown
         : data.gstStyle === 'tax_invoice' || data.gstStyle === 'slab_wise';
     const showItemGst = effectiveShowItemGst(options, showBreakdown);
+    const isRestaurant = resolvePrintIsRestaurant(options);
 
     const receiptEntries = enrichCustomReceiptEntries(
-      customTemplate.entries.filter((entry) => entry.enabled),
+      logoReadyTemplate.entries.filter((entry) => entry.enabled),
       data.totalDiscount || 0
     );
 
     const hasEnabledImageEntry = receiptEntries.some((entry) => entry.type === 'image');
     if (!hasEnabledImageEntry && data.storeLogoUrl) {
-      await this.printStoreLogoBitmap(data.storeLogoUrl, paperWidth, 40);
+      await this.printStoreLogoBitmap(data.storeLogoUrl, paperWidth, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT);
     }
 
     for (const entry of receiptEntries) {
       switch (entry.type) {
         case 'image': {
-          const uri = entry.imageUri || entry.imageBase64 || data.storeLogoUrl;
+          const uri = resolveReceiptImageSrc(entry, data.storeLogoUrl);
           if (uri && typeof NativeEscposPrinter.printPic === 'function') {
             try {
               let base64 = await this.uriToBase64(uri);
@@ -4195,9 +4289,12 @@ class ThermalPrinterServiceManager {
                 base64 = await this.uriToBase64(data.storeLogoUrl);
               }
               if (base64) {
-                const widthPct = (entry.widthPercent || 40) / 100;
-                const logoWidthDots = Math.round(paperWidthDots * widthPct);
-                NativeEscposPrinter.printPic(base64, {
+                const logoWidthDots = await this.logoPrintWidthDots(
+                  uri,
+                  paperWidth,
+                  entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+                );
+                await this.printEscPosBitmap(base64, {
                   width: logoWidthDots,
                   center: entry.align !== 'left',
                   autoCut: false,
@@ -4236,7 +4333,7 @@ class ThermalPrinterServiceManager {
               scaleH = 1;
             }
           }
-          await NativeEscposPrinter.printText(rawText + '\n', { widthtimes: scaleW, heigthtimes: scaleH, cut: false });
+          await NativeEscposPrinter.printText(rawText + '\n', { widthtimes: Math.min(1, scaleW + fontBump), heigthtimes: Math.min(1, scaleH + fontBump), cut: false });
           break;
         }
 
@@ -4276,7 +4373,7 @@ class ThermalPrinterServiceManager {
 
           for (let idx = 0; idx < data.items.length; idx++) {
             const item = data.items[idx];
-            const namePrefix = `${idx + 1}. `;
+            const namePrefix = resolveShowItemNumbers(entry, isRestaurant) ? `${idx + 1}. ` : '';
             const rawName = String(item.productName || 'Item');
             if (namePrefix.length + rawName.length <= widthCols) {
               await NativeEscposPrinter.printText(namePrefix + rawName + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
@@ -4333,7 +4430,10 @@ class ThermalPrinterServiceManager {
             await NativeEscposPrinter.printerAlign(alignCode(entry.align));
           }
           if (isQr && typeof NativeEscposPrinter.printQRCode === 'function') {
-            const qrDots = entry.size === 'large' ? (paperWidth === '80mm' ? 240 : 200) : entry.size === 'small' ? (paperWidth === '80mm' ? 140 : 120) : (paperWidth === '80mm' ? 190 : 160);
+            const qrDots = this.receiptQrDots(
+              paperWidth,
+              entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
+            );
             await NativeEscposPrinter.printQRCode(rawVal, qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
             if (entry.showText) {
               await NativeEscposPrinter.printText(rawVal + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
@@ -4614,6 +4714,7 @@ class ThermalPrinterServiceManager {
       storeGstin: options.storeGstin || (isRestaurantBill ? template.previewGstin || '' : ''),
       storeLogoUrl: options.storeLogoUrl,
       upiId: options.upiId,
+      footerMessage: options.footerMessage,
       invoiceNumber: isRestaurantBill
         ? template.previewInvoice || '1842'
         : `INV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -4622,8 +4723,9 @@ class ThermalPrinterServiceManager {
         : now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
       customerName: isRestaurantBill ? template.previewCustomerName || 'Walk-in Customer' : 'Walk-in Customer',
       customerPhone: isRestaurantBill ? template.previewCustomerPhone || '9988776655' : '9988776655',
-      tableNo: isRestaurantBill ? template.previewTableNo || '12' : undefined,
-      waiterName: isRestaurantBill ? template.previewWaiter || 'WAITER' : undefined,
+      tableNo: isRestaurantBill ? template.previewTableNo || '12' : resolvePrintIsRestaurant(options) ? '12' : undefined,
+      waiterName: isRestaurantBill ? template.previewWaiter || 'WAITER' : resolvePrintIsRestaurant(options) ? 'RAJ' : undefined,
+      tokenNo: isRestaurantBill || resolvePrintIsRestaurant(options) ? '42' : undefined,
       items: sampleItems,
       subtotal,
       totalDiscount: 0,

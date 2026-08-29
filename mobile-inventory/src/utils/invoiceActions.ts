@@ -23,6 +23,7 @@ export function applyStoreProfileToPrintData(data: PrintSaleData, storeProfile: 
     storeGstin: storeProfile.storeGstin,
     storeLogoUrl: storeProfile.storeLogoUrl,
     upiId: storeProfile.upiId,
+    footerMessage: storeProfile.footerMessage,
   };
 }
 

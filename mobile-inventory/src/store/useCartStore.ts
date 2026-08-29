@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Alert } from 'react-native';
 import { Product } from '@/types/product';
 import { PaymentMethod, SaleItem } from '@/types/sale';
 import {
@@ -65,6 +66,22 @@ interface CartState {
   toSaleItems: () => SaleItem[];
 }
 
+// Helper to extract numeric stock across different product payload shapes
+function extractAvailableStock(product: Product | any): number | undefined {
+  if (!product) return undefined;
+  if (typeof product.currentStock === 'number') return Math.max(0, product.currentStock);
+  if (typeof product.stockQty === 'number') return Math.max(0, product.stockQty);
+  if (typeof product.currentStock === 'string' && product.currentStock.trim() !== '') {
+    const parsed = parseFloat(product.currentStock);
+    if (!isNaN(parsed)) return Math.max(0, parsed);
+  }
+  if (typeof product.stockQty === 'string' && product.stockQty.trim() !== '') {
+    const parsed = parseFloat(product.stockQty);
+    if (!isNaN(parsed)) return Math.max(0, parsed);
+  }
+  return undefined;
+}
+
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   discount: { type: 'flat', value: 0 },
@@ -76,19 +93,49 @@ export const useCartStore = create<CartState>((set, get) => ({
   selectedChargePresetIds: [],
 
   addItem: (product: Product, quantity = 1) => {
+    // Check if product is out of stock (stock is 0 or negative)
+    const availableStock = extractAvailableStock(product);
+    if (availableStock !== undefined && availableStock <= 0) {
+      Alert.alert(
+        'Out of Stock 🚨',
+        `Cannot add "${product.name}" to cart because it is currently out of stock (0 ${product.unit || 'units'} left in inventory). Please restock before billing.`
+      );
+      return;
+    }
+
     set((state) => {
       const existingIndex = state.items.findIndex((i) => i.product.id === product.id);
       if (existingIndex > -1) {
+        const currentQty = state.items[existingIndex].quantity;
+        const requestedQty = currentQty + quantity;
+        const finalQty = availableStock !== undefined ? Math.min(requestedQty, availableStock) : requestedQty;
+
+        if (availableStock !== undefined && requestedQty > availableStock) {
+          Alert.alert(
+            'Stock Limit Reached ⚠️',
+            `Cannot add more units of "${product.name}". Only ${availableStock} ${product.unit || 'units'} available in inventory.`
+          );
+        }
+
         return {
           items: state.items.map((item, idx) =>
-            idx === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+            idx === existingIndex ? { ...item, quantity: finalQty } : item
           ),
         };
       }
+
+      const initialQty = availableStock !== undefined ? Math.min(quantity, availableStock) : quantity;
+      if (availableStock !== undefined && quantity > availableStock) {
+        Alert.alert(
+          'Stock Limit Reached ⚠️',
+          `Cannot add ${quantity} units of "${product.name}". Only ${availableStock} ${product.unit || 'units'} available in inventory.`
+        );
+      }
+
       const hasProductDiscount = typeof product.discountValue === 'number' && product.discountValue > 0;
       const newItem: CartItem = {
         product,
-        quantity,
+        quantity: initialQty,
         discountType: product.discountType || 'percent',
         discountValue: hasProductDiscount ? product.discountValue : 0,
         discountApplied: hasProductDiscount,
@@ -106,9 +153,21 @@ export const useCartStore = create<CartState>((set, get) => ({
       get().removeItem(productId);
       return;
     }
+    const item = get().items.find((i) => i.product.id === productId);
+    const availableStock = item ? extractAvailableStock(item.product) : undefined;
+
+    let finalQty = quantity;
+    if (availableStock !== undefined && quantity > availableStock) {
+      finalQty = availableStock;
+      Alert.alert(
+        'Stock Limit Reached ⚠️',
+        `Cannot increase quantity beyond ${availableStock} ${item?.product.unit || 'units'} currently available in inventory.`
+      );
+    }
+
     set({
       items: get().items.map((i) =>
-        i.product.id === productId ? { ...i, quantity } : i
+        i.product.id === productId ? { ...i, quantity: finalQty } : i
       ),
     });
   },

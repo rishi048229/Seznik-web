@@ -456,5 +456,71 @@ export async function setStoredSelectedStoreId(storeId: string | null): Promise<
   }
 }
 
+// ─── Notifications & Preferences ─────────────────────────────────────────────
+const NOTIFICATIONS_KEY = 'app_notifications_history';
+const NOTIFICATION_PREFERENCES_KEY = 'app_notification_preferences';
+
+export async function getStoredNotifications(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(NOTIFICATIONS_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(NOTIFICATIONS_KEY);
+  } catch (error) {
+    console.error('Error reading notifications history:', error);
+    return null;
+  }
+}
+
+export async function setStoredNotifications(json: string | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (json) window.localStorage.setItem(NOTIFICATIONS_KEY, json);
+        else window.localStorage.removeItem(NOTIFICATIONS_KEY);
+      }
+      return;
+    }
+    if (json) {
+      await SecureStore.setItemAsync(NOTIFICATIONS_KEY, json);
+    } else {
+      await SecureStore.deleteItemAsync(NOTIFICATIONS_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving notifications history:', error);
+  }
+}
+
+export async function getStoredNotificationPreferences(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(NOTIFICATION_PREFERENCES_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(NOTIFICATION_PREFERENCES_KEY);
+  } catch (error) {
+    console.error('Error reading notification preferences:', error);
+    return null;
+  }
+}
+
+export async function setStoredNotificationPreferences(json: string | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (json) window.localStorage.setItem(NOTIFICATION_PREFERENCES_KEY, json);
+        else window.localStorage.removeItem(NOTIFICATION_PREFERENCES_KEY);
+      }
+      return;
+    }
+    if (json) {
+      await SecureStore.setItemAsync(NOTIFICATION_PREFERENCES_KEY, json);
+    } else {
+      await SecureStore.deleteItemAsync(NOTIFICATION_PREFERENCES_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving notification preferences:', error);
+  }
+}
+
 
 

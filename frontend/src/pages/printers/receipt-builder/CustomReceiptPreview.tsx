@@ -5,6 +5,7 @@ import type { CustomReceiptEntry, CustomReceiptTemplate } from '@/types/customRe
 import {
   compileGstBreakdownPairs,
   interpolateReceiptVariables,
+  resolveShowItemNumbers,
   resolveShowTaxColumn,
   type CustomReceiptGstOpts,
   type ReceiptPrintContext,
@@ -185,6 +186,7 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
       }
       case 'table': {
         const showTaxColumn = resolveShowTaxColumn(entry, gstOpts?.itemWiseGst)
+        const showItemNumbers = resolveShowItemNumbers(entry, gstOpts?.isRestaurant)
         return (
           <div key={entry.id || idx} className="my-1 text-black" style={{ fontFamily: 'inherit' }}>
             <div className="flex justify-between border-b border-dashed border-black pb-1 mb-1 font-bold" style={{ fontSize: '0.9em' }}>
@@ -193,7 +195,7 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
             </div>
             {context.items.map((it, sIdx) => (
               <div key={sIdx} className="mb-1.5">
-                <div className="font-bold" style={{ fontSize: '0.95em' }}>{sIdx + 1}. {it.productName}</div>
+                <div className="font-bold" style={{ fontSize: '0.95em' }}>{showItemNumbers ? `${sIdx + 1}. ` : ''}{it.productName}</div>
                 {showTaxColumn && it.gstRate ? (
                   <div className="text-gray-700 ml-3" style={{ fontSize: '0.85em' }}>{it.gstRate}% GST</div>
                 ) : null}

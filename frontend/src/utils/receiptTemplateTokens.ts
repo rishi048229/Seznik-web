@@ -20,7 +20,7 @@ const LABEL_BY_KEY: Record<string, string> = Object.fromEntries(
 
 export const VARIABLE_GROUPS: readonly TemplateVariableGroup[] = [
   { id: 'store', label: 'Store', keys: ['store_name', 'store_address', 'store_phone', 'store_gstin'] },
-  { id: 'bill', label: 'Bill', keys: ['invoice_no', 'date', 'time', 'footer_message'] },
+  { id: 'bill', label: 'Bill', keys: ['invoice_no', 'date', 'time', 'footer_message', 'token_no', 'table_no', 'waiter_name'] },
   { id: 'customer', label: 'Customer', keys: ['customer_name', 'customer_phone'] },
   {
     id: 'amounts',

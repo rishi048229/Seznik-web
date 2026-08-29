@@ -28,6 +28,7 @@ export type SimpleSectionId =
   | 'discount'
   | 'tax'
   | 'grandTotal'
+  | 'tokenRow'
   | 'qr'
   | 'footer'
 
@@ -46,6 +47,7 @@ const SECTION_ORDER: SimpleSectionId[] = [
   'discount',
   'tax',
   'grandTotal',
+  'tokenRow',
   'qr',
   'footer',
 ]
@@ -147,6 +149,7 @@ export interface MappedSimpleTemplate {
   discount: LeftRightTextReceiptEntry | null
   tax: LeftRightTextReceiptEntry | null
   grandTotal: LeftRightTextReceiptEntry | null
+  tokenRow: TextLikeEntry | null
   qr: BarcodeReceiptEntry | null
   qrCaption: TextLikeEntry | null
   footer: TextLikeEntry | null
@@ -222,6 +225,13 @@ export function mapTemplateToSimple(template: CustomReceiptTemplate): MappedSimp
       e.type === 'left_right_text' &&
       (containsTemplateVar(e.left, 'grand_total') || containsTemplateVar(e.right, 'grand_total'))
   )
+  const tokenRow = takeFirst<TextLikeEntry>(
+    entries,
+    used,
+    (e) =>
+      isTextLike(e) &&
+      (containsTemplateVar(e.text, 'token_no') || containsTemplateVar(e.text, 'table_no'))
+  )
   const qr = takeFirst<BarcodeReceiptEntry>(entries, used, (e) => e.type === 'barcode')
 
   let qrCaption: TextLikeEntry | null = null
@@ -252,6 +262,7 @@ export function mapTemplateToSimple(template: CustomReceiptTemplate): MappedSimp
     discount,
     tax,
     grandTotal,
+    tokenRow,
     qr,
     qrCaption,
     footer,
@@ -368,6 +379,18 @@ function createSectionBlocks(section: SimpleSectionId): CustomReceiptEntry[] {
           right: '{{grand_total}}',
           size: 'medium',
           bold: true,
+        },
+      ]
+    case 'tokenRow':
+      return [
+        {
+          id: newId('entry-token'),
+          type: 'text',
+          enabled: true,
+          text: 'Token {{token_no}}',
+          size: 'large',
+          bold: true,
+          align: 'center',
         },
       ]
     case 'qr':

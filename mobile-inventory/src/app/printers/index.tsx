@@ -59,6 +59,7 @@ import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
+import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 
 // Stable sample product for label test-prints — module-level so it isn't rebuilt every render;
 // same values printTestLabel's own internal default uses.
@@ -354,7 +355,7 @@ export default function PrintersScreen() {
         storeAddress: settings?.businessAddress || '123 Market Road, City',
         storePhone: settings?.businessPhone || '9999999999',
         storeGstin: settings?.businessGSTIN || '07AAAAA0000A1Z5',
-        storeLogoUrl: settings?.businessLogoURL || undefined,
+        storeLogoUrl: printOptions.storeLogoUrl,
         upiId: settings?.upiId || undefined,
         invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
         date: new Date().toLocaleDateString('en-GB'),
@@ -425,21 +426,18 @@ export default function PrintersScreen() {
     }
   };
 
-  const printOptions: ReceiptPrintOptions = {
-    template: activeTemplate,
-    customTemplate: activeCustomTemplate,
-    includeBillQr: enableBillQrCode,
+  const printOptions: ReceiptPrintOptions = buildTestReceiptPrintOptions({
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
     topMargin: topMarginVal,
     autoCut: autoCutVal,
     fontSize: fontSizeVal,
-    copies: 1, // test prints always send exactly one copy regardless of the saved "copies" calibration
-    storeName: settings?.businessName || undefined,
-    storeAddress: settings?.businessAddress || undefined,
-    storePhone: settings?.businessPhone || undefined,
-    storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || undefined,
-    storeLogoUrl: settings?.businessLogoURL || undefined,
-    upiId: settings?.upiId || undefined,
-  };
+    settings,
+    customTemplate: activeCustomTemplate,
+    copies: 1,
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: topPadding }]}>
@@ -875,7 +873,8 @@ export default function PrintersScreen() {
                             storeName={settings?.businessName || 'Your Store Name'}
                             storeAddress={settings?.businessAddress || '123 Market Road, City'}
                             storePhone={settings?.businessPhone || '9999999999'}
-                            storeGstin={(settings as any)?.gstin || (settings as any)?.taxNumber || ''}
+                            storeGstin={settings?.businessGSTIN || ''}
+                            storeLogoUrl={printOptions.storeLogoUrl}
                             invoiceNumber="INV-1024"
                             date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                             customerName="Walk-in Customer"

@@ -66,6 +66,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
+import { buildSampleTestSale, buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
 import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
@@ -89,6 +90,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
+import { RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT } from '@shared/receiptPrintGeometry';
 
 interface DraggableEntryRowProps {
   entry: CustomReceiptEntry;
@@ -256,6 +258,10 @@ export default function ReceiptEditorScreen() {
     setActiveCustomTemplate,
     paperWidth: globalPaperWidth,
     enableBillQrCode,
+    activeTemplateId,
+    topMargin,
+    autoCut,
+    fontSize,
   } = usePrinterStore();
 
   const [template, setTemplate] = useState<CustomReceiptTemplate>(() => {
@@ -292,33 +298,33 @@ export default function ReceiptEditorScreen() {
   }, [id, customTemplates]);
 
   // Sample data for live preview & test printing
-  const samplePrintData: PrintSaleData = useMemo(() => ({
-    storeName: settings?.businessName || 'Your Store Name',
-    storeAddress: settings?.businessAddress || '123 Market Road, City Centre',
-    storePhone: settings?.businessPhone || '+91 98765 43210',
-    storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || '27AAAAA0000A1Z5',
-    storeLogoUrl: settings?.businessLogoURL || undefined,
-    upiId: settings?.upiId || 'store@upi',
-    invoiceNumber: 'INV-2026-0042',
-    date: new Date().toLocaleDateString('en-GB'),
-    customerName: 'Aarav Sharma',
-    customerPhone: '+91 99887 76655',
-    items: [
-      { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
-      { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Bottle', gstRate: 5 },
-      { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
-    ],
-    subtotal: 1090,
-    totalDiscount: 50,
-    taxableAmt: 1040,
-    sgst: 20.25,
-    cgst: 20.25,
-    totalTax: 40.5,
-    grandTotal: 1080.5,
-    amountPaid: 1100,
-    changeReturned: 19.5,
-    paymentMethod: 'UPI',
-  }), [settings]);
+  const samplePrintData: PrintSaleData = useMemo(
+    () =>
+      buildSampleTestSale(settings, {
+        storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || settings?.businessGSTIN || '27AAAAA0000A1Z5',
+        upiId: settings?.upiId || 'store@upi',
+        invoiceNumber: 'INV-2026-0042',
+        date: new Date().toLocaleDateString('en-GB'),
+        customerName: 'Aarav Sharma',
+        customerPhone: '+91 99887 76655',
+        items: [
+          { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
+          { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Bottle', gstRate: 5 },
+          { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
+        ],
+        subtotal: 1090,
+        totalDiscount: 50,
+        taxableAmt: 1040,
+        sgst: 20.25,
+        cgst: 20.25,
+        totalTax: 40.5,
+        grandTotal: 1080.5,
+        amountPaid: 1100,
+        changeReturned: 19.5,
+        paymentMethod: 'UPI',
+      }),
+    [settings]
+  );
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -402,7 +408,7 @@ export default function ReceiptEditorScreen() {
           enabled: true,
           imageUri: settings?.businessLogoURL || undefined,
           align: 'center',
-          widthPercent: 40,
+          widthPercent: RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
         };
         break;
       case 'text_special':
@@ -549,8 +555,18 @@ export default function ReceiptEditorScreen() {
     setIsPrinting(true);
     try {
       const ok = await ThermalPrinterService.printReceipt(samplePrintData, template.paperWidth || globalPaperWidth, {
-        customTemplate: template,
-        includeBillQr: enableBillQrCode,
+        ...buildTestReceiptPrintOptions({
+          activeTemplateId,
+          customTemplates,
+          activeCustomTemplateId,
+          enableBillQrCode,
+          topMargin,
+          autoCut,
+          fontSize,
+          settings,
+          customTemplate: template,
+          copies: 1,
+        }),
       });
       if (ok) {
         Alert.alert('Print Sent', 'Test custom receipt printed successfully!');
@@ -565,8 +581,18 @@ export default function ReceiptEditorScreen() {
   const handleSharePdf = async () => {
     try {
       const html = ThermalPrinterService.generateReceiptHtml(samplePrintData, template.paperWidth || globalPaperWidth, {
-        customTemplate: template,
-        includeBillQr: enableBillQrCode,
+        ...buildTestReceiptPrintOptions({
+          activeTemplateId,
+          customTemplates,
+          activeCustomTemplateId,
+          enableBillQrCode,
+          topMargin,
+          autoCut,
+          fontSize,
+          settings,
+          customTemplate: template,
+          copies: 1,
+        }),
       });
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
@@ -608,7 +634,7 @@ export default function ReceiptEditorScreen() {
       case 'image':
         return {
           title: 'Shop Logo',
-          subtitle: `Size: ${entry.widthPercent || 40}% • Position: ${entry.align || 'center'}`,
+          subtitle: `Size: ${entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT}% • Position: ${entry.align || 'center'}`,
           icon: <ImageIcon size={18} color="#16A34A" />,
         };
 
@@ -798,7 +824,7 @@ export default function ReceiptEditorScreen() {
                     enabled: val,
                     imageUri: settings?.businessLogoURL || undefined,
                     align: 'center',
-                    widthPercent: 40,
+                    widthPercent: RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
                   };
                   setTemplate((prev) => ({
                     ...prev,
@@ -918,8 +944,8 @@ export default function ReceiptEditorScreen() {
                   {/* Size chips */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                     <Text style={{ fontSize: 11, color: theme.textSecondary }}>Size:</Text>
-                    {[30, 40, 50, 70, 100].map((sz) => {
-                      const isSel = (existingLogoEntry.widthPercent || 40) === sz;
+                    {[30, 40, 50, 60, 70, 100].map((sz) => {
+                      const isSel = (existingLogoEntry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT) === sz;
                       return (
                         <TouchableOpacity
                           key={sz}
@@ -1467,8 +1493,8 @@ export default function ReceiptEditorScreen() {
 
                     <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Logo Size on Receipt (%):</Text>
                     <View style={styles.optionsRow}>
-                      {[30, 40, 50, 70, 100].map((pct) => {
-                        const isSel = (editingEntry.widthPercent || 40) === pct;
+                      {[30, 40, 50, 60, 70, 100].map((pct) => {
+                        const isSel = (editingEntry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT) === pct;
                         return (
                           <TouchableOpacity
                             key={pct}
@@ -1976,6 +2002,7 @@ export default function ReceiptEditorScreen() {
                 storeAddress={samplePrintData.storeAddress}
                 storePhone={samplePrintData.storePhone}
                 storeGstin={samplePrintData.storeGstin}
+                storeLogoUrl={samplePrintData.storeLogoUrl}
                 invoiceNumber={samplePrintData.invoiceNumber}
                 date={samplePrintData.date}
                 customerName={samplePrintData.customerName}

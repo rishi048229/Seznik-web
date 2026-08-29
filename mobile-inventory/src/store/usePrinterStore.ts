@@ -555,6 +555,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     set(config);
     await settingsApi.updatePrinterConfig({
       paperWidth: config.paperWidth,
+      paperSize: config.paperWidth,
       printDensity: config.printDensity,
       topMargin: config.topMargin,
       autoCut: config.autoCut,
@@ -697,8 +698,15 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       }
       await setStoredActiveLabelTemplate(effectiveActiveLabelId);
 
+      const paperFromConfig =
+        printerConfig.paperWidth === '80mm' || printerConfig.paperSize === '80mm'
+          ? '80mm'
+          : printerConfig.paperWidth === '58mm' || printerConfig.paperSize === '58mm'
+            ? '58mm'
+            : get().paperWidth;
+
       set({
-        paperWidth: printerConfig.paperWidth === '80mm' ? '80mm' : get().paperWidth,
+        paperWidth: paperFromConfig,
         printDensity: typeof printerConfig.printDensity === 'number' ? printerConfig.printDensity : get().printDensity,
         topMargin: typeof printerConfig.topMargin === 'number' ? printerConfig.topMargin : get().topMargin,
         autoCut: typeof printerConfig.autoCut === 'boolean' ? printerConfig.autoCut : get().autoCut,

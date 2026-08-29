@@ -7,6 +7,11 @@ import { buildUpiPayLink, isValidUpiVpa } from './upiQr'
 import { EscPosBuilder, rasterizeImageForEscPos, type EscPosAlign } from './escpos'
 import { resolveActiveFromTemplates } from './ensureReceiptTemplates'
 import { isReceiptEntryEnabled, isBrowserLoadableImageSrc, prefetchPrintableLogoSrc, resolveReceiptImageSrc } from './receiptLogo'
+import {
+  RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  receiptLogoMaxDots,
+  receiptQrEscPosModuleSizeForEntry,
+} from '@shared/receiptPrintGeometry'
 
 export interface ReceiptPrintContext {
   storeName: string
@@ -39,6 +44,9 @@ export interface ReceiptPrintContext {
   changeReturned?: number
   paymentMethod?: string
   footerMessage?: string
+  tableNo?: string
+  waiterName?: string
+  tokenNo?: string
 }
 
 export const SAMPLE_RECEIPT_CONTEXT: ReceiptPrintContext = {
@@ -77,6 +85,9 @@ export function saleToReceiptContext(
     upiId?: string
     footerMessage?: string
     customerName?: string
+    tableNo?: string
+    waiterName?: string
+    tokenNo?: string
   }
 ): ReceiptPrintContext {
   const items = (sale.items || []).map((it: SaleItem) => ({
@@ -93,6 +104,8 @@ export function saleToReceiptContext(
   const totalTax = sale.totalTax ?? 0
   const grandTotal = sale.grandTotal ?? subtotal - totalDiscount + totalTax
   const d = sale.createdAt ? new Date(sale.createdAt as string | number | Date) : new Date()
+  const saleExtra = sale as Sale & { tableNo?: string; waiterName?: string; tokenNumber?: string | number }
+  const tokenNo = opts?.tokenNo || (saleExtra.tokenNumber != null ? String(saleExtra.tokenNumber) : undefined)
   return {
     storeName: opts?.businessName || 'SEZNIK STORE',
     storeAddress: opts?.businessAddress,
@@ -115,6 +128,9 @@ export function saleToReceiptContext(
     changeReturned: sale.changeReturned ?? 0,
     paymentMethod: sale.paymentMethod || 'CASH',
     footerMessage: opts?.footerMessage || 'Thank you for your purchase!',
+    tableNo: opts?.tableNo || saleExtra.tableNo,
+    waiterName: opts?.waiterName || saleExtra.waiterName,
+    tokenNo,
   }
 }
 
@@ -156,6 +172,9 @@ export function interpolateReceiptVariables(
     .replace(/\{\{upi_qr\}\}/gi, upiStr)
     .replace(/\{\{bill_pdf_url\}\}/gi, billPdfUrl)
     .replace(/\{\{footer_message\}\}/gi, data.footerMessage || 'Thank you!')
+    .replace(/\{\{token_no\}\}/gi, data.tokenNo || '')
+    .replace(/\{\{table_no\}\}/gi, data.tableNo || '')
+    .replace(/\{\{waiter_name\}\}/gi, data.waiterName || '')
 }
 
 const isDiscountEntry = (e: CustomReceiptEntry) =>
@@ -168,6 +187,8 @@ export interface CustomReceiptGstOpts {
   itemWiseGst?: boolean
   gstStyle?: GstBreakdownStyle
   showTaxBreakdown?: boolean
+  /** When unset on the table block, restaurant/cafe bills number items; retail does not. */
+  isRestaurant?: boolean
 }
 
 /** Format thermal table amounts without ₹ or Indian grouping to preserve column width. */
@@ -193,15 +214,23 @@ function htmlTwoColRow(left: string, right: string, fontSize: string, bold = fal
   return `<div style="${HTML_ROW}${weight}font-size:${fontSize};"><span style="${HTML_LEFT}">${escapeHtmlText(left)}</span><span style="${HTML_RIGHT}">${escapeHtmlText(right)}</span></div>`
 }
 
+export function resolveShowItemNumbers(entry: CustomReceiptEntry, isRestaurant?: boolean): boolean {
+  if (entry.type !== 'table') return false
+  if (entry.showItemNumbers === true) return true
+  if (entry.showItemNumbers === false) return false
+  return isRestaurant === true
+}
+
 /** Product name on its own line(s); qty/rate and amount on a separate padded row. */
 function renderTableItemLines(
   item: ReceiptPrintContext['items'][number],
   idx: number,
   width: number,
-  showTaxColumn: boolean
+  showTaxColumn: boolean,
+  showItemNumbers: boolean
 ): string[] {
   const lines: string[] = []
-  const prefix = `${idx + 1}. `
+  const prefix = showItemNumbers ? `${idx + 1}. ` : ''
   const name = String(item.productName || 'Item')
   const fullName = prefix + name
 
@@ -229,9 +258,10 @@ function renderTableItemHtml(
   item: ReceiptPrintContext['items'][number],
   idx: number,
   fontSize: string,
-  showTaxColumn: boolean
+  showTaxColumn: boolean,
+  showItemNumbers: boolean
 ): string {
-  const name = `${idx + 1}. ${item.productName || 'Item'}`
+  const name = showItemNumbers ? `${idx + 1}. ${item.productName || 'Item'}` : (item.productName || 'Item')
   const qtyRate = `${item.quantity} ${item.unit || 'Pc'} x ${thermalAmount(item.unitPrice)}`
   const parts = [
     `<div style="font-size:${fontSize};word-break:break-word;overflow-wrap:anywhere;">${escapeHtmlText(name)}</div>`,
@@ -371,10 +401,11 @@ export function compileCustomReceiptTextLines(
         const itemCol = entry.columnHeaders?.item || 'Item'
         const totalCol = entry.columnHeaders?.total || 'Total'
         const showTaxColumn = resolveShowTaxColumn(entry, globalItemWiseGst)
+        const showItemNumbers = resolveShowItemNumbers(entry, opts?.isRestaurant)
         lines.push(padLine(itemCol, totalCol))
         lines.push('-'.repeat(width))
         data.items.forEach((item, idx) => {
-          lines.push(...renderTableItemLines(item, idx, width, showTaxColumn))
+          lines.push(...renderTableItemLines(item, idx, width, showTaxColumn, showItemNumbers))
         })
         break
       }
@@ -431,6 +462,7 @@ export function compileCustomReceiptHtml(
     itemWiseGst: opts?.itemWiseGst,
     gstStyle: opts?.gstStyle,
     showTaxBreakdown: opts?.showTaxBreakdown,
+    isRestaurant: opts?.isRestaurant,
   }
   const cols = getCols(paperSize)
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
@@ -438,7 +470,7 @@ export function compileCustomReceiptHtml(
   const parts: string[] = []
 
   if (showLogo && !hasEnabledImageBlock && isBrowserLoadableImageSrc(storeLogoUrl)) {
-    parts.push(renderImage(storeLogoUrl, 60, 'center'))
+    parts.push(renderImage(storeLogoUrl, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 'center'))
   }
 
   for (const entry of enabledEntries) {
@@ -446,7 +478,7 @@ export function compileCustomReceiptHtml(
       if (!showLogo) continue
       const src = resolveReceiptImageSrc(entry, storeLogoUrl)
       if (!src && !storeLogoUrl) continue
-      parts.push(renderImage(src, entry.widthPercent || 60, entry.align || 'center'))
+      parts.push(renderImage(src, entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, entry.align || 'center'))
       continue
     }
 
@@ -486,10 +518,11 @@ export function compileCustomReceiptHtml(
       const itemCol = entry.columnHeaders?.item || 'Item'
       const totalCol = entry.columnHeaders?.total || 'Total'
       const showTaxColumn = resolveShowTaxColumn(entry, gstOpts.itemWiseGst)
+      const showItemNumbers = resolveShowItemNumbers(entry, gstOpts.isRestaurant)
       const tableParts = [
         htmlTwoColRow(itemCol, totalCol, smallFS, true),
         `<div style="border-top:1px dashed #000;margin:2px 0;font-size:${smallFS};"></div>`,
-        ...data.items.map((item, idx) => renderTableItemHtml(item, idx, smallFS, showTaxColumn)),
+        ...data.items.map((item, idx) => renderTableItemHtml(item, idx, smallFS, showTaxColumn, showItemNumbers)),
       ]
       parts.push(`<div style="font-size:${smallFS};width:100%;">${tableParts.join('')}</div>`)
       continue
@@ -554,7 +587,7 @@ function toEscPosAlign(align?: 'left' | 'center' | 'right'): EscPosAlign {
 
 function qrModuleSize(entry: CustomReceiptEntry): number {
   if (entry.type !== 'barcode') return 5
-  return entry.size === 'large' ? 6 : entry.size === 'small' ? 4 : 5
+  return receiptQrEscPosModuleSizeForEntry(entry.size)
 }
 
 /** Rasterize and emit a store logo bitmap; returns true when bytes were sent. */
@@ -562,13 +595,12 @@ async function tryAppendEscPosLogo(
   b: EscPosBuilder,
   src: string | undefined,
   paperSize: '58mm' | '80mm',
-  widthPercent = 60,
+  widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   align: EscPosAlign = 'center'
 ): Promise<boolean> {
   if (!src) return false
   const printable = (await prefetchPrintableLogoSrc(src)) || src
-  const maxLogoWidth = paperSize === '80mm' ? 320 : 224
-  const maxLogoHeight = paperSize === '80mm' ? 96 : 72
+  const { maxWidth: maxLogoWidth, maxHeight: maxLogoHeight } = receiptLogoMaxDots(paperSize)
   const widthDots = Math.floor(maxLogoWidth * Math.min(widthPercent, 100) / 100)
   const raster = await rasterizeImageForEscPos(printable, widthDots, maxLogoHeight)
   if (!raster) {
@@ -597,6 +629,7 @@ export async function appendCustomTemplateToEscPos(
     itemWiseGst: opts?.itemWiseGst,
     gstStyle: opts?.gstStyle,
     showTaxBreakdown: opts?.showTaxBreakdown,
+    isRestaurant: opts?.isRestaurant,
   }
   const fallbackLogo = showLogo ? (data.storeLogoUrl || opts?.fallbackLogoUrl) : undefined
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
@@ -605,7 +638,7 @@ export async function appendCustomTemplateToEscPos(
 
   // Legacy behaviour: always print store logo when template has no image block.
   if (fallbackLogo && !hasImageBlock) {
-    logoPrinted = await tryAppendEscPosLogo(b, fallbackLogo, paperSize, 60, 'center')
+    logoPrinted = await tryAppendEscPosLogo(b, fallbackLogo, paperSize, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 'center')
   }
 
   const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
@@ -641,7 +674,7 @@ export async function appendCustomTemplateToEscPos(
       }
       case 'image': {
         const primary = resolveReceiptImageSrc(entry, fallbackLogo)
-        const widthPct = entry.widthPercent || 60
+        const widthPct = entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
         const align = toEscPosAlign(entry.align || 'center')
         let ok = await tryAppendEscPosLogo(b, primary, paperSize, widthPct, align)
         if (!ok && fallbackLogo && primary !== fallbackLogo) {
@@ -681,10 +714,11 @@ export async function appendCustomTemplateToEscPos(
         const itemCol = entry.columnHeaders?.item || 'Item'
         const totalCol = entry.columnHeaders?.total || 'Total'
         const showTaxColumn = resolveShowTaxColumn(entry, globalItemWiseGst)
+        const showItemNumbers = resolveShowItemNumbers(entry, opts?.isRestaurant)
         padLine(itemCol, totalCol)
         b.hr(width, '-')
         data.items.forEach((item, idx) => {
-          renderTableItemLines(item, idx, width, showTaxColumn).forEach((line) => b.line(line))
+          renderTableItemLines(item, idx, width, showTaxColumn, showItemNumbers).forEach((line) => b.line(line))
         })
         break
       }
@@ -740,7 +774,7 @@ export async function appendCustomTemplateToEscPos(
 
   // Image block present but raster failed — fall back to store logo.
   if (fallbackLogo && hasImageBlock && !logoPrinted) {
-    await tryAppendEscPosLogo(b, fallbackLogo, paperSize, 60, 'center')
+    await tryAppendEscPosLogo(b, fallbackLogo, paperSize, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 'center')
   }
 }
 

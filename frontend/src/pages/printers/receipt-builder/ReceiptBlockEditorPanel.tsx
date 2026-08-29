@@ -3,6 +3,7 @@ import { ImageUpload } from '@/components/forms/ImageUpload'
 import { ReceiptTokenField } from './ReceiptTokenField'
 import { applyQrPurpose, inferQrPurpose, type QrPurpose } from './receiptSimpleSections'
 import { ReceiptUpiIdField } from './ReceiptUpiIdField'
+import { resolveShowItemNumbers } from '@/utils/customReceiptEngine'
 
 interface ReceiptBlockEditorPanelProps {
   entry: CustomReceiptEntry
@@ -10,6 +11,7 @@ interface ReceiptBlockEditorPanelProps {
   storeUpiId?: string
   onStoreUpiIdChange?: (upiId: string) => void
   onChange: (entry: CustomReceiptEntry) => void
+  isRestaurant?: boolean
 }
 
 const inputCls = 'w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs'
@@ -20,6 +22,7 @@ export function ReceiptBlockEditorPanel({
   storeUpiId,
   onStoreUpiIdChange,
   onChange,
+  isRestaurant = false,
 }: ReceiptBlockEditorPanelProps) {
   switch (entry.type) {
     case 'text':
@@ -80,6 +83,7 @@ export function ReceiptBlockEditorPanel({
             <option value="advanced">Advanced</option>
           </select>
           <label className="flex items-center gap-2"><input type="checkbox" checked={!!entry.showTaxColumn} onChange={(e) => onChange({ ...entry, showTaxColumn: e.target.checked })} /> Show tax column</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={resolveShowItemNumbers(entry, isRestaurant)} onChange={(e) => onChange({ ...entry, showItemNumbers: e.target.checked })} /> Number line items (1. 2. 3.)</label>
         </div>
       )
     case 'barcode': {

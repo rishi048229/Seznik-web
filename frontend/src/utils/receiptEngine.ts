@@ -38,6 +38,7 @@ export interface CompileReceiptParams {
   /** From resolveReceiptPrintGst — overrides receiptConfig.showTaxBreakdown when set. */
   gstStyle?: GstBreakdownStyle
   itemWiseGst?: boolean
+  isRestaurant?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -336,6 +337,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     isDuplicate = false,
     gstStyle,
     itemWiseGst,
+    isRestaurant,
   } = params
 
   const COLS = getCols(paperSize, widthDots)
@@ -435,7 +437,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
           : ''
 
       const nameWidth = showItemGst ? 22 : 27
-      const fullName = `${index + 1} ${item.productName}`
+      const fullName = isRestaurant ? `${index + 1} ${item.productName}` : item.productName
 
       const firstLineName = fullName.slice(0, nameWidth)
       const rowFields: ColField[] = [
@@ -472,7 +474,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
           ? `${Math.round(item.taxRate * 100) / 100}%`
           : ''
 
-      const fullName = `${index + 1} ${item.productName}`
+      const fullName = isRestaurant ? `${index + 1} ${item.productName}` : item.productName
       const nameLines = wrapProse(fullName, COLS, false)
       lines.push(...nameLines)
 

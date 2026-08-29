@@ -35,6 +35,7 @@ interface ReceiptSimpleEditorProps {
   logoFallback?: string
   upiId?: string
   onUpiIdChange?: (upiId: string) => void
+  isRestaurant?: boolean
 }
 
 const inputCls = 'w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs'
@@ -163,7 +164,7 @@ function SideEditors({
   )
 }
 
-export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = '', onUpiIdChange }: ReceiptSimpleEditorProps) {
+export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = '', onUpiIdChange, isRestaurant = false }: ReceiptSimpleEditorProps) {
   const mapped = mapTemplateToSimple(template)
   const qrPurpose = mapped.qr ? inferQrPurpose(mapped.qr) : null
   const needsUpiId = Boolean(mapped.qr?.enabled && qrPurpose === 'upi')
@@ -362,6 +363,22 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
               />
               Show tax column
             </label>
+            {isRestaurant ? (
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={mapped.items.showItemNumbers !== false}
+                  onChange={(e) =>
+                    onChange(
+                      patchSectionEntry(template, 'items', (entry) =>
+                        entry.type === 'table' ? { ...entry, showItemNumbers: e.target.checked } : entry
+                      )
+                    )
+                  }
+                />
+                Number line items (1. 2. 3.)
+              </label>
+            ) : null}
           </>
         ) : null}
       </SectionCard>
@@ -383,6 +400,29 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
           </div>
         ))}
       </div>
+
+      {isRestaurant ? (
+        <SectionCard
+          title="Token / table number"
+          description="Large number printed above the QR — token, order, or table"
+          enabled={isSectionEnabled(mapped, 'tokenRow')}
+          onToggle={(v) => toggle('tokenRow', v)}
+        >
+          {mapped.tokenRow ? (
+            <ReceiptTokenField
+              value={mapped.tokenRow.text}
+              placeholder="Token {{token_no}} or Table {{table_no}}"
+              onChange={(text) =>
+                onChange(
+                  patchSectionEntry(template, 'tokenRow', (entry) =>
+                    entry.type === 'text' || entry.type === 'text_special' ? { ...entry, text } : entry
+                  )
+                )
+              }
+            />
+          ) : null}
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title="QR code"

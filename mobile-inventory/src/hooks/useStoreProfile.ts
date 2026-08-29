@@ -3,6 +3,7 @@ import { UserProfile } from '@/types/auth';
 import { useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { resolveStoreLogoUrl, resolveSettingsFooterMessage } from '@/utils/receiptLogo';
 
 export interface StoreProfile {
   storeName: string;
@@ -11,6 +12,7 @@ export interface StoreProfile {
   storeGstin: string;
   storeLogoUrl?: string;
   upiId?: string;
+  footerMessage?: string;
 }
 
 /** Merge saved Settings with the signed-in user profile for receipt header fields. */
@@ -43,8 +45,9 @@ export function resolveStoreProfile(
     storeAddress: settings?.businessAddress?.trim() || '',
     storePhone,
     storeGstin: settings?.businessGSTIN?.trim() || '',
-    storeLogoUrl: settings?.businessLogoURL || undefined,
-    upiId: settings?.upiId?.trim() || undefined,
+    storeLogoUrl: resolveStoreLogoUrl(receiptConfig, settings?.businessLogoURL),
+    upiId: settings?.upiId?.trim() || String(receiptConfig?.upiId || '').trim() || undefined,
+    footerMessage: resolveSettingsFooterMessage(receiptConfig),
   };
 }
 
