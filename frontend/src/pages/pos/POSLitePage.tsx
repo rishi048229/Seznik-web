@@ -665,6 +665,7 @@ export const POSLitePage = () => {
     const receiptHTML = generateReceiptHTML({
       sale: tempSale,
       receiptConfig,
+      printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       customerName,

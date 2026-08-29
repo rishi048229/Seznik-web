@@ -489,7 +489,7 @@ const en = {
   'sales.walkin': 'Walk-in',
   'sales.itemsSuffix': 'item(s)',
   'sales.viewReceiptTitle': 'View receipt',
-  'sales.downloadInvoiceTitle': 'Download invoice',
+  'sales.downloadInvoiceTitle': 'Download PDF',
   'sales.noSalesForPeriod': 'No sales found for this period',
   'sales.shareInvoiceTitle': 'Share Invoice on WhatsApp',
   'sales.phoneHint': 'Enter 10-digit mobile number. Country code +91 is added automatically.',

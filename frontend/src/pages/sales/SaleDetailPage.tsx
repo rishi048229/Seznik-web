@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, FileText, Bluetooth } from 'lucide-react'
+import { ArrowLeft, Printer, FileText, Bluetooth, Download } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -46,7 +47,8 @@ export const SaleDetailPage = () => {
 
     const receiptHTML = generateReceiptHTML({
       sale,
-      receiptConfig,
+      receiptConfig: { ...receiptConfig, showTaxBreakdown },
+      printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       customerName,
@@ -58,6 +60,28 @@ export const SaleDetailPage = () => {
     printReceipt(receiptHTML, paperWidth, sale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
     })
+  }
+
+  const handleDownloadPdf = () => {
+    if (!sale) return
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
+    const customerName = sale.customerId
+      ? customers?.find(c => c.id === sale.customerId)?.name
+      : ''
+    const html = generateReceiptHTML({
+      sale,
+      receiptConfig: { ...receiptConfig, showTaxBreakdown },
+      printerConfig: settings?.printerConfig,
+      businessName: settings?.businessName,
+      businessAddress: settings?.businessAddress,
+      customerName,
+      customer: sale.customerId ? customers?.find(c => c.id === sale.customerId) : null,
+      width: '210mm',
+      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
+      settingsTaxName: 'GST',
+    })
+    downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — choose Save as PDF in the print dialog`)
   }
 
   const handlePrintBluetooth = async () => {
@@ -125,6 +149,9 @@ export const SaleDetailPage = () => {
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => setIsPrintModalOpen(true)} leftIcon={<Printer size={16} />}>
               {t('pos.print')}
+            </Button>
+            <Button variant="ghost" onClick={handleDownloadPdf} leftIcon={<Download size={16} />}>
+              Download PDF
             </Button>
             <Button variant="ghost" onClick={() => navigate(ROUTES.SALES)} leftIcon={<ArrowLeft size={16} />}>
               {t('common.back')}

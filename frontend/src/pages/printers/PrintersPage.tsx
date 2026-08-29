@@ -24,6 +24,7 @@ import {
   type LabelData,
 } from '@/utils/labelPrint'
 import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { sampleSaleForTemplate } from '@/utils/a4InvoiceTemplates'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
 import { Button } from '@/components/ui/Button'
@@ -38,6 +39,7 @@ import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { ReceiptLivePreview } from './components/ReceiptLivePreview'
+import { A4InvoiceTab } from './components/A4InvoiceTab'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import {
@@ -95,6 +97,14 @@ const defaultPrinterConfig: PrinterConfig = {
   invoiceShowTerms: true,
   invoiceTermsText: '1. Goods once sold cannot be returned without original receipt.\n2. Warranty covers manufacturing defects only.',
   invoiceShowPaymentQR: true,
+  invoiceTemplateId: 'retail',
+  invoiceDocTitle: 'TAX INVOICE',
+  invoiceShowHsn: true,
+  invoiceShowSku: false,
+  invoiceShowUnit: true,
+  invoiceShowBatchExpiry: false,
+  invoiceReverseCharge: 'No',
+  invoiceSignatureName: 'Authorised Signatory',
 }
 
 // Mirrors SettingsPage's DEFAULT_SETTINGS.receiptConfig exactly, so both
@@ -525,29 +535,14 @@ export const PrintersPage = () => {
     }
 
     // Invoice Tab
-    const testInvoiceSale: Sale = {
-      id: 'test_invoice',
-      invoiceNumber: 'INV-2026-0089',
-      items: [
-        { productId: 'p1', productName: 'Seznik POS Terminal Machine', quantity: 1, sellingPrice: 25000.00, discount: 0, taxRate: 18, taxAmount: 4500.00, total: 29500.00 },
-        { productId: 'p2', productName: 'Thermal Paper Roll 80mm (Pack of 10)', quantity: 5, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 405.00, total: 2655.00 },
-      ],
-      subtotal: 27250.00,
-      totalDiscount: 0,
-      totalTax: 4905.00,
-      grandTotal: 32155.00,
-      paymentMethod: 'cash',
-      amountPaid: 32155.00,
-      changeReturned: 0,
-      isQuickBill: false,
-      createdAt: new Date().toISOString(),
-    }
+    const testInvoiceSale = sampleSaleForTemplate(config.invoiceTemplateId)
     const invoiceHTML = generateReceiptHTML({
       sale: testInvoiceSale,
       receiptConfig: effectiveReceiptConfig,
+      printerConfig: config,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
-      customerName: 'Sample Corporate Client',
+      customerName: 'Sample Customer',
       width: '210mm',
       logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
       settingsTaxName: 'GST',
@@ -1579,130 +1574,13 @@ export const PrintersPage = () => {
 
       {/* Tab 3: A4 Full Invoice Settings & Live Preview */}
       {activeTab === 'invoice' && (
-        <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-          <div className="w-full lg:w-7/12 space-y-4 min-w-0">
-            <Section
-              eyebrow="Document"
-              title="A4 invoice"
-              description="Full-page bills for customers who want a printed invoice."
-            >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Document Size
-                  <FieldInfo textKey="tip.printer.invoiceSize" />
-                </label>
-                <select
-                  value={config.invoicePaperSize}
-                  onChange={(e) => setConfig(prev => ({ ...prev, invoicePaperSize: e.target.value as PrinterConfig['invoicePaperSize'] }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium"
-                >
-                  <option value="A4">A4</option>
-                  <option value="Letter">US Letter</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Color Theme
-                  <FieldInfo textKey="tip.printer.invoiceTheme" />
-                </label>
-                <select
-                  value={config.invoiceColorTheme}
-                  onChange={(e) => setConfig(prev => ({ ...prev, invoiceColorTheme: e.target.value as PrinterConfig['invoiceColorTheme'] }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium"
-                >
-                  <option value="navy">Deep Navy</option>
-                  <option value="emerald">Emerald</option>
-                  <option value="slate">Slate</option>
-                  <option value="royal">Royal Blue</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                Terms & Conditions
-                <FieldInfo textKey="tip.printer.invoiceTerms" />
-              </label>
-              <textarea
-                rows={3}
-                value={config.invoiceTermsText}
-                onChange={(e) => setConfig(prev => ({ ...prev, invoiceTermsText: e.target.value }))}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-mono"
-              />
-            </div>
-
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.invoiceShowHeader} onChange={v => setConfig(prev => ({ ...prev, invoiceShowHeader: v }))} label="Header banner" info={<FieldInfo textKey="tip.printer.invoiceShowHeader" />} />
-              <Switch checked={config.invoiceShowTerms} onChange={v => setConfig(prev => ({ ...prev, invoiceShowTerms: v }))} label="Print terms & conditions" info={<FieldInfo textKey="tip.printer.invoiceShowTerms" />} />
-              <Switch checked={config.invoiceShowPaymentQR} onChange={v => setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))} label="UPI payment QR code" info={<FieldInfo textKey="tip.printer.invoiceShowPaymentQR" />} />
-            </div>
-            </Section>
-          </div>
-
-          <div className="w-full lg:w-5/12 flex flex-col lg:sticky lg:top-6 min-w-0 max-w-full">
-            <Section eyebrow="Preview" title="A4 invoice">
-            <div className="w-full max-w-[320px] mx-auto bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-sm border border-slate-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
-              <div>
-                {config.invoiceShowHeader && (
-                  <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                    <div>
-                      <h4 className="font-extrabold text-sm" style={{ color: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                        {receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}
-                      </h4>
-                      <p className="text-[10px] text-gray-500">GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-extrabold text-xs block">TAX INVOICE</span>
-                      <span className="text-[9px] text-gray-500">INV-2026-0089</span>
-                    </div>
-                  </div>
-                )}
-
-                <table className="w-full mt-4 text-[10px] text-left border-collapse">
-                  <thead>
-                    <tr style={{ background: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e', color: '#fff' }}>
-                      <th className="p-1">Description</th>
-                      <th className="p-1 text-center">Qty</th>
-                      <th className="p-1 text-right">Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-100">
-                      <td className="p-1 font-medium">Smart POS Terminal</td>
-                      <td className="p-1 text-center">1</td>
-                      <td className="p-1 text-right">₹24,999</td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="p-1 font-medium">Barcode Scanner 2D</td>
-                      <td className="p-1 text-center">2</td>
-                      <td className="p-1 text-right">₹3,800</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex justify-between items-end">
-                  {config.invoiceShowPaymentQR ? (
-                    <div className="flex items-center gap-2">
-                      <QrCode size={28} className="text-slate-800" />
-                      <span className="text-[9px] font-semibold text-gray-600">Scan & Pay via UPI</span>
-                    </div>
-                  ) : <div />}
-                  <div className="text-right font-bold text-xs">Total: ₹28,799.00</div>
-                </div>
-                {config.invoiceShowTerms && (
-                  <p className="text-[8px] text-gray-400 mt-3 whitespace-pre-line border-t pt-2">
-                    {config.invoiceTermsText}
-                  </p>
-                )}
-              </div>
-            </div>
-            </Section>
-          </div>
-        </div>
+        <A4InvoiceTab
+          config={config}
+          setConfig={setConfig}
+          receiptConfig={receiptConfig}
+          setReceiptConfig={setReceiptConfig}
+          settings={settings}
+        />
       )}
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}

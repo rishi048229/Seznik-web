@@ -14,6 +14,7 @@ import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetoot
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import type { Sale } from '@/types/sale.types'
@@ -56,6 +57,7 @@ export const SalesPage = () => {
     const receiptHTML = generateReceiptHTML({
       sale: printSale,
       receiptConfig,
+      printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       customerName,
@@ -115,23 +117,17 @@ export const SalesPage = () => {
     const html = generateReceiptHTML({
       sale,
       receiptConfig,
+      printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       customerName,
+      customer: sale.customerId ? customers?.find(c => c.id === sale.customerId) : null,
       width: '210mm',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
     })
-    const full = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${sale.invoiceNumber}</title>
-<style>body{margin:0;padding:16px;font-family:Arial,sans-serif;}</style></head><body>${html}</body></html>`
-    const blob = new Blob([full], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${sale.invoiceNumber}.html`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} ${t('sales.invoiceDownloadedSuffix')}`)
+    downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — choose Save as PDF in the print dialog`)
   }
 
   const filtered = sales?.filter(sale => {
@@ -460,6 +456,17 @@ export const SalesPage = () => {
               onClick={handlePrintBluetooth}
             >
               {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
+            </Button>
+          )}
+
+          {printSaleId && (
+            <Button
+              variant="outline"
+              className="w-full"
+              leftIcon={<Download size={16} />}
+              onClick={() => handleDownload(printSaleId)}
+            >
+              Download PDF
             </Button>
           )}
 

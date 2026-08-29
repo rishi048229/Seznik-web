@@ -1,8 +1,10 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
-import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
+import type { PrinterConfig, ReceiptConfig, UserSettings } from '@/types/settings.types'
+import type { Product } from '@/types/product.types'
 import { EscPosBuilder, rasterizeImageForEscPos } from './escpos'
 import { compileReceiptTextLines } from './receiptEngine'
 import { buildUpiPayLink, getUpiQrImageUrl } from './upiQr'
+import { generateA4InvoiceHTML } from './a4Invoice'
 
 export const resolveEffectiveReceiptConfig = (
   settings?: Partial<UserSettings> | null,
@@ -46,13 +48,16 @@ export const resolveEffectiveReceiptConfig = (
 export interface GenerateReceiptHTMLParams {
   sale: Sale
   receiptConfig?: Partial<ReceiptConfig> | null
+  printerConfig?: Partial<PrinterConfig> | null
   businessName?: string
   businessAddress?: string
   customerName?: string
+  customer?: { name?: string; phone?: string; address?: string; email?: string } | null
   width?: '50mm' | '80mm' | '210mm'
   logoURL?: string
   settingsTaxRate?: number
   settingsTaxName?: string
+  products?: Array<Pick<Product, 'id' | 'sku' | 'unit' | 'expiryDate' | 'brand'>> | null
 }
 
 function formatDate(date: any): string {
@@ -87,13 +92,16 @@ function numberToWords(amount: number): string {
 export const generateReceiptHTML = ({
   sale,
   receiptConfig,
+  printerConfig,
   businessName,
   businessAddress,
   customerName,
+  customer,
   width = '50mm',
   logoURL,
   settingsTaxRate,
   settingsTaxName,
+  products,
 }: GenerateReceiptHTMLParams): string => {
   const companyName = receiptConfig?.companyName || businessName || 'Your Company'
   const companyAddress = receiptConfig?.address || businessAddress || ''
@@ -170,177 +178,20 @@ export const generateReceiptHTML = ({
     : ''
 
   if (!isThermal) {
-    // Items table rows for A4 — larger font sizes to fill A4 page
-    const a4ItemRows = saleItems.map((item: SaleItem, index: number) => {
-      const lineSubtotal = item.sellingPrice * item.quantity
-      const itemRate = item.taxRate || effectiveTaxRate
-      const igstAmt = item.taxAmount || (lineSubtotal * (itemRate / 100))
-      const baseAmt = lineSubtotal + (showTaxBreakdown ? igstAmt : 0) - (item.discount || 0)
-
-      if (!showTaxBreakdown) {
-        return `
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
-          <td style="padding:10px 12px;font-size:14px;">
-            <div style="font-weight:700;">${item.productName}</div>
-          </td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
-          <td style="padding:10px 12px;font-size:14px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
-          <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right;">${baseAmt.toFixed(2)}</td>
-        </tr>`
-      }
-
-      return `
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${index + 1}</td>
-          <td style="padding:10px 12px;font-size:14px;">
-            <div style="font-weight:700;">
-              ${item.productName}
-              ${item.priceIncludesGst ? '<span style="font-size:11px;color:#1e3a8a;font-weight:bold;margin-left:6px;">[Incl. GST]</span>' : (item.taxRate && item.taxRate > 0) ? '<span style="font-size:11px;color:#d97706;font-weight:bold;margin-left:6px;">[+GST Excl.]</span>' : ''}
-            </div>
-          </td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">---</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${item.quantity}<br/><span style="font-size:11px;color:#6b7280;">pcs</span></td>
-          <td style="padding:10px 12px;font-size:14px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:center;">${formatTaxRate(itemRate)}%</td>
-          <td style="padding:10px 12px;font-size:14px;text-align:right;">${igstAmt.toFixed(2)}</td>
-          <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right;">${baseAmt.toFixed(2)}</td>
-        </tr>`
-    }).join('')
-
-    const totalInWords = numberToWords(sale.grandTotal)
-    const paymentMade = sale.amountPaid || 0
-    const balanceDue = Math.max(0, sale.grandTotal - paymentMade)
-    const invoiceTitle = showTaxBreakdown ? 'TAX INVOICE' : 'INVOICE'
-
-    return `
-<div style="font-family:Arial,sans-serif;color:#000;width:100%;min-height:267mm;box-sizing:border-box;border:1px solid #374151;padding:0;">
-
-  <!-- ── HEADER ── -->
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 24px;background:#f8fafc;border-bottom:2px solid #374151;">
-    <div>
-      ${effectiveLogo ? `<img src="${effectiveLogo}" alt="Logo" style="max-height:55px;max-width:180px;object-fit:contain;margin-bottom:6px;display:block;" />` : ''}
-      <div style="font-size:22px;font-weight:900;color:#1e3a8a;">${companyName}</div>
-      ${companyAddress ? `<div style="font-size:12px;color:#4b5563;margin-top:2px;">${companyAddress}</div>` : ''}
-      ${companyPhone ? `<div style="font-size:12px;color:#4b5563;">Phone: ${companyPhone}</div>` : ''}
-      ${companyGSTIN ? `<div style="font-size:12px;font-weight:700;color:#1e3a8a;">GSTIN: ${companyGSTIN}</div>` : ''}
-    </div>
-    <div style="text-align:right;">
-      <div style="font-size:26px;font-weight:900;color:#1e3a8a;letter-spacing:1px;">${invoiceTitle}</div>
-      <div style="font-size:14px;font-weight:700;margin-top:4px;"># ${sale.invoiceNumber || '---'}</div>
-      <div style="font-size:12px;color:#6b7280;margin-top:2px;">Date: ${dateStr}</div>
-      <div style="font-size:12px;color:#6b7280;">Due Date: ${dueDateStr}</div>
-    </div>
-  </div>
-
-  <!-- ── BILL TO & SHIP TO ── -->
-  <div style="display:flex;border-bottom:1px solid #e5e7eb;background:#fff;">
-    <div style="flex:1;padding:14px 18px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:5px;color:#374151;">Bill To</div>
-      <div style="font-size:15px;font-weight:700;">${customerName || 'Walk-in Customer'}</div>
-    </div>
-    <div style="flex:1;padding:14px 18px;">
-      <div style="font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:5px;color:#374151;">Ship To</div>
-      <div style="font-size:15px;font-weight:700;">${customerName || 'Walk-in Customer'}</div>
-    </div>
-  </div>
-
-  <!-- ── ITEMS TABLE ── -->
-  <table style="width:100%;border-collapse:collapse;">
-    <thead>
-      <tr style="background:#1e3a8a;color:#fff;">
-        <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">#</th>
-        <th style="padding:10px 12px;text-align:left;font-size:13px;font-weight:700;">Item &amp; Description</th>
-        <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">HSN/SAC</th>
-        <th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;">Qty</th>
-        <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">Rate</th>
-        ${showTaxBreakdown ? `
-        <th colspan="2" style="padding:10px 12px;text-align:center;font-size:13px;font-weight:700;border-left:1px solid rgba(255,255,255,0.3);">IGST</th>
-        ` : ''}
-        <th style="padding:10px 12px;text-align:right;font-size:13px;font-weight:700;">${showTaxBreakdown ? 'Base Amount' : 'Amount'}</th>
-      </tr>
-      ${showTaxBreakdown ? `
-      <tr style="background:#1e3a8a;color:#fff;">
-        <th colspan="5" style="padding:2px;"></th>
-        <th style="padding:5px 12px;text-align:center;font-size:12px;border-left:1px solid rgba(255,255,255,0.3);">%</th>
-        <th style="padding:5px 12px;text-align:right;font-size:12px;">Amt</th>
-        <th style="padding:2px;"></th>
-      </tr>` : ''}
-    </thead>
-    <tbody>
-      ${a4ItemRows}
-    </tbody>
-  </table>
-
-  <!-- ── TOTALS + WORDS ── -->
-  <div style="display:flex;border-top:2px solid #374151;border-bottom:1px solid #374151;">
-    <!-- Left: words + notes + payment QR -->
-    <div style="flex:1;padding:10px 14px;border-right:1px solid #374151;">
-      <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">Total In Words</div>
-      <div style="font-size:12px;font-weight:700;font-style:italic;">${totalInWords}</div>
-      ${footerMessage ? `<div style="font-size:11px;margin-top:8px;color:#374151;"><span style="font-weight:600;">Notes</span><br/>${footerMessage}</div>` : ''}
-      ${effectivePaymentQR ? `
-      <div style="margin-top:12px;padding-top:8px;border-top:1px dashed #cbd5e1;">
-        <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Scan &amp; Pay Exact Bill (&#x20B9;${billTotal.toFixed(2)}) via UPI:</div>
-        <img src="${effectivePaymentQR}" alt="Payment QR" style="width:110px;height:110px;object-fit:contain;display:block;" />
-      </div>` : ''}
-    </div>
-    <!-- Right: summary -->
-    <div style="width:260px;flex-shrink:0;padding:10px 14px;">
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">Sub Total</span>
-        <span style="font-size:12px;font-weight:600;">${sale.subtotal.toFixed(2)}</span>
-      </div>
-      ${(showTaxBreakdown && totalTax > 0) ? `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">${effectiveTaxName} (${formatTaxRate(effectiveTaxRate)}%)</span>
-        <span style="font-size:12px;">${totalTax.toFixed(2)}</span>
-      </div>` : ''}
-      ${sale.totalDiscount > 0 ? `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">Discount</span>
-        <span style="font-size:12px;color:#dc2626;">(-) ${sale.totalDiscount.toFixed(2)}</span>
-      </div>` : ''}
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:2px solid #374151;">
-        <span style="font-size:13px;font-weight:900;">Total</span>
-        <span style="font-size:13px;font-weight:900;">&#x20B9;${sale.grandTotal.toFixed(2)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:12px;color:#6b7280;">Payment Made</span>
-        <span style="font-size:12px;color:#dc2626;">(-) ${paymentMade.toFixed(2)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:5px 0;">
-        <span style="font-size:13px;font-weight:900;">Balance Due</span>
-        <span style="font-size:13px;font-weight:900;">&#x20B9;${balanceDue.toFixed(2)}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── SIGNATURE BLOCK ── -->
-  <div style="display:flex;border-bottom:1px solid #374151;">
-    <div style="flex:1;padding:14px;border-right:1px solid #374151;">
-      <!-- empty left -->
-    </div>
-    <div style="width:260px;flex-shrink:0;padding:14px;text-align:center;">
-      <div style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">${companyName}</div>
-      <div style="height:55px;"></div>
-      <div style="font-size:12px;font-weight:700;color:#1e3a8a;">PARTNER</div>
-      <div style="height:30px;"></div>
-    </div>
-  </div>
-
-  <!-- ── TERMS AND CONDITIONS ── -->
-  ${(receiptConfig?.termsLine1 || receiptConfig?.termsLine2 || receiptConfig?.termsLine3) ? `
-  <div style="padding:10px 14px;background:#f9fafb;">
-    <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Terms &amp; Conditions</div>
-    ${receiptConfig?.termsLine1 ? `<div style="font-size:11px;color:#374151;margin-bottom:3px;">${receiptConfig.termsLine1}</div>` : ''}
-    ${receiptConfig?.termsLine2 ? `<div style="font-size:11px;color:#374151;margin-bottom:3px;">${receiptConfig.termsLine2}</div>` : ''}
-    ${receiptConfig?.termsLine3 ? `<div style="font-size:11px;color:#374151;">${receiptConfig.termsLine3}</div>` : ''}
-  </div>` : ''}
-
-</div>`
+    return generateA4InvoiceHTML({
+      sale,
+      receiptConfig,
+      printerConfig,
+      businessName,
+      businessAddress,
+      customerName,
+      customer,
+      logoURL: effectiveLogo,
+      settingsTaxName,
+      products,
+    })
   }
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // THERMAL (58 mm / 80 mm) RECEIPT HTML (Uses column layout engine)

@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import {
   Printer, FileText, Bluetooth, Edit3, RotateCcw,
-  Sparkles, Building2, Hash, Plus, Trash2, Eye
+  Sparkles, Building2, Hash, Plus, Trash2, Eye, Download
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
 import { buildUpiPayLink } from '@/utils/upiQr'
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
@@ -296,6 +297,7 @@ export const RealisticReceiptModal = ({
         footerMessage: receipt.footerMessage,
         showTaxBreakdown: receipt.showTaxBreakdown,
       },
+      printerConfig: settings?.printerConfig,
       businessName: receipt.businessName,
       businessAddress: receipt.businessAddress,
       customerName: receipt.customerName,
@@ -307,6 +309,31 @@ export const RealisticReceiptModal = ({
       onDone?.()
       onClose()
     })
+  }
+
+  const handleDownloadA4Pdf = () => {
+    const editedSale = buildEditedSale()
+    const html = generateReceiptHTML({
+      sale: editedSale,
+      receiptConfig: {
+        ...receiptConfig,
+        companyName: receipt.businessName,
+        address: receipt.businessAddress,
+        phone: receipt.businessPhone,
+        gstin: receipt.businessGSTIN,
+        footerMessage: receipt.footerMessage,
+        showTaxBreakdown: receipt.showTaxBreakdown,
+      },
+      printerConfig: settings?.printerConfig,
+      businessName: receipt.businessName,
+      businessAddress: receipt.businessAddress,
+      customerName: receipt.customerName,
+      width: '210mm',
+      logoURL: receipt.logoURL,
+      settingsTaxName: 'GST',
+    })
+    downloadA4InvoicePdf(html, `${editedSale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+    toast.success('Choose Save as PDF in the print dialog')
   }
 
   // 3. Bluetooth Thermal Print (ESC/POS)
@@ -384,6 +411,15 @@ export const RealisticReceiptModal = ({
               className="font-semibold"
             >
               A4 Invoice
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Download size={15} />}
+              onClick={handleDownloadA4Pdf}
+              className="font-semibold"
+            >
+              Download PDF
             </Button>
 
             {blePrinter?.isSupported && (
