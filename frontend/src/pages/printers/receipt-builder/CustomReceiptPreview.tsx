@@ -82,9 +82,15 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
               : entry.size === 'small'
                 ? '0.92em'
                 : '1em'
+        const rawText = vars(entry.text)
+        const cleaned = rawText
+          .split('\n')
+          .filter((l) => l.trim().length > 0)
+          .join('\n')
+        if (!cleaned.trim()) return null
         return (
           <div key={entry.id || idx} className={`text-black whitespace-pre-wrap ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`} style={{ fontSize: size, fontWeight: entry.bold ? 700 : 500, fontFamily: 'inherit' }}>
-            {vars(entry.text)}
+            {cleaned}
           </div>
         )
       }

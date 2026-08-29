@@ -132,7 +132,10 @@ export function interpolateReceiptVariables(
     ? buildUpiPayLink({ upiId: data.upiId!, payeeName: data.storeName, amount: data.grandTotal, note: data.invoiceNumber })
     : ''
   const money = (n: number) => (opts?.thermal ? formatThermalMoney(n) : `₹${n.toFixed(2)}`)
+
   return text
+    .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, data.storePhone ? `Ph: ${data.storePhone}` : '')
+    .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, data.storeGstin ? `GSTIN: ${data.storeGstin}` : '')
     .replace(/\{\{store_name\}\}/gi, data.storeName || 'Your Store')
     .replace(/\{\{store_address\}\}/gi, data.storeAddress || '')
     .replace(/\{\{store_phone\}\}/gi, data.storePhone || '')
@@ -327,9 +330,12 @@ export function compileCustomReceiptTextLines(
     switch (entry.type) {
       case 'text':
       case 'text_special':
-        interpolateReceiptVariables(entry.text, data, thermal).split('\n').forEach((line) => {
-          lines.push(alignText(line, entry.align || 'left'))
-        })
+        interpolateReceiptVariables(entry.text, data, thermal)
+          .split('\n')
+          .filter((line) => line.trim().length > 0)
+          .forEach((line) => {
+            lines.push(alignText(line, entry.align || 'left'))
+          })
         break
       case 'horizontal_line': {
         const char = entry.lineStyle === 'double' ? '=' : entry.lineStyle === 'dotted' ? '.' : '-'

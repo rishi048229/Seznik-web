@@ -558,14 +558,14 @@ export const PrintersPage = () => {
 
   const receiptPreviewContext = useMemo(() => ({
     ...SAMPLE_RECEIPT_CONTEXT,
-    storeName: receiptConfig.companyName || settings?.businessName || SAMPLE_RECEIPT_CONTEXT.storeName,
-    storeAddress: receiptConfig.address || settings?.businessAddress || SAMPLE_RECEIPT_CONTEXT.storeAddress,
-    storePhone: receiptConfig.phone || settings?.businessPhone || SAMPLE_RECEIPT_CONTEXT.storePhone,
-    storeGstin: receiptConfig.gstin || settings?.businessGSTIN || SAMPLE_RECEIPT_CONTEXT.storeGstin,
+    storeName: receiptConfig.companyName || settings?.businessName || user?.businessName || user?.displayName || SAMPLE_RECEIPT_CONTEXT.storeName,
+    storeAddress: receiptConfig.address || settings?.businessAddress || '',
+    storePhone: receiptConfig.phone || settings?.businessPhone || user?.phone || '',
+    storeGstin: receiptConfig.gstin || settings?.businessGSTIN || '',
     storeLogoUrl,
     upiId: receiptConfig.upiId || settings?.upiId,
     footerMessage: receiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
-  }), [receiptConfig, settings, storeLogoUrl])
+  }), [receiptConfig, settings, storeLogoUrl, user])
 
   const previewGstOpts = useMemo(() => {
     const resolved = resolveReceiptPrintGstFromForm(gstForm, receiptConfig)

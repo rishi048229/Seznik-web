@@ -44,9 +44,9 @@ const DEFAULT_SAMPLE_ITEMS = [
 export function CustomReceiptMockup({
   template,
   storeName,
-  storeAddress = '123 Market Road, City Centre',
-  storePhone = '+91 98765 43210',
-  storeGstin = '27AAAAA0000A1Z5',
+  storeAddress = '',
+  storePhone = '',
+  storeGstin = '',
   storeLogoUrl,
   invoiceNumber = 'INV-2026-0042',
   date = new Date().toLocaleDateString('en-GB'),
@@ -74,10 +74,12 @@ export function CustomReceiptMockup({
   const replaceVars = (str?: string): string => {
     if (!str) return '';
     return str
-      .replace(/{{store_name}}/gi, storeName || 'SEZNIK SUPERSTORE')
-      .replace(/{{store_address}}/gi, storeAddress)
-      .replace(/{{store_phone}}/gi, storePhone)
-      .replace(/{{store_gstin}}/gi, storeGstin)
+      .replace(/(?:Phone|Ph|Tel)?:\s*{{store_phone}}/gi, storePhone ? `Ph: ${storePhone}` : '')
+      .replace(/GST(?:IN)?:\s*{{store_gstin}}/gi, storeGstin ? `GSTIN: ${storeGstin}` : '')
+      .replace(/{{store_name}}/gi, storeName || 'SEZNIK STORE')
+      .replace(/{{store_address}}/gi, storeAddress || '')
+      .replace(/{{store_phone}}/gi, storePhone || '')
+      .replace(/{{store_gstin}}/gi, storeGstin || '')
       .replace(/{{invoice_no}}/gi, invoiceNumber)
       .replace(/{{date}}/gi, date)
       .replace(/{{time}}/gi, time)
@@ -108,6 +110,12 @@ export function CustomReceiptMockup({
         if (entry.size === 'double_width') fontSize = 13;
         if (entry.size === 'double_height') fontSize = 15;
 
+        const replaced = replaceVars(entry.text)
+          .split('\n')
+          .filter((l) => l.trim().length > 0)
+          .join('\n');
+        if (!replaced.trim()) return null;
+
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
             <Text
@@ -122,7 +130,7 @@ export function CustomReceiptMockup({
                 },
               ]}
             >
-              {replaceVars(entry.text)}
+              {replaced}
             </Text>
           </View>
         );
@@ -131,6 +139,11 @@ export function CustomReceiptMockup({
       case 'text_special': {
         const align = entry.align || 'center';
         const fontSize = Math.min(Math.max(entry.fontSizePt || 14, 10), 22);
+        const replaced = replaceVars(entry.text)
+          .split('\n')
+          .filter((l) => l.trim().length > 0)
+          .join('\n');
+        if (!replaced.trim()) return null;
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
             <Text

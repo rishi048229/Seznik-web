@@ -116,14 +116,14 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
 
   const previewContext = useMemo(() => ({
     ...SAMPLE_RECEIPT_CONTEXT,
-    storeName: effectiveReceiptConfig.companyName || settings?.businessName || SAMPLE_RECEIPT_CONTEXT.storeName,
-    storeAddress: effectiveReceiptConfig.address || settings?.businessAddress || SAMPLE_RECEIPT_CONTEXT.storeAddress,
-    storePhone: effectiveReceiptConfig.phone || settings?.businessPhone || SAMPLE_RECEIPT_CONTEXT.storePhone,
-    storeGstin: effectiveReceiptConfig.gstin || settings?.businessGSTIN || SAMPLE_RECEIPT_CONTEXT.storeGstin,
+    storeName: effectiveReceiptConfig.companyName || settings?.businessName || user?.businessName || user?.displayName || SAMPLE_RECEIPT_CONTEXT.storeName,
+    storeAddress: effectiveReceiptConfig.address || settings?.businessAddress || '',
+    storePhone: effectiveReceiptConfig.phone || settings?.businessPhone || user?.phone || '',
+    storeGstin: effectiveReceiptConfig.gstin || settings?.businessGSTIN || '',
     storeLogoUrl,
     upiId: storeUpiId,
     footerMessage: effectiveReceiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
-  }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId])
+  }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId, user])
 
   const updateDraft = useCallback((updater: (tpl: CustomReceiptTemplate) => CustomReceiptTemplate) => {
     if (!selectedTemplate) return
