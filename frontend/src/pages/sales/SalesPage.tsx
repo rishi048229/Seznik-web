@@ -15,6 +15,7 @@ import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import type { Sale } from '@/types/sale.types'
@@ -41,7 +42,7 @@ export const SalesPage = () => {
 
   const printSale = sales?.find(s => s.id === printSaleId) ?? null
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!printSale) return
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
@@ -53,6 +54,30 @@ export const SalesPage = () => {
     const paperWidth: '50mm' | '80mm' | '210mm' = printFormat === 'thermal'
       ? (paperSize === '80mm' ? '80mm' : '50mm')
       : '210mm'
+
+    if (printFormat === 'thermal' && shouldPrintThermalOverBle(settings, blePrinter)) {
+      setIsBlePrinting(true)
+      try {
+        if (blePrinter.status !== 'connected') await blePrinter.connect()
+        const bytes = await generateReceiptEscPos({
+          sale: printSale,
+          receiptConfig,
+          paperSize,
+          businessName: settings?.businessName,
+          businessAddress: settings?.businessAddress,
+          customerName,
+        })
+        await blePrinter.print(bytes)
+        setIsPrintModalOpen(false)
+        setPrintSaleId(null)
+        toast.success('Printed to Bluetooth printer')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth'))
+      } finally {
+        setIsBlePrinting(false)
+      }
+      return
+    }
 
     const receiptHTML = generateReceiptHTML({
       sale: printSale,
@@ -127,7 +152,7 @@ export const SalesPage = () => {
       settingsTaxName: 'GST',
     })
     downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — choose Save as PDF in the print dialog`)
+    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — click Save as PDF`)
   }
 
   const filtered = sales?.filter(sale => {

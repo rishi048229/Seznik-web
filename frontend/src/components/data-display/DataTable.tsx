@@ -199,8 +199,8 @@ export function DataTable<T>({
                           {label}
                         </span>
                       )}
-                      <div className={clsx('text-sm text-gray-900 dark:text-gray-100', label ? 'text-right' : 'w-full')}>
-                        {col.render(row)}
+                      <div className={clsx('text-sm text-gray-900 dark:text-gray-100 min-w-0', label ? 'text-right' : 'w-full')}>
+                        <div className="break-words [&_button]:inline-flex [&_.flex]:flex-wrap">{col.render(row)}</div>
                       </div>
                     </div>
                   )

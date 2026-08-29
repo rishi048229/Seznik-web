@@ -12,8 +12,8 @@ interface PageHeaderProps {
 
 export const PageHeader = ({ title, breadcrumb, action, className, onWatchTutorial }: PageHeaderProps) => {
   return (
-    <div className={clsx('flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 sm:mb-6', className)}>
-      <div className="min-w-0 shrink-0">
+    <div className={clsx('flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 sm:mb-6 min-w-0', className)}>
+      <div className="min-w-0">
         {breadcrumb && breadcrumb.length > 0 && (
           <nav className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-0.5">
             {breadcrumb.map((item, i) => (

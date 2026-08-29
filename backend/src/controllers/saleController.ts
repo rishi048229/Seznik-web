@@ -31,8 +31,8 @@ export const getSaleById = async (req: Request, res: Response) => {
 export const createSale = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    // Strip any fields the frontend sends that don't exist in the Sale Prisma model
-    const { notes, id: _id, invoiceNumber: _inv, ...data } = req.body;
+    // Strip any fields the frontend/mobile app sends that don't exist in the Sale Prisma model
+    const { notes, id: _id, invoiceNumber: _inv, billCharges: _bc, extraChargesTotal: _ec, ...data } = req.body;
     
     // Generate invoice number. In a real app, use a sequence or locked counter.
     // Here we just count existing sales to generate a number.

@@ -459,8 +459,11 @@ export const PrintersPage = () => {
         createdAt: new Date().toISOString(),
       }
 
-      if (bleState.status === 'connected') {
+      if (bleState.status === 'connected' || config.connectionType === 'bluetooth') {
         try {
+          if (bleState.status !== 'connected') {
+            await requestAndConnectPrinter()
+          }
           const bytes = await generateReceiptEscPos({
             sale: testSale,
             receiptConfig: effectiveReceiptConfig,
@@ -473,7 +476,8 @@ export const PrintersPage = () => {
           return
         } catch (err) {
           console.error('BLE Print error:', err)
-          toast.error('Bluetooth print failed. Opening the browser print dialog instead.')
+          toast.error('Connect the Bluetooth printer first. Thermal test print does not open the system print dialog.')
+          return
         }
       }
 
@@ -514,11 +518,17 @@ export const PrintersPage = () => {
           return
         } catch (err) {
           console.error('BLE Print error:', err)
-          toast.error('Bluetooth print failed. Opening the browser print dialog instead.')
+          toast.error('Connect the Bluetooth printer first. Label test print does not open the system print dialog.')
+          return
         }
       }
 
-      // Browser label fallback
+      if (config.connectionType === 'bluetooth') {
+        toast.error('Connect the Bluetooth printer first to test labels.')
+        return
+      }
+
+      // Browser label fallback (system printer mode only)
       const printWindow = window.open('', '_blank')
       if (!printWindow) {
         toast.error('Please allow popups to test printing')

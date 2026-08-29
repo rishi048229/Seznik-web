@@ -23,19 +23,20 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
   return (
     <Fragment>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto pb-20 lg:pb-4">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 overflow-y-auto pb-16 sm:pb-4">
         <div
           className={clsx(
-            'bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-h-[calc(100dvh-5.5rem)] lg:max-h-[90vh] flex flex-col',
+            'bg-white dark:bg-gray-800 shadow-xl w-full max-h-[min(100dvh,100%)] sm:max-h-[90vh] flex flex-col min-w-0',
+            'rounded-t-2xl sm:rounded-xl',
             sizeClasses[size]
           )}
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 shrink-0 gap-3 min-w-0">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{title}</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-2 -mr-1 shrink-0"
               aria-label="Close modal"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,9 +44,11 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
               </svg>
             </button>
           </div>
-          <div className="px-4 sm:px-6 py-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">{children}</div>
+          <div className="px-4 sm:px-6 py-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0 min-w-0 scrollbar-thin">{children}</div>
           {footer && (
-            <div className="px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">{footer}</div>
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              {footer}
+            </div>
           )}
         </div>
       </div>

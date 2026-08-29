@@ -25,6 +25,7 @@ export interface GenerateA4InvoiceHTMLParams {
   customer?: A4InvoiceCustomer | null
   logoURL?: string
   settingsTaxName?: string
+  dateLabel?: string
   products?: Array<Pick<Product, 'id' | 'sku' | 'unit' | 'expiryDate' | 'brand'>> | null
 }
 
@@ -105,58 +106,56 @@ export function wrapA4Document(innerHtml: string, title: string, paper: 'A4' | '
 }
 
 export function downloadA4InvoicePdf(innerHtml: string, filename: string, paper: 'A4' | 'Letter' = 'A4') {
-  const full = wrapA4Document(innerHtml, filename.replace(/\.pdf$/i, ''), paper)
-  const existing = document.getElementById('a4-invoice-pdf-frame')
-  if (existing) existing.remove()
-
-  const iframe = document.createElement('iframe')
-  iframe.id = 'a4-invoice-pdf-frame'
-  iframe.setAttribute('title', filename)
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0'
-  document.body.appendChild(iframe)
-
-  const doc = iframe.contentDocument || iframe.contentWindow?.document
-  if (!doc) {
-    iframe.remove()
-    const w = window.open('', '_blank')
-    if (!w) return
-    w.document.write(full)
-    w.document.close()
-    w.focus()
-    setTimeout(() => w.print(), 400)
+  const title = filename.replace(/\.pdf$/i, '')
+  const full = wrapA4Document(innerHtml, title, paper)
+  const w = window.open('', '_blank')
+  if (!w) {
+    const blob = new Blob([full], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${title}.html`
+    a.click()
+    URL.revokeObjectURL(url)
     return
   }
-
-  doc.open()
-  doc.write(full)
-  doc.close()
-
-  const runPrint = () => {
-    try {
-      iframe.contentWindow?.focus()
-      iframe.contentWindow?.print()
-    } finally {
-      setTimeout(() => iframe.remove(), 2500)
+  w.document.open()
+  w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${esc(title)}</title>
+  <style>
+    @page { size: ${paper}; margin: 10mm 12mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #e2e8f0; }
+    .bar {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+      padding: 10px 14px; background: #0f172a; color: #fff;
+      font-family: Arial, sans-serif; font-size: 13px;
     }
-  }
-
-  const images = Array.from(doc.images || [])
-  if (images.length === 0) {
-    setTimeout(runPrint, 250)
-    return
-  }
-  let left = images.length
-  const tick = () => {
-    left -= 1
-    if (left <= 0) setTimeout(runPrint, 250)
-  }
-  images.forEach(img => {
-    if (img.complete) tick()
-    else {
-      img.addEventListener('load', tick)
-      img.addEventListener('error', tick)
+    .bar button {
+      border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer;
+      background: #fff; color: #0f172a;
     }
-  })
+    .sheet { max-width: 210mm; margin: 16px auto; background: #fff; }
+    @media print {
+      .bar { display: none !important; }
+      html, body { background: #fff; }
+      .sheet { margin: 0; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <span style="margin-right:auto;font-weight:700;">${esc(title)}</span>
+    <button type="button" onclick="window.print()">Save as PDF</button>
+  </div>
+  <div class="sheet">${innerHtml}</div>
+</body>
+</html>`)
+  w.document.close()
 }
 
 type ResolvedA4 = {
@@ -265,6 +264,7 @@ export const generateA4InvoiceHTML = ({
   customer,
   logoURL,
   products,
+  dateLabel,
 }: GenerateA4InvoiceHTMLParams): string => {
   const cfg = resolveA4(printerConfig)
   const colors = THEME[cfg.theme]
@@ -282,7 +282,7 @@ export const generateA4InvoiceHTML = ({
   const billToEmail = customer?.email || ''
 
   const saleItems = sale.items ?? []
-  const dateStr = formatDate(sale.createdAt)
+  const dateStr = dateLabel || formatDate(sale.createdAt)
   const billTotal = Number(sale.grandTotal ?? 0)
   const paymentMade = sale.amountPaid || 0
   const balanceDue = Math.max(0, billTotal - paymentMade)

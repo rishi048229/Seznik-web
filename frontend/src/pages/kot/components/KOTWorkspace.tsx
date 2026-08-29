@@ -18,7 +18,8 @@ import {
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { generateKotSlipEscPos, printKotSlip } from '@/utils/kotPrint'
+import { printKotSlipSmart } from '@/utils/kotPrint'
+import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
 import { OrderTicketPanel } from './OrderTicketPanel'
@@ -215,21 +216,17 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       })),
     }
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
-    const useBle = settings?.printerConfig?.connectionType === 'bluetooth'
-
-    if (useBle) {
-      try {
-        if (blePrinter.status !== 'connected') await blePrinter.connect()
-        await blePrinter.print(generateKotSlipEscPos(slip, paperSize))
-        toast.success('KOT sent to printer')
-        return
-      } catch (err) {
-        console.error(err)
-        toast.error('Bluetooth print failed — opening browser print')
-      }
+    try {
+      const via = await printKotSlipSmart(slip, {
+        paperSize,
+        useBluetooth: shouldPrintThermalOverBle(settings, blePrinter),
+        ble: blePrinter,
+      })
+      if (via === 'ble') toast.success('KOT sent to printer')
+    } catch (err) {
+      console.error(err)
+      toast.error('Could not print KOT. Connect the printer on the Printers page and try again.')
     }
-    printKotSlip(slip, htmlWidth)
   }
 
   const handleSendToKitchen = async () => {
@@ -294,7 +291,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
-    const useBle = settings?.printerConfig?.connectionType === 'bluetooth'
+    const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
     if (useBle) {
       try {
@@ -311,7 +308,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         return
       } catch (err) {
         console.error(err)
-        toast.error('Bluetooth print failed — opening browser print')
+        toast.error('Bluetooth print failed. Connect the printer on the Printers page and try again.')
+        return
       }
     }
 

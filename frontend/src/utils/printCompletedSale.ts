@@ -1,12 +1,9 @@
 import type { Sale } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
 import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from './receipt'
+import { shouldPrintThermalOverBle, type BlePrinterLike } from './printTarget'
 
-type BleLike = {
-  status: string
-  connect: () => Promise<void>
-  print: (bytes: Uint8Array) => Promise<void>
-}
+export type { BlePrinterLike }
 
 export const shouldAutoPrint = (settings?: UserSettings | null) =>
   settings?.printerConfig?.autoPrintOnSale !== false
@@ -18,7 +15,7 @@ export const printCompletedSale = async (args: {
   sale: Sale
   settings?: UserSettings | null
   customerName?: string
-  ble: BleLike
+  ble: BlePrinterLike
   onDone?: () => void
   /** When true, only print over Bluetooth. Used when the format picker is also shown. */
   skipBrowserFallback?: boolean
@@ -27,11 +24,13 @@ export const printCompletedSale = async (args: {
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
   const paperSize = settings?.printerConfig?.paperSize || '58mm'
   const width = thermalWidth(paperSize)
-  const preferBle =
-    settings?.printerConfig?.connectionType === 'bluetooth' && ble.status === 'connected'
+  const preferBle = shouldPrintThermalOverBle(settings, ble)
 
   if (preferBle) {
     try {
+      if (ble.status !== 'connected') {
+        await ble.connect()
+      }
       const bytes = await generateReceiptEscPos({
         sale,
         receiptConfig,
@@ -44,7 +43,7 @@ export const printCompletedSale = async (args: {
       onDone?.()
       return
     } catch {
-      if (skipBrowserFallback) return
+      if (skipBrowserFallback || preferBle) return
     }
   }
 
@@ -53,6 +52,7 @@ export const printCompletedSale = async (args: {
   const html = generateReceiptHTML({
     sale,
     receiptConfig,
+    printerConfig: settings?.printerConfig,
     businessName: settings?.businessName,
     businessAddress: settings?.businessAddress,
     customerName,

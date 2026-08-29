@@ -10,6 +10,7 @@ import QRCode from 'qrcode'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { buildUpiPayLink } from '@/utils/upiQr'
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
@@ -254,123 +255,78 @@ export const RealisticReceiptModal = ({
     }
   }
 
-  // 1. Thermal Browser Print (58mm / 80mm)
-  const handlePrintThermal = () => {
-    const editedSale = buildEditedSale()
-    const width = receipt.paperSize === '80mm' ? '80mm' : '50mm'
-    const html = generateReceiptHTML({
-      sale: editedSale,
-      receiptConfig: {
-        ...receiptConfig,
-        companyName: receipt.businessName,
-        address: receipt.businessAddress,
-        phone: receipt.businessPhone,
-        gstin: receipt.businessGSTIN,
-        footerMessage: receipt.footerMessage,
-        showTaxBreakdown: receipt.showTaxBreakdown,
-        upiId: receipt.upiId,
-      },
-      businessName: receipt.businessName,
-      businessAddress: receipt.businessAddress,
-      customerName: receipt.customerName,
-      width,
-      logoURL: receipt.logoURL,
-      settingsTaxName: 'GST',
-    })
-    printReceipt(html, width, editedSale.invoiceNumber, () => {
-      onDone?.()
-      onClose()
-    })
+  const editedReceiptConfig = () => ({
+    ...receiptConfig,
+    companyName: receipt.storeName ? `${receipt.businessName} — ${receipt.storeName}` : receipt.businessName,
+    address: receipt.businessAddress,
+    phone: receipt.businessPhone,
+    gstin: receipt.businessGSTIN,
+    footerMessage: receipt.footerMessage,
+    showTaxBreakdown: receipt.showTaxBreakdown,
+    showPaymentQR: receipt.showUpiQr,
+    upiId: receipt.upiId,
+  })
+
+  const printPayload = () => ({
+    sale: buildEditedSale(),
+    receiptConfig: editedReceiptConfig(),
+    printerConfig: settings?.printerConfig,
+    businessName: receipt.businessName,
+    businessAddress: receipt.businessAddress,
+    customerName: receipt.customerName,
+    customerPhone: receipt.customerPhone,
+    dateLabel: receipt.date,
+    logoURL: receipt.logoURL,
+    settingsTaxName: 'GST' as const,
+  })
+
+  const handlePrintThermal = async () => {
+    const payload = printPayload()
+    const width: '50mm' | '80mm' = receipt.paperSize === '80mm' ? '80mm' : '50mm'
+    const useBle = shouldPrintThermalOverBle(settings, blePrinter)
+
+    if (useBle && blePrinter) {
+      setIsPrintingBle(true)
+      try {
+        if (blePrinter.status !== 'connected') {
+          await blePrinter.connect()
+        }
+        const bytes = await generateReceiptEscPos({
+          sale: payload.sale,
+          receiptConfig: payload.receiptConfig,
+          paperSize: receipt.paperSize,
+          businessName: receipt.businessName,
+          businessAddress: receipt.businessAddress,
+          customerName: receipt.customerName,
+          customerPhone: receipt.customerPhone,
+          dateLabel: receipt.date,
+        })
+        await blePrinter.print(bytes)
+        toast.success(`Printed to ${blePrinter.deviceName || 'Bluetooth printer'}`)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Bluetooth printing failed'
+        toast.error(`${msg}. Connect the printer on the Printers page.`)
+      } finally {
+        setIsPrintingBle(false)
+      }
+      return
+    }
+
+    const html = generateReceiptHTML({ ...payload, width })
+    printReceipt(html, width, payload.sale.invoiceNumber)
   }
 
-  // 2. A4 Invoice Browser Print
   const handlePrintA4 = () => {
-    const editedSale = buildEditedSale()
-    const html = generateReceiptHTML({
-      sale: editedSale,
-      receiptConfig: {
-        ...receiptConfig,
-        companyName: receipt.businessName,
-        address: receipt.businessAddress,
-        phone: receipt.businessPhone,
-        gstin: receipt.businessGSTIN,
-        footerMessage: receipt.footerMessage,
-        showTaxBreakdown: receipt.showTaxBreakdown,
-      },
-      printerConfig: settings?.printerConfig,
-      businessName: receipt.businessName,
-      businessAddress: receipt.businessAddress,
-      customerName: receipt.customerName,
-      width: '210mm',
-      logoURL: receipt.logoURL,
-      settingsTaxName: 'GST',
-    })
-    printReceipt(html, '210mm', editedSale.invoiceNumber, () => {
-      onDone?.()
-      onClose()
-    })
+    const payload = printPayload()
+    const html = generateReceiptHTML({ ...payload, width: '210mm' })
+    printReceipt(html, '210mm', payload.sale.invoiceNumber)
   }
 
   const handleDownloadA4Pdf = () => {
-    const editedSale = buildEditedSale()
-    const html = generateReceiptHTML({
-      sale: editedSale,
-      receiptConfig: {
-        ...receiptConfig,
-        companyName: receipt.businessName,
-        address: receipt.businessAddress,
-        phone: receipt.businessPhone,
-        gstin: receipt.businessGSTIN,
-        footerMessage: receipt.footerMessage,
-        showTaxBreakdown: receipt.showTaxBreakdown,
-      },
-      printerConfig: settings?.printerConfig,
-      businessName: receipt.businessName,
-      businessAddress: receipt.businessAddress,
-      customerName: receipt.customerName,
-      width: '210mm',
-      logoURL: receipt.logoURL,
-      settingsTaxName: 'GST',
-    })
-    downloadA4InvoicePdf(html, `${editedSale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success('Choose Save as PDF in the print dialog')
-  }
-
-  // 3. Bluetooth Thermal Print (ESC/POS)
-  const handlePrintBluetooth = async () => {
-    if (!blePrinter) return
-    const editedSale = buildEditedSale()
-    setIsPrintingBle(true)
-    try {
-      if (blePrinter.status !== 'connected') {
-        await blePrinter.connect()
-      }
-      const bytes = await generateReceiptEscPos({
-        sale: editedSale,
-        receiptConfig: {
-          ...receiptConfig,
-          companyName: receipt.businessName,
-          address: receipt.businessAddress,
-          phone: receipt.businessPhone,
-          gstin: receipt.businessGSTIN,
-          footerMessage: receipt.footerMessage,
-          showTaxBreakdown: receipt.showTaxBreakdown,
-          upiId: receipt.upiId,
-        },
-        paperSize: receipt.paperSize,
-        businessName: receipt.businessName,
-        businessAddress: receipt.businessAddress,
-        customerName: receipt.customerName,
-      })
-      await blePrinter.print(bytes)
-      toast.success('Printed successfully via Bluetooth!')
-      onDone?.()
-      onClose()
-    } catch (err: any) {
-      toast.error(err?.message || 'Bluetooth printing failed')
-    } finally {
-      setIsPrintingBle(false)
-    }
+    const payload = printPayload()
+    const html = generateReceiptHTML({ ...payload, width: '210mm' })
+    downloadA4InvoicePdf(html, `${payload.sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+    toast.success('Invoice opened — click Save as PDF')
   }
 
   return (
@@ -380,16 +336,16 @@ export const RealisticReceiptModal = ({
       title={isEditing ? '✏️ Edit Receipt Details' : '🖨️ Receipt & Bill Preview'}
       size="xl"
       footer={
-        <div className="flex flex-wrap items-center justify-between w-full gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 w-full">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={isEditing ? 'primary' : 'outline'}
               size="sm"
               leftIcon={isEditing ? <Eye size={15} /> : <Edit3 size={15} />}
               onClick={() => setIsEditing(!isEditing)}
-              className={isEditing ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800'}
+              className={`flex-1 sm:flex-none ${isEditing ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800'}`}
             >
-              {isEditing ? 'View Final Receipt' : 'Edit Bill Elements'}
+              {isEditing ? 'View bill' : 'Edit bill'}
             </Button>
             <Button
               variant="ghost"
@@ -400,9 +356,12 @@ export const RealisticReceiptModal = ({
             >
               Reset
             </Button>
+            <div className="hidden sm:flex items-center gap-2 ml-auto text-[11px] text-slate-500">
+              Edits apply to print, PDF, and A4
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -410,7 +369,7 @@ export const RealisticReceiptModal = ({
               onClick={handlePrintA4}
               className="font-semibold"
             >
-              A4 Invoice
+              Print A4
             </Button>
             <Button
               variant="outline"
@@ -421,27 +380,18 @@ export const RealisticReceiptModal = ({
             >
               Download PDF
             </Button>
-
-            {blePrinter?.isSupported && (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Bluetooth size={15} className="text-blue-600" />}
-                onClick={handlePrintBluetooth}
-                loading={isPrintingBle}
-                className="border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-semibold"
-              >
-                {blePrinter.status === 'connected' ? `BLE (${blePrinter.deviceName || 'Printer'})` : 'BLE Print'}
-              </Button>
-            )}
-
             <Button
               size="sm"
-              leftIcon={<Printer size={16} />}
+              leftIcon={shouldPrintThermalOverBle(settings, blePrinter) ? <Bluetooth size={16} /> : <Printer size={16} />}
               onClick={handlePrintThermal}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md active:scale-95 transition-transform"
+              loading={isPrintingBle}
+              className="col-span-2 sm:col-span-1 sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
             >
-              Print Thermal ({receipt.paperSize})
+              {blePrinter?.status === 'connected'
+                ? `Print to ${blePrinter.deviceName || 'printer'}`
+                : shouldPrintThermalOverBle(settings, blePrinter)
+                  ? 'Connect & print receipt'
+                  : `Print receipt (${receipt.paperSize})`}
             </Button>
           </div>
         </div>
@@ -645,6 +595,15 @@ export const RealisticReceiptModal = ({
                   />
                 </div>
               </div>
+              <label className="flex items-center justify-between gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                Show GST on bill
+                <input
+                  type="checkbox"
+                  checked={receipt.showTaxBreakdown}
+                  onChange={e => setReceipt(prev => ({ ...prev, showTaxBreakdown: e.target.checked }))}
+                  className="h-4 w-4"
+                />
+              </label>
 
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">Footer Message / Policy</label>
@@ -660,7 +619,7 @@ export const RealisticReceiptModal = ({
         )}
 
         {/* RIGHT / MAIN COLUMN: HYPER-REALISTIC THERMAL RECEIPT CONTAINER */}
-        <div className={`${isEditing ? 'lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-center p-2 sm:p-4 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800`}>
+        <div className={`${isEditing ? 'lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 min-w-0`}>
           {/* Realistic Thermal Paper Component */}
           <div className="relative w-full max-w-[340px] transition-all duration-300">
             {/* Serrated Top Edge */}
@@ -755,7 +714,7 @@ export const RealisticReceiptModal = ({
                   </div>
                 )}
 
-                {receipt.taxAmount > 0 && (
+                {receipt.showTaxBreakdown && receipt.taxAmount > 0 && (
                   <div className="flex justify-between text-slate-700">
                     <span>GST TAX:</span>
                     <span>{formatINR(receipt.taxAmount)}</span>

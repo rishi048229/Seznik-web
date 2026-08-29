@@ -13,6 +13,7 @@ import { ArrowLeft, Printer, FileText, Bluetooth, Download } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -32,7 +33,7 @@ export const SaleDetailPage = () => {
   const blePrinter = useBlePrinter()
 
   // Accept format directly to avoid React state update race condition
-  const handlePrint = (format: 'a4' | 'thermal') => {
+  const handlePrint = async (format: 'a4' | 'thermal') => {
     if (!sale) return
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
@@ -44,6 +45,29 @@ export const SaleDetailPage = () => {
     const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
       ? (paperSize === '80mm' ? '80mm' : '50mm')
       : '210mm'
+
+    if (format === 'thermal' && shouldPrintThermalOverBle(settings, blePrinter)) {
+      setIsBlePrinting(true)
+      try {
+        if (blePrinter.status !== 'connected') await blePrinter.connect()
+        const bytes = await generateReceiptEscPos({
+          sale,
+          receiptConfig: { ...receiptConfig, showTaxBreakdown },
+          paperSize,
+          businessName: settings?.businessName,
+          businessAddress: settings?.businessAddress,
+          customerName,
+        })
+        await blePrinter.print(bytes)
+        setIsPrintModalOpen(false)
+        toast.success('Printed to Bluetooth printer')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth'))
+      } finally {
+        setIsBlePrinting(false)
+      }
+      return
+    }
 
     const receiptHTML = generateReceiptHTML({
       sale,
@@ -81,7 +105,7 @@ export const SaleDetailPage = () => {
       settingsTaxName: 'GST',
     })
     downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — choose Save as PDF in the print dialog`)
+    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — click Save as PDF`)
   }
 
   const handlePrintBluetooth = async () => {

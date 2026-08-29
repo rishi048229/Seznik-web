@@ -57,6 +57,8 @@ export interface GenerateReceiptHTMLParams {
   logoURL?: string
   settingsTaxRate?: number
   settingsTaxName?: string
+  dateLabel?: string
+  customerPhone?: string
   products?: Array<Pick<Product, 'id' | 'sku' | 'unit' | 'expiryDate' | 'brand'>> | null
 }
 
@@ -102,6 +104,8 @@ export const generateReceiptHTML = ({
   settingsTaxRate,
   settingsTaxName,
   products,
+  dateLabel,
+  customerPhone,
 }: GenerateReceiptHTMLParams): string => {
   const companyName = receiptConfig?.companyName || businessName || 'Your Company'
   const companyAddress = receiptConfig?.address || businessAddress || ''
@@ -189,6 +193,7 @@ export const generateReceiptHTML = ({
       logoURL: effectiveLogo,
       settingsTaxName,
       products,
+      dateLabel,
     })
   }
 
@@ -205,6 +210,8 @@ export const generateReceiptHTML = ({
     businessPhone: receiptConfig?.phone,
     businessGSTIN: receiptConfig?.gstin,
     customerName,
+    customerPhone: customerPhone || customer?.phone,
+    dateLabel,
     paperSize: paperSizeKey,
     pricesIncludeGst: true,
   })
@@ -353,6 +360,8 @@ interface GenerateReceiptEscPosParams {
   businessName?: string
   businessAddress?: string
   customerName?: string
+  customerPhone?: string
+  dateLabel?: string
   settingsTaxRate?: number
 }
 
@@ -363,6 +372,8 @@ export const generateReceiptEscPos = async ({
   businessName,
   businessAddress,
   customerName,
+  customerPhone,
+  dateLabel,
 }: GenerateReceiptEscPosParams): Promise<Uint8Array> => {
   const textLines = compileReceiptTextLines({
     sale,
@@ -372,6 +383,8 @@ export const generateReceiptEscPos = async ({
     businessPhone: receiptConfig?.phone,
     businessGSTIN: receiptConfig?.gstin,
     customerName,
+    customerPhone,
+    dateLabel,
     paperSize,
     pricesIncludeGst: true,
   })

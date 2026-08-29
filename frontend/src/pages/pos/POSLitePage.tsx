@@ -718,7 +718,7 @@ export const POSLitePage = () => {
       : previewBase + (previewBase * previewTax) / 100
 
   return (
-    <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
+    <div className="flex flex-col sm:flex-row h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-4.25rem)] gap-0 -mx-3 sm:-mx-4 lg:-mx-6 -mt-3 sm:-mt-4 lg:-mt-6 min-h-0 min-w-0 max-w-full overflow-hidden">
 
       {/* Mobile Tab Switcher */}
       <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">

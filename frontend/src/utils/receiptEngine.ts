@@ -9,6 +9,8 @@ export interface CompileReceiptParams {
   businessPhone?: string
   businessGSTIN?: string
   customerName?: string
+  customerPhone?: string
+  dateLabel?: string
   paperSize?: '58mm' | '80mm' | string
   widthDots?: number
   pricesIncludeGst?: boolean
@@ -330,6 +332,8 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     businessPhone,
     businessGSTIN,
     customerName,
+    customerPhone,
+    dateLabel,
     paperSize = '58mm',
     widthDots,
     pricesIncludeGst = true,
@@ -387,20 +391,21 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   // ── 2. META DETAILS ──
   if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
     const dateObj = sale.createdAt ? new Date(sale.createdAt) : new Date()
-    const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+    const dateStr = dateLabel
+      || `${dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
 
     if (showInvoiceNoAndDate) {
       if (compactMode) {
         lines.push(row(`Inv:#${sale.invoiceNumber || '---'}`, dateStr, COLS))
       } else {
         lines.push(row('Bill No :', sale.invoiceNumber || 'INV-00000', COLS))
-        lines.push(row('Date    :', `${dateStr} ${timeStr}`, COLS))
+        lines.push(row('Date    :', dateStr, COLS))
         if (cashierName) lines.push(row('Cashier :', cashierName, COLS))
       }
     }
     if (showCustomerDetails && customerName) {
       lines.push(row('Customer:', customerName, COLS))
+      if (customerPhone) lines.push(row('Phone   :', customerPhone, COLS))
     }
     lines.push(divider('-', COLS))
   }
