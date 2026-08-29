@@ -173,7 +173,7 @@ export async function computeRealTopFeatures(pool, timeRange = 'all') {
     featureFromQuery(sales, timeRange, { id: 'sec-pos-lite', sectionName: 'POS Lite Billing & Invoicing', path: '/pos-lite', iconName: 'ShoppingBag' }),
     featureFromQuery(categories, timeRange, { id: 'sec-categories', sectionName: 'Categories & Tax Classification', path: '/categories', iconName: 'Layers' }),
     featureFromQuery(customers, timeRange, { id: 'sec-customers', sectionName: 'Customer CRM & Loyalty Records', path: '/customers', iconName: 'Users' }),
-    featureFromQuery(credits, timeRange, { id: 'sec-credits', sectionName: 'Customer Udhar & Credit Ledger', path: '/credits', iconName: 'CreditCard' }),
+    featureFromQuery(credits, timeRange, { id: 'sec-credits', sectionName: 'Customer Credit Ledger', path: '/credits', iconName: 'CreditCard' }),
     featureFromQuery(users, timeRange, { id: 'sec-onboarding', sectionName: 'Merchant Auth & Onboarding Flow', path: '/onboarding', iconName: 'ShieldCheck' }),
     featureFromQuery(tokens, timeRange, { id: 'sec-tokens', sectionName: 'Quick Token Generator & Kiosk', path: '/tokens', iconName: 'Ticket' }),
     featureFromQuery(settings, timeRange, { id: 'sec-settings', sectionName: 'Store Profile & Tax Configuration', path: '/settings', iconName: 'Settings' }),

@@ -316,7 +316,7 @@ export default function CustomerAccountScreen() {
           ) : null}
           <TouchableOpacity onPress={() => setShowAddCreditModal(true)} style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.navyInk }]}>
             <PlusCircle size={15} color="#FFFFFF" />
-            <Text style={styles.actionBtnText}>Udhaar Diya</Text>
+            <Text style={styles.actionBtnText}>Give Credit</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowNoteModal(true)} style={[styles.actionBtn, { backgroundColor: '#8B5CF6' }]}>
             <Notebook size={15} color="#FFFFFF" />
@@ -487,13 +487,13 @@ export default function CustomerAccountScreen() {
         </KeyboardAvoidingWrapper>
       </Modal>
 
-      {/* Add Credit (Udhaar Diya) Modal */}
+      {/* Add Credit Modal */}
       <Modal visible={showAddCreditModal} animationType="fade" transparent onRequestClose={() => setShowAddCreditModal(false)}>
         <KeyboardAvoidingWrapper inModal>
         <View style={styles.modalOverlay}>
           <View style={[styles.payModalSheet, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <View style={styles.modalHeaderRow}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Give Credit (Udhaar)</Text>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Give Credit</Text>
               <TouchableOpacity onPress={() => setShowAddCreditModal(false)}>
                 <X size={20} color={theme.textSecondary} />
               </TouchableOpacity>

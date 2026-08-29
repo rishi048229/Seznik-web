@@ -248,7 +248,7 @@ export const KOTBillModal = ({
               { id: 'cash' as const, label: 'Cash', icon: Wallet },
               { id: 'card' as const, label: 'Card', icon: CreditCard },
               { id: 'upi' as const, label: 'UPI', icon: Smartphone },
-              { id: 'credit' as const, label: 'Udhar', icon: UserPlus },
+              { id: 'credit' as const, label: 'Credit', icon: UserPlus },
             ]).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}

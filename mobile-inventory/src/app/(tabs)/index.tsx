@@ -231,7 +231,7 @@ export default function DashboardScreen() {
     }).format(val || 0);
   };
 
-  // Customers with pending credit balance (Udhaar)
+  // Customers with pending credit balance
   const creditCustomers = (customers || []).filter((c: Customer) => (c.creditBalance || 0) > 0);
   const totalOutstandingCredit = creditCustomers.reduce((acc, c) => acc + (c.creditBalance || 0), 0);
 

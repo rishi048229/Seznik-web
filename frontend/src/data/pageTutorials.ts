@@ -63,7 +63,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
     tourSteps: [
       { title: 'Barcode & Product Search', description: 'Search items by name, SKU, or scan barcodes to add items directly to cart.', targetSelector: '[data-tour="pos-search-input"]' },
       { title: 'Category Filters', description: 'Filter your store catalog by category with one click.', targetSelector: '[data-tour="pos-category-tabs"]' },
-      { title: 'Customer Credit / Walk-in', description: 'Select a customer to bill on Store Credit (Udhar) or walk-in.', targetSelector: '[data-tour="pos-customer-select"]' },
+      { title: 'Customer Credit / Walk-in', description: 'Select a customer to bill on Store Credit or walk-in.', targetSelector: '[data-tour="pos-customer-select"]' },
       { title: 'Complete & Print Bill', description: 'Choose payment method (Cash, Card, UPI, Credit) and print thermal receipt.', targetSelector: '[data-tour="pos-checkout-btn"]' },
     ],
   },
@@ -139,10 +139,10 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
     title: 'Customer Directory & Store Credit Ledger',
     subtitle: 'Track customer details, purchase histories, and manage store credit balances',
     videoUrl: '/assets/videos/guide-customers.mp4',
-    summary: 'Maintain customer relationships, track credit balances (Udhar), record partial credit settlements, and view complete transaction histories.',
+    summary: 'Maintain customer relationships, track credit balances, record partial credit settlements, and view complete transaction histories.',
     keyFeatures: [
       { title: 'Customer Profile Directory', description: 'Store phone numbers, email, delivery addresses, and custom credit limits.' },
-      { title: 'Store Credit Ledger (Udhar)', description: 'Track outstanding credit balances and log partial payments or full settlements.' },
+      { title: 'Store Credit Ledger', description: 'Track outstanding credit balances and log partial payments or full settlements.' },
       { title: 'Purchase History Timeline', description: 'Review all past invoices and orders associated with any customer.' },
     ],
     proTips: [
@@ -152,7 +152,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
     tourSteps: [
       { title: '+ Add Customer Button', description: 'Register a new customer profile with phone, email, and credit limit.', targetSelector: '[data-tour="add-customer-btn"]' },
       { title: 'Search Customers', description: 'Find customers instantly by phone number or name.', targetSelector: '[data-tour="customer-search-input"]' },
-      { title: 'Customer Credit Ledger', description: 'View outstanding credit dues (Udhar) and log cash/UPI settlements.', targetSelector: '[data-tour="customer-first-row"]' },
+      { title: 'Customer Credit Ledger', description: 'View outstanding credit dues and log cash/UPI settlements.', targetSelector: '[data-tour="customer-first-row"]' },
     ],
   },
   suppliers: {

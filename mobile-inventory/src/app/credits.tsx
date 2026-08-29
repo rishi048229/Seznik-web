@@ -306,12 +306,12 @@ export default function CreditsDaybookScreen() {
               </View>
               <View style={[styles.kpiCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <CreditCard size={20} color="#F59E0B" />
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Udhar Diya (Credit Given)</Text>
+                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Credit Given</Text>
                 <Text style={[styles.kpiValue, { color: '#F59E0B' }]}>₹{creditGiven.toFixed(2)}</Text>
               </View>
               <View style={[styles.kpiCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <Wallet size={20} color="#10B981" />
-                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Udhar Wasooli (Collected)</Text>
+                <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>Credit Collected</Text>
                 <Text style={[styles.kpiValue, { color: '#10B981' }]}>₹{creditCollectedToday.toFixed(2)}</Text>
               </View>
               {gst ? (

@@ -39,8 +39,7 @@ export function useCredits() {
     },
   });
 
-  // Manually recording "gave this customer credit" without going through a POS sale — the
-  // "Udhaar Diya" quick action on the Customer Account page.
+  // Manually record credit given to a customer without going through a POS sale.
   const addCreditMutation = useMutation({
     mutationFn: async (payload: { customerId: string; amount: number; notes?: string }) => {
       return creditsApi.createTransaction({
