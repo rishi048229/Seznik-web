@@ -20,8 +20,10 @@ export const printCompletedSale = async (args: {
   customerName?: string
   ble: BleLike
   onDone?: () => void
+  /** When true, only print over Bluetooth. Used when the format picker is also shown. */
+  skipBrowserFallback?: boolean
 }): Promise<void> => {
-  const { sale, settings, customerName, ble, onDone } = args
+  const { sale, settings, customerName, ble, onDone, skipBrowserFallback } = args
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
   const paperSize = settings?.printerConfig?.paperSize || '58mm'
   const width = thermalWidth(paperSize)
@@ -42,9 +44,11 @@ export const printCompletedSale = async (args: {
       onDone?.()
       return
     } catch {
-      // Browser print is the fallback when Bluetooth fails.
+      if (skipBrowserFallback) return
     }
   }
+
+  if (skipBrowserFallback) return
 
   const html = generateReceiptHTML({
     sale,

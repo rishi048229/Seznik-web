@@ -541,15 +541,15 @@ export const POSLitePage = () => {
           ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
           : ''
 
+        setIsPrintModalOpen(true)
         if (shouldAutoPrint(settings)) {
           void printCompletedSale({
             sale: printedSale,
             settings,
             customerName,
             ble: blePrinter,
-          }).catch(() => setIsPrintModalOpen(true))
-        } else {
-          setIsPrintModalOpen(true)
+            skipBrowserFallback: true,
+          })
         }
       },
       onError: (error) => {
