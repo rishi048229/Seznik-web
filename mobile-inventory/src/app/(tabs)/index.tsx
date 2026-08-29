@@ -43,7 +43,6 @@ import {
   Layers,
   Camera,
   Barcode,
-  Mic,
   Wallet,
   CreditCard,
   ArrowUpRight,
@@ -174,8 +173,6 @@ export default function DashboardScreen() {
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
   const [scanMode, setScanMode] = useState<'bill' | 'stock'>('bill');
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
-  const [voiceText, setVoiceText] = useState('');
 
   const showKot =
     isNavFeatureVisible(user?.businessType, 'kot') && hasPermission('canAccessKOT');
@@ -400,18 +397,6 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleVoiceAddProduct = () => {
-    if (!voiceText.trim()) {
-      Alert.alert('Voice Input Empty', 'Please speak or type product details.');
-      return;
-    }
-    const name = voiceText.trim();
-    setShowVoiceModal(false);
-    setVoiceText('');
-    setQuickBillItems([{ id: '1', name, price: '', qty: '1' }]);
-    setShowQuickBillModal(true);
-  };
-
   const handleSendWhatsAppReminder = async (customer: Customer) => {
     if (!customer.phone) {
       Alert.alert('Missing Phone Number', `No mobile number is registered for ${customer.name}.`);
@@ -541,13 +526,6 @@ export default function DashboardScreen() {
               style={[styles.headerPillBtn, { backgroundColor: 'rgba(2, 132, 199, 0.15)', marginRight: 6 }]}
             >
               <Camera size={14} color={BRAND_COLORS.sky500} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setShowVoiceModal(true)}
-              style={[styles.headerPillBtn, { backgroundColor: 'rgba(239, 68, 68, 0.15)', marginRight: 6 }]}
-            >
-              <Mic size={14} color="#EF4444" />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => setShowQuickBillModal(true)} style={styles.billNowBtn}>
@@ -712,13 +690,6 @@ export default function DashboardScreen() {
                       icon={Tag}
                       color="#10B981"
                       onPress={() => router.push('/printers/label-studio' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('voiceAdd', 'Voice Add')}
-                      icon={Mic}
-                      color="#EF4444"
-                      onPress={() => setShowVoiceModal(true)}
                       theme={theme}
                     />
                     <FeatureGridTile
@@ -1404,41 +1375,6 @@ export default function DashboardScreen() {
               </View>
             )}
           </View>
-        </Modal>
-
-        {/* Voice AI Add Modal */}
-        <Modal visible={showVoiceModal} transparent animationType="fade">
-          <KeyboardAvoidingWrapper inModal>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.bottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <View style={styles.sheetHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Mic size={20} color="#EF4444" />
-                  <Text style={[styles.sheetTitle, { color: theme.textPrimary, marginLeft: 8 }]}>{t('voiceAiAddTitle', 'Voice AI Add Product')}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowVoiceModal(false)}>
-                  <X size={22} color={theme.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 12 }}>
-                {t('voiceAiAddSubtitle', 'Speak item name and price (e.g. "Amul Butter 100 rupees") or type below:')}
-              </Text>
-
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                value={voiceText}
-                onChangeText={setVoiceText}
-                placeholder={t('voiceAiPlaceholder', 'Say or type product details...')}
-                placeholderTextColor="#94A3B8"
-              />
-
-              <TouchableOpacity onPress={handleVoiceAddProduct} style={[styles.instantBillBtn, { backgroundColor: '#EF4444' }]}>
-                <Text style={styles.instantBillBtnText}>{t('addProductToBill', 'Add Product to Bill')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          </KeyboardAvoidingWrapper>
         </Modal>
 
         {/* AI Catalog Bulk Import Modal */}

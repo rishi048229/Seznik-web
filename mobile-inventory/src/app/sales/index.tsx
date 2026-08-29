@@ -33,8 +33,6 @@ import {
   FileText,
   Bluetooth,
 } from 'lucide-react-native';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { useSales } from '@/hooks/useSales';
 import { Sale } from '@/types/sale';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -52,7 +50,7 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
-import { buildBillReceiptHtml } from '@/utils/shareBillReceipt';
+import { printInvoiceA4, saveAndOpenInvoicePdf } from '@/utils/invoiceActions';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
@@ -144,36 +142,7 @@ export default function SalesHistoryScreen() {
   const handleDownloadPdf = async (sale: Sale) => {
     setIsDownloadingPdf(true);
     try {
-      const items = (sale.items || []).map((it: any) => ({
-        productName: it.productName || it.name || 'Item',
-        quantity: it.quantity || 1,
-        unitPrice: it.unitPrice || it.price || 0,
-        total: it.total || (it.quantity || 1) * (it.unitPrice || 0),
-      }));
-
-      const html = buildBillReceiptHtml(
-        storeProfile.settings,
-        sale.customerName || 'Walk-in Customer',
-        {
-          invoiceNumber: sale.invoiceNumber,
-          items,
-          originalAmount: sale.grandTotal,
-          outstandingAmount: Math.max(0, sale.grandTotal - (sale.amountPaid || 0)),
-          date: sale.createdAt,
-        }
-      );
-
-      const { uri } = await Print.printToFileAsync({ html });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Invoice #${sale.invoiceNumber}`,
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        Alert.alert('PDF Generated', `Invoice PDF saved at: ${uri}`);
-      }
+      await saveAndOpenInvoicePdf(sale, storeProfile);
     } catch (err: any) {
       Alert.alert('PDF Error', err?.message || 'Failed to generate invoice PDF');
     } finally {
@@ -183,40 +152,7 @@ export default function SalesHistoryScreen() {
 
   const handlePrintA4 = async (sale: Sale) => {
     try {
-      const items = (sale.items || []).map((it: any) => ({
-        productName: it.productName || it.name || 'Item',
-        quantity: it.quantity || 1,
-        unitPrice: it.unitPrice || it.price || 0,
-        total: it.total || (it.quantity || 1) * (it.unitPrice || 0),
-        unit: it.unit || 'piece',
-      }));
-
-      const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
-      const summary = computeGstBillSummary(gstLinesFromSaleItems(sale.items || []));
-
-      await ThermalPrinterService.printA4Invoice({
-        storeName: storeProfile.storeName,
-        storeAddress: storeProfile.storeAddress,
-        storePhone: storeProfile.storePhone,
-        storeGstin: storeProfile.storeGstin,
-        storeLogoUrl: storeProfile.storeLogoUrl,
-        invoiceNumber: sale.invoiceNumber,
-        date: new Date(sale.createdAt).toLocaleDateString('en-GB'),
-        customerName: sale.customerName || 'Walk-in Customer',
-        items,
-        subtotal: sale.subtotal,
-        totalTax: sale.totalTax || 0,
-        totalDiscount: sale.totalDiscount || 0,
-        grandTotal: sale.grandTotal,
-        amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
-        changeReturned: sale.changeReturned || 0,
-        paymentMethod: (sale.paymentMethod || 'CASH').toUpperCase(),
-        taxableAmt: summary.taxableValue,
-        cgst: summary.cgstAmount,
-        sgst: summary.sgstAmount,
-        gstStyle: gstBilling.printOnReceipt ? gstBilling.style : undefined,
-        gstSlabs: summary.slabs,
-      }, gstPrintOptionOverrides(gstBilling));
+      await printInvoiceA4(sale, storeProfile);
     } catch (err: any) {
       Alert.alert('A4 Print Error', err?.message || 'Failed to open A4 print dialog');
     }

@@ -67,7 +67,7 @@ export default function SettingsScreen() {
   const queryClient = useQueryClient();
 
   const [activeSection, setActiveSection] = useState<
-    'menu' | 'profile' | 'permissions' | 'language' | 'notifications' | 'support'
+    'menu' | 'profile' | 'language' | 'notifications' | 'support'
   >('menu');
 
   // Business Profile Form State — seeded from the real backend Settings once loaded, not hardcoded.
@@ -100,16 +100,6 @@ export default function SettingsScreen() {
     }
     setHasSeededBusinessType(true);
   }
-
-  // ManagedUser Granular Permissions State
-  const [perms, setPerms] = useState({
-    canManipulateStock: true,
-    canAccessSuppliers: true,
-    canAccessPurchases: false,
-    canAccessExpenses: false,
-    canAccessReports: false,
-    canManageUsers: false,
-  });
 
   const [rawPickedLogo, setRawPickedLogo] = useState<string | null>(null);
   const [showLogoBgModal, setShowLogoBgModal] = useState<boolean>(false);
@@ -239,8 +229,6 @@ export default function SettingsScreen() {
             ? t('settings', 'Store Configuration')
             : activeSection === 'profile'
             ? 'Business Profile'
-            : activeSection === 'permissions'
-            ? 'Staff Permissions'
             : activeSection === 'notifications'
             ? 'Notifications & Alerts'
             : activeSection === 'support'
@@ -281,7 +269,7 @@ export default function SettingsScreen() {
               <View style={styles.menuGrid}>
               {[
                 { id: 'profile', icon: Building, label: 'Business Profile', color: BRAND_COLORS.blue600 },
-                { id: 'permissions', icon: Users, label: 'Staff Permissions', color: '#F59E0B' },
+                { id: 'permissions', icon: Users, label: t('staffAccounts', 'Staff & permissions'), color: '#F59E0B', link: '/staff' },
                 { id: 'notifications', icon: Bell, label: 'Notifications', color: '#EF4444', badge: unreadCount > 0 ? `${unreadCount}` : undefined },
                 { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
                 { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
@@ -520,28 +508,6 @@ export default function SettingsScreen() {
                 {isSavingProfile ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Save Business Profile</Text>}
               </TouchableOpacity>
             </View>
-          ) : activeSection === 'permissions' ? (
-            /* ManagedUser Staff Permissions Section */
-            <View>
-              <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>STAFF ROLE PERMISSIONS</Text>
-              {Object.keys(perms).map((key) => {
-                const k = key as keyof typeof perms;
-                return (
-                  <View key={k} style={[styles.permRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                    <Text style={[styles.permTitle, { color: theme.textPrimary }]}>{k}</Text>
-                    <Switch
-                      value={perms[k]}
-                      onValueChange={(val) => setPerms({ ...perms, [k]: val })}
-                      trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
-                    />
-                  </View>
-                );
-              })}
-
-              <TouchableOpacity onPress={handleSaveSettings} style={styles.saveBtn}>
-                <Text style={styles.saveBtnText}>Save Staff Permissions</Text>
-              </TouchableOpacity>
-            </View>
           ) : activeSection === 'notifications' ? (
             /* Stock & App Notifications Section */
             <View>
@@ -698,7 +664,7 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   title: { fontSize: 24, fontWeight: '900', marginBottom: 6 },
-  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  menuGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   menuItem: { borderRadius: 18, padding: 14, borderWidth: 1, marginBottom: 10, flexDirection: 'row', alignItems: 'center' },
   multiStoreCard: { borderRadius: 18, padding: 14, borderWidth: 1, marginBottom: 16, flexDirection: 'row', alignItems: 'center' },
   menuIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(37, 99, 235, 0.12)', alignItems: 'center', justifyContent: 'center' },

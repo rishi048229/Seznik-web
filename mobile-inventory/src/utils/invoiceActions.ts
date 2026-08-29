@@ -1,8 +1,8 @@
 import { Alert } from 'react-native';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
-import { buildBillReceiptHtml } from '@/utils/shareBillReceipt';
 import type { Sale } from '@/types/sale';
 import type { StoreProfile } from '@/hooks/useStoreProfile';
 import type { Settings } from '@/api/settings';
@@ -24,29 +24,6 @@ export function applyStoreProfileToPrintData(data: PrintSaleData, storeProfile: 
     storeLogoUrl: storeProfile.storeLogoUrl,
     upiId: storeProfile.upiId,
     footerMessage: storeProfile.footerMessage,
-  };
-}
-
-function receiptSettingsFromProfile(storeProfile: StoreProfileWithSettings): Settings | null | undefined {
-  if (!storeProfile.settings) {
-    return {
-      businessName: storeProfile.storeName,
-      businessAddress: storeProfile.storeAddress,
-      businessPhone: storeProfile.storePhone,
-      businessGSTIN: storeProfile.storeGstin,
-      businessLogoURL: storeProfile.storeLogoUrl,
-      upiId: storeProfile.upiId,
-    } as Settings;
-  }
-
-  return {
-    ...storeProfile.settings,
-    businessName: storeProfile.storeName,
-    businessAddress: storeProfile.storeAddress,
-    businessPhone: storeProfile.storePhone,
-    businessGSTIN: storeProfile.storeGstin,
-    businessLogoURL: storeProfile.storeLogoUrl ?? storeProfile.settings.businessLogoURL,
-    upiId: storeProfile.upiId ?? storeProfile.settings.upiId,
   };
 }
 
@@ -135,28 +112,12 @@ export async function printInvoiceThermal(
 
 export async function saveInvoicePdfLocally(
   sale: Sale,
-  storeProfile: StoreProfileWithSettings
+  storeProfile: StoreProfileWithSettings,
+  options: ReceiptPrintOptions = {}
 ): Promise<string> {
-  const items = saleToPrintItems(sale).map(({ productName, quantity, unitPrice, total }) => ({
-    productName,
-    quantity,
-    unitPrice,
-    total,
-  }));
-
-  const html = buildBillReceiptHtml(
-    receiptSettingsFromProfile(storeProfile),
-    sale.customerName || 'Walk-in Customer',
-    {
-      invoiceNumber: sale.invoiceNumber,
-      items,
-      originalAmount: sale.grandTotal,
-      outstandingAmount: Math.max(0, sale.grandTotal - (sale.amountPaid || 0)),
-      date: sale.createdAt,
-    }
-  );
-
-  const { uri: tempUri } = await Print.printToFileAsync({ html });
+  const saleData = saleToPrintSaleData(sale, storeProfile);
+  const html = ThermalPrinterService.generateA4InvoiceHtml(saleData, options);
+  const { uri: tempUri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
   await FileSystem.makeDirectoryAsync(INVOICE_PDF_DIR, { intermediates: true }).catch(() => {});
 
   const safeName = sale.invoiceNumber.replace(/[^\w.-]+/g, '_');
@@ -175,31 +136,44 @@ export async function saveInvoicePdfLocally(
   return destUri;
 }
 
-/** Opens share sheet — prefer saveInvoicePdfLocally for on-device storage. */
-export async function downloadInvoicePdf(sale: Sale, storeProfile: StoreProfileWithSettings) {
-  const destUri = await saveInvoicePdfLocally(sale, storeProfile);
-  Alert.alert('Invoice Saved', `PDF saved on this device:\n${destUri}`);
+export async function openInvoicePdf(uri: string, invoiceNumber?: string) {
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      UTI: 'com.adobe.pdf',
+      dialogTitle: invoiceNumber ? `Invoice #${invoiceNumber}` : 'Invoice',
+    });
+    return;
+  }
+
+  Alert.alert('Invoice Saved', `PDF saved on this device:\n${uri}`);
+}
+
+/** Save the A4 invoice PDF, then open it immediately. */
+export async function saveAndOpenInvoicePdf(
+  sale: Sale,
+  storeProfile: StoreProfileWithSettings,
+  options: ReceiptPrintOptions = {}
+): Promise<string> {
+  const destUri = await saveInvoicePdfLocally(sale, storeProfile, options);
+  await openInvoicePdf(destUri, sale.invoiceNumber);
   return destUri;
 }
 
-export async function printInvoiceA4(sale: Sale, storeProfile: StoreProfileWithSettings) {
-  const items = saleToPrintItems(sale);
-  await ThermalPrinterService.printA4Invoice({
-    storeName: storeProfile.storeName,
-    storeAddress: storeProfile.storeAddress,
-    storePhone: storeProfile.storePhone,
-    storeGstin: storeProfile.storeGstin,
-    storeLogoUrl: storeProfile.storeLogoUrl,
-    invoiceNumber: sale.invoiceNumber,
-    date: new Date(sale.createdAt).toLocaleDateString('en-GB'),
-    customerName: sale.customerName || 'Walk-in Customer',
-    items,
-    subtotal: sale.subtotal,
-    totalTax: sale.totalTax || 0,
-    totalDiscount: sale.totalDiscount || 0,
-    grandTotal: sale.grandTotal,
-    amountPaid: sale.amountPaid !== undefined ? sale.amountPaid : sale.grandTotal,
-    changeReturned: sale.changeReturned || 0,
-    paymentMethod: (sale.paymentMethod || 'CASH').toUpperCase(),
-  });
+/** Opens share sheet — prefer saveAndOpenInvoicePdf for on-device storage. */
+export async function downloadInvoicePdf(
+  sale: Sale,
+  storeProfile: StoreProfileWithSettings,
+  options: ReceiptPrintOptions = {}
+) {
+  return saveAndOpenInvoicePdf(sale, storeProfile, options);
+}
+
+export async function printInvoiceA4(
+  sale: Sale,
+  storeProfile: StoreProfileWithSettings,
+  options: ReceiptPrintOptions = {}
+) {
+  const saleData = saleToPrintSaleData(sale, storeProfile);
+  await ThermalPrinterService.printA4Invoice(saleData, options);
 }

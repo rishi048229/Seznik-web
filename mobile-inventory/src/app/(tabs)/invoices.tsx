@@ -48,7 +48,7 @@ import type { PrintSaleData } from '@/services/PrinterService';
 import {
   formatInvoiceDateTime,
   printInvoiceReceipt,
-  saveInvoicePdfLocally,
+  saveAndOpenInvoicePdf,
   saleToPrintSaleData,
 } from '@/utils/invoiceActions';
 import {
@@ -230,11 +230,9 @@ export default function InvoicesTabScreen() {
     setBusySaleId(sale.id);
     setBusyAction('download');
     try {
-      const fileUri = await saveInvoicePdfLocally(sale, storeProfile);
-      Alert.alert(
-        t('invoiceSaved', 'Invoice Saved'),
-        `${t('invoiceSavedHint', 'PDF saved on this device')}:\n${fileUri}`
-      );
+      const template = getTemplateById(activeTemplateId);
+      const customTemplate = customTemplates?.find((item) => item.id === activeCustomTemplateId) || null;
+      await saveAndOpenInvoicePdf(sale, storeProfile, { template, customTemplate });
     } catch (err: any) {
       Alert.alert(t('pdfError', 'PDF Error'), err?.message || 'Failed to save PDF');
     } finally {
@@ -442,42 +440,41 @@ export default function InvoicesTabScreen() {
                       <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>{formatCurrency(item.grandTotal)}</Text>
                     </TouchableOpacity>
 
-                    <View style={[styles.actionRow, { borderTopColor: theme.borderColor, backgroundColor: theme.bg }]}>
+                    <View style={[styles.actionRow, { borderTopColor: theme.borderColor }]}>
                       <TouchableOpacity
                         onPress={() => openReceiptPreview(item)}
-                        style={[styles.rowActionBtn, styles.viewBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                        style={[styles.iconActionBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('view', 'View')}
                       >
-                        <Eye size={16} color={theme.textPrimary} />
-                        <Text style={[styles.rowActionText, { color: theme.textPrimary }]}>{t('view', 'View')}</Text>
+                        <Eye size={18} color={theme.textPrimary} />
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         onPress={() => handleDownload(item)}
                         disabled={isBusy}
-                        style={[styles.rowActionBtn, styles.downloadBtn]}
+                        style={[styles.iconActionBtn, styles.downloadIconBtn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('download', 'Download')}
                       >
                         {isBusy && busyAction === 'download' ? (
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
-                          <>
-                            <Download size={16} color="#FFFFFF" />
-                            <Text style={[styles.rowActionText, styles.rowActionTextLight]}>{t('download', 'Download')}</Text>
-                          </>
+                          <Download size={18} color="#FFFFFF" />
                         )}
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         onPress={() => handlePrint(item)}
                         disabled={isBusy}
-                        style={[styles.rowActionBtn, styles.printBtn]}
+                        style={[styles.iconActionBtn, styles.printIconBtn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('print', 'Print')}
                       >
                         {isBusy && busyAction === 'print' ? (
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
-                          <>
-                            <Printer size={16} color="#FFFFFF" />
-                            <Text style={[styles.rowActionText, styles.rowActionTextLight]}>{t('print', 'Print')}</Text>
-                          </>
+                          <Printer size={18} color="#FFFFFF" />
                         )}
                       </TouchableOpacity>
                     </View>
@@ -661,22 +658,17 @@ const styles = StyleSheet.create({
   invoiceMeta: { fontSize: 11, marginTop: 4 },
   itemCount: { fontSize: 10, marginTop: 2 },
   invoiceAmount: { fontSize: 16, fontWeight: '900', marginLeft: 8 },
-  actionRow: { flexDirection: 'row', borderTopWidth: 1, padding: 8, gap: 8 },
-  rowActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
+  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  iconActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
-    minHeight: 44,
+    borderWidth: 1,
   },
-  viewBtn: { borderWidth: 1.5 },
-  downloadBtn: { backgroundColor: BRAND_COLORS.blue600 },
-  printBtn: { backgroundColor: BRAND_COLORS.navyInk },
-  rowActionText: { fontSize: 12, fontWeight: '900' },
-  rowActionTextLight: { color: '#FFFFFF' },
+  downloadIconBtn: { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
+  printIconBtn: { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.navyInk },
   emptyContainer: { paddingVertical: 60, alignItems: 'center' },
   emptyTitle: { fontSize: 16, fontWeight: '800', marginTop: 12 },
   emptySub: { fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 24 },

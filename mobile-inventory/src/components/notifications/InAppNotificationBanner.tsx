@@ -16,6 +16,7 @@ export function InAppNotificationBanner() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const activeBanner = useNotificationStore((state) => state.activeBanner);
+  const pauseInAppBanner = useNotificationStore((state) => state.pauseInAppBanner);
   const dismissBanner = useNotificationStore((state) => state.dismissBanner);
   const markAsRead = useNotificationStore((state) => state.markAsRead);
 
@@ -77,7 +78,7 @@ export function InAppNotificationBanner() {
     });
   };
 
-  if (!activeBanner) return null;
+  if (!activeBanner || pauseInAppBanner) return null;
 
   const isCritical = activeBanner.severity === 'critical' || activeBanner.type === 'out_of_stock';
   const isUrgent = activeBanner.severity === 'urgent' || activeBanner.type === 'critical_stock';

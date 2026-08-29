@@ -748,13 +748,18 @@ export function StaffListSkeleton({ count = 4 }: { count?: number }) {
     <View style={{ paddingTop: 4 }}>
       {Array.from({ length: count }).map((_, i) => (
         <View key={i} style={[styles.staffCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <SkeletonBlock width={40} height={40} borderRadius={20} style={{ marginRight: 10 }} />
           <View style={{ flex: 1, marginRight: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
               <SkeletonBlock width="40%" height={14} borderRadius={4} />
               <SkeletonBlock width={48} height={18} borderRadius={6} style={{ marginLeft: 8 }} />
             </View>
-            <SkeletonBlock width="55%" height={10} borderRadius={3} style={{ marginBottom: 4 }} />
-            <SkeletonBlock width="75%" height={10} borderRadius={3} />
+            <SkeletonBlock width="55%" height={10} borderRadius={3} style={{ marginBottom: 6 }} />
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <SkeletonBlock width={52} height={18} borderRadius={8} />
+              <SkeletonBlock width={64} height={18} borderRadius={8} />
+              <SkeletonBlock width={58} height={18} borderRadius={8} />
+            </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <SkeletonBlock width={32} height={32} borderRadius={8} />

@@ -55,10 +55,12 @@ interface NotificationState {
   preferences: NotificationPreferences;
   isHydrated: boolean;
   activeBanner: AppNotification | null;
+  pauseInAppBanner: boolean;
   lastNotifiedMap: Record<string, { stock: number; timestamp: number }>;
 
   hydrate: () => Promise<void>;
   dismissBanner: () => void;
+  setPauseInAppBanner: (paused: boolean) => void;
   addNotification: (
     item: Omit<AppNotification, 'id' | 'createdAt' | 'read'> & { id?: string }
   ) => Promise<void>;
@@ -98,6 +100,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   preferences: DEFAULT_PREFERENCES,
   isHydrated: false,
   activeBanner: null,
+  pauseInAppBanner: false,
   lastNotifiedMap: {},
 
   hydrate: async () => {
@@ -139,6 +142,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ activeBanner: null });
   },
 
+  setPauseInAppBanner: (paused: boolean) => {
+    set({ pauseInAppBanner: paused, ...(paused ? { activeBanner: null } : {}) });
+  },
+
   addNotification: async (item) => {
     const { notifications, preferences } = get();
     const cleanStock = item.currentStock !== undefined ? Math.max(0, item.currentStock) : undefined;
@@ -167,7 +174,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({
       notifications: updated,
       unreadCount: unread,
-      activeBanner: newNotif,
+      activeBanner: get().pauseInAppBanner ? get().activeBanner : newNotif,
     });
 
     await setStoredNotifications(JSON.stringify(updated));
