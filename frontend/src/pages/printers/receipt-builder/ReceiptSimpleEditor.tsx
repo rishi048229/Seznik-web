@@ -385,7 +385,7 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
 
       <SectionCard
         title="QR code"
-        description="Digital bill, UPI, or invoice barcode"
+        description="UPI payment, digital bill, or custom link"
         enabled={isSectionEnabled(mapped, 'qr')}
         onToggle={(v) => toggle('qr', v)}
         forceOpen={needsUpiId && !isValidUpiVpa(mapped.qr?.upiId || upiId)}
@@ -397,10 +397,9 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
               value={inferQrPurpose(mapped.qr)}
               onChange={(e) => onChange(applyQrSection(template, { purpose: e.target.value as QrPurpose }))}
             >
-              <option value="digital_bill">Digital bill QR</option>
-              <option value="upi">UPI payment QR</option>
-              <option value="invoice_barcode">Invoice barcode</option>
-              <option value="custom">Custom</option>
+              <option value="upi">💳 UPI payment QR</option>
+              <option value="digital_bill">📄 Digital bill / Invoice PDF QR</option>
+              <option value="custom">🔗 Custom link / Website</option>
             </select>
             {inferQrPurpose(mapped.qr) === 'upi' ? (
               <ReceiptUpiIdField
