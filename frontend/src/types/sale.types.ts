@@ -14,12 +14,16 @@ export interface Sale {
   id: string
   invoiceNumber: string
   customerId?: string
+  customerName?: string
+  customerPhone?: string
   items: SaleItem[]
   subtotal: number
   totalDiscount: number
   totalTax: number
   grandTotal: number
+  finalTotal?: number
   billCharges?: AppliedBillCharge[] | null
+  appliedCharges?: AppliedBillCharge[] | null
   extraChargesTotal?: number
   paymentMethod: 'cash' | 'card' | 'upi' | 'credit'
   amountPaid: number
@@ -27,7 +31,6 @@ export interface Sale {
   isQuickBill: boolean
   platform?: 'web' | 'mobile' | string
   createdAt: Date | string
-
 }
 
 export interface SaleItem {

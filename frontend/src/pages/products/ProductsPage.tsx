@@ -191,7 +191,7 @@ export const ProductsPage = () => {
     browseStoreId ? (browseStoreStockMap.get(product.id)?.priceOverride ?? product.sellingPrice) : product.sellingPrice
   const isCarriedAtBrowseStore = (product: { id: string }): boolean =>
     !browseStoreId || browseStoreStockMap.has(product.id)
-  const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
+  const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, disconnect: disconnectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
@@ -751,6 +751,42 @@ export const ProductsPage = () => {
 
         {/* Quick Tools Action Bar — Horizontally scrollable on all screen sizes */}
         <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth py-1 mb-4 min-w-0">
+          {isBleSupported && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={bleStatus === 'connected' ? disconnectBlePrinter : connectBlePrinter}
+              className={`shrink-0 whitespace-nowrap font-bold transition-all ${
+                bleStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                  : bleStatus === 'connecting'
+                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 animate-pulse'
+                  : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              leftIcon={
+                <Bluetooth
+                  size={16}
+                  className={
+                    bleStatus === 'connected'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-slate-500'
+                  }
+                />
+              }
+            >
+              {bleStatus === 'connected' ? (
+                <span className="flex items-center gap-1.5">
+                  <span>Printer: {bleDeviceName || 'Connected'}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </span>
+              ) : bleStatus === 'connecting' ? (
+                'Connecting Printer...'
+              ) : (
+                'Connect Label Printer'
+              )}
+            </Button>
+          )}
+
           {selectedIds.size > 0 && (
             <Button
               variant="danger"

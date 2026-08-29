@@ -107,7 +107,8 @@ export function subscribeBlePrinter(listener: Listener): () => void {
 
 function handleGattDisconnected() {
   characteristic = null
-  setState({ status: 'disconnected' })
+  device = null
+  setState({ status: 'disconnected', deviceName: null, profileName: null })
 }
 
 // Finds the first profile the device actually exposes and returns its write
@@ -147,19 +148,24 @@ async function resolveWriteCharacteristic(
 
 async function connectToDevice(dev: BluetoothDevice): Promise<void> {
   setState({ status: 'connecting', deviceName: dev.name ?? 'Printer' })
-  dev.addEventListener('gattserverdisconnected', handleGattDisconnected)
+  try {
+    dev.addEventListener('gattserverdisconnected', handleGattDisconnected)
 
-  const server = await dev.gatt?.connect()
-  if (!server) throw new Error('Unable to open a GATT connection to the printer')
+    const server = await dev.gatt?.connect()
+    if (!server) throw new Error('Unable to open a GATT connection to the printer')
 
-  const { char, profile } = await resolveWriteCharacteristic(server)
+    const { char, profile } = await resolveWriteCharacteristic(server)
 
-  device = dev
-  characteristic = char
-  const props = (char as unknown as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
-  supportsWriteWithoutResponse = !!props?.writeWithoutResponse
-  supportsWriteWithResponse = !!props?.write
-  setState({ status: 'connected', deviceName: dev.name ?? 'Printer', profileName: profile.name })
+    device = dev
+    characteristic = char
+    const props = (char as unknown as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
+    supportsWriteWithoutResponse = !!props?.writeWithoutResponse
+    supportsWriteWithResponse = !!props?.write
+    setState({ status: 'connected', deviceName: dev.name ?? 'Printer', profileName: profile.name })
+  } catch (err) {
+    handleGattDisconnected()
+    throw err
+  }
 }
 
 

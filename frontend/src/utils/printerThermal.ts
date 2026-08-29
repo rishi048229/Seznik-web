@@ -34,7 +34,7 @@ export function resolveThermalPrintOptions(printerConfig?: PrinterConfigLoose | 
   }
 }
 
-export function withSyncedPaperKeys<T extends PrinterConfigLoose>(config: T): T {
+export function withSyncedPaperKeys<T extends PrinterConfigLoose>(config: T): T & { paperSize: '58mm' | '80mm'; paperWidth: '58mm' | '80mm' } {
   const paper = resolveThermalPaper(config)
   return { ...config, paperSize: paper, paperWidth: paper }
 }

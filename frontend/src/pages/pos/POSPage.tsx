@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, Fragment, useMemo } from "react";
 import { PrinterAnimationModal } from "@/components/ui/PrinterAnimationModal";
+import { RealisticReceiptModal } from "@/components/common/RealisticReceiptModal";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
@@ -1433,74 +1434,12 @@ export const POSPage = () => {
         </div>
       </Modal>
 
-      {/* Print Format Modal */}
-      <Modal
+      {/* Realistic & Editable Receipt Modal */}
+      <RealisticReceiptModal
         isOpen={isPrintModalOpen}
-        onClose={() => {
-          setIsPrintModalOpen(false);
-        }}
-        title={t("pos.printReceiptTitle")}
-        size="sm"
-      >
-        <div className="space-y-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t("pos.selectPrintFormat")}
-          </p>
-
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => handlePrint("a4")}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <FileText size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">
-                  {t("pos.a4Paper")}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {t("pos.standardFormat")}
-                </p>
-              </div>
-            </button>
-            <button
-              onClick={() => handlePrint("thermal")}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">
-                  {t("pos.thermal50mm")}
-                </p>
-                <p className="text-xs text-gray-400">{t("pos.posPrinter")}</p>
-              </div>
-            </button>
-          </div>
-
-          {blePrinter.isSupported && (
-            <Button
-              variant="outline"
-              className="w-full"
-              loading={isBlePrinting}
-              leftIcon={<Bluetooth size={16} />}
-              onClick={handlePrintBluetooth}
-            >
-              {blePrinter.status === "connected"
-                ? `${t("pos.printToDevice")} ${blePrinter.deviceName}`
-                : t("pos.printViaBluetooth")}
-            </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setIsPrintModalOpen(false);
-            }}
-            className="w-full"
-          >
-            {t("pos.skipPrinting")}
-          </Button>
-        </div>
-      </Modal>
+        onClose={finishPrintFlow}
+        sale={buildTempSale()}
+      />
 
       {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}
       <QuickEditProductModal

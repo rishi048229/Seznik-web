@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCreateSale } from "@/hooks/useSales";
+import { RealisticReceiptModal } from "@/components/common/RealisticReceiptModal";
 
 import { useCustomers } from "@/hooks/useCustomers";
 import { useSettings } from "@/hooks/useSettings";
@@ -30,6 +31,7 @@ import {
   Video,
   Calendar,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -839,12 +841,68 @@ export const POSLitePage = () => {
                 data-tour="pos-lite-add-cart-btn"
                 onClick={addItem}
                 leftIcon={<Plus size={16} />}
-                className="md:ml-auto w-full md:w-auto"
+                className="md:ml-auto w-full md:w-auto font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {t("pos.addToCart")}
               </Button>
             </div>
           </Card>
+
+          {/* Quick-add Catalog Chips for Frequent Counter Items */}
+          {products && products.length > 0 && (
+            <div className="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-1.5 font-bold text-gray-700 dark:text-gray-300">
+                  <Sparkles size={14} className="text-amber-500" />
+                  Quick-Add Frequent Items
+                </span>
+                <span className="text-[11px]">Click to add instantly</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {products.slice(0, 10).map((p) => {
+                  const price = getEffectivePrice(p);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        const existing = items.find((i) => i.id === p.id);
+                        if (existing) {
+                          updateQty(p.id, existing.quantity + 1);
+                        } else {
+                          const taxRate = Number(p.taxRate ?? 0);
+                          const total = p.priceIncludesGst
+                            ? price
+                            : price * (1 + taxRate / 100);
+                          setItems((prev) => [
+                            ...prev,
+                            {
+                              id: p.id,
+                              productName: p.name,
+                              quantity: 1,
+                              sellingPrice: price,
+                              discount: 0,
+                              taxRate,
+                              priceIncludesGst: p.priceIncludesGst,
+                              total,
+                            },
+                          ]);
+                        }
+                        toast.success(`${p.name} added`);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-700/60 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs font-medium text-gray-800 dark:text-gray-200 transition-all active:scale-95"
+                    >
+                      <Plus size={12} className="text-blue-500" />
+                      <span className="truncate max-w-[140px] font-semibold">{p.name}</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {formatINR(price)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Mobile: View Cart sticky bar */}
@@ -1246,78 +1304,12 @@ export const POSLitePage = () => {
         </div>
       </Modal>
 
-      {/* Print Modal */}
-      <Modal
+      {/* Realistic & Editable Receipt Modal */}
+      <RealisticReceiptModal
         isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        title={t("pos.printReceiptTitle")}
-        size="sm"
-      >
-        <div className="space-y-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {completedInvoiceNumber &&
-              `${t("pos.invoicePrefix")} ${completedInvoiceNumber}`}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t("pos.selectPrintFormat")}
-          </p>
-
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => handlePrint("a4")}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">
-                  {t("pos.a4Paper")}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {t("pos.standardFormat")}
-                </p>
-              </div>
-            </button>
-            <button
-              onClick={() => handlePrint("thermal")}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">
-                  {t("pos.thermal50mm")}
-                </p>
-                <p className="text-xs text-gray-400">{t("pos.posPrinter")}</p>
-              </div>
-            </button>
-          </div>
-
-          {blePrinter.isSupported && (
-            <Button
-              variant="outline"
-              className="w-full"
-              loading={isBlePrinting}
-              leftIcon={<Bluetooth size={16} />}
-              onClick={handlePrintBluetooth}
-            >
-              {blePrinter.status === "connected"
-                ? `${t("pos.printToDevice")} ${blePrinter.deviceName}`
-                : t("pos.printViaBluetooth")}
-            </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setIsPrintModalOpen(false);
-              setCompletedSaleId("");
-              setCompletedInvoiceNumber("");
-            }}
-            className="w-full"
-          >
-            {t("pos.skipPrinting")}
-          </Button>
-        </div>
-      </Modal>
+        onClose={finishPrintFlow}
+        sale={buildTempSale()}
+      />
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal
