@@ -40,11 +40,7 @@ function ReceiptLogoImage({
   const w = `${Math.min(widthPercent, 100)}%`
 
   if (!activeSrc) {
-    return (
-      <div className="flex items-center gap-1 text-[10px] text-gray-500 border border-dashed border-gray-300 px-2 py-3 rounded">
-        <ImageIcon size={14} /> STORE LOGO
-      </div>
-    )
+    return null
   }
 
   return (
@@ -176,10 +172,14 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
             </div>
           )
         }
+        const leftStr = vars(entry.left).trim()
+        const rightStr = vars(entry.right).trim()
+        if (!leftStr && !rightStr) return null
+
         return (
           <div key={entry.id || idx} className="flex justify-between text-black my-0.5" style={{ fontSize: '0.95em', fontFamily: 'inherit' }}>
-            <span className={entry.bold ? 'font-bold' : ''}>{vars(entry.left)}</span>
-            <span className={entry.bold ? 'font-bold' : ''}>{vars(entry.right)}</span>
+            <span className={entry.bold ? 'font-bold' : ''}>{leftStr}</span>
+            <span className={entry.bold ? 'font-bold' : ''}>{rightStr}</span>
           </div>
         )
       }

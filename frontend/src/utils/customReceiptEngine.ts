@@ -445,6 +445,7 @@ export function compileCustomReceiptHtml(
     if (entry.type === 'image') {
       if (!showLogo) continue
       const src = resolveReceiptImageSrc(entry, storeLogoUrl)
+      if (!src && !storeLogoUrl) continue
       parts.push(renderImage(src, entry.widthPercent || 60, entry.align || 'center'))
       continue
     }
@@ -459,20 +460,21 @@ export function compileCustomReceiptHtml(
             parts.push(htmlTwoColRow(left, right, smallFS))
           })
         } else if (gstOpts.showTaxBreakdown !== false) {
-          parts.push(
-            htmlTwoColRow(
-              interpolateReceiptVariables(entry.left, data),
-              interpolateReceiptVariables(entry.right, data),
-              smallFS
-            )
-          )
+          const l = interpolateReceiptVariables(entry.left, data).trim()
+          const r = interpolateReceiptVariables(entry.right, data).trim()
+          if (l || r) {
+            parts.push(htmlTwoColRow(l, r, smallFS))
+          }
         }
         continue
       }
+      const leftVal = interpolateReceiptVariables(entry.left, data).trim()
+      const rightVal = interpolateReceiptVariables(entry.right, data).trim()
+      if (!leftVal && !rightVal) continue
       parts.push(
         htmlTwoColRow(
-          interpolateReceiptVariables(entry.left, data),
-          interpolateReceiptVariables(entry.right, data),
+          leftVal,
+          rightVal,
           smallFS,
           Boolean(entry.bold)
         )
@@ -661,17 +663,18 @@ export async function appendCustomTemplateToEscPos(
           if (gstLines.length > 0) {
             gstLines.forEach((line) => b.line(line))
           } else if (gstOpts.showTaxBreakdown !== false) {
-            padLine(
-              interpolateReceiptVariables(entry.left, data, thermal),
-              interpolateReceiptVariables(entry.right, data, thermal)
-            )
+            const l = interpolateReceiptVariables(entry.left, data, thermal).trim()
+            const r = interpolateReceiptVariables(entry.right, data, thermal).trim()
+            if (l || r) {
+              padLine(l, r)
+            }
           }
           break
         }
-        padLine(
-          interpolateReceiptVariables(entry.left, data, thermal),
-          interpolateReceiptVariables(entry.right, data, thermal)
-        )
+        const leftVal = interpolateReceiptVariables(entry.left, data, thermal).trim()
+        const rightVal = interpolateReceiptVariables(entry.right, data, thermal).trim()
+        if (!leftVal && !rightVal) break
+        padLine(leftVal, rightVal)
         break
       }
       case 'table': {
