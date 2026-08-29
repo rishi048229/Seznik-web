@@ -15,6 +15,7 @@ export interface ReceiptPrintContext {
   storeGstin?: string
   storeLogoUrl?: string
   upiId?: string
+  saleId?: string
   invoiceNumber: string
   date?: string
   time?: string
@@ -99,6 +100,7 @@ export function saleToReceiptContext(
     storeGstin: opts?.businessGSTIN,
     storeLogoUrl: opts?.businessLogoURL,
     upiId: opts?.upiId,
+    saleId: sale.id,
     invoiceNumber: sale.invoiceNumber || sale.id?.slice(0, 8) || 'INV-0000',
     date: d.toLocaleDateString('en-GB'),
     time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -122,9 +124,10 @@ export function interpolateReceiptVariables(
   opts?: { thermal?: boolean }
 ): string {
   if (!text) return ''
+  const targetId = data.saleId || data.invoiceNumber || 'INV-2026-0042'
   const billPdfUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/receipt/${encodeURIComponent(data.invoiceNumber)}`
-    : `https://api.seznik.com/receipt/${encodeURIComponent(data.invoiceNumber)}`
+    ? `${window.location.origin}/receipt/${encodeURIComponent(targetId)}`
+    : `https://api.seznik.com/receipt/${encodeURIComponent(targetId)}`
   const upiStr = isValidUpiVpa(data.upiId)
     ? buildUpiPayLink({ upiId: data.upiId!, payeeName: data.storeName, amount: data.grandTotal, note: data.invoiceNumber })
     : ''
@@ -497,10 +500,10 @@ export function compileCustomReceiptHtml(
           })
         }
       } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
-        const invoiceNo = encodeURIComponent(data.invoiceNumber || 'INV-2026-0001')
+        const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
         rawVal = typeof window !== 'undefined'
-          ? `${window.location.origin}/receipt/${invoiceNo}`
-          : `https://api.seznik.com/receipt/${invoiceNo}`
+          ? `${window.location.origin}/receipt/${targetId}`
+          : `https://api.seznik.com/receipt/${targetId}`
       } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
         rawVal = data.invoiceNumber || 'INV-2026-0001'
       }
@@ -697,10 +700,10 @@ export async function appendCustomTemplateToEscPos(
             })
           }
         } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
-          const invoiceNo = encodeURIComponent(data.invoiceNumber || 'INV-2026-0001')
+          const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
           rawVal = typeof window !== 'undefined'
-            ? `${window.location.origin}/receipt/${invoiceNo}`
-            : `https://api.seznik.com/receipt/${invoiceNo}`
+            ? `${window.location.origin}/receipt/${targetId}`
+            : `https://api.seznik.com/receipt/${targetId}`
         } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
           rawVal = data.invoiceNumber || 'INV-2026-0001'
         }

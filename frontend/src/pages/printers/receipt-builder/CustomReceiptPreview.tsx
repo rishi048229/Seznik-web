@@ -115,12 +115,12 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
           }
           rawVal = buildUpiPayLink({ upiId: upi, payeeName: context.storeName, amount: context.grandTotal, note: context.invoiceNumber })
         } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
-          const invoiceNo = encodeURIComponent(context.invoiceNumber || 'INV-2026-0001')
+          const targetId = encodeURIComponent(context.saleId || context.invoiceNumber || 'INV-2026-0042')
           rawVal = typeof window !== 'undefined'
-            ? `${window.location.origin}/receipt/${invoiceNo}`
-            : `https://api.seznik.com/receipt/${invoiceNo}`
+            ? `${window.location.origin}/receipt/${targetId}`
+            : `https://api.seznik.com/receipt/${targetId}`
         } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
-          rawVal = context.invoiceNumber || 'INV-2026-0001'
+          rawVal = context.invoiceNumber || 'INV-2026-0042'
         }
 
         const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 85 : 100

@@ -38,23 +38,49 @@ function extractParamId(param: unknown): string {
   return typeof param === 'string' ? param.trim() : '';
 }
 
-export const getPublicReceiptData = async (req: Request, res: Response) => {
-  try {
-    const rawId = extractParamId(req.params.id);
-    if (!rawId) {
-      return res.status(400).json({ error: 'Invoice number or sale ID is required' });
-    }
+const SAMPLE_DEMO_SALE = {
+  id: 'sample-preview-sale',
+  invoiceNumber: 'INV-2026-0042',
+  createdAt: new Date(),
+  paymentMethod: 'UPI',
+  subtotal: 1090,
+  totalDiscount: 50,
+  totalTax: 40.5,
+  grandTotal: 1080.5,
+  amountPaid: 1080.5,
+  changeReturned: 0,
+  billCharges: null,
+  extraChargesTotal: 0,
+  items: [
+    { productName: 'Premium Basmati Rice 5kg', quantity: 1, sellingPrice: 450, total: 450, taxRate: 5, unit: 'Bag' },
+    { productName: 'Cold Pressed Sunflower Oil 1L', quantity: 2, sellingPrice: 180, total: 360, taxRate: 5, unit: 'Bottle' },
+    { productName: 'Organic Whole Wheat Flour 5kg', quantity: 1, sellingPrice: 280, total: 280, taxRate: 0, unit: 'Bag' },
+  ],
+  customer: {
+    name: 'Aarav Sharma',
+    phone: '+91 99887 76655',
+    email: 'customer@example.com',
+    address: '42 Blossom Heights, MG Road, Pune',
+  },
+  store: {
+    storeName: 'SEZNIK SUPERSTORE',
+    storeAddress: '123 Market Road, City Centre, Pune 411001',
+    storePhone: '+91 98765 43210',
+    storeGstin: '27AAAAA0000A1Z5',
+    storeLogoUrl: '',
+    upiId: 'store@okhdfcbank',
+    footerMessage: 'Thank you for shopping with us! Visit again.',
+    terms: ['Goods once sold will not be taken back without original bill', 'All disputes subject to local jurisdiction only'],
+    invoiceTerms: '',
+  },
+};
 
-    const cleanId = decodeURIComponent(rawId);
+async function findSaleByIdOrInvoice(cleanId: string) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
 
-    const sale = await prisma.sale.findFirst({
-      where: {
-        OR: [
-          { id: cleanId },
-          { invoiceNumber: cleanId },
-          { invoiceNumber: { equals: cleanId, mode: 'insensitive' } },
-        ],
-      },
+  if (isUuid) {
+    const saleById = await prisma.sale.findUnique({
+      where: { id: cleanId },
       include: {
         customer: true,
         user: {
@@ -68,8 +94,55 @@ export const getPublicReceiptData = async (req: Request, res: Response) => {
         },
       },
     });
+    if (saleById) return saleById;
+  }
+
+  // Find the most recent sale matching this invoiceNumber or id
+  return await prisma.sale.findFirst({
+    where: {
+      OR: [
+        { id: cleanId },
+        { invoiceNumber: cleanId },
+        { invoiceNumber: { equals: cleanId, mode: 'insensitive' } },
+      ],
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    include: {
+      customer: true,
+      user: {
+        select: {
+          businessName: true,
+          displayName: true,
+          email: true,
+          phone: true,
+          settings: true,
+        },
+      },
+    },
+  });
+}
+
+export const getPublicReceiptData = async (req: Request, res: Response) => {
+  try {
+    const rawId = extractParamId(req.params.id);
+    if (!rawId) {
+      return res.status(400).json({ error: 'Invoice number or sale ID is required' });
+    }
+
+    const cleanId = decodeURIComponent(rawId);
+    const sale = await findSaleByIdOrInvoice(cleanId);
 
     if (!sale) {
+      if (cleanId === 'INV-2026-0042' || cleanId === 'sample-preview-sale' || cleanId.toLowerCase() === 'sample') {
+        return res.json({
+          sale: SAMPLE_DEMO_SALE,
+          customer: SAMPLE_DEMO_SALE.customer,
+          store: SAMPLE_DEMO_SALE.store,
+          isSample: true,
+        });
+      }
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
@@ -130,54 +203,68 @@ export const renderPublicReceiptHtml = async (req: Request, res: Response) => {
     }
 
     const cleanId = decodeURIComponent(rawId);
-
-    const sale = await prisma.sale.findFirst({
-      where: {
-        OR: [
-          { id: cleanId },
-          { invoiceNumber: cleanId },
-          { invoiceNumber: { equals: cleanId, mode: 'insensitive' } },
-        ],
-      },
-      include: {
-        customer: true,
-        user: {
-          select: {
-            businessName: true,
-            displayName: true,
-            email: true,
-            phone: true,
-            settings: true,
-          },
-        },
-      },
-    });
+    let sale: any = await findSaleByIdOrInvoice(cleanId);
+    let isSample = false;
 
     if (!sale) {
-      return res.status(404).send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Invoice Not Found - Seznik</title>
-          <style>
-            body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; padding: 20px; }
-            .card { background: white; padding: 36px 28px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); max-width: 420px; border: 1px solid #e2e8f0; }
-            h1 { font-size: 20px; margin: 12px 0 6px; color: #0f172a; }
-            p { font-size: 14px; color: #64748b; margin-bottom: 20px; }
-            .badge { display: inline-block; padding: 4px 12px; background: #fee2e2; color: #991b1b; border-radius: 9999px; font-size: 12px; font-weight: 600; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <span class="badge">404</span>
-            <h1>Invoice Not Found</h1>
-            <p>The requested invoice (${escapeHtml(cleanId)}) could not be located or has been archived.</p>
-          </div>
-        </body>
-        </html>
-      `);
+      if (cleanId === 'INV-2026-0042' || cleanId === 'sample-preview-sale' || cleanId.toLowerCase() === 'sample') {
+        sale = {
+          ...SAMPLE_DEMO_SALE,
+          userId: 'sample',
+          customerId: null,
+          isQuickBill: false,
+          locationId: null,
+          platform: 'web',
+          user: {
+            businessName: SAMPLE_DEMO_SALE.store.storeName,
+            displayName: SAMPLE_DEMO_SALE.store.storeName,
+            email: 'store@example.com',
+            phone: SAMPLE_DEMO_SALE.store.storePhone,
+            settings: {
+              businessName: SAMPLE_DEMO_SALE.store.storeName,
+              businessAddress: SAMPLE_DEMO_SALE.store.storeAddress,
+              businessPhone: SAMPLE_DEMO_SALE.store.storePhone,
+              businessGSTIN: SAMPLE_DEMO_SALE.store.storeGstin,
+              businessLogoURL: SAMPLE_DEMO_SALE.store.storeLogoUrl,
+              receiptConfig: {
+                companyName: SAMPLE_DEMO_SALE.store.storeName,
+                address: SAMPLE_DEMO_SALE.store.storeAddress,
+                phone: SAMPLE_DEMO_SALE.store.storePhone,
+                gstin: SAMPLE_DEMO_SALE.store.storeGstin,
+                footerMessage: SAMPLE_DEMO_SALE.store.footerMessage,
+                termsLine1: SAMPLE_DEMO_SALE.store.terms[0],
+                termsLine2: SAMPLE_DEMO_SALE.store.terms[1],
+              },
+            },
+          },
+        } as any;
+        isSample = true;
+      } else {
+        return res.status(404).send(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Invoice Not Found - Seznik</title>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; text-align: center; padding: 20px; }
+              .card { background: white; padding: 36px 28px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); max-width: 420px; border: 1px solid #e2e8f0; }
+              h1 { font-size: 20px; margin: 12px 0 6px; color: #0f172a; }
+              p { font-size: 14px; color: #64748b; margin-bottom: 20px; }
+              .badge { display: inline-block; padding: 4px 12px; background: #fee2e2; color: #991b1b; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <span class="badge">404</span>
+              <h1>Invoice Not Found</h1>
+              <p>The requested invoice (${escapeHtml(cleanId)}) could not be located or has been archived.</p>
+            </div>
+          </body>
+          </html>
+        `);
+      }
     }
 
     const settings = sale.user?.settings as any;
@@ -367,6 +454,18 @@ export const renderPublicReceiptHtml = async (req: Request, res: Response) => {
       margin-top: 6px;
       text-transform: uppercase;
     }
+    .sample-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 9999px;
+      margin-top: 6px;
+      text-transform: uppercase;
+      border: 1px solid #fde68a;
+    }
     .bill-to-section {
       background: #f8fafc;
       border-radius: 12px;
@@ -534,8 +633,10 @@ export const renderPublicReceiptHtml = async (req: Request, res: Response) => {
           <div class="invoice-meta-item">Invoice No: <strong>#${escapeHtml(sale.invoiceNumber)}</strong></div>
           <div class="invoice-meta-item">Date: <strong>${dateFormatted}</strong></div>
           <div class="invoice-meta-item">Time: <strong>${timeFormatted}</strong></div>
-          <div class="invoice-meta-item">Payment: <strong>${escapeHtml(sale.paymentMethod.toUpperCase())}</strong></div>
-          <div><span class="status-badge">${isPaid ? 'PAID' : 'PAYMENT PENDING'}</span></div>
+          <div class="invoice-meta-item">Payment: <strong>${escapeHtml((sale.paymentMethod || 'cash').toUpperCase())}</strong></div>
+          <div>
+            ${isSample ? '<span class="sample-badge">PREVIEW MOCKUP</span>' : `<span class="status-badge">${isPaid ? 'PAID' : 'PAYMENT PENDING'}</span>`}
+          </div>
         </div>
       </div>
 
@@ -582,7 +683,7 @@ export const renderPublicReceiptHtml = async (req: Request, res: Response) => {
           <div>${footerMessage}</div>
           ${sale.amountPaid !== undefined ? `
             <div style="margin-top: 12px; padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block;">
-              <div>Amount Paid: <strong>${formatMoney(sale.amountPaid)}</strong> via ${escapeHtml(sale.paymentMethod.toUpperCase())}</div>
+              <div>Amount Paid: <strong>${formatMoney(sale.amountPaid)}</strong> via ${escapeHtml((sale.paymentMethod || 'cash').toUpperCase())}</div>
               ${sale.changeReturned > 0 ? `<div>Change Returned: <strong>${formatMoney(sale.changeReturned)}</strong></div>` : ''}
             </div>
           ` : ''}
