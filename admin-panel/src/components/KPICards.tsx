@@ -14,20 +14,24 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
   const webCount = metrics.webInvoicesCount ?? 0;
   const mobilePct = metrics.mobileInvoicesPercent ?? 0;
   const webPct = metrics.webInvoicesPercent ?? 100;
+  const windowLabel = metrics.timeWindowLabel || 'All Time';
+  const isAllTime = (metrics.timeRange || 'all').toLowerCase() === 'all';
 
   const cards = [
     {
       id: 'users',
-      title: 'Total Registered Users',
+      title: isAllTime ? 'Total Registered Users' : `New Users (${windowLabel})`,
       value: metrics.totalUsers,
-      subtext: `${metrics.verifiedUserPercentage}% verified accounts`,
+      subtext: isAllTime
+        ? `${metrics.verifiedUserPercentage}% verified accounts`
+        : 'Accounts created in this range',
       icon: Users,
       color: '#3B82F6',
       targetTab: 'users',
     },
     {
       id: 'invoices-today',
-      title: 'Total Invoices (All Time)',
+      title: `Invoices (${windowLabel})`,
       value: metrics.invoicesTodayCount ?? 0,
       subtext: `Web: ${webCount} (${webPct}%) • Mobile: ${mobileCount} (${mobilePct}%)`,
       icon: Receipt,
@@ -36,7 +40,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
     },
     {
       id: 'active-invoicing-users',
-      title: 'Active Merchants (All Time)',
+      title: `Active Merchants (${windowLabel})`,
       value: metrics.activeInvoicingUsersToday ?? 0,
       subtext: 'Distinct merchants with at least one invoice',
       icon: UserCheck,

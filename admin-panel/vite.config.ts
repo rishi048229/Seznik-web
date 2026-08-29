@@ -238,8 +238,11 @@ export default defineConfig(({ mode }) => {
             // 2. GET /api/admin/metrics
             if (pathname === '/api/admin/metrics') {
               try {
+                const analyticsPath = resolve(process.cwd(), 'analyticsShared.js');
+                const mtime = statSync(analyticsPath).mtimeMs;
+                const analytics = await import(`${pathToFileURL(analyticsPath).href}?mtime=${mtime}`);
                 const metricsTimeRange = parsedUrl.searchParams.get('timeRange') || 'all';
-                const metricsIntervals = getTimeIntervals(metricsTimeRange);
+                const metricsIntervals = analytics.getTimeIntervals(metricsTimeRange);
                 const userRes = await pool.query(`
                   SELECT 
                     COUNT(*)::int as total_users, 
@@ -249,13 +252,13 @@ export default defineConfig(({ mode }) => {
                   FROM "User"
                 `);
 
-                const salesRes = await pool.query(metricsSalesQuery(metricsIntervals));
+                const salesRes = await pool.query(analytics.metricsSalesQuery(metricsIntervals));
                 const productRes = await pool.query('SELECT COUNT(*)::int as count FROM "Product"');
-                const topFeatures = await computeRealTopFeatures(pool, metricsTimeRange);
+                const topFeatures = await analytics.computeRealTopFeatures(pool, metricsTimeRange);
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(
-                  buildMetricsResponse({
+                  analytics.buildMetricsResponse({
                     userRes,
                     salesRes,
                     productRes,
@@ -277,7 +280,10 @@ export default defineConfig(({ mode }) => {
             // 3. GET /api/admin/sections
             if (pathname === '/api/admin/sections') {
               try {
-                const topFeatures = await computeRealTopFeatures(pool, timeRange);
+                const analyticsPath = resolve(process.cwd(), 'analyticsShared.js');
+                const mtime = statSync(analyticsPath).mtimeMs;
+                const analytics = await import(`${pathToFileURL(analyticsPath).href}?mtime=${mtime}`);
+                const topFeatures = await analytics.computeRealTopFeatures(pool, timeRange);
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(topFeatures));
                 return;

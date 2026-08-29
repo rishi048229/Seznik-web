@@ -5,16 +5,17 @@ import type { DashboardMetrics } from '../types/admin';
 
 interface KPICardsSectionProps {
   onSelectTab?: (tab: string) => void;
+  timeRange?: string;
 }
 
-export const KPICardsSection: React.FC<KPICardsSectionProps> = ({ onSelectTab }) => {
+export const KPICardsSection: React.FC<KPICardsSectionProps> = ({ onSelectTab, timeRange = 'all' }) => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchDashboardMetrics('all')
+    fetchDashboardMetrics(timeRange)
       .then((data) => {
         if (!cancelled) setMetrics(data);
       })
@@ -27,7 +28,7 @@ export const KPICardsSection: React.FC<KPICardsSectionProps> = ({ onSelectTab })
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [timeRange]);
 
   return (
     <div>

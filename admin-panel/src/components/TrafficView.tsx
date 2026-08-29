@@ -80,7 +80,17 @@ export const TrafficView: React.FC = () => {
       });
     }
 
-    return invoices;
+    if (timeFrame === 'all') return invoices;
+
+    const now = Date.now();
+    const windowMs =
+      timeFrame === '24h'
+        ? 24 * 3600 * 1000
+        : timeFrame === '7d'
+          ? 7 * 24 * 3600 * 1000
+          : 30 * 24 * 3600 * 1000;
+
+    return invoices.filter((log) => new Date(log.createdAt).getTime() >= now - windowMs);
   }, [invoices, timeFrame, customStartDate, customEndDate]);
 
   // Compute 3 Top Cards Metrics (Total, Mobile App, Web App)
@@ -117,7 +127,7 @@ export const TrafficView: React.FC = () => {
 
         let mobile = 0;
         let web = 0;
-        invoices.forEach((log) => {
+        timeframeFilteredLogs.forEach((log) => {
           const dt = new Date(log.createdAt);
           if (dt >= slotStart && dt <= slotEnd) {
             if (log.platform === 'mobile') mobile++;
@@ -139,7 +149,7 @@ export const TrafficView: React.FC = () => {
 
         let mobile = 0;
         let web = 0;
-        invoices.forEach((log) => {
+        timeframeFilteredLogs.forEach((log) => {
           const dt = new Date(log.createdAt);
           if (dt >= dayStart && dt <= dayEnd) {
             if (log.platform === 'mobile') mobile++;
@@ -159,7 +169,7 @@ export const TrafficView: React.FC = () => {
 
         let mobile = 0;
         let web = 0;
-        invoices.forEach((log) => {
+        timeframeFilteredLogs.forEach((log) => {
           const dt = new Date(log.createdAt);
           if (dt >= dayStart && dt <= dayEnd) {
             if (log.platform === 'mobile') mobile++;
@@ -171,7 +181,7 @@ export const TrafficView: React.FC = () => {
     }
 
     return points;
-  }, [invoices, timeFrame, customStartDate, customEndDate]);
+  }, [timeframeFilteredLogs, timeFrame, customStartDate, customEndDate]);
 
   const activeTimeframeLabel = useMemo(() => {
     if (timeFrame === 'custom') {

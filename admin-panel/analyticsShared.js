@@ -112,7 +112,7 @@ export function trendDirection(percent) {
 function activityCountSql(intervals, table, userIdExpr = '"userId"') {
   return `SELECT
     COUNT(*)::int AS count,
-    COUNT(DISTINCT ${userIdExpr})::int AS unique_users,
+    COUNT(DISTINCT ${userIdExpr}) FILTER (WHERE ${intervals.currentFilter})::int AS unique_users,
     COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int AS window_count,
     COUNT(*) FILTER (WHERE ${intervals.prevFilter})::int AS prev_window_count
   FROM "${table}"`;
@@ -193,15 +193,13 @@ export async function computeRealTopFeatures(pool, timeRange = 'all') {
     .sort((a, b) => b.viewCount - a.viewCount);
 }
 
-export function getHeatmapDayCount(timeRange = 'all') {
-  const tr = (timeRange || 'all').toLowerCase();
-  if (tr === 'today') return 1;
-  if (tr === '24h') return 2;
+export function getHeatmapDayCount(timeRange = '3d') {
+  const tr = (timeRange || '3d').toLowerCase();
+  if (tr === 'today' || tr === '24h') return 1;
   if (tr === '3d') return 3;
   if (tr === '7d') return 7;
   if (tr === '30d') return 30;
-  if (tr === 'all') return 90;
-  return 14;
+  return 3;
 }
 
 export function getUsersWhereClause(timeRange = 'all') {
@@ -235,13 +233,14 @@ export function mapUserRows(rows) {
 export function buildMetricsResponse({ userRes, salesRes, productRes, topFeatures, timeRange, intervals }) {
   const isAllTime = (timeRange || '').toLowerCase() === 'all';
 
-  const totalUsers = userRes.rows[0]?.total_users || 0;
+  const totalUsersAllTime = userRes.rows[0]?.total_users || 0;
   const verifiedUsers = userRes.rows[0]?.verified_count || 0;
-  const verifiedUserPercentage = totalUsers > 0 ? Math.round((verifiedUsers / totalUsers) * 100) : 0;
+  const verifiedUserPercentage = totalUsersAllTime > 0 ? Math.round((verifiedUsers / totalUsersAllTime) * 100) : 0;
 
   const usersInWindow = userRes.rows[0]?.users_in_window || 0;
   const usersPrevWindow = userRes.rows[0]?.users_prev_window || 0;
   const totalUsersTrend = computeTrendPercent(usersInWindow, usersPrevWindow);
+  const totalUsers = isAllTime ? totalUsersAllTime : usersInWindow;
 
   const totalSalesCount = salesRes.rows[0]?.total_sales_count || 0;
   const invoicesWindowCount = salesRes.rows[0]?.invoices_in_window || 0;
@@ -301,9 +300,8 @@ export function buildMetricsResponse({ userRes, salesRes, productRes, topFeature
   };
 }
 
-export async function computeRealHeatmapData(pool, timeRange = 'all', dayCountOverride) {
-  const intervals = getTimeIntervals(timeRange);
-  const dayCount = dayCountOverride ?? getHeatmapDayCount(timeRange);
+export async function computeRealHeatmapData(pool, timeRange = '3d', dayCountOverride) {
+  const dayCount = dayCountOverride ?? 3;
 
   const eventsCte = `
     WITH events AS (
@@ -329,16 +327,19 @@ export async function computeRealHeatmapData(pool, timeRange = 'all', dayCountOv
     )
   `;
 
-  const statsRes = await pool.query(`
+  const statsRes = await pool.query(
+    `
     ${eventsCte}
     SELECT 
       COUNT(*) FILTER (WHERE ${EVENT_IST_DATE_SQL} = ${IST_DATE_SQL})::int as activity_today,
       COUNT(*) FILTER (WHERE ${EVENT_IST_SQL} >= date_trunc('hour', ${IST_NOW_SQL}))::int as activity_this_hour,
-      COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int as activity_in_window,
+      COUNT(*) FILTER (WHERE ${EVENT_IST_DATE_SQL} >= ${IST_DATE_SQL} - ($1::int - 1) AND ${EVENT_IST_DATE_SQL} <= ${IST_DATE_SQL})::int as activity_in_window,
       COUNT(*)::int as total_all_time
     FROM events
     WHERE "createdAt" IS NOT NULL
-  `);
+  `,
+    [dayCount]
+  );
 
   const stats = statsRes.rows[0] || {
     activity_today: 0,
@@ -372,7 +373,8 @@ export async function computeRealHeatmapData(pool, timeRange = 'all', dayCountOv
         COUNT(*)::int AS count,
         COUNT(DISTINCT "userId")::int AS unique_users
       FROM events
-      WHERE ${intervals.currentFilter}
+      WHERE ${EVENT_IST_DATE_SQL} >= ${IST_DATE_SQL} - ($1::int - 1)
+        AND ${EVENT_IST_DATE_SQL} <= ${IST_DATE_SQL}
       GROUP BY 1, 2
     )
     SELECT
@@ -400,7 +402,7 @@ export async function computeRealHeatmapData(pool, timeRange = 'all', dayCountOv
   const firstDate = fullGrid[0]?.date;
   const lastDate = fullGrid[fullGrid.length - 1]?.date;
   const rangeLabel =
-    firstDate && lastDate ? `${firstDate} – ${lastDate}` : intervals.timeWindowName;
+    firstDate && lastDate ? `${firstDate} – ${lastDate}` : 'Last 3 Days (IST)';
 
   return {
     cells: fullGrid,

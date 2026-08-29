@@ -1,10 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Activity, Clock, Calendar, Palette, Info } from 'lucide-react';
+import { Activity, Clock, Palette, Info } from 'lucide-react';
 import type { HeatmapCell, HeatmapResponse } from '../types/admin';
 import { fetchHeatmapData } from '../services/api';
 import { EmptyState } from './EmptyState';
-
-type HeatmapScope = 'today' | '3d';
 
 interface HoveredCellInfo {
   date: string;
@@ -229,24 +227,23 @@ const HeatmapColorLegend: React.FC<{
   </div>
 );
 
-const EMBEDDED_HEATMAP_ROW_HEIGHT = 16;
+const EMBEDDED_HEATMAP_ROW_HEIGHT = 20;
 const FULL_HEATMAP_ROW_HEIGHT = 28;
 
-function getEmbeddedDayCap(scope: HeatmapScope): number {
-  return scope === 'today' ? 1 : 3;
+function getEmbeddedDayCap(): number {
+  return 3;
 }
 
-function getHeatmapDayOverride(embedded: boolean, scope: HeatmapScope): number | undefined {
-  if (!embedded) return undefined;
-  return getEmbeddedDayCap(scope);
+function getHeatmapDayOverride(): number {
+  return 3;
 }
 
-function getSkeletonDayCount(scope: HeatmapScope) {
-  return scope === 'today' ? 1 : 3;
+function getSkeletonDayCount() {
+  return 3;
 }
 
-function scopeLabel(scope: HeatmapScope): string {
-  return scope === 'today' ? 'Today' : 'Last 3 Days';
+function scopeLabel(): string {
+  return 'Last 3 Days';
 }
 
 const HeatmapLegendSkeleton: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
@@ -511,8 +508,14 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
   },
 };
 
-export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const [scope, setScope] = useState<HeatmapScope>('3d');
+function heatmapDayOverride(): number {
+  return 3;
+}
+
+export const PeakUsageHeatmap: React.FC<{ embedded?: boolean; timeRange?: string }> = ({
+  embedded = false,
+}) => {
+  const activeRange = '3d';
   const [heatmapData, setHeatmapData] = useState<HeatmapCell[] | HeatmapResponse | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -545,7 +548,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
         isFirst = false;
       }
       setError(null);
-      fetchHeatmapData(scope, getHeatmapDayOverride(embedded, scope))
+      fetchHeatmapData('3d', 3)
         .then((result) => {
           if (!cancelled) {
             setHeatmapData(result);
@@ -569,7 +572,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
       cancelled = true;
       clearInterval(timer);
     };
-  }, [scope, embedded]);
+  }, [embedded]);
 
   const activeData: HeatmapCell[] | HeatmapResponse | undefined = heatmapData;
 
@@ -577,19 +580,17 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
     ? activeData
     : activeData?.cells || [];
 
-  const requestsToday = (!Array.isArray(activeData) && activeData?.requestsToday !== undefined)
-    ? activeData.requestsToday
-    : 0;
-
   const requestsThisHour = (!Array.isArray(activeData) && activeData?.requestsThisHour !== undefined)
     ? activeData.requestsThisHour
     : 0;
 
+  const requestsInRange = (!Array.isArray(activeData) && activeData?.requestsThisWeek !== undefined)
+    ? activeData.requestsThisWeek
+    : 0;
+
   const currentWeekRange = (!Array.isArray(activeData) && activeData?.currentWeekRange)
     ? activeData.currentWeekRange
-    : scope === 'today'
-      ? 'Today (IST)'
-      : 'Current Active Week';
+    : 'Last 3 Days (IST)';
 
   const fullHours = Array.from({ length: 24 }, (_, i) => i);
   const businessHours = Array.from({ length: 15 }, (_, i) => i + 8); // 08:00 to 22:00
@@ -682,14 +683,13 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
   const labelColWidth = embedded ? 44 : 58;
   const hourGridTemplate = `${labelColWidth}px repeat(${activeHours.length}, minmax(0, 1fr))`;
   const cellGap = embedded ? 3 : 4;
-  const skeletonDayCount = getSkeletonDayCount(scope);
+  const skeletonDayCount = 3;
   const spreadRows = embedded;
-  const isTodayView = scope === 'today';
+  const isTodayView = false;
   const gridClassName = [
     'heatmap-grid-scroll',
     embedded ? 'heatmap-grid-fit' : '',
     spreadRows ? 'heatmap-grid-fit--spread-rows' : '',
-    isTodayView ? 'heatmap-grid-fit--today' : '',
   ].filter(Boolean).join(' ');
   const isHeatmapLoading = loading && !heatmapData;
 
@@ -738,7 +738,7 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
                 Peak Usage Heatmap
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                {scopeLabel(scope)} · IST
+                3-Day Activity (Current & Prev 2 Days) · IST
                 {' · '}
                 <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{weekDateRangeStr}</span>
               </p>
@@ -758,13 +758,13 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
             }}
           >
             <div style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Today
+              Last 3 Days
             </div>
             {isHeatmapLoading ? (
               <div className="skeleton-block heatmap-skeleton-stat" style={{ width: 48, height: 20, margin: '0 auto' }} />
             ) : (
               <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace', lineHeight: 1.2 }}>
-                {requestsToday.toLocaleString()}
+                {requestsInRange.toLocaleString()}
               </div>
             )}
           </div>
@@ -808,25 +808,11 @@ export const PeakUsageHeatmap: React.FC<{ embedded?: boolean }> = ({ embedded = 
       >
         <HeatmapRangeInfoButton
           palette={activePalette}
-          rangeLabel={`${scopeLabel(scope)} (IST)`}
+          rangeLabel="Last 3 Days (IST)"
           dateRange={weekDateRangeStr}
           compact={embedded}
           variant="toolbar"
         />
-
-        <div style={controlGroup}>
-          <button
-            type="button"
-            onClick={() => setScope('today')}
-            style={{ ...toggleBtn(scope === 'today', 'green'), display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-          >
-            <Calendar size={11} />
-            Today
-          </button>
-          <button type="button" onClick={() => setScope('3d')} style={toggleBtn(scope === '3d')}>
-            3 Days
-          </button>
-        </div>
 
         <div style={controlGroup}>
           <button type="button" onClick={() => setViewFilter('all')} style={toggleBtn(viewFilter === 'all')}>

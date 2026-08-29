@@ -10,6 +10,8 @@ interface SectionUsageSectionProps {
   showInsights?: boolean;
   compact?: boolean;
   embedded?: boolean;
+  timeRange?: string;
+  hideTimeRangeSelect?: boolean;
   onViewAllSessions?: () => void;
 }
 
@@ -19,9 +21,15 @@ export const SectionUsageSection: React.FC<SectionUsageSectionProps> = ({
   showInsights = false,
   compact = false,
   embedded = false,
+  timeRange: timeRangeProp,
+  hideTimeRangeSelect = false,
   onViewAllSessions,
 }) => {
-  const [timeRange, setTimeRange] = useState('all');
+  const [internalRange, setInternalRange] = useState('all');
+  const timeRange = timeRangeProp ?? internalRange;
+  const setTimeRange = (value: string) => {
+    if (timeRangeProp === undefined) setInternalRange(value);
+  };
   const [sections, setSections] = useState<SectionUsage[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +61,7 @@ export const SectionUsageSection: React.FC<SectionUsageSectionProps> = ({
 
   return (
     <div className={embedded ? 'section-usage-embedded' : undefined}>
-      {!embedded && (
+      {!embedded && !hideTimeRangeSelect && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
           <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />
         </div>
@@ -64,7 +72,7 @@ export const SectionUsageSection: React.FC<SectionUsageSectionProps> = ({
         showInsights={showInsights}
         compact={compact}
         isCollapsible={false}
-        headerExtra={embedded ? <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact /> : undefined}
+        headerExtra={embedded && !hideTimeRangeSelect ? <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact /> : undefined}
         onViewAllSessions={onViewAllSessions}
       />
     </div>

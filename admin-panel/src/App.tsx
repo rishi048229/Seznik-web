@@ -37,6 +37,7 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0);
   const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
+  const [timeRange, setTimeRange] = useState('all');
 
   const setActiveTab = (tab: string) => {
     const targetTab = VALID_TABS.includes(tab) ? tab : 'overview';
@@ -99,6 +100,9 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
           lastRefreshedAt={lastRefreshedAt}
           autoRefreshInterval={autoRefreshInterval}
           onSelectAutoRefreshInterval={setAutoRefreshInterval}
+          timeRange={timeRange}
+          onSelectTimeRange={setTimeRange}
+          showTimeRange={activeTab === 'overview' || activeTab === 'sections'}
           userId={userId}
           onLogout={onLogout}
         />
@@ -114,15 +118,15 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
         ) : activeTab === 'overview' ? (
           <div key={overviewRefreshKey} className="admin-overview-layout">
             <div className="overview-kpi-row">
-              <KPICardsSection onSelectTab={handleSelectTabFromCard} />
+              <KPICardsSection onSelectTab={handleSelectTabFromCard} timeRange={timeRange} />
             </div>
 
             <div className="overview-split-grid">
               <div className="overview-heatmap-slot">
-                <PeakUsageHeatmap embedded />
+                <PeakUsageHeatmap embedded timeRange={timeRange} />
               </div>
               <div className="overview-device-slot">
-                <DeviceSessionBreakdown embedded />
+                <DeviceSessionBreakdown embedded timeRange={timeRange} hideTimeRangeSelect />
               </div>
             </div>
 
@@ -132,6 +136,8 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
                 limit={5}
                 compact={true}
                 embedded
+                timeRange={timeRange}
+                hideTimeRangeSelect
                 onViewAllSessions={() => setActiveTab('sections')}
               />
             </div>
@@ -147,6 +153,8 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
             title="Section & Feature Traffic Breakdown"
             showInsights={true}
             compact={false}
+            timeRange={timeRange}
+            hideTimeRangeSelect
             onViewAllSessions={() => {}}
           />
         ) : activeTab === 'users' ? (

@@ -5,8 +5,16 @@ import { fetchDeviceSessionBreakdown } from '../services/api';
 import { EmptyState } from './EmptyState';
 import { TimeRangeSelect, timeRangeLabel } from './TimeRangeSelect';
 
-export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const [timeRange, setTimeRange] = useState('all');
+export const DeviceSessionBreakdown: React.FC<{
+  embedded?: boolean;
+  timeRange?: string;
+  hideTimeRangeSelect?: boolean;
+}> = ({ embedded = false, timeRange: timeRangeProp, hideTimeRangeSelect = false }) => {
+  const [internalRange, setInternalRange] = useState('all');
+  const timeRange = timeRangeProp ?? internalRange;
+  const setTimeRange = (value: string) => {
+    if (timeRangeProp === undefined) setInternalRange(value);
+  };
   const [data, setData] = useState<DeviceSessionBreakdownData | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +62,7 @@ export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embed
               Device &amp; Session Breakdown
             </h3>
           </div>
-          <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />
+          {!hideTimeRangeSelect && <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />}
         </div>
         <EmptyState
           title="No Platform Data"
@@ -95,7 +103,7 @@ export const DeviceSessionBreakdown: React.FC<{ embedded?: boolean }> = ({ embed
               Invoice distribution across web and mobile · {timeRangeLabel(timeRange)}
             </p>
           </div>
-          <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />
+          {!hideTimeRangeSelect && <TimeRangeSelect value={timeRange} onChange={setTimeRange} compact />}
         </div>
       </div>
 

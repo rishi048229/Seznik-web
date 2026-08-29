@@ -194,6 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
             >
               <option value="24h">Last 24 Hours</option>
+              <option value="3d">Last 3 Days</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
               <option value="all">All Time</option>
