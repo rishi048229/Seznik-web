@@ -96,12 +96,28 @@ function setState(patch: Partial<BlePrinterState>) {
 }
 
 export function getBlePrinterState(): BlePrinterState {
+  if (device && device.gatt?.connected) {
+    if (state.status !== 'connected' && state.status !== 'printing') {
+      state = {
+        ...state,
+        status: 'connected',
+        deviceName: device.name ?? state.deviceName ?? localStorage.getItem('seznik_last_ble_printer_name') ?? 'Printer',
+      }
+    }
+  } else if (!device || !device.gatt?.connected) {
+    if (state.status === 'connected' || state.status === 'printing') {
+      state = {
+        ...state,
+        status: 'disconnected',
+      }
+    }
+  }
   return state
 }
 
 export function subscribeBlePrinter(listener: Listener): () => void {
   listeners.add(listener)
-  listener(state)
+  listener(getBlePrinterState())
   return () => listeners.delete(listener)
 }
 
@@ -159,7 +175,11 @@ async function connectToDevice(dev: BluetoothDevice): Promise<void> {
   const props = (char as unknown as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
   supportsWriteWithoutResponse = !!props?.writeWithoutResponse
   supportsWriteWithResponse = !!props?.write
-  setState({ status: 'connected', deviceName: dev.name ?? 'Printer', profileName: profile.name })
+  const dName = dev.name ?? 'Printer'
+  try {
+    localStorage.setItem('seznik_last_ble_printer_name', dName)
+  } catch {}
+  setState({ status: 'connected', deviceName: dName, profileName: profile.name })
 }
 
 

@@ -227,6 +227,16 @@ export const POSPage = () => {
   const taxAmount = totals.tax
   const finalTotal = totals.subtotal + taxAmount - orderDiscountAmount
 
+  useEffect(() => {
+    if (isPaymentOpen) {
+      if (method === 'credit') {
+        setAmountPaid('0')
+      } else if (!amountPaid || amountPaid === '0') {
+        setAmountPaid(finalTotal.toString())
+      }
+    }
+  }, [isPaymentOpen, method, finalTotal])
+
   const handleProductClick = (product: Product) => {
     const reserved = cartReserved[product.id] || 0
     const available = getEffectiveStock(product) - reserved
@@ -845,7 +855,10 @@ export const POSPage = () => {
             {items.length > 0 && (
               <button
                 type="button"
-                onClick={() => setIsPaymentOpen(true)}
+                onClick={() => {
+                  setAmountPaid(finalTotal.toString())
+                  setIsPaymentOpen(true)
+                }}
                 disabled={isCreating}
                 title={t('pos.completeAndPrint')}
                 className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
@@ -983,7 +996,10 @@ export const POSPage = () => {
           {/* Payment Button */}
           <div data-tour="pos-checkout-btn">
             <Button
-              onClick={() => setIsPaymentOpen(true)}
+              onClick={() => {
+                setAmountPaid(finalTotal.toString())
+                setIsPaymentOpen(true)
+              }}
               disabled={items.length === 0 || isCreating}
               className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
             >

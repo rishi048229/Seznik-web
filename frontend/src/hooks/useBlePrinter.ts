@@ -12,12 +12,22 @@ import {
 export const useBlePrinter = () => {
   const [state, setState] = useState(getBlePrinterState())
 
-  useEffect(() => subscribeBlePrinter(setState), [])
+  useEffect(() => {
+    const unsub = subscribeBlePrinter(setState)
+    const syncState = () => setState(getBlePrinterState())
+    window.addEventListener('focus', syncState)
+    const interval = setInterval(syncState, 2000)
+    return () => {
+      unsub()
+      window.removeEventListener('focus', syncState)
+      clearInterval(interval)
+    }
+  }, [])
 
   // Silently try to reconnect to a previously-authorized printer on mount,
   // so the user doesn't have to re-pick it every time they load the app.
   useEffect(() => {
-    tryReconnectKnownPrinter()
+    tryReconnectKnownPrinter().then(() => setState(getBlePrinterState()))
   }, [])
 
   const connect = useCallback(async () => {

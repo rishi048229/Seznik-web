@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProducts } from '@/hooks/useProducts'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
@@ -38,12 +38,13 @@ import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { ReceiptLivePreview } from './components/ReceiptLivePreview'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import {
   Printer,
   QrCode,
   FileText,
   Tag,
-  Video,
   Save,
   Bluetooth,
   Monitor,
@@ -174,6 +175,23 @@ export const PrintersPage = () => {
     profileName: null,
   })
   const [connectingBle, setConnectingBle] = useState(false)
+  const prevBleStatus = useRef(bleState.status)
+  const [linkPulse, setLinkPulse] = useState<'connected' | 'disconnected' | null>(null)
+
+  useEffect(() => {
+    if (prevBleStatus.current === bleState.status) return
+    const next =
+      bleState.status === 'connected'
+        ? 'connected'
+        : prevBleStatus.current === 'connected'
+          ? 'disconnected'
+          : null
+    prevBleStatus.current = bleState.status
+    if (!next) return
+    setLinkPulse(next)
+    const timer = window.setTimeout(() => setLinkPulse(null), 700)
+    return () => window.clearTimeout(timer)
+  }, [bleState.status])
 
   // Subscribe to Web Bluetooth events & try auto reconnecting known device
   useEffect(() => {
@@ -542,9 +560,9 @@ export const PrintersPage = () => {
   }
 
   return (
-    <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
+    <div className="space-y-6 pb-16 w-full max-w-full min-w-0 overflow-x-hidden">
       {isError && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="rounded-2xl border border-amber-200/80 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <p className="text-sm text-amber-800 dark:text-amber-200">
             Could not load printer settings yet. Your business profile was not changed.
           </p>
@@ -553,124 +571,136 @@ export const PrintersPage = () => {
           </Button>
         </div>
       )}
-      {/* Top Header & Quick Actions */}
-      <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-sky-400 text-white flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
-            <Printer size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Printers</h1>
-              <button
-                onClick={pageTutorial.openTutorial}
-                type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
-              >
-                <Video size={14} className="animate-pulse" />
-                <span>Video Guide</span>
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Receipts after checkout, barcode stickers, and A4 invoices.</p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            data-tour="printer-test-btn"
-            variant="outline"
-            onClick={handleTestPrint}
-            className="flex items-center gap-2 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs sm:text-sm"
-          >
-            <Printer size={16} />
-            {activeTab === 'label' ? 'Print Label' : `Test Print`}
-          </Button>
-          <Button
-            onClick={handleSave}
-            loading={saving}
-            disabled={isError}
-            className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white flex items-center gap-2 shadow-lg shadow-[#0a0a2e]/20 text-xs sm:text-sm"
-          >
-            <Save size={16} />
-            Save
-          </Button>
-        </div>
+      <div data-tour="printers-header">
+        <PageHeader
+          title="Printers"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <>
+              <Button
+                data-tour="printer-test-btn"
+                variant="outline"
+                onClick={handleTestPrint}
+                className="flex items-center gap-2 text-xs sm:text-sm"
+              >
+                <Printer size={16} />
+                {activeTab === 'label' ? 'Print label' : 'Test print'}
+              </Button>
+              <Button
+                onClick={handleSave}
+                loading={saving}
+                disabled={isError}
+                className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-white flex items-center gap-2 text-xs sm:text-sm"
+              >
+                <Save size={16} />
+                Save
+              </Button>
+            </>
+          }
+        />
+        <p className="text-sm text-slate-500 dark:text-slate-400 -mt-3 mb-1 max-w-2xl">
+          Connect a printer, then set up receipts, barcode labels, or A4 invoices. Nothing here changes until you save.
+        </p>
       </div>
 
-      {/* Printer connection status — two real, honest cards */}
       <div data-tour="printers-status" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
-          className={`p-4 rounded-2xl border transition-all ${
+          className={`rounded-2xl border p-5 transition-all duration-500 ease-out ${
             bleState.status === 'connected'
-              ? 'bg-gradient-to-b from-purple-50/80 to-indigo-50/40 border-purple-500 dark:from-purple-900/30 dark:to-indigo-900/20'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+              ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30'
+              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+          } ${
+            linkPulse === 'connected'
+              ? 'scale-[1.01] shadow-[0_0_0_4px_rgba(16,185,129,0.18)]'
+              : linkPulse === 'disconnected'
+                ? 'scale-[0.99] opacity-80'
+                : ''
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 rounded-lg">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                bleState.status === 'connected'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
+                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+              }`}>
                 <Bluetooth size={18} />
               </div>
-              <div>
-                <h3 className="font-bold text-gray-900 dark:text-gray-100 text-sm truncate max-w-[200px]">
-                  {bleState.status === 'connected' ? (bleState.deviceName || 'Bluetooth Printer') : 'Bluetooth Printer'}
-                </h3>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  {bleState.status === 'connected' ? 'Connected' : bleState.status === 'connecting' ? 'Connecting…' : 'Not connected'}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <StatusDot on={bleState.status === 'connected'} />
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">
+                    {bleState.status === 'connected' ? (bleState.deviceName || 'Bluetooth printer') : 'Bluetooth printer'}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {bleState.status === 'connected'
+                    ? 'Connected — receipts and labels can print here.'
+                    : bleState.status === 'connecting'
+                      ? 'Connecting…'
+                      : isBluetoothSupported()
+                        ? 'Not connected. Pair in Chrome or Edge.'
+                        : 'This browser does not support Web Bluetooth.'}
                 </p>
               </div>
             </div>
             {bleState.status === 'connected' ? (
-              <button onClick={handleDisconnectBluetooth} className="text-red-600 hover:underline text-xs font-semibold flex items-center gap-1">
-                <Unplug size={12} /> Disconnect
-              </button>
+              <Button variant="outline" onClick={handleDisconnectBluetooth} className="text-xs shrink-0 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40">
+                <Unplug size={14} className="mr-1.5" /> Disconnect
+              </Button>
             ) : (
-              <button
+              <Button
                 data-tour="printer-connect-btn"
                 onClick={handleConnectBluetooth}
                 disabled={connectingBle || !isBluetoothSupported()}
-                className="text-purple-600 hover:underline text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
+                className="text-xs shrink-0 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900"
               >
-                <Bluetooth size={12} /> {connectingBle ? 'Pairing…' : 'Connect'}
-              </button>
+                <Bluetooth size={14} className="mr-1.5" /> {connectingBle ? 'Pairing…' : 'Connect'}
+              </Button>
             )}
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 pl-11">
-            Pair once in Chrome or Edge. Used for thermal receipts and label stickers.
-          </p>
         </div>
 
-        <div className="p-4 rounded-2xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300 rounded-lg">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
               <Monitor size={18} />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 dark:text-gray-100 text-sm">Browser / System Print</h3>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">Always available — used for A4 invoices and as a fallback.</p>
+              <div className="flex items-center gap-2">
+                <StatusDot on />
+                <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">Browser print</h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Always available. Used for A4 invoices and as a fallback when Bluetooth is off.
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Tabs Navigation Header */}
-      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+      <div className="flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 overflow-x-auto">
         {([
-          { key: 'receipt', label: 'Receipts', icon: FileText },
-          { key: 'label', label: 'Labels', icon: Tag },
-          { key: 'invoice', label: 'A4 Invoice', icon: Layers },
+          { key: 'receipt', label: 'Receipts', hint: 'Thermal bills', icon: FileText },
+          { key: 'label', label: 'Labels', hint: 'Barcode stickers', icon: Tag },
+          { key: 'invoice', label: 'A4 invoice', hint: 'Full-page bill', icon: Layers },
         ] as const).map(t => (
           <button
             key={t.key}
+            type="button"
             onClick={() => setActiveTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-sm border-b-2 whitespace-nowrap transition-all ${
+            className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors duration-150 ${
               activeTab === t.key
-                ? 'border-[#0a0a2e] text-[#0a0a2e] dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <t.icon size={16} />
-            {t.label}
+            <t.icon size={15} />
+            <span>{t.label}</span>
+            <span className={`hidden sm:inline text-[11px] font-medium ${activeTab === t.key ? 'text-slate-400' : 'text-slate-400/80'}`}>
+              {t.hint}
+            </span>
           </button>
         ))}
       </div>
@@ -678,7 +708,12 @@ export const PrintersPage = () => {
       {/* Tab 1: Thermal Receipt Settings & Live Preview */}
       {activeTab === 'receipt' && (
         <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
-          <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="w-full lg:w-7/12 space-y-4 min-w-0">
+            <Section
+              eyebrow="Checkout"
+              title="Paper and print destination"
+              description="Choose roll width and where a receipt goes after a sale."
+            >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
@@ -691,11 +726,7 @@ export const PrintersPage = () => {
                       key={size}
                       type="button"
                       onClick={() => setConfig(prev => ({ ...prev, paperSize: size }))}
-                      className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                        config.paperSize === size
-                          ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
-                      }`}
+                      className={`flex-1 py-2 px-3 ${chipClass(config.paperSize === size)}`}
                     >
                       {size}
                     </button>
@@ -714,7 +745,7 @@ export const PrintersPage = () => {
                 <select
                   value={config.connectionType}
                   onChange={(e) => setConfig(prev => ({ ...prev, connectionType: e.target.value as 'bluetooth' | 'system_driver' }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  className={fieldClass}
                 >
                   <option value="bluetooth">Bluetooth printer</option>
                   <option value="system_driver">Browser print dialog</option>
@@ -727,10 +758,10 @@ export const PrintersPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border border-gray-100 dark:border-gray-700 rounded-xl">
+            <div className="flex items-center justify-between gap-3 px-1">
               <div>
-                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">Shorter receipts</p>
-                <p className="text-[11px] text-gray-500">Hides extra lines so a small bill uses less paper.</p>
+                <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Shorter receipts</p>
+                <p className="text-[11px] text-slate-500">Hides extra lines so a small bill uses less paper.</p>
               </div>
               <Switch
                 checked={receiptConfig.compactMode ?? false}
@@ -739,11 +770,31 @@ export const PrintersPage = () => {
               />
             </div>
 
-            {/* Custom Header Title Input */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                Receipt Header Title
-              </label>
+            <div className="rounded-xl border border-slate-100 dark:border-slate-800 px-4 py-3 bg-slate-50/70 dark:bg-slate-950/40">
+              <Switch
+                checked={config.autoPrintOnSale}
+                onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))}
+                label="Print receipt automatically after checkout"
+                info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />}
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 pb-1 -mt-1">
+                {config.autoPrintOnSale
+                  ? 'Bluetooth prints in the background when connected. You can still pick A4, thermal, or skip from the print panel.'
+                  : 'After checkout you will choose thermal, A4, Bluetooth, or skip.'}
+              </p>
+            </div>
+            </Section>
+
+            <Section
+              eyebrow="Store"
+              title="Name and header on the receipt"
+              description="These fields are shared with Settings → Invoice."
+              action={
+                <span className="text-[10px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+                  Synced with Settings
+                </span>
+              }
+            >
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -765,18 +816,7 @@ export const PrintersPage = () => {
                   <option value="">None (Hide Header Title)</option>
                 </select>
               </div>
-            </div>
 
-            <div className="pt-1">
-              <div className="flex items-center justify-between mb-2">
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Invoice & Receipt Details
-                  <FieldInfo textKey="tip.printer.receiptDetails" />
-                </label>
-                <span className="text-[10px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                  Synced with Settings → Invoice
-                </span>
-              </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
@@ -839,14 +879,13 @@ export const PrintersPage = () => {
                   />
                 </div>
               </div>
-            </div>
+            </Section>
 
-            {/* Fully Customizable Section Include / Exclude Checkboxes */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-2xl p-4 bg-gray-50/50 dark:bg-gray-800/50 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
-                  Customizable Receipt Sections (Include / Exclude)
-                </span>
+            <Section
+              eyebrow="Layout"
+              title="What prints on the receipt"
+              description="Turn lines on or off. The live preview on the right updates immediately."
+              action={
                 <div className="flex gap-2 text-[11px]">
                   <button
                     type="button"
@@ -868,11 +907,11 @@ export const PrintersPage = () => {
                       }))
                       setConfig(prev => ({ ...prev, showLogo: true, showGSTIN: true, showCustomerDetails: true, showBarcode: true }))
                     }}
-                    className="text-purple-600 dark:text-purple-400 hover:underline font-bold"
+                    className="font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900"
                   >
-                    Select All
+                    Show all
                   </button>
-                  <span className="text-gray-300">|</span>
+                  <span className="text-slate-300">·</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -893,12 +932,13 @@ export const PrintersPage = () => {
                       }))
                       setConfig(prev => ({ ...prev, showLogo: false, showGSTIN: false, showCustomerDetails: false, showBarcode: false }))
                     }}
-                    className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
+                    className="font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900"
                   >
                     Show less
                   </button>
                 </div>
-              </div>
+              }
+            >
 
               {/* Store Logo Graphic Section */}
               <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
@@ -1065,33 +1105,21 @@ export const PrintersPage = () => {
                   </div>
                 )}
               </div>
-
-              <div className="px-4 py-3 border border-gray-100 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
-                <Switch
-                  checked={config.autoPrintOnSale}
-                  onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))}
-                  label="Print receipt automatically after checkout"
-                  info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />}
-                />
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 pb-3 -mt-1">
-                  {config.autoPrintOnSale
-                    ? 'A receipt prints as soon as the sale is completed. Turn this off if you want to pick thermal, A4, or skip each time.'
-                    : 'After checkout you will choose thermal, A4, Bluetooth, or skip.'}
-                </p>
-              </div>
-            </div>
+            </Section>
           </div>
 
-          {/* Live Preview Panel — 100% Reactive to all Section Toggles */}
           <div className="w-full lg:w-5/12 flex flex-col min-w-0 max-w-full self-start lg:sticky lg:top-6">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Live Preview — {config.paperSize}</span>
-              {receiptConfig.compactMode && (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
-                  ⚡ Compact Mode
-                </span>
-              )}
-            </div>
+            <Section
+              eyebrow="Preview"
+              title={`Thermal receipt · ${config.paperSize}`}
+              action={
+                receiptConfig.compactMode ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                    Compact
+                  </span>
+                ) : null
+              }
+            >
 
             <ReceiptLivePreview
               paperSize={config.paperSize === '80mm' ? '80mm' : '58mm'}
@@ -1100,6 +1128,7 @@ export const PrintersPage = () => {
               showLogo={!!config.showLogo}
               cutPaper={false}
             />
+            </Section>
           </div>
         </div>
       )}
@@ -1107,15 +1136,12 @@ export const PrintersPage = () => {
       {/* Tab 2: Label Designer */}
       {activeTab === 'label' && (
         <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-            {/* Controls */}
-            <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-              {/* Preset Templates */}
-              <div className="space-y-2">
-                <label className="flex items-center text-xs font-bold text-gray-800 dark:text-gray-200">
-                  Label layout
-                  <FieldInfo textKey="tip.printer.labelPresets" />
-                </label>
-                <p className="text-[11px] text-gray-500">Pick a starting layout, then add or remove fields below.</p>
+            <div className="w-full lg:w-7/12 space-y-4 min-w-0">
+              <Section
+                eyebrow="Layout"
+                title="Label layout"
+                description="Pick a starting layout, then add or remove fields below."
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {([
                     { preset: PRESET_RETAIL_DUAL_CODE, title: 'Barcode + QR', hint: 'Name, barcode, QR, and price' },
@@ -1140,28 +1166,23 @@ export const PrintersPage = () => {
                     )
                   })}
                 </div>
-              </div>
+              </Section>
 
-              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                  <div>
-                    <h4 className="flex items-center text-xs font-bold text-gray-900 dark:text-gray-100">
-                      Which printer is printing stickers?
-                      <FieldInfo textKey="tip.printer.labelMode" />
-                    </h4>
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      Sticker printers need TSPL so each label stops at the gap. Receipt roll printers use ESC/POS.
-                    </p>
-                  </div>
+              <Section
+                eyebrow="Hardware"
+                title="Which printer prints stickers?"
+                description="Sticker printers need TSPL so each label stops at the gap. Receipt rolls use ESC/POS."
+                action={
                   <button
                     type="button"
                     onClick={handleCalibrateGap}
                     title="Makes a sticker printer find the gap between labels"
-                    className="px-3 py-1.5 bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white rounded-lg text-xs font-bold transition-colors flex-shrink-0"
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 rounded-lg text-xs font-semibold transition-colors flex-shrink-0"
                   >
                     Calibrate sticker gap
                   </button>
-                </div>
+                }
+              >
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
@@ -1261,14 +1282,13 @@ export const PrintersPage = () => {
                     />
                   </button>
                 </div>
-              </div>
+              </Section>
 
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Sticker size
-                  <FieldInfo textKey="tip.printer.labelSize" />
-                </label>
-                <p className="text-[11px] text-gray-500 mb-2">Choose the size printed on your label roll. You can still type a custom size.</p>
+              <Section
+                eyebrow="Size"
+                title="Sticker size and barcode"
+                description="Choose the size printed on your label roll. You can still type a custom size."
+              >
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
                   {LABEL_SIZES.map(size => {
                     const active = config.labelWidth === size.w && config.labelHeight === size.h
@@ -1358,24 +1378,25 @@ export const PrintersPage = () => {
                   ))}
                 </select>
               </div>
+              </Section>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    Fields on the label
-                    <FieldInfo textKey="tip.printer.addElement" />
-                  </label>
+              <Section
+                eyebrow="Fields"
+                title="Fields on the label"
+                description="Add, reorder, and format each line that prints on the sticker."
+                action={
                   <select
                     value=""
                     onChange={(e) => { if (e.target.value) addLabelElement(e.target.value as LabelElementType) }}
-                    className="text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-lg px-2 py-1"
+                    className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5"
                   >
-                    <option value="">+ Add element…</option>
+                    <option value="">+ Add field…</option>
                     {(Object.keys(LABEL_ELEMENT_META) as LabelElementType[]).map(type => (
                       <option key={type} value={type}>{LABEL_ELEMENT_META[type].label}</option>
                     ))}
                   </select>
-                </div>
+                }
+              >
 
                 {labelTemplate.length === 0 && (
                   <p className="text-xs text-gray-400 italic py-4 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
@@ -1482,14 +1503,14 @@ export const PrintersPage = () => {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Section>
             </div>
 
-            {/* Live Preview */}
-            <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
-              <span className="text-xs font-semibold text-gray-400 mb-3">
-                Live Preview — {config.labelWidth}mm × {config.labelHeight}mm
-              </span>
+            <div className="w-full lg:w-5/12 flex flex-col lg:sticky lg:top-6 min-w-0 max-w-full">
+              <Section
+                eyebrow="Preview"
+                title={`Label · ${config.labelWidth}mm × ${config.labelHeight}mm`}
+              >
               <div className="p-6 sm:p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px] max-w-full overflow-hidden relative">
                 <div
                   className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
@@ -1550,8 +1571,9 @@ export const PrintersPage = () => {
                 </div>
               </div>
               {!selectedProduct && (
-                <p className="text-[11px] text-gray-400 mt-3 text-center">Pick a product above to preview with real data.</p>
+                <p className="text-[11px] text-slate-500 mt-1 text-center">Pick a product above to preview with real data.</p>
               )}
+              </Section>
           </div>
         </div>
       )}
@@ -1559,7 +1581,12 @@ export const PrintersPage = () => {
       {/* Tab 3: A4 Full Invoice Settings & Live Preview */}
       {activeTab === 'invoice' && (
         <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-          <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="w-full lg:w-7/12 space-y-4 min-w-0">
+            <Section
+              eyebrow="Document"
+              title="A4 invoice"
+              description="Full-page bills for customers who want a printed invoice."
+            >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
@@ -1612,11 +1639,12 @@ export const PrintersPage = () => {
               <Switch checked={config.invoiceShowTerms} onChange={v => setConfig(prev => ({ ...prev, invoiceShowTerms: v }))} label="Print terms & conditions" info={<FieldInfo textKey="tip.printer.invoiceShowTerms" />} />
               <Switch checked={config.invoiceShowPaymentQR} onChange={v => setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))} label="UPI payment QR code" info={<FieldInfo textKey="tip.printer.invoiceShowPaymentQR" />} />
             </div>
+            </Section>
           </div>
 
-          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
-            <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview</span>
-            <div className="w-full max-w-[320px] bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
+          <div className="w-full lg:w-5/12 flex flex-col lg:sticky lg:top-6 min-w-0 max-w-full">
+            <Section eyebrow="Preview" title="A4 invoice">
+            <div className="w-full max-w-[320px] mx-auto bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-sm border border-slate-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
               <div>
                 {config.invoiceShowHeader && (
                   <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
@@ -1673,6 +1701,7 @@ export const PrintersPage = () => {
                 )}
               </div>
             </div>
+            </Section>
           </div>
         </div>
       )}
