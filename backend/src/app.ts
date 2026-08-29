@@ -33,6 +33,7 @@ import tokenRoutes from './routes/tokenRoutes';
 import restaurantTableRoutes from './routes/restaurantTableRoutes';
 import kotOrderRoutes from './routes/kotOrderRoutes';
 import locationRoutes from './routes/locationRoutes';
+import publicReceiptRoutes from './routes/publicReceiptRoutes';
 const app = express();
 
 // Trust reverse proxy (Nginx / Cloudflare / AWS ALB) headers
@@ -103,6 +104,7 @@ app.use('/api/tokens', tokenRoutes);
 app.use('/api/restaurant-tables', restaurantTableRoutes);
 app.use('/api/kot-orders', kotOrderRoutes);
 app.use('/api/locations', locationRoutes);
+app.use(publicReceiptRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint
 app.get(['/health', '/api/health'], async (req, res) => {

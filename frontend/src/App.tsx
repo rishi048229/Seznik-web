@@ -79,6 +79,7 @@ const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'T
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
 const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage'), 'ProfilePage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
+const PublicInvoicePage = lazyPage(() => import('@/pages/receipt/PublicInvoicePage'), 'PublicInvoicePage')
 
 const LoadingFallback = <RouteLoadingFallback />
 
@@ -271,6 +272,9 @@ function App() {
               <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.PROFILE} element={<AuthenticatedRoute><MainLayout><ProfilePage /></MainLayout></AuthenticatedRoute>} />
               <Route path={ROUTES.PRINTERS} element={<AuthenticatedRoute><MainLayout><PrintersPage /></MainLayout></AuthenticatedRoute>} />
+              {/* Public customer-facing A4 Digital Invoice / Bill pages */}
+              <Route path="/receipt/:id" element={<PublicInvoicePage />} />
+              <Route path="/bill/:id" element={<PublicInvoicePage />} />
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>
           </Suspense>

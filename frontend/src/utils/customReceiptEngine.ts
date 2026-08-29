@@ -123,7 +123,7 @@ export function interpolateReceiptVariables(
 ): string {
   if (!text) return ''
   const billPdfUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/sales/${encodeURIComponent(data.invoiceNumber)}`
+    ? `${window.location.origin}/receipt/${encodeURIComponent(data.invoiceNumber)}`
     : `https://api.seznik.com/receipt/${encodeURIComponent(data.invoiceNumber)}`
   const upiStr = isValidUpiVpa(data.upiId)
     ? buildUpiPayLink({ upiId: data.upiId!, payeeName: data.storeName, amount: data.grandTotal, note: data.invoiceNumber })
