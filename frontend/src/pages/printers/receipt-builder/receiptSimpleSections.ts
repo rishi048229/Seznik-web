@@ -31,7 +31,7 @@ export type SimpleSectionId =
   | 'qr'
   | 'footer'
 
-export type QrPurpose = 'digital_bill' | 'upi' | 'invoice_barcode' | 'custom'
+export type QrPurpose = 'digital_bill' | 'upi' | 'invoice_barcode' | 'custom' | 'none'
 
 type TextLikeEntry = TextReceiptEntry | TextSpecialReceiptEntry
 
@@ -67,6 +67,7 @@ function hasAnyStoreDetailVar(text: string): boolean {
 }
 
 export function inferQrPurpose(entry: BarcodeReceiptEntry): QrPurpose {
+  if (!entry.enabled) return 'none'
   if (entry.qrType) return entry.qrType
   if (entry.value?.includes('{{upi_qr}}') || entry.upiId) return 'upi'
   if (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d') {
@@ -80,11 +81,14 @@ export function inferQrPurpose(entry: BarcodeReceiptEntry): QrPurpose {
 
 export function applyQrPurpose(entry: BarcodeReceiptEntry, purpose: QrPurpose): BarcodeReceiptEntry {
   switch (purpose) {
+    case 'none':
+      return { ...entry, enabled: false }
     case 'upi':
-      return { ...entry, qrType: 'upi', format: 'qr', codeType: 'qr_code', value: '{{upi_qr}}' }
+      return { ...entry, enabled: true, qrType: 'upi', format: 'qr', codeType: 'qr_code', value: '{{upi_qr}}' }
     case 'invoice_barcode':
       return {
         ...entry,
+        enabled: true,
         qrType: 'invoice_barcode',
         format: 'code128',
         codeType: 'barcode_1d',
@@ -93,13 +97,14 @@ export function applyQrPurpose(entry: BarcodeReceiptEntry, purpose: QrPurpose): 
     case 'digital_bill':
       return {
         ...entry,
+        enabled: true,
         qrType: 'digital_bill',
         format: 'qr',
         codeType: 'qr_code',
         value: '{{bill_pdf_url}}',
       }
     case 'custom':
-      return { ...entry, qrType: 'custom', format: entry.format || 'qr', codeType: entry.codeType || 'qr_code' }
+      return { ...entry, enabled: true, qrType: 'custom', format: entry.format || 'qr', codeType: entry.codeType || 'qr_code' }
   }
 }
 
@@ -484,6 +489,22 @@ export function applyQrSection(
   patch: { purpose?: QrPurpose; caption?: string }
 ): CustomReceiptTemplate {
   let next = template
+  if (patch.purpose === 'none') {
+    next = patchSectionEntry(next, 'qr', (entry) =>
+      entry.type === 'barcode' ? { ...entry, enabled: false } : entry
+    )
+    const mapped = mapTemplateToSimple(next)
+    if (mapped.qrCaption) {
+      next = {
+        ...next,
+        entries: patchById(next.entries, mapped.qrCaption.id, (entry) =>
+          isTextLike(entry) ? { ...entry, enabled: false } : entry
+        ),
+      }
+    }
+    return next
+  }
+
   if (patch.purpose) {
     next = patchSectionEntry(next, 'qr', (entry) =>
       entry.type === 'barcode' ? applyQrPurpose(entry, patch.purpose!) : entry

@@ -217,7 +217,9 @@ export const PrintersPage = () => {
   const handleQrPurposeChange = (purpose: QrPurpose) => {
     if (!activeCustomTemplate) return
     let updated: CustomReceiptTemplate
-    if (purpose === 'upi') {
+    if (purpose === 'none') {
+      updated = applyQrSection(activeCustomTemplate, { purpose: 'none' })
+    } else if (purpose === 'upi') {
       updated = applyUpiQrToTemplate(activeCustomTemplate, receiptConfig.upiId || settings?.upiId || '')
       updated = applyQrSection(updated, { purpose: 'upi', caption: 'Scan to pay with UPI' })
     } else if (purpose === 'digital_bill') {
@@ -235,7 +237,7 @@ export const PrintersPage = () => {
         caption: 'Scan for store website & reviews',
       })
       updated = patchSectionEntry(updated, 'qr', (entry) =>
-        entry.type === 'barcode' ? { ...entry, value: customVal, qrType: 'custom' } : entry
+        entry.type === 'barcode' ? { ...entry, value: customVal, qrType: 'custom', enabled: true } : entry
       )
     }
     setReceiptConfig((prev) => ({
@@ -340,8 +342,26 @@ export const PrintersPage = () => {
     }
 
     const mergedReceipt = { ...defaultReceiptConfig, ...settings.receiptConfig }
-    if (!mergedReceipt.logoURL && settings.businessLogoURL) {
-      mergedReceipt.logoURL = settings.businessLogoURL
+    if (!mergedReceipt.companyName) {
+      mergedReceipt.companyName = settings.businessName || user?.businessName || user?.displayName || ''
+    }
+    if (!mergedReceipt.address) {
+      mergedReceipt.address = settings.businessAddress || ''
+    }
+    if (!mergedReceipt.phone) {
+      mergedReceipt.phone = settings.businessPhone || user?.phone || ''
+    }
+    if (!mergedReceipt.gstin) {
+      mergedReceipt.gstin = settings.businessGSTIN || ''
+    }
+    if (!mergedReceipt.logoURL) {
+      mergedReceipt.logoURL = settings.businessLogoURL || ''
+    }
+    if (!mergedReceipt.upiId) {
+      mergedReceipt.upiId = settings.upiId || ''
+    }
+    if (!mergedReceipt.footerMessage && (settings.invoiceConfig as any)?.footerText) {
+      mergedReceipt.footerMessage = (settings.invoiceConfig as any).footerText
     }
     const receiptSnapshot = JSON.stringify(mergedReceipt)
     const receiptHasLocalEdits =
@@ -351,7 +371,7 @@ export const PrintersPage = () => {
       hydratedReceiptRef.current = receiptSnapshot
       setReceiptConfig(mergedReceipt)
     }
-  }, [settings])
+  }, [settings, user])
 
   // Save configuration to Database — writes printerConfig AND receiptConfig
   // together, merged on top of every other existing settings field (business
@@ -1000,8 +1020,16 @@ export const PrintersPage = () => {
                   <option value="upi">💳 UPI / Payment QR (Accept payments via GPay, PhonePe, Paytm)</option>
                   <option value="digital_bill">📄 Digital Bill / Invoice PDF QR (Customer scans to view & download bill)</option>
                   <option value="custom">🔗 Custom Website / Promo Link (Your store website, review link, etc.)</option>
+                  <option value="none">🚫 No QR Code (Do not print any QR on receipts)</option>
                 </select>
               </div>
+
+              {/* Option: No QR */}
+              {activeQrPurpose === 'none' && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-400">
+                  🚫 QR Code is disabled. Your printed receipts and live preview will not contain any QR code.
+                </div>
+              )}
 
               {/* Option 1: UPI ID */}
               {activeQrPurpose === 'upi' && (
@@ -1073,21 +1101,23 @@ export const PrintersPage = () => {
               )}
 
               {/* Statement printed below QR (editable) */}
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 space-y-1">
-                <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block">
-                  QR Statement / Caption (Printed below code)
-                </label>
-                <input
-                  type="text"
-                  value={activeQrCaptionText}
-                  onChange={(e) => handleQrCaptionChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100 font-medium"
-                  placeholder="e.g. Scan to pay with UPI or Scan to download bill PDF"
-                />
-                <p className="text-[10px] text-gray-500">
-                  This custom text statement will appear directly under the QR code on every receipt.
-                </p>
-              </div>
+              {activeQrPurpose !== 'none' && (
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 space-y-1">
+                  <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block">
+                    QR Statement / Caption (Printed below code)
+                  </label>
+                  <input
+                    type="text"
+                    value={activeQrCaptionText}
+                    onChange={(e) => handleQrCaptionChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100 font-medium"
+                    placeholder="e.g. Scan to pay with UPI or Scan to download bill PDF"
+                  />
+                  <p className="text-[10px] text-gray-500">
+                    This custom text statement will appear directly under the QR code on every receipt.
+                  </p>
+                </div>
+              )}
             </div>
 
             <GstPrintDisplaySection
