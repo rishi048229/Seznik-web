@@ -22,6 +22,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { printCompletedSale, shouldAutoPrint } from '@/utils/printCompletedSale'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -488,7 +489,7 @@ export const POSLitePage = () => {
       onSuccess: (result) => {
         const saleId = result.id
         const invoiceNumber = result.invoiceNumber
-        setLastSaleData({
+        const snapshot = {
           items: [...items],
           subtotal,
           tax: taxAmount,
@@ -497,7 +498,8 @@ export const POSLitePage = () => {
           method,
           amountPaidNum,
           selectedCustomer,
-        })
+        }
+        setLastSaleData(snapshot)
         try {
           localStorage.setItem(LAST_BILL_STORAGE_KEY, JSON.stringify(items))
         } catch {
@@ -508,8 +510,47 @@ export const POSLitePage = () => {
         setCompletedInvoiceNumber(invoiceNumber)
         clearCart()
         setIsPaymentOpen(false)
-        setIsPrintModalOpen(true)
+        setMethod('cash')
+        setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
+
+        const printedSale: Sale = {
+          id: saleId,
+          invoiceNumber: invoiceNumber || `INV-${saleId.slice(-5) || '00000'}`,
+          items: snapshot.items.map(item => ({
+            productId: item.id,
+            productName: item.productName,
+            quantity: item.quantity,
+            sellingPrice: item.sellingPrice,
+            discount: item.discount,
+            taxRate: item.taxRate,
+            taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+            total: item.sellingPrice * item.quantity - item.discount,
+          })),
+          subtotal: snapshot.subtotal,
+          totalDiscount: snapshot.orderDiscountAmount + snapshot.items.reduce((s, i) => s + i.discount, 0),
+          totalTax: snapshot.tax,
+          grandTotal: snapshot.finalTotal,
+          paymentMethod: snapshot.method,
+          amountPaid: snapshot.amountPaidNum,
+          changeReturned: snapshot.method === 'cash' ? snapshot.amountPaidNum - snapshot.finalTotal : 0,
+          isQuickBill: true,
+          createdAt: new Date().toISOString(),
+        }
+        const customerName = snapshot.selectedCustomer
+          ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
+          : ''
+
+        if (shouldAutoPrint(settings)) {
+          void printCompletedSale({
+            sale: printedSale,
+            settings,
+            customerName,
+            ble: blePrinter,
+          }).catch(() => setIsPrintModalOpen(true))
+        } else {
+          setIsPrintModalOpen(true)
+        }
       },
       onError: (error) => {
         const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')

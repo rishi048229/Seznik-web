@@ -26,6 +26,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { printCompletedSale, shouldAutoPrint } from '@/utils/printCompletedSale'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
@@ -302,7 +303,7 @@ export const POSPage = () => {
         trackUserAction('pos_checkout_completed', { grandTotal: finalTotal, itemCount: items.length, paymentMethod: method })
         const saleId = result.id
         const invoiceNumber = result.invoiceNumber
-        setLastSaleData({
+        const snapshot = {
           items: [...items],
           totals: { ...totals, tax: taxAmount },
           orderDiscountAmount,
@@ -310,15 +311,55 @@ export const POSPage = () => {
           method,
           amountPaidNum,
           selectedCustomer,
-        })
+        }
+        setLastSaleData(snapshot)
         setCompletedSaleId(saleId)
         setCompletedInvoiceNumber(invoiceNumber)
         clearCart()
         setOrderDiscount(0)
         setSelectedCustomer('')
         setIsPaymentOpen(false)
-        setIsPrintModalOpen(true)
+        setMethod('cash')
+        setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
+
+        const printedSale: Sale = {
+          id: saleId,
+          invoiceNumber: invoiceNumber || `INV-${saleId.slice(-5) || '00000'}`,
+          items: snapshot.items.map(item => ({
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            sellingPrice: item.sellingPrice,
+            discount: item.discount,
+            taxRate: item.taxRate,
+            taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+            total: item.sellingPrice * item.quantity - item.discount,
+          })),
+          subtotal: snapshot.totals.subtotal,
+          totalDiscount: snapshot.orderDiscountAmount + snapshot.items.reduce((s, i) => s + i.discount, 0),
+          totalTax: snapshot.totals.tax,
+          grandTotal: snapshot.finalTotal,
+          paymentMethod: snapshot.method,
+          amountPaid: snapshot.amountPaidNum,
+          changeReturned: snapshot.method === 'cash' ? snapshot.amountPaidNum - snapshot.finalTotal : 0,
+          isQuickBill: false,
+          createdAt: new Date().toISOString(),
+        }
+        const customerName = snapshot.selectedCustomer
+          ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
+          : ''
+
+        if (shouldAutoPrint(settings)) {
+          void printCompletedSale({
+            sale: printedSale,
+            settings,
+            customerName,
+            ble: blePrinter,
+          }).catch(() => setIsPrintModalOpen(true))
+        } else {
+          setIsPrintModalOpen(true)
+        }
       },
       onError: (error) => {
         const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')

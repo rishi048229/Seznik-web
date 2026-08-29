@@ -56,10 +56,6 @@ import {
   AlignCenter,
   AlignRight,
   Bold,
-  Lock,
-  Sparkles,
-  Zap,
-  Check,
   Image as ImageIcon,
 } from 'lucide-react'
 
@@ -126,6 +122,15 @@ const defaultReceiptConfig: ReceiptConfig = {
   showTerms: true,
   showBarcode: true,
 }
+
+const LABEL_SIZES = [
+  { w: 40, h: 30, label: '40×30' },
+  { w: 50, h: 30, label: '50×30' },
+  { w: 50, h: 40, label: '50×40' },
+  { w: 60, h: 40, label: '60×40' },
+  { w: 80, h: 40, label: '80×40' },
+  { w: 100, h: 50, label: '100×50' },
+] as const
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
   businessName: { label: 'Business Name', icon: '🏬' },
@@ -279,17 +284,9 @@ export const PrintersPage = () => {
     )
   }
 
-  // Keep the connection-type setting truthful: whenever the real BLE link
-  // comes up or drops (including the printer being switched off, which fires
-  // 'gattserverdisconnected' with no button click involved), reflect that in
-  // config rather than leaving it pointed at a printer that's no longer there.
-  useEffect(() => {
-    if (bleState.status === 'connected') {
-      setConfig(prev => (prev.connectionType === 'bluetooth' ? prev : { ...prev, connectionType: 'bluetooth' }))
-    } else if (bleState.status === 'disconnected') {
-      setConfig(prev => (prev.connectionType === 'bluetooth' ? { ...prev, connectionType: 'system_driver' } : prev))
-    }
-  }, [bleState.status])
+  // Connection type is the user's saved preference for where receipts go.
+  // Do not overwrite it when Bluetooth connects or drops — that used to
+  // wipe a saved "Bluetooth" choice the moment the printer was off.
 
   // Connect Bluetooth Printer
   const handleConnectBluetooth = async () => {
@@ -318,17 +315,16 @@ export const PrintersPage = () => {
 
   // Send hardware Gap Auto-Calibration command to Bluetooth Printer
   const handleCalibrateGap = async () => {
-    if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
-      try {
-        const bytes = generateGapCalibrationBytes()
-        await printEscPos(bytes)
-        toast.success('Sent Gap Auto-Calibration command to printer!')
-      } catch {
-        toast.error('Failed to send gap calibration command')
-      }
-
-    } else {
-      toast.error('Please connect your Bluetooth printer first to calibrate gap')
+    if (bleState.status !== 'connected') {
+      toast.error('Connect your Bluetooth label printer first, then calibrate.')
+      return
+    }
+    try {
+      const bytes = generateGapCalibrationBytes()
+      await printEscPos(bytes)
+      toast.success('Gap calibration sent. The printer will sense sticker spacing.')
+    } catch {
+      toast.error('Failed to send gap calibration command')
     }
   }
 
@@ -347,6 +343,8 @@ export const PrintersPage = () => {
     productName: selectedProduct?.name || 'Sample Product',
     price: formatINR(selectedProduct?.sellingPrice ?? 1299),
     barcodeValue: selectedProduct?.barcode || selectedProduct?.sku || '0000000000',
+    sku: selectedProduct?.sku || 'SKU-001',
+    sequenceNo: '001',
   }
 
   // ---- Label element list editing ----
@@ -433,7 +431,7 @@ export const PrintersPage = () => {
         createdAt: new Date().toISOString(),
       }
 
-      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+      if (bleState.status === 'connected') {
         try {
           const bytes = await generateReceiptEscPos({
             sale: testSale,
@@ -447,7 +445,7 @@ export const PrintersPage = () => {
           return
         } catch (err) {
           console.error('BLE Print error:', err)
-          toast.error('BLE print error. Falling back to browser print.')
+          toast.error('Bluetooth print failed. Opening the browser print dialog instead.')
         }
       }
 
@@ -467,11 +465,11 @@ export const PrintersPage = () => {
 
     if (activeTab === 'label') {
       const mode = config.labelPrinterMode || 'tspl'
-      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+      if (bleState.status === 'connected') {
         try {
           const bytes = mode === 'tspl'
             ? generateLabelTspl(
-                config.labelTemplate,
+                labelTemplate,
                 config.labelBarcodeType,
                 labelData,
                 config.labelWidth,
@@ -482,13 +480,13 @@ export const PrintersPage = () => {
                 config.labelDirection ?? 0,
                 config.labelBarcodeOffsetX ?? 4
               )
-            : generateLabelEscPos(config.labelTemplate, config.labelBarcodeType, labelData)
+            : generateLabelEscPos(labelTemplate, config.labelBarcodeType, labelData)
           await printEscPos(bytes)
-          toast.success(`Label sent to printer in ${mode.toUpperCase()} mode!`)
+          toast.success(mode === 'tspl' ? 'Label sent to sticker printer.' : 'Label sent to receipt printer.')
           return
         } catch (err) {
           console.error('BLE Print error:', err)
-          toast.error('BLE print error. Falling back to browser print.')
+          toast.error('Bluetooth print failed. Opening the browser print dialog instead.')
         }
       }
 
@@ -573,7 +571,7 @@ export const PrintersPage = () => {
                 <span>Video Guide</span>
               </button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Receipts, labels, and invoices — all from one place.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Receipts after checkout, barcode stickers, and A4 invoices.</p>
           </div>
         </div>
 
@@ -638,7 +636,7 @@ export const PrintersPage = () => {
             )}
           </div>
           <p className="text-[11px] text-gray-400 dark:text-gray-500 pl-11">
-            Supports Seznik Veer, the Caysn label printer, and other compatible BLE thermal/label printers.
+            Pair once in Chrome or Edge. Used for thermal receipts and label stickers.
           </p>
         </div>
 
@@ -658,7 +656,7 @@ export const PrintersPage = () => {
       {/* Main Tabs Navigation Header */}
       <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
         {([
-          { key: 'receipt', label: 'Receipt', icon: FileText },
+          { key: 'receipt', label: 'Receipts', icon: FileText },
           { key: 'label', label: 'Labels', icon: Tag },
           { key: 'invoice', label: 'A4 Invoice', icon: Layers },
         ] as const).map(t => (
@@ -703,39 +701,41 @@ export const PrintersPage = () => {
                     </button>
                   ))}
                 </div>
-                <p className="mt-2 text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 rounded-lg p-2 flex items-start gap-1.5 leading-relaxed">
-                  <Sparkles size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                  <span><strong>Note:</strong> For best print quality, use <strong>58mm</strong> for 2-inch printers.</span>
+                <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  Use 58mm for 2-inch rolls, 80mm for 3-inch rolls.
                 </p>
               </div>
 
               <div>
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Print Destination
+                  After checkout, print to
                   <FieldInfo textKey="tip.printer.printDestination" />
                 </label>
                 <select
                   value={config.connectionType}
                   onChange={(e) => setConfig(prev => ({ ...prev, connectionType: e.target.value as 'bluetooth' | 'system_driver' }))}
-                  disabled={bleState.status !== 'connected'}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="bluetooth">Bluetooth Printer</option>
-                  <option value="system_driver">Browser Print Dialog</option>
+                  <option value="bluetooth">Bluetooth printer</option>
+                  <option value="system_driver">Browser print dialog</option>
                 </select>
+                <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  {bleState.status === 'connected'
+                    ? `Bluetooth is connected${bleState.deviceName ? ` (${bleState.deviceName})` : ''}.`
+                    : 'Bluetooth is off — connect above, or keep browser print as the fallback.'}
+                </p>
               </div>
             </div>
 
-            {/* Ultra-Compact Paper Saver Mode Banner */}
-            <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-900/10 via-teal-900/10 to-blue-900/10 dark:from-emerald-900/30 dark:via-teal-900/30 dark:to-blue-900/30 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>⚡ Compact Paper Saver Mode (Reduces 1-product & batch receipts by 50-70% height)</span>
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border border-gray-100 dark:border-gray-700 rounded-xl">
+              <div>
+                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">Shorter receipts</p>
+                <p className="text-[11px] text-gray-500">Hides extra lines so a small bill uses less paper.</p>
               </div>
               <Switch
                 checked={receiptConfig.compactMode ?? false}
                 onChange={v => setReceiptConfig(prev => ({ ...prev, compactMode: v }))}
-                label="Compact Mode"
+                label="Compact"
               />
             </div>
 
@@ -895,7 +895,7 @@ export const PrintersPage = () => {
                     }}
                     className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
                   >
-                    Ultra-Compact Paper Saver Preset
+                    Show less
                   </button>
                 </div>
               </div>
@@ -1066,11 +1066,18 @@ export const PrintersPage = () => {
                 )}
               </div>
 
-              {/* Hardware Actions */}
-              <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
-                <Switch checked={config.autoPrintOnSale} onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))} label="Auto-print on checkout" info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />} />
-                <Switch checked={config.cutPaper} onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))} label="Auto cut paper" info={<FieldInfo textKey="tip.printer.cutPaper" />} />
-                <Switch checked={config.openCashDrawer} onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))} label="Open cash drawer" info={<FieldInfo textKey="tip.printer.openCashDrawer" />} />
+              <div className="px-4 py-3 border border-gray-100 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
+                <Switch
+                  checked={config.autoPrintOnSale}
+                  onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))}
+                  label="Print receipt automatically after checkout"
+                  info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />}
+                />
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 pb-3 -mt-1">
+                  {config.autoPrintOnSale
+                    ? 'A receipt prints as soon as the sale is completed. Turn this off if you want to pick thermal, A4, or skip each time.'
+                    : 'After checkout you will choose thermal, A4, Bluetooth, or skip.'}
+                </p>
               </div>
             </div>
           </div>
@@ -1091,7 +1098,7 @@ export const PrintersPage = () => {
               receiptConfig={receiptConfig}
               settings={settings}
               showLogo={!!config.showLogo}
-              cutPaper={!!config.cutPaper}
+              cutPaper={false}
             />
           </div>
         </div>
@@ -1103,88 +1110,94 @@ export const PrintersPage = () => {
             {/* Controls */}
             <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
               {/* Preset Templates */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
-                <label className="flex items-center text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Quick Layout Presets
+              <div className="space-y-2">
+                <label className="flex items-center text-xs font-bold text-gray-800 dark:text-gray-200">
+                  Label layout
                   <FieldInfo textKey="tip.printer.labelPresets" />
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_RETAIL_DUAL_CODE }))}
-                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-semibold transition-all"
-                  >
-                    Image 1 Dual-Code
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_CENTERED_STANDARD }))}
-                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all"
-                  >
-                    Centered Standard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_MINIMAL_TAG }))}
-                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all"
-                  >
-                    Minimal Tag
-                  </button>
+                <p className="text-[11px] text-gray-500">Pick a starting layout, then add or remove fields below.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {([
+                    { preset: PRESET_RETAIL_DUAL_CODE, title: 'Barcode + QR', hint: 'Name, barcode, QR, and price' },
+                    { preset: PRESET_CENTERED_STANDARD, title: 'Standard price tag', hint: 'Store name, product, barcode, price' },
+                    { preset: PRESET_MINIMAL_TAG, title: 'Name + barcode', hint: 'Small tag with product and price' },
+                  ]).map(opt => {
+                    const active = labelTemplate.map(e => e.type).join('|') === opt.preset.map(e => e.type).join('|')
+                    return (
+                      <button
+                        key={opt.title}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, labelTemplate: opt.preset }))}
+                        className={`text-left py-2.5 px-3 rounded-xl text-xs transition-colors border ${
+                          active
+                            ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
+                            : 'bg-white dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+                        }`}
+                      >
+                        <span className="block font-semibold">{opt.title}</span>
+                        <span className={`block text-[11px] mt-0.5 ${active ? 'text-white/80' : 'text-gray-500'}`}>{opt.hint}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
-              {/* Hardware Alignment & Gap Calibration Box */}
-              <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl space-y-3">
-                <div className="flex items-center justify-between gap-3">
+              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div>
-                    <h4 className="flex items-center text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                      Label Command Protocol & Calibration
+                    <h4 className="flex items-center text-xs font-bold text-gray-900 dark:text-gray-100">
+                      Which printer is printing stickers?
                       <FieldInfo textKey="tip.printer.labelMode" />
                     </h4>
-                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
-                      Select <strong>TSPL Mode</strong> for label printers (Xprinter/TSC/Gprinter) to lock print inside 1 sticker gap.
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Sticker printers need TSPL so each label stops at the gap. Receipt roll printers use ESC/POS.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleCalibrateGap}
-                    title="Sends a command that makes the printer auto-detect the gap between stickers"
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex-shrink-0"
+                    title="Makes a sticker printer find the gap between labels"
+                    className="px-3 py-1.5 bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white rounded-lg text-xs font-bold transition-colors flex-shrink-0"
                   >
-                    Calibrate Paper Gap
+                    Calibrate sticker gap
                   </button>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setConfig(prev => ({ ...prev, labelPrinterMode: 'tspl' }))}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-all ${
+                    className={`text-left py-2.5 px-3 rounded-xl text-xs border transition-colors ${
                       (config.labelPrinterMode || 'tspl') === 'tspl'
                         ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600'
                     }`}
                   >
-                    TSPL Mode (Gap Sensing)
+                    <span className="block font-bold">Label printer (TSPL)</span>
+                    <span className={`block mt-0.5 ${(config.labelPrinterMode || 'tspl') === 'tspl' ? 'text-white/80' : 'text-gray-500'}`}>
+                      Sticker rolls — Xprinter, TSC, Gprinter
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfig(prev => ({ ...prev, labelPrinterMode: 'escpos' }))}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-all ${
+                    className={`text-left py-2.5 px-3 rounded-xl text-xs border transition-colors ${
                       config.labelPrinterMode === 'escpos'
                         ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600'
                     }`}
                   >
-                    ESC/POS Compact Mode
+                    <span className="block font-bold">Receipt printer (ESC/POS)</span>
+                    <span className={`block mt-0.5 ${config.labelPrinterMode === 'escpos' ? 'text-white/80' : 'text-gray-500'}`}>
+                      Continuous thermal roll, not stickers
+                    </span>
                   </button>
                 </div>
 
-                {/* Printer Calibration Offsets */}
-                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-indigo-200/60 dark:border-indigo-800/40">
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-200 dark:border-gray-700">
                   <div>
-                    <label className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
-                      Printer Offset X (mm)
+                    <label className="flex items-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Shift left / right (mm)
                       <FieldInfo textKey="tip.printer.labelOffset" />
                     </label>
                     <input
@@ -1193,13 +1206,12 @@ export const PrintersPage = () => {
                       value={config.labelOffsetX ?? 0}
                       onChange={(e) => setConfig(prev => ({ ...prev, labelOffsetX: Number(e.target.value) || 0 }))}
                       placeholder="0"
-                      className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
                     />
-                    <span className="text-[10px] text-gray-500">Shift left/right on paper</span>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
-                      Printer Offset Y (mm)
+                    <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Shift up / down (mm)
                     </label>
                     <input
                       type="number"
@@ -1207,15 +1219,14 @@ export const PrintersPage = () => {
                       value={config.labelOffsetY ?? 0}
                       onChange={(e) => setConfig(prev => ({ ...prev, labelOffsetY: Number(e.target.value) || 0 }))}
                       placeholder="0"
-                      className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
                     />
-                    <span className="text-[10px] text-gray-500">Shift up/down on paper</span>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
-                  <label className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
-                    Barcode Center Nudge (mm)
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <label className="flex items-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Barcode nudge (mm)
                     <FieldInfo textKey="tip.printer.labelBarcodeOffset" />
                   </label>
                   <input
@@ -1224,14 +1235,14 @@ export const PrintersPage = () => {
                     value={config.labelBarcodeOffsetX ?? 4}
                     onChange={(e) => setConfig(prev => ({ ...prev, labelBarcodeOffsetX: Number(e.target.value) || 0 }))}
                     placeholder="4"
-                    className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
+                    className="w-full px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
                   />
-                  <span className="text-[10px] text-gray-500">If the barcode prints off-center, increase (shift right) or decrease/go negative (shift left) until it's centered</span>
+                  <span className="text-[10px] text-gray-500">If the barcode is off-center, increase to shift right or go negative to shift left.</span>
                 </div>
 
-                <div className="flex items-center justify-between gap-3 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
-                  <span className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200">
-                    Label Upside Down? Flip 180°
+                <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <span className="flex items-center text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                    Print upside down
                     <FieldInfo textKey="tip.printer.labelDirection" />
                   </span>
                   <button
@@ -1240,7 +1251,7 @@ export const PrintersPage = () => {
                     aria-checked={(config.labelDirection ?? 0) === 1}
                     onClick={() => setConfig(prev => ({ ...prev, labelDirection: (prev.labelDirection ?? 0) === 1 ? 0 : 1 }))}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 ${
-                      (config.labelDirection ?? 0) === 1 ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
+                      (config.labelDirection ?? 0) === 1 ? 'bg-[#0a0a2e]' : 'bg-gray-300 dark:bg-gray-600'
                     }`}
                   >
                     <span
@@ -1252,48 +1263,80 @@ export const PrintersPage = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                    Width (mm)
-                    <FieldInfo textKey="tip.printer.labelSize" />
-                  </label>
-                  <input
-                    type="number"
-                    value={config.labelWidth}
-                    onChange={(e) => setConfig(prev => ({ ...prev, labelWidth: Number(e.target.value) || 50 }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
-                  />
+              <div>
+                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  Sticker size
+                  <FieldInfo textKey="tip.printer.labelSize" />
+                </label>
+                <p className="text-[11px] text-gray-500 mb-2">Choose the size printed on your label roll. You can still type a custom size.</p>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                  {LABEL_SIZES.map(size => {
+                    const active = config.labelWidth === size.w && config.labelHeight === size.h
+                    return (
+                      <button
+                        key={size.label}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, labelWidth: size.w, labelHeight: size.h }))}
+                        className={`py-2 px-2 rounded-xl border text-xs font-bold transition-colors ${
+                          active
+                            ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {size.label}
+                      </button>
+                    )
+                  })}
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Height (mm)</label>
-                  <input
-                    type="number"
-                    value={config.labelHeight}
-                    onChange={(e) => setConfig(prev => ({ ...prev, labelHeight: Number(e.target.value) || 30 }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Width (mm)</label>
+                    <input
+                      type="number"
+                      min={20}
+                      max={120}
+                      value={config.labelWidth}
+                      onChange={(e) => setConfig(prev => ({ ...prev, labelWidth: Number(e.target.value) || 50 }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Height (mm)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      max={80}
+                      value={config.labelHeight}
+                      onChange={(e) => setConfig(prev => ({ ...prev, labelHeight: Number(e.target.value) || 30 }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div>
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Default Barcode Type
+                  Barcode on the label
                   <FieldInfo textKey="tip.printer.labelBarcodeType" />
                 </label>
-                <div className="flex gap-2">
-                  {(['CODE128', 'EAN13', 'QR'] as const).map(type => (
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { type: 'CODE128' as const, label: 'CODE128', hint: 'Any SKU / barcode' },
+                    { type: 'EAN13' as const, label: 'EAN-13', hint: '13-digit product code' },
+                    { type: 'QR' as const, label: 'QR code', hint: 'Scan as a square' },
+                  ]).map(opt => (
                     <button
-                      key={type}
+                      key={opt.type}
                       type="button"
-                      onClick={() => setConfig(prev => ({ ...prev, labelBarcodeType: type }))}
-                      className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                        config.labelBarcodeType === type
+                      onClick={() => setConfig(prev => ({ ...prev, labelBarcodeType: opt.type }))}
+                      className={`py-2 px-2 rounded-xl border text-xs transition-colors ${
+                        config.labelBarcodeType === opt.type
                           ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
-                      {type}
+                      <span className="block font-bold">{opt.label}</span>
+                      <span className={`block text-[10px] mt-0.5 ${config.labelBarcodeType === opt.type ? 'text-white/80' : 'text-gray-500'}`}>{opt.hint}</span>
                     </button>
                   ))}
                 </div>
@@ -1319,7 +1362,7 @@ export const PrintersPage = () => {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    Label Contents & Formatting
+                    Fields on the label
                     <FieldInfo textKey="tip.printer.addElement" />
                   </label>
                   <select
@@ -1575,18 +1618,20 @@ export const PrintersPage = () => {
             <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview</span>
             <div className="w-full max-w-[320px] bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
               <div>
-                <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                  <div>
-                    <h4 className="font-extrabold text-sm" style={{ color: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                      {receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}
-                    </h4>
-                    <p className="text-[10px] text-gray-500">GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}</p>
+                {config.invoiceShowHeader && (
+                  <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
+                    <div>
+                      <h4 className="font-extrabold text-sm" style={{ color: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
+                        {receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}
+                      </h4>
+                      <p className="text-[10px] text-gray-500">GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-extrabold text-xs block">TAX INVOICE</span>
+                      <span className="text-[9px] text-gray-500">INV-2026-0089</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-extrabold text-xs block">TAX INVOICE</span>
-                    <span className="text-[9px] text-gray-500">INV-2026-0089</span>
-                  </div>
-                </div>
+                )}
 
                 <table className="w-full mt-4 text-[10px] text-left border-collapse">
                   <thead>
