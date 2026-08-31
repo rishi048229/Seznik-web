@@ -545,8 +545,7 @@ export const POSLitePage = () => {
           ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
           : ''
 
-        setCurrentSaleForReceipt(printedSale)
-        setIsRealisticReceiptOpen(true)
+        setIsPrintModalOpen(true)
         if (shouldAutoPrint(settings)) {
           void printCompletedSale({
             sale: printedSale,
@@ -1391,7 +1390,58 @@ export const POSLitePage = () => {
         </div>
       </Modal>
 
-      {/* Hyper-Realistic & Editable Receipt Preview Modal */}
+      <Modal
+        isOpen={isPrintModalOpen}
+        onClose={finishPrintFlow}
+        title={t('pos.completeAndPrint')}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Sale saved. Choose how to print this bill.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => handlePrint('a4')}
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+            >
+              <FileText size={32} className="text-gray-400" />
+              <div className="text-center">
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
+                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePrint('thermal')}
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+            >
+              <Printer size={32} className="text-gray-400" />
+              <div className="text-center">
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
+                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
+              </div>
+            </button>
+          </div>
+          {blePrinter.isSupported && (
+            <Button
+              variant="outline"
+              className="w-full"
+              loading={isBlePrinting}
+              leftIcon={<Bluetooth size={16} />}
+              onClick={handlePrintBluetooth}
+            >
+              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
+            </Button>
+          )}
+          <Button variant="ghost" className="w-full" onClick={finishPrintFlow}>
+            {t('action.cancel')}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Live receipt preview — before payment only */}
       <RealisticReceiptModal
         isOpen={isRealisticReceiptOpen}
         onClose={() => setIsRealisticReceiptOpen(false)}

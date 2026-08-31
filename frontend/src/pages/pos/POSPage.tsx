@@ -15,7 +15,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
@@ -372,8 +372,7 @@ export const POSPage = () => {
           ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
           : ''
 
-        setCurrentSaleForReceipt(printedSale)
-        setIsRealisticReceiptOpen(true)
+        setIsPrintModalOpen(true)
         if (shouldAutoPrint(settings)) {
           void printCompletedSale({
             sale: printedSale,
@@ -768,7 +767,7 @@ export const POSPage = () => {
 
         {/* Product Grid */}
         <div data-tour="pos-product-grid" className="flex-1 overflow-y-auto px-3 sm:px-5 pt-3 pb-4">
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {filtered.map(product => {
               const reserved = cartReserved[product.id] || 0
               const available = getEffectiveStock(product) - reserved
@@ -779,54 +778,54 @@ export const POSPage = () => {
                 <div
                   key={product.id}
                   onClick={() => !isOutOfStock && handleProductClick(product)}
-                  className={`relative group flex items-center gap-2.5 rounded-2xl border px-2.5 py-2 transition-all duration-150 ${
+                  className={`group flex flex-col rounded-2xl border p-3 sm:p-3.5 transition-all duration-150 ${
                     isOutOfStock
                       ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
-                      : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-400 hover:bg-blue-50/70 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 hover:shadow-sm'
+                      : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-400 hover:bg-blue-50/70 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 hover:shadow-md'
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                  <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                     {product.imageURL ? (
                       <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
-                      <ShoppingCart size={16} className="text-gray-300" />
+                      <ShoppingCart size={28} className="text-gray-300" />
                     )}
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                      {product.name}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-sm font-bold text-blue-600">{formatINR(getEffectivePrice(product))}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                        isOutOfStock
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : isLowStock
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-                      }`}>
-                        {isOutOfStock ? t('pos.outOfStock') : available}
-                      </span>
-                    </div>
+                  <p className="mt-2.5 text-sm font-semibold leading-snug break-words line-clamp-2 min-h-[2.5rem] text-gray-900 dark:text-gray-100 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                    {product.name}
+                  </p>
+
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-base font-bold text-blue-600">{formatINR(getEffectivePrice(product))}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                      isOutOfStock
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : isLowStock
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                    }`}>
+                      {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
+                    </span>
                   </div>
 
-                  <div className="flex flex-col items-center gap-1 shrink-0">
+                  <div className="mt-auto pt-3 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={(e) => openEditProduct(e, product)}
                       title={t('products.editProduct')}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                      className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-600 text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-white dark:hover:bg-gray-800 transition-colors"
                     >
-                      <Pencil size={13} />
+                      <Pencil size={15} />
                     </button>
                     <button
                       type="button"
                       disabled={isOutOfStock}
                       onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) handleProductClick(product) }}
-                      className="w-8 h-8 rounded-xl bg-[#0a0a2e] hover:bg-blue-600 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="flex-1 h-9 rounded-xl bg-[#0a0a2e] hover:bg-blue-600 text-white text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus size={16} />
+                      Add
                     </button>
                   </div>
                 </div>
@@ -1175,7 +1174,58 @@ export const POSPage = () => {
         </div>
       </Modal>
 
-      {/* Hyper-Realistic & Editable Receipt Preview Modal */}
+      <Modal
+        isOpen={isPrintModalOpen}
+        onClose={finishPrintFlow}
+        title={t('pos.completeAndPrint')}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Sale saved. Choose how to print this bill.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => handlePrint('a4')}
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+            >
+              <FileText size={32} className="text-gray-400" />
+              <div className="text-center">
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
+                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePrint('thermal')}
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+            >
+              <Printer size={32} className="text-gray-400" />
+              <div className="text-center">
+                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
+                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
+              </div>
+            </button>
+          </div>
+          {blePrinter.isSupported && (
+            <Button
+              variant="outline"
+              className="w-full"
+              loading={isBlePrinting}
+              leftIcon={<Bluetooth size={16} />}
+              onClick={handlePrintBluetooth}
+            >
+              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
+            </Button>
+          )}
+          <Button variant="ghost" className="w-full" onClick={finishPrintFlow}>
+            {t('action.cancel')}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Live receipt preview — before payment only */}
       <RealisticReceiptModal
         isOpen={isRealisticReceiptOpen}
         onClose={() => setIsRealisticReceiptOpen(false)}

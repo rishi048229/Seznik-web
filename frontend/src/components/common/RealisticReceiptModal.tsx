@@ -141,12 +141,14 @@ export const RealisticReceiptModal = ({
   const [isPrintingBle, setIsPrintingBle] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
-  // Re-sync when modal opens
+  const prevOpenRef = useRef(false)
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevOpenRef.current) {
       setReceipt(defaultState)
       setIsEditing(false)
     }
+    prevOpenRef.current = isOpen
   }, [isOpen, defaultState])
 
   useEffect(() => {

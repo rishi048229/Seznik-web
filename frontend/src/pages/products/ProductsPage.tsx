@@ -144,6 +144,7 @@ function ProductActionTile({
   tone = 'slate',
   dataTour,
   pulse,
+  compact,
 }: {
   icon: ReactNode
   label: string
@@ -152,6 +153,7 @@ function ProductActionTile({
   tone?: 'slate' | 'blue' | 'purple' | 'emerald' | 'amber' | 'rose'
   dataTour?: string
   pulse?: boolean
+  compact?: boolean
 }) {
   const tones = {
     slate: {
@@ -185,6 +187,22 @@ function ProductActionTile({
       hint: 'text-rose-600/70 group-hover:text-rose-700 dark:text-rose-400',
     },
   }[tone]
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        data-tour={dataTour}
+        onClick={onClick}
+        className={`group inline-flex items-center gap-1.5 shrink-0 h-9 px-2.5 rounded-full border text-xs font-semibold transition-colors ${tones.tile}`}
+      >
+        <span className={`w-6 h-6 rounded-lg flex items-center justify-center ${tones.icon} ${pulse ? 'animate-pulse' : ''}`}>
+          {icon}
+        </span>
+        <span className="whitespace-nowrap text-gray-900 dark:text-gray-100">{label}</span>
+      </button>
+    )
+  }
 
   return (
     <button
@@ -799,6 +817,85 @@ export const ProductsPage = () => {
   const pageTutorial = usePageTutorial('products')
   const categoryOptions = buildCategoryOptions(categories)
 
+  const productHeaderActions = [
+    {
+      key: 'add',
+      dataTour: 'add-product-btn',
+      tone: 'blue' as const,
+      icon: <Plus size={16} />,
+      label: t('products.addProduct'),
+      hint: 'Create a new item',
+      onClick: openCreate,
+    },
+    {
+      key: 'scan',
+      dataTour: 'scan-stock-btn',
+      tone: 'amber' as const,
+      icon: <Barcode size={16} />,
+      label: 'Scan to add',
+      hint: 'Restock by barcode',
+      onClick: () => setShowBarcodeModal(true),
+    },
+    {
+      key: 'manual',
+      tone: 'slate' as const,
+      icon: <Keyboard size={16} />,
+      label: 'Manual stock',
+      hint: 'Type barcode + qty',
+      onClick: () => setShowManualBarcodeModal(true),
+    },
+    {
+      key: 'bulk',
+      tone: 'purple' as const,
+      pulse: true,
+      icon: <Upload size={16} />,
+      label: 'Bulk upload',
+      hint: 'SEZ AI document import',
+      onClick: () => setShowAiModal(true),
+    },
+    {
+      key: 'labels',
+      tone: 'blue' as const,
+      icon: <Tag size={16} />,
+      label: selectedIds.size > 0 ? `Labels (${selectedIds.size})` : 'Print labels',
+      hint: 'Consecutive billing labels',
+      onClick: () => {
+        const targetProds = selectedIds.size > 0
+          ? activeProducts.filter(p => selectedIds.has(p.id))
+          : activeProducts
+        setConsecutiveProducts(targetProds)
+        setShowConsecutiveModal(true)
+      },
+    },
+    {
+      key: 'export',
+      tone: 'emerald' as const,
+      icon: <Download size={16} />,
+      label: selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export',
+      hint: 'Excel, print or image',
+      onClick: () => setShowExportModal(true),
+    },
+    ...(isBleSupported ? [{
+      key: 'printer',
+      tone: (bleStatus === 'connected' ? 'emerald' : 'slate') as 'emerald' | 'slate',
+      pulse: bleStatus === 'connecting',
+      icon: <Bluetooth size={16} />,
+      label: bleStatus === 'connected' ? (bleDeviceName || 'Printer on') : bleStatus === 'connecting' ? 'Connecting…' : 'Label printer',
+      hint: bleStatus === 'connected' ? 'Ready to print labels' : 'Tap to connect Bluetooth',
+      onClick: () => {
+        if (bleStatus !== 'connected') connectBlePrinter()
+      },
+    }] : []),
+    ...(selectedIds.size > 0 ? [{
+      key: 'delete',
+      tone: 'rose' as const,
+      icon: <Trash2 size={16} />,
+      label: `Delete (${selectedIds.size})`,
+      hint: isBulkDeleting ? 'Deleting…' : 'Remove selected items',
+      onClick: handleBulkDelete,
+    }] : []),
+  ]
+
   return (
     <div className="p-1 sm:p-2 max-w-full min-w-0 pb-32 sm:pb-6">
       <div data-tour="products-header">
@@ -807,79 +904,35 @@ export const ProductsPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
         />
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-2.5 mb-5">
-          <ProductActionTile
-            dataTour="add-product-btn"
-            tone="blue"
-            icon={<Plus size={18} />}
-            label={t('products.addProduct')}
-            hint="Create a new item"
-            onClick={openCreate}
-          />
-          <ProductActionTile
-            dataTour="scan-stock-btn"
-            tone="amber"
-            icon={<Barcode size={18} />}
-            label="Scan to add"
-            hint="Restock by barcode"
-            onClick={() => setShowBarcodeModal(true)}
-          />
-          <ProductActionTile
-            tone="slate"
-            icon={<Keyboard size={18} />}
-            label="Manual stock"
-            hint="Type barcode + qty"
-            onClick={() => setShowManualBarcodeModal(true)}
-          />
-          <ProductActionTile
-            tone="purple"
-            pulse
-            icon={<Upload size={18} />}
-            label="Bulk upload"
-            hint="SEZ AI document import"
-            onClick={() => setShowAiModal(true)}
-          />
-          <ProductActionTile
-            tone="blue"
-            icon={<Tag size={18} />}
-            label={selectedIds.size > 0 ? `Labels (${selectedIds.size})` : 'Print labels'}
-            hint="Consecutive billing labels"
-            onClick={() => {
-              const targetProds = selectedIds.size > 0
-                ? activeProducts.filter(p => selectedIds.has(p.id))
-                : activeProducts
-              setConsecutiveProducts(targetProds)
-              setShowConsecutiveModal(true)
-            }}
-          />
-          <ProductActionTile
-            tone="emerald"
-            icon={<Download size={18} />}
-            label={selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export'}
-            hint="Excel, print or image"
-            onClick={() => setShowExportModal(true)}
-          />
-          {isBleSupported && (
+        <div className="flex sm:hidden items-center gap-2 overflow-x-auto no-scrollbar mb-4 pb-1 min-w-0">
+          {productHeaderActions.map(action => (
             <ProductActionTile
-              tone={bleStatus === 'connected' ? 'emerald' : 'slate'}
-              pulse={bleStatus === 'connecting'}
-              icon={<Bluetooth size={18} />}
-              label={bleStatus === 'connected' ? (bleDeviceName || 'Printer on') : bleStatus === 'connecting' ? 'Connecting…' : 'Label printer'}
-              hint={bleStatus === 'connected' ? 'Ready to print labels' : 'Tap to connect Bluetooth'}
-              onClick={() => {
-                if (bleStatus !== 'connected') connectBlePrinter()
-              }}
+              key={action.key}
+              compact
+              dataTour={action.dataTour}
+              tone={action.tone}
+              pulse={action.pulse}
+              icon={action.icon}
+              label={action.label}
+              hint={action.hint}
+              onClick={action.onClick}
             />
-          )}
-          {selectedIds.size > 0 && (
+          ))}
+        </div>
+
+        <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-2.5 mb-5">
+          {productHeaderActions.map(action => (
             <ProductActionTile
-              tone="rose"
-              icon={<Trash2 size={18} />}
-              label={`Delete (${selectedIds.size})`}
-              hint={isBulkDeleting ? 'Deleting…' : 'Remove selected items'}
-              onClick={handleBulkDelete}
+              key={action.key}
+              dataTour={action.dataTour}
+              tone={action.tone}
+              pulse={action.pulse}
+              icon={action.icon}
+              label={action.label}
+              hint={action.hint}
+              onClick={action.onClick}
             />
-          )}
+          ))}
         </div>
       </div>
 
