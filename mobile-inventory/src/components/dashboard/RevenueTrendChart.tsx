@@ -5,9 +5,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  LayoutChangeEvent,
+  ScrollView,
 } from 'react-native';
-import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react-native';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -33,155 +32,170 @@ const PERIOD_OPTIONS: { id: TrendPeriod; labelKey: string; fallback: string }[] 
   { id: 'monthly', labelKey: 'trend3Months', fallback: '3 Months' },
 ];
 
-const CHART_HEIGHT = 180;
-
-function formatCompactCurrency(val: number): string {
-  const n = Math.max(0, val || 0);
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
-}
+const BAR_MAX_HEIGHT = 112;
+const BAR_MIN_HEIGHT = 4;
+const BAR_WIDTH = 46;
+const BAR_GAP = 6;
 
 function formatFullCurrency(val: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(val || 0);
+  return `₹${Math.round(val || 0).toLocaleString('en-IN')}`;
 }
 
-function buildLinePath(
-  values: number[],
-  width: number,
-  height: number,
-  pad: { t: number; r: number; b: number; l: number }
-): { linePath: string; areaPath: string; points: { x: number; y: number; v: number; idx: number }[]; max: number } {
-  const max = Math.max(1, ...values);
-  const chartW = width - pad.l - pad.r;
-  const chartH = height - pad.t - pad.b;
-  const count = values.length;
-
-  const points = values.map((v, idx) => ({
-    x: pad.l + (count <= 1 ? chartW / 2 : (idx / (count - 1)) * chartW),
-    y: pad.t + chartH - (v / max) * chartH,
-    v,
-    idx,
-  }));
-
-  if (points.length === 0) {
-    return { linePath: '', areaPath: '', points: [], max };
-  }
-
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  const baseY = pad.t + chartH;
-  const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${baseY} L ${points[0].x.toFixed(1)} ${baseY} Z`;
-
-  return { linePath, areaPath, points, max };
+/** Readable on-bar label — full ₹ for typical shop-day amounts, compact only when large. */
+function formatBarLabel(val: number): string {
+  const n = Math.max(0, val || 0);
+  if (n === 0) return '₹0';
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 10000) return `₹${(n / 1000).toFixed(1)}k`;
+  return formatFullCurrency(n);
 }
 
-function yTicks(max: number): number[] {
-  if (max <= 0) return [0];
-  const step = max <= 1000 ? Math.ceil(max / 4 / 100) * 100 || 100 : Math.ceil(max / 4 / 1000) * 1000;
-  const ticks: number[] = [0];
-  for (let v = step; v < max; v += step) ticks.push(v);
-  ticks.push(max);
-  return ticks;
-}
-
-interface LineGraphProps {
-  labels: string[];
-  values: number[];
-  width: number;
-  selectedIdx: number;
-  onSelect: (idx: number) => void;
+function ChangeBadge({
+  changePct,
+  textSecondary,
+  vsLabel,
+}: {
+  changePct: number | null;
   textSecondary: string;
-}
+  vsLabel: string;
+}) {
+  const icon =
+    changePct === null || changePct === 0 ? (
+      <Minus size={12} color={textSecondary} />
+    ) : changePct > 0 ? (
+      <TrendingUp size={12} color="#10B981" />
+    ) : (
+      <TrendingDown size={12} color="#EF4444" />
+    );
 
-function LineGraph({ labels, values, width, selectedIdx, onSelect, textSecondary }: LineGraphProps) {
-  const pad = { t: 12, r: 8, b: 26, l: 42 };
-  const { linePath, areaPath, points, max } = buildLinePath(values, width, CHART_HEIGHT, pad);
-  const ticks = yTicks(max);
-  const chartH = CHART_HEIGHT - pad.t - pad.b;
-
-  const xLabelIndices = useMemo(() => {
-    if (labels.length <= 7) return labels.map((_, i) => i);
-    const step = Math.max(1, Math.floor(labels.length / 5));
-    const indices: number[] = [];
-    for (let i = 0; i < labels.length; i += step) indices.push(i);
-    if (indices[indices.length - 1] !== labels.length - 1) indices.push(labels.length - 1);
-    return indices;
-  }, [labels.length]);
-
-  if (width <= 0 || points.length === 0) return null;
+  const color =
+    changePct === null || changePct === 0 ? textSecondary : changePct > 0 ? '#10B981' : '#EF4444';
 
   return (
-    <View style={{ width, height: CHART_HEIGHT, position: 'relative' }}>
-      <Svg width={width} height={CHART_HEIGHT}>
-        <Defs>
-          <LinearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={BRAND_COLORS.sky500} stopOpacity={0.35} />
-            <Stop offset="100%" stopColor={BRAND_COLORS.sky500} stopOpacity={0.02} />
-          </LinearGradient>
-        </Defs>
+    <View style={styles.changeBlock}>
+      {icon}
+      <Text style={[styles.changeText, { color }]}>
+        {changePct === null
+          ? vsLabel
+          : `${changePct > 0 ? '+' : ''}${changePct}% ${vsLabel}`}
+      </Text>
+    </View>
+  );
+}
 
-        {ticks.map((tick) => {
-          const y = pad.t + chartH - (tick / max) * chartH;
-          return (
-            <React.Fragment key={tick}>
-              <Line x1={pad.l} y1={y} x2={width - pad.r} y2={y} stroke="rgba(148,163,184,0.25)" strokeWidth={1} />
-              <SvgText x={pad.l - 6} y={y + 4} fontSize={9} fontWeight="600" fill={textSecondary} textAnchor="end">
-                {formatCompactCurrency(tick)}
-              </SvgText>
-            </React.Fragment>
-          );
-        })}
+interface BarChartProps {
+  labels: string[];
+  values: number[];
+  selectedIdx: number;
+  lastIdx: number;
+  onSelect: (idx: number) => void;
+  textPrimary: string;
+  textSecondary: string;
+  borderColor: string;
+}
 
-        {areaPath ? <Path d={areaPath} fill="url(#areaFill)" /> : null}
-        {linePath ? (
-          <Path d={linePath} fill="none" stroke={BRAND_COLORS.sky500} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+function BarChart({ labels, values, selectedIdx, lastIdx, onSelect, textPrimary, textSecondary, borderColor }: BarChartProps) {
+  const max = Math.max(1, ...values);
+  const bestIdx = values.reduce((best, v, i) => (v > values[best] ? i : best), 0);
+  const scrollable = values.length > 8;
+
+  const showValueLabel = (idx: number, val: number) => {
+    if (idx === selectedIdx || idx === lastIdx || idx === bestIdx) return true;
+    if (values.length <= 10) return val > 0;
+    return false;
+  };
+
+  const bars = values.map((val, idx) => {
+    const isToday = idx === lastIdx;
+    const isSelected = idx === selectedIdx;
+    const isBest = idx === bestIdx && val > 0;
+    const barHeight = val > 0 ? Math.max(BAR_MIN_HEIGHT, (val / max) * BAR_MAX_HEIGHT) : BAR_MIN_HEIGHT;
+    const active = isSelected;
+
+    return (
+      <TouchableOpacity
+        key={`bar-${idx}`}
+        activeOpacity={0.85}
+        onPress={() => onSelect(idx)}
+        style={[
+          styles.barCol,
+          scrollable
+            ? { width: BAR_WIDTH, marginRight: BAR_GAP }
+            : { flex: 1, marginHorizontal: 2, maxWidth: 56 },
+        ]}
+      >
+        <Text
+          style={[
+            styles.barValueLabel,
+            {
+              color: active ? BRAND_COLORS.blue600 : val > 0 ? textPrimary : textSecondary,
+              fontWeight: active || isToday ? '900' : '700',
+              opacity: showValueLabel(idx, val) ? 1 : 0,
+            },
+          ]}
+          numberOfLines={1}
+        >
+          {formatBarLabel(val)}
+        </Text>
+
+        <View style={styles.barTrack}>
+          <View
+            style={[
+              styles.barFill,
+              {
+                height: barHeight,
+                backgroundColor: active
+                  ? BRAND_COLORS.blue600
+                  : isToday
+                    ? BRAND_COLORS.sky500
+                    : val > 0
+                      ? 'rgba(37, 99, 235, 0.35)'
+                      : 'rgba(148, 163, 184, 0.25)',
+              },
+            ]}
+          />
+        </View>
+
+        <Text
+          style={[
+            styles.barXLabel,
+            {
+              color: active || isToday ? BRAND_COLORS.blue600 : textSecondary,
+              fontWeight: active || isToday ? '900' : '700',
+            },
+          ]}
+          numberOfLines={1}
+        >
+          {labels[idx]}
+        </Text>
+
+        {isBest && val > 0 ? (
+          <View style={[styles.bestDot, { backgroundColor: '#10B981' }]} />
         ) : null}
+      </TouchableOpacity>
+    );
+  });
 
-        {points.map((p) => {
-          const active = p.idx === selectedIdx;
-          return (
-            <Circle
-              key={p.idx}
-              cx={p.x}
-              cy={p.y}
-              r={active ? 5 : 3}
-              fill={active ? BRAND_COLORS.sky500 : '#FFFFFF'}
-              stroke={BRAND_COLORS.sky500}
-              strokeWidth={active ? 2 : 1.5}
-            />
-          );
-        })}
+  const chartBody = (
+    <View style={[styles.barChartInner, scrollable && { paddingHorizontal: 4 }]}>
+      {bars}
+    </View>
+  );
 
-        {xLabelIndices.map((idx) => {
-          const p = points[idx];
-          if (!p) return null;
-          return (
-            <SvgText key={idx} x={p.x} y={CHART_HEIGHT - 6} fontSize={9} fontWeight="700" fill={textSecondary} textAnchor="middle">
-              {labels[idx]}
-            </SvgText>
-          );
-        })}
-      </Svg>
-
-      {points.map((p) => (
-        <TouchableOpacity
-          key={`hit-${p.idx}`}
-          activeOpacity={0.7}
-          onPress={() => onSelect(p.idx)}
-          style={{
-            position: 'absolute',
-            left: p.x - 18,
-            top: p.y - 18,
-            width: 36,
-            height: 36,
-          }}
-        />
-      ))}
+  return (
+    <View style={[styles.barChartBox, { borderColor }]}>
+      {scrollable ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.barScrollContent}
+        >
+          {chartBody}
+        </ScrollView>
+      ) : (
+        <View style={styles.barChartFit}>{chartBody}</View>
+      )}
     </View>
   );
 }
@@ -199,7 +213,6 @@ export function RevenueTrendChart({
 }: RevenueTrendChartProps) {
   const { t } = useTranslation();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [chartWidth, setChartWidth] = useState(0);
 
   const revenue = trend.revenue || [];
   const labels = trend.labels || [];
@@ -217,23 +230,29 @@ export function RevenueTrendChart({
     } else if (lastVal > 0) {
       changePct = 100;
     }
-    return { total, lastIdx, lastVal, lastLabel: labels[lastIdx] || '', changePct };
+
+    const bestIdx = revenue.length
+      ? revenue.reduce((best, v, i) => (v > revenue[best] ? i : best), 0)
+      : 0;
+    const bestVal = revenue[bestIdx] ?? 0;
+    const bestLabel = labels[bestIdx] || '';
+
+    return {
+      total,
+      lastIdx,
+      lastVal,
+      lastLabel: labels[lastIdx] || '',
+      changePct,
+      bestIdx,
+      bestVal,
+      bestLabel,
+      isLatestToday: (labels[lastIdx] || '').toLowerCase() === 'today',
+    };
   }, [revenue, labels]);
 
   const highlightIdx = selectedIdx ?? stats.lastIdx;
-
-  const changeIcon =
-    stats.changePct === null || stats.changePct === 0 ? (
-      <Minus size={12} color={textSecondary} />
-    ) : stats.changePct > 0 ? (
-      <TrendingUp size={12} color="#10B981" />
-    ) : (
-      <TrendingDown size={12} color="#EF4444" />
-    );
-
-  const onLayout = (e: LayoutChangeEvent) => {
-    setChartWidth(e.nativeEvent.layout.width);
-  };
+  const highlightVal = revenue[highlightIdx] ?? 0;
+  const highlightLabel = labels[highlightIdx] || '—';
 
   const periodTitle =
     timeframe === 'month'
@@ -241,6 +260,17 @@ export function RevenueTrendChart({
       : timeframe === 'daily'
         ? t('trend7DaysTitle', 'Revenue last 7 days')
         : t('trend3MonthsTitle', 'Revenue last 3 months');
+
+  const vsPreviousLabel =
+    timeframe === 'monthly'
+      ? t('trendVsPreviousMonth', 'vs last month')
+      : t('trendVsPrevious', 'vs previous');
+
+  const heroTitle = stats.isLatestToday
+    ? t('todayRevenue', "Today's Revenue")
+    : timeframe === 'monthly'
+      ? t('trendLatestMonth', 'Latest Month')
+      : t('trendLatest', 'Latest');
 
   return (
     <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
@@ -283,53 +313,51 @@ export function RevenueTrendChart({
         </View>
       ) : (
         <>
-          <View style={styles.totalRow}>
-            <View>
-              <Text style={[styles.totalLabel, { color: textSecondary }]}>{t('trendTotal', 'Total')}</Text>
-              <Text style={[styles.totalValue, { color: textPrimary }]}>{formatFullCurrency(stats.total)}</Text>
+          <View style={[styles.heroBlock, { backgroundColor: surfaceBg, borderColor }]}>
+            <View style={styles.heroTopRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.heroKicker, { color: textSecondary }]}>{heroTitle}</Text>
+                <Text style={[styles.heroValue, { color: textPrimary }]}>{formatFullCurrency(stats.lastVal)}</Text>
+              </View>
+              <ChangeBadge
+                changePct={stats.changePct}
+                textSecondary={textSecondary}
+                vsLabel={vsPreviousLabel}
+              />
             </View>
-            <View style={styles.changeBlock}>
-              {changeIcon}
-              <Text
-                style={[
-                  styles.changeText,
-                  {
-                    color:
-                      stats.changePct === null || stats.changePct === 0
-                        ? textSecondary
-                        : stats.changePct > 0
-                          ? '#10B981'
-                          : '#EF4444',
-                  },
-                ]}
-              >
-                {stats.changePct === null
-                  ? t('trendNoCompare', '— vs previous')
-                  : `${stats.changePct > 0 ? '+' : ''}${stats.changePct}% ${t('trendVsPrevious', 'vs previous')}`}
+            <View style={styles.heroMetaRow}>
+              <Text style={[styles.heroMeta, { color: textSecondary }]}>
+                {t('trendTotal', 'Period total')}:{' '}
+                <Text style={{ color: textPrimary, fontWeight: '800' }}>{formatFullCurrency(stats.total)}</Text>
               </Text>
+              {stats.bestVal > 0 ? (
+                <Text style={[styles.heroMeta, { color: textSecondary }]}>
+                  {t('trendBestDay', 'Best')}:{' '}
+                  <Text style={{ color: '#10B981', fontWeight: '800' }}>
+                    {stats.bestLabel} · {formatBarLabel(stats.bestVal)}
+                  </Text>
+                </Text>
+              ) : null}
             </View>
           </View>
 
-          <View style={[styles.graphBox, { borderColor }]} onLayout={onLayout}>
-            {chartWidth > 0 ? (
-              <LineGraph
-                labels={labels}
-                values={revenue}
-                width={chartWidth}
-                selectedIdx={highlightIdx}
-                onSelect={setSelectedIdx}
-                textSecondary={textSecondary}
-              />
-            ) : null}
-          </View>
+          <BarChart
+            labels={labels}
+            values={revenue}
+            selectedIdx={highlightIdx}
+            lastIdx={stats.lastIdx}
+            onSelect={setSelectedIdx}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+            borderColor={borderColor}
+          />
 
           <View style={[styles.tooltip, { backgroundColor: surfaceBg, borderColor }]}>
-            <Text style={[styles.tooltipValue, { color: textPrimary }]}>
-              {formatFullCurrency(revenue[highlightIdx] ?? 0)}
-            </Text>
+            <Text style={[styles.tooltipValue, { color: textPrimary }]}>{formatFullCurrency(highlightVal)}</Text>
             <Text style={[styles.tooltipLabel, { color: textSecondary }]}>
-              {labels[highlightIdx] || '—'}
+              {highlightLabel}
               {highlightIdx === stats.lastIdx ? ` · ${t('trendLatest', 'Latest')}` : ''}
+              {highlightIdx === stats.bestIdx && stats.bestVal > 0 ? ` · ${t('trendPeak', 'Peak')}` : ''}
             </Text>
           </View>
         </>
@@ -349,12 +377,83 @@ const styles = StyleSheet.create({
   periodChipText: { fontSize: 11, fontWeight: '800' },
   loadingBox: { height: 160, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 12, textAlign: 'center', paddingHorizontal: 12, lineHeight: 18 },
-  totalRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 },
-  totalLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-  totalValue: { fontSize: 22, fontWeight: '900', marginTop: 2 },
-  changeBlock: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  changeText: { fontSize: 11, fontWeight: '700' },
-  graphBox: { borderRadius: 12, borderWidth: 1, overflow: 'hidden', marginBottom: 10, minHeight: CHART_HEIGHT },
+  heroBlock: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 14,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  heroKicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  heroValue: { fontSize: 26, fontWeight: '900', marginTop: 4 },
+  heroMetaRow: { marginTop: 10, gap: 4 },
+  heroMeta: { fontSize: 11, fontWeight: '600' },
+  changeBlock: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '46%' },
+  changeText: { fontSize: 11, fontWeight: '700', flexShrink: 1 },
+  barChartBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 10,
+    minHeight: BAR_MAX_HEIGHT + 56,
+  },
+  barChartFit: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
+  },
+  barScrollContent: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+  },
+  barChartInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    width: '100%',
+  },
+  barCol: {
+    alignItems: 'center',
+  },
+  barValueLabel: {
+    fontSize: 9,
+    marginBottom: 4,
+    minHeight: 12,
+    textAlign: 'center',
+  },
+  barTrack: {
+    width: '100%',
+    height: BAR_MAX_HEIGHT,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  barFill: {
+    width: 22,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    minHeight: BAR_MIN_HEIGHT,
+  },
+  barXLabel: {
+    fontSize: 9,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  bestDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    marginTop: 3,
+  },
   tooltip: { borderRadius: 10, padding: 10, borderWidth: 1, alignItems: 'center' },
   tooltipValue: { fontSize: 18, fontWeight: '900' },
   tooltipLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },

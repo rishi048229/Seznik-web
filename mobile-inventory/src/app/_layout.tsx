@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useColorScheme, View, ActivityIndicator, Text, TextInput } from 'react-native';
+import { useColorScheme, View, ActivityIndicator, Text, TextInput, AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import {
@@ -28,6 +28,7 @@ if ((TextInput as any).defaultProps == null) (TextInput as any).defaultProps = {
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
 import { hydrateAndPrefetchAppData } from '@/services/prefetchAppData';
+import { refreshApiBaseUrl } from '@/api/client';
 import { installGlobalAlertInterceptor } from '@/store/useAlertStore';
 import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import { InAppNotificationBanner } from '@/components/notifications/InAppNotificationBanner';
@@ -94,6 +95,16 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading, initializeAuth, user } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+
+  useEffect(() => {
+    refreshApiBaseUrl();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        refreshApiBaseUrl();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     initializeAuth();

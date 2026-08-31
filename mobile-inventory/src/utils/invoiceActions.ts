@@ -1,5 +1,6 @@
 import { Alert, Linking } from 'react-native';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import type { Sale } from '@/types/sale';
@@ -190,6 +191,25 @@ export async function printInvoiceA4(
   await ThermalPrinterService.printA4Invoice(saleData, options);
 }
 
+export async function shareInvoicePdf(
+  sale: Sale,
+  storeProfile: StoreProfileWithSettings,
+  options: ReceiptPrintOptions = {}
+): Promise<void> {
+  const pdfUri = await saveInvoicePdfLocally(sale, storeProfile, options);
+
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error('Sharing is not available on this device.');
+  }
+
+  await Sharing.shareAsync(pdfUri, {
+    mimeType: 'application/pdf',
+    dialogTitle: `Share Invoice ${sale.invoiceNumber}`,
+    UTI: 'com.adobe.pdf',
+  });
+}
+
+/** @deprecated Prefer shareInvoicePdf — opens native share sheet with A4 PDF attached. */
 export function shareInvoiceWhatsApp(sale: Sale, storeName?: string) {
   const itemsSummary = (sale.items || [])
     .map((it: any) => `• ${it.quantity}x ${it.productName || it.name || 'Item'} - ₹${(it.total || 0).toFixed(2)}`)

@@ -7,7 +7,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
-  TextInput,
   Alert,
   StyleSheet,
   StatusBar,
@@ -18,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Menu,
   TrendingUp,
-  Receipt,
+  IndianRupee,
   AlertTriangle,
   ShoppingBag,
   PlusCircle,
@@ -58,7 +57,6 @@ import {
   ChevronUp,
   LayoutGrid,
   MessageSquarePlus,
-  Trash2,
   ChefHat,
   Store,
 } from 'lucide-react-native';
@@ -69,16 +67,9 @@ import { useDashboard, useRevenueTrend } from '@/hooks/useDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { usePrinterStore } from '@/store/usePrinterStore';
-import { useStoreProfile } from '@/hooks/useStoreProfile';
 import ThermalPrinterService from '@/services/PrinterService';
-import {
-  buildReceiptPrintOptions,
-  buildTestReceiptPrintOptions,
-  generateProvisionalInvoice,
-  printSaleReceiptNow,
-} from '@/utils/fastSaleCheckout';
+import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { useCartStore } from '@/store/useCartStore';
-import { useSales } from '@/hooks/useSales';
 import { useCustomers } from '@/hooks/useCustomers';
 import { productsApi } from '@/api/products';
 import { productsQueryKey } from '@/services/prefetchAppData';
@@ -86,7 +77,6 @@ import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
-import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { AiProductImportModal } from '@/components/products/AiProductImportModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
@@ -158,8 +148,6 @@ export default function DashboardScreen() {
   activeCustomTemplateId,
   enableBillQrCode,
 } = usePrinterStore();
-  const storeProfile = useStoreProfile();
-  const { persistSaleInBackground, isCreating } = useSales();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -168,7 +156,6 @@ export default function DashboardScreen() {
   const [restockingId, setRestockingId] = useState<string | null>(null);
 
   // Modals & Action States
-  const [showQuickBillModal, setShowQuickBillModal] = useState(false);
   const [showAiImportModal, setShowAiImportModal] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -178,48 +165,6 @@ export default function DashboardScreen() {
     isNavFeatureVisible(user?.businessType, 'kot') && hasPermission('canAccessKOT');
   const showTokens = isNavFeatureVisible(user?.businessType, 'tokens');
   const showCalculator = isNavFeatureVisible(user?.businessType, 'calculator');
-
-  // Multi-Product Instant Quick Bill Inputs
-  interface QuickBillRow {
-    id: string;
-    name: string;
-    price: string;
-    qty: string;
-  }
-  const [quickBillItems, setQuickBillItems] = useState<QuickBillRow[]>([
-    { id: '1', name: '', price: '', qty: '1' },
-  ]);
-  const [quickCustomerName, setQuickCustomerName] = useState('');
-  const [quickPaymentMethod, setQuickPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
-
-  const handleAddQuickBillRow = () => {
-    setQuickBillItems((prev) => [
-      ...prev,
-      { id: Date.now().toString(), name: '', price: '', qty: '1' },
-    ]);
-  };
-
-  const handleUpdateQuickBillRow = (id: string, field: 'name' | 'price' | 'qty', value: string) => {
-    setQuickBillItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-    );
-  };
-
-  const handleRemoveQuickBillRow = (id: string) => {
-    if (quickBillItems.length <= 1) {
-      setQuickBillItems([{ id: '1', name: '', price: '', qty: '1' }]);
-      return;
-    }
-    setQuickBillItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const calculateQuickBillTotal = () => {
-    return quickBillItems.reduce((acc, item) => {
-      const p = parseFloat(item.price) || 0;
-      const q = parseInt(item.qty) || 1;
-      return acc + p * q;
-    }, 0);
-  };
 
   const theme = useAppTheme();
 
@@ -238,106 +183,6 @@ export default function DashboardScreen() {
   // Inventory valuation from server-side aggregate (no need to load full catalog on dashboard).
   const totalCatalogValue = stats.totalStockValue ?? 0;
   const totalSkuCount = stats.totalProductCount ?? 0;
-
-  const handleQuickBill = () => {
-    const validItems = quickBillItems
-      .filter((item) => item.name.trim().length > 0 && parseFloat(item.price) > 0)
-      .map((item) => {
-        const p = parseFloat(item.price) || 0;
-        const q = Math.max(1, parseInt(item.qty) || 1);
-        return {
-          productName: item.name.trim(),
-          quantity: q,
-          unitPrice: p,
-          total: p * q,
-        };
-      });
-
-    if (validItems.length === 0) {
-      Alert.alert('Missing Info', 'Please enter at least one product with name and price.');
-      return;
-    }
-
-    const total = validItems.reduce((acc, i) => acc + i.total, 0);
-    const provisionalInv = generateProvisionalInvoice();
-    const customerName = quickCustomerName.trim() || 'Quick Walk-in Customer';
-    const printOptions = buildReceiptPrintOptions({
-      activeTemplateId,
-      customTemplates,
-      activeCustomTemplateId,
-      enableBillQrCode,
-      topMargin,
-      autoCut,
-      fontSize,
-      printCopies,
-      storeName: settings?.businessName || storeProfile.storeName,
-      storeAddress: settings?.businessAddress || storeProfile.storeAddress,
-      storePhone: settings?.businessPhone || storeProfile.storePhone,
-      storeGstin: settings?.businessGSTIN || storeProfile.storeGstin,
-      storeLogoUrl: settings?.businessLogoURL || storeProfile.storeLogoUrl,
-      upiId: settings?.upiId || storeProfile.upiId,
-      footerMessage: storeProfile.footerMessage,
-    });
-
-    // Close the form and print immediately — don't wait on the server round-trip.
-    setShowQuickBillModal(false);
-    setQuickBillItems([{ id: '1', name: '', price: '', qty: '1' }]);
-    setQuickCustomerName('');
-
-    if (connectionState === 'connected') {
-      printSaleReceiptNow(
-        {
-          storeName: settings?.businessName || 'SEZNIK STORE',
-          storeAddress: settings?.businessAddress || '',
-          storePhone: settings?.businessPhone || '',
-          invoiceNumber: provisionalInv,
-          date: new Date().toLocaleDateString('en-GB'),
-          customerName,
-          items: validItems,
-          subtotal: total,
-          totalTax: 0,
-          totalDiscount: 0,
-          grandTotal: total,
-          amountPaid: total,
-          changeReturned: 0,
-          paymentMethod: quickPaymentMethod.toUpperCase(),
-        },
-        paperWidth,
-        printOptions
-      );
-    }
-
-    persistSaleInBackground(
-      {
-        items: validItems,
-        subtotal: total,
-        totalDiscount: 0,
-        totalTax: 0,
-        grandTotal: total,
-        paymentMethod: quickPaymentMethod,
-        amountPaid: total,
-        changeReturned: 0,
-        isQuickBill: true,
-      },
-      {
-        onSuccess: (sale) => {
-          refetch();
-          Alert.alert(
-            'Bill Generated! 🧾',
-            `Invoice #${sale.invoiceNumber} recorded with ${validItems.length} products (${formatCurrency(total)}).`
-          );
-        },
-        onError: (err) => {
-          Alert.alert(
-            'Bill Not Saved',
-            connectionState === 'connected'
-              ? `${err.message}\n\nThe receipt may have printed, but this sale was not saved.`
-              : err.message || 'Failed to save this quick bill.'
-          );
-        },
-      }
-    );
-  };
 
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
     setShowScanModal(false);
@@ -528,7 +373,7 @@ export default function DashboardScreen() {
               <Camera size={14} color={BRAND_COLORS.sky500} />
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setShowQuickBillModal(true)} style={styles.billNowBtn}>
+            <TouchableOpacity onPress={() => router.push('/quick-bill' as any)} style={styles.billNowBtn}>
               <Zap size={14} color="#FFFFFF" />
               <Text style={styles.billNowText}>{t('billNow', 'Bill Now')}</Text>
             </TouchableOpacity>
@@ -609,7 +454,7 @@ export default function DashboardScreen() {
                     />
                     <FeatureGridTile
                       label={t('invoices', 'Invoices')}
-                      icon={Receipt}
+                      icon={IndianRupee}
                       color="#0284C7"
                       onPress={() => router.push('/(tabs)/invoices' as any)}
                       theme={theme}
@@ -626,7 +471,7 @@ export default function DashboardScreen() {
                     />
                     <FeatureGridTile
                       label={t('invoices', 'Invoices')}
-                      icon={Receipt}
+                      icon={IndianRupee}
                       color="#0284C7"
                       onPress={() => router.push('/(tabs)/invoices' as any)}
                       theme={theme}
@@ -966,7 +811,7 @@ export default function DashboardScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Text style={[styles.kpiLabel, { color: theme.textSecondary }]}>{t('invoicesToday', 'Invoices Count')}</Text>
                     <View style={[styles.kpiIconCircle, { backgroundColor: 'rgba(2, 132, 199, 0.15)' }]}>
-                      <Receipt size={16} color={BRAND_COLORS.sky500} />
+                      <IndianRupee size={16} color={BRAND_COLORS.sky500} />
                     </View>
                   </View>
                   <Text style={[styles.kpiValue, { color: theme.textPrimary }]}>{stats.todayInvoices}</Text>
@@ -1206,146 +1051,6 @@ export default function DashboardScreen() {
             </>
           )}
         </ScrollView>
-
-        {/* Multi-Product Instant "Bill Now" Modal */}
-        <Modal visible={showQuickBillModal} animationType="slide" transparent>
-          <KeyboardAvoidingWrapper inModal>
-            <View style={styles.modalOverlay}>
-              <View style={[styles.bottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, maxHeight: '88%' }]}>
-                <View style={styles.sheetHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Zap size={20} color={BRAND_COLORS.blue600} />
-                    <Text style={[styles.sheetTitle, { color: theme.textPrimary, marginLeft: 8 }]}>
-                      Multi-Product Quick Bill
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setShowQuickBillModal(false)}>
-                    <X size={22} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Optional Customer Name */}
-                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Customer Name (Optional)</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 12 }]}
-                  value={quickCustomerName}
-                  onChangeText={setQuickCustomerName}
-                  placeholder="Walk-in Customer"
-                  placeholderTextColor="#94A3B8"
-                />
-
-                {/* Item List */}
-                <Text style={[styles.inputLabel, { color: theme.textPrimary, marginBottom: 8 }]}>Products / Items ({quickBillItems.length})</Text>
-                <ScrollView style={{ maxHeight: 240, marginBottom: 10 }} showsVerticalScrollIndicator={false}>
-                  {quickBillItems.map((item, idx) => {
-                    const rowSubtotal = (parseFloat(item.price) || 0) * (parseInt(item.qty) || 1);
-                    return (
-                      <View key={item.id} style={[styles.quickItemRowCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.sky500 }}>
-                            Item #{idx + 1}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textPrimary }}>
-                              = {formatCurrency(rowSubtotal)}
-                            </Text>
-                            {quickBillItems.length > 1 && (
-                              <TouchableOpacity onPress={() => handleRemoveQuickBillRow(item.id)} style={{ padding: 4 }}>
-                                <Trash2 size={15} color="#EF4444" />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        </View>
-
-                        <TextInput
-                          style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 8, paddingVertical: 8 }]}
-                          value={item.name}
-                          onChangeText={(v) => handleUpdateQuickBillRow(item.id, 'name', v)}
-                          placeholder="e.g. Rice 1kg, Chai, Notebook"
-                          placeholderTextColor="#94A3B8"
-                        />
-
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-                          <View style={{ flex: 1.5 }}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Price (₹) *</Text>
-                            <TextInput
-                              style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0, paddingVertical: 8 }]}
-                              value={item.price}
-                              onChangeText={(v) => handleUpdateQuickBillRow(item.id, 'price', v)}
-                              keyboardType="numeric"
-                              placeholder="100.00"
-                              placeholderTextColor="#94A3B8"
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Qty</Text>
-                            <TextInput
-                              style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0, paddingVertical: 8 }]}
-                              value={item.qty}
-                              onChangeText={(v) => handleUpdateQuickBillRow(item.id, 'qty', v)}
-                              keyboardType="numeric"
-                              placeholder="1"
-                              placeholderTextColor="#94A3B8"
-                            />
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-
-                {/* Add Next Product Row Button */}
-                <TouchableOpacity
-                  onPress={handleAddQuickBillRow}
-                  style={[styles.addQuickItemBtn, { borderColor: BRAND_COLORS.blue600, backgroundColor: 'rgba(37, 99, 235, 0.08)' }]}
-                >
-                  <Plus size={16} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
-                  <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '800', fontSize: 12 }}>
-                    + Add Next Product / Item
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Payment Method & Total Bar */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 }}>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {(['cash', 'upi', 'card'] as const).map((mode) => (
-                      <TouchableOpacity
-                        key={mode}
-                        onPress={() => setQuickPaymentMethod(mode)}
-                        style={[
-                          styles.payModeChip,
-                          quickPaymentMethod === mode && { backgroundColor: BRAND_COLORS.navyInk },
-                          { borderColor: theme.borderColor },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.payModeChipText,
-                            quickPaymentMethod === mode ? { color: '#FFF' } : { color: theme.textSecondary },
-                          ]}
-                        >
-                          {mode.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary }}>Grand Total</Text>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#10B981' }}>
-                      {formatCurrency(calculateQuickBillTotal())}
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity onPress={handleQuickBill} disabled={isCreating} style={styles.instantBillBtn}>
-                  {isCreating && <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />}
-                  <Text style={styles.instantBillBtnText}>{t('printAndRecordBill', 'Print & Record Bill Now')}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingWrapper>
-        </Modal>
 
         {/* Camera Barcode Scanner Modal */}
         <Modal visible={showScanModal} animationType="slide">
@@ -1625,41 +1330,7 @@ const styles = StyleSheet.create({
 
   emptyHeadline: { fontSize: 13, fontWeight: '800', marginTop: 6 },
   emptyText: { fontSize: 11, textAlign: 'center', paddingVertical: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
-  bottomSheet: { borderRadius: 24, padding: 20, borderWidth: 1 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sheetTitle: { fontSize: 18, fontWeight: '900' },
-  inputLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14, marginBottom: 14 },
-  instantBillBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 6 },
-  instantBillBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
   scannerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 40, backgroundColor: '#000' },
-  quickItemRowCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 8,
-  },
-  addQuickItemBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    marginBottom: 8,
-  },
-  payModeChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  payModeChipText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
   expenseCard: {
     borderRadius: 20,
     padding: 14,

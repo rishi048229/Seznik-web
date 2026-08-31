@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi } from '@/api/sales';
+import { refreshApiBaseUrl } from '@/api/client';
 import { CreateSalePayload, Sale } from '@/types/sale';
 
 export function useSales() {
@@ -50,6 +51,7 @@ export function useSales() {
         onError?: (err: Error) => void;
       }
     ) => {
+      refreshApiBaseUrl();
       createSaleMutation.mutate(payload, {
         onSuccess: (sale) => handlers?.onSuccess?.(sale),
         onError: (err) =>

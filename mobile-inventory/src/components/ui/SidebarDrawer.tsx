@@ -15,7 +15,7 @@ import {
   LayoutDashboard,
   ShoppingBag,
   Package,
-  Receipt,
+  IndianRupee,
   Users,
   Truck,
   DollarSign,
@@ -69,7 +69,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
     ...(isFeatureVisible('calculator')
       ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
       : []),
-    { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: Receipt, route: '/(tabs)/invoices' },
+    { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: IndianRupee, route: '/(tabs)/invoices' },
     ...(isFeatureVisible('tokens')
       ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
       : []),

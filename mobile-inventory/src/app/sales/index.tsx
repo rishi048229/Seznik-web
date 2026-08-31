@@ -50,7 +50,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
-import { printInvoiceA4, downloadInvoicePdf, shareInvoiceWhatsApp } from '@/utils/invoiceActions';
+import { printInvoiceA4, downloadInvoicePdf, shareInvoicePdf } from '@/utils/invoiceActions';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
@@ -152,8 +152,12 @@ export default function SalesHistoryScreen() {
     }
   };
 
-  const handleShareWhatsApp = (sale: Sale) => {
-    shareInvoiceWhatsApp(sale, storeProfile.storeName);
+  const handleSharePdf = async (sale: Sale) => {
+    try {
+      await shareInvoicePdf(sale, storeProfile);
+    } catch (err: any) {
+      Alert.alert('Share Failed', err?.message || 'Could not share the A4 invoice PDF.');
+    }
   };
 
   const handleDeleteSale = (sale: Sale) => {
@@ -481,11 +485,11 @@ export default function SalesHistoryScreen() {
 
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TouchableOpacity
-                        onPress={() => handleShareWhatsApp(selectedSale)}
+                        onPress={() => handleSharePdf(selectedSale)}
                         style={[styles.actionBtnSecondary, { flex: 1.5, backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.25)' }]}
                       >
                         <Share2 size={16} color="#10B981" />
-                        <Text style={[styles.actionBtnSecondaryText, { color: '#10B981' }]}>WhatsApp Receipt</Text>
+                        <Text style={[styles.actionBtnSecondaryText, { color: '#10B981' }]}>Share PDF</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity

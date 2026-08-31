@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import {
   Search,
-  Receipt,
+  IndianRupee,
   X,
   CreditCard,
   Banknote,
@@ -49,7 +49,7 @@ import {
   formatInvoiceDateTime,
   printInvoiceReceipt,
   downloadInvoicePdf,
-  shareInvoiceWhatsApp,
+  shareInvoicePdf,
 } from '@/utils/invoiceActions';
 import {
   DateRangePreset,
@@ -105,7 +105,7 @@ export default function InvoicesTabScreen() {
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [pendingPrintSale, setPendingPrintSale] = useState<Sale | null>(null);
   const [busySaleId, setBusySaleId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'print' | 'download' | null>(null);
+  const [busyAction, setBusyAction] = useState<'print' | 'download' | 'share' | null>(null);
 
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -128,7 +128,7 @@ export default function InvoicesTabScreen() {
   }, [datePreset, customStartDate, customStartTime, customEndDate, customEndTime]);
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val || 0);
+    `₹${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
   const filteredSales = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -228,6 +228,22 @@ export default function InvoicesTabScreen() {
     const customTemplate = customTemplates?.find((item) => item.id === activeCustomTemplateId) || null;
     openA4Preview(sale);
     downloadInvoicePdf(sale, storeProfile, { template, customTemplate }).catch(() => {});
+  };
+
+  const handleShare = async (sale: Sale) => {
+    setBusySaleId(sale.id);
+    setBusyAction('share');
+    try {
+      await shareInvoicePdf(sale, storeProfile, buildPrintOptions());
+    } catch (err: any) {
+      Alert.alert(
+        t('shareFailed', 'Share Failed'),
+        err?.message || t('shareFailedHint', 'Could not share the A4 invoice PDF.')
+      );
+    } finally {
+      setBusySaleId(null);
+      setBusyAction(null);
+    }
   };
 
   const getPaymentIcon = (method: string) => {
@@ -335,9 +351,14 @@ export default function InvoicesTabScreen() {
       <View style={[styles.container, { paddingTop: topPadding }]}>
         <View style={styles.mainWrapper}>
           <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.headerBadge}>{t('billing', 'Billing')}</Text>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('invoices', 'Invoices')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View style={[styles.pageLogo, { backgroundColor: 'rgba(2, 132, 199, 0.12)' }]}>
+                <IndianRupee size={22} color={BRAND_COLORS.sky500} strokeWidth={2.2} />
+              </View>
+              <View style={{ marginLeft: 10 }}>
+                <Text style={styles.headerBadge}>{t('billing', 'Billing')}</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('invoices', 'Invoices')}</Text>
+              </View>
             </View>
             <TouchableOpacity
               onPress={() => setShowPrinterModal(true)}
@@ -456,12 +477,17 @@ export default function InvoicesTabScreen() {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          onPress={() => shareInvoiceWhatsApp(item, storeProfile.storeName)}
+                          onPress={() => handleShare(item)}
+                          disabled={isBusy}
                           style={[styles.iconActionBtn, styles.whatsappIconBtn]}
                           accessibilityRole="button"
-                          accessibilityLabel={t('shareWhatsApp', 'Share on WhatsApp')}
+                          accessibilityLabel={t('shareInvoice', 'Share invoice PDF')}
                         >
-                          <Share2 size={15} color="#FFFFFF" />
+                          {isBusy && busyAction === 'share' ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Share2 size={15} color="#FFFFFF" />
+                          )}
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -484,7 +510,7 @@ export default function InvoicesTabScreen() {
               }}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Receipt size={40} color={theme.textSecondary} />
+                  <IndianRupee size={40} color={BRAND_COLORS.sky500} strokeWidth={2} />
                   <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>{t('noInvoices', 'No Invoices Found')}</Text>
                   <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
                     {t('noInvoicesHint', 'Try changing filters or complete a sale from POS.')}
@@ -592,6 +618,13 @@ const styles = StyleSheet.create({
   mainWrapper: { flex: 1, paddingHorizontal: 16, paddingTop: 6 },
   list: { flex: 1 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  pageLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerBadge: { fontSize: 10, fontWeight: '800', color: BRAND_COLORS.sky500, textTransform: 'uppercase', letterSpacing: 0.5 },
   headerTitle: { fontSize: 22, fontWeight: '900' },
   printerStatusChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1, maxWidth: '52%' },

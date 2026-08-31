@@ -4,7 +4,6 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  Pressable,
   ScrollView,
   TextInput,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   X,
   Printer,
@@ -328,24 +328,22 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       {modalVisible && editableSale ? (
         <Modal
           visible={modalVisible}
-          transparent
           animationType="slide"
           onRequestClose={onClose}
-          statusBarTranslucent
+          presentationStyle="fullScreen"
         >
-          <View style={styles.overlay} pointerEvents="box-none">
-            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-            <View
-              style={[styles.modalCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-              pointerEvents="auto"
-            >
+          <SafeAreaView
+            style={[styles.fullScreenContainer, { backgroundColor: theme.bg }]}
+            edges={['top', 'bottom']}
+          >
+            <View style={styles.fullScreenContent}>
               {/* Top Header Bar */}
               <View style={styles.headerRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
                   <FileText size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
                   <View>
                     <Text style={[styles.modalTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                      Realistic Receipt & Bill
+                      Bill Receipt
                     </Text>
                     <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '700' }}>
                       INV #{editableSale.invoiceNumber}
@@ -375,9 +373,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
                   <X size={20} color={theme.textSecondary} />
-                </Pressable>
+                </TouchableOpacity>
               </View>
 
               {/* Printer Status Pill */}
@@ -736,7 +734,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                 </View>
               </View>
             </View>
-          </View>
+          </SafeAreaView>
         </Modal>
       ) : null}
 
@@ -760,22 +758,13 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: {
+  fullScreenContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 12,
   },
-  modalCard: {
-    width: '100%',
-    maxWidth: 440,
-    maxHeight: '92%',
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    flexShrink: 1,
-    elevation: 10,
+  fullScreenContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   headerRow: {
     flexDirection: 'row',
@@ -824,7 +813,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
-  paperScrollView: { flexGrow: 1, flexShrink: 1, minHeight: 200, maxHeight: 480 },
+  paperScrollView: { flex: 1, minHeight: 200 },
   paperScrollContent: { paddingVertical: 8, alignItems: 'center' },
   editScrollContent: { paddingVertical: 6, gap: 10 },
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,15 @@ import {
   useWindowDimensions,
   StatusBar,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Share2 } from 'lucide-react-native';
 import type { Sale } from '@/types/sale';
 import type { PrintSaleData } from '@/services/PrinterService';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
-import { saleToPrintSaleData, shareInvoiceWhatsApp } from '@/utils/invoiceActions';
+import { saleToPrintSaleData, shareInvoicePdf } from '@/utils/invoiceActions';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 
@@ -88,11 +90,24 @@ export function A4InvoicePreviewModal({ visible, sale, onClose }: A4InvoicePrevi
   const { width } = useWindowDimensions();
   const pageWidth = Math.min(width - 24, 560);
   const pageMinHeight = pageWidth * A4_RATIO;
+  const [sharing, setSharing] = useState(false);
 
   const data = useMemo(
     () => (sale ? saleToPrintSaleData(sale, storeProfile) : null),
     [sale, storeProfile]
   );
+
+  const handleShare = async () => {
+    if (!sale || sharing) return;
+    setSharing(true);
+    try {
+      await shareInvoicePdf(sale, storeProfile);
+    } catch (err: any) {
+      Alert.alert('Share Failed', err?.message || 'Could not share the A4 invoice PDF.');
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const topPad = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0, 12);
 
@@ -107,13 +122,16 @@ export function A4InvoicePreviewModal({ visible, sale, onClose }: A4InvoicePrevi
             </Text>
           </View>
           <TouchableOpacity
-            onPress={() => {
-              if (sale) shareInvoiceWhatsApp(sale, data?.storeName || storeProfile.storeName);
-            }}
+            onPress={handleShare}
+            disabled={!sale || sharing}
             style={[styles.closeBtn, { backgroundColor: '#16A34A', borderColor: '#16A34A' }]}
-            accessibilityLabel="Share on WhatsApp"
+            accessibilityLabel="Share invoice PDF"
           >
-            <Share2 size={16} color="#FFFFFF" />
+            {sharing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Share2 size={16} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onClose}

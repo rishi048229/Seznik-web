@@ -77,6 +77,18 @@ if (__DEV__) {
 
 export const getApiBaseUrl = () => currentBaseUrl;
 
+/** Re-detect Metro/LAN host — call when connectivity fails or app returns to foreground. */
+export const refreshApiBaseUrl = (): string => {
+  const next = getDynamicHostIp();
+  if (next !== currentBaseUrl) {
+    currentBaseUrl = next;
+    if (__DEV__) {
+      console.log('📡 [Seznik API Client] Refreshed API Base URL:', currentBaseUrl);
+    }
+  }
+  return currentBaseUrl;
+};
+
 export const setApiBaseUrl = (url: string) => {
   let formatted = url.trim();
   if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
@@ -121,44 +133,60 @@ export async function fetchApi<T = any>(
   }
 
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const fullUrl = `${currentBaseUrl}${cleanEndpoint}`;
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const executeRequest = async (baseUrl: string): Promise<T> => {
+    const fullUrl = `${baseUrl}${cleanEndpoint}`;
 
-    const response = await fetch(fullUrl, {
-      ...fetchOptions,
-      headers,
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timeoutId));
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const data = await response.json().catch(() => ({}));
+      const response = await fetch(fullUrl, {
+        ...fetchOptions,
+        headers,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
 
-    if (!response.ok) {
-      if (response.status === 401 && !__DEV__) {
-        await removeAuthToken();
-        await removeStoredUser();
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 401 && !__DEV__) {
+          await removeAuthToken();
+          await removeStoredUser();
+        }
+        const errorMessage = data.error || data.message || `HTTP ${response.status} error`;
+        throw new ApiError(errorMessage, response.status, data);
       }
-      const errorMessage = data.error || data.message || `HTTP ${response.status} error`;
-      throw new ApiError(errorMessage, response.status, data);
-    }
 
-    return data as T;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    const msg = error instanceof Error ? error.message : String(error);
-    if (msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
+      return data as T;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
+        throw new ApiError(
+          `Request timed out. Server at ${baseUrl} took too long to respond.`,
+          0
+        );
+      }
       throw new ApiError(
-        `Request timed out. Server at ${currentBaseUrl} took too long to respond.`,
+        `Cannot connect to backend server (${baseUrl}). Ensure backend is running and reachable on port ${DEFAULT_PORT}.`,
         0
       );
     }
-    throw new ApiError(
-      `Cannot connect to backend server (${currentBaseUrl}). Ensure backend is running and reachable on port ${DEFAULT_PORT}.`,
-      0
-    );
+  };
+
+  try {
+    return await executeRequest(currentBaseUrl);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      const previous = currentBaseUrl;
+      refreshApiBaseUrl();
+      if (currentBaseUrl !== previous) {
+        return await executeRequest(currentBaseUrl);
+      }
+    }
+    throw error;
   }
 }

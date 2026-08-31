@@ -18,7 +18,7 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
-  Receipt,
+  IndianRupee,
   Ticket,
   MessageSquarePlus,
   ChefHat,
@@ -48,7 +48,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const menuItems: Array<{
     id: string;
     title: string;
-    icon: typeof Receipt;
+    icon: typeof IndianRupee;
     color: string;
     route: string;
     feature?: NavFeatureId;
@@ -56,7 +56,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
     {
       id: 'invoices',
       title: t('invoices', 'Invoices'),
-      icon: Receipt,
+      icon: IndianRupee,
       color: '#0284C7',
       route: '/(tabs)/invoices',
     },
