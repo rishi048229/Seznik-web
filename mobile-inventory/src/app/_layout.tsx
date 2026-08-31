@@ -73,6 +73,7 @@ import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { subscribeToNotificationResponses } from '@/services/notificationService';
+import { registerPushTokenWithBackend } from '@/services/pushRegistration';
 
 function AppDataPrefetcher() {
   const queryClient = useQueryClient();
@@ -140,6 +141,7 @@ function RootLayoutNav() {
     if (isAuthenticated) {
       usePrinterStore.getState().hydrateFromSettings().catch(() => {});
       useNotificationStore.getState().hydrate().catch(() => {});
+      registerPushTokenWithBackend().catch(() => {});
     }
   }, [isAuthenticated]);
 

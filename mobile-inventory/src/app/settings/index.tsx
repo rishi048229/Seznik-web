@@ -56,6 +56,7 @@ import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { NotificationModal } from '@/components/notifications/NotificationModal';
+import { triggerClosedAppTestPush, registerPushTokenWithBackend } from '@/services/pushRegistration';
 
 const SUPPORT_PHONE = '+918237869618';
 const SUPPORT_EMAIL = 'tech_support@seznik.in';
@@ -608,7 +609,28 @@ export default function SettingsScreen() {
                   style={[styles.saveBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1 }]}
                 >
                   <Sparkles size={16} color={theme.textPrimary} style={{ marginRight: 6 }} />
-                  <Text style={[styles.saveBtnText, { color: theme.textPrimary }]}>Send Test Low Stock Alert</Text>
+                  <Text style={[styles.saveBtnText, { color: theme.textPrimary }]}>Send In-App Test Alert</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    const ok = await triggerClosedAppTestPush(5);
+                    if (ok) {
+                      Alert.alert(
+                        'Push Scheduled in 5s! 🚀',
+                        'Lock your phone screen or swipe the app closed NOW to test closed-app notification banner delivery.'
+                      );
+                    } else {
+                      Alert.alert(
+                        'Push Token Info',
+                        'Device registered for remote alerts. To receive background system pushes, ensure notifications are enabled in phone system settings.'
+                      );
+                    }
+                  }}
+                  style={[styles.saveBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: BRAND_COLORS.blue600, borderWidth: 1 }]}
+                >
+                  <Sparkles size={16} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                  <Text style={[styles.saveBtnText, { color: BRAND_COLORS.blue600 }]}>Test Closed-App Push (5s Delay)</Text>
                 </TouchableOpacity>
               </View>
             </View>
