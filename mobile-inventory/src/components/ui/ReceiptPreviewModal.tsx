@@ -413,14 +413,42 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                   showsVerticalScrollIndicator
                   keyboardShouldPersistTaps="handled"
                 >
+                  {/* Paper Width Quick Toggle */}
+                  <View style={styles.paperWidthPillRow}>
+                    <Text style={[styles.paperWidthLabel, { color: theme.textSecondary }]}>Paper Size:</Text>
+                    <TouchableOpacity
+                      onPress={() => usePrinterStore.getState().setPaperWidth('58mm')}
+                      style={[styles.paperWidthBtn, paperWidth === '58mm' && styles.paperWidthBtnActive]}
+                    >
+                      <Text style={[styles.paperWidthBtnText, paperWidth === '58mm' && styles.paperWidthBtnTextActive]}>
+                        58mm (32 Col)
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => usePrinterStore.getState().setPaperWidth('80mm')}
+                      style={[styles.paperWidthBtn, paperWidth === '80mm' && styles.paperWidthBtnActive]}
+                    >
+                      <Text style={[styles.paperWidthBtnText, paperWidth === '80mm' && styles.paperWidthBtnTextActive]}>
+                        80mm (48 Col)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <View
                     style={[
                       styles.realisticPaper,
-                      { width: paperWidth === '58mm' ? 290 : 330 },
+                      { width: paperWidth === '58mm' ? 295 : 345 },
                     ]}
                   >
                     {/* Top Serrated Edge Simulation */}
                     <View style={styles.tearEdgeTop} />
+
+                    {/* Document Type Header Banner */}
+                    <View style={styles.docTypeBanner}>
+                      <Text style={styles.docTypeText}>
+                        *** {editableSale.storeGstin ? 'TAX INVOICE' : 'RETAIL BILL / CASH MEMO'} ***
+                      </Text>
+                    </View>
 
                     {/* Store Header */}
                     <View style={styles.receiptHeader}>
@@ -516,10 +544,20 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                         </View>
                       ) : null}
                       {computedTotals.totalTax > 0 ? (
-                        <View style={styles.rowBetween}>
-                          <Text style={styles.monoLabel}>GST TAX:</Text>
-                          <Text style={styles.monoValue}>+₹{computedTotals.totalTax.toFixed(2)}</Text>
-                        </View>
+                        <>
+                          <View style={styles.rowBetween}>
+                            <Text style={styles.monoLabel}>TAXABLE VALUE:</Text>
+                            <Text style={styles.monoValue}>₹{(computedTotals.subtotal - computedTotals.totalDiscount).toFixed(2)}</Text>
+                          </View>
+                          <View style={styles.rowBetween}>
+                            <Text style={styles.monoLabel}>CGST:</Text>
+                            <Text style={styles.monoValue}>₹{(computedTotals.totalTax / 2).toFixed(2)}</Text>
+                          </View>
+                          <View style={styles.rowBetween}>
+                            <Text style={styles.monoLabel}>SGST:</Text>
+                            <Text style={styles.monoValue}>₹{(computedTotals.totalTax / 2).toFixed(2)}</Text>
+                          </View>
+                        </>
                       ) : null}
 
                       {/* Grand Total Box */}
@@ -816,6 +854,54 @@ const styles = StyleSheet.create({
   paperScrollView: { flex: 1, minHeight: 200 },
   paperScrollContent: { paddingVertical: 8, alignItems: 'center' },
   editScrollContent: { paddingVertical: 6, gap: 10 },
+
+  paperWidthPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 10,
+    backgroundColor: 'rgba(100, 116, 139, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  paperWidthLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    marginRight: 4,
+  },
+  paperWidthBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+  paperWidthBtnActive: {
+    backgroundColor: BRAND_COLORS.blue600,
+  },
+  paperWidthBtnText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  paperWidthBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  docTypeBanner: {
+    alignItems: 'center',
+    paddingVertical: 3,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#000000',
+  },
+  docTypeText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    letterSpacing: 0.5,
+  },
 
   /* Realistic Thermal Ticket Styles */
   realisticPaper: {

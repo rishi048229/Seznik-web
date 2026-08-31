@@ -203,7 +203,7 @@ export default function QuickBillScreen() {
   };
 
   return (
-    <ScreenBackground>
+    <ScreenBackground color={theme.bg}>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <KeyboardAvoidingWrapper>
           <View style={[styles.headerBar, { borderBottomColor: theme.borderColor }]}>

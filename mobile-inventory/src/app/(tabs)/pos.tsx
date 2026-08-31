@@ -88,7 +88,7 @@ import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 import { useLocationStock } from '@/hooks/useLocations';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { CartItem } from '@/store/useCartStore';
-import { useNavigation } from 'expo-router';
+import { useNavigation, router } from 'expo-router';
 
 const EMPTY_CART: CartItem[] = [];
 
@@ -866,6 +866,13 @@ function PosScreen() {
               textPrimary={theme.textPrimary}
               textSecondary={theme.textSecondary}
               lowStockLabel={t('lowStock', 'Low')}
+              searchQuery={searchQuery}
+              onClearFilters={() => {
+                setSearchQuery('');
+                setSelectedCategoryId(null);
+              }}
+              onProductLongPress={(p) => router.push('/products' as any)}
+              onAddProductPress={() => router.push('/products' as any)}
             />
           )}
         </View>
