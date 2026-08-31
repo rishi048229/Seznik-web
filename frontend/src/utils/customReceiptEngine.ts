@@ -11,6 +11,8 @@ import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   receiptLogoMaxDots,
   receiptQrEscPosModuleSizeForEntry,
+  receiptQrHtmlPx,
+  receiptStandardQrHtmlPx,
 } from '@shared/receiptPrintGeometry'
 
 export interface ReceiptPrintContext {
@@ -140,13 +142,15 @@ export function interpolateReceiptVariables(
   opts?: { thermal?: boolean }
 ): string {
   if (!text) return ''
-  const targetId = data.saleId || data.invoiceNumber || 'INV-2026-0042'
+  if (/scan/i.test(text) && /pay/i.test(text)) {
+    return 'SCAN TO PAY VIA UPI'
+  }
+  const upiStr = data.upiId ? buildUpiPayLink({ upiId: data.upiId, payeeName: data.storeName, amount: data.grandTotal, note: data.invoiceNumber }) : ''
+  const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
   const billPdfUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/receipt/${encodeURIComponent(targetId)}`
-    : `https://api.seznik.com/receipt/${encodeURIComponent(targetId)}`
-  const upiStr = isValidUpiVpa(data.upiId)
-    ? buildUpiPayLink({ upiId: data.upiId!, payeeName: data.storeName, amount: data.grandTotal, note: data.invoiceNumber })
-    : ''
+    ? `${window.location.origin}/receipt/${targetId}`
+    : `https://api.seznik.com/receipt/${targetId}`
+
   const money = (n: number) => (opts?.thermal ? formatThermalMoney(n) : `₹${n.toFixed(2)}`)
 
   return text
@@ -389,12 +393,13 @@ export function compileCustomReceiptTextLines(
           }
           break
         }
-        lines.push(
-          padLine(
-            interpolateReceiptVariables(entry.left, data, thermal),
-            interpolateReceiptVariables(entry.right, data, thermal)
-          )
-        )
+        // Skip scan-to-pay rows — barcode block handles the "SCAN TO PAY VIA UPI" label
+        if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) break
+        const l = interpolateReceiptVariables(entry.left, data, thermal).trim()
+        const r = interpolateReceiptVariables(entry.right, data, thermal).trim()
+        if (l || r) {
+          lines.push(padLine(l, r))
+        }
         break
       }
       case 'table': {
@@ -500,8 +505,10 @@ export function compileCustomReceiptHtml(
         }
         continue
       }
-      const leftVal = interpolateReceiptVariables(entry.left, data).trim()
-      const rightVal = interpolateReceiptVariables(entry.right, data).trim()
+      // Skip scan-to-pay rows entirely — the barcode block renders "SCAN TO PAY VIA UPI" as a header
+      if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) continue
+      let leftVal = interpolateReceiptVariables(entry.left, data).trim()
+      let rightVal = interpolateReceiptVariables(entry.right, data).trim()
       if (!leftVal && !rightVal) continue
       parts.push(
         htmlTwoColRow(
@@ -551,10 +558,16 @@ export function compileCustomReceiptHtml(
 
       const align = entry.align || 'center'
       const isQr = entry.format === 'qr' || entry.codeType === 'qr_code'
+      const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
       if (isQr && rawVal) {
         const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(rawVal)}`
+        const qrDim =
+          isUpi || entry.qrType === 'digital_bill' || !entry.size
+            ? receiptStandardQrHtmlPx(paperSize)
+            : receiptQrHtmlPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
+        const upiHeader = isUpi ? `<div style="font-size:10px;font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div>` : ''
         parts.push(
-          `<div style="text-align:${align};margin:10px 0;width:100%;"><img src="${qrImg}" width="120" height="120" alt="QR Code" style="display:inline-block;image-rendering:pixelated;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;" /></div>`
+          `<div style="text-align:${align};margin:10px 0;width:100%;">${upiHeader}<img src="${qrImg}" width="${qrDim}" height="${qrDim}" alt="QR Code" style="display:inline-block;image-rendering:pixelated;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" /></div>`
         )
       } else {
         parts.push(
@@ -704,8 +717,12 @@ export async function appendCustomTemplateToEscPos(
           }
           break
         }
-        const leftVal = interpolateReceiptVariables(entry.left, data, thermal).trim()
-        const rightVal = interpolateReceiptVariables(entry.right, data, thermal).trim()
+        let leftVal = interpolateReceiptVariables(entry.left, data, thermal).trim()
+        let rightVal = interpolateReceiptVariables(entry.right, data, thermal).trim()
+        if (/scan/i.test(entry.left + entry.right)) {
+          leftVal = 'SCAN TO PAY VIA UPI'
+          rightVal = ''
+        }
         if (!leftVal && !rightVal) break
         padLine(leftVal, rightVal)
         break

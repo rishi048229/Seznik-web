@@ -17,9 +17,11 @@ import {
 } from '../utils/receiptDiscount';
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  receiptLogoHtmlMaxPx,
   receiptLogoPrintWidthDots,
   receiptQrBitmapDots,
   receiptQrHtmlPx,
+  receiptStandardQrHtmlPx,
   type ReceiptQrSize,
 } from '@shared/receiptPrintGeometry';
 import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/receiptLogo';
@@ -973,18 +975,23 @@ class ThermalPrinterServiceManager {
     return buildUpiPayString(upi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
   }
 
-  private upiQrHtml(data: PrintSaleData): string {
+  private upiQrHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm'): string {
     const payload = this.upiPayPayload(data);
     if (!payload) return '';
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(payload)}`;
+    const qrDim = receiptStandardQrHtmlPx(paperWidth);
     return `<div class="center" style="margin-top:8px;">
-      <div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY Rs.${data.grandTotal.toFixed(2)}</div>
-      <img src="${url}" alt="UPI payment QR" style="width:130px;height:130px;object-fit:contain;display:inline-block;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" />
+      <div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY VIA UPI</div>
+      <img src="${url}" alt="UPI payment QR" style="width:${qrDim}px;height:${qrDim}px;object-fit:contain;display:inline-block;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" />
     </div>`;
   }
 
   public interpolateReceiptVariables(text: string, data: PrintSaleData): string {
     if (!text) return '';
+    // Match web: normalize any "scan … pay" caption to the fixed UPI header (no ₹ amount).
+    if (/scan/i.test(text) && /pay/i.test(text)) {
+      return 'SCAN TO PAY VIA UPI';
+    }
     const dateStr = data.date || new Date().toLocaleDateString('en-GB');
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const billPdfUrl = buildBillPdfUrl(data);
@@ -1090,9 +1097,13 @@ class ThermalPrinterServiceManager {
           if (isTaxReceiptEntry(entry) && (!data.totalTax || data.totalTax <= 0)) {
             break;
           }
-          const left = this.interpolateReceiptVariables(entry.left, data);
-          const right = this.interpolateReceiptVariables(entry.right, data);
-          lines.push(padLine(left, right));
+          let left = this.interpolateReceiptVariables(entry.left, data);
+          let right = this.interpolateReceiptVariables(entry.right, data);
+          if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) {
+            left = 'SCAN TO PAY VIA UPI';
+            right = '';
+          }
+          if (left || right) lines.push(padLine(left, right));
           break;
         }
 
@@ -1997,8 +2008,9 @@ class ThermalPrinterServiceManager {
             if (!uri) return '';
             const align = entry.align || 'center';
             const widthPct = entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT;
-            const maxW = Math.max(80, Math.round(180 * Math.min(widthPct, 100) / 100));
-            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-height: 56px; max-width: ${maxW}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" /></div>`;
+            const { maxHeight, maxWidth } = receiptLogoHtmlMaxPx();
+            const maxW = Math.max(80, Math.round(maxWidth * Math.min(widthPct, 100) / 100));
+            return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-height: ${maxHeight}px; max-width: ${maxW}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" /></div>`;
           }
 
           case 'text_special': {
@@ -2031,8 +2043,11 @@ class ThermalPrinterServiceManager {
             if (isTaxReceiptEntry(entry) && (!data.totalTax || data.totalTax <= 0)) {
               return '';
             }
+            // Skip scan-to-pay rows — barcode block already renders "SCAN TO PAY VIA UPI" as a header
+            if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) return '';
             const left = this.interpolateReceiptVariables(entry.left, data);
             const right = this.interpolateReceiptVariables(entry.right, data);
+            if (!left && !right) return '';
             const isBold = entry.bold ? 'font-weight: bold;' : '';
             const sizeStyle = entry.size === 'large' ? 'font-size: 1.15em;' : entry.size === 'small' ? 'font-size: 0.9em;' : '';
             const discountStyle = isDiscountReceiptEntry(entry) ? 'color: #059669; font-weight: bold;' : '';
@@ -2094,14 +2109,17 @@ class ThermalPrinterServiceManager {
 
             const align = entry.align || 'center';
             const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
-            const qrSize = receiptQrHtmlPx(
-              entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
-            );
+            const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId);
+            const qrSize =
+              isUpi || entry.qrType === 'digital_bill' || !entry.size
+                ? receiptStandardQrHtmlPx(paperWidth)
+                : receiptQrHtmlPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium');
 
             if (isQr) {
               const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${Math.max(qrSize * 2, 240)}x${Math.max(qrSize * 2, 240)}&data=${encodeURIComponent(rawVal)}&margin=4`;
               return `
                 <div style="text-align: ${align}; margin: 8px 0;">
+                  ${isUpi ? `<div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY VIA UPI</div>` : ''}
                   <img src="${qrApiUrl}" width="${qrSize}" height="${qrSize}" alt="QR Code" style="display: inline-block; image-rendering: pixelated; background: #fff; padding: 4px; border: 1px solid #e2e8f0; border-radius: 6px;" />
                 </div>`;
             } else {
@@ -2448,7 +2466,10 @@ class ThermalPrinterServiceManager {
           <div class="center" style="margin-bottom: 6px;">
             ${
               data.storeLogoUrl
-                ? `<img src="${data.storeLogoUrl}" style="max-height: 56px; max-width: 180px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />`
+                ? (() => {
+                    const logo = receiptLogoHtmlMaxPx(paperWidth);
+                    return `<img src="${data.storeLogoUrl}" style="max-height: ${logo.maxHeight}px; max-width: ${logo.maxWidth}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />`;
+                  })()
                 : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: ${template.accentColor}; font-size: 22px; line-height: 1;">${template.emoji}</div>`
             }
           </div>
@@ -2480,7 +2501,7 @@ class ThermalPrinterServiceManager {
 
           <div class="divider"></div>
 
-          ${this.upiQrHtml(data)}
+          ${this.upiQrHtml(data, paperWidth)}
 
           <div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>
         </body>
@@ -4124,7 +4145,11 @@ class ThermalPrinterServiceManager {
 
           const logoBase64 = saleData.storeLogoUrl ? await this.uriToBase64(saleData.storeLogoUrl) : null;
           const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-          const logoWidthDots = await this.logoPrintWidthDots(saleData.storeLogoUrl, paperWidth, 100);
+          const logoWidthDots = await this.logoPrintWidthDots(
+            saleData.storeLogoUrl,
+            paperWidth,
+            RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+          );
           const upiString = this.upiPayPayload(saleData);
 
           for (let i = 0; i < copies; i++) {
@@ -4142,6 +4167,11 @@ class ThermalPrinterServiceManager {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
                 }
+                await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', {
+                  widthtimes: 0,
+                  heigthtimes: 0,
+                  cut: false,
+                });
                 await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(paperWidth), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
@@ -4358,8 +4388,13 @@ class ThermalPrinterServiceManager {
           if (isTaxReceiptEntry(entry) && (!data.totalTax || data.totalTax <= 0)) {
             break;
           }
-          const left = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.left, data));
-          const right = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.right, data));
+          let left = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.left, data));
+          let right = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.right, data));
+          if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) {
+            left = 'SCAN TO PAY VIA UPI';
+            right = '';
+          }
+          if (!left && !right) break;
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
           }
@@ -4441,6 +4476,17 @@ class ThermalPrinterServiceManager {
           }
           if (isQr && typeof NativeEscposPrinter.printQRCode === 'function') {
             try {
+              const isUpi =
+                entry.qrType === 'upi' ||
+                entry.value?.includes('{{upi_qr}}') ||
+                Boolean(entry.upiId);
+              if (isUpi) {
+                await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', {
+                  widthtimes: 0,
+                  heigthtimes: 0,
+                  cut: false,
+                });
+              }
               const qrDots = this.receiptQrDots(
                 paperWidth,
                 entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'

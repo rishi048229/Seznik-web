@@ -82,6 +82,24 @@ export function normalizeLegacyTableGstColumn(template: CustomReceiptTemplate): 
   return changed ? { ...template, entries } : template
 }
 
+export function sanitizeScanToPayEntries(template: CustomReceiptTemplate): CustomReceiptTemplate {
+  let changed = false
+  const entries = template.entries.map((entry) => {
+    if (entry.type === 'left_right_text' && /scan/i.test((entry.left || '') + (entry.right || ''))) {
+      if (entry.left === 'SCAN TO PAY VIA UPI' && !entry.right) return entry
+      changed = true
+      return { ...entry, left: 'SCAN TO PAY VIA UPI', right: '' }
+    }
+    if ((entry.type === 'text' || entry.type === 'text_special') && /scan/i.test(entry.text || '')) {
+      if (entry.text === 'SCAN TO PAY VIA UPI') return entry
+      changed = true
+      return { ...entry, text: 'SCAN TO PAY VIA UPI' }
+    }
+    return entry
+  })
+  return changed ? { ...template, entries } : template
+}
+
 function applyUpiQrOnSeed(template: CustomReceiptTemplate, upiId: string): CustomReceiptTemplate {
   return {
     ...template,
@@ -96,8 +114,8 @@ function applyUpiQrOnSeed(template: CustomReceiptTemplate, upiId: string): Custo
           upiId,
         }
       }
-      if ((entry.type === 'text' || entry.type === 'text_special') && /scan qr/i.test(entry.text || '')) {
-        return { ...entry, text: 'Scan to pay with UPI' }
+      if ((entry.type === 'text' || entry.type === 'text_special') && /scan/i.test(entry.text || '')) {
+        return { ...entry, text: 'SCAN TO PAY VIA UPI' }
       }
       return entry
     }),
@@ -121,6 +139,7 @@ export function normalizeReceiptTemplates(
     let def = createDefaultReceiptTemplate(STANDARD_RECEIPT_TEMPLATE_NAME)
     if (logoURL) def = ensureTemplateHasLogoBlock(def, logoURL)
     if (isValidUpiVpa(upiId)) def = applyUpiQrOnSeed(def, upiId)
+    def = sanitizeScanToPayEntries(def)
     return {
       customTemplates: [def],
       activeCustomTemplateId: def.id,
@@ -130,7 +149,8 @@ export function normalizeReceiptTemplates(
 
   const templates = fromServer.map((t) => {
     const withLogo = ensureTemplateHasLogoBlock(t, logoURL)
-    const next = normalizeLegacyTableGstColumn(withLogo)
+    const withGst = normalizeLegacyTableGstColumn(withLogo)
+    const next = sanitizeScanToPayEntries(withGst)
     if (next !== t) shouldPersist = true
     return next
   })
