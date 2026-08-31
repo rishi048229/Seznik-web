@@ -248,6 +248,52 @@ const PAIRED_PRINTERS_KEY = 'seznik_paired_printers';
 const AUTO_CONNECT_KEY = 'seznik_printer_auto_connect';
 const LABEL_TEMPLATES_KEY = 'seznik_label_templates';
 const ACTIVE_LABEL_TEMPLATE_KEY = 'seznik_active_label_template';
+const PRINTER_CALIBRATION_KEY = 'seznik_printer_calibration';
+
+export interface StoredPrinterCalibration {
+  paperWidth?: '58mm' | '80mm';
+  printDensity?: number;
+  topMargin?: number;
+  autoCut?: boolean;
+  printCopies?: number;
+  fontSize?: 'small' | 'medium' | 'large';
+  receiptLogoSize?: 'small' | 'medium' | 'large';
+  receiptQrSize?: 'small' | 'medium' | 'large';
+  labelPaperMode?: 'gap' | 'continuous';
+  labelWidthMm?: number;
+  labelHeightMm?: number;
+  labelGapMm?: number;
+}
+
+export async function getStoredPrinterCalibration(): Promise<StoredPrinterCalibration | null> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(PRINTER_CALIBRATION_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(PRINTER_CALIBRATION_KEY);
+    }
+    return raw ? (JSON.parse(raw) as StoredPrinterCalibration) : null;
+  } catch (error) {
+    console.error('Error reading printer calibration:', error);
+    return null;
+  }
+}
+
+export async function setStoredPrinterCalibration(calibration: StoredPrinterCalibration): Promise<void> {
+  try {
+    const raw = JSON.stringify(calibration);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(PRINTER_CALIBRATION_KEY, raw);
+      }
+    } else {
+      await SecureStore.setItemAsync(PRINTER_CALIBRATION_KEY, raw);
+    }
+  } catch (error) {
+    console.error('Error saving printer calibration:', error);
+  }
+}
 
 export async function getStoredLabelTemplates(): Promise<any[] | null> {
   try {

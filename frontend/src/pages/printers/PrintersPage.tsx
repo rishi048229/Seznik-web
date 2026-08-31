@@ -142,6 +142,8 @@ const defaultReceiptConfig: ReceiptConfig = {
   showFooterMessage: true,
   showTerms: true,
   showBarcode: true,
+  receiptLogoSize: 'medium',
+  receiptQrSize: 'medium',
 }
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
@@ -782,10 +784,18 @@ export const PrintersPage = () => {
           <Button
             onClick={handleSave}
             loading={saving}
-            className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white flex items-center gap-2 shadow-lg shadow-[#0a0a2e]/20 text-xs sm:text-sm"
+            className={`flex items-center gap-2 text-xs sm:text-sm transition-all ${
+              (hydratedConfigRef.current !== null && JSON.stringify(config) !== hydratedConfigRef.current) ||
+              (hydratedReceiptRef.current !== null && JSON.stringify(receiptConfig) !== hydratedReceiptRef.current)
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400'
+                : 'bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white shadow-lg shadow-[#0a0a2e]/20'
+            }`}
           >
             <Save size={16} />
-            Save
+            {(hydratedConfigRef.current !== null && JSON.stringify(config) !== hydratedConfigRef.current) ||
+            (hydratedReceiptRef.current !== null && JSON.stringify(receiptConfig) !== hydratedReceiptRef.current)
+              ? 'Save Changes *'
+              : 'Save'}
           </Button>
         </div>
       </div>

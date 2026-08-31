@@ -109,6 +109,8 @@ export const resolveEffectiveReceiptConfig = (
     activeCustomTemplateId: rConf?.activeCustomTemplateId ?? null,
     templateId: rConf?.templateId,
     enableBillQrCode: rConf?.enableBillQrCode,
+    receiptLogoSize: rConf?.receiptLogoSize,
+    receiptQrSize: rConf?.receiptQrSize,
   }
 
   const withOverrides = { ...merged, ...(overrides || {}) }

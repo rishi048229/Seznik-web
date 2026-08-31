@@ -43,8 +43,8 @@ export const settingsApi = {
   },
 
   updatePrinterConfig: async (printerConfig: Record<string, any>): Promise<Settings> => {
-    return fetchApi<Settings>('/settings', {
-      method: 'POST',
+    return fetchApi<Settings>('/settings/printer', {
+      method: 'PATCH',
       body: JSON.stringify({ printerConfig }),
     });
   },

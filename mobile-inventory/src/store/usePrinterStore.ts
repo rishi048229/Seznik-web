@@ -24,6 +24,8 @@ import {
   setStoredLabelTemplates,
   getStoredActiveLabelTemplate,
   setStoredActiveLabelTemplate,
+  getStoredPrinterCalibration,
+  setStoredPrinterCalibration,
 } from '@/services/secureStore';
 
 /** Backoff for automatic reconnects after an unexpected drop. Deliberately finite — after this the
@@ -584,6 +586,20 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
   savePrinterCalibration: async (config) => {
     set(config);
+    setStoredPrinterCalibration({
+      paperWidth: config.paperWidth,
+      printDensity: config.printDensity,
+      topMargin: config.topMargin,
+      autoCut: config.autoCut,
+      printCopies: config.printCopies,
+      fontSize: config.fontSize,
+      receiptLogoSize: config.receiptLogoSize || get().receiptLogoSize,
+      receiptQrSize: config.receiptQrSize || get().receiptQrSize,
+      labelPaperMode: config.labelPaperMode,
+      labelWidthMm: config.labelWidthMm,
+      labelHeightMm: config.labelHeightMm,
+      labelGapMm: config.labelGapMm,
+    }).catch(() => {});
     await settingsApi.updatePrinterConfig({
       paperWidth: config.paperWidth,
       paperSize: config.paperWidth,
@@ -637,6 +653,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         localAutoConnect,
         localLabelTemplates,
         localActiveLabelId,
+        localCalibration,
       ] = await Promise.all([
         getStoredActiveTemplate(),
         getStoredCustomReceiptTemplates(),
@@ -646,6 +663,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         getStoredAutoConnect(),
         getStoredLabelTemplates(),
         getStoredActiveLabelTemplate(),
+        getStoredPrinterCalibration(),
       ]);
 
       const initialTemplates = localCustomTemplates && localCustomTemplates.length > 0
@@ -662,6 +680,20 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         autoConnect: localAutoConnect,
         labelTemplates: localLabelTemplates || get().labelTemplates,
         activeLabelTemplateId: localActiveLabelId !== undefined ? localActiveLabelId : get().activeLabelTemplateId,
+        ...(localCalibration ? {
+          paperWidth: localCalibration.paperWidth || get().paperWidth,
+          printDensity: typeof localCalibration.printDensity === 'number' ? localCalibration.printDensity : get().printDensity,
+          topMargin: typeof localCalibration.topMargin === 'number' ? localCalibration.topMargin : get().topMargin,
+          autoCut: typeof localCalibration.autoCut === 'boolean' ? localCalibration.autoCut : get().autoCut,
+          printCopies: typeof localCalibration.printCopies === 'number' ? localCalibration.printCopies : get().printCopies,
+          fontSize: localCalibration.fontSize || get().fontSize,
+          receiptLogoSize: localCalibration.receiptLogoSize || get().receiptLogoSize,
+          receiptQrSize: localCalibration.receiptQrSize || get().receiptQrSize,
+          labelPaperMode: localCalibration.labelPaperMode || get().labelPaperMode,
+          labelWidthMm: typeof localCalibration.labelWidthMm === 'number' ? localCalibration.labelWidthMm : get().labelWidthMm,
+          labelHeightMm: typeof localCalibration.labelHeightMm === 'number' ? localCalibration.labelHeightMm : get().labelHeightMm,
+          labelGapMm: typeof localCalibration.labelGapMm === 'number' ? localCalibration.labelGapMm : get().labelGapMm,
+        } : {}),
       });
 
       // Restore the saved printers before anything else awaits the network
@@ -789,6 +821,21 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         activeLabelTemplateId: effectiveActiveLabelId,
         isHydrated: true,
       });
+
+      setStoredPrinterCalibration({
+        paperWidth: paperFromConfig,
+        printDensity: typeof printerConfig.printDensity === 'number' ? printerConfig.printDensity : get().printDensity,
+        topMargin: typeof printerConfig.topMargin === 'number' ? printerConfig.topMargin : get().topMargin,
+        autoCut: typeof printerConfig.autoCut === 'boolean' ? printerConfig.autoCut : get().autoCut,
+        printCopies: typeof printerConfig.printCopies === 'number' ? printerConfig.printCopies : get().printCopies,
+        fontSize: ['small', 'medium', 'large'].includes(printerConfig.fontSize) ? printerConfig.fontSize : get().fontSize,
+        receiptLogoSize: effectiveLogoSize,
+        receiptQrSize: effectiveQrSize,
+        labelPaperMode: ['gap', 'continuous'].includes(printerConfig.labelPaperMode) ? printerConfig.labelPaperMode : get().labelPaperMode,
+        labelWidthMm: typeof printerConfig.labelWidthMm === 'number' ? printerConfig.labelWidthMm : get().labelWidthMm,
+        labelHeightMm: typeof printerConfig.labelHeightMm === 'number' ? printerConfig.labelHeightMm : get().labelHeightMm,
+        labelGapMm: typeof printerConfig.labelGapMm === 'number' ? printerConfig.labelGapMm : get().labelGapMm,
+      }).catch(() => {});
     } catch (e) {
       // Offline / not logged in yet / timeout — keep local defaults, mark hydration attempted.
       const msg = e instanceof Error ? e.message : String(e);
