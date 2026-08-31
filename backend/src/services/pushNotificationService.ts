@@ -27,7 +27,9 @@ export async function sendPushNotificationToUser(
 
     // Filter valid Expo Push Tokens
     const validTokens = tokens.filter(
-      (token) => typeof token === 'string' && (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken['))
+      (token) =>
+        typeof token === 'string' &&
+        (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken['))
     );
 
     if (validTokens.length === 0) {
@@ -63,7 +65,6 @@ export async function sendPushNotificationToUser(
       return { success: false, sentCount: 0, error: errText };
     }
 
-    const data = await response.json();
     return { success: true, sentCount: messages.length };
   } catch (err: any) {
     console.error('[PushNotification] Error sending push notification:', err);
@@ -72,7 +73,7 @@ export async function sendPushNotificationToUser(
 }
 
 /**
- * Checks all products for a user and dispatches a low stock push notification if any item is <= threshold.
+ * 1. Low Stock & Out of Stock Notification
  */
 export async function checkAndSendLowStockPush(userId: string): Promise<number> {
   try {
@@ -91,23 +92,30 @@ export async function checkAndSendLowStockPush(userId: string): Promise<number> 
 
     let title = '';
     let body = '';
+    let targetProductId = lowStockItems[0]?.id;
 
     if (outOfStock.length > 0) {
       const names = outOfStock.slice(0, 2).map((p) => p.name).join(', ');
       const extra = outOfStock.length > 2 ? ` and ${outOfStock.length - 2} more` : '';
       title = `🚨 Out of Stock: ${outOfStock.length} Item${outOfStock.length > 1 ? 's' : ''}`;
-      body = `${names}${extra} ran completely out of stock. Tap to reorder now!`;
+      body = `"${names}"${extra} ran completely out of stock. Tap to reorder now!`;
+      targetProductId = outOfStock[0]?.id;
     } else {
+      const first = lowStockItems[0];
       const names = lowStockItems.slice(0, 2).map((p) => p.name).join(', ');
       const extra = lowStockItems.length > 2 ? ` and ${lowStockItems.length - 2} more` : '';
       title = `⚠️ Low Stock Alert: ${lowStockItems.length} Item${lowStockItems.length > 1 ? 's' : ''}`;
-      body = `${names}${extra} reached reorder level. Tap to restock.`;
+      body = `"${first.name}" has only ${first.currentStock} ${first.unit || 'units'} remaining (Threshold: ${first.lowStockThreshold || 5}). Tap to restock.`;
     }
 
     await sendPushNotificationToUser(userId, {
       title,
       body,
-      data: { type: 'low_stock_batch', count: lowStockItems.length },
+      data: {
+        type: 'low_stock',
+        productId: targetProductId,
+        lowStockCount: lowStockItems.length,
+      },
     });
 
     return lowStockItems.length;
@@ -115,4 +123,123 @@ export async function checkAndSendLowStockPush(userId: string): Promise<number> 
     console.error('[PushNotification] checkAndSendLowStockPush error:', err);
     return 0;
   }
+}
+
+/**
+ * 2. Customer Credit / Payment Due Reminder Notification
+ */
+export async function checkAndSendCustomerCreditDuePush(userId: string): Promise<number> {
+  try {
+    const customersWithDue = await prisma.customer.findMany({
+      where: {
+        userId,
+        creditBalance: { gt: 0 },
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        creditBalance: true,
+        oldestUnpaidSince: true,
+      },
+      orderBy: { creditBalance: 'desc' },
+      take: 10,
+    });
+
+    if (customersWithDue.length === 0) return 0;
+
+    const topCustomer = customersWithDue[0];
+    const totalDue = customersWithDue.reduce((sum, c) => sum + c.creditBalance, 0);
+
+    const title = `💳 Payment Due: ${customersWithDue.length} Customer${customersWithDue.length > 1 ? 's' : ''} (₹${totalDue.toFixed(0)})`;
+    const body = `₹${topCustomer.creditBalance.toFixed(0)} pending from ${topCustomer.name}. Tap to view credit ledger & send WhatsApp reminder.`;
+
+    await sendPushNotificationToUser(userId, {
+      title,
+      body,
+      data: {
+        type: 'credit_due',
+        customerId: topCustomer.id,
+        customerName: topCustomer.name,
+        totalDue,
+        dueCount: customersWithDue.length,
+      },
+    });
+
+    return customersWithDue.length;
+  } catch (err) {
+    console.error('[PushNotification] checkAndSendCustomerCreditDuePush error:', err);
+    return 0;
+  }
+}
+
+/**
+ * 3. Daily Night Total Sales Summary Notification
+ */
+export async function sendDailyNightSalesSummaryPush(userId: string): Promise<{ totalSales: number; ordersCount: number }> {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const salesToday = await prisma.sale.findMany({
+      where: {
+        userId,
+        createdAt: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+      select: {
+        id: true,
+        grandTotal: true,
+        paymentMethod: true,
+      },
+    });
+
+    const ordersCount = salesToday.length;
+    const totalSales = salesToday.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+
+    const title = `🌙 Today's Sales Summary: ₹${totalSales.toFixed(2)}`;
+    const body = ordersCount > 0
+      ? `Total ${ordersCount} bill${ordersCount > 1 ? 's' : ''} ringed up today generating ₹${totalSales.toFixed(2)} revenue. Tap to view full day-end report.`
+      : `No sales recorded today yet. Tap to review your counter status and day close.`;
+
+    await sendPushNotificationToUser(userId, {
+      title,
+      body,
+      data: {
+        type: 'daily_sales_summary',
+        totalSales,
+        ordersCount,
+        date: today.toISOString().split('T')[0],
+      },
+    });
+
+    return { totalSales, ordersCount };
+  } catch (err) {
+    console.error('[PushNotification] sendDailyNightSalesSummaryPush error:', err);
+    return { totalSales: 0, ordersCount: 0 };
+  }
+}
+
+/**
+ * 4. Important System & Store Announcements Notification
+ */
+export async function sendImportantAnnouncementPush(
+  userId: string,
+  title: string,
+  body: string,
+  extraData?: Record<string, any>
+): Promise<boolean> {
+  const result = await sendPushNotificationToUser(userId, {
+    title: `📢 ${title}`,
+    body,
+    data: {
+      type: 'announcement',
+      ...(extraData || {}),
+    },
+  });
+  return result.success;
 }

@@ -1096,9 +1096,10 @@ export default function ProductsScreen() {
               </ScrollView>
 
               <View style={[styles.detailFooterBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+                {/* 1. Delete Action */}
                 <TouchableOpacity
                   onPress={() => {
-                    Alert.alert('Delete Product', `Delete ${detailProduct.name}?`, [
+                    Alert.alert('Delete Product', `Are you sure you want to permanently delete "${detailProduct.name}"?`, [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Delete',
@@ -1110,34 +1111,43 @@ export default function ProductsScreen() {
                       },
                     ]);
                   }}
-                  style={styles.footerDeleteBtn}
+                  activeOpacity={0.7}
+                  style={styles.footerIconBtnDanger}
                 >
-                  <Trash2 size={16} color="#EF4444" />
-                  <Text style={styles.footerDeleteText}>Delete</Text>
+                  <Trash2 size={18} color="#EF4444" />
                 </TouchableOpacity>
 
+                {/* 2. Print Label Action */}
                 <TouchableOpacity
                   onPress={() => {
                     setBarcodePrintProduct(detailProduct);
                     setShowBarcodePrintModal(true);
                   }}
-                  style={[styles.footerRestockBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: BRAND_COLORS.blue600 }]}
+                  activeOpacity={0.7}
+                  style={[styles.footerActionTile, { backgroundColor: 'rgba(37, 99, 235, 0.1)', borderColor: 'rgba(37, 99, 235, 0.3)' }]}
                 >
-                  <Barcode size={16} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.footerRestockText, { color: BRAND_COLORS.blue600 }]}>Print Label</Text>
+                  <Barcode size={17} color={BRAND_COLORS.blue600} />
+                  <Text style={[styles.footerActionTileText, { color: BRAND_COLORS.blue600 }]}>Print</Text>
                 </TouchableOpacity>
 
+                {/* 3. Restock Action */}
                 <TouchableOpacity
                   onPress={() => setShowRestockModal(true)}
-                  style={[styles.footerRestockBtn, { borderColor: theme.borderColor }]}
+                  activeOpacity={0.7}
+                  style={[styles.footerActionTile, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
                 >
-                  <Tag size={16} color={theme.textPrimary} />
-                  <Text style={[styles.footerRestockText, { color: theme.textPrimary }]}>Restock</Text>
+                  <Tag size={17} color="#10B981" />
+                  <Text style={[styles.footerActionTileText, { color: '#10B981' }]}>Restock</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => handleOpenEditModal(detailProduct)} style={styles.footerEditBtn}>
-                  <Edit3 size={16} color="#FFFFFF" />
-                  <Text style={styles.footerEditText}>Edit</Text>
+                {/* 4. Edit Product Primary CTA */}
+                <TouchableOpacity
+                  onPress={() => handleOpenEditModal(detailProduct)}
+                  activeOpacity={0.8}
+                  style={styles.footerEditPrimaryBtn}
+                >
+                  <Edit3 size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.footerEditPrimaryText}>Edit Product</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1667,13 +1677,53 @@ const styles = StyleSheet.create({
   stockBox: { width: '48.5%', padding: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
   stockBoxLabel: { fontSize: 10, fontWeight: '600' },
   stockBoxVal: { fontSize: 16, fontWeight: '900', marginTop: 4 },
-  detailFooterBar: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  footerDeleteBtn: { borderColor: '#EF4444', borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },
-  footerDeleteText: { color: '#EF4444', fontWeight: '800', fontSize: 13, marginLeft: 4 },
-  footerRestockBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },
-  footerRestockText: { fontWeight: '800', fontSize: 13, marginLeft: 4 },
-  footerEditBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center' },
-  footerEditText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13, marginLeft: 4 },
+  detailFooterBar: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  footerIconBtnDanger: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerActionTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  footerActionTileText: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginLeft: 5,
+  },
+  footerEditPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    backgroundColor: BRAND_COLORS.navyInk,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  footerEditPrimaryText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 13.5,
+  },
   hudTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
   hudTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', marginLeft: 8 },
   reticleOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
