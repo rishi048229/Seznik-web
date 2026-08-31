@@ -41,10 +41,28 @@ export const RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT = 60
 /** Typical UPI QR (version 4) plus quiet zone, in modules. */
 const TYPICAL_QR_MODULES = 41
 
-export function receiptLogoMaxDots(paperWidth: ThermalPaper): { maxWidth: number; maxHeight: number } {
+export function receiptLogoMaxDotsFromChip(
+  paperWidth: ThermalPaper,
+  chip: ReceiptSizeChip = 'medium'
+): { maxWidth: number; maxHeight: number } {
+  if (chip === 'small') {
+    return paperWidth === '80mm'
+      ? { maxWidth: 180, maxHeight: 48 }
+      : { maxWidth: 130, maxHeight: 38 }
+  }
+  if (chip === 'large') {
+    return paperWidth === '80mm'
+      ? { maxWidth: 440, maxHeight: 150 }
+      : { maxWidth: 320, maxHeight: 110 }
+  }
+  // medium (default)
   return paperWidth === '80mm'
     ? { maxWidth: 320, maxHeight: 96 }
     : { maxWidth: 224, maxHeight: 72 }
+}
+
+export function receiptLogoMaxDots(paperWidth: ThermalPaper): { maxWidth: number; maxHeight: number } {
+  return receiptLogoMaxDotsFromChip(paperWidth, 'medium')
 }
 
 /**
@@ -57,34 +75,36 @@ export function receiptLogoHtmlMaxPx(_paperWidth?: ThermalPaper): { maxHeight: n
 
 /**
  * Width to send to a width-only bitmap API (`printPic`) so the printed logo
- * also respects the height cap. Square logos otherwise print ~2× too tall.
+ * also respects the height cap and user selected size chip.
  */
 export function receiptLogoPrintWidthDots(
   paperWidth: ThermalPaper,
   widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   imageWidth = 0,
-  imageHeight = 0
+  imageHeight = 0,
+  chip: ReceiptSizeChip = 'medium'
 ): number {
-  const { maxWidth, maxHeight } = receiptLogoMaxDots(paperWidth)
+  const { maxWidth, maxHeight } = receiptLogoMaxDotsFromChip(paperWidth, chip)
   const pct = Math.min(Math.max(widthPercent, 1), 100)
-  const allowedWidth = Math.max(48, Math.floor((maxWidth * pct) / 100))
+  const allowedWidth = Math.max(36, Math.floor((maxWidth * pct) / 100))
   if (!imageWidth || !imageHeight) {
     return Math.min(allowedWidth, maxHeight)
   }
   const scale = Math.min(1, allowedWidth / imageWidth, maxHeight / imageHeight)
-  return Math.max(48, Math.round(imageWidth * scale))
+  return Math.max(36, Math.round(imageWidth * scale))
 }
 
 /** Native GS ( k module size used for the standard payment QR. */
-export function receiptQrEscPosModuleSize(paperWidth: ThermalPaper): number {
+export function receiptQrEscPosModuleSize(paperWidth: ThermalPaper, chip?: ReceiptSizeChip): number {
+  if (chip) return receiptQrEscPosModuleSizeForEntry(chip)
   return paperWidth === '80mm' ? 6 : 4
 }
 
 /** Native GS ( k module size for a custom template QR block. */
 export function receiptQrEscPosModuleSizeForEntry(size: ReceiptQrSize = 'medium'): number {
   if (size === 'large') return 6
-  if (size === 'small') return 4
-  return 5
+  if (size === 'small') return 3
+  return 4
 }
 
 /**

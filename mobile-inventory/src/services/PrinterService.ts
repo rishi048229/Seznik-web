@@ -4056,7 +4056,8 @@ class ThermalPrinterServiceManager {
   private async logoPrintWidthDots(
     uri: string | undefined,
     paperWidth: '58mm' | '80mm',
-    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+    chip: ReceiptSizeChip = 'medium'
   ): Promise<number> {
     let imageWidth = 0
     let imageHeight = 0
@@ -4072,7 +4073,7 @@ class ThermalPrinterServiceManager {
         // Unknown aspect: treat as square so the web height cap still applies.
       }
     }
-    return receiptLogoPrintWidthDots(paperWidth, widthPercent, imageWidth, imageHeight)
+    return receiptLogoPrintWidthDots(paperWidth, widthPercent, imageWidth, imageHeight, chip)
   }
 
   /**
@@ -4155,7 +4156,8 @@ class ThermalPrinterServiceManager {
           const logoWidthDots = await this.logoPrintWidthDots(
             saleData.storeLogoUrl,
             paperWidth,
-            RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+            RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+            options.receiptLogoSize || 'medium'
           );
           const upiString = this.upiPayPayload(saleData);
 
@@ -4179,7 +4181,7 @@ class ThermalPrinterServiceManager {
                   heigthtimes: 0,
                   cut: false,
                 });
-                await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(paperWidth), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(paperWidth, options.receiptQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
                 }
@@ -4197,7 +4199,7 @@ class ThermalPrinterServiceManager {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
                 }
-                await NativeEscposPrinter.printQRCode(billPdfUrl, this.receiptQrDots(paperWidth), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                await NativeEscposPrinter.printQRCode(billPdfUrl, this.receiptQrDots(paperWidth, options.receiptQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
                 }
@@ -4247,14 +4249,15 @@ class ThermalPrinterServiceManager {
   private async printStoreLogoBitmap(
     storeLogoUrl: string | undefined,
     paperWidth: '58mm' | '80mm',
-    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+    chip: ReceiptSizeChip = 'medium'
   ): Promise<boolean> {
     if (!storeLogoUrl || typeof NativeEscposPrinter.printPic !== 'function') return false;
     try {
       const base64 = await this.uriToBase64(storeLogoUrl);
       if (!base64) return false;
       const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-      const logoWidthDots = await this.logoPrintWidthDots(storeLogoUrl, paperWidth, widthPercent);
+      const logoWidthDots = await this.logoPrintWidthDots(storeLogoUrl, paperWidth, widthPercent, chip);
       await this.printEscPosBitmap(base64, {
         width: logoWidthDots,
         center: true,
@@ -4317,7 +4320,7 @@ class ThermalPrinterServiceManager {
 
     const hasEnabledImageEntry = receiptEntries.some((entry) => entry.type === 'image');
     if (!hasEnabledImageEntry && data.storeLogoUrl) {
-      await this.printStoreLogoBitmap(data.storeLogoUrl, paperWidth, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT);
+      await this.printStoreLogoBitmap(data.storeLogoUrl, paperWidth, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, options.receiptLogoSize || 'medium');
     }
 
     for (const entry of receiptEntries) {
@@ -4334,7 +4337,8 @@ class ThermalPrinterServiceManager {
                 const logoWidthDots = await this.logoPrintWidthDots(
                   uri,
                   paperWidth,
-                  entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+                  entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+                  options.receiptLogoSize || 'medium'
                 );
                 await this.printEscPosBitmap(base64, {
                   width: logoWidthDots,

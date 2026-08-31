@@ -20,6 +20,7 @@ import {
   receiptLogoHtmlMaxPx,
   receiptLogoHtmlMaxPxFromChip,
   receiptLogoMaxDots,
+  receiptLogoMaxDotsFromChip,
   receiptQrEscPosModuleSize,
   receiptStandardQrHtmlPx,
   receiptStandardQrHtmlPxFromChip,
@@ -548,6 +549,7 @@ export const generateReceiptHTML = ({
         gstStyle,
         showTaxBreakdown: printGst.showTaxBreakdown,
         isRestaurant,
+        receiptLogoSize: effectiveConfig?.receiptLogoSize,
         receiptQrSize: effectiveConfig?.receiptQrSize,
       }
     )
@@ -814,6 +816,8 @@ export const generateReceiptEscPos = async ({
       gstStyle: printGst.gstStyle,
       showTaxBreakdown: printGst.showTaxBreakdown,
       isRestaurant,
+      receiptLogoSize: effectiveConfig?.receiptLogoSize,
+      receiptQrSize: effectiveConfig?.receiptQrSize,
     })
     b.feed(2)
     b.cut()
@@ -836,7 +840,10 @@ export const generateReceiptEscPos = async ({
 
   const logoSrc = showLogo ? (resolvedLogo || '') : ''
   if (logoSrc) {
-    const { maxWidth: maxWidthDots, maxHeight: maxHeightDots } = receiptLogoMaxDots(effectivePaper)
+    const { maxWidth: maxWidthDots, maxHeight: maxHeightDots } = receiptLogoMaxDotsFromChip(
+      effectivePaper,
+      effectiveConfig?.receiptLogoSize || 'medium'
+    )
     const rasterSrc = (await prefetchPrintableLogoSrc(logoSrc)) || logoSrc
     const raster = await rasterizeImageForEscPos(rasterSrc, maxWidthDots, maxHeightDots)
     if (raster) {
@@ -867,7 +874,7 @@ export const generateReceiptEscPos = async ({
           note: sale.invoiceNumber || 'Bill Payment',
         })
       : (printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL)!
-    b.qr(qrPayload, receiptQrEscPosModuleSize(effectivePaper))
+    b.qr(qrPayload, receiptQrEscPosModuleSize(effectivePaper, effectiveConfig?.receiptQrSize))
   }
 
   if (effectiveConfig?.enableBillQrCode) {

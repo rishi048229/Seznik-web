@@ -10,6 +10,8 @@ import { isReceiptEntryEnabled, isBrowserLoadableImageSrc, prefetchPrintableLogo
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   receiptLogoMaxDots,
+  receiptLogoMaxDotsFromChip,
+  receiptLogoHtmlMaxPxFromChip,
   receiptQrEscPosModuleSizeForEntry,
   receiptQrHtmlPx,
   receiptStandardQrHtmlPxFromChip,
@@ -194,6 +196,8 @@ export interface CustomReceiptGstOpts {
   showTaxBreakdown?: boolean
   /** When unset on the table block, restaurant/cafe bills number items; retail does not. */
   isRestaurant?: boolean
+  /** User-selected Logo size chip from ReceiptConfig.receiptLogoSize */
+  receiptLogoSize?: ReceiptSizeChip
   /** User-selected QR size chip from ReceiptConfig.receiptQrSize */
   receiptQrSize?: ReceiptSizeChip
 }
@@ -601,9 +605,9 @@ function toEscPosAlign(align?: 'left' | 'center' | 'right'): EscPosAlign {
   return align === 'center' ? 'center' : align === 'right' ? 'right' : 'left'
 }
 
-function qrModuleSize(entry: CustomReceiptEntry): number {
-  if (entry.type !== 'barcode') return 5
-  return receiptQrEscPosModuleSizeForEntry(entry.size)
+function qrModuleSize(entry: CustomReceiptEntry, defaultChip?: ReceiptSizeChip): number {
+  if (entry.type !== 'barcode') return 4
+  return receiptQrEscPosModuleSizeForEntry(entry.size || defaultChip || 'medium')
 }
 
 /** Rasterize and emit a store logo bitmap; returns true when bytes were sent. */
@@ -612,11 +616,12 @@ async function tryAppendEscPosLogo(
   src: string | undefined,
   paperSize: '58mm' | '80mm',
   widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
-  align: EscPosAlign = 'center'
+  align: EscPosAlign = 'center',
+  chip: ReceiptSizeChip = 'medium'
 ): Promise<boolean> {
   if (!src) return false
   const printable = (await prefetchPrintableLogoSrc(src)) || src
-  const { maxWidth: maxLogoWidth, maxHeight: maxLogoHeight } = receiptLogoMaxDots(paperSize)
+  const { maxWidth: maxLogoWidth, maxHeight: maxLogoHeight } = receiptLogoMaxDotsFromChip(paperSize, chip)
   const widthDots = Math.floor(maxLogoWidth * Math.min(widthPercent, 100) / 100)
   const raster = await rasterizeImageForEscPos(printable, widthDots, maxLogoHeight)
   if (!raster) {
@@ -646,6 +651,8 @@ export async function appendCustomTemplateToEscPos(
     gstStyle: opts?.gstStyle,
     showTaxBreakdown: opts?.showTaxBreakdown,
     isRestaurant: opts?.isRestaurant,
+    receiptLogoSize: opts?.receiptLogoSize,
+    receiptQrSize: opts?.receiptQrSize,
   }
   const fallbackLogo = showLogo ? (data.storeLogoUrl || opts?.fallbackLogoUrl) : undefined
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
@@ -654,7 +661,14 @@ export async function appendCustomTemplateToEscPos(
 
   // Legacy behaviour: always print store logo when template has no image block.
   if (fallbackLogo && !hasImageBlock) {
-    logoPrinted = await tryAppendEscPosLogo(b, fallbackLogo, paperSize, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 'center')
+    logoPrinted = await tryAppendEscPosLogo(
+      b,
+      fallbackLogo,
+      paperSize,
+      RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+      'center',
+      opts?.receiptLogoSize || 'medium'
+    )
   }
 
   const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
@@ -692,9 +706,9 @@ export async function appendCustomTemplateToEscPos(
         const primary = resolveReceiptImageSrc(entry, fallbackLogo)
         const widthPct = entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
         const align = toEscPosAlign(entry.align || 'center')
-        let ok = await tryAppendEscPosLogo(b, primary, paperSize, widthPct, align)
+        let ok = await tryAppendEscPosLogo(b, primary, paperSize, widthPct, align, opts?.receiptLogoSize || 'medium')
         if (!ok && fallbackLogo && primary !== fallbackLogo) {
-          ok = await tryAppendEscPosLogo(b, fallbackLogo, paperSize, widthPct, align)
+          ok = await tryAppendEscPosLogo(b, fallbackLogo, paperSize, widthPct, align, opts?.receiptLogoSize || 'medium')
         }
         logoPrinted = logoPrinted || ok
         break
@@ -774,7 +788,7 @@ export async function appendCustomTemplateToEscPos(
         if (entry.format === 'qr' || entry.codeType === 'qr_code') {
           b.feed(1)
           b.align(toEscPosAlign(entry.align || 'center'))
-          b.qr(rawVal || 'https://seznik.com', qrModuleSize(entry))
+          b.qr(rawVal || 'https://seznik.com', qrModuleSize(entry, opts?.receiptQrSize))
           b.feed(1)
           b.align('left')
         } else {
