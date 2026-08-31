@@ -27,7 +27,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { printCompletedSale, shouldAutoPrint } from '@/utils/printCompletedSale'
+import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
@@ -344,44 +344,7 @@ export const POSPage = () => {
         setMethod('cash')
         setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
-
-        const printedSale: Sale = {
-          id: saleId,
-          invoiceNumber: invoiceNumber || `INV-${saleId.slice(-5) || '00000'}`,
-          items: snapshot.items.map(item => ({
-            productId: item.productId,
-            productName: item.productName,
-            quantity: item.quantity,
-            sellingPrice: item.sellingPrice,
-            discount: item.discount,
-            taxRate: item.taxRate,
-            taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
-            total: item.sellingPrice * item.quantity - item.discount,
-          })),
-          subtotal: snapshot.totals.subtotal,
-          totalDiscount: snapshot.orderDiscountAmount + snapshot.items.reduce((s, i) => s + i.discount, 0),
-          totalTax: snapshot.totals.tax,
-          grandTotal: snapshot.finalTotal,
-          paymentMethod: snapshot.method,
-          amountPaid: snapshot.amountPaidNum,
-          changeReturned: snapshot.method === 'cash' ? snapshot.amountPaidNum - snapshot.finalTotal : 0,
-          isQuickBill: false,
-          createdAt: new Date().toISOString(),
-        }
-        const customerName = snapshot.selectedCustomer
-          ? customers?.find(c => c.id === snapshot.selectedCustomer)?.name
-          : ''
-
         setIsPrintModalOpen(true)
-        if (shouldAutoPrint(settings)) {
-          void printCompletedSale({
-            sale: printedSale,
-            settings,
-            customerName,
-            ble: blePrinter,
-            skipBrowserFallback: true,
-          })
-        }
       },
       onError: (error) => {
         const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')
@@ -1198,7 +1161,13 @@ export const POSPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => handlePrint('thermal')}
+              onClick={() => {
+                if (shouldPrintThermalOverBle(settings, blePrinter)) {
+                  void handlePrintBluetooth()
+                } else {
+                  handlePrint('thermal')
+                }
+              }}
               className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
             >
               <Printer size={32} className="text-gray-400" />
