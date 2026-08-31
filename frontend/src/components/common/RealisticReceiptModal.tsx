@@ -291,14 +291,11 @@ export const RealisticReceiptModal = ({
   const handlePrintThermal = async () => {
     const payload = printPayload()
     const width: '50mm' | '80mm' = receipt.paperSize === '80mm' ? '80mm' : '50mm'
-    const useBle = shouldPrintThermalOverBle(settings, blePrinter)
+    const useBle = blePrinter?.status === 'connected'
 
     if (useBle && blePrinter) {
       setIsPrintingBle(true)
       try {
-        if (blePrinter.status !== 'connected') {
-          await blePrinter.connect()
-        }
         const bytes = await generateReceiptEscPos({
           sale: payload.sale,
           receiptConfig: payload.receiptConfig,
@@ -311,13 +308,14 @@ export const RealisticReceiptModal = ({
         })
         await blePrinter.print(bytes)
         toast.success(`Printed to ${blePrinter.deviceName || 'Bluetooth printer'}`)
+        setIsPrintingBle(false)
+        return
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Bluetooth printing failed'
-        toast.error(`${msg}. Connect the printer on the Printers page.`)
+        console.warn('Bluetooth print failed, falling back to browser print:', err)
+        toast.error('Bluetooth print failed — opening system print dialog')
       } finally {
         setIsPrintingBle(false)
       }
-      return
     }
 
     const html = generateReceiptHTML({ ...payload, width })

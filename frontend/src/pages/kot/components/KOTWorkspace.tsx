@@ -283,9 +283,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
 
-    if (useBle) {
+    if (useBle && blePrinter?.status === 'connected') {
       try {
-        if (blePrinter.status !== 'connected') await blePrinter.connect()
         const bytes = await generateReceiptEscPos({
           sale,
           receiptConfig,
@@ -299,9 +298,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         toast.success('Receipt printed')
         return
       } catch (err) {
-        console.error(err)
-        toast.error('Bluetooth print failed. Connect the printer on the Printers page and try again.')
-        return
+        console.warn('Bluetooth print failed, falling back to system print:', err)
       }
     }
 
