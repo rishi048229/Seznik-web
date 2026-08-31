@@ -661,7 +661,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessAddress,
         businessPhone: phone,
         upiId,
-        receiptConfig,
+        receiptConfig: receiptConfig as any,
         ...(businessLogoURL ? { businessLogoURL } : {}),
       },
       create: {
@@ -670,7 +670,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessAddress,
         businessPhone: phone,
         upiId,
-        receiptConfig,
+        receiptConfig: receiptConfig as any,
         ...(businessLogoURL ? { businessLogoURL } : {}),
       },
     });

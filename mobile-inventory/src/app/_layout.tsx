@@ -71,6 +71,7 @@ const queryClient = new QueryClient({
 import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
 import { usePrinterStore } from '@/store/usePrinterStore';
 
+
 function AppDataPrefetcher() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((state) => state.user?.id);
@@ -127,6 +128,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isAuthenticated) {
       usePrinterStore.getState().hydrateFromSettings().catch(() => {});
+
     }
   }, [isAuthenticated]);
 

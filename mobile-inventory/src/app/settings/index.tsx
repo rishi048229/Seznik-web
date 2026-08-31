@@ -54,6 +54,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 
+
 const SUPPORT_PHONE = '+918237869618';
 const SUPPORT_EMAIL = 'tech_support@seznik.in';
 
@@ -510,6 +511,7 @@ export default function SettingsScreen() {
                 {isSavingProfile ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Save Business Profile</Text>}
               </TouchableOpacity>
             </View>
+
           ) : (
             /* Language Switcher Section */
             <View>
