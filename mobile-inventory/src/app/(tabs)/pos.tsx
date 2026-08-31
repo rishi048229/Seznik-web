@@ -46,8 +46,6 @@ import { useSales } from '@/hooks/useSales';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useCartStore } from '@/store/useCartStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { PaymentMethod } from '@/types/sale';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -534,24 +532,6 @@ function PosScreen() {
     setShowReceiptPreviewModal(true);
     setIsSavingSalePreview(true);
 
-    // Check and trigger real-time low-stock/out-of-stock notifications for sold items
-    const currentCartItems = useCartStore.getState().items;
-    const soldItemsToCheck = currentCartItems.map((item: CartItem) => {
-      const p = products.find((prod) => prod.id === item.product.id);
-      const currStock = typeof p?.currentStock === 'number' ? p.currentStock : (item.product.currentStock ?? 0);
-      const newStock = Math.max(0, currStock - item.quantity);
-      const threshold = p?.lowStockThreshold ?? item.product.lowStockThreshold ?? 5;
-      return {
-        productId: item.product.id,
-        productName: item.product.name,
-        currentStock: newStock,
-        lowStockThreshold: threshold,
-        unit: item.product.unit || 'pcs',
-      };
-    });
-
-    useNotificationStore.getState().checkSoldItemsStock(soldItemsToCheck).catch(() => {});
-
     // Cart clears immediately so the next customer can be served while print + save run.
     setCreditAmountReceivedInput('0');
     setBillDiscountInput('');
@@ -629,8 +609,6 @@ function PosScreen() {
         {/* Secondary tools — uniform neutral buttons so they read as a toolbar, not a
             competing set of colored calls-to-action next to the primary search/browse flow. */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <NotificationBell style={{ marginRight: 6 }} />
-
           <TouchableOpacity
             onPress={async () => {
               if (!permission?.granted) await requestPermission();

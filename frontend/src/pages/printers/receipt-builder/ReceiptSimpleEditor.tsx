@@ -201,6 +201,7 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
                 onChange(patchSectionEntry(template, 'logo', (entry) => (entry.type === 'image' ? { ...entry, imageURL: url, imageUri: undefined } : entry)))
               }
               previewSize="sm"
+              enableBackgroundCleanup
             />
             <input
               type="range"

@@ -328,6 +328,7 @@ export const SettingsPage = () => {
                     }}
                     previewSize="lg"
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                    enableBackgroundCleanup
                   />
                   {isLogoUploading && (
                     <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">

@@ -31,7 +31,6 @@ import { hydrateAndPrefetchAppData } from '@/services/prefetchAppData';
 import { refreshApiBaseUrl } from '@/api/client';
 import { installGlobalAlertInterceptor } from '@/store/useAlertStore';
 import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
-import { InAppNotificationBanner } from '@/components/notifications/InAppNotificationBanner';
 import '@/global.css';
 import { enableFreeze } from 'react-native-screens';
 
@@ -71,8 +70,6 @@ const queryClient = new QueryClient({
 
 import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
 import { usePrinterStore } from '@/store/usePrinterStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
-import { subscribeToNotificationResponses } from '@/services/notificationService';
 
 function AppDataPrefetcher() {
   const queryClient = useQueryClient();
@@ -109,14 +106,6 @@ function RootLayoutNav() {
   useEffect(() => {
     initializeAuth();
     usePrinterStore.getState().hydrateFromSettings().catch(() => {});
-    useNotificationStore.getState().hydrate().catch(() => {});
-
-    // Set up safe notification response listener for deep linking / navigation
-    const unsubscribeNotifications = subscribeToNotificationResponses((data) => {
-      if (data?.type === 'low_stock' || data?.productId) {
-        router.push('/products' as any);
-      }
-    });
 
     // Guarantee splash dismiss within 600ms on all devices
     const timer = setTimeout(() => {
@@ -124,7 +113,6 @@ function RootLayoutNav() {
     }, 600);
     return () => {
       clearTimeout(timer);
-      unsubscribeNotifications();
     };
   }, []);
 
@@ -139,7 +127,6 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isAuthenticated) {
       usePrinterStore.getState().hydrateFromSettings().catch(() => {});
-      useNotificationStore.getState().hydrate().catch(() => {});
     }
   }, [isAuthenticated]);
 
@@ -193,8 +180,6 @@ function RootLayoutNav() {
         <Stack.Screen name="onboarding/index" />
         <Stack.Screen name="index" />
       </Stack>
-      {/* Global in-app notification toast popup */}
-      <InAppNotificationBanner />
       {/* Global custom themed alert popup matching app design system */}
       <CustomAlertModal />
     </ThemeProvider>

@@ -149,6 +149,16 @@ export const RealisticReceiptModal: React.FC<RealisticReceiptModalProps> = ({
     }
   }, [editableSale])
 
+  const upiQrString = useMemo(() => {
+    if (!editableStore.upiId || !isValidUpiVpa(editableStore.upiId)) return ''
+    return buildUpiPayLink({
+      upiId: editableStore.upiId,
+      payeeName: editableStore.name,
+      amount: computedTotals.grandTotal,
+      note: editableSale?.invoiceNumber || 'Bill Payment',
+    })
+  }, [editableStore.upiId, editableStore.name, computedTotals.grandTotal, editableSale?.invoiceNumber])
+
   if (!isOpen || !editableSale) return null
 
   // Helper to update item in editableSale
@@ -364,18 +374,7 @@ export const RealisticReceiptModal: React.FC<RealisticReceiptModalProps> = ({
     ]
     const text = encodeURIComponent(lines.join('\n'))
     const url = custPhone ? `https://wa.me/91${custPhone}?text=${text}` : `https://wa.me/?text=${text}`
-    window.open(url, '_blank')
   }
-
-  const upiQrString = useMemo(() => {
-    if (!editableStore.upiId || !isValidUpiVpa(editableStore.upiId)) return ''
-    return buildUpiPayLink({
-      upiId: editableStore.upiId,
-      payeeName: editableStore.name,
-      amount: computedTotals.grandTotal,
-      note: editableSale.invoiceNumber || 'Bill Payment',
-    })
-  }, [editableStore.upiId, editableStore.name, computedTotals.grandTotal, editableSale.invoiceNumber])
 
   return (
     <Modal

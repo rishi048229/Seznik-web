@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -37,7 +37,6 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { StaffListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
 import { isNavFeatureVisible } from '@/utils/businessFeatures';
 
 type Role = 'admin' | 'agent';
@@ -270,8 +269,6 @@ export default function StaffScreen() {
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0, 12);
   const modalTopPad = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0, 12);
   const modalBottomPad = Math.max(insets.bottom, 12);
-  const dismissBanner = useNotificationStore((state) => state.dismissBanner);
-  const setPauseInAppBanner = useNotificationStore((state) => state.setPauseInAppBanner);
   const { staff, isLoading, isRefetching, isError, refetch, createStaff, isCreating, updateStaff, removeStaff, isSyncing } =
     useManagedUsers();
 
@@ -291,12 +288,6 @@ export default function StaffScreen() {
   const [role, setRole] = useState<Role>('agent');
   const [permissions, setPermissions] = useState<UserPermissions>(EMPTY_PERMISSIONS);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    setPauseInAppBanner(showModal);
-    if (showModal) dismissBanner();
-    return () => setPauseInAppBanner(false);
-  }, [showModal, dismissBanner, setPauseInAppBanner]);
 
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -318,7 +309,6 @@ export default function StaffScreen() {
   };
 
   const handleOpenAdd = () => {
-    dismissBanner();
     setEditingStaff(null);
     setDisplayName('');
     setEmail('');
@@ -329,7 +319,6 @@ export default function StaffScreen() {
   };
 
   const handleOpenEdit = (member: ManagedUser) => {
-    dismissBanner();
     setEditingStaff(member);
     setDisplayName(member.displayName || '');
     setEmail(member.email || '');

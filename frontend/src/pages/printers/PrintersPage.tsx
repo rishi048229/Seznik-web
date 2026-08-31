@@ -1017,6 +1017,7 @@ export const PrintersPage = () => {
                 onChange={(url) => setReceiptConfig(prev => ({ ...prev, logoURL: url, showLogo: true }))}
                 previewSize="md"
                 accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                enableBackgroundCleanup
               />
             </div>
 

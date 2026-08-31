@@ -55,7 +55,6 @@ import { useCategories } from '@/hooks/useCategories';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   generateEAN13Barcode,
   generateCode128Barcode,
@@ -584,8 +583,6 @@ export default function ProductsScreen() {
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <NotificationBell style={{ marginRight: 6 }} />
-
             <TouchableOpacity
               onPress={() => setShowAiModal(true)}
               style={[styles.headerBtn, { backgroundColor: 'rgba(37, 99, 235, 0.15)', marginRight: 6 }]}

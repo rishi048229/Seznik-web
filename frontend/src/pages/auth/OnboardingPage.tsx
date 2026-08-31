@@ -261,6 +261,7 @@ export const OnboardingPage = () => {
                     previewSize="md"
                     accept="image/png,image/jpeg,image/jpg"
                     maxSizeMB={5}
+                    enableBackgroundCleanup
                   />
                 </Field>
                 <Field label={t('onboarding.phone') + ' *'}>

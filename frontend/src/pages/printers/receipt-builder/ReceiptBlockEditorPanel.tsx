@@ -126,6 +126,7 @@ export function ReceiptBlockEditorPanel({
             value={entry.imageURL || logoFallback || ''}
             onChange={(url) => onChange({ ...entry, imageURL: url, imageUri: undefined })}
             previewSize="sm"
+            enableBackgroundCleanup
           />
           <input type="range" min={20} max={100} value={entry.widthPercent || 60} onChange={(e) => onChange({ ...entry, widthPercent: Number(e.target.value) })} />
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -59,6 +59,7 @@ import {
   MessageSquarePlus,
   ChefHat,
   Store,
+  WifiOff,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -88,8 +89,6 @@ import type { Product } from '@/types/product';
 import { useTranslation } from '@/store/useLanguageStore';
 import { RevenueTrendChart } from '@/components/dashboard/RevenueTrendChart';
 import { isNavFeatureVisible } from '@/utils/businessFeatures';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { useNotificationStore } from '@/store/useNotificationStore';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -106,18 +105,12 @@ export default function DashboardScreen() {
     isLoading,
     isRefetching,
     isError,
+    isOffline,
     refetch,
   } = useDashboard();
   const [timeframe, setTimeframe] = useState<'month' | 'daily' | 'monthly'>('month');
   const { trend, isLoading: isTrendLoading, refetch: refetchTrend } = useRevenueTrend(timeframe);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-
-  // Automatically evaluate and notify low-stock items on dashboard data load
-  useEffect(() => {
-    if (stats?.lowStockProducts && stats.lowStockProducts.length > 0) {
-      useNotificationStore.getState().evaluateStockConditions(stats.lowStockProducts).catch(() => {});
-    }
-  }, [stats?.lowStockProducts]);
 
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true);
@@ -360,8 +353,6 @@ export default function DashboardScreen() {
 
           {/* Quick Header Actions Strip */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <NotificationBell style={{ marginRight: 6 }} />
-
             <TouchableOpacity
               onPress={() => {
                 if (!permission?.granted) requestPermission();
@@ -398,15 +389,50 @@ export default function DashboardScreen() {
               hint={t('loadingDashboardHint', 'Fetching today’s sales, stock alerts, and store metrics')}
               skeleton={<DashboardSkeleton />}
             />
-          ) : isError ? (
-            <ScreenErrorState
-              message={t('dashboardLoadFailed', "Couldn't load the dashboard")}
-              hint={t('dashboardLoadFailedHint', 'Check your connection to the server and try again.')}
-              onRetry={refetch}
-              isRetrying={isRefetching}
-            />
           ) : (
             <>
+              {/* Offline / Server Connection Banner */}
+              {(isOffline || isError) && (
+                <View
+                  style={[
+                    styles.offlineBanner,
+                    {
+                      backgroundColor: theme.isDark ? '#2A1515' : '#FEF2F2',
+                      borderColor: theme.isDark ? '#7F1D1D' : '#FECACA',
+                    },
+                  ]}
+                >
+                  <View style={styles.offlineBannerLeft}>
+                    <WifiOff size={18} color="#EF4444" />
+                    <View style={{ marginLeft: 10, flex: 1 }}>
+                      <Text style={[styles.offlineBannerTitle, { color: theme.isDark ? '#FCA5A5' : '#991B1B' }]}>
+                        {t('offlineBannerTitle', 'Offline / Server Disconnected')}
+                      </Text>
+                      <Text style={[styles.offlineBannerSubtitle, { color: theme.isDark ? '#F87171' : '#B91C1C' }]}>
+                        {t('offlineBannerDesc', 'Using local store data. POS & billing remain active.')}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      void handleManualRefresh();
+                    }}
+                    disabled={isRefetching || isManualRefreshing}
+                    style={[
+                      styles.offlineRetryBtn,
+                      { opacity: isRefetching || isManualRefreshing ? 0.6 : 1 },
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    {isRefetching || isManualRefreshing ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.offlineRetryBtnText}>{t('retry', 'Retry')}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* 2. APP LAUNCHER — Primary 4 Tools with Show More Menu */}
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>{t('quickAccess', 'QUICK ACCESS')}</Text>
@@ -1395,5 +1421,40 @@ const styles = StyleSheet.create({
   expenseStatVal: {
     fontSize: 13,
     fontWeight: '900',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  offlineBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  offlineBannerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  offlineBannerSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  offlineRetryBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  offlineRetryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

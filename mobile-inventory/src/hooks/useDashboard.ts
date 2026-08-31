@@ -1,17 +1,31 @@
+import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reportsApi } from '@/api/reports';
+import { useAuthStore } from '@/store/useAuthStore';
+import { writeDashboardCache } from '@/services/dashboardCache';
 
 export function useDashboard() {
   const queryClient = useQueryClient();
+  const userId = useAuthStore((state) => state.user?.id);
 
   const dashboardQuery = useQuery({
     queryKey: ['reports', 'dashboard'],
-    queryFn: reportsApi.getDashboardStats,
+    queryFn: async () => {
+      const data = await reportsApi.getDashboardStats();
+      if (data && userId) {
+        void writeDashboardCache(userId, data);
+      }
+      return data;
+    },
     staleTime: 1000 * 60,
-    // Was retry:2 (3 attempts total) on top of fetchApi's old 90s timeout — up to ~4.5 minutes of
-    // pure spinner before ever surfacing an error. The app-wide default (retry:1, set in
-    // src/app/_layout.tsx) is already the right amount of resilience for a flaky connection.
   });
+
+  // Also persist whenever data changes
+  useEffect(() => {
+    if (dashboardQuery.data && userId) {
+      void writeDashboardCache(userId, dashboardQuery.data);
+    }
+  }, [dashboardQuery.data, userId]);
 
   const paymentModesQuery = useQuery({
     queryKey: ['reports', 'paymentModes'],
@@ -39,6 +53,8 @@ export function useDashboard() {
     queryClient.invalidateQueries({ queryKey: ['reports', 'trend'] });
   };
 
+  const isOffline = dashboardQuery.isError || paymentModesQuery.isError;
+
   return {
     stats: dashboardQuery.data || {
       todayRevenue: 0,
@@ -56,10 +72,8 @@ export function useDashboard() {
     topCustomers: topCustomersQuery.data || [],
     isLoading: !dashboardQuery.data && dashboardQuery.isLoading,
     isRefetching: dashboardQuery.isRefetching || paymentModesQuery.isRefetching,
-    // Only meaningful as a "show a blocking error" signal when there's truly nothing cached to
-    // show instead — a background refetch failing while stale data is still on screen shouldn't
-    // yank the dashboard away, it should just quietly keep the last-good numbers.
     isError: dashboardQuery.isError && !dashboardQuery.data,
+    isOffline,
     refetch: refetchAll,
   };
 }

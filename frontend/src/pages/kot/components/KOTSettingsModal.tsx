@@ -219,6 +219,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               onChange={setLogo}
               previewSize="md"
               accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+              enableBackgroundCleanup
             />
             <Input label="Business name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
             <Input label="Phone" value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} />

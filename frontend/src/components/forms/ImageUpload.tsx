@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Image as ImageIcon, AlertTriangle, Trash2, RefreshCw } from 'lucide-react'
+import { X, Image as ImageIcon, AlertTriangle, Trash2, RefreshCw, Wand2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal'
 
 function cn(...inputs: unknown[]): string {
   return twMerge(clsx(inputs))
@@ -62,6 +63,7 @@ interface ImageUploadProps {
   maxSizeMB?: number
   className?: string
   previewSize?: 'sm' | 'md' | 'lg'
+  enableBackgroundCleanup?: boolean
 }
 
 export const ImageUpload = ({
@@ -73,11 +75,14 @@ export const ImageUpload = ({
   maxSizeMB = 5,
   className,
   previewSize = 'md',
+  enableBackgroundCleanup = false,
 }: ImageUploadProps) => {
   const { t } = useLanguage()
   const [preview, setPreview] = useState<string>(value || '')
   const [isUploading, setIsUploading] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [showCleanupModal, setShowCleanupModal] = useState(false)
+  const [cleanupSource, setCleanupSource] = useState<File | string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sync with value prop changes
@@ -105,6 +110,13 @@ export const ImageUpload = ({
       return
     }
 
+    if (enableBackgroundCleanup) {
+      setCleanupSource(file)
+      setShowCleanupModal(true)
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
+
     setIsUploading(true)
 
     try {
@@ -122,6 +134,12 @@ export const ImageUpload = ({
     } catch {
       setIsUploading(false)
     }
+  }
+
+  const handleOpenCleanupForExisting = () => {
+    if (!preview) return
+    setCleanupSource(preview)
+    setShowCleanupModal(true)
   }
 
   const handleRemove = () => {
@@ -183,7 +201,7 @@ export const ImageUpload = ({
             Click to upload. Recommended: JPG, PNG (Max {maxSizeMB}MB)
           </p>
           {preview ? (
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
@@ -192,6 +210,17 @@ export const ImageUpload = ({
                 <RefreshCw size={12} />
                 {t('image.changePhoto')}
               </button>
+              {enableBackgroundCleanup && (
+                <button
+                  type="button"
+                  onClick={handleOpenCleanupForExisting}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-2.5 py-1 rounded-md transition-colors"
+                  title={t('image.cleanLogo')}
+                >
+                  <Wand2 size={12} />
+                  {t('image.cleanLogo')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleRemove}
@@ -212,6 +241,24 @@ export const ImageUpload = ({
           )}
         </div>
       </div>
+
+      {/* Background Detection & Cleanup Modal */}
+      {enableBackgroundCleanup && showCleanupModal && (
+        <LogoBackgroundModal
+          isOpen={showCleanupModal}
+          imageSrc={cleanupSource}
+          onApply={(dataUrl) => {
+            setPreview(dataUrl)
+            onChange(dataUrl)
+            setShowCleanupModal(false)
+            setCleanupSource(null)
+          }}
+          onCancel={() => {
+            setShowCleanupModal(false)
+            setCleanupSource(null)
+          }}
+        />
+      )}
 
       {/* 5MB Exceeded Popup Modal */}
       {showLimitModal && (
