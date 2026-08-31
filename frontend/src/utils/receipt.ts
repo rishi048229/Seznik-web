@@ -656,16 +656,15 @@ async function runBrowserReceiptPrint(
   const iframe = document.createElement('iframe')
   iframe.id = 'receipt-iframe'
   iframe.setAttribute('aria-hidden', 'true')
-  // Keep full opacity — Chrome often skips printing images inside opacity:0 / visibility:hidden frames.
   iframe.style.cssText = [
     'position:fixed',
     'left:0',
     'top:0',
     `width:${iframeWidth}`,
-    'min-height:240mm',
-    'height:auto',
+    'height:100vh',
+    'z-index:-9999',
+    'opacity:0.01',
     'border:0',
-    'transform:translateX(-200vw)',
     'pointer-events:none',
   ].join(';')
   document.body.appendChild(iframe)
