@@ -192,6 +192,7 @@ export async function dispatchLocalStockNotification(params: {
   currentStock?: number;
   threshold?: number;
   severity?: StockAlertSeverity;
+  delaySeconds?: number;
   data?: Record<string, any>;
 }): Promise<string | null> {
   if (Platform.OS === 'web') {
@@ -208,12 +209,22 @@ export async function dispatchLocalStockNotification(params: {
 
     const priority = Notifications.AndroidNotificationPriority?.HIGH ?? 2;
 
+    const trigger =
+      typeof params.delaySeconds === 'number' && params.delaySeconds > 0
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes?.TIME_INTERVAL || 'timeInterval',
+            seconds: params.delaySeconds,
+            channelId: 'inventory-alerts',
+          }
+        : null;
+
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: params.title,
         body: params.body,
         sound: true,
         priority,
+        vibrate: [0, 250, 250, 250],
         data: {
           type: 'low_stock',
           productId: params.productId,
@@ -224,7 +235,7 @@ export async function dispatchLocalStockNotification(params: {
           ...(params.data || {}),
         },
       },
-      trigger: null, // trigger immediately
+      trigger: trigger as any,
     });
 
     return notificationId;
