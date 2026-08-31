@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -139,6 +139,7 @@ export const RealisticReceiptModal = ({
   const [isEditing, setIsEditing] = useState(false)
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>('')
   const [isPrintingBle, setIsPrintingBle] = useState(false)
+  const editorRef = useRef<HTMLDivElement>(null)
 
   // Re-sync when modal opens
   useEffect(() => {
@@ -147,6 +148,11 @@ export const RealisticReceiptModal = ({
       setIsEditing(false)
     }
   }, [isOpen, defaultState])
+
+  useEffect(() => {
+    if (!isEditing) return
+    editorRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [isEditing])
 
   // Recalculate totals whenever items or discount changes
   const recalcTotals = (itemsList: EditableReceiptItem[], orderDisc: number) => {
@@ -336,23 +342,28 @@ export const RealisticReceiptModal = ({
       title={isEditing ? '✏️ Edit Receipt Details' : '🖨️ Receipt & Bill Preview'}
       size="xl"
       footer={
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col gap-2 w-full pointer-events-auto">
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              type="button"
               variant={isEditing ? 'primary' : 'outline'}
               size="sm"
               leftIcon={isEditing ? <Eye size={15} /> : <Edit3 size={15} />}
-              onClick={() => setIsEditing(!isEditing)}
-              className={`flex-1 sm:flex-none ${isEditing ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800'}`}
+              onClick={() => setIsEditing(prev => !prev)}
+              className={`min-h-10 flex-1 sm:flex-none ${isEditing ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800'}`}
             >
               {isEditing ? 'View bill' : 'Edit bill'}
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               leftIcon={<RotateCcw size={14} />}
-              onClick={() => setReceipt(defaultState)}
-              className="text-gray-500 text-xs"
+              onClick={() => {
+                setReceipt(defaultState)
+                toast.success('Bill reset to original values')
+              }}
+              className="min-h-10 text-gray-500 text-xs"
             >
               Reset
             </Button>
@@ -363,29 +374,32 @@ export const RealisticReceiptModal = ({
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
             <Button
+              type="button"
               variant="outline"
               size="sm"
               leftIcon={<FileText size={15} />}
               onClick={handlePrintA4}
-              className="font-semibold"
+              className="min-h-10 font-semibold"
             >
               Print A4
             </Button>
             <Button
+              type="button"
               variant="outline"
               size="sm"
               leftIcon={<Download size={15} />}
               onClick={handleDownloadA4Pdf}
-              className="font-semibold"
+              className="min-h-10 font-semibold"
             >
               Download PDF
             </Button>
             <Button
+              type="button"
               size="sm"
               leftIcon={shouldPrintThermalOverBle(settings, blePrinter) ? <Bluetooth size={16} /> : <Printer size={16} />}
               onClick={handlePrintThermal}
               loading={isPrintingBle}
-              className="col-span-2 sm:col-span-1 sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
+              className="min-h-10 col-span-2 sm:col-span-1 sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
             >
               {blePrinter?.status === 'connected'
                 ? `Print to ${blePrinter.deviceName || 'printer'}`
@@ -398,9 +412,9 @@ export const RealisticReceiptModal = ({
       }
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[480px]">
-        {/* LEFT COLUMN: EDIT CONTROLS */}
+        {/* LEFT COLUMN: EDIT CONTROLS — on phones this replaces the preview so Edit actually shows */}
         {isEditing && (
-          <div className="lg:col-span-6 space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
+          <div ref={editorRef} className="lg:col-span-6 space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
             <div className="p-3 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 flex items-center justify-between">
               <span className="font-bold flex items-center gap-1.5">
                 <Sparkles size={14} className="text-indigo-600" />
@@ -619,7 +633,7 @@ export const RealisticReceiptModal = ({
         )}
 
         {/* RIGHT / MAIN COLUMN: HYPER-REALISTIC THERMAL RECEIPT CONTAINER */}
-        <div className={`${isEditing ? 'lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 min-w-0`}>
+        <div className={`${isEditing ? 'hidden lg:flex lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 min-w-0`}>
           {/* Realistic Thermal Paper Component */}
           <div className="relative w-full max-w-[340px] transition-all duration-300">
             {/* Serrated Top Edge */}

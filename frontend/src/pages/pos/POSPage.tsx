@@ -15,7 +15,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, Video, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
@@ -57,7 +57,6 @@ export const POSPage = () => {
   const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
-  const [isScanMode, setIsScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
@@ -165,21 +164,6 @@ export const POSPage = () => {
     enabled: !isPaymentOpen && !isPrintModalOpen && !isRealisticReceiptOpen,
   })
 
-  const toggleScanMode = () => {
-    setIsScanMode(prev => {
-      if (!prev) setTimeout(() => scanInputRef.current?.focus(), 50)
-      return !prev
-    })
-    setScanInput('')
-  }
-
-  const handleScanSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const code = scanInput.trim()
-    if (code.length >= 4) handleBarcodeScan(code)
-    setScanInput('')
-  }
-
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
   const priceMinNum = parseFloat(priceMin)
   const priceMaxNum = parseFloat(priceMax)
@@ -247,6 +231,31 @@ export const POSPage = () => {
       toast.error(selectedLocationId ? `${t('pos.errOutOfStock')} at this location` : t('pos.errOutOfStock'))
     } else {
       addItem(withEffectivePrice(product))
+    }
+  }
+
+  const addFromSearchOrScan = (raw: string) => {
+    const q = raw.trim()
+    if (!q) return false
+    const byBarcode = activeProducts.find(p => p.barcode && p.barcode.toLowerCase() === q.toLowerCase())
+    if (byBarcode) {
+      handleProductClick(byBarcode)
+      setSearch('')
+      setScanInput('')
+      return true
+    }
+    if (filtered.length === 1) {
+      handleProductClick(filtered[0])
+      setSearch('')
+      return true
+    }
+    return false
+  }
+
+  const handleSearchSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!addFromSearchOrScan(search || scanInput)) {
+      if (search.trim()) toast.error('No exact product match — tap a card or scan again')
     }
   }
 
@@ -560,36 +569,43 @@ export const POSPage = () => {
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${mobileTab === 'cart' ? 'hidden sm:flex' : 'flex'}`}>
         {/* Search & Category Bar */}
         <div data-tour="pos-search-bar" className="px-3 sm:px-5 pt-3 pb-2 bg-white dark:bg-gray-900 sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-2">
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
             <div data-tour="pos-search-input" className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <Input
-                placeholder="Search name, SKU or barcode"
+                placeholder="Search or scan — Enter adds the match"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 pr-3 h-11 text-sm"
+                className="pl-9 pr-10 h-12 text-sm rounded-xl"
+                autoComplete="off"
               />
+              <ScanLine className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
             </div>
-            <form
-              onSubmit={handleScanSubmit}
-              className="relative w-[7.5rem] sm:w-44 shrink-0"
-            >
+            <div className="relative w-[6.5rem] sm:w-40 shrink-0">
               <Barcode className="absolute left-2.5 top-1/2 -translate-y-1/2 text-blue-500" size={15} />
               <Input
                 ref={scanInputRef}
                 value={scanInput}
                 onChange={e => setScanInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const code = scanInput.trim()
+                    if (code.length >= 4) handleBarcodeScan(code)
+                    setScanInput('')
+                  }
+                }}
                 placeholder="Scan"
-                className="pl-8 pr-2 h-11 text-sm font-mono"
+                className="pl-8 pr-2 h-12 text-sm font-mono rounded-xl"
                 autoComplete="off"
               />
-            </form>
+            </div>
             <div ref={filterPanelRef} className="relative shrink-0">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsFilterOpen(v => !v)}
-                className={`relative h-11 w-11 p-0 flex items-center justify-center ${hasActiveFilters ? 'border-blue-500 text-blue-600' : ''}`}
+                className={`relative h-12 w-12 p-0 rounded-xl flex items-center justify-center ${hasActiveFilters ? 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/40' : ''}`}
               >
                 <Filter size={18} />
                 {hasActiveFilters && (
@@ -691,7 +707,7 @@ export const POSPage = () => {
                 </>
               )}
             </div>
-          </div>
+          </form>
 
           {/* Billing location (only shown when multi-location inventory is enabled) */}
           <div className="mt-3">
@@ -751,11 +767,11 @@ export const POSPage = () => {
         </div>
 
         {/* Product Grid */}
-        <div data-tour="pos-product-grid" className="flex-1 overflow-y-auto px-4 sm:px-6 pt-3 pb-4">
-          <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
+        <div data-tour="pos-product-grid" className="flex-1 overflow-y-auto px-3 sm:px-5 pt-3 pb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {filtered.map(product => {
               const reserved = cartReserved[product.id] || 0
-              const available = product.currentStock - reserved
+              const available = getEffectiveStock(product) - reserved
               const isOutOfStock = available <= 0
               const isLowStock = available > 0 && available <= product.lowStockThreshold
 
@@ -763,60 +779,52 @@ export const POSPage = () => {
                 <div
                   key={product.id}
                   onClick={() => !isOutOfStock && handleProductClick(product)}
-                  className={`relative group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
+                  className={`relative group flex items-center gap-2.5 rounded-2xl border px-2.5 py-2 transition-all duration-150 ${
                     isOutOfStock
                       ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
-                      : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-300 dark:hover:border-blue-800'
+                      : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-400 hover:bg-blue-50/70 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 hover:shadow-sm'
                   }`}
                 >
-                  {/* Edit product — fix name/price/stock without leaving billing */}
-                  <button
-                    type="button"
-                    onClick={(e) => openEditProduct(e, product)}
-                    title={t('products.editProduct')}
-                    className="absolute top-1.5 right-1.5 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-500 dark:text-gray-300 hover:text-blue-600 shadow-md transition-all active:scale-95"
-                  >
-                    <Pencil size={14} />
-                  </button>
-
-                  {/* Thumbnail */}
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                  <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                     {product.imageURL ? (
                       <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
-                      <ShoppingCart size={18} className="text-gray-300" />
+                      <ShoppingCart size={16} className="text-gray-300" />
                     )}
                   </div>
 
-                  {/* Name + SKU */}
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-700 dark:group-hover:text-blue-300">
                       {product.name}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">{t('common.sku')}: {product.sku}</p>
-                  </div>
-
-                  {/* Price + stock badge + add */}
-                  <div className="mt-auto pt-1 flex items-end justify-between gap-2">
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-sm font-bold text-blue-600">
-                        {formatINR(product.sellingPrice)}
-                      </span>
-                      <span className={`inline-flex w-fit text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-sm font-bold text-blue-600">{formatINR(getEffectivePrice(product))}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
                         isOutOfStock
                           ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                           : isLowStock
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
                       }`}>
-                        {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
+                        {isOutOfStock ? t('pos.outOfStock') : available}
                       </span>
                     </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-1 shrink-0">
                     <button
+                      type="button"
+                      onClick={(e) => openEditProduct(e, product)}
+                      title={t('products.editProduct')}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
                       disabled={isOutOfStock}
                       onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) handleProductClick(product) }}
-
-                      className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                      className="w-8 h-8 rounded-xl bg-[#0a0a2e] hover:bg-blue-600 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus size={16} />
                     </button>
@@ -1019,9 +1027,9 @@ export const POSPage = () => {
               onClick={handlePreviewCurrentBill}
               disabled={items.length === 0}
               leftIcon={<FileText size={15} className="text-indigo-600" />}
-              className="w-full h-9 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              className="w-full h-10 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
             >
-              Preview &amp; Edit Bill (Live Receipt)
+              Preview &amp; edit bill
             </Button>
           </div>
         </div>

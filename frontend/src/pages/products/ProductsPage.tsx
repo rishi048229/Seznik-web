@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -27,7 +27,7 @@ import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { AutoTranslatedText } from '@/components/common/AutoTranslatedText'
-import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X, Bluetooth } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Wand2, X, Bluetooth, Keyboard, Upload } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { buildCategoryOptions } from '@/utils/categoryTree'
@@ -135,6 +135,74 @@ const defaultForm: ProductFormState = {
 }
 
 const PAGE_SIZE = 8
+
+function ProductActionTile({
+  icon,
+  label,
+  hint,
+  onClick,
+  tone = 'slate',
+  dataTour,
+  pulse,
+}: {
+  icon: ReactNode
+  label: string
+  hint: string
+  onClick: () => void
+  tone?: 'slate' | 'blue' | 'purple' | 'emerald' | 'amber' | 'rose'
+  dataTour?: string
+  pulse?: boolean
+}) {
+  const tones = {
+    slate: {
+      tile: 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:border-gray-500',
+      icon: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-200 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900',
+      hint: 'text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300',
+    },
+    blue: {
+      tile: 'border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/30 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40',
+      icon: 'bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-300 group-hover:bg-blue-600 group-hover:text-white',
+      hint: 'text-blue-600/70 group-hover:text-blue-700 dark:text-blue-400',
+    },
+    purple: {
+      tile: 'border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-950/30 hover:border-purple-500 hover:bg-purple-100 dark:hover:bg-purple-900/40',
+      icon: 'bg-purple-100 text-purple-600 dark:bg-purple-900/60 dark:text-purple-300 group-hover:bg-purple-600 group-hover:text-white',
+      hint: 'text-purple-600/70 group-hover:text-purple-700 dark:text-purple-400',
+    },
+    emerald: {
+      tile: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 hover:border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40',
+      icon: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white',
+      hint: 'text-emerald-600/70 group-hover:text-emerald-700 dark:text-emerald-400',
+    },
+    amber: {
+      tile: 'border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30 hover:border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+      icon: 'bg-amber-100 text-amber-600 dark:bg-amber-900/60 dark:text-amber-300 group-hover:bg-amber-600 group-hover:text-white',
+      hint: 'text-amber-600/70 group-hover:text-amber-700 dark:text-amber-400',
+    },
+    rose: {
+      tile: 'border-rose-200 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/30 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40',
+      icon: 'bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300 group-hover:bg-rose-600 group-hover:text-white',
+      hint: 'text-rose-600/70 group-hover:text-rose-700 dark:text-rose-400',
+    },
+  }[tone]
+
+  return (
+    <button
+      type="button"
+      data-tour={dataTour}
+      onClick={onClick}
+      className={`group flex items-center gap-3 min-w-0 w-full text-left rounded-2xl border px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tones.tile}`}
+    >
+      <span className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 ${tones.icon} ${pulse ? 'animate-pulse' : ''}`}>
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{label}</span>
+        <span className={`block text-[11px] truncate ${tones.hint}`}>{hint}</span>
+      </span>
+    </button>
+  )
+}
 
 export const ProductsPage = () => {
   const { t } = useLanguage()
@@ -732,41 +800,50 @@ export const ProductsPage = () => {
   const categoryOptions = buildCategoryOptions(categories)
 
   return (
-    <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
+    <div className="p-1 sm:p-2 max-w-full min-w-0 pb-32 sm:pb-6">
       <div data-tour="products-header">
         <PageHeader
           title={t('page.products')}
           onWatchTutorial={pageTutorial.openTutorial}
-          action={
-            <Button
-              data-tour="add-product-btn"
-              leftIcon={<Plus size={16} />}
-              onClick={openCreate}
-              className="shrink-0 whitespace-nowrap font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {t('products.addProduct')}
-            </Button>
-          }
         />
 
-        {/* Quick Tools Action Bar — Horizontally scrollable on all screen sizes */}
-        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar scroll-smooth py-1 mb-4 min-w-0">
-          {selectedIds.size > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              leftIcon={<Trash2 size={16} />}
-              onClick={handleBulkDelete}
-              loading={isBulkDeleting}
-              className="shrink-0 whitespace-nowrap"
-            >
-              Delete Selected ({selectedIds.size})
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 font-bold shrink-0 whitespace-nowrap"
-            leftIcon={<Tag size={16} className="text-blue-600 dark:text-blue-400" />}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-2.5 mb-5">
+          <ProductActionTile
+            dataTour="add-product-btn"
+            tone="blue"
+            icon={<Plus size={18} />}
+            label={t('products.addProduct')}
+            hint="Create a new item"
+            onClick={openCreate}
+          />
+          <ProductActionTile
+            dataTour="scan-stock-btn"
+            tone="amber"
+            icon={<Barcode size={18} />}
+            label="Scan to add"
+            hint="Restock by barcode"
+            onClick={() => setShowBarcodeModal(true)}
+          />
+          <ProductActionTile
+            tone="slate"
+            icon={<Keyboard size={18} />}
+            label="Manual stock"
+            hint="Type barcode + qty"
+            onClick={() => setShowManualBarcodeModal(true)}
+          />
+          <ProductActionTile
+            tone="purple"
+            pulse
+            icon={<Upload size={18} />}
+            label="Bulk upload"
+            hint="SEZ AI document import"
+            onClick={() => setShowAiModal(true)}
+          />
+          <ProductActionTile
+            tone="blue"
+            icon={<Tag size={18} />}
+            label={selectedIds.size > 0 ? `Labels (${selectedIds.size})` : 'Print labels'}
+            hint="Consecutive billing labels"
             onClick={() => {
               const targetProds = selectedIds.size > 0
                 ? activeProducts.filter(p => selectedIds.has(p.id))
@@ -774,71 +851,34 @@ export const ProductsPage = () => {
               setConsecutiveProducts(targetProds)
               setShowConsecutiveModal(true)
             }}
-          >
-            {selectedIds.size > 0 ? `Consecutive Labels (${selectedIds.size})` : 'Consecutive Billing Labels'}
-          </Button>
-          <Button
-            variant="outline"
-            className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold shrink-0 whitespace-nowrap"
-            leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
-            onClick={() => setShowAiModal(true)}
-          >
-            SEZ AI Bulk Upload
-          </Button>
-          <Button
-            data-tour="scan-stock-btn"
-            variant="outline"
-            leftIcon={<Barcode size={16} />}
-            onClick={() => setShowBarcodeModal(true)}
-            className="shrink-0 whitespace-nowrap"
-          >
-            Scan to Update Stock
-          </Button>
-          <Button
-            variant="outline"
-            leftIcon={<Barcode size={16} />}
-            onClick={() => setShowManualBarcodeModal(true)}
-            className="shrink-0 whitespace-nowrap"
-          >
-            Manual Stock Update
-          </Button>
-          <Button
-            variant="outline"
-            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800 font-bold shrink-0 whitespace-nowrap"
-            leftIcon={<Download size={16} className="text-emerald-600 dark:text-emerald-400" />}
+          />
+          <ProductActionTile
+            tone="emerald"
+            icon={<Download size={18} />}
+            label={selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export'}
+            hint="Excel, print or image"
             onClick={() => setShowExportModal(true)}
-          >
-            {selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export Products'}
-          </Button>
-
+          />
           {isBleSupported && (
-            <button
-              type="button"
+            <ProductActionTile
+              tone={bleStatus === 'connected' ? 'emerald' : 'slate'}
+              pulse={bleStatus === 'connecting'}
+              icon={<Bluetooth size={18} />}
+              label={bleStatus === 'connected' ? (bleDeviceName || 'Printer on') : bleStatus === 'connecting' ? 'Connecting…' : 'Label printer'}
+              hint={bleStatus === 'connected' ? 'Ready to print labels' : 'Tap to connect Bluetooth'}
               onClick={() => {
-                if (bleStatus !== 'connected') {
-                  connectBlePrinter()
-                }
+                if (bleStatus !== 'connected') connectBlePrinter()
               }}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border shrink-0 whitespace-nowrap transition-all shadow-xs ${
-                bleStatus === 'connected'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
-                  : bleStatus === 'connecting'
-                  ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 animate-pulse'
-                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100'
-              }`}
-            >
-              <Bluetooth size={14} className={bleStatus === 'connected' ? 'text-emerald-600' : 'text-gray-400'} />
-              <span>
-                {bleStatus === 'connected'
-                  ? `Printer: ${bleDeviceName || 'Connected'}`
-                  : bleStatus === 'connecting'
-                  ? 'Connecting Printer...'
-                  : 'Connect Label Printer'}
-              </span>
-              {bleStatus === 'connected' && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              )}
-            </button>
+            />
+          )}
+          {selectedIds.size > 0 && (
+            <ProductActionTile
+              tone="rose"
+              icon={<Trash2 size={18} />}
+              label={`Delete (${selectedIds.size})`}
+              hint={isBulkDeleting ? 'Deleting…' : 'Remove selected items'}
+              onClick={handleBulkDelete}
+            />
           )}
         </div>
       </div>
