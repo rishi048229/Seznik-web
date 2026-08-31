@@ -603,20 +603,9 @@ export const printReceipt = (
   title = 'Receipt',
   onDone?: () => void,
 ) => {
-  void runBrowserReceiptPrint(receiptHTML, width, title, onDone)
-}
-
-async function runBrowserReceiptPrint(
-  receiptHTML: string,
-  width: '50mm' | '80mm' | '210mm',
-  title: string,
-  onDone?: () => void,
-) {
-  const preparedReceiptHtml = await inlineHtmlImageSources(receiptHTML)
   const isThermal = width === '50mm' || width === '80mm'
   const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
   const pageMargin = width === '80mm' ? '2mm 2mm 10mm 2mm' : isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
-  const iframeWidth = width === '210mm' ? '210mm' : paperWidth
 
   const fullHTML = `<!DOCTYPE html>
 <html>
@@ -631,7 +620,7 @@ async function runBrowserReceiptPrint(
     @media print {
       @page { size: ${paperWidth} auto; margin: ${pageMargin}; }
       html, body { width: 100%; margin: 0; padding: 0; }
-      img { max-width: 100% !important; display: block !important; visibility: visible !important; opacity: 1 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      img { max-width: 100% !important; display: block !important; visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -641,12 +630,12 @@ async function runBrowserReceiptPrint(
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    #receipt { width: 100%; max-width: 100%; margin: 0; padding: 0; overflow: hidden; }
-    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; image-rendering: auto; opacity: 1; }
+    #receipt { width: 100%; margin: 0; padding: 0; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; image-rendering: auto; }
   </style>
 </head>
 <body>
-  <div id="receipt">${preparedReceiptHtml}</div>
+  <div id="receipt">${receiptHTML}</div>
 </body>
 </html>`
 
@@ -655,18 +644,8 @@ async function runBrowserReceiptPrint(
 
   const iframe = document.createElement('iframe')
   iframe.id = 'receipt-iframe'
-  iframe.setAttribute('aria-hidden', 'true')
-  iframe.style.cssText = [
-    'position:fixed',
-    'left:0',
-    'top:0',
-    `width:${iframeWidth}`,
-    'height:100vh',
-    'z-index:-9999',
-    'opacity:0.01',
-    'border:0',
-    'pointer-events:none',
-  ].join(';')
+  iframe.style.cssText =
+    'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:none;visibility:hidden'
   document.body.appendChild(iframe)
 
   const executePrint = () => {
@@ -681,30 +660,47 @@ async function runBrowserReceiptPrint(
     }
   }
 
-  const prepareAndPrint = async (doc: Document | null | undefined) => {
-    if (doc) {
-      await inlineDocumentImages(doc)
-      await waitForDocumentImages(doc)
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      })
-      await new Promise<void>((resolve) => setTimeout(resolve, 150))
-    }
-    executePrint()
-  }
-
-  const doc = iframe.contentDocument || iframe.contentWindow?.document
-  if (doc) {
-    doc.open()
-    doc.write(fullHTML)
-    doc.close()
-    await prepareAndPrint(doc)
-    return
-  }
-
   iframe.onload = () => {
-    void prepareAndPrint(iframe.contentDocument || iframe.contentWindow?.document)
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) {
+      setTimeout(executePrint, 400)
+      return
+    }
+
+    const images = Array.from(doc.images || [])
+    if (images.length === 0) {
+      setTimeout(executePrint, 200)
+      return
+    }
+
+    let remaining = images.length
+    let printed = false
+    const checkDone = () => {
+      remaining--
+      if (remaining <= 0 && !printed) {
+        printed = true
+        setTimeout(executePrint, 250)
+      }
+    }
+
+    images.forEach(img => {
+      if (img.complete && img.naturalHeight !== 0) {
+        checkDone()
+      } else {
+        img.addEventListener('load', checkDone)
+        img.addEventListener('error', checkDone)
+      }
+    })
+
+    // Safeguard timeout in case image events don't fire
+    setTimeout(() => {
+      if (!printed) {
+        printed = true
+        executePrint()
+      }
+    }, 1500)
   }
+
   iframe.srcdoc = fullHTML
 }
 
