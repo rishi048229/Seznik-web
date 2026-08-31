@@ -3,6 +3,7 @@ import { Scissors } from 'lucide-react'
 import { compileReceiptTextLines, getCols } from '@/utils/receiptEngine'
 import { getUpiQrImageUrl } from '@/utils/upiQr'
 import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
+import { receiptLogoHtmlMaxPx, receiptStandardQrHtmlPx } from '@shared/receiptPrintGeometry'
 
 interface ReceiptLivePreviewProps {
   paperSize: '58mm' | '80mm'
@@ -99,7 +100,15 @@ export const ReceiptLivePreview = ({
               <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">
                 {showLogo && logoSrc && (
                   <div className="flex justify-center px-2 pt-2.5 pb-2 border-b border-dashed border-gray-300">
-                    <img src={logoSrc} alt="Store Logo" className="max-h-10 object-contain" style={{ maxWidth: `${cols}ch` }} />
+                    <img
+                      src={logoSrc}
+                      alt="Store Logo"
+                      className="object-contain"
+                      style={{
+                        maxHeight: `${receiptLogoHtmlMaxPx(paperSize).maxHeight}px`,
+                        maxWidth: `${receiptLogoHtmlMaxPx(paperSize).maxWidth}px`,
+                      }}
+                    />
                   </div>
                 )}
                 <pre
@@ -119,7 +128,7 @@ export const ReceiptLivePreview = ({
                 {showQr && (
                   <div className="px-2 pb-2 pt-2 border-t border-dashed border-gray-300 text-center flex flex-col items-center">
                     <span className="text-[9px] font-bold tracking-wider text-gray-800 mb-1">
-                      SCAN TO PAY ₹2,759.00 (UPI / QR)
+                      SCAN TO PAY VIA UPI
                     </span>
                     <img
                       src={
@@ -136,7 +145,11 @@ export const ReceiptLivePreview = ({
                           : receiptConfig.paymentQrURL
                       }
                       alt="Payment QR Code"
-                      className="w-24 h-24 object-contain border border-gray-200 rounded p-1 bg-white"
+                      style={{
+                        width: `${receiptStandardQrHtmlPx(paperSize)}px`,
+                        height: `${receiptStandardQrHtmlPx(paperSize)}px`,
+                      }}
+                      className="object-contain border border-gray-200 rounded p-1 bg-white"
                     />
                   </div>
                 )}

@@ -13,6 +13,7 @@ import {
 import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from '@/utils/upiQr'
 import { getReceiptPreviewFontStyle, getReceiptPreviewMaxWidth } from './receiptPreviewStyles'
 import { isReceiptEntryEnabled, resolveReceiptImageSrc } from '@/utils/receiptLogo'
+import { receiptQrPreviewPx, receiptStandardQrHtmlPx } from '@shared/receiptPrintGeometry'
 
 interface CustomReceiptPreviewProps {
   template: CustomReceiptTemplate
@@ -126,11 +127,18 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
           rawVal = context.invoiceNumber || 'INV-2026-0042'
         }
 
-        const qrSize = entry.size === 'large' ? 120 : entry.size === 'small' ? 85 : 100
+        const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
+        const qrSize =
+          isUpi || entry.qrType === 'digital_bill' || !entry.size
+            ? receiptStandardQrHtmlPx(paperWidth)
+            : receiptQrPreviewPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
         return (
           <div key={entry.id || idx} className={`my-2 flex ${entry.align === 'left' ? 'justify-start' : entry.align === 'right' ? 'justify-end' : 'justify-center'}`}>
             {isQr ? (
               <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 inline-block">
+                {isUpi ? (
+                  <div className="text-[9px] font-bold tracking-wider text-center mb-1">SCAN TO PAY VIA UPI</div>
+                ) : null}
                 <QRCodeSVG
                   value={rawVal || 'https://seznik.com'}
                   size={qrSize}
@@ -173,6 +181,8 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
             </div>
           )
         }
+        // Skip scan-to-pay rows — barcode block already renders "SCAN TO PAY VIA UPI" above QR
+        if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) return null
         const leftStr = vars(entry.left).trim()
         const rightStr = vars(entry.right).trim()
         if (!leftStr && !rightStr) return null
@@ -180,7 +190,7 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
         return (
           <div key={entry.id || idx} className="flex justify-between text-black my-0.5" style={{ fontSize: '0.95em', fontFamily: 'inherit' }}>
             <span className={entry.bold ? 'font-bold' : ''}>{leftStr}</span>
-            <span className={entry.bold ? 'font-bold' : ''}>{rightStr}</span>
+            {rightStr ? <span className={entry.bold ? 'font-bold' : ''}>{rightStr}</span> : null}
           </div>
         )
       }
