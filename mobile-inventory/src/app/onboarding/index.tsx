@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,8 @@ import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { useTranslation } from '@/store/useLanguageStore';
 import { persistBusinessLogo } from '@/utils/businessLogoStorage';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
+import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
 
 export default function OnboardingScreen() {
@@ -41,6 +43,7 @@ export default function OnboardingScreen() {
     updateBusinessType,
     isUpdatingBusinessType,
   } = useAuth();
+  const { settings } = useSettings();
   const { currentLanguage, setLanguage, t } = useTranslation();
 
   const pickTypeOnly = user?.onboardingCompleted === true && !user?.businessType;
@@ -70,6 +73,17 @@ export default function OnboardingScreen() {
   const upiPreview = isValidUpiVpa(upiId)
     ? buildUpiPayString(upiId.trim(), businessName.trim() || 'Your shop', 100, 'Sample bill')
     : '';
+
+  useEffect(() => {
+    const profile = resolveStoreProfile(settings, user);
+    if (!businessName.trim() && profile.storeName && profile.storeName !== 'Your Store Name') {
+      setBusinessName(profile.storeName);
+    }
+    if (!phone.trim() && profile.storePhone) setPhone(profile.storePhone);
+    if (!businessAddress.trim() && profile.storeAddress) setBusinessAddress(profile.storeAddress);
+    if (!upiId.trim() && profile.upiId) setUpiId(profile.upiId);
+    if (!logoUri && profile.storeLogoUrl) setLogoUri(profile.storeLogoUrl);
+  }, [settings, user]);
 
   const validateShopDetails = () => {
     if (!businessName.trim()) {

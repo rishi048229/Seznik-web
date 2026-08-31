@@ -7,6 +7,7 @@ import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
 import { isValidBusinessType } from '../constants/businessTypes';
 import { isValidUpiVpa } from '../utils/upiVpa';
+import { buildReceiptConfigFromProfile } from '../utils/enrichSettingsProfile';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 request per email per minute
@@ -644,12 +645,14 @@ export const completeOnboarding = async (req: Request, res: Response) => {
       !Array.isArray(currentSettings.receiptConfig)
         ? (currentSettings.receiptConfig as Record<string, unknown>)
         : {};
-    const receiptConfig = {
-      ...existingReceipt,
+    const receiptConfig = buildReceiptConfigFromProfile({
+      businessName,
+      businessAddress,
+      phone,
       upiId,
-      showPaymentQR: true,
-      receiptConfigUpdatedAt: new Date().toISOString(),
-    };
+      businessLogoURL: businessLogoURL || undefined,
+      existingReceipt,
+    });
 
     await prisma.settings.upsert({
       where: { userId },

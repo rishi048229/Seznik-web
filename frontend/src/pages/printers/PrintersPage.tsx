@@ -305,9 +305,9 @@ export const PrintersPage = () => {
   // writes, so a save made on either page shows up here (and vice versa)
   // without needing a manual refetch.
   useEffect(() => {
-    if (!settings) return
+    if (!settings && !user) return
 
-    if (settings.printerConfig) {
+    if (settings?.printerConfig) {
       const merged = { ...defaultPrinterConfig, ...settings.printerConfig } as PrinterConfig & {
         primaryPrinter?: string
         ipAddress?: string
@@ -350,27 +350,28 @@ export const PrintersPage = () => {
       }
     }
 
-    const mergedReceipt = { ...defaultReceiptConfig, ...settings.receiptConfig }
+    const mergedReceipt = { ...defaultReceiptConfig, ...(settings?.receiptConfig || {}) }
     if (!mergedReceipt.companyName) {
-      mergedReceipt.companyName = settings.businessName || user?.businessName || user?.displayName || ''
+      mergedReceipt.companyName =
+        settings?.businessName || user?.businessName || user?.displayName || ''
     }
     if (!mergedReceipt.address) {
-      mergedReceipt.address = settings.businessAddress || ''
+      mergedReceipt.address = settings?.businessAddress || ''
     }
     if (!mergedReceipt.phone) {
-      mergedReceipt.phone = settings.businessPhone || user?.phone || ''
+      mergedReceipt.phone = settings?.businessPhone || user?.phone || ''
     }
     if (!mergedReceipt.gstin) {
-      mergedReceipt.gstin = settings.businessGSTIN || ''
+      mergedReceipt.gstin = settings?.businessGSTIN || ''
     }
     if (!mergedReceipt.logoURL) {
-      mergedReceipt.logoURL = settings.businessLogoURL || ''
+      mergedReceipt.logoURL = settings?.businessLogoURL || ''
     }
     if (!mergedReceipt.upiId) {
-      mergedReceipt.upiId = settings.upiId || ''
+      mergedReceipt.upiId = settings?.upiId || ''
     }
-    if (!mergedReceipt.footerMessage && (settings.invoiceConfig as any)?.footerText) {
-      mergedReceipt.footerMessage = (settings.invoiceConfig as any).footerText
+    if (!mergedReceipt.footerMessage && (settings?.invoiceConfig as any)?.footerText) {
+      mergedReceipt.footerMessage = (settings?.invoiceConfig as any).footerText
     }
     const receiptSnapshot = JSON.stringify(mergedReceipt)
     const receiptHasLocalEdits =
@@ -391,10 +392,10 @@ export const PrintersPage = () => {
     const uid = user.id || user.uid || ''
 
     const printerPayload = {
-      businessName: settings?.businessName ?? user.displayName ?? '',
-      businessAddress: settings?.businessAddress ?? '',
-      businessPhone: settings?.businessPhone ?? '',
-      businessGSTIN: settings?.businessGSTIN ?? '',
+      businessName: receiptConfig.companyName || settings?.businessName || user.displayName || '',
+      businessAddress: receiptConfig.address || settings?.businessAddress || '',
+      businessPhone: receiptConfig.phone || settings?.businessPhone || user.phone || '',
+      businessGSTIN: receiptConfig.gstin || settings?.businessGSTIN || '',
       businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
       upiId: receiptConfig.upiId?.trim() || settings?.upiId || undefined,
       personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
@@ -498,7 +499,12 @@ export const PrintersPage = () => {
   // both the live on-screen preview and the real print byte generator, so
   // what you see is genuinely what gets sent to the printer.
   const labelData: LabelData = {
-    businessName: receiptConfig.companyName || settings?.businessName || 'SEZNIK POS',
+    businessName:
+      receiptConfig.companyName ||
+      settings?.businessName ||
+      user?.businessName ||
+      user?.displayName ||
+      'Your Store',
     productName: selectedProduct?.name || 'Sample Product',
     price: formatINR(selectedProduct?.sellingPrice ?? 1299),
     barcodeValue: selectedProduct?.barcode || selectedProduct?.sku || '0000000000',
@@ -1658,9 +1664,15 @@ export const PrintersPage = () => {
                 <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
                   <div>
                     <h4 className="font-extrabold text-sm" style={{ color: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                      {receiptConfig.companyName || settings?.businessName || 'SEZNIK ENTERPRISES'}
+                      {receiptConfig.companyName ||
+                        settings?.businessName ||
+                        user?.businessName ||
+                        user?.displayName ||
+                        'Your Store'}
                     </h4>
-                    <p className="text-[10px] text-gray-500">GSTIN: {receiptConfig.gstin || '27AAAAA0000A1Z5'}</p>
+                    <p className="text-[10px] text-gray-500">
+                      GSTIN: {receiptConfig.gstin || settings?.businessGSTIN || '—'}
+                    </p>
                   </div>
                   <div className="text-right">
                     <span className="font-extrabold text-xs block">TAX INVOICE</span>

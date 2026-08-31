@@ -44,6 +44,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
@@ -81,6 +82,7 @@ export default function PrintersScreen() {
   const router = useRouter();
   const { t, currentLanguage } = useTranslation();
   const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
@@ -351,12 +353,12 @@ export default function PrintersScreen() {
     setIsPrintingA4(true);
     try {
       const sampleData: PrintSaleData = {
-        storeName: settings?.businessName || 'Your Store Name',
-        storeAddress: settings?.businessAddress || '123 Market Road, City',
-        storePhone: settings?.businessPhone || '9999999999',
-        storeGstin: settings?.businessGSTIN || '07AAAAA0000A1Z5',
+        storeName: storeProfile.storeName,
+        storeAddress: storeProfile.storeAddress,
+        storePhone: storeProfile.storePhone,
+        storeGstin: storeProfile.storeGstin,
         storeLogoUrl: printOptions.storeLogoUrl,
-        upiId: settings?.upiId || undefined,
+        upiId: storeProfile.upiId || undefined,
         invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
         date: new Date().toLocaleDateString('en-GB'),
         customerName: 'Test Customer',
@@ -870,7 +872,7 @@ export default function PrintersScreen() {
                         <View style={styles.previewPaperContainer}>
                           <CustomReceiptMockup
                             template={ct}
-                            storeName={settings?.businessName || 'Your Store Name'}
+                            storeName={storeProfile.storeName}
                             storeAddress={settings?.businessAddress || '123 Market Road, City'}
                             storePhone={settings?.businessPhone || '9999999999'}
                             storeGstin={settings?.businessGSTIN || ''}
@@ -969,7 +971,7 @@ export default function PrintersScreen() {
                         <View style={styles.previewPaperContainer}>
                           <ReceiptTemplateMockup
                             template={t}
-                            storeName={t.previewStoreName || settings?.businessName || 'Your Store Name'}
+                            storeName={t.previewStoreName || storeProfile.storeName}
                             storeAddress={t.previewAddress || settings?.businessAddress || '123 Market Road, City'}
                             storePhone={t.previewPhone || settings?.businessPhone || '9999999999'}
                             storeGstin={t.previewGstin}

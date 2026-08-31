@@ -213,7 +213,7 @@ export default function DashboardScreen() {
           'Product Not Found',
           `Barcode "${raw}" is not in catalog. Would you like to create this product or add to Quick Bill?`,
           [
-            { text: 'Quick Bill', onPress: () => router.push('/pos-lite' as any) },
+            { text: 'Quick Bill', onPress: () => router.push('/quick-bill' as any) },
             { text: 'Add to Inventory', onPress: () => router.push('/products' as any) },
           ]
         );

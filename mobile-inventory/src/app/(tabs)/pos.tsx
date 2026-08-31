@@ -28,8 +28,6 @@ import {
   ChevronDown,
   Barcode,
   Package,
-  Mic,
-  MicOff,
   Layers,
   Printer,
   Bluetooth,
@@ -76,8 +74,6 @@ import {
 } from '@/utils/fastSaleCheckout';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
-import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
-import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
@@ -609,47 +605,6 @@ function PosScreen() {
     });
   };
 
-  // Voice-to-cart: "2 bread" adds, "remove 2 breads" subtracts, "remove all bread" clears the line.
-  const handleVoiceCommand = useCallback(
-    (cmd: ParsedVoiceCommand) => {
-      if (!cmd.matchedProduct) return;
-      // Resolve against the selected store's catalog so voice-add carries store stock/price too.
-      const product = storeScopedProducts.find((p) => p.id === cmd.matchedProduct!.id);
-      if (!product) return;
-
-      if (cmd.action === 'add') {
-        addItem(product, cmd.quantity === Infinity ? 1 : cmd.quantity);
-      } else if (cmd.action === 'remove') {
-        const cartItems = useCartStore.getState().items;
-        const existing = cartItems.find((i) => i.product.id === product.id);
-        if (!existing) return;
-        if (cmd.quantity === Infinity) {
-          removeItem(product.id);
-        } else {
-          updateQuantity(product.id, existing.quantity - cmd.quantity);
-        }
-      }
-      Vibration.vibrate(60);
-    },
-    [storeScopedProducts, addItem, removeItem, updateQuantity]
-  );
-
-  const voiceProducts = React.useMemo(
-    () => storeScopedProducts.map((p) => ({ id: p.id, name: p.name })),
-    [storeScopedProducts]
-  );
-  const [voiceLang, setVoiceLang] = useState('en-IN');
-  const { isListening: isVoiceListening, feedback: voiceFeedback, toggle: toggleVoice } = useVoiceCart({
-    products: voiceProducts,
-    onCommand: handleVoiceCommand,
-    lang: voiceLang,
-  });
-  const cycleVoiceLang = () => {
-    const idx = VOICE_LANGUAGES.findIndex((l) => l.code === voiceLang);
-    setVoiceLang(VOICE_LANGUAGES[(idx + 1) % VOICE_LANGUAGES.length].code);
-  };
-  const currentVoiceLangLabel = VOICE_LANGUAGES.find((l) => l.code === voiceLang)?.short || 'EN';
-
   return (
     <ScreenBackground color={theme.bg}>
     <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: insets.top || 12 }]}>
@@ -675,26 +630,6 @@ function PosScreen() {
             competing set of colored calls-to-action next to the primary search/browse flow. */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <NotificationBell style={{ marginRight: 6 }} />
-
-          <TouchableOpacity
-            onPress={cycleVoiceLang}
-            disabled={isVoiceListening}
-            style={[styles.langBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, opacity: isVoiceListening ? 0.4 : 1 }]}
-          >
-            <Text style={[styles.langBtnText, { color: theme.textPrimary }]}>{currentVoiceLangLabel}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={toggleVoice}
-            style={[
-              styles.toolBtn,
-              isVoiceListening
-                ? { backgroundColor: '#EF4444', borderColor: '#EF4444' }
-                : { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
-            ]}
-          >
-            {isVoiceListening ? <MicOff size={16} color="#FFFFFF" /> : <Mic size={16} color={theme.textPrimary} />}
-          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={async () => {
@@ -727,21 +662,6 @@ function PosScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Voice-to-cart status/feedback banner — "Listening..." while active, then the last parsed command result */}
-      {isVoiceListening || voiceFeedback ? (
-        <View
-          style={[
-            styles.voiceBanner,
-            { top: (insets.top || 12) + 54 },
-            voiceFeedback ? { backgroundColor: voiceFeedback.ok ? 'rgba(16,185,129,0.96)' : 'rgba(239,68,68,0.96)' } : { backgroundColor: 'rgba(37,99,235,0.96)' },
-          ]}
-        >
-          <Text style={styles.voiceBannerText} numberOfLines={1}>
-            {voiceFeedback ? voiceFeedback.message : t('listening', 'Listening... say an item, e.g. "2 bread"')}
-          </Text>
-        </View>
-      ) : null}
 
       {/* One search box — matches name, barcode, or SKU together, so there's no need to know
           in advance whether you're typing a product name or a scanned/typed code. */}
@@ -1843,10 +1763,6 @@ const styles = StyleSheet.create({
   toolBtn: { padding: 9, borderRadius: 12, borderWidth: 1, marginLeft: 6 },
   toolBtnBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   toolBtnBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
-  langBtn: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 12, borderWidth: 1, marginLeft: 6 },
-  langBtnText: { fontSize: 11, fontWeight: '900' },
-  voiceBanner: { position: 'absolute', left: 16, right: 16, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14, zIndex: 50, elevation: 10 },
-  voiceBannerText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', textAlign: 'center' },
   searchRowContainer: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 10 },
   searchInputFull: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   inputField: { flex: 1, marginLeft: 8, fontSize: 13 },

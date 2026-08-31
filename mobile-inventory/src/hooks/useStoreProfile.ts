@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { resolveStoreLogoUrl, resolveSettingsFooterMessage } from '@/utils/receiptLogo';
 
+const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
 export interface StoreProfile {
   storeName: string;
   storeAddress: string;
@@ -29,24 +31,39 @@ export function resolveStoreProfile(
       ? (settings.receiptConfig as Record<string, unknown>)
       : null;
 
+  const storeName =
+    settings?.businessName?.trim() ||
+    str(receiptConfig?.companyName) ||
+    user?.businessName?.trim() ||
+    user?.displayName?.trim() ||
+    'Your Store Name';
+
+  const storeAddress =
+    settings?.businessAddress?.trim() || str(receiptConfig?.address) || '';
+
   const storePhone =
     settings?.businessPhone?.trim() ||
     String(personalInfo?.phone || personalInfo?.businessPhone || personalInfo?.mobile || '').trim() ||
-    String(receiptConfig?.storePhone || receiptConfig?.phone || '').trim() ||
+    str(receiptConfig?.phone) ||
+    str(receiptConfig?.storePhone) ||
     user?.phone?.trim() ||
     '';
 
+  const storeGstin =
+    settings?.businessGSTIN?.trim() || str(receiptConfig?.gstin) || '';
+
+  const upiId =
+    settings?.upiId?.trim() ||
+    str(receiptConfig?.upiId) ||
+    undefined;
+
   return {
-    storeName:
-      settings?.businessName?.trim() ||
-      user?.businessName?.trim() ||
-      user?.displayName?.trim() ||
-      'Your Store Name',
-    storeAddress: settings?.businessAddress?.trim() || '',
+    storeName,
+    storeAddress,
     storePhone,
-    storeGstin: settings?.businessGSTIN?.trim() || '',
+    storeGstin,
     storeLogoUrl: resolveStoreLogoUrl(receiptConfig, settings?.businessLogoURL),
-    upiId: settings?.upiId?.trim() || String(receiptConfig?.upiId || '').trim() || undefined,
+    upiId,
     footerMessage: resolveSettingsFooterMessage(receiptConfig),
   };
 }

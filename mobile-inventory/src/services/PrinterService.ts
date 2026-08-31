@@ -326,6 +326,11 @@ class ThermalPrinterServiceManager {
     this.startupCleanup = this.disconnectStaleNativeConnection();
   }
 
+  /** Clear the cached bitmap data for logos so updated logos from Web/Mobile are re-processed immediately. */
+  public clearLogoCache(): void {
+    this.logoBase64Cache.clear();
+  }
+
   /** Resolves the fallback instead of hanging when a native call never settles its promise. */
   private withProbeTimeout<T>(promise: Promise<T>, fallback: T, ms = NATIVE_PROBE_TIMEOUT_MS): Promise<T> {
     return Promise.race([
@@ -4418,11 +4423,16 @@ class ThermalPrinterServiceManager {
         case 'barcode': {
           let rawVal = this.interpolateReceiptVariables(entry.value, data);
           if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
-            rawVal = this.upiPayPayload(data, entry.upiId) || rawVal;
+            const merchantUpi = entry.upiId || data.upiId || '';
+            rawVal = this.upiPayPayload(data, merchantUpi) || '';
           } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
             rawVal = buildBillPdfUrl(data);
           } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
             rawVal = data.invoiceNumber || 'INV-0000';
+          }
+
+          if (!rawVal || !rawVal.trim()) {
+            break;
           }
 
           const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
@@ -4430,20 +4440,24 @@ class ThermalPrinterServiceManager {
             await NativeEscposPrinter.printerAlign(alignCode(entry.align));
           }
           if (isQr && typeof NativeEscposPrinter.printQRCode === 'function') {
-            const qrDots = this.receiptQrDots(
-              paperWidth,
-              entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
-            );
-            await NativeEscposPrinter.printQRCode(rawVal, qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
-            if (entry.showText) {
-              await NativeEscposPrinter.printText(rawVal + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
-            } else {
-              await NativeEscposPrinter.printText('\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            try {
+              const qrDots = this.receiptQrDots(
+                paperWidth,
+                entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
+              );
+              await NativeEscposPrinter.printQRCode(rawVal.trim(), qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+              if (entry.showText) {
+                await NativeEscposPrinter.printText(rawVal.trim() + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              } else {
+                await NativeEscposPrinter.printText('\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              }
+            } catch (qrErr) {
+              console.warn('Thermal print QR code failed:', qrErr);
             }
           } else {
-            await NativeEscposPrinter.printText(`* ${rawVal} *\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
+            await NativeEscposPrinter.printText(`* ${rawVal.trim()} *\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
             if (entry.showText) {
-              await NativeEscposPrinter.printText(rawVal + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              await NativeEscposPrinter.printText(rawVal.trim() + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
             }
           }
           break;

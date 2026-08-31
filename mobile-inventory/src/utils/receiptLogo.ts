@@ -41,12 +41,26 @@ export interface ReceiptImageFields {
   imageBase64?: string;
 }
 
-/** Pick the first printable src on an image block, then the store-logo fallback. */
+/** Pick the first printable src on an image block, prioritizing the live store logo fallbackUrl over stale embedded base64. */
 export function resolveReceiptImageSrc(
   entry?: ReceiptImageFields,
   fallbackUrl?: string
 ): string | undefined {
-  for (const candidate of [entry?.imageURL, entry?.imageBase64, entry?.imageUri, fallbackUrl]) {
+  const cleanFallback = isPrintableImageSrc(fallbackUrl) ? fallbackUrl!.trim() : undefined;
+
+  // If entry has an explicit web/cloud URL matching or extending the catalog/store
+  if (isPrintableImageSrc(entry?.imageURL)) {
+    // If fallbackUrl is provided and entry's imageURL is a legacy/stale cloud URL or empty, fallbackUrl wins if entry has no separate custom URL
+    return entry!.imageURL!.trim();
+  }
+
+  // If a live fallback store logo URL is available from current store profile, use it
+  if (cleanFallback) {
+    return cleanFallback;
+  }
+
+  // Otherwise fall back to embedded base64 or imageUri
+  for (const candidate of [entry?.imageBase64, entry?.imageUri]) {
     if (isPrintableImageSrc(candidate)) return candidate!.trim();
   }
   return undefined;
@@ -59,11 +73,11 @@ function createLogoEntry(logoURL?: string, templateId?: string): CustomReceiptEn
     enabled: true,
     align: 'center',
     widthPercent: RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
-    ...(logoURL ? { imageURL: logoURL, imageUri: logoURL } : {}),
+    ...(logoURL ? { imageURL: logoURL.trim(), imageUri: logoURL.trim() } : {}),
   };
 }
 
-/** Sync store logo onto empty image blocks; add one if the template has none. */
+/** Sync store logo onto every image block; add one if the template has none and clear stale base64. */
 export function ensureTemplateHasLogoBlock(
   template: CustomReceiptTemplate,
   logoURL?: string
@@ -79,21 +93,26 @@ export function ensureTemplateHasLogoBlock(
     };
   }
 
-  if (!logoURL) return template;
+  if (!logoURL || !isPrintableImageSrc(logoURL)) return template;
+  const trimmedLogo = logoURL.trim();
 
   let changed = false;
   const entries = template.entries.map((e) => {
     if (e.type !== 'image') return e;
     const img = e as ImageReceiptEntry;
-    const hasLoadableImage = Boolean(resolveReceiptImageSrc(img));
-    if (hasLoadableImage) return e;
+
+    // Check if the block is already synced to this exact logo
+    if (img.imageURL === trimmedLogo && img.imageUri === trimmedLogo && !img.imageBase64) {
+      return e;
+    }
+
     changed = true;
     return {
       ...img,
-      enabled: img.enabled !== false ? true : img.enabled,
-      imageURL: logoURL,
-      imageUri: logoURL,
-      imageBase64: undefined,
+      enabled: img.enabled !== false,
+      imageURL: trimmedLogo,
+      imageUri: trimmedLogo,
+      imageBase64: undefined, // Clear stale embedded bitmap so fresh logo is rendered
     };
   });
 

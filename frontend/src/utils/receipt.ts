@@ -63,16 +63,17 @@ function withPrintableLogo(
 
 export const resolveEffectiveReceiptConfig = (
   settings?: Partial<UserSettings> | null,
-  overrides?: Partial<ReceiptConfig> | null
+  overrides?: Partial<ReceiptConfig> | null,
+  user?: { businessName?: string | null; displayName?: string | null; phone?: string | null } | null
 ): ReceiptConfig => {
   const pConf = settings?.printerConfig
   const rConf = settings?.receiptConfig
 
   const merged: ReceiptConfig = {
     headerTitle: rConf?.headerTitle || 'TAX INVOICE',
-    companyName: rConf?.companyName || settings?.businessName || '',
+    companyName: rConf?.companyName || settings?.businessName || user?.businessName || user?.displayName || '',
     address: rConf?.address || settings?.businessAddress || '',
-    phone: rConf?.phone || settings?.businessPhone || '',
+    phone: rConf?.phone || settings?.businessPhone || user?.phone || '',
     gstin: rConf?.gstin || settings?.businessGSTIN || '',
     logoURL: resolveStoreLogoUrl(rConf, settings?.businessLogoURL) || '',
     footerMessage: rConf?.footerMessage || 'Thank you for your purchase!',

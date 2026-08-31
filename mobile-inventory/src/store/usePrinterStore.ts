@@ -5,6 +5,7 @@ import { settingsApi } from '../api/settings';
 import { DEFAULT_TEMPLATE_ID } from '../constants/receiptTemplates';
 import { LabelTemplate } from '../types/labelTemplate';
 import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '../types/customReceipt';
+import { ensureTemplateHasLogoBlock } from '../utils/receiptLogo';
 import {
   getStoredActiveTemplate,
   setStoredActiveTemplate,
@@ -645,6 +646,18 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       let effectiveCustomTemplates = Array.isArray(receiptConfig.customTemplates) && receiptConfig.customTemplates.length > 0
         ? receiptConfig.customTemplates
         : initialTemplates;
+
+      const activeStoreLogo =
+        (typeof receiptConfig.logoURL === 'string' && receiptConfig.logoURL.trim()) ||
+        (typeof settings?.businessLogoURL === 'string' && settings.businessLogoURL.trim()) ||
+        undefined;
+
+      if (activeStoreLogo) {
+        PrinterService.clearLogoCache();
+        effectiveCustomTemplates = effectiveCustomTemplates.map((t) =>
+          ensureTemplateHasLogoBlock(t, activeStoreLogo)
+        );
+      }
 
       let effectiveActiveCustomId =
         receiptConfig.activeCustomTemplateId !== undefined

@@ -35,6 +35,7 @@ import {
 import { buildUpiPayLink, isValidUpiVpa } from '@/utils/upiQr'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useSettings } from '@/hooks/useSettings'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Sale, SaleItem, AppliedBillCharge } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
 import toast from 'react-hot-toast'
@@ -53,6 +54,7 @@ export const RealisticReceiptModal: React.FC<RealisticReceiptModalProps> = ({
   onSaleUpdated,
 }) => {
   const { data: settings } = useSettings()
+  const { user } = useAuth()
   const {
     status: bleStatus,
     deviceName: bleDeviceName,
@@ -90,11 +92,11 @@ export const RealisticReceiptModal: React.FC<RealisticReceiptModalProps> = ({
   useEffect(() => {
     if (isOpen && sale) {
       setEditableSale(JSON.parse(JSON.stringify(sale)))
-      const eff = resolveEffectiveReceiptConfig(settings)
+      const eff = resolveEffectiveReceiptConfig(settings, null, user)
       setEditableStore({
-        name: eff.companyName || settings?.businessName || 'SEZNIK RETAIL STORE',
-        phone: eff.phone || settings?.businessPhone || '+91 98765 43210',
-        address: eff.address || settings?.businessAddress || 'Main Market, City Center',
+        name: eff.companyName || settings?.businessName || user?.businessName || user?.displayName || '',
+        phone: eff.phone || settings?.businessPhone || user?.phone || '',
+        address: eff.address || settings?.businessAddress || '',
         gstin: eff.gstin || settings?.businessGSTIN || '',
         headerTitle: eff.headerTitle || 'TAX INVOICE',
         logoURL: eff.logoURL || settings?.businessLogoURL || '',
@@ -109,7 +111,7 @@ export const RealisticReceiptModal: React.FC<RealisticReceiptModalProps> = ({
       })
       setActiveTab('preview')
     }
-  }, [isOpen, sale, settings])
+  }, [isOpen, sale, settings, user])
 
   const receiptRef = useRef<HTMLDivElement>(null)
 

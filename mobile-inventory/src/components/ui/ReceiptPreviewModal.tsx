@@ -42,7 +42,8 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
-import { buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
+import { buildBillPdfUrl, buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
+import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
@@ -97,7 +98,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       autoPrintStartedRef.current = false;
       setActiveTab('preview');
     }
-  }, [saleData, visible]);
+  }, [saleData, visible, storeProfile]);
 
   useEffect(() => {
     if (visible) {
@@ -434,165 +435,195 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                     </TouchableOpacity>
                   </View>
 
-                  <View
-                    style={[
-                      styles.realisticPaper,
-                      { width: paperWidth === '58mm' ? 295 : 345 },
-                    ]}
-                  >
-                    {/* Top Serrated Edge Simulation */}
-                    <View style={styles.tearEdgeTop} />
+                  {activeCustomTemplate ? (
+                    <CustomReceiptMockup
+                      template={activeCustomTemplate}
+                      storeName={editableSale.storeName || storeProfile.storeName}
+                      storeAddress={editableSale.storeAddress || storeProfile.storeAddress}
+                      storePhone={editableSale.storePhone || storeProfile.storePhone}
+                      storeGstin={editableSale.storeGstin || storeProfile.storeGstin}
+                      storeLogoUrl={editableSale.storeLogoUrl || storeProfile.storeLogoUrl}
+                      invoiceNumber={editableSale.invoiceNumber}
+                      date={editableSale.date}
+                      customerName={editableSale.customerName}
+                      customerPhone={editableSale.customerPhone}
+                      items={editableSale.items}
+                      subtotal={computedTotals.subtotal}
+                      totalDiscount={computedTotals.totalDiscount}
+                      totalTax={computedTotals.totalTax}
+                      grandTotal={computedTotals.grandTotal}
+                      amountPaid={editableSale.amountPaid ?? computedTotals.grandTotal}
+                      changeReturned={editableSale.changeReturned ?? 0}
+                      paymentMethod={editableSale.paymentMethod}
+                      upiId={editableSale.upiId || storeProfile.upiId}
+                      paperWidth={paperWidth}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.realisticPaper,
+                        { width: paperWidth === '58mm' ? 295 : 345 },
+                      ]}
+                    >
+                      {/* Top Serrated Edge Simulation */}
+                      <View style={styles.tearEdgeTop} />
 
-                    {/* Document Type Header Banner */}
-                    <View style={styles.docTypeBanner}>
-                      <Text style={styles.docTypeText}>
-                        *** {editableSale.storeGstin ? 'TAX INVOICE' : 'RETAIL BILL / CASH MEMO'} ***
-                      </Text>
-                    </View>
-
-                    {/* Store Header */}
-                    <View style={styles.receiptHeader}>
-                      {editableSale.storeLogoUrl ? (
-                        <Image
-                          source={{ uri: editableSale.storeLogoUrl }}
-                          style={styles.storeLogo}
-                          resizeMode="contain"
-                        />
-                      ) : null}
-                      <Text style={styles.thermalTitle}>{editableSale.storeName || 'SEZNIK RETAIL'}</Text>
-                      {editableSale.storeAddress ? (
-                        <Text style={styles.thermalSub}>{editableSale.storeAddress}</Text>
-                      ) : null}
-                      {editableSale.storePhone ? (
-                        <Text style={styles.thermalSub}>Tel: {editableSale.storePhone}</Text>
-                      ) : null}
-                      {editableSale.storeGstin ? (
-                        <Text style={styles.thermalGstin}>GSTIN: {editableSale.storeGstin}</Text>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.dashedLine} />
-
-                    {/* Invoice Meta */}
-                    <View style={styles.metaBlock}>
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.monoLabel}>INVOICE NO:</Text>
-                        <Text style={styles.monoValueBold}>#{editableSale.invoiceNumber}</Text>
+                      {/* Document Type Header Banner */}
+                      <View style={styles.docTypeBanner}>
+                        <Text style={styles.docTypeText}>
+                          *** {editableSale.storeGstin ? 'TAX INVOICE' : 'RETAIL BILL / CASH MEMO'} ***
+                        </Text>
                       </View>
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.monoLabel}>DATE:</Text>
-                        <Text style={styles.monoValue}>{editableSale.date}</Text>
+
+                      {/* Store Header */}
+                      <View style={styles.receiptHeader}>
+                        {editableSale.storeLogoUrl ? (
+                          <Image
+                            source={{ uri: editableSale.storeLogoUrl }}
+                            style={styles.storeLogo}
+                            resizeMode="contain"
+                          />
+                        ) : null}
+                        <Text style={styles.thermalTitle}>{editableSale.storeName || storeProfile.storeName || 'SEZNIK RETAIL'}</Text>
+                        {editableSale.storeAddress ? (
+                          <Text style={styles.thermalSub}>{editableSale.storeAddress}</Text>
+                        ) : null}
+                        {editableSale.storePhone ? (
+                          <Text style={styles.thermalSub}>Tel: {editableSale.storePhone}</Text>
+                        ) : null}
+                        {editableSale.storeGstin ? (
+                          <Text style={styles.thermalGstin}>GSTIN: {editableSale.storeGstin}</Text>
+                        ) : null}
                       </View>
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.monoLabel}>CUSTOMER:</Text>
-                        <Text style={styles.monoValueBold}>{editableSale.customerName || 'Walk-in'}</Text>
-                      </View>
-                      {editableSale.customerPhone ? (
+
+                      <View style={styles.dashedLine} />
+
+                      {/* Invoice Meta */}
+                      <View style={styles.metaBlock}>
                         <View style={styles.rowBetween}>
-                          <Text style={styles.monoLabel}>PHONE:</Text>
-                          <Text style={styles.monoValue}>{editableSale.customerPhone}</Text>
+                          <Text style={styles.monoLabel}>INVOICE NO:</Text>
+                          <Text style={styles.monoValueBold}>#{editableSale.invoiceNumber}</Text>
                         </View>
-                      ) : null}
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.monoLabel}>PAYMENT:</Text>
-                        <Text style={styles.monoValueBold}>
-                          {(editableSale.paymentMethod || 'CASH').toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.dashedLine} />
-
-                    {/* Table Header */}
-                    <View style={styles.tableHeaderRow}>
-                      <Text style={[styles.monoHeader, { flex: 2.2 }]}>ITEM</Text>
-                      <Text style={[styles.monoHeader, { flex: 0.8, textAlign: 'center' }]}>QTY</Text>
-                      <Text style={[styles.monoHeader, { flex: 1, textAlign: 'right' }]}>RATE</Text>
-                      <Text style={[styles.monoHeader, { flex: 1.2, textAlign: 'right' }]}>AMT</Text>
-                    </View>
-
-                    {/* Item Lines */}
-                    {editableSale.items.map((item, idx) => (
-                      <View key={idx} style={styles.itemRow}>
-                        <Text style={[styles.monoItemName, { flex: 2.2 }]} numberOfLines={2}>
-                          {item.productName}
-                        </Text>
-                        <Text style={[styles.monoItemText, { flex: 0.8, textAlign: 'center' }]}>
-                          {item.quantity}
-                        </Text>
-                        <Text style={[styles.monoItemText, { flex: 1, textAlign: 'right' }]}>
-                          {item.unitPrice.toFixed(0)}
-                        </Text>
-                        <Text style={[styles.monoItemBold, { flex: 1.2, textAlign: 'right' }]}>
-                          {(item.unitPrice * item.quantity - (item.discount || 0)).toFixed(2)}
-                        </Text>
-                      </View>
-                    ))}
-
-                    <View style={styles.dashedLine} />
-
-                    {/* Totals Breakdown */}
-                    <View style={styles.totalsBlock}>
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.monoLabel}>SUBTOTAL:</Text>
-                        <Text style={styles.monoValue}>₹{computedTotals.subtotal.toFixed(2)}</Text>
-                      </View>
-                      {computedTotals.totalDiscount > 0 ? (
                         <View style={styles.rowBetween}>
-                          <Text style={styles.monoLabel}>DISCOUNT:</Text>
-                          <Text style={styles.monoValue}>-₹{computedTotals.totalDiscount.toFixed(2)}</Text>
+                          <Text style={styles.monoLabel}>DATE:</Text>
+                          <Text style={styles.monoValue}>{editableSale.date}</Text>
+                        </View>
+                        <View style={styles.rowBetween}>
+                          <Text style={styles.monoLabel}>CUSTOMER:</Text>
+                          <Text style={styles.monoValueBold}>{editableSale.customerName || 'Walk-in'}</Text>
+                        </View>
+                        {editableSale.customerPhone ? (
+                          <View style={styles.rowBetween}>
+                            <Text style={styles.monoLabel}>PHONE:</Text>
+                            <Text style={styles.monoValue}>{editableSale.customerPhone}</Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.rowBetween}>
+                          <Text style={styles.monoLabel}>PAYMENT:</Text>
+                          <Text style={styles.monoValueBold}>
+                            {(editableSale.paymentMethod || 'CASH').toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.dashedLine} />
+
+                      {/* Table Header */}
+                      <View style={styles.tableHeaderRow}>
+                        <Text style={[styles.monoHeader, { flex: 2.2 }]}>ITEM</Text>
+                        <Text style={[styles.monoHeader, { flex: 0.8, textAlign: 'center' }]}>QTY</Text>
+                        <Text style={[styles.monoHeader, { flex: 1, textAlign: 'right' }]}>RATE</Text>
+                        <Text style={[styles.monoHeader, { flex: 1.2, textAlign: 'right' }]}>AMT</Text>
+                      </View>
+
+                      {/* Item Lines */}
+                      {editableSale.items.map((item, idx) => (
+                        <View key={idx} style={styles.itemRow}>
+                          <Text style={[styles.monoItemName, { flex: 2.2 }]} numberOfLines={2}>
+                            {item.productName}
+                          </Text>
+                          <Text style={[styles.monoItemText, { flex: 0.8, textAlign: 'center' }]}>
+                            {item.quantity}
+                          </Text>
+                          <Text style={[styles.monoItemText, { flex: 1, textAlign: 'right' }]}>
+                            {item.unitPrice.toFixed(0)}
+                          </Text>
+                          <Text style={[styles.monoItemBold, { flex: 1.2, textAlign: 'right' }]}>
+                            {(item.unitPrice * item.quantity - (item.discount || 0)).toFixed(2)}
+                          </Text>
+                        </View>
+                      ))}
+
+                      <View style={styles.dashedLine} />
+
+                      {/* Totals Breakdown */}
+                      <View style={styles.totalsBlock}>
+                        <View style={styles.rowBetween}>
+                          <Text style={styles.monoLabel}>SUBTOTAL:</Text>
+                          <Text style={styles.monoValue}>₹{computedTotals.subtotal.toFixed(2)}</Text>
+                        </View>
+                        {computedTotals.totalDiscount > 0 ? (
+                          <View style={styles.rowBetween}>
+                            <Text style={styles.monoLabel}>DISCOUNT:</Text>
+                            <Text style={styles.monoValue}>-₹{computedTotals.totalDiscount.toFixed(2)}</Text>
+                          </View>
+                        ) : null}
+                        {computedTotals.totalTax > 0 ? (
+                          <>
+                            <View style={styles.rowBetween}>
+                              <Text style={styles.monoLabel}>TAXABLE VALUE:</Text>
+                              <Text style={styles.monoValue}>₹{(computedTotals.subtotal - computedTotals.totalDiscount).toFixed(2)}</Text>
+                            </View>
+                            <View style={styles.rowBetween}>
+                              <Text style={styles.monoLabel}>CGST:</Text>
+                              <Text style={styles.monoValue}>₹{(computedTotals.totalTax / 2).toFixed(2)}</Text>
+                            </View>
+                            <View style={styles.rowBetween}>
+                              <Text style={styles.monoLabel}>SGST:</Text>
+                              <Text style={styles.monoValue}>₹{(computedTotals.totalTax / 2).toFixed(2)}</Text>
+                            </View>
+                          </>
+                        ) : null}
+
+                        {/* Grand Total Box */}
+                        <View style={styles.grandTotalBox}>
+                          <Text style={styles.grandTotalLabel}>GRAND TOTAL:</Text>
+                          <Text style={styles.grandTotalValue}>₹{computedTotals.grandTotal.toFixed(2)}</Text>
+                        </View>
+                      </View>
+
+                      {/* Scannable UPI QR */}
+                      {upiQrString ? (
+                        <View style={styles.qrSection}>
+                          <Text style={styles.qrHeader}>•• SCAN TO PAY VIA UPI ••</Text>
+                          <View style={styles.qrFrame}>
+                            <QRCode value={upiQrString} size={paperWidth === '58mm' ? 84 : 100} />
+                          </View>
+                          <Text style={styles.qrFooter}>UPI ID: {editableSale.upiId || storeProfile.upiId}</Text>
                         </View>
                       ) : null}
-                      {computedTotals.totalTax > 0 ? (
-                        <>
-                          <View style={styles.rowBetween}>
-                            <Text style={styles.monoLabel}>TAXABLE VALUE:</Text>
-                            <Text style={styles.monoValue}>₹{(computedTotals.subtotal - computedTotals.totalDiscount).toFixed(2)}</Text>
+
+                      {/* Scannable Digital Bill PDF QR code if enabled */}
+                      {enableBillQrCode ? (
+                        <View style={styles.qrSection}>
+                          <Text style={styles.qrHeader}>•• DIGITAL BILL PDF ••</Text>
+                          <View style={styles.qrFrame}>
+                            <QRCode value={buildBillPdfUrl(editableSale)} size={paperWidth === '58mm' ? 84 : 100} />
                           </View>
-                          <View style={styles.rowBetween}>
-                            <Text style={styles.monoLabel}>CGST:</Text>
-                            <Text style={styles.monoValue}>₹{(computedTotals.totalTax / 2).toFixed(2)}</Text>
-                          </View>
-                          <View style={styles.rowBetween}>
-                            <Text style={styles.monoLabel}>SGST:</Text>
-                            <Text style={styles.monoValue}>₹{(computedTotals.totalTax / 2).toFixed(2)}</Text>
-                          </View>
-                        </>
+                          <Text style={styles.qrFooter}>Scan to view & download bill PDF</Text>
+                        </View>
                       ) : null}
 
-                      {/* Grand Total Box */}
-                      <View style={styles.grandTotalBox}>
-                        <Text style={styles.grandTotalLabel}>GRAND TOTAL:</Text>
-                        <Text style={styles.grandTotalValue}>₹{computedTotals.grandTotal.toFixed(2)}</Text>
+                      {/* Footer Policy */}
+                      <View style={styles.footerSection}>
+                        <Text style={styles.footerMsg}>{editableSale.footerMessage || storeProfile.footerMessage || 'Thank you for shopping with us!'}</Text>
+                        <Text style={styles.footerTerms}>Goods once sold cannot be returned.</Text>
                       </View>
+
+                      {/* Bottom Tear Edge */}
+                      <View style={styles.tearEdgeBottom} />
                     </View>
-
-                    {/* Scannable UPI QR */}
-                    {upiQrString ? (
-                      <View style={styles.qrSection}>
-                        <Text style={styles.qrHeader}>•• SCAN TO PAY VIA UPI ••</Text>
-                        <View style={styles.qrFrame}>
-                          <QRCode value={upiQrString} size={paperWidth === '58mm' ? 84 : 100} />
-                        </View>
-                        <Text style={styles.qrFooter}>UPI ID: {editableSale.upiId}</Text>
-                      </View>
-                    ) : null}
-
-                    {/* Barcode Simulation */}
-                    <View style={styles.barcodeSection}>
-                      <Text style={styles.barcodeText}>*#{editableSale.invoiceNumber}*</Text>
-                      <View style={styles.barcodeLines} />
-                    </View>
-
-                    {/* Footer Policy */}
-                    <View style={styles.footerSection}>
-                      <Text style={styles.footerMsg}>Thank you for shopping with us!</Text>
-                      <Text style={styles.footerTerms}>Goods once sold cannot be returned.</Text>
-                    </View>
-
-                    {/* Bottom Tear Edge */}
-                    <View style={styles.tearEdgeBottom} />
-                  </View>
+                  )}
                 </ScrollView>
               ) : (
                 /* TAB 2: LIVE DETAILS & ITEMS INLINE EDITOR */

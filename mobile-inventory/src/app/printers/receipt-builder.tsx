@@ -38,6 +38,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
+import { useAuth } from '@/hooks/useAuth';
 import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '@/types/customReceipt';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -50,6 +51,7 @@ export default function ReceiptBuilderHubScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
+  const { user } = useAuth();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const {
@@ -78,9 +80,6 @@ export default function ReceiptBuilderHubScreen() {
   const samplePrintData: PrintSaleData = useMemo(
     () =>
       buildSampleTestSale(settings, {
-        storeName: settings?.businessName || 'SEZNIK SUPERSTORE',
-        storeGstin: settings?.businessGSTIN || '27AAAAA0000A1Z5',
-        upiId: settings?.upiId || 'seznik@upi',
         invoiceNumber: 'INV-2026-0042',
         date: new Date().toLocaleDateString('en-GB'),
         customerName: 'Aarav Sharma',
@@ -100,8 +99,8 @@ export default function ReceiptBuilderHubScreen() {
         amountPaid: 1100,
         changeReturned: 19.5,
         paymentMethod: 'UPI',
-      }),
-    [settings]
+      }, user),
+    [settings, user]
   );
 
   const filteredTemplates = useMemo(() => {

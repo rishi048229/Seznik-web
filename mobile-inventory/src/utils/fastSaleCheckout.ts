@@ -2,7 +2,9 @@ import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/ser
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { CustomReceiptTemplate } from '@/types/customReceipt';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
+import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { resolveStoreLogoUrl, resolveSettingsFooterMessage } from '@/utils/receiptLogo';
+import type { UserProfile } from '@/types/auth';
 
 /** Local invoice number used on the receipt while the server assigns the real one in the background. */
 export function generateProvisionalInvoice(): string {
@@ -78,15 +80,20 @@ export function resolveSettingsLogoUrl(settings: SettingsLike): string | undefin
 }
 
 /** Sample sale used by every test-print button (Printers, builder, editor, dashboard). */
-export function buildSampleTestSale(settings: SettingsLike, overrides: Partial<PrintSaleData> = {}): PrintSaleData {
+export function buildSampleTestSale(
+  settings: SettingsLike,
+  overrides: Partial<PrintSaleData> = {},
+  user?: UserProfile | null
+): PrintSaleData {
+  const profile = resolveStoreProfile(settings as any, user);
   return {
-    storeName: settings?.businessName || 'Your Store Name',
-    storeAddress: settings?.businessAddress || '123 Market Road, City Center',
-    storePhone: settings?.businessPhone || '9876543210',
-    storeGstin: settings?.businessGSTIN || '',
-    storeLogoUrl: resolveSettingsLogoUrl(settings),
-    upiId: settings?.upiId || undefined,
-    footerMessage: resolveSettingsFooterMessage(settings?.receiptConfig),
+    storeName: profile.storeName,
+    storeAddress: profile.storeAddress,
+    storePhone: profile.storePhone,
+    storeGstin: profile.storeGstin,
+    storeLogoUrl: profile.storeLogoUrl,
+    upiId: profile.upiId,
+    footerMessage: profile.footerMessage,
     invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
     date: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
     customerName: 'Walk-in Customer',

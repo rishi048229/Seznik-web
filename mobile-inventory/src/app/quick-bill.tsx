@@ -149,9 +149,13 @@ export default function QuickBillScreen() {
     if (connectionState === 'connected') {
       printSaleReceiptNow(
         {
-          storeName: settings?.businessName || 'SEZNIK STORE',
-          storeAddress: settings?.businessAddress || '',
-          storePhone: settings?.businessPhone || '',
+          storeName: settings?.businessName || storeProfile.storeName,
+          storeAddress: settings?.businessAddress || storeProfile.storeAddress,
+          storePhone: settings?.businessPhone || storeProfile.storePhone,
+          storeGstin: settings?.businessGSTIN || storeProfile.storeGstin,
+          storeLogoUrl: settings?.businessLogoURL || storeProfile.storeLogoUrl,
+          upiId: settings?.upiId || storeProfile.upiId,
+          footerMessage: storeProfile.footerMessage,
           invoiceNumber: provisionalInv,
           date: new Date().toLocaleDateString('en-GB'),
           customerName,

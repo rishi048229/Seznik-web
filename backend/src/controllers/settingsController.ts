@@ -2,17 +2,47 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { mergeReceiptConfig, type ReceiptConfigLike } from '../utils/mergeReceiptConfig';
+import { enrichSettingsWithUserProfile } from '../utils/enrichSettingsProfile';
+
+const USER_PROFILE_SELECT = {
+  businessName: true,
+  displayName: true,
+  phone: true,
+} as const;
+
+const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+async function loadEnrichedSettings(userId: string) {
+  const [settings, user] = await Promise.all([
+    prisma.settings.findUnique({ where: { userId } }),
+    prisma.user.findUnique({ where: { id: userId }, select: USER_PROFILE_SELECT }),
+  ]);
+  if (!settings || !user) return settings;
+  return enrichSettingsWithUserProfile(settings, user);
+}
+
+function businessFieldsFromReceipt(receipt: ReceiptConfigLike): Record<string, string> {
+  const sync: Record<string, string> = {};
+  const companyName = str(receipt.companyName);
+  const address = str(receipt.address);
+  const phone = str(receipt.phone);
+  const gstin = str(receipt.gstin);
+  const logoURL = str(receipt.logoURL);
+  const upiId = str(receipt.upiId);
+  if (companyName) sync.businessName = companyName;
+  if (address) sync.businessAddress = address;
+  if (phone) sync.businessPhone = phone;
+  if (gstin) sync.businessGSTIN = gstin;
+  if (logoURL) sync.businessLogoURL = logoURL;
+  if (upiId) sync.upiId = upiId;
+  return sync;
+}
 
 export const getSettings = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
-
-    let settings = await prisma.settings.findUnique({
-      where: { userId },
-    });
-    
-    res.json(settings);
+    res.json(await loadEnrichedSettings(userId));
   } catch (error) {
     console.error('Failed to fetch settings:', error);
     res.status(500).json({ error: 'Failed to fetch settings' });
@@ -57,7 +87,7 @@ export const createSettings = async (req: Request, res: Response) => {
       update: { ...data },
       create: { ...data, userId },
     });
-    res.status(201).json(settings);
+    res.status(201).json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to create settings:', error);
     // Authenticated internal endpoint — surface the real error (e.g. Prisma's
@@ -79,7 +109,7 @@ export const updateSettings = async (req: Request, res: Response) => {
       update: { ...data },
       create: { ...data, userId },
     });
-    res.json(settings);
+    res.json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to update settings:', error);
     const detail = error instanceof Error ? error.message : String(error);
@@ -144,12 +174,16 @@ export const updateReceiptConfig = async (req: Request, res: Response) => {
       createData.upiId = upiRaw || null;
     }
 
+    const businessSync = businessFieldsFromReceipt(merged);
+    const updatePayload = { ...updateData, ...businessSync };
+    const createPayload = { ...createData, ...businessSync };
+
     const settings = await prisma.settings.upsert({
       where: { userId },
-      update: updateData,
-      create: createData,
+      update: updatePayload,
+      create: createPayload,
     });
-    res.json(settings);
+    res.json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to update receipt config:', error);
     const detail = error instanceof Error ? error.message : String(error);

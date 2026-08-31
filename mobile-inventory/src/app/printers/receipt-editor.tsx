@@ -69,6 +69,7 @@ import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService'
 import { buildSampleTestSale, buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
+import { useAuth } from '@/hooks/useAuth';
 import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import {
   CustomReceiptTemplate,
@@ -249,6 +250,7 @@ export default function ReceiptEditorScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
+  const { user } = useAuth();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
   const {
@@ -301,8 +303,6 @@ export default function ReceiptEditorScreen() {
   const samplePrintData: PrintSaleData = useMemo(
     () =>
       buildSampleTestSale(settings, {
-        storeGstin: (settings as any)?.gstin || (settings as any)?.taxNumber || settings?.businessGSTIN || '27AAAAA0000A1Z5',
-        upiId: settings?.upiId || 'store@upi',
         invoiceNumber: 'INV-2026-0042',
         date: new Date().toLocaleDateString('en-GB'),
         customerName: 'Aarav Sharma',
@@ -322,8 +322,8 @@ export default function ReceiptEditorScreen() {
         amountPaid: 1100,
         changeReturned: 19.5,
         paymentMethod: 'UPI',
-      }),
-    [settings]
+      }, user),
+    [settings, user]
   );
 
   const handleSave = async () => {

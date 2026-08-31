@@ -42,6 +42,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { settingsApi } from '@/api/settings';
 import { persistBusinessLogo } from '@/utils/businessLogoStorage';
 import { useLanguageStore, useTranslation } from '@/store/useLanguageStore';
@@ -85,13 +86,14 @@ export default function SettingsScreen() {
   // changes") rather than in a useEffect, so it doesn't trigger a redundant extra render.
   const [hasSeededProfile, setHasSeededProfile] = useState(false);
   const [hasSeededBusinessType, setHasSeededBusinessType] = useState(false);
-  if (settings && !hasSeededProfile) {
-    setStoreName(settings.businessName || user?.businessName || user?.displayName || '');
-    setStoreGstin(settings.businessGSTIN || '');
-    setStorePhone(settings.businessPhone || user?.phone || '');
-    setStoreAddress(settings.businessAddress || '');
-    setLogoUri(settings.businessLogoURL || null);
-    setUpiId(settings.upiId || '');
+  if ((settings || user) && !hasSeededProfile) {
+    const profile = resolveStoreProfile(settings, user);
+    setStoreName(profile.storeName);
+    setStoreGstin(profile.storeGstin);
+    setStorePhone(profile.storePhone);
+    setStoreAddress(profile.storeAddress);
+    setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
+    setUpiId(profile.upiId || settings?.upiId || '');
     setHasSeededProfile(true);
   }
   if (user && !hasSeededBusinessType) {
@@ -146,6 +148,10 @@ export default function SettingsScreen() {
         persistedLogo = await persistBusinessLogo(logoUri);
         setLogoUri(persistedLogo);
       }
+      const existingReceipt =
+        settings?.receiptConfig && typeof settings.receiptConfig === 'object'
+          ? settings.receiptConfig
+          : {};
       const payload = {
         businessName: storeName.trim() || undefined,
         businessGSTIN: storeGstin.trim() || undefined,
@@ -153,6 +159,16 @@ export default function SettingsScreen() {
         businessAddress: storeAddress,
         businessLogoURL: persistedLogo ?? null,
         upiId: upiId || undefined,
+        receiptConfig: {
+          ...existingReceipt,
+          companyName: storeName.trim(),
+          address: storeAddress,
+          phone: storePhone.trim(),
+          gstin: storeGstin.trim(),
+          ...(persistedLogo ? { logoURL: persistedLogo } : {}),
+          ...(upiId ? { upiId } : {}),
+          receiptConfigUpdatedAt: new Date().toISOString(),
+        },
       };
       if (settings?.id) {
         await settingsApi.updateSettings(settings.id, payload);
