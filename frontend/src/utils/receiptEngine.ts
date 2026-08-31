@@ -363,6 +363,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const showFooterMessage = receiptConfig?.showFooterMessage ?? true
   const showTerms = receiptConfig?.showTerms ?? true
   const showBarcode = receiptConfig?.showBarcode ?? true
+  const showPaymentQR = receiptConfig?.showPaymentQR ?? false
   const compactMode = receiptConfig?.compactMode ?? false
 
   const companyName = receiptConfig?.companyName || businessName || 'SEZNIK STORE'
@@ -561,7 +562,9 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     if (receiptConfig?.termsLine3) lines.push(...wrapProse(`3. ${receiptConfig.termsLine3}`, COLS, false))
   }
 
-  if (showBarcode && sale.invoiceNumber) {
+  // Skip invoice-number barcode footer when a payment QR follows — otherwise the
+  // invoice number prints directly above the UPI QR and looks like a stray caption.
+  if (showBarcode && sale.invoiceNumber && !showPaymentQR) {
     lines.push(divider('-', COLS))
     lines.push(centerText('', COLS))
     lines.push(centerText(sale.invoiceNumber, COLS))

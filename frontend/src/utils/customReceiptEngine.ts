@@ -12,7 +12,8 @@ import {
   receiptLogoMaxDots,
   receiptQrEscPosModuleSizeForEntry,
   receiptQrHtmlPx,
-  receiptStandardQrHtmlPx,
+  receiptStandardQrHtmlPxFromChip,
+  type ReceiptSizeChip,
 } from '@shared/receiptPrintGeometry'
 
 export interface ReceiptPrintContext {
@@ -193,6 +194,8 @@ export interface CustomReceiptGstOpts {
   showTaxBreakdown?: boolean
   /** When unset on the table block, restaurant/cafe bills number items; retail does not. */
   isRestaurant?: boolean
+  /** User-selected QR size chip from ReceiptConfig.receiptQrSize */
+  receiptQrSize?: ReceiptSizeChip
 }
 
 /** Format thermal table amounts without ₹ or Indian grouping to preserve column width. */
@@ -561,9 +564,9 @@ export function compileCustomReceiptHtml(
       const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
       if (isQr && rawVal) {
         const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(rawVal)}`
-        const qrDim =
+      const qrDim =
           isUpi || entry.qrType === 'digital_bill' || !entry.size
-            ? receiptStandardQrHtmlPx(paperSize)
+            ? receiptStandardQrHtmlPxFromChip(gstOpts.receiptQrSize)
             : receiptQrHtmlPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
         const upiHeader = isUpi ? `<div style="font-size:10px;font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div>` : ''
         parts.push(

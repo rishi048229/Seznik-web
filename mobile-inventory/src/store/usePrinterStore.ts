@@ -6,6 +6,7 @@ import { DEFAULT_TEMPLATE_ID } from '../constants/receiptTemplates';
 import { LabelTemplate } from '../types/labelTemplate';
 import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '../types/customReceipt';
 import { ensureTemplateHasLogoBlock } from '../utils/receiptLogo';
+import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
 import {
   getStoredActiveTemplate,
   setStoredActiveTemplate,
@@ -61,6 +62,10 @@ interface PrinterState {
   activeCustomTemplateId: string | null;
   /** Whether to print dynamic Digital Bill PDF QR code on bills */
   enableBillQrCode: boolean;
+  /** User-configured logo size on receipt: small, medium, large */
+  receiptLogoSize: ReceiptSizeChip;
+  /** User-configured QR code size on receipt: small, medium, large */
+  receiptQrSize: ReceiptSizeChip;
   /**
    * 'gap' = die-cut label stock on a separate TSPL label printer (gap sensor between labels).
    * 'continuous' = barcode/QR labels printed on the connected ESC/POS thermal RECEIPT roll instead
@@ -119,6 +124,8 @@ interface PrinterState {
   duplicateCustomTemplate: (id: string) => Promise<CustomReceiptTemplate>;
   setActiveCustomTemplate: (id: string | null) => Promise<void>;
   setEnableBillQrCode: (val: boolean) => Promise<void>;
+  setReceiptLogoSize: (size: ReceiptSizeChip) => Promise<void>;
+  setReceiptQrSize: (size: ReceiptSizeChip) => Promise<void>;
   setDefaultPrinter: (deviceId: string) => void;
   forgetPrinter: (deviceId: string) => void;
   /** Persists paperWidth/printDensity/topMargin/autoCut/printCopies/fontSize/labelPaperMode/labelWidthMm/labelHeightMm/labelGapMm together — call from the Printers "Save Calibration" button. */
@@ -133,6 +140,8 @@ interface PrinterState {
     labelWidthMm: number;
     labelHeightMm: number;
     labelGapMm: number;
+    receiptLogoSize?: ReceiptSizeChip;
+    receiptQrSize?: ReceiptSizeChip;
   }) => Promise<void>;
   /** Selects a receipt template and persists it immediately (discrete choice, not a slider — no separate Save step). */
   setActiveTemplate: (templateId: string) => Promise<void>;
@@ -160,6 +169,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   customTemplates: [],
   activeCustomTemplateId: null,
   enableBillQrCode: true,
+  receiptLogoSize: 'medium',
+  receiptQrSize: 'medium',
   // Defaults to 'gap' (the pre-existing TSPL label-printer behavior) so nothing changes for stores
   // that already have a separate die-cut label printer set up — 'continuous' is an opt-in switch.
   labelPaperMode: 'gap',
@@ -495,6 +506,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       await settingsApi.updateReceiptConfig({
         customTemplates,
         activeCustomTemplateId,
+        deletedTemplateIds: [id],
         templateId: get().activeTemplateId,
         enableBillQrCode: get().enableBillQrCode,
       });
@@ -552,6 +564,24 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     }
   },
 
+  setReceiptLogoSize: async (size) => {
+    set({ receiptLogoSize: size });
+    try {
+      await settingsApi.updateReceiptConfig({ receiptLogoSize: size });
+    } catch (e) {
+      console.warn('[usePrinterStore] Could not sync receiptLogoSize:', e);
+    }
+  },
+
+  setReceiptQrSize: async (size) => {
+    set({ receiptQrSize: size });
+    try {
+      await settingsApi.updateReceiptConfig({ receiptQrSize: size });
+    } catch (e) {
+      console.warn('[usePrinterStore] Could not sync receiptQrSize:', e);
+    }
+  },
+
   savePrinterCalibration: async (config) => {
     set(config);
     await settingsApi.updatePrinterConfig({
@@ -567,6 +597,16 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       labelHeightMm: config.labelHeightMm,
       labelGapMm: config.labelGapMm,
     });
+    if (config.receiptLogoSize || config.receiptQrSize) {
+      try {
+        await settingsApi.updateReceiptConfig({
+          receiptLogoSize: config.receiptLogoSize || get().receiptLogoSize,
+          receiptQrSize: config.receiptQrSize || get().receiptQrSize,
+        });
+      } catch (err) {
+        console.warn('[usePrinterStore] Could not sync receipt size settings:', err);
+      }
+    }
   },
 
   setActiveTemplate: async (templateId) => {
@@ -718,6 +758,16 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
             ? '58mm'
             : get().paperWidth;
 
+      const effectiveLogoSize: ReceiptSizeChip =
+        ['small', 'medium', 'large'].includes(receiptConfig.receiptLogoSize)
+          ? receiptConfig.receiptLogoSize
+          : 'medium';
+
+      const effectiveQrSize: ReceiptSizeChip =
+        ['small', 'medium', 'large'].includes(receiptConfig.receiptQrSize)
+          ? receiptConfig.receiptQrSize
+          : 'medium';
+
       set({
         paperWidth: paperFromConfig,
         printDensity: typeof printerConfig.printDensity === 'number' ? printerConfig.printDensity : get().printDensity,
@@ -733,6 +783,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: effectiveCustomTemplates,
         activeCustomTemplateId: effectiveActiveCustomId,
         enableBillQrCode: effectiveEnableBillQr,
+        receiptLogoSize: effectiveLogoSize,
+        receiptQrSize: effectiveQrSize,
         labelTemplates: effectiveLabelTemplates,
         activeLabelTemplateId: effectiveActiveLabelId,
         isHydrated: true,

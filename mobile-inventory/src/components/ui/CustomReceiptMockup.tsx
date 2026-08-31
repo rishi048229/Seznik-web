@@ -10,7 +10,13 @@ import {
   isTaxReceiptEntry,
   shouldShowItemDiscount,
 } from '@/utils/receiptDiscount';
-import { RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, receiptQrPreviewPx } from '@shared/receiptPrintGeometry';
+import {
+  RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  receiptQrPreviewPx,
+  receiptLogoHtmlMaxPxFromChip,
+  receiptStandardQrHtmlPxFromChip,
+  type ReceiptSizeChip,
+} from '@shared/receiptPrintGeometry';
 import { resolveReceiptImageSrc } from '@/utils/receiptLogo';
 
 interface CustomReceiptMockupProps {
@@ -35,6 +41,8 @@ interface CustomReceiptMockupProps {
   paymentMethod?: string;
   upiId?: string;
   paperWidth?: '58mm' | '80mm';
+  logoSizeChip?: ReceiptSizeChip;
+  qrSizeChip?: ReceiptSizeChip;
 }
 
 const DEFAULT_SAMPLE_ITEMS = [
@@ -65,6 +73,8 @@ export function CustomReceiptMockup({
   paymentMethod = 'UPI',
   upiId = 'store@upi',
   paperWidth,
+  logoSizeChip,
+  qrSizeChip,
 }: CustomReceiptMockupProps) {
   const activePaperWidth = paperWidth || template.paperWidth || '58mm';
   const is80mm = activePaperWidth === '80mm';
@@ -101,23 +111,15 @@ export function CustomReceiptMockup({
   };
 
   const renderEntry = (entry: CustomReceiptEntry, idx: number) => {
-    if (!entry.enabled) return null;
-
     switch (entry.type) {
       case 'text': {
         const align = entry.align || 'left';
-        let fontSize = 12;
-        if (entry.size === 'small') fontSize = 10;
-        if (entry.size === 'large') fontSize = 14;
-        if (entry.size === 'double_width') fontSize = 13;
-        if (entry.size === 'double_height') fontSize = 15;
-
+        const fontSize = entry.size === 'large' ? 14 : entry.size === 'small' ? 9.5 : 11;
         const replaced = replaceVars(entry.text)
           .split('\n')
           .filter((l) => l.trim().length > 0)
           .join('\n');
         if (!replaced.trim()) return null;
-
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
             <Text
@@ -126,7 +128,9 @@ export function CustomReceiptMockup({
                 {
                   textAlign: align,
                   fontSize,
-                  fontWeight: entry.bold || entry.size === 'double_width' || entry.size === 'double_height' ? '800' : '500',
+                  fontWeight: entry.bold ? '800' : '500',
+                  fontStyle: (entry as any).italic ? 'italic' : 'normal',
+                  textDecorationLine: (entry as any).underline ? 'underline' : 'none',
                   color: '#000000',
                   lineHeight: fontSize + 4,
                 },
@@ -171,6 +175,7 @@ export function CustomReceiptMockup({
       case 'image': {
         const logoSrc = resolveReceiptImageSrc(entry, storeLogoUrl);
         const widthPct = `${Math.min(entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 100)}%` as any;
+        const logoDim = receiptLogoHtmlMaxPxFromChip(logoSizeChip);
         return (
           <View
             key={entry.id || idx}
@@ -188,10 +193,10 @@ export function CustomReceiptMockup({
                 style={[
                   styles.thermalLogoImage,
                   {
-                    maxWidth: 180,
+                    maxWidth: logoDim.maxWidth,
                     width: widthPct,
-                    maxHeight: 56,
-                    height: 56,
+                    maxHeight: logoDim.maxHeight,
+                    height: logoDim.maxHeight,
                     resizeMode: 'contain',
                   },
                 ]}
@@ -239,8 +244,9 @@ export function CustomReceiptMockup({
 
       case 'barcode': {
         const isQr = entry.codeType === 'qr_code' || entry.format === 'qr';
+        const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId);
         let rawVal = replaceVars(entry.value);
-        if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
+        if (isUpi) {
           const merchantUpi = entry.upiId || upiId || 'store@upi';
           rawVal = buildUpiPayString(merchantUpi, storeName || 'Store', grandTotal, invoiceNumber);
         } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
@@ -249,9 +255,10 @@ export function CustomReceiptMockup({
           rawVal = invoiceNumber || 'INV-2026-0042';
         }
 
-        const qrSize = receiptQrPreviewPx(
-          entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
-        );
+        const qrSize =
+          isUpi || entry.qrType === 'digital_bill' || !entry.size
+            ? receiptStandardQrHtmlPxFromChip(qrSizeChip)
+            : receiptQrPreviewPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium');
 
         return (
           <View
@@ -266,6 +273,11 @@ export function CustomReceiptMockup({
           >
             {isQr ? (
               <View style={styles.qrWrapper}>
+                {isUpi ? (
+                  <Text style={{ fontSize: 9, fontWeight: '800', textAlign: 'center', marginBottom: 3, letterSpacing: 0.5, color: '#000000' }}>
+                    SCAN TO PAY VIA UPI
+                  </Text>
+                ) : null}
                 <View style={styles.qrContainer}>
                   <QRCodeSVG
                     value={rawVal || sampleBillPdfUrl}
@@ -300,6 +312,10 @@ export function CustomReceiptMockup({
       }
 
       case 'left_right_text': {
+        // Skip scan-to-pay rows — barcode block renders "SCAN TO PAY VIA UPI" header directly above QR
+        if (/scan/i.test(String(entry.left || '') + String(entry.right || ''))) {
+          return null;
+        }
         if (isDiscountReceiptEntry(entry) && (!totalDiscount || totalDiscount <= 0)) {
           return null;
         }

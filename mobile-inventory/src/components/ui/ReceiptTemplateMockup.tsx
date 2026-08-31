@@ -5,6 +5,11 @@ import { isRestaurantLayout, ReceiptTemplate } from '@/constants/receiptTemplate
 import { parseGstBilling, shouldPrintGstBreakdown } from '@/constants/gstBilling';
 import { DEFAULT_RESTAURANT_PRESETS, resolveBillCharges } from '@/constants/restaurantBilling';
 import { buildUpiPayString } from '@/utils/billQrService';
+import {
+  receiptLogoHtmlMaxPxFromChip,
+  receiptStandardQrHtmlPxFromChip,
+  type ReceiptSizeChip,
+} from '@shared/receiptPrintGeometry';
 
 interface MockupItem {
   productName: string;
@@ -35,6 +40,8 @@ interface ReceiptTemplateMockupProps {
   tableNo?: string;
   waiterName?: string;
   storeGstin?: string;
+  logoSizeChip?: ReceiptSizeChip;
+  qrSizeChip?: ReceiptSizeChip;
 }
 
 /**
@@ -62,7 +69,12 @@ export function ReceiptTemplateMockup({
   tableNo,
   waiterName,
   storeGstin,
+  logoSizeChip,
+  qrSizeChip,
 }: ReceiptTemplateMockupProps) {
+  const logoDim = receiptLogoHtmlMaxPxFromChip(logoSizeChip);
+  const qrPx = receiptStandardQrHtmlPxFromChip(qrSizeChip);
+
   if (isRestaurantLayout(template.layout)) {
     return (
       <RestaurantThermalMockup
@@ -70,7 +82,6 @@ export function ReceiptTemplateMockup({
         storeName={storeName}
         storeAddress={storeAddress}
         storePhone={storePhone}
-        storeGstin={storeGstin}
         items={propItems}
         invoiceNumber={invoiceNumber}
         date={date}
@@ -78,24 +89,23 @@ export function ReceiptTemplateMockup({
         customerPhone={customerPhone}
         tableNo={tableNo}
         waiterName={waiterName}
+        storeGstin={storeGstin}
       />
     );
   }
 
-  const items = propItems || template.sampleItems || [
+  const items = propItems && propItems.length > 0 ? propItems : template.sampleItems || [
     { productName: 'Sample Item One', quantity: 1, unitPrice: 250, total: 250, unit: 'Pc' },
     { productName: 'Sample Item Two', quantity: 2, unitPrice: 120, total: 240, unit: 'Pc' },
   ];
 
-  const calculatedSubtotal = items.reduce((sum, it) => sum + it.total, 0);
-  const subtotal = propSubtotal !== undefined ? propSubtotal : calculatedSubtotal;
+  const subtotal = propSubtotal ?? items.reduce((sum, it) => sum + it.total, 0);
+  const totalTax = propTotalTax ?? (subtotal - totalDiscount) * 0.18;
+  const grandTotal = propGrandTotal ?? (subtotal - totalDiscount + totalTax);
+
   const gstBilling = parseGstBilling(invoiceConfig);
   const showTaxBreakdown = shouldPrintGstBreakdown(gstBilling, template.showTaxBreakdown);
-  const calculatedTax = showTaxBreakdown ? Math.round(subtotal * 0.18 * 100) / 100 : 0;
-  const totalTax = propTotalTax !== undefined ? propTotalTax : calculatedTax;
-  const grandTotal = propGrandTotal !== undefined ? propGrandTotal : Math.max(0, subtotal - totalDiscount + totalTax);
-
-  const taxable = Math.max(0, subtotal - totalDiscount);
+  const taxable = totalTax > 0 ? subtotal - totalDiscount : subtotal;
   const halfTax = totalTax / 2;
 
   const upiPayPayload = upiId ? buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber) : '';
@@ -104,7 +114,11 @@ export function ReceiptTemplateMockup({
     <View style={styles.paper}>
       {storeLogoUrl ? (
         <View style={styles.logoContainer}>
-          <Image source={{ uri: storeLogoUrl }} style={styles.storeLogo} resizeMode="contain" />
+          <Image
+            source={{ uri: storeLogoUrl }}
+            style={[styles.storeLogo, { maxWidth: logoDim.maxWidth, maxHeight: logoDim.maxHeight, width: logoDim.maxWidth, height: logoDim.maxHeight }]}
+            resizeMode="contain"
+          />
         </View>
       ) : (
         <View style={[styles.iconBadge, { backgroundColor: template.accentColor }]}>
@@ -182,12 +196,12 @@ export function ReceiptTemplateMockup({
           <View style={styles.divider} />
           <View style={{ alignItems: 'center', marginVertical: 6 }}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: '#0F172A', marginBottom: 5, letterSpacing: 0.5 }}>
-              SCAN TO PAY ₹{grandTotal.toFixed(2)} VIA UPI
+              SCAN TO PAY VIA UPI
             </Text>
             <View style={{ backgroundColor: '#FFFFFF', padding: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' }}>
               <QRCodeSVG
                 value={upiPayPayload}
-                size={120}
+                size={qrPx}
                 color="#000000"
                 backgroundColor="#FFFFFF"
                 ecl="M"

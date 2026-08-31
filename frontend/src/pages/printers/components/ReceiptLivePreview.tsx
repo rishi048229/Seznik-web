@@ -3,7 +3,7 @@ import { Scissors } from 'lucide-react'
 import { compileReceiptTextLines, getCols } from '@/utils/receiptEngine'
 import { getUpiQrImageUrl } from '@/utils/upiQr'
 import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
-import { receiptLogoHtmlMaxPx, receiptStandardQrHtmlPx } from '@shared/receiptPrintGeometry'
+import { receiptLogoHtmlMaxPxFromChip, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
 
 interface ReceiptLivePreviewProps {
   paperSize: '58mm' | '80mm'
@@ -105,8 +105,8 @@ export const ReceiptLivePreview = ({
                       alt="Store Logo"
                       className="object-contain"
                       style={{
-                        maxHeight: `${receiptLogoHtmlMaxPx(paperSize).maxHeight}px`,
-                        maxWidth: `${receiptLogoHtmlMaxPx(paperSize).maxWidth}px`,
+                        maxHeight: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxHeight}px`,
+                        maxWidth: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxWidth}px`,
                       }}
                     />
                   </div>
@@ -146,8 +146,8 @@ export const ReceiptLivePreview = ({
                       }
                       alt="Payment QR Code"
                       style={{
-                        width: `${receiptStandardQrHtmlPx(paperSize)}px`,
-                        height: `${receiptStandardQrHtmlPx(paperSize)}px`,
+                        width: `${receiptStandardQrHtmlPxFromChip(receiptConfig.receiptQrSize)}px`,
+                        height: `${receiptStandardQrHtmlPxFromChip(receiptConfig.receiptQrSize)}px`,
                       }}
                       className="object-contain border border-gray-200 rounded p-1 bg-white"
                     />

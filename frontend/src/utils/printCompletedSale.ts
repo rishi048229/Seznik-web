@@ -2,6 +2,7 @@ import type { Sale } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
 import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from './receipt'
 import { shouldPrintThermalOverBle, type BlePrinterLike } from './printTarget'
+import { resolveThermalPaper } from './printerThermal'
 
 export type { BlePrinterLike }
 
@@ -22,7 +23,7 @@ export const printCompletedSale = async (args: {
 }): Promise<void> => {
   const { sale, settings, customerName, ble, onDone, skipBrowserFallback } = args
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
-  const paperSize = settings?.printerConfig?.paperSize || '58mm'
+  const paperSize = resolveThermalPaper(settings?.printerConfig)
   const width = thermalWidth(paperSize)
   const preferBle = shouldPrintThermalOverBle(settings, ble)
 

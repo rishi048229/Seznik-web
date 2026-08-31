@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { mergeReceiptConfig, type ReceiptConfigLike } from '../utils/mergeReceiptConfig';
+import { mergePrinterConfig, type PrinterConfigLike } from '../utils/mergePrinterConfig';
 import { enrichSettingsWithUserProfile } from '../utils/enrichSettingsProfile';
 import { ensureAdditiveSchema, resetAdditiveSchemaCache } from '../utils/ensureAdditiveSchema';
 
@@ -99,11 +100,32 @@ const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => 
   return clean;
 };
 
+/** Merge printerConfig patches so web/mobile do not wipe each other's keys. */
+async function resolveMergedPrinterConfig(
+  userId: string,
+  patch: PrinterConfigLike | undefined
+): Promise<PrinterConfigLike | undefined> {
+  if (!patch || typeof patch !== 'object') return patch;
+  const current = await prisma.settings.findUnique({ where: { userId } });
+  const existing = (current?.printerConfig ?? {}) as PrinterConfigLike;
+  return mergePrinterConfig(existing, patch);
+}
+
 export const createSettings = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
     const data = sanitizeSettingsData(req.body || {});
+    if (data.printerConfig) {
+      data.printerConfig = await resolveMergedPrinterConfig(userId, data.printerConfig);
+    }
+    if (data.receiptConfig && typeof data.receiptConfig === 'object') {
+      const current = await prisma.settings.findUnique({ where: { userId } });
+      data.receiptConfig = mergeReceiptConfig(
+        (current?.receiptConfig ?? {}) as ReceiptConfigLike,
+        data.receiptConfig as ReceiptConfigLike
+      );
+    }
     
     const settings = await withSettingsSchema(() =>
       prisma.settings.upsert({
@@ -128,6 +150,16 @@ export const updateSettings = async (req: Request, res: Response) => {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
     const data = sanitizeSettingsData(req.body || {});
+    if (data.printerConfig) {
+      data.printerConfig = await resolveMergedPrinterConfig(userId, data.printerConfig);
+    }
+    if (data.receiptConfig && typeof data.receiptConfig === 'object') {
+      const current = await prisma.settings.findUnique({ where: { userId } });
+      data.receiptConfig = mergeReceiptConfig(
+        (current?.receiptConfig ?? {}) as ReceiptConfigLike,
+        data.receiptConfig as ReceiptConfigLike
+      );
+    }
     
     const settings = await withSettingsSchema(() =>
       prisma.settings.upsert({
@@ -226,16 +258,17 @@ export const updatePrinterConfig = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
-    const { printerConfig } = req.body;
+    const patch = (req.body?.printerConfig ?? req.body) as PrinterConfigLike;
+    const printerConfig = await resolveMergedPrinterConfig(userId, patch);
 
     const settings = await withSettingsSchema(() =>
       prisma.settings.upsert({
         where: { userId },
-        update: { printerConfig },
-        create: { userId, printerConfig },
+        update: { printerConfig: printerConfig as any },
+        create: { userId, printerConfig: printerConfig as any },
       })
     );
-    res.json(settings);
+    res.json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to update printer config:', error);
     res.status(500).json({ error: 'Failed to update printer config' });

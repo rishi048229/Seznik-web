@@ -28,6 +28,7 @@ import {
   printReceipt,
   resolveEffectiveReceiptConfig,
 } from "@/utils/receipt";
+import { resolveThermalPaper } from "@/utils/printerThermal";
 import { ROUTES } from "@/constants/routes";
 import { useBlePrinter } from "@/hooks/useBlePrinter";
 import type { Sale } from "@/types/sale.types";
@@ -65,7 +66,7 @@ export const SalesPage = () => {
       ? customers?.find((c) => c.id === printSale.customerId)?.name
       : "";
 
-    const paperSize = settings?.printerConfig?.paperSize || "58mm";
+    const paperSize = resolveThermalPaper(settings?.printerConfig);
     const paperWidth: "50mm" | "80mm" | "210mm" =
       printFormat === "thermal"
         ? paperSize === "80mm"
@@ -105,7 +106,7 @@ export const SalesPage = () => {
       const bytes = await generateReceiptEscPos({
         sale: printSale,
         receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || "58mm",
+        paperSize: resolveThermalPaper(settings?.printerConfig),
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,

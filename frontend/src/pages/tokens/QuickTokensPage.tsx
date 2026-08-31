@@ -12,6 +12,7 @@ import { useTokens, useIssueToken, useDeleteToken } from '@/hooks/useTokens'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { resolveThermalPaper } from '@/utils/printerThermal'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { clsx } from 'clsx'
@@ -190,7 +191,7 @@ export const QuickTokensPage = () => {
   const printTokenBrowser = (token: Token) => {
     if (!token.sale) return
     const receiptConfig = settings?.receiptConfig
-    const paperSize = settings?.printerConfig?.paperSize || '58mm'
+    const paperSize = resolveThermalPaper(settings?.printerConfig)
     const width: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
     const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
     const receiptHTML = generateReceiptHTML({
@@ -219,7 +220,7 @@ export const QuickTokensPage = () => {
       const bytes = await generateReceiptEscPos({
         sale: token.sale as Sale,
         receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || '58mm',
+        paperSize: resolveThermalPaper(settings?.printerConfig),
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName: `Token #${token.tokenNumber} · ${label}`,

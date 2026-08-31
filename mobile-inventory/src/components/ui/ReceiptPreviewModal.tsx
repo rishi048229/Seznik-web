@@ -44,6 +44,10 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
 import { buildBillPdfUrl, buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
 import { CustomReceiptMockup } from '@/components/ui/CustomReceiptMockup';
+import {
+  receiptLogoHtmlMaxPxFromChip,
+  receiptStandardQrHtmlPxFromChip,
+} from '@shared/receiptPrintGeometry';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
@@ -74,6 +78,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    receiptLogoSize,
+    receiptQrSize,
   } = usePrinterStore();
   const storeProfile = useStoreProfile();
   const [isPrinting, setIsPrinting] = useState(false);
@@ -158,6 +164,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       storeGstin: editableSale?.storeGstin,
       storeLogoUrl: editableSale?.storeLogoUrl,
       upiId: editableSale?.upiId,
+      receiptLogoSize,
+      receiptQrSize,
     }),
     [
       template,
@@ -457,6 +465,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                       paymentMethod={editableSale.paymentMethod}
                       upiId={editableSale.upiId || storeProfile.upiId}
                       paperWidth={paperWidth}
+                      logoSizeChip={receiptLogoSize}
+                      qrSizeChip={receiptQrSize}
                     />
                   ) : (
                     <View
@@ -480,7 +490,15 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                         {editableSale.storeLogoUrl ? (
                           <Image
                             source={{ uri: editableSale.storeLogoUrl }}
-                            style={styles.storeLogo}
+                            style={[
+                              styles.storeLogo,
+                              {
+                                maxWidth: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxWidth,
+                                maxHeight: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxHeight,
+                                width: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxWidth,
+                                height: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxHeight,
+                              },
+                            ]}
                             resizeMode="contain"
                           />
                         ) : null}
@@ -597,7 +615,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                         <View style={styles.qrSection}>
                           <Text style={styles.qrHeader}>•• SCAN TO PAY VIA UPI ••</Text>
                           <View style={styles.qrFrame}>
-                            <QRCode value={upiQrString} size={paperWidth === '58mm' ? 84 : 100} />
+                            <QRCode value={upiQrString} size={receiptStandardQrHtmlPxFromChip(receiptQrSize)} />
                           </View>
                           <Text style={styles.qrFooter}>UPI ID: {editableSale.upiId || storeProfile.upiId}</Text>
                         </View>
@@ -608,7 +626,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                         <View style={styles.qrSection}>
                           <Text style={styles.qrHeader}>•• DIGITAL BILL PDF ••</Text>
                           <View style={styles.qrFrame}>
-                            <QRCode value={buildBillPdfUrl(editableSale)} size={paperWidth === '58mm' ? 84 : 100} />
+                            <QRCode value={buildBillPdfUrl(editableSale)} size={receiptStandardQrHtmlPxFromChip(receiptQrSize)} />
                           </View>
                           <Text style={styles.qrFooter}>Scan to view & download bill PDF</Text>
                         </View>
@@ -961,7 +979,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   receiptHeader: { alignItems: 'center', marginBottom: 6 },
-  storeLogo: { width: 100, height: 35, marginBottom: 4 },
+  storeLogo: { maxWidth: 180, maxHeight: 56, width: '60%', height: 48, resizeMode: 'contain', alignSelf: 'center', marginBottom: 6 },
   thermalTitle: {
     fontSize: 15,
     fontWeight: '900',

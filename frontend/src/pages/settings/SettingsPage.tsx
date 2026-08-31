@@ -183,7 +183,8 @@ export const SettingsPage = () => {
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
-          receiptConfig:   curReceipt,
+          // Keep receiptConfig.logoURL in sync so mobile/web receipt prints see the same logo.
+          receiptConfig:   { ...curReceipt, ...(businessLogo ? { logoURL: businessLogo } : {}) },
         })
         break
       case 'personal':

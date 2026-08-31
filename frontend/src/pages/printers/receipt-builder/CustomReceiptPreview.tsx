@@ -13,7 +13,7 @@ import {
 import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from '@/utils/upiQr'
 import { getReceiptPreviewFontStyle, getReceiptPreviewMaxWidth } from './receiptPreviewStyles'
 import { isReceiptEntryEnabled, resolveReceiptImageSrc } from '@/utils/receiptLogo'
-import { receiptQrPreviewPx, receiptStandardQrHtmlPx } from '@shared/receiptPrintGeometry'
+import { receiptQrPreviewPx, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
 
 interface CustomReceiptPreviewProps {
   template: CustomReceiptTemplate
@@ -130,7 +130,7 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
         const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
         const qrSize =
           isUpi || entry.qrType === 'digital_bill' || !entry.size
-            ? receiptStandardQrHtmlPx(paperWidth)
+            ? receiptStandardQrHtmlPxFromChip(gstOpts?.receiptQrSize)
             : receiptQrPreviewPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
         return (
           <div key={entry.id || idx} className={`my-2 flex ${entry.align === 'left' ? 'justify-start' : entry.align === 'right' ? 'justify-end' : 'justify-center'}`}>

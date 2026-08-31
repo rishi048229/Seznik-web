@@ -4,6 +4,7 @@ import { CustomReceiptTemplate } from '@/types/customReceipt';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { resolveStoreLogoUrl, resolveSettingsFooterMessage } from '@/utils/receiptLogo';
+import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
 import type { UserProfile } from '@/types/auth';
 
 /** Local invoice number used on the receipt while the server assigns the real one in the background. */
@@ -29,6 +30,8 @@ export function buildReceiptPrintOptions(input: {
   footerMessage?: string;
   showTaxBreakdown?: boolean;
   itemWiseGst?: boolean;
+  receiptLogoSize?: ReceiptSizeChip;
+  receiptQrSize?: ReceiptSizeChip;
 }): ReceiptPrintOptions {
   const activeCustomTemplate =
     input.customTemplates.find((t) => t.id === input.activeCustomTemplateId) || null;
@@ -50,6 +53,8 @@ export function buildReceiptPrintOptions(input: {
     footerMessage: input.footerMessage,
     showTaxBreakdown: input.showTaxBreakdown,
     itemWiseGst: input.itemWiseGst,
+    receiptLogoSize: input.receiptLogoSize,
+    receiptQrSize: input.receiptQrSize,
   };
 }
 
@@ -130,6 +135,9 @@ export function buildTestReceiptPrintOptions(input: {
   const gst = gstPrintOptionOverrides(parseGstBilling(input.settings?.invoiceConfig));
   const logo = resolveSettingsLogoUrl(input.settings);
   const footerMessage = resolveSettingsFooterMessage(input.settings?.receiptConfig);
+  const receiptConfig = input.settings?.receiptConfig as Record<string, any> | undefined;
+  const receiptLogoSize = receiptConfig?.receiptLogoSize;
+  const receiptQrSize = receiptConfig?.receiptQrSize;
   const options = buildReceiptPrintOptions({
     activeTemplateId: input.activeTemplateId,
     customTemplates: input.customTemplates,
@@ -146,6 +154,8 @@ export function buildTestReceiptPrintOptions(input: {
     storeLogoUrl: logo,
     upiId: input.settings?.upiId || undefined,
     footerMessage,
+    receiptLogoSize,
+    receiptQrSize,
     ...gst,
   });
   if (input.customTemplate !== undefined) {

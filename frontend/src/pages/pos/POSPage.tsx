@@ -56,6 +56,7 @@ import {
   printReceipt,
   resolveEffectiveReceiptConfig,
 } from "@/utils/receipt";
+import { resolveThermalPaper } from "@/utils/printerThermal";
 import {
   parseGstBilling,
   shouldShowGstBreakdown,
@@ -543,7 +544,7 @@ export const POSPage = () => {
       ? customers?.find((c) => c.id === lastSaleData.selectedCustomer)?.name
       : "";
 
-    const paperSize = settings?.printerConfig?.paperSize || "58mm";
+    const paperSize = resolveThermalPaper(settings?.printerConfig);
     const paperWidth: "50mm" | "80mm" | "210mm" =
       format === "thermal" ? (paperSize === "80mm" ? "80mm" : "50mm") : "210mm";
 
@@ -585,7 +586,7 @@ export const POSPage = () => {
       const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || "58mm",
+        paperSize: resolveThermalPaper(settings?.printerConfig),
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
@@ -1445,6 +1446,8 @@ export const POSPage = () => {
         isOpen={isPrintModalOpen}
         onClose={finishPrintFlow}
         sale={buildTempSale()}
+        settings={settings}
+        blePrinter={blePrinter}
       />
 
       {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}

@@ -9,8 +9,10 @@ import {
 import QRCode from 'qrcode'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { resolveThermalPaper } from '@/utils/printerThermal'
 import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
+import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { buildUpiPayLink } from '@/utils/upiQr'
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
@@ -79,6 +81,8 @@ export const RealisticReceiptModal = ({
   onDone,
   blePrinter,
 }: RealisticReceiptModalProps) => {
+  const hookBlePrinter = useBlePrinter()
+  const activeBlePrinter = blePrinter || hookBlePrinter
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
 
   // Initialize receipt editable state from sale & settings
@@ -131,7 +135,7 @@ export const RealisticReceiptModal = ({
       footerMessage: receiptConfig?.footerMessage || 'Thank you for your visit! Goods once sold can be exchanged within 7 days.',
       showTaxBreakdown: receiptConfig?.showTaxBreakdown ?? true,
       showUpiQr: !!settings?.receiptConfig?.upiId,
-      paperSize: (settings?.printerConfig?.paperSize === '80mm' ? '80mm' : '58mm'),
+      paperSize: resolveThermalPaper(settings?.printerConfig),
     }
   }, [sale, settings, receiptConfig, initialCustomerName, initialCustomerPhone])
 
@@ -291,11 +295,14 @@ export const RealisticReceiptModal = ({
   const handlePrintThermal = async () => {
     const payload = printPayload()
     const width: '50mm' | '80mm' = receipt.paperSize === '80mm' ? '80mm' : '50mm'
-    const useBle = blePrinter?.status === 'connected'
+    const preferBle = shouldPrintThermalOverBle(settings, activeBlePrinter) || settings?.printerConfig?.connectionType === 'bluetooth'
 
-    if (useBle && blePrinter) {
+    if (preferBle || activeBlePrinter?.status === 'connected') {
       setIsPrintingBle(true)
       try {
+        if (activeBlePrinter.status !== 'connected') {
+          await activeBlePrinter.connect()
+        }
         const bytes = await generateReceiptEscPos({
           sale: payload.sale,
           receiptConfig: payload.receiptConfig,
@@ -305,16 +312,19 @@ export const RealisticReceiptModal = ({
           customerName: receipt.customerName,
           customerPhone: receipt.customerPhone,
           dateLabel: receipt.date,
+          businessLogoURL: receipt.logoURL,
+          invoiceConfig: settings?.invoiceConfig,
         })
-        await blePrinter.print(bytes)
-        toast.success(`Printed to ${blePrinter.deviceName || 'Bluetooth printer'}`)
+        await activeBlePrinter.print(bytes)
+        toast.success(`Printed to ${activeBlePrinter.deviceName || 'Bluetooth printer'}`)
         setIsPrintingBle(false)
         return
       } catch (err: unknown) {
-        console.warn('Bluetooth print failed, falling back to browser print:', err)
-        toast.error('Bluetooth print failed — opening system print dialog')
-      } finally {
+        console.warn('Bluetooth print failed:', err)
+        const msg = err instanceof Error ? err.message : 'Bluetooth print failed'
+        toast.error(msg)
         setIsPrintingBle(false)
+        return
       }
     }
 
@@ -396,14 +406,14 @@ export const RealisticReceiptModal = ({
             <Button
               type="button"
               size="sm"
-              leftIcon={shouldPrintThermalOverBle(settings, blePrinter) ? <Bluetooth size={16} /> : <Printer size={16} />}
+              leftIcon={shouldPrintThermalOverBle(settings, activeBlePrinter) ? <Bluetooth size={16} /> : <Printer size={16} />}
               onClick={handlePrintThermal}
               loading={isPrintingBle}
               className="min-h-10 col-span-2 sm:col-span-1 sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
             >
-              {blePrinter?.status === 'connected'
-                ? `Print to ${blePrinter.deviceName || 'printer'}`
-                : shouldPrintThermalOverBle(settings, blePrinter)
+              {activeBlePrinter?.status === 'connected'
+                ? `Print to ${activeBlePrinter.deviceName || 'printer'}`
+                : shouldPrintThermalOverBle(settings, activeBlePrinter)
                   ? 'Connect & print receipt'
                   : `Print receipt (${receipt.paperSize})`}
             </Button>
@@ -652,7 +662,7 @@ export const RealisticReceiptModal = ({
               <div className="text-center pb-3 mb-3 border-b-2 border-dashed border-slate-400">
                 {receipt.logoURL && (
                   <div className="flex justify-center mb-2">
-                    <img src={receipt.logoURL} alt="Logo" className="max-h-12 max-w-[120px] object-contain filter grayscale contrast-150" />
+                    <img src={receipt.logoURL} alt="Logo" className="max-h-14 max-w-[180px] object-contain filter grayscale contrast-150" />
                   </div>
                 )}
                 <h2 className="font-extrabold text-base tracking-wider uppercase text-slate-950 font-sans leading-tight">
@@ -764,9 +774,9 @@ export const RealisticReceiptModal = ({
               {upiQrDataUrl && receipt.showUpiQr && (
                 <div className="mt-4 pt-3 border-t border-dashed border-slate-300 text-center flex flex-col items-center">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 mb-1 font-sans">
-                    Scan &amp; Pay Exact Bill Amount
+                    SCAN TO PAY VIA UPI
                   </span>
-                  <img src={upiQrDataUrl} alt="UPI QR" className="w-28 h-28 border border-slate-300 rounded p-1 bg-white" />
+                  <img src={upiQrDataUrl} alt="UPI QR" className="border border-slate-300 rounded p-1 bg-white" style={{ width: receipt.paperSize === '80mm' ? 130 : 110, height: receipt.paperSize === '80mm' ? 130 : 110 }} />
                   <span className="text-[9px] text-slate-500 mt-1 font-mono">{receipt.upiId}</span>
                 </div>
               )}

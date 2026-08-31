@@ -62,6 +62,10 @@ export interface ReceiptConfig {
   enableBillQrCode?: boolean
   receiptConfigUpdatedAt?: string
   deletedTemplateIds?: string[]
+  /** Logo size chip — small / medium / large. Synced across web and mobile. */
+  receiptLogoSize?: 'small' | 'medium' | 'large'
+  /** QR code size chip — small / medium / large. Synced across web and mobile. */
+  receiptQrSize?: 'small' | 'medium' | 'large'
 }
 
 export interface PersonalInfo {

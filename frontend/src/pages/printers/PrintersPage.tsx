@@ -31,6 +31,7 @@ import { ReceiptLivePreviewPanel } from '@/pages/printers/receipt-builder/Receip
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
 import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
+import { withSyncedPaperKeys } from '@/utils/printerThermal'
 import {
   inferQrPurpose,
   applyQrSection,
@@ -46,6 +47,7 @@ import { resolveReceiptPrintGstFromForm } from '@/constants/gstBilling'
 import * as settingsService from '@/services/settingsService'
 import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
+import { trackUserAction } from '@/utils/analytics'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
@@ -401,7 +403,8 @@ export const PrintersPage = () => {
       personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
       invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
       notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
-      printerConfig: config,
+      printerConfig: withSyncedPaperKeys(config),
+      receiptConfig: receiptConfig,
     }
 
     const onSaved = () => {
@@ -590,6 +593,7 @@ export const PrintersPage = () => {
       gstStyle: resolved.gstStyle,
       itemWiseGst: resolved.itemWiseGst,
       isRestaurant,
+      receiptQrSize: receiptConfig.receiptQrSize,
     }
   }, [gstForm, receiptConfig, isRestaurant])
 
@@ -1019,6 +1023,29 @@ export const PrintersPage = () => {
                 accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                 enableBackgroundCleanup
               />
+              {/* Logo Size Picker */}
+              <div>
+                <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
+                  Logo Size on Receipt
+                </label>
+                <div className="flex gap-2">
+                  {(['small', 'medium', 'large'] as const).map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => setReceiptConfig(prev => ({ ...prev, receiptLogoSize: chip }))}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                        (receiptConfig.receiptLogoSize ?? 'medium') === chip
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                      }`}
+                    >
+                      {chip.charAt(0).toUpperCase() + chip.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Small: 32px · Medium: 56px · Large: 80px tall</p>
+              </div>
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
@@ -1143,6 +1170,31 @@ export const PrintersPage = () => {
                   <p className="text-[10px] text-gray-500">
                     This custom text statement will appear directly under the QR code on every receipt.
                   </p>
+                </div>
+              )}
+              {/* QR Code Size Picker */}
+              {activeQrPurpose !== 'none' && (
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80">
+                  <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
+                    QR Code Size on Receipt
+                  </label>
+                  <div className="flex gap-2">
+                    {(['small', 'medium', 'large'] as const).map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setReceiptConfig(prev => ({ ...prev, receiptQrSize: chip }))}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                          (receiptConfig.receiptQrSize ?? 'medium') === chip
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-emerald-400'
+                        }`}
+                      >
+                        {chip.charAt(0).toUpperCase() + chip.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">Small: 80px · Medium: 110px · Large: 140px</p>
                 </div>
               )}
             </div>

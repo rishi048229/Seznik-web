@@ -18,11 +18,14 @@ import {
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   receiptLogoHtmlMaxPx,
+  receiptLogoHtmlMaxPxFromChip,
   receiptLogoPrintWidthDots,
   receiptQrBitmapDots,
   receiptQrHtmlPx,
   receiptStandardQrHtmlPx,
+  receiptStandardQrHtmlPxFromChip,
   type ReceiptQrSize,
+  type ReceiptSizeChip,
 } from '@shared/receiptPrintGeometry';
 import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/receiptLogo';
 import { isRestaurantBusiness } from '../constants/businessTypes';
@@ -197,6 +200,10 @@ export interface ReceiptPrintOptions {
   itemWiseGst?: boolean;
   /** When unset on the table block, restaurant/cafe bills number items; retail does not. */
   isRestaurant?: boolean;
+  /** User-selected logo size chip (synced from ReceiptConfig.receiptLogoSize) */
+  receiptLogoSize?: ReceiptSizeChip;
+  /** User-selected QR size chip (synced from ReceiptConfig.receiptQrSize) */
+  receiptQrSize?: ReceiptSizeChip;
 }
 
 function effectiveShowTaxBreakdown(
@@ -975,11 +982,11 @@ class ThermalPrinterServiceManager {
     return buildUpiPayString(upi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
   }
 
-  private upiQrHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm'): string {
+  private upiQrHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', qrSizeChip?: ReceiptSizeChip): string {
     const payload = this.upiPayPayload(data);
     if (!payload) return '';
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(payload)}`;
-    const qrDim = receiptStandardQrHtmlPx(paperWidth);
+    const qrDim = receiptStandardQrHtmlPxFromChip(qrSizeChip);
     return `<div class="center" style="margin-top:8px;">
       <div class="bold" style="font-size:11px;margin-bottom:4px;">SCAN TO PAY VIA UPI</div>
       <img src="${url}" alt="UPI payment QR" style="width:${qrDim}px;height:${qrDim}px;object-fit:contain;display:inline-block;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" />
@@ -2008,7 +2015,7 @@ class ThermalPrinterServiceManager {
             if (!uri) return '';
             const align = entry.align || 'center';
             const widthPct = entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT;
-            const { maxHeight, maxWidth } = receiptLogoHtmlMaxPx();
+            const { maxHeight, maxWidth } = receiptLogoHtmlMaxPxFromChip(options?.receiptLogoSize);
             const maxW = Math.max(80, Math.round(maxWidth * Math.min(widthPct, 100) / 100));
             return `<div style="text-align: ${align}; margin: 6px 0;"><img src="${uri}" style="max-height: ${maxHeight}px; max-width: ${maxW}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" /></div>`;
           }
@@ -2112,7 +2119,7 @@ class ThermalPrinterServiceManager {
             const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId);
             const qrSize =
               isUpi || entry.qrType === 'digital_bill' || !entry.size
-                ? receiptStandardQrHtmlPx(paperWidth)
+                ? receiptStandardQrHtmlPxFromChip(options?.receiptQrSize)
                 : receiptQrHtmlPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium');
 
             if (isQr) {
@@ -2362,7 +2369,7 @@ class ThermalPrinterServiceManager {
           </table>
 
           <div class="divider"></div>
-          ${this.upiQrHtml(data)}
+          ${this.upiQrHtml(data, 'mm' as any, options?.receiptQrSize)}
           <div class="center">${template.footerMessage}</div>
         </body>
       </html>
@@ -2467,7 +2474,7 @@ class ThermalPrinterServiceManager {
             ${
               data.storeLogoUrl
                 ? (() => {
-                    const logo = receiptLogoHtmlMaxPx(paperWidth);
+                    const logo = receiptLogoHtmlMaxPxFromChip(options?.receiptLogoSize);
                     return `<img src="${data.storeLogoUrl}" style="max-height: ${logo.maxHeight}px; max-width: ${logo.maxWidth}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />`;
                   })()
                 : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: ${template.accentColor}; font-size: 22px; line-height: 1;">${template.emoji}</div>`
@@ -2501,7 +2508,7 @@ class ThermalPrinterServiceManager {
 
           <div class="divider"></div>
 
-          ${this.upiQrHtml(data, paperWidth)}
+          ${this.upiQrHtml(data, paperWidth, options?.receiptQrSize)}
 
           <div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>
         </body>
@@ -2614,7 +2621,7 @@ class ThermalPrinterServiceManager {
             </table>
           </div>
 
-          ${this.upiQrHtml(data)}
+          ${this.upiQrHtml(data, 'mm' as any, options?.receiptQrSize)}
 
           <div class="footer">
             This is a computer-generated invoice from ${(data.storeName || 'the store')}. ${template.footerMessage}

@@ -61,6 +61,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
 import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
+import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
 
 // Stable sample product for label test-prints — module-level so it isn't rebuilt every render;
 // same values printTestLabel's own internal default uses.
@@ -184,6 +185,8 @@ export default function PrintersScreen() {
   const [printDensityVal, setPrintDensityVal] = useState(5);
   const [autoCutVal, setAutoCutVal] = useState(true);
   const [fontSizeVal, setFontSizeVal] = useState<'small' | 'medium' | 'large'>('medium');
+  const [receiptLogoSizeVal, setReceiptLogoSizeVal] = useState<ReceiptSizeChip>('medium');
+  const [receiptQrSizeVal, setReceiptQrSizeVal] = useState<ReceiptSizeChip>('medium');
   const [printCopiesVal, setPrintCopiesVal] = useState(1);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [showPairingGuide, setShowPairingGuide] = useState(false);
@@ -212,6 +215,8 @@ export default function PrintersScreen() {
       setPrintDensityVal(s.printDensity);
       setAutoCutVal(s.autoCut);
       setFontSizeVal(s.fontSize);
+      setReceiptLogoSizeVal(s.receiptLogoSize);
+      setReceiptQrSizeVal(s.receiptQrSize);
       setPrintCopiesVal(s.printCopies);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -394,6 +399,8 @@ export default function PrintersScreen() {
         autoCut: autoCutVal,
         printCopies: printCopiesVal,
         fontSize: fontSizeVal,
+        receiptLogoSize: receiptLogoSizeVal,
+        receiptQrSize: receiptQrSizeVal,
         labelPaperMode,
         labelWidthMm,
         labelHeightMm,
@@ -1268,6 +1275,48 @@ export default function PrintersScreen() {
                       style={[styles.widthChip, fontSizeVal === size && styles.widthChipActive]}
                     >
                       <Text style={[styles.widthChipText, fontSizeVal === size && styles.widthChipTextActive]}>
+                        {size.charAt(0).toUpperCase() + size.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Logo Size */}
+              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt Logo Size</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 32px · Medium: 56px · Large: 80px</Text>
+                </View>
+                <View style={styles.stepperControls}>
+                  {(['small', 'medium', 'large'] as const).map((size) => (
+                    <TouchableOpacity
+                      key={size}
+                      onPress={() => setReceiptLogoSizeVal(size)}
+                      style={[styles.widthChip, receiptLogoSizeVal === size && styles.widthChipActive]}
+                    >
+                      <Text style={[styles.widthChipText, receiptLogoSizeVal === size && styles.widthChipTextActive]}>
+                        {size.charAt(0).toUpperCase() + size.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* QR Code Size */}
+              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt QR Code Size</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 80px · Medium: 110px · Large: 140px</Text>
+                </View>
+                <View style={styles.stepperControls}>
+                  {(['small', 'medium', 'large'] as const).map((size) => (
+                    <TouchableOpacity
+                      key={size}
+                      onPress={() => setReceiptQrSizeVal(size)}
+                      style={[styles.widthChip, receiptQrSizeVal === size && styles.widthChipActive]}
+                    >
+                      <Text style={[styles.widthChipText, receiptQrSizeVal === size && styles.widthChipTextActive]}>
                         {size.charAt(0).toUpperCase() + size.slice(1)}
                       </Text>
                     </TouchableOpacity>

@@ -15,7 +15,15 @@ import { resolveStoreLogoUrl, prefetchPrintableLogoSrc, isBrowserLoadableImageSr
 import { ensureTemplateHasLogoBlock } from './ensureReceiptTemplates'
 import { resolveReceiptPrintGst, type GstBreakdownStyle } from '@/constants/gstBilling'
 import { gstSummaryFromCart } from '@/utils/gst'
-import { receiptLogoMaxDots, receiptQrEscPosModuleSize } from '@shared/receiptPrintGeometry'
+import {
+  RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  receiptLogoHtmlMaxPx,
+  receiptLogoHtmlMaxPxFromChip,
+  receiptLogoMaxDots,
+  receiptQrEscPosModuleSize,
+  receiptStandardQrHtmlPx,
+  receiptStandardQrHtmlPxFromChip,
+} from '@shared/receiptPrintGeometry'
 
 function escapeHtmlAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
@@ -29,7 +37,8 @@ function thermalReceiptContainerStyle(paperSize: '58mm' | '80mm', fontSize: stri
     'line-height:1.3',
     'color:#000',
     'width:100%',
-    'max-width:100%',
+    `max-width:${paperSize === '80mm' ? '80mm' : '58mm'}`,
+    'margin:0 auto',
     'padding:0',
     'box-sizing:border-box',
     'text-align:left',
@@ -211,7 +220,7 @@ export const generateReceiptHTML = ({
 
   const isThermal = width === '50mm' || width === '80mm'
   const is80mm = width === '80mm'
-  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
+  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '58mm' : 'A4'
   const pageMargin = width === '80mm' ? '2mm 2mm 8mm 2mm' : isThermal ? '2mm 1mm 8mm 1mm' : '10mm 12mm'
 
   const showTaxBreakdown = effectiveConfig?.showTaxBreakdown ?? true
@@ -526,14 +535,18 @@ export const generateReceiptHTML = ({
       paperSizeKey,
       storeLogoUrl,
       smallFS,
-      (src, widthPercent, align) =>
-        receiptLogoImgHtml(src, 56, Math.max(80, Math.round(180 * Math.min(widthPercent, 100) / 100)), align),
+      (src, widthPercent, align) => {
+        const { maxHeight, maxWidth } = receiptLogoHtmlMaxPxFromChip(effectiveConfig?.receiptLogoSize)
+        const pct = Math.min(widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, 100)
+        return receiptLogoImgHtml(src, maxHeight, Math.max(80, Math.round(maxWidth * pct / 100)), align)
+      },
       {
         showLogo,
         itemWiseGst,
         gstStyle,
         showTaxBreakdown: printGst.showTaxBreakdown,
         isRestaurant,
+        receiptQrSize: effectiveConfig?.receiptQrSize,
       }
     )
 
@@ -557,11 +570,23 @@ ${bodyHtml}
     isRestaurant,
   })
 
+  const logoHtml = receiptLogoHtmlMaxPxFromChip(effectiveConfig?.receiptLogoSize)
+  const qrDimension = receiptStandardQrHtmlPxFromChip(effectiveConfig?.receiptQrSize)
+  const enableBillQr = Boolean(effectiveConfig?.enableBillQrCode)
+  const billPdfTarget = encodeURIComponent(sale.id || sale.invoiceNumber || 'INV')
+  const billPdfUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/receipt/${billPdfTarget}`
+      : `https://api.seznik.com/receipt/${billPdfTarget}`
+  const billQrImg = enableBillQr
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(billPdfUrl)}`
+    : ''
   return `
   <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS)}">
-${receiptLogoImgHtml(effectiveLogo, 56, 180)}
+${receiptLogoImgHtml(effectiveLogo, logoHtml.maxHeight, logoHtml.maxWidth)}
 ${textLines.map((l) => `<div style="white-space:pre;overflow:hidden;width:100%;font-family:'Courier New',Courier,monospace;">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
-${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY &#x20B9;${billTotal.toFixed(2)} VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:130px;height:130px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+${billQrImg ? `<div style="text-align:center;margin-top:8px;padding:4px 0;display:block;"><div style="font-size:${tinyFS};font-weight:700;margin-bottom:4px;">Scan QR to View &amp; Download Bill PDF</div><img src="${billQrImg}" alt="Digital Bill QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
 }
 
@@ -604,7 +629,7 @@ export const printReceipt = (
   onDone?: () => void,
 ) => {
   const isThermal = width === '50mm' || width === '80mm'
-  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
+  const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '58mm' : 'A4'
   const pageMargin = width === '80mm' ? '2mm 2mm 10mm 2mm' : isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
 
   const fullHTML = `<!DOCTYPE html>
@@ -620,6 +645,7 @@ export const printReceipt = (
     @media print {
       @page { size: ${paperWidth} auto; margin: ${pageMargin}; }
       html, body { width: 100%; margin: 0; padding: 0; }
+      #receipt { width: ${isThermal ? paperWidth : '100%'}; max-width: ${isThermal ? paperWidth : '100%'}; margin: 0 auto; padding: 0; }
       img { max-width: 100% !important; display: block !important; visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -630,7 +656,7 @@ export const printReceipt = (
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    #receipt { width: 100%; margin: 0; padding: 0; }
+    #receipt { width: ${isThermal ? paperWidth : '100%'}; max-width: ${isThermal ? paperWidth : '100%'}; margin: 0 auto; padding: 0; }
     img { -webkit-print-color-adjust: exact; print-color-adjust: exact; image-rendering: auto; }
   </style>
 </head>
@@ -828,7 +854,7 @@ export const generateReceiptEscPos = async ({
     b.feed(1)
     b.align('center')
     b.bold(true)
-    b.line(`SCAN TO PAY Rs.${billTotal.toFixed(2)}`)
+    b.line('SCAN TO PAY VIA UPI')
     b.bold(false)
     const payeeUpi = printConfig?.upiId || effectiveConfig?.upiId
     const qrPayload = isValidUpiVpa(payeeUpi)
@@ -840,6 +866,18 @@ export const generateReceiptEscPos = async ({
         })
       : (printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL)!
     b.qr(qrPayload, receiptQrEscPosModuleSize(effectivePaper))
+  }
+
+  if (effectiveConfig?.enableBillQrCode) {
+    const billPdfTarget = encodeURIComponent(sale.id || sale.invoiceNumber || 'INV')
+    const billPdfUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/receipt/${billPdfTarget}`
+        : `https://api.seznik.com/receipt/${billPdfTarget}`
+    b.feed(1)
+    b.align('center')
+    b.line('Scan QR to View & Download Bill PDF')
+    b.qr(billPdfUrl, receiptQrEscPosModuleSize(effectivePaper))
   }
 
   b.feed(2)
