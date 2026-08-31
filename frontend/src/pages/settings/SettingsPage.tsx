@@ -16,7 +16,10 @@ import { LANGUAGES } from '@/i18n/translations'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe } from 'lucide-react'
+import { KotSettingsFields } from '@/pages/kot/components/KotSettingsFields'
+import { mergeKotConfig } from '@/pages/kot/kotConfig'
+import type { KotConfig } from '@/types/settings.types'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { BUSINESS_TYPE_OPTIONS, getBusinessTypeLabel, type BusinessType } from '@/constants/businessTypes'
 
@@ -46,9 +49,10 @@ export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('business')
-  const { data: settings, isLoading } = useSettings()
+  const { data: settings, isLoading, isError, refetch } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
+  const [kotForm, setKotForm] = useState<Required<KotConfig>>(() => mergeKotConfig(undefined))
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
@@ -72,10 +76,15 @@ export const SettingsPage = () => {
     }
   }, [settings?.businessLogoURL])
 
+  useEffect(() => {
+    setKotForm(mergeKotConfig(settings?.kotConfig))
+  }, [settings])
+
   const settingsTabs = [
     { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: t('settings.descBusiness') },
     { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: t('settings.descPersonal') },
     { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: t('settings.descInvoice') },
+    { key: 'kot', label: 'Kitchen / KOT', icon: ChefHat, description: 'Cafe, restaurant, charges, and kitchen slips' },
     { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: t('settings.descNotifications') },
     { key: 'permissions', label: t('settings.permissions'), icon: Users, description: t('settings.descPermissions') },
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
@@ -107,6 +116,10 @@ export const SettingsPage = () => {
     )
 
   const handleSave = (key: string, data: Record<string, unknown>) => {
+    if (isError) {
+      toast.error('Could not load your settings. Refresh the page and try again.')
+      return
+    }
     const safeData = clean(data)
     if (hasSettings && settings) {
       updateSettings(
@@ -214,6 +227,9 @@ export const SettingsPage = () => {
           notificationConfig: curNotif,
         })
         break
+      case 'kot':
+        handleSave('Kitchen / KOT', { kotConfig: kotForm })
+        break
       case 'notifications':
         handleSave(t('settings.notifications'), {
           notificationConfig: {
@@ -243,7 +259,17 @@ export const SettingsPage = () => {
         <SettingsPageSkeleton />
       ) : (
         <>
-          {!hasSettings && (
+          {isError && (
+            <Card className="p-3 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Could not load your business profile. Your data is still saved — refresh and try again.
+              </p>
+              <Button className="mt-2" variant="outline" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </Card>
+          )}
+          {!hasSettings && !isError && (
             <Card className="p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 {t('settings.noSettingsYet')}
@@ -526,6 +552,16 @@ export const SettingsPage = () => {
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('invoice')} loading={isPending} className="w-full sm:w-auto">
                     {hasSettings ? t('settings.updateInvoiceSettings') : t('settings.saveInvoiceSettings')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {activeTab === 'kot' && (
+              <div className="space-y-4 max-w-2xl">
+                <KotSettingsFields value={kotForm} onChange={setKotForm} />
+                <div className="pt-2">
+                  <Button onClick={() => handleTabSave('kot')} loading={isPending} className="w-full sm:w-auto">
+                    Save kitchen settings
                   </Button>
                 </div>
               </div>

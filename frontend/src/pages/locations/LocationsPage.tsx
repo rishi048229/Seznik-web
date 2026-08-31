@@ -27,7 +27,7 @@ import type { Location } from '@/types/location.types'
 // without touching the underlying model/route names.
 export const LocationsPage = () => {
   const { t } = useLanguage()
-  const { data: settings } = useSettings()
+  const { data: settings, isError: settingsLoadError } = useSettings()
   const { mutate: updateSettings } = useUpdateSettings()
   const { mutate: createSettings } = useCreateSettings()
   const { data: locations = [], isLoading } = useLocations()
@@ -65,6 +65,10 @@ export const LocationsPage = () => {
   const enabled = settings?.locationConfig?.enabled ?? false
 
   const toggleFeature = (v: boolean) => {
+    if (settingsLoadError) {
+      toast.error('Could not load settings. Refresh and try again.')
+      return
+    }
     const onError = (err: unknown) => {
       const msg = err instanceof Error ? err.message : ''
       toast.error(msg ? `Failed to save setting: ${msg}` : 'Failed to save setting')
@@ -73,7 +77,7 @@ export const LocationsPage = () => {
     if (settings?.id) {
       updateSettings({ settingsId: settings.id, data: { locationConfig: { enabled: v } } }, { onError })
     } else {
-      createSettings({ ...(settings as any), locationConfig: { enabled: v } }, { onError })
+      createSettings({ locationConfig: { enabled: v } } as Parameters<typeof createSettings>[0], { onError })
     }
   }
 

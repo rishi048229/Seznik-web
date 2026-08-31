@@ -122,6 +122,30 @@ export const printKotSlip = (data: KotSlipData, width: '50mm' | '80mm' = '50mm')
   printReceipt(generateKotSlipHTML(data, width), width, `KOT #${data.orderNumber}`)
 }
 
+/**
+ * Send a kitchen ticket to the Bluetooth printer when that is the destination.
+ * Does not open the system print dialog — browser print is only used when the
+ * user explicitly chose the system printer on the Printers page.
+ */
+export const printKotSlipSmart = async (
+  data: KotSlipData,
+  args: {
+    paperSize?: '58mm' | '80mm'
+    useBluetooth: boolean
+    ble: { status: string; connect: () => Promise<void>; print: (bytes: Uint8Array) => Promise<void> }
+  },
+): Promise<'ble' | 'browser'> => {
+  const paperSize = args.paperSize || '58mm'
+  const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
+  if (args.useBluetooth) {
+    if (args.ble.status !== 'connected') await args.ble.connect()
+    await args.ble.print(generateKotSlipEscPos(data, paperSize))
+    return 'ble'
+  }
+  printKotSlip(data, htmlWidth)
+  return 'browser'
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')

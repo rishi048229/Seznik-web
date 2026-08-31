@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
+    "prisma:ensure": "node scripts/ensure-additive-columns.cjs",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "ci:check": "prisma generate && tsc --noEmit",

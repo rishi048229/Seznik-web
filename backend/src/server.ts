@@ -1,12 +1,8 @@
 import app from './app';
 import prisma, { warmConnectionPool } from './config/db';
+import { ensureAdditiveSchema } from './utils/ensureAdditiveSchema';
 
 const PORT = Number(process.env.PORT) || 5001;
-
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT} (0.0.0.0)`);
-  void warmConnectionPool();
-});
 
 // `tsx watch` sends SIGTERM and immediately starts the replacement process. Without an explicit
 // close the listener can still hold the port when the new one boots, which fails with EADDRINUSE
@@ -40,3 +36,26 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (error) => {
   console.error('[server] uncaught exception:', error?.stack ?? error);
 });
+
+// Ensure additive DB schema columns exist before accepting traffic, but don't block startup on failure.
+ensureAdditiveSchema()
+  .then(() => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on port ${PORT} (0.0.0.0)`);
+      void warmConnectionPool();
+    });
+    // Make server accessible to shutdown handlers
+    Object.assign(global, { server });
+  })
+  .catch((err) => {
+    console.error('Failed to ensure additive database columns:', err);
+    // Still listen so login/health keep working; settings routes retry ensure on demand.
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on port ${PORT} (0.0.0.0— schema ensure failed)`);
+      void warmConnectionPool();
+    });
+    Object.assign(global, { server });
+  });
+
+// Declare server var for shutdown handler reference (assigned inside ensureAdditiveSchema callback above)
+declare let server: ReturnType<typeof app.listen>;

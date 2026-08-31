@@ -97,6 +97,23 @@ export interface LabelElement {
   text?: string
 }
 
+export type A4InvoiceTemplateId =
+  | 'retail'
+  | 'grocery'
+  | 'cafe'
+  | 'restaurant'
+  | 'hotel'
+  | 'qsr'
+  | 'electrician'
+  | 'cosmetics'
+  | 'pharmacy'
+  | 'bakery'
+  | 'clothing'
+  | 'electronics'
+  | 'hardware'
+  | 'services'
+  | 'wholesale'
+
 export interface PrinterConfig {
   // 'bluetooth' routes to the connected BLE printer; 'system_driver' always
   // uses the browser print dialog. (USB/network-IP were never implemented —
@@ -137,13 +154,36 @@ export interface PrinterConfig {
 
   // A4 / Full Sheet Invoice Format
   invoicePaperSize: 'A4' | 'Letter'
-  invoiceColorTheme: 'navy' | 'emerald' | 'slate' | 'royal'
+  invoiceColorTheme: 'navy' | 'emerald' | 'slate' | 'royal' | 'rose' | 'amber' | 'teal' | 'wine'
   invoiceShowHeader: boolean
   invoiceShowTerms: boolean
   invoiceTermsText: string
   invoiceShowPaymentQR: boolean
   paymentQrURL?: string
   upiId?: string
+
+  /** Which A4 bill layout to print. Defaults to retail if unset. */
+  invoiceTemplateId?: A4InvoiceTemplateId
+  invoiceDocTitle?: string
+  invoiceShowHsn?: boolean
+  invoiceShowSku?: boolean
+  invoiceShowUnit?: boolean
+  invoiceShowBatchExpiry?: boolean
+  invoicePlaceOfSupply?: string
+  invoiceReverseCharge?: string
+  invoiceFssai?: string
+  invoiceLicenseNo?: string
+  invoiceSignatureName?: string
+  invoiceBankName?: string
+  invoiceBankAccount?: string
+  invoiceBankIfsc?: string
+  invoiceNotes?: string
+  invoiceMeta1Label?: string
+  invoiceMeta1Value?: string
+  invoiceMeta2Label?: string
+  invoiceMeta2Value?: string
+  invoiceMeta3Label?: string
+  invoiceMeta3Value?: string
 }
 
 // Multi-location inventory feature flag. Purely opt-in — when `enabled` is
@@ -155,7 +195,12 @@ export interface LocationConfig {
 
 export type KotRoomType = 'none' | 'ac' | 'non_ac'
 
+export type KotVenueType = 'cafe' | 'restaurant' | 'qsr' | 'bakery' | 'cloud_kitchen' | 'bar'
+
+export type KotTableNoun = 'tables' | 'seats' | 'counters'
+
 export interface KotConfig {
+  venueType?: KotVenueType
   defaultOrderType?: 'dine_in' | 'takeaway' | 'delivery'
   taxRate?: number
   applyTaxOverride?: boolean
@@ -166,6 +211,12 @@ export interface KotConfig {
   defaultRoomType?: KotRoomType
   kotSlipTitle?: string
   showWaiterOnSlip?: boolean
+  showTables?: boolean
+  showWaiterField?: boolean
+  showRoomCharges?: boolean
+  showServiceCharge?: boolean
+  tableNoun?: KotTableNoun
+  allowedOrderTypes?: Array<'dine_in' | 'takeaway' | 'delivery'>
 }
 
 export interface UserSettings {

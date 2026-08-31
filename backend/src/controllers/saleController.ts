@@ -73,6 +73,7 @@ export const createSale = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid sale date' });
     }
 
+
     const count = await prisma.sale.count({ where: { userId } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
 

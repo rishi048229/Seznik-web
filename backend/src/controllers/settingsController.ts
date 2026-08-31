@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { mergeReceiptConfig, type ReceiptConfigLike } from '../utils/mergeReceiptConfig';
 import { enrichSettingsWithUserProfile } from '../utils/enrichSettingsProfile';
+import { ensureAdditiveSchema, resetAdditiveSchemaCache } from '../utils/ensureAdditiveSchema';
 
 const USER_PROFILE_SELECT = {
   businessName: true,
@@ -38,14 +39,36 @@ function businessFieldsFromReceipt(receipt: ReceiptConfigLike): Record<string, s
   return sync;
 }
 
+const isMissingColumnError = (error: unknown) =>
+  error instanceof Error && /column .* does not exist/i.test(error.message);
+
+const withSettingsSchema = async <T>(fn: () => Promise<T>): Promise<T> => {
+  await ensureAdditiveSchema();
+  try {
+    return await fn();
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error;
+    resetAdditiveSchemaCache();
+    await ensureAdditiveSchema();
+    return fn();
+  }
+};
+
 export const getSettings = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
-    res.json(await loadEnrichedSettings(userId));
+    const settings = await withSettingsSchema(() =>
+      prisma.settings.findUnique({ where: { userId } })
+    );
+    if (!settings) {
+      res.json(null);
+      return;
+    }
+    res.json(await loadEnrichedSettings(userId) ?? settings);
   } catch (error) {
     console.error('Failed to fetch settings:', error);
-    res.status(500).json({ error: 'Failed to fetch settings' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch settings' });
   }
 };
 
@@ -82,11 +105,13 @@ export const createSettings = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId(rawUserId);
     const data = sanitizeSettingsData(req.body || {});
     
-    const settings = await prisma.settings.upsert({
-      where: { userId },
-      update: { ...data },
-      create: { ...data, userId },
-    });
+    const settings = await withSettingsSchema(() =>
+      prisma.settings.upsert({
+        where: { userId },
+        update: { ...data },
+        create: { ...data, userId },
+      })
+    );
     res.status(201).json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to create settings:', error);
@@ -104,11 +129,13 @@ export const updateSettings = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId(rawUserId);
     const data = sanitizeSettingsData(req.body || {});
     
-    const settings = await prisma.settings.upsert({
-      where: { userId },
-      update: { ...data },
-      create: { ...data, userId },
-    });
+    const settings = await withSettingsSchema(() =>
+      prisma.settings.upsert({
+        where: { userId },
+        update: { ...data },
+        create: { ...data, userId },
+      })
+    );
     res.json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to update settings:', error);
@@ -123,11 +150,13 @@ export const updateInvoiceConfig = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId(rawUserId);
     const { invoiceConfig } = req.body;
     
-    const settings = await prisma.settings.upsert({
-      where: { userId },
-      update: { invoiceConfig },
-      create: { userId, invoiceConfig },
-    });
+    const settings = await withSettingsSchema(() =>
+      prisma.settings.upsert({
+        where: { userId },
+        update: { invoiceConfig },
+        create: { userId, invoiceConfig },
+      })
+    );
     res.json(settings);
   } catch (error) {
     console.error('Failed to update invoice config:', error);
@@ -141,11 +170,13 @@ export const updateNotificationConfig = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId(rawUserId);
     const { notificationConfig } = req.body;
     
-    const settings = await prisma.settings.upsert({
-      where: { userId },
-      update: { notificationConfig },
-      create: { userId, notificationConfig },
-    });
+    const settings = await withSettingsSchema(() =>
+      prisma.settings.upsert({
+        where: { userId },
+        update: { notificationConfig },
+        create: { userId, notificationConfig },
+      })
+    );
     res.json(settings);
   } catch (error) {
     console.error('Failed to update notification config:', error);
@@ -197,11 +228,13 @@ export const updatePrinterConfig = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId(rawUserId);
     const { printerConfig } = req.body;
 
-    const settings = await prisma.settings.upsert({
-      where: { userId },
-      update: { printerConfig },
-      create: { userId, printerConfig },
-    });
+    const settings = await withSettingsSchema(() =>
+      prisma.settings.upsert({
+        where: { userId },
+        update: { printerConfig },
+        create: { userId, printerConfig },
+      })
+    );
     res.json(settings);
   } catch (error) {
     console.error('Failed to update printer config:', error);

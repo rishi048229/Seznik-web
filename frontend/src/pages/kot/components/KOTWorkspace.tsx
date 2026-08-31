@@ -16,7 +16,8 @@ import {
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { generateKotSlipEscPos, printKotSlip } from '@/utils/kotPrint'
+import { printKotSlipSmart } from '@/utils/kotPrint'
+import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
 import { OrderTicketPanel } from './OrderTicketPanel'
@@ -53,7 +54,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
   const [orderId, setOrderId] = useState<string | null>(existingOrderId ?? table?.activeOrder?.id ?? null)
   const [orderType, setOrderType] = useState<KOTOrderType>(
-    initialOrderType || (table ? 'dine_in' : kotCfg.defaultOrderType)
+    initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
   const [waiterName, setWaiterName] = useState('')
   const [pendingItems, setPendingItems] = useState<KOTDraftItem[]>([])
@@ -80,7 +81,24 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }, [order, waiterName, customerId])
 
+
+  useEffect(() => {
+    if (orderId) return
+    if (!kotCfg.allowedOrderTypes.includes(orderType)) {
+      setOrderType(kotCfg.defaultOrderType)
+    }
+  }, [orderId, kotCfg.allowedOrderTypes, kotCfg.defaultOrderType, orderType])
+
+  const locationStockMap = useMemo(() => {
+    const map = new Map<string, { stock: number; priceOverride?: number | null }>()
+    for (const row of locationStockRows) {
+      map.set(row.productId, { stock: row.stock, priceOverride: row.priceOverride })
+    }
+    return map
+  }, [locationStockRows])
+
   const stockFor = (product: Product) => product.currentStock
+
 
   const priceFor = (product: Product) => product.sellingPrice
 
@@ -188,21 +206,17 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       })),
     }
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
-    const useBle = settings?.printerConfig?.connectionType === 'bluetooth'
-
-    if (useBle) {
-      try {
-        if (blePrinter.status !== 'connected') await blePrinter.connect()
-        await blePrinter.print(generateKotSlipEscPos(slip, paperSize))
-        toast.success('KOT sent to printer')
-        return
-      } catch (err) {
-        console.error(err)
-        toast.error('Bluetooth print failed — opening browser print')
-      }
+    try {
+      const via = await printKotSlipSmart(slip, {
+        paperSize,
+        useBluetooth: shouldPrintThermalOverBle(settings, blePrinter),
+        ble: blePrinter,
+      })
+      if (via === 'ble') toast.success('KOT sent to printer')
+    } catch (err) {
+      console.error(err)
+      toast.error('Could not print KOT. Connect the printer on the Printers page and try again.')
     }
-    printKotSlip(slip, htmlWidth)
   }
 
   const handleSendToKitchen = async () => {
@@ -265,7 +279,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
-    const useBle = settings?.printerConfig?.connectionType === 'bluetooth'
+    const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
 
@@ -286,7 +300,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         return
       } catch (err) {
         console.error(err)
-        toast.error('Bluetooth print failed — opening browser print')
+        toast.error('Bluetooth print failed. Connect the printer on the Printers page and try again.')
+        return
       }
     }
 
@@ -402,6 +417,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               onOrderTypeChange={setOrderType}
               waiterName={waiterName}
               onWaiterChange={setWaiterName}
+              showWaiter={kotCfg.showWaiterField}
+              allowedOrderTypes={kotCfg.allowedOrderTypes}
               sentItems={sentItems}
               unprintedServerItems={unprintedServerItems}
               pendingItems={pendingItems}

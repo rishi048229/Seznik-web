@@ -13,8 +13,8 @@ export const AppLayout = ({ sidebar, topbar, children }: AppLayoutProps) => {
       {sidebar}
       <div className="flex-1 flex flex-col overflow-hidden">
         {topbar}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6 flex flex-col justify-between">
-          <div className="flex-1">{children}</div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 pb-24 lg:pb-6 flex flex-col justify-between min-w-0">
+          <div className="flex-1 min-w-0 max-w-full">{children}</div>
           <Footer />
         </main>
       </div>

@@ -84,9 +84,10 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
       'Scroll all the way down in the Cart tab to view full totals and checkout options.',
     ],
     tourSteps: [
-      { title: 'Barcode Scanner Mode', description: 'Turn on camera scanning to add registered products instantly.', targetSelector: '[data-tour="pos-lite-scan-btn"]' },
+      { title: 'Barcode Scanner Mode', description: 'Turn on scanning to add registered products instantly.', targetSelector: '[data-tour="pos-lite-scan-btn"]' },
       { title: 'Custom Item Name', description: 'Enter any item name on the fly without pre-registering.', targetSelector: '[data-tour="pos-lite-name-input"]' },
       { title: 'Add to Cart Button', description: 'Add custom or scanned items into your active cart bill.', targetSelector: '[data-tour="pos-lite-add-cart-btn"]' },
+      { title: 'Recent items', description: 'Tap a recent item to add it again in one tap.', targetSelector: '[data-tour="pos-lite-recent"]' },
       { title: 'Mobile Cart Tab', description: 'Switch to the Cart tab to view totals and complete printing.', targetSelector: '[data-tour="pos-lite-tab-cart"]' },
     ],
   },
@@ -241,7 +242,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
     keyFeatures: [
       { title: 'Web Bluetooth Scanner', description: 'Scan, pair, and connect Bluetooth thermal receipt printers with one click.' },
       { title: 'Receipt Customizer', description: 'Customize business header, address, phone, GSTIN, receipt logo, and thank you notes.' },
-      { title: 'Label Printer Designer', description: 'Configure sticker size (50x30mm), command mode (TSPL/ESCPOS), and price label layout.' },
+      { title: 'Label Printer Designer', description: 'Choose sticker size (40x30, 50x30, and more), printer type (label vs receipt), and barcode layout.' },
       { title: 'Test Receipt Print', description: 'Send a test receipt or barcode label to verify printer alignment and quality.' },
     ],
     proTips: [
