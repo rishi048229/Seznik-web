@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -43,7 +43,23 @@ export const LocationsPage = () => {
   const [formName, setFormName] = useState('')
   const [seedFromCurrentStock, setSeedFromCurrentStock] = useState(true)
 
-  const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
+  const [activeLocationId, setActiveLocationId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('pos_selected_location_id')
+    } catch {
+      return null
+    }
+  })
+
+  const selectStore = (id: string | null) => {
+    setActiveLocationId(id)
+    try {
+      if (id) localStorage.setItem('pos_selected_location_id', id)
+      else localStorage.removeItem('pos_selected_location_id')
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }
   const [stockSearch, setStockSearch] = useState('')
   const [showAllProducts, setShowAllProducts] = useState(true)
   const [stockPage, setStockPage] = useState(1)
@@ -61,6 +77,13 @@ export const LocationsPage = () => {
   const { mutate: upsertStock } = useUpsertProductLocationStock()
   const { mutate: createTransfer, isPending: isTransferring } = useCreateStockTransfer()
   const { data: transfers = [] } = useStockTransfers()
+
+  useEffect(() => {
+    if (!activeLocationId || locations.length === 0) return
+    if (!locations.some((loc) => loc.id === activeLocationId && loc.isActive)) {
+      selectStore(null)
+    }
+  }, [locations, activeLocationId])
 
   const enabled = settings?.locationConfig?.enabled ?? false
 
@@ -115,7 +138,7 @@ export const LocationsPage = () => {
         onSuccess: (created) => {
           toast.success(seedFromCurrentStock ? 'Store added with your existing product stock' : 'Store added')
           setModalOpen(false)
-          setActiveLocationId(created.id)
+          selectStore(created.id)
         },
         onError: () => toast.error('Failed to add store'),
       })
@@ -127,7 +150,7 @@ export const LocationsPage = () => {
     deleteLocation(loc.id, {
       onSuccess: () => {
         toast.success('Store deleted')
-        if (activeLocationId === loc.id) setActiveLocationId(null)
+        if (activeLocationId === loc.id) selectStore(null)
       },
       onError: () => toast.error('Failed to delete store — it may still have stock or sales history'),
     })
@@ -244,7 +267,7 @@ export const LocationsPage = () => {
               {locations.map(loc => (
                 <div
                   key={loc.id}
-                  onClick={() => setActiveLocationId(loc.id)}
+                  onClick={() => selectStore(loc.id)}
                   className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
                     activeLocationId === loc.id
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
@@ -347,6 +370,7 @@ export const LocationsPage = () => {
                                 <td className="py-2.5 px-2">
                                   <input
                                     type="number"
+                                    key={`${p.id}-stock-${stockRow?.stock ?? 0}`}
                                     defaultValue={stockRow?.stock ?? 0}
                                     onBlur={e => handleStockChange(p.id, 'stock', e.target.value)}
                                     className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 font-semibold"
@@ -355,6 +379,7 @@ export const LocationsPage = () => {
                                 <td className="py-2.5 px-2">
                                   <input
                                     type="number"
+                                    key={`${p.id}-price-${stockRow?.priceOverride ?? 'base'}`}
                                     placeholder={String(p.sellingPrice)}
                                     defaultValue={stockRow?.priceOverride ?? ''}
                                     onBlur={e => handleStockChange(p.id, 'priceOverride', e.target.value)}

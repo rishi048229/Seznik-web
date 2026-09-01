@@ -19,6 +19,8 @@ export const DEFAULT_KOT_CONFIG: Required<KotConfig> = {
   showServiceCharge: true,
   tableNoun: 'tables',
   allowedOrderTypes: ['dine_in', 'takeaway', 'delivery'],
+  kitchenTicketsEnabled: true,
+  waiterNames: [],
 }
 
 export interface VenuePreset {
@@ -34,6 +36,7 @@ export interface VenuePreset {
   kotSlipTitle: string
   tableNoun: KotTableNoun
   allowedOrderTypes: KOTOrderType[]
+  kitchenTicketsEnabled: boolean
 }
 
 export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
@@ -50,6 +53,7 @@ export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
     kotSlipTitle: 'CAFE TICKET',
     tableNoun: 'seats',
     allowedOrderTypes: ['dine_in', 'takeaway', 'delivery'],
+    kitchenTicketsEnabled: true,
   },
   restaurant: {
     venueType: 'restaurant',
@@ -64,6 +68,7 @@ export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
     kotSlipTitle: 'KITCHEN ORDER TICKET',
     tableNoun: 'tables',
     allowedOrderTypes: ['dine_in', 'takeaway', 'delivery'],
+    kitchenTicketsEnabled: true,
   },
   qsr: {
     venueType: 'qsr',
@@ -78,6 +83,7 @@ export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
     kotSlipTitle: 'KITCHEN TICKET',
     tableNoun: 'counters',
     allowedOrderTypes: ['takeaway', 'delivery'],
+    kitchenTicketsEnabled: true,
   },
   bakery: {
     venueType: 'bakery',
@@ -92,6 +98,7 @@ export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
     kotSlipTitle: 'BAKERY TICKET',
     tableNoun: 'counters',
     allowedOrderTypes: ['takeaway', 'delivery'],
+    kitchenTicketsEnabled: true,
   },
   cloud_kitchen: {
     venueType: 'cloud_kitchen',
@@ -106,6 +113,7 @@ export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
     kotSlipTitle: 'DISPATCH TICKET',
     tableNoun: 'counters',
     allowedOrderTypes: ['delivery', 'takeaway'],
+    kitchenTicketsEnabled: false,
   },
   bar: {
     venueType: 'bar',
@@ -120,6 +128,7 @@ export const VENUE_PRESETS: Record<KotVenueType, VenuePreset> = {
     kotSlipTitle: 'BAR / KITCHEN TICKET',
     tableNoun: 'tables',
     allowedOrderTypes: ['dine_in', 'takeaway'],
+    kitchenTicketsEnabled: true,
   },
 }
 
@@ -156,6 +165,10 @@ export const mergeKotConfig = (raw?: KotConfig | null): Required<KotConfig> => {
     showServiceCharge: raw?.showServiceCharge ?? preset.showServiceCharge,
     tableNoun: raw?.tableNoun || preset.tableNoun,
     allowedOrderTypes: allowed,
+    kitchenTicketsEnabled: raw?.kitchenTicketsEnabled ?? preset.kitchenTicketsEnabled,
+    waiterNames: Array.isArray(raw?.waiterNames)
+      ? raw.waiterNames.filter((n): n is string => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim())
+      : [],
   }
 }
 
@@ -173,6 +186,7 @@ export const applyVenuePreset = (current: Required<KotConfig>, venueType: KotVen
     kotSlipTitle: preset.kotSlipTitle,
     tableNoun: preset.tableNoun,
     allowedOrderTypes: preset.allowedOrderTypes,
+    kitchenTicketsEnabled: preset.kitchenTicketsEnabled,
     defaultRoomType: preset.showRoomCharges ? current.defaultRoomType : 'none',
   }
 }

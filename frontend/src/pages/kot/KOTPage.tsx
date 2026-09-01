@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChefHat, Clock, CreditCard, LayoutGrid, MoreVertical, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { ChefHat, Check, Clock, CreditCard, LayoutGrid, MoreVertical, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -9,7 +10,7 @@ import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu'
 import { ROUTES } from '@/constants/routes'
 import { useRestaurantTables } from '@/hooks/useRestaurantTables'
 import { useKotOrders } from '@/hooks/useKotOrders'
-import { useSettings } from '@/hooks/useSettings'
+import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { formatINR } from '@/utils/currency'
 import { FloorStatsBar } from './components/FloorStatsBar'
@@ -29,6 +30,8 @@ type WorkspaceTarget =
 export const KOTPage = () => {
   const { t } = useLanguage()
   const { data: settings } = useSettings()
+  const { mutate: updateSettings } = useUpdateSettings()
+  const { mutate: createSettings } = useCreateSettings()
   const kotCfg = mergeKotConfig(settings?.kotConfig)
   const venue = VENUE_PRESETS[kotCfg.venueType]
   const VenueIcon = venueIcon(kotCfg.venueType)
@@ -67,6 +70,20 @@ export const KOTPage = () => {
     setWorkspace({ kind: 'walkin', orderType: kotCfg.defaultOrderType })
   }
 
+  const toggleKitchenTickets = () => {
+    const next = !kotCfg.kitchenTicketsEnabled
+    const data = { kotConfig: { ...kotCfg, kitchenTicketsEnabled: next } }
+    const onSuccess = () =>
+      toast.success(next ? 'Kitchen tickets turned on' : 'Kitchen tickets turned off — bills only')
+    const onError = (err: unknown) =>
+      toast.error(err instanceof Error ? err.message : 'Failed to update kitchen tickets')
+    if (settings?.id) {
+      updateSettings({ settingsId: settings.id, data }, { onSuccess, onError })
+      return
+    }
+    createSettings(data as Parameters<typeof createSettings>[0], { onSuccess, onError })
+  }
+
   const activeTable =
     workspace?.kind === 'table'
       ? tables.find((tb) => tb.id === workspace.table.id) ?? workspace.table
@@ -82,11 +99,13 @@ export const KOTPage = () => {
             <Button leftIcon={<CreditCard size={16} />} onClick={openNewBill}>
               New Bill
             </Button>
-            <Link to={ROUTES.KOT_KDS}>
-              <Button variant="outline" leftIcon={<ChefHat size={16} />}>
-                Kitchen
-              </Button>
-            </Link>
+            {kotCfg.kitchenTicketsEnabled && (
+              <Link to={ROUTES.KOT_KDS}>
+                <Button variant="outline" leftIcon={<ChefHat size={16} />}>
+                  Kitchen
+                </Button>
+              </Link>
+            )}
             {kotCfg.showTables && (
               <Button variant="outline" leftIcon={<LayoutGrid size={16} />} onClick={() => setManageOpen(true)}>
                 {floorLabel}
@@ -119,6 +138,10 @@ export const KOTPage = () => {
               <DropdownMenuItem onClick={() => openSettings('kot')}>
                 <UtensilsCrossed size={14} />
                 Kitchen / store type
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={toggleKitchenTickets}>
+                {kotCfg.kitchenTicketsEnabled ? <Check size={14} /> : <ChefHat size={14} />}
+                {kotCfg.kitchenTicketsEnabled ? 'Kitchen tickets on' : 'Kitchen tickets off'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings('stores')}>
                 <LayoutGrid size={14} />

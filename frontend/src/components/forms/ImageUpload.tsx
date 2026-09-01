@@ -137,7 +137,7 @@ export const ImageUpload = ({
           {label}
         </label>
       )}
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 min-w-0">
         <div
           className={cn(
             'relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors bg-gray-50 dark:bg-gray-700 flex-shrink-0',
@@ -183,7 +183,7 @@ export const ImageUpload = ({
             Click to upload. Recommended: JPG, PNG (Max {maxSizeMB}MB)
           </p>
           {preview ? (
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
@@ -215,7 +215,7 @@ export const ImageUpload = ({
 
       {/* 5MB Exceeded Popup Modal */}
       {showLimitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-700 text-center transform transition-all animate-scale-up">
             <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle size={30} />

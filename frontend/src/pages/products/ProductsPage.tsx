@@ -1355,12 +1355,12 @@ export const ProductsPage = () => {
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
                         <Badge variant={
-                          product.currentStock <= 0 ? 'danger' :
-                          product.currentStock <= product.lowStockThreshold ? 'warning' : 'success'
+                          getBrowseStock(product) <= 0 ? 'danger' :
+                          getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
                         }>
-                          {product.currentStock <= 0 ? 'Out of Stock' : `${product.currentStock} left`}
+                          {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
                         </Badge>
-                        <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(product.sellingPrice)}</span>
+                        <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(getBrowsePrice(product))}</span>
                       </div>
                     </Card>
                   ))}
@@ -1518,21 +1518,22 @@ export const ProductsPage = () => {
         title={editId ? t('products.editProduct') : t('products.addProduct')}
         size="lg"
         footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => { setIsFormOpen(false); resetForm() }}>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+            <Button variant="ghost" className="w-full sm:w-auto" onClick={() => { setIsFormOpen(false); resetForm() }}>
               {t('action.cancel')}
             </Button>
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
               disabled={!form.name.trim() || !form.categoryId}
+              className="w-full sm:w-auto"
             >
               {editId ? t('action.update') : t('action.create')}
             </Button>
           </div>
         }
       >
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="space-y-4">
           {/* Product Image Upload */}
           <div>
             <ImageUpload
@@ -1666,19 +1667,19 @@ export const ProductsPage = () => {
                 placeholder="Scan, type, or auto-generate"
                 className="flex-1"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
                 <Select
                   options={BARCODE_TYPE_OPTIONS}
                   value={form.barcodeType}
                   onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
-                  className="w-32"
+                  className="w-full sm:w-32"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setForm(prev => ({ ...prev, barcode: generateBarcodeValue(prev.barcodeType) }))}
                   leftIcon={<Wand2 size={14} />}
-                  className="flex-shrink-0 whitespace-nowrap"
+                  className="w-full sm:w-auto flex-shrink-0"
                 >
                   {t('products.autoGenerate')}
                 </Button>

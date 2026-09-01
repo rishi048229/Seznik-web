@@ -229,7 +229,7 @@ export const HelpChatBot = () => {
       {/* ─── Floating Button ─── */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${
+        className={`fixed right-4 lg:right-6 z-40 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] lg:bottom-6 ${
           isOpen
             ? 'bg-gray-700 hover:bg-gray-600 rotate-90'
             : 'bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 animate-pulse'
@@ -242,7 +242,7 @@ export const HelpChatBot = () => {
 
       {/* ─── Chat Window ─── */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+        <div className="fixed z-[45] flex flex-col overflow-hidden bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-gray-700 animate-in slide-in-from-bottom-4 inset-x-0 bottom-0 rounded-t-2xl h-[min(560px,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] sm:inset-x-auto sm:right-6 sm:bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+1rem)] sm:w-[380px] sm:max-w-[calc(100vw-2rem)] sm:rounded-2xl lg:bottom-6">
 
           {/* ─── Header ─── */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
@@ -389,7 +389,7 @@ export const HelpChatBot = () => {
           </div>
 
           {/* ─── Input Area ─── */}
-          <div className="px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
+          <div className="px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend() }}
               className="flex items-center gap-2"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Printer, CreditCard } from 'lucide-react'
+import { X, Printer, CreditCard, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -7,13 +7,14 @@ import { LocationSelector } from '@/components/common/LocationSelector'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useLocationStock } from '@/hooks/useLocations'
-import { useSettings } from '@/hooks/useSettings'
+import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
   useAddKotItems,
   useCreateKotOrder,
   useGenerateKotBill,
   useKotOrder,
+  useKotOrders,
   useSendKotToKitchen,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
@@ -28,6 +29,9 @@ import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
 import { mergeKotConfig, orderTypeLabel, ticketTitle } from '../kotConfig'
+import { ticketLaneLabel } from '../kotUtils'
+
+const LAST_WAITER_KEY = 'kot_last_waiter'
 
 interface KOTWorkspaceProps {
   table?: RestaurantTable | null
@@ -51,6 +55,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const { data: products = [], isLoading: productsLoading } = useProducts()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
+  const { mutate: updateSettings } = useUpdateSettings()
+  const { mutate: createSettings } = useCreateSettings()
   const blePrinter = useBlePrinter()
   const kotCfg = mergeKotConfig(settings?.kotConfig)
 
@@ -59,7 +65,13 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
   const [locationId, setLocationId] = useState<string | null>(null)
-  const [waiterName, setWaiterName] = useState('')
+  const [waiterName, setWaiterName] = useState(() => {
+    try {
+      return localStorage.getItem(LAST_WAITER_KEY) || ''
+    } catch {
+      return ''
+    }
+  })
   const [pendingItems, setPendingItems] = useState<KOTDraftItem[]>([])
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -71,19 +83,43 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [mobileTab, setMobileTab] = useState<'menu' | 'ticket'>('menu')
 
   const { data: order, isLoading: orderLoading } = useKotOrder(orderId)
+  const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 8000 })
   const { data: locationStockRows = [] } = useLocationStock(locationId)
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
   const { mutate: generateBill, isPending: isBilling } = useGenerateKotBill()
 
+  const persistKotConfig = (next: typeof kotCfg, ok?: string) => {
+    const data = { kotConfig: next }
+    const onSuccess = () => {
+      if (ok) toast.success(ok)
+    }
+    const onError = (err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed to save')
+    if (settings?.id) {
+      updateSettings({ settingsId: settings.id, data }, { onSuccess, onError })
+      return
+    }
+    createSettings(data as Parameters<typeof createSettings>[0], { onSuccess, onError })
+  }
+
   useEffect(() => {
-    if (order?.waiterName && !waiterName) setWaiterName(order.waiterName)
-    if (order?.customerId && !customerId) setCustomerId(order.customerId)
+    if (order?.waiterName) setWaiterName(order.waiterName)
+    if (order?.customerId) setCustomerId(order.customerId)
     if (order?.orderType === 'dine_in' || order?.orderType === 'takeaway' || order?.orderType === 'delivery') {
       setOrderType(order.orderType)
     }
-  }, [order, waiterName, customerId])
+  }, [order?.id, order?.waiterName, order?.customerId, order?.orderType])
+
+  useEffect(() => {
+    const trimmed = waiterName.trim()
+    if (!trimmed) return
+    try {
+      localStorage.setItem(LAST_WAITER_KEY, trimmed)
+    } catch {
+      /* ignore */
+    }
+  }, [waiterName])
 
   useEffect(() => {
     if (orderId) return
@@ -136,7 +172,68 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   }, [order?.items, pendingItems])
 
   const busy = isCreating || isAdding || isSending
-  const displayName = ticketTitle(table?.name, orderType)
+  const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
+
+  const openTickets = useMemo(() => {
+    const list = [...runningOrders]
+    if (order && !list.some((t) => t.id === order.id) && order.status !== 'billed' && order.status !== 'cancelled') {
+      list.unshift(order)
+    }
+    return list
+  }, [runningOrders, order])
+
+  const startFreshBill = () => {
+    setPendingItems([])
+    setBillOpen(false)
+    setCustomerId('')
+    setOrderId(null)
+    setMobileTab('menu')
+    if (!kotCfg.allowedOrderTypes.includes(orderType)) {
+      setOrderType(kotCfg.defaultOrderType)
+    }
+  }
+
+  const switchTicket = async (id: string | null) => {
+    if (id === orderId) return
+    try {
+      if (pendingItems.length > 0) {
+        if (orderId) {
+          await persistPending(orderId)
+        } else {
+          const created = await createOrder(startOrderPayload(pendingItems))
+          setPendingItems([])
+          if (!id) {
+            setOrderId(created.id)
+            toast.success('Bill kept in the bar')
+            return
+          }
+        }
+      }
+      if (!id) {
+        startFreshBill()
+        return
+      }
+      setPendingItems([])
+      setBillOpen(false)
+      setOrderId(id)
+      setMobileTab('ticket')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not switch bills')
+    }
+  }
+
+  const handleAddWaiter = () => {
+    const name = waiterName.trim()
+    if (!name) {
+      toast.error('Type a waiter name first')
+      return
+    }
+    if (kotCfg.waiterNames.some((n) => n.toLowerCase() === name.toLowerCase())) {
+      toast.success(`${name} is already saved`)
+      return
+    }
+    persistKotConfig({ ...kotCfg, waiterNames: [...kotCfg.waiterNames, name] }, `${name} saved`)
+  }
 
   const startOrderPayload = (items: KOTDraftItem[]) => ({
     orderType,
@@ -368,6 +465,42 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         </button>
       </header>
 
+      <div className="shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          onClick={() => void switchTicket(null)}
+          className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+            !orderId
+              ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+          }`}
+        >
+          <Plus size={12} />
+          New
+        </button>
+        {openTickets.map((ticket) => {
+          const active = ticket.id === orderId
+          return (
+            <button
+              key={ticket.id}
+              type="button"
+              onClick={() => void switchTicket(ticket.id)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border text-left transition-colors ${
+                active
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              <span className="block leading-tight">#{ticket.orderNumber}</span>
+              <span className={`block text-[10px] font-medium ${active ? 'text-blue-100' : 'text-amber-600 dark:text-amber-400'}`}>
+                {ticketLaneLabel(ticket.status)}
+                {ticket.partyLabel || ticket.table?.name ? ` · ${ticket.partyLabel || ticket.table?.name}` : ''}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <button
           type="button"
@@ -427,6 +560,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               waiterName={waiterName}
               onWaiterChange={setWaiterName}
               showWaiter={kotCfg.showWaiterField}
+              waiterNames={kotCfg.waiterNames}
+              onAddWaiter={handleAddWaiter}
               allowedOrderTypes={kotCfg.allowedOrderTypes}
               sentItems={sentItems}
               unprintedServerItems={unprintedServerItems}
@@ -446,16 +581,18 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           )}
 
           <div className="shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 space-y-2 pb-16 sm:pb-3">
-            <Button
-              onClick={handleSendToKitchen}
-              disabled={!hasNewItems || busy}
-              loading={isSending || isAdding || isCreating}
-              className="w-full"
-              variant="secondary"
-            >
-              <Printer size={16} className="mr-2" />
-              Send to Kitchen / Print KOT
-            </Button>
+            {kotCfg.kitchenTicketsEnabled && (
+              <Button
+                onClick={handleSendToKitchen}
+                disabled={!hasNewItems || busy}
+                loading={isSending || isAdding || isCreating}
+                className="w-full"
+                variant="secondary"
+              >
+                <Printer size={16} className="mr-2" />
+                Send to Kitchen / Print KOT
+              </Button>
+            )}
             <Button
               onClick={handleSettle}
               disabled={!hasAnyItems || busy}
@@ -497,14 +634,14 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
             { id: orderId, data: payload },
             {
               onSuccess: async (result) => {
-                toast.success('Bill settled')
+                toast.success('Bill settled — start the next one')
                 setBillOpen(false)
                 try {
                   await printCustomerReceipt(result.sale)
                 } catch (err) {
                   console.error(err)
                 }
-                onClose()
+                startFreshBill()
               },
               onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to settle bill'),
             }

@@ -56,7 +56,7 @@ export const useLocationStock = (locationId: string | null) => {
     queryKey: [QUERY_KEYS.LOCATION_STOCK, locationId],
     queryFn: () => locationService.getLocationStock(locationId!),
     enabled: !!locationId,
-    staleTime: 60 * 1000,
+    staleTime: 0,
   })
 }
 

@@ -106,14 +106,14 @@ const DonutChart = ({ data, size = 180, thickness = 20 }: { data: { value: numbe
 }
 
 const WidgetHeader = ({ icon, title, onView }: { icon: React.ReactNode; title: string; onView: () => void }) => (
-  <div className="flex items-center justify-between mb-4">
-    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+  <div className="flex items-center justify-between gap-2 mb-4 min-w-0">
+    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0 truncate">
       {icon}
       {title}
     </h3>
     <button
       onClick={onView}
-      className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+      className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
     >
       <ExternalLink size={14} />
       View
@@ -232,18 +232,18 @@ export const DashboardPage = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total Revenue */}
-        <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+        <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
               <IndianRupee size={22} className="text-gray-600 dark:text-gray-300" />
             </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+            <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full shrink-0">
               <ArrowUpRight size={14} />
               +12.5%
             </div>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalRevenue')}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1 truncate" title={formatINR(totalRevenue)}>
             {formatINR(totalRevenue)}
           </p>
         </Card>
@@ -503,12 +503,12 @@ export const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Revenue Trends Chart */}
         <Card className="lg:col-span-2 p-6 bg-white border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div className="min-w-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.revenueTrends')}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.revenueTrendsDesc')}</p>
             </div>
-            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 self-start sm:self-auto shrink-0">
               {(['daily', 'weekly', 'monthly'] as const).map(period => (
                 <button
                   key={period}
