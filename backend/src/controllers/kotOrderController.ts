@@ -476,21 +476,31 @@ export const generateBill = async (req: Request, res: Response) => {
         : order.customerId || null;
     const locationId = order.locationId || null;
 
-    const saleItems = billableItems.map((it) => ({
-      productId: it.productId || undefined,
-      productName: it.productName,
-      quantity: it.quantity,
-      unitPrice: it.unitPrice,
-      taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
-      total: it.unitPrice * it.quantity,
-    }));
+    const saleItems = billableItems.map((it) => {
+      const lineTotal = it.unitPrice * it.quantity;
+      const lineTaxRate = overrideTaxRate !== null ? overrideTaxRate : it.taxRate;
+      return {
+        productId: it.productId || undefined,
+        productName: it.productName,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        sellingPrice: it.unitPrice,
+        discount: 0,
+        taxRate: lineTaxRate,
+        taxAmount: (lineTotal * (lineTaxRate || 0)) / 100,
+        total: lineTotal,
+      };
+    });
     if (service > 0) {
       saleItems.push({
         productId: undefined,
         productName: 'Service Charge',
         quantity: 1,
         unitPrice: service,
+        sellingPrice: service,
+        discount: 0,
         taxRate: 0,
+        taxAmount: 0,
         total: service,
       });
     }
@@ -500,7 +510,10 @@ export const generateBill = async (req: Request, res: Response) => {
         productName: String(roomChargeLabel || 'Room Charge'),
         quantity: 1,
         unitPrice: room,
+        sellingPrice: room,
+        discount: 0,
         taxRate: 0,
+        taxAmount: 0,
         total: room,
       });
     }

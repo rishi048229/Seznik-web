@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { formatINR } from "@/utils/currency";
+import { getSaleItemLineTotal } from "@/utils/saleItem";
 import {
   generateReceiptHTML,
   generateReceiptEscPos,
@@ -245,7 +246,7 @@ export const SalesPage = () => {
     const items = (shareSale.items ?? [])
       .map(
         (i) =>
-          `  • ${i.productName} x${i.quantity} — ${formatINR(i.sellingPrice * i.quantity)}`,
+          `  • ${i.productName} x${i.quantity} — ${formatINR(getSaleItemLineTotal(i))}`,
       )
       .join("\n");
 

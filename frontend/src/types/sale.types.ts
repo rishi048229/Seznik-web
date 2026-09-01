@@ -37,6 +37,7 @@ export interface SaleItem {
   productId?: string
   productName: string
   quantity: number
+  unitPrice?: number
   sellingPrice: number
   discount: number
   taxRate: number

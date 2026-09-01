@@ -12,6 +12,11 @@ import { ArrowLeft, Printer, FileText, Bluetooth } from "lucide-react";
 
 import { formatINR } from "@/utils/currency";
 import {
+  getSaleItemDiscount,
+  getSaleItemLineTotal,
+  getSaleItemUnitPrice,
+} from "@/utils/saleItem";
+import {
   generateReceiptHTML,
   generateReceiptEscPos,
   printReceipt,
@@ -288,9 +293,9 @@ export const SaleDetailPage = () => {
                         <p className="font-medium text-gray-900 dark:text-gray-100">
                           {item.productName}
                         </p>
-                        {item.discount > 0 && (
+                        {getSaleItemDiscount(item) > 0 && (
                           <p className="text-xs text-emerald-600">
-                            {t("sales.discPrefix")} {formatINR(item.discount)}
+                            {t("sales.discPrefix")} {formatINR(getSaleItemDiscount(item))}
                           </p>
                         )}
                       </td>
@@ -298,12 +303,10 @@ export const SaleDetailPage = () => {
                         {item.quantity}
                       </td>
                       <td className="py-3 text-right text-gray-600 dark:text-gray-300">
-                        {formatINR(item.sellingPrice)}
+                        {formatINR(getSaleItemUnitPrice(item))}
                       </td>
                       <td className="py-3 text-right font-medium text-gray-900 dark:text-gray-100">
-                        {formatINR(
-                          item.sellingPrice * item.quantity - item.discount,
-                        )}
+                        {formatINR(getSaleItemLineTotal(item))}
                       </td>
                     </tr>
                   ))}
