@@ -86,9 +86,9 @@ export const resolveEffectiveReceiptConfig = (
     phone: rConf?.phone || settings?.businessPhone || user?.phone || '',
     gstin: rConf?.gstin || settings?.businessGSTIN || '',
     logoURL: resolveStoreLogoUrl(rConf, settings?.businessLogoURL) || '',
-    footerMessage: rConf?.footerMessage || 'Thank you for your purchase!',
-    termsLine1: rConf?.termsLine1 || '1. Goods once sold will not be taken back or exchanged',
-    termsLine2: rConf?.termsLine2 || '2. All disputes are subject to local jurisdiction only',
+    footerMessage: rConf?.footerMessage || '',
+    termsLine1: rConf?.termsLine1 || '',
+    termsLine2: rConf?.termsLine2 || '',
     termsLine3: rConf?.termsLine3 || '',
     compactMode: rConf?.compactMode ?? false,
     showCompanyHeader: rConf?.showCompanyHeader ?? true,
@@ -202,11 +202,11 @@ export const generateReceiptHTML = ({
   }
   const gstStyle = printGst.gstStyle
   const itemWiseGst = printGst.itemWiseGst
-  const companyName = effectiveConfig?.companyName || businessName || 'Your Company'
+  const companyName = effectiveConfig?.companyName || businessName || ''
   const companyAddress = effectiveConfig?.address || businessAddress || ''
   const companyPhone = effectiveConfig?.phone || businessPhone || ''
   const companyGSTIN = effectiveConfig?.gstin || businessGSTIN || ''
-  const footerMessage = effectiveConfig?.footerMessage || 'Thank you for your purchase!'
+  const footerMessage = effectiveConfig?.footerMessage || ''
 
   const saleItems = sale.items ?? []
   const dateRaw = sale.createdAt as unknown as { toDate?: () => Date } | string | number | undefined

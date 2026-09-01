@@ -366,27 +366,42 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const showPaymentQR = receiptConfig?.showPaymentQR ?? false
   const compactMode = receiptConfig?.compactMode ?? false
 
-  const companyName = receiptConfig?.companyName || businessName || 'SEZNIK STORE'
-  const companyAddr = receiptConfig?.address || businessAddress || ''
-  const companyPh = receiptConfig?.phone || businessPhone || ''
-  const companyGst = receiptConfig?.gstin || businessGSTIN || ''
-  const footerText = receiptConfig?.footerMessage || 'Thank You! Visit Again'
+  const companyName = (receiptConfig?.companyName || businessName || '').trim()
+  const companyAddr = (receiptConfig?.address || businessAddress || '').trim()
+  const companyPh = (receiptConfig?.phone || businessPhone || '').trim()
+  const companyGst = (receiptConfig?.gstin || businessGSTIN || '').trim()
+  const footerText = (receiptConfig?.footerMessage || '').trim()
 
   const totals = calculateReceiptTotals(sale, companyGst, pricesIncludeGst)
 
   // ── 1. HEADER ──
   if (showCompanyHeader) {
-    if (companyName) lines.push(...wrapProse(companyName, COLS, true))
-    if (showAddress && companyAddr) lines.push(...wrapProse(companyAddr, COLS, true))
-    if (showPhone && companyPh) lines.push(centerText(`Ph: ${companyPh}`, COLS))
-    if (showGSTIN && companyGst) lines.push(centerText(`GSTIN: ${companyGst}`, COLS))
-    lines.push(divider('=', COLS))
+    let hasHeader = false
+    if (companyName) {
+      lines.push(...wrapProse(companyName, COLS, true))
+      hasHeader = true
+    }
+    if (showAddress && companyAddr) {
+      lines.push(...wrapProse(companyAddr, COLS, true))
+      hasHeader = true
+    }
+    if (showPhone && companyPh) {
+      lines.push(centerText(`Ph: ${companyPh}`, COLS))
+      hasHeader = true
+    }
+    if (showGSTIN && companyGst) {
+      lines.push(centerText(`GSTIN: ${companyGst}`, COLS))
+      hasHeader = true
+    }
+    if (hasHeader) {
+      lines.push(divider('=', COLS))
+    }
   }
 
-  const customTitle = receiptConfig?.headerTitle
-  const titleText = (customTitle !== undefined && customTitle !== null)
+  const customTitle = receiptConfig?.headerTitle?.trim()
+  const titleText = (customTitle !== undefined && customTitle !== null && customTitle !== '')
     ? customTitle
-    : totals.docTitle
+    : (companyGst ? totals.docTitle : '')
 
   if (titleText) {
     lines.push(centerText(titleText, COLS))
@@ -397,7 +412,8 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   }
 
   // ── 2. META DETAILS ──
-  if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
+  const hasCust = showCustomerDetails && Boolean(customerName?.trim() || customerPhone?.trim())
+  if (showInvoiceNoAndDate || hasCust) {
     const dateObj = sale.createdAt ? new Date(sale.createdAt) : new Date()
     const dateStr = dateLabel
       || `${dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
@@ -408,12 +424,12 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       } else {
         lines.push(row('Bill No :', sale.invoiceNumber || 'INV-00000', COLS))
         lines.push(row('Date    :', dateStr, COLS))
-        if (cashierName) lines.push(row('Cashier :', cashierName, COLS))
+        if (cashierName?.trim()) lines.push(row('Cashier :', cashierName.trim(), COLS))
       }
     }
-    if (showCustomerDetails && customerName) {
-      lines.push(row('Customer:', customerName, COLS))
-      if (customerPhone) lines.push(row('Phone   :', customerPhone, COLS))
+    if (showCustomerDetails) {
+      if (customerName?.trim()) lines.push(row('Customer:', customerName.trim(), COLS))
+      if (customerPhone?.trim()) lines.push(row('Phone   :', customerPhone.trim(), COLS))
     }
     lines.push(divider('-', COLS))
   }

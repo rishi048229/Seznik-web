@@ -112,7 +112,7 @@ export function saleToReceiptContext(
   const saleExtra = sale as Sale & { tableNo?: string; waiterName?: string; tokenNumber?: string | number }
   const tokenNo = opts?.tokenNo || (saleExtra.tokenNumber != null ? String(saleExtra.tokenNumber) : undefined)
   return {
-    storeName: opts?.businessName || 'SEZNIK STORE',
+    storeName: opts?.businessName || '',
     storeAddress: opts?.businessAddress,
     storePhone: opts?.businessPhone,
     storeGstin: opts?.businessGSTIN,
@@ -122,7 +122,7 @@ export function saleToReceiptContext(
     invoiceNumber: sale.invoiceNumber || sale.id?.slice(0, 8) || 'INV-0000',
     date: d.toLocaleDateString('en-GB'),
     time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    customerName: opts?.customerName || 'Walk-in',
+    customerName: opts?.customerName || '',
     customerPhone: undefined,
     items,
     subtotal,
@@ -132,7 +132,7 @@ export function saleToReceiptContext(
     amountPaid: sale.amountPaid ?? grandTotal,
     changeReturned: sale.changeReturned ?? 0,
     paymentMethod: sale.paymentMethod || 'CASH',
-    footerMessage: opts?.footerMessage || 'Thank you for your purchase!',
+    footerMessage: opts?.footerMessage || '',
     tableNo: opts?.tableNo || saleExtra.tableNo,
     waiterName: opts?.waiterName || saleExtra.waiterName,
     tokenNo,
@@ -159,14 +159,19 @@ export function interpolateReceiptVariables(
   return text
     .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, data.storePhone ? `Ph: ${data.storePhone}` : '')
     .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, data.storeGstin ? `GSTIN: ${data.storeGstin}` : '')
-    .replace(/\{\{store_name\}\}/gi, data.storeName || 'Your Store')
+    .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, data.customerName ? `Customer: ${data.customerName}` : '')
+    .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, data.customerPhone ? `Phone: ${data.customerPhone}` : '')
+    .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, data.tableNo ? `Table: ${data.tableNo}` : '')
+    .replace(/(?:Waiter)?:\s*\{\{waiter_name\}\}/gi, data.waiterName ? `Waiter: ${data.waiterName}` : '')
+    .replace(/(?:Token)?:\s*\{\{token_no\}\}/gi, data.tokenNo ? `Token: ${data.tokenNo}` : '')
+    .replace(/\{\{store_name\}\}/gi, data.storeName || '')
     .replace(/\{\{store_address\}\}/gi, data.storeAddress || '')
     .replace(/\{\{store_phone\}\}/gi, data.storePhone || '')
     .replace(/\{\{store_gstin\}\}/gi, data.storeGstin || '')
-    .replace(/\{\{invoice_no\}\}/gi, data.invoiceNumber)
+    .replace(/\{\{invoice_no\}\}/gi, data.invoiceNumber || '')
     .replace(/\{\{date\}\}/gi, data.date || '')
     .replace(/\{\{time\}\}/gi, data.time || '')
-    .replace(/\{\{customer_name\}\}/gi, data.customerName || 'Walk-in')
+    .replace(/\{\{customer_name\}\}/gi, data.customerName || '')
     .replace(/\{\{customer_phone\}\}/gi, data.customerPhone || '')
     .replace(/\{\{subtotal\}\}/gi, money(data.subtotal))
     .replace(/\{\{discount\}\}/gi, money(data.totalDiscount))
@@ -178,7 +183,7 @@ export function interpolateReceiptVariables(
     .replace(/\{\{payment_method\}\}/gi, data.paymentMethod || 'CASH')
     .replace(/\{\{upi_qr\}\}/gi, upiStr)
     .replace(/\{\{bill_pdf_url\}\}/gi, billPdfUrl)
-    .replace(/\{\{footer_message\}\}/gi, data.footerMessage || 'Thank you!')
+    .replace(/\{\{footer_message\}\}/gi, data.footerMessage || '')
     .replace(/\{\{token_no\}\}/gi, data.tokenNo || '')
     .replace(/\{\{table_no\}\}/gi, data.tableNo || '')
     .replace(/\{\{waiter_name\}\}/gi, data.waiterName || '')

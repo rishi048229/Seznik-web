@@ -2393,7 +2393,11 @@ class ThermalPrinterServiceManager {
     }
 
     const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
-    const widthPx = paperWidth === '58mm' ? '280px' : '380px';
+    const widthPx = paperWidth === '80mm' ? '380px' : '280px';
+    const effectivePaperWidth = paperWidth === '80mm' ? '80mm' : '58mm';
+    const effectiveLogoSize = options.receiptLogoSize;
+    const effectiveQrSize = options.receiptQrSize;
+    const widthStyle = `max-width: ${widthPx};`;
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
 
@@ -2446,9 +2450,6 @@ class ThermalPrinterServiceManager {
         <head>
           <meta charset="utf-8">
           <style>
-            @page { margin: 0; size: auto; }
-            * { box-sizing: border-box; }
-            body {
             @page { size: ${effectivePaperWidth}; margin: 0; }
             * { box-sizing: border-box; }
             body {
@@ -2482,7 +2483,7 @@ class ThermalPrinterServiceManager {
                 : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: ${template.accentColor}; font-size: 22px; line-height: 1;">${template.emoji}</div>`
             }
           </div>
-          <div class="center bold" style="font-size: 16px;">${(data.storeName || 'Your Store Name').toUpperCase()}</div>
+          ${data.storeName ? `<div class="center bold" style="font-size: 16px;">${data.storeName.toUpperCase()}</div>` : ''}
           ${template.tagline ? `<div class="center" style="color: ${template.accentColor}; font-weight: bold;">${template.tagline}</div>` : ''}
           ${data.storeAddress ? `<div class="center">${data.storeAddress}</div>` : ''}
           ${data.storePhone ? `<div class="center">Phone: ${data.storePhone}</div>` : ''}
@@ -2494,7 +2495,7 @@ class ThermalPrinterServiceManager {
             <span>${template.billLabel}: ${data.invoiceNumber}</span>
             <span>${data.date}</span>
           </div>
-          ${template.showCustomerLine ? `<div>Customer: ${data.customerName || 'Walk-in'}</div>` : ''}
+          ${template.showCustomerLine && data.customerName ? `<div>Customer: ${data.customerName}</div>` : ''}
 
           <div class="divider"></div>
 
@@ -2512,7 +2513,7 @@ class ThermalPrinterServiceManager {
 
           ${this.upiQrHtml(data, effectivePaperWidth, effectiveQrSize)}
 
-          <div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>
+          ${template.footerMessage ? `<div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>` : ''}
         </body>
       </html>
     `;

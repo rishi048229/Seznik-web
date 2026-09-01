@@ -49,11 +49,12 @@ export const ReceiptLivePreview = ({
       compileReceiptTextLines({
         sale: SAMPLE_SALE,
         receiptConfig,
-        businessName: settings?.businessName || 'SEZNIK POS STORE',
-        businessAddress: receiptConfig.address || settings?.businessAddress || '123 MG Road, Kothrud',
-        businessPhone: receiptConfig.phone || '9876543210',
-        businessGSTIN: receiptConfig.gstin || '27AAAAA0000A1Z5',
-        customerName: 'Rahul Sharma',
+        businessName: receiptConfig.companyName || settings?.businessName || '',
+        businessAddress: receiptConfig.address || settings?.businessAddress || '',
+        businessPhone: receiptConfig.phone || settings?.businessPhone || '',
+        businessGSTIN: receiptConfig.gstin || settings?.businessGSTIN || '',
+        customerName: '',
+        customerPhone: '',
         paperSize,
       }),
     [receiptConfig, settings, paperSize]
