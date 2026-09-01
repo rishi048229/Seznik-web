@@ -23,49 +23,37 @@ import {
   resolveElementText,
   type LabelData,
 } from '@/utils/labelPrint'
-import { generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { SAMPLE_RECEIPT_CONTEXT } from '@/utils/customReceiptEngine'
-import { createDefaultReceiptTemplate, type BarcodeReceiptEntry, type CustomReceiptTemplate } from '@/types/customReceipt'
+import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { sampleSaleForTemplate } from '@/utils/a4InvoiceTemplates'
 import { ReceiptBuilderTab, type ReceiptBuilderTabHandle } from '@/pages/printers/receipt-builder/ReceiptBuilderTab'
-import { ReceiptLivePreviewPanel } from '@/pages/printers/receipt-builder/ReceiptLivePreviewPanel'
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
-import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
-import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
+import { resolveActiveFromTemplates } from '@/utils/ensureReceiptTemplates'
 import { withSyncedPaperKeys } from '@/utils/printerThermal'
-import {
-  inferQrPurpose,
-  applyQrSection,
-  applyUpiQrToTemplate,
-  patchSectionEntry,
-  mapTemplateToSimple,
-  type QrPurpose,
-} from '@/pages/printers/receipt-builder/receiptSimpleSections'
-import { runReceiptTemplateTestPrint, sampleTestSaleFromContext } from '@/utils/receiptTestPrint'
-import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
 import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
 import { resolveReceiptPrintGstFromForm } from '@/constants/gstBilling'
-import * as settingsService from '@/services/settingsService'
-import type { Sale } from '@/types/sale.types'
 import { formatINR } from '@/utils/currency'
-import { trackUserAction } from '@/utils/analytics'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
-import { isRestaurantBusiness } from '@/constants/businessTypes'
+import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Modal } from '@/components/ui/Modal'
 import { ImageUpload } from '@/components/forms/ImageUpload'
+import { Modal } from '@/components/ui/Modal'
+import { ReceiptLivePreview } from './components/ReceiptLivePreview'
+import { A4InvoiceTab } from './components/A4InvoiceTab'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
+import { isRestaurantBusiness } from '@/constants/businessTypes'
 import {
   Printer,
   QrCode,
   FileText,
   Tag,
-  Video,
   Save,
   Bluetooth,
   Monitor,
@@ -78,19 +66,18 @@ import {
   AlignCenter,
   AlignRight,
   Bold,
-  Lock,
   Sparkles,
-  Check,
   Image as ImageIcon,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
 
-// Default fallback printer configuration — company name/address/phone/GSTIN/
-// footer/terms are NOT here; they live on Settings.receiptConfig (see below),
-// the same object the Settings page and the real print pipeline both use.
+// Default fallback printer configuration
 const defaultPrinterConfig: PrinterConfig = {
   connectionType: 'system_driver',
+  autoPrintOnSale: true,
+  openCashDrawer: true,
+  cutPaper: true,
   paperSize: '58mm',
   showLogo: true,
   showGSTIN: true,
@@ -116,35 +103,37 @@ const defaultPrinterConfig: PrinterConfig = {
   invoiceShowTerms: true,
   invoiceTermsText: '1. Goods once sold cannot be returned without original receipt.\n2. Warranty covers manufacturing defects only.',
   invoiceShowPaymentQR: true,
+  invoiceTemplateId: 'retail',
 }
 
-// Mirrors SettingsPage's DEFAULT_SETTINGS.receiptConfig exactly, so both
-// pages fall back to the same values before any settings row exists.
 const defaultReceiptConfig: ReceiptConfig = {
-  headerTitle: 'TAX INVOICE',
   companyName: '',
   address: '',
   phone: '',
   gstin: '',
-  logoURL: '',
-  footerMessage: 'Thank you for your purchase!',
-  termsLine1: '1. Goods once sold will not be taken back or exchanged',
-  termsLine2: '2. All disputes are subject to local jurisdiction only',
+  footerMessage: 'Thank you for your business!',
+  termsLine1: 'Goods once sold cannot be returned without original receipt.',
+  termsLine2: 'Warranty covers manufacturing defects only.',
   termsLine3: '',
-  compactMode: false,
+  headerTitle: 'TAX INVOICE',
   showCompanyHeader: true,
   showAddress: true,
   showPhone: true,
   showGSTIN: true,
   showCustomerDetails: true,
   showInvoiceNoAndDate: true,
-  showTaxBreakdown: true,
   showSubtotalDiscount: true,
+  showTaxBreakdown: true,
   showFooterMessage: true,
   showTerms: true,
   showBarcode: true,
+  showPaymentQR: false,
+  upiId: '',
+  paymentQrURL: '',
+  logoURL: '',
   receiptLogoSize: 'medium',
   receiptQrSize: 'medium',
+  compactMode: false,
 }
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
@@ -167,7 +156,7 @@ export const PrintersPage = () => {
   const { user } = useAuth()
   const isRestaurant = isRestaurantBusiness(user?.businessType)
   const { data: products } = useProducts()
-  const { data: settings, isLoading } = useSettings()
+  const { data: settings, isLoading, isError } = useSettings()
   const { mutate: updateSettingsMutation, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettingsMutation, isPending: isCreating } = useCreateSettings()
   const saving = isUpdating || isCreating
@@ -177,16 +166,13 @@ export const PrintersPage = () => {
   const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice'>('receipt')
   const [isUnchangedSaveConfirmOpen, setIsUnchangedSaveConfirmOpen] = useState(false)
 
-  // Snapshot of the last server payload written into the drafts above. A
-  // background settings refetch (window focus, or any other save invalidating
-  // the query) used to overwrite unsaved edits — most visibly a just-uploaded
-  // store logo, which then never reached the server and never printed.
   const configRef = useRef(config)
   const receiptConfigRef = useRef(receiptConfig)
   const hydratedConfigRef = useRef<string | null>(null)
   const hydratedReceiptRef = useRef<string | null>(null)
   configRef.current = config
   receiptConfigRef.current = receiptConfig
+
   const { customTemplates, activeCustomTemplateId, saveTemplate } = useReceiptBuilderSync()
   const {
     form: gstForm,
@@ -207,84 +193,8 @@ export const PrintersPage = () => {
     () => resolveActiveFromTemplates(effectiveCustomTemplates, activeCustomTemplateId) || effectiveCustomTemplates[0],
     [effectiveCustomTemplates, activeCustomTemplateId]
   )
-  const activeQrEntry = useMemo(
-    () => activeCustomTemplate?.entries.find((e): e is BarcodeReceiptEntry => e.type === 'barcode'),
-    [activeCustomTemplate]
-  )
-  const activeQrPurpose = useMemo<QrPurpose>(
-    () => (activeQrEntry ? inferQrPurpose(activeQrEntry) : 'upi'),
-    [activeQrEntry]
-  )
-  const mappedSimple = useMemo(
-    () => (activeCustomTemplate ? mapTemplateToSimple(activeCustomTemplate) : null),
-    [activeCustomTemplate]
-  )
-  const activeQrCaptionText = useMemo(() => {
-    if (mappedSimple?.qrCaption) return mappedSimple.qrCaption.text
-    if (activeQrPurpose === 'upi') return 'Scan to pay with UPI'
-    if (activeQrPurpose === 'digital_bill') return 'Scan QR to View & Download Bill PDF'
-    return 'Scan for store website & reviews'
-  }, [mappedSimple?.qrCaption, activeQrPurpose])
 
-  const handleQrPurposeChange = (purpose: QrPurpose) => {
-    if (!activeCustomTemplate) return
-    let updated: CustomReceiptTemplate
-    if (purpose === 'none') {
-      updated = applyQrSection(activeCustomTemplate, { purpose: 'none' })
-    } else if (purpose === 'upi') {
-      updated = applyUpiQrToTemplate(activeCustomTemplate, receiptConfig.upiId || settings?.upiId || '')
-      updated = applyQrSection(updated, { purpose: 'upi', caption: 'Scan to pay with UPI' })
-    } else if (purpose === 'digital_bill') {
-      updated = applyQrSection(activeCustomTemplate, {
-        purpose: 'digital_bill',
-        caption: 'Scan QR to View & Download Bill PDF',
-      })
-    } else {
-      const customVal =
-        activeQrEntry && activeQrEntry.qrType === 'custom' && !activeQrEntry.value?.includes('{{')
-          ? activeQrEntry.value
-          : 'https://yourstore.com'
-      updated = applyQrSection(activeCustomTemplate, {
-        purpose: 'custom',
-        caption: 'Scan for store website & reviews',
-      })
-      updated = patchSectionEntry(updated, 'qr', (entry) =>
-        entry.type === 'barcode' ? { ...entry, value: customVal, qrType: 'custom', enabled: true } : entry
-      )
-    }
-    const nextList = (effectiveCustomTemplates || []).map((t) => (t.id === updated.id ? updated : t))
-    setReceiptConfig((prev) => ({
-      ...prev,
-      customTemplates: nextList,
-    }))
-    saveTemplate(updated)
-  }
-
-  const handleQrCaptionChange = (newCaption: string) => {
-    if (!activeCustomTemplate) return
-    const updated = applyQrSection(activeCustomTemplate, { caption: newCaption })
-    const nextList = (effectiveCustomTemplates || []).map((t) => (t.id === updated.id ? updated : t))
-    setReceiptConfig((prev) => ({
-      ...prev,
-      customTemplates: nextList,
-    }))
-    saveTemplate(updated)
-  }
-
-  const handleCustomQrUrlChange = (url: string) => {
-    if (!activeCustomTemplate) return
-    const updated = patchSectionEntry(activeCustomTemplate, 'qr', (entry) =>
-      entry.type === 'barcode' ? { ...entry, value: url, qrType: 'custom' } : entry
-    )
-    const nextList = (effectiveCustomTemplates || []).map((t) => (t.id === updated.id ? updated : t))
-    setReceiptConfig((prev) => ({
-      ...prev,
-      customTemplates: nextList,
-    }))
-    saveTemplate(updated)
-  }
-
-  // Which real product's data is used to preview/print the label
+  // Real product data to preview/print the label
   const [previewProductId, setPreviewProductId] = useState<string>('')
   const selectedProduct = useMemo(
     () => products?.find(p => p.id === previewProductId) ?? null,
@@ -298,22 +208,34 @@ export const PrintersPage = () => {
     profileName: null,
   })
   const [connectingBle, setConnectingBle] = useState(false)
+  const [linkPulse, setLinkPulse] = useState<'connected' | 'disconnected' | null>(null)
+  const prevBleStatus = useRef<BlePrinterState['status']>(bleState.status)
 
-  // Subscribe to Web Bluetooth events & try auto reconnecting known device
+  useEffect(() => {
+    if (prevBleStatus.current === bleState.status) return
+    const next =
+      bleState.status === 'connected'
+        ? 'connected'
+        : prevBleStatus.current === 'connected'
+          ? 'disconnected'
+          : null
+    prevBleStatus.current = bleState.status
+    if (!next) return
+    setLinkPulse(next)
+    const timer = window.setTimeout(() => setLinkPulse(null), 700)
+    return () => window.clearTimeout(timer)
+  }, [bleState.status])
+
   useEffect(() => {
     const unsubscribe = subscribeBlePrinter(s => setBleState(s))
     tryReconnectKnownPrinter()
     return () => unsubscribe()
   }, [])
 
-  // Sync local editable drafts whenever the shared settings query has fresh
-  // data — this is the SAME react-query cache the Settings page reads and
-  // writes, so a save made on either page shows up here (and vice versa)
-  // without needing a manual refetch.
   useEffect(() => {
-    if (!settings && !user) return
+    if (!settings) return
 
-    if (settings?.printerConfig) {
+    if (settings.printerConfig) {
       const merged = { ...defaultPrinterConfig, ...settings.printerConfig } as PrinterConfig & {
         primaryPrinter?: string
         ipAddress?: string
@@ -322,14 +244,7 @@ export const PrintersPage = () => {
         labelShowPrice?: boolean
         labelShowBarcode?: boolean
         labelShowBusinessName?: boolean
-        autoPrintOnSale?: boolean
-        openCashDrawer?: boolean
-        cutPaper?: boolean
       }
-      // Older saved rows may still carry fields from earlier iterations of this
-      // page (fake driver selection, dead USB/IP option, boolean-flag label
-      // toggles, the disconnected header/footer text) — drop them so a stale
-      // value can't silently no-op in the UI.
       delete merged.primaryPrinter
       delete merged.ipAddress
       delete merged.headerText
@@ -337,137 +252,100 @@ export const PrintersPage = () => {
       delete merged.labelShowPrice
       delete merged.labelShowBarcode
       delete merged.labelShowBusinessName
-      delete merged.autoPrintOnSale
-      delete merged.openCashDrawer
-      delete merged.cutPaper
       if (merged.connectionType !== 'bluetooth' && merged.connectionType !== 'system_driver') {
         merged.connectionType = 'system_driver'
       }
       if (!Array.isArray(merged.labelTemplate) || merged.labelTemplate.length === 0) {
         merged.labelTemplate = defaultLabelTemplate
       }
-      const snapshot = JSON.stringify(merged)
-      const hasLocalEdits =
-        hydratedConfigRef.current !== null &&
-        JSON.stringify(configRef.current) !== hydratedConfigRef.current
-      if (!hasLocalEdits) {
-        hydratedConfigRef.current = snapshot
-        setConfig(merged)
-      }
+      setConfig(merged)
+      hydratedConfigRef.current = JSON.stringify(withSyncedPaperKeys(merged))
     }
 
-    const mergedReceipt = { ...defaultReceiptConfig, ...(settings?.receiptConfig || {}) }
-    if (!mergedReceipt.companyName) {
-      mergedReceipt.companyName =
-        settings?.businessName || user?.businessName || user?.displayName || ''
+    const mergedReceipt: ReceiptConfig = { ...defaultReceiptConfig, ...settings.receiptConfig }
+    if (!mergedReceipt.logoURL && settings.businessLogoURL) {
+      mergedReceipt.logoURL = settings.businessLogoURL
     }
-    if (!mergedReceipt.address) {
-      mergedReceipt.address = settings?.businessAddress || ''
-    }
-    if (!mergedReceipt.phone) {
-      mergedReceipt.phone = settings?.businessPhone || user?.phone || ''
-    }
-    if (!mergedReceipt.gstin) {
-      mergedReceipt.gstin = settings?.businessGSTIN || ''
-    }
-    if (!mergedReceipt.logoURL) {
-      mergedReceipt.logoURL = settings?.businessLogoURL || ''
-    }
-    if (!mergedReceipt.upiId) {
-      mergedReceipt.upiId = settings?.upiId || ''
-    }
-    if (!mergedReceipt.footerMessage && (settings?.invoiceConfig as any)?.footerText) {
-      mergedReceipt.footerMessage = (settings?.invoiceConfig as any).footerText
-    }
-    const receiptSnapshot = JSON.stringify(mergedReceipt)
-    const receiptHasLocalEdits =
-      hydratedReceiptRef.current !== null &&
-      JSON.stringify(receiptConfigRef.current) !== hydratedReceiptRef.current
-    if (!receiptHasLocalEdits) {
-      hydratedReceiptRef.current = receiptSnapshot
-      setReceiptConfig(mergedReceipt)
-    }
-  }, [settings, user])
+    setReceiptConfig(mergedReceipt)
+    hydratedReceiptRef.current = JSON.stringify(mergedReceipt)
+  }, [settings])
 
-  // Save configuration to Database — writes printerConfig AND receiptConfig
-  // together, merged on top of every other existing settings field (business
-  // profile, personal info, notifications) so this save can never clobber
-  // something edited on the Settings page.
-  const handleSave = async () => {
+  const executeSave = () => {
     if (!user) return
-    const uid = user.id || user.uid || ''
+    if (isError) {
+      toast.error('Settings are still loading from the server. Wait a moment and try again.')
+      return
+    }
 
     const printerPayload = {
-      businessName: receiptConfig.companyName || settings?.businessName || user.displayName || '',
-      businessAddress: receiptConfig.address || settings?.businessAddress || '',
-      businessPhone: receiptConfig.phone || settings?.businessPhone || user.phone || '',
-      businessGSTIN: receiptConfig.gstin || settings?.businessGSTIN || '',
-      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
-      upiId: receiptConfig.upiId?.trim() || settings?.upiId || undefined,
-      personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
-      invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
-      notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
+      receiptConfig,
       printerConfig: withSyncedPaperKeys(config),
-      receiptConfig: receiptConfig,
+      businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
     }
 
-    const onSaved = () => {
-      // Local edits are now persisted, so let the next server payload re-hydrate.
-      hydratedConfigRef.current = null
-      hydratedReceiptRef.current = null
-      trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
-      toast.success('Printer settings saved!')
+    if (settings?.id) {
+      updateSettingsMutation(
+        { settingsId: settings.id, data: printerPayload },
+        {
+          onSuccess: () => {
+            trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
+            toast.success('Printer settings saved!')
+            hydratedConfigRef.current = JSON.stringify(printerPayload.printerConfig)
+            hydratedReceiptRef.current = JSON.stringify(printerPayload.receiptConfig)
+          },
+          onError: (err) => {
+            console.error('Save printer config error:', err)
+            toast.error(err instanceof Error ? err.message : 'Failed to save printer settings')
+          },
+        }
+      )
+      return
     }
 
-    const onError = (err: unknown) => {
-      console.error('Save printer config error:', err)
-      toast.error('Failed to save printer settings')
-    }
-
-    try {
-      await settingsService.updateReceiptConfig(uid, receiptConfig)
-      if (settings?.id) {
-        updateSettingsMutation(
-          { settingsId: settings.id, data: printerPayload },
-          { onSuccess: onSaved, onError }
-        )
-      } else {
-        createSettingsMutation({ ...printerPayload, receiptConfig } as Omit<UserSettings, 'id'>, {
-          onSuccess: onSaved,
-          onError,
-        })
+    createSettingsMutation(
+      {
+        businessName: settings?.businessName ?? user.displayName ?? '',
+        businessAddress: settings?.businessAddress ?? '',
+        businessPhone: settings?.businessPhone ?? '',
+        businessGSTIN: settings?.businessGSTIN ?? '',
+        personalInfo: settings?.personalInfo ?? { ownerName: '', ownerPhone: '', ownerAddress: '' },
+        invoiceConfig: settings?.invoiceConfig ?? { prefix: 'INV', footerText: '' },
+        notificationConfig: settings?.notificationConfig ?? { lowStockThreshold: 10, overdueDays: 30 },
+        ...printerPayload,
+      } as Omit<UserSettings, 'id'>,
+      {
+        onSuccess: () => {
+          trackUserAction('feature_printer_settings_saved', { mode: config.connectionType })
+          toast.success('Printer settings saved!')
+          hydratedConfigRef.current = JSON.stringify(printerPayload.printerConfig)
+          hydratedReceiptRef.current = JSON.stringify(printerPayload.receiptConfig)
+        },
+        onError: (err) => {
+          console.error('Create settings error:', err)
+          toast.error(err instanceof Error ? err.message : 'Failed to save printer settings')
+        },
       }
-    } catch (err) {
-      onError(err)
-    }
+    )
   }
 
-  const hasUnsavedEdits = Boolean(
-    (hydratedConfigRef.current !== null && JSON.stringify(config) !== hydratedConfigRef.current) ||
-    (hydratedReceiptRef.current !== null && JSON.stringify(receiptConfig) !== hydratedReceiptRef.current)
-  )
-
   const handleSaveClick = () => {
-    if (!hasUnsavedEdits) {
+    if (!user) return
+    const currentConfigStr = JSON.stringify(withSyncedPaperKeys(config))
+    const currentReceiptStr = JSON.stringify(receiptConfig)
+    const isUnchanged =
+      hydratedConfigRef.current !== null &&
+      hydratedReceiptRef.current !== null &&
+      hydratedConfigRef.current === currentConfigStr &&
+      hydratedReceiptRef.current === currentReceiptStr
+
+    if (isUnchanged) {
       setIsUnchangedSaveConfirmOpen(true)
       return
     }
-    handleSave()
+
+    executeSave()
   }
 
-  // Keep the connection-type setting truthful: whenever the real BLE link
-  // comes up or drops (including the printer being switched off, which fires
-  // 'gattserverdisconnected' with no button click involved), reflect that in
-  // config rather than leaving it pointed at a printer that's no longer there.
-  useEffect(() => {
-    if (bleState.status === 'connected') {
-      setConfig(prev => (prev.connectionType === 'bluetooth' ? prev : { ...prev, connectionType: 'bluetooth' }))
-    } else if (bleState.status === 'disconnected') {
-      setConfig(prev => (prev.connectionType === 'bluetooth' ? { ...prev, connectionType: 'system_driver' } : prev))
-    }
-  }, [bleState.status])
-
-  // Connect Bluetooth Printer
   const handleConnectBluetooth = async () => {
     if (!isBluetoothSupported()) {
       toast.error('Web Bluetooth is not supported in this browser. Use Google Chrome or MS Edge.')
@@ -486,51 +364,40 @@ export const PrintersPage = () => {
     }
   }
 
-  // Disconnect Bluetooth Printer
   const handleDisconnectBluetooth = () => {
     disconnectPrinter()
     toast.success('Bluetooth printer disconnected')
   }
 
-  // Send hardware Gap Auto-Calibration command to Bluetooth Printer
   const handleCalibrateGap = async () => {
-    if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
-      try {
-        const bytes = generateGapCalibrationBytes()
-        await printEscPos(bytes)
-        toast.success('Sent Gap Auto-Calibration command to printer!')
-      } catch {
-        toast.error('Failed to send gap calibration command')
-      }
-
-    } else {
-      toast.error('Please connect your Bluetooth printer first to calibrate gap')
+    if (bleState.status !== 'connected') {
+      toast.error('Connect your Bluetooth label printer first, then calibrate.')
+      return
+    }
+    try {
+      const bytes = generateGapCalibrationBytes()
+      await printEscPos(bytes)
+      toast.success('Gap calibration sent. The printer will sense sticker spacing.')
+    } catch {
+      toast.error('Failed to send gap calibration command')
     }
   }
 
-  // Safely guarded labelTemplate array (falls back to defaultLabelTemplate if undefined or empty)
   const labelTemplate = useMemo(() => {
     return Array.isArray(config.labelTemplate) && config.labelTemplate.length > 0
       ? config.labelTemplate
       : defaultLabelTemplate
   }, [config.labelTemplate])
 
-  // Resolved values for whichever element types are on the label — shared by
-  // both the live on-screen preview and the real print byte generator, so
-  // what you see is genuinely what gets sent to the printer.
   const labelData: LabelData = {
-    businessName:
-      receiptConfig.companyName ||
-      settings?.businessName ||
-      user?.businessName ||
-      user?.displayName ||
-      'Your Store',
+    businessName: receiptConfig.companyName || settings?.businessName || 'SEZNIK POS',
     productName: selectedProduct?.name || 'Sample Product',
     price: formatINR(selectedProduct?.sellingPrice ?? 1299),
     barcodeValue: selectedProduct?.barcode || selectedProduct?.sku || '0000000000',
+    sku: selectedProduct?.sku || 'SKU-001',
+    sequenceNo: '001',
   }
 
-  // ---- Label element list editing ----
   const addLabelElement = (type: LabelElementType) => {
     const el: LabelElement = { id: newId(), type, align: 'center', bold: type === 'price', large: false, text: type === 'custom' ? 'New text' : undefined }
     setConfig(prev => ({ ...prev, labelTemplate: [...labelTemplate, el] }))
@@ -552,144 +419,184 @@ export const PrintersPage = () => {
     })
   }
 
-  // Renders the label element list to an HTML string for the browser-print
-  // fallback popup, mirroring the on-page live preview element for element.
   const renderLabelHtml = () => {
-    const rows = labelTemplate.map(el => {
-      const style = `text-align:${el.align};font-weight:${el.bold ? 700 : 400};font-size:${el.large ? '16px' : '11px'};margin:2px 0;`
-      if (el.type === 'barcode') {
-        return config.labelBarcodeType === 'QR'
-          ? `<div style="text-align:${el.align};margin:4px 0;font-size:28px;">▦</div>`
-          : `<div style="text-align:${el.align};margin:4px 0;"><div style="font-weight:800;font-size:16px;letter-spacing:2px;">||||||||||||||||</div><div style="font-size:8px;font-family:monospace;">${labelData.barcodeValue}</div></div>`
+    const w = config.labelWidth
+    const h = config.labelHeight
+    const ox = config.labelOffsetX ?? 0
+    const oy = config.labelOffsetY ?? 0
+
+    const elementsHtml = labelTemplate.map(el => {
+      const align = el.align === 'left' ? 'left' : el.align === 'right' ? 'right' : 'center'
+      const weight = el.bold ? 'bold' : 'normal'
+      const size = el.fontSize === 'small' ? '8pt' : el.fontSize === 'large' ? '12pt' : el.fontSize === 'xlarge' ? '14pt' : '10pt'
+
+      if (el.type === 'divider') {
+        return '<hr style="border:0;border-top:1px solid #000;margin:3px 0;width:100%;" />'
       }
-      const text = el.type === 'custom' ? (el.text ?? '') : el.type === 'businessName' ? labelData.businessName : el.type === 'productName' ? labelData.productName : labelData.price
-      return `<div style="${style}">${text}</div>`
+
+      if (el.type === 'sideBySideBarcodeQr') {
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin:2px 0;">
+            <div style="flex:1;text-align:center;">
+              <div style="font-family:'Libre Barcode 128',monospace;font-size:22pt;line-height:1;">*${labelData.barcodeValue}*</div>
+              <div style="font-size:7pt;font-family:monospace;">${labelData.barcodeValue}</div>
+            </div>
+            <div style="width:24px;height:24px;border:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:6pt;font-weight:bold;">QR</div>
+          </div>
+        `
+      }
+
+      if (el.type === 'barcode' || el.type === 'qrCode') {
+        return `
+          <div style="text-align:center;margin:3px 0;">
+            <div style="font-family:'Libre Barcode 128',monospace;font-size:26pt;line-height:1;">*${labelData.barcodeValue}*</div>
+            <div style="font-size:8pt;font-family:monospace;letter-spacing:1px;">${labelData.barcodeValue}</div>
+          </div>
+        `
+      }
+
+      const text = resolveElementText(el, labelData)
+      return `<div style="text-align:${align};font-size:${size};font-weight:${weight};margin:1px 0;line-height:1.2;word-break:break-word;">${text}</div>`
     }).join('')
 
     return `
       <!DOCTYPE html>
       <html>
-      <head>
-        <title>Test Label Print</title>
-        <style>
-          body { font-family: sans-serif; width: ${config.labelWidth}mm; height: ${config.labelHeight}mm; margin: 0 auto; padding: 4px; box-sizing: border-box; text-align: center; color:#000; }
-        </style>
-      </head>
-      <body>${rows}</body>
+        <head>
+          <meta charset="utf-8">
+          <title>Print Label</title>
+          <style>
+            @page { size: ${w}mm ${h}mm; margin: 0; }
+            * { box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+              width: ${w}mm;
+              height: ${h}mm;
+              overflow: hidden;
+              background: #fff;
+              color: #000;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .label-box {
+              width: 100%;
+              height: 100%;
+              padding: 2mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
+              transform: translate(${ox}px, ${oy}px);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label-box">
+            ${elementsHtml}
+          </div>
+        </body>
       </html>
     `
   }
 
-  const storeLogoUrl = resolveStoreLogoUrl(receiptConfig, settings?.businessLogoURL)
-
-  const previewTemplate = useMemo(() => {
-    const base =
-      resolveActiveFromTemplates(customTemplates, activeCustomTemplateId) ||
-      createDefaultReceiptTemplate('Standard Shop Receipt')
-    const paperWidth: '58mm' | '80mm' = config.paperSize === '80mm' ? '80mm' : '58mm'
-    const sized = base.paperWidth === paperWidth ? base : { ...base, paperWidth }
-    return ensureTemplateHasLogoBlock(sized, storeLogoUrl)
-  }, [customTemplates, activeCustomTemplateId, config.paperSize, storeLogoUrl])
-
-  const receiptPreviewContext = useMemo(() => ({
-    ...SAMPLE_RECEIPT_CONTEXT,
-    storeName: receiptConfig.companyName || settings?.businessName || user?.businessName || user?.displayName || SAMPLE_RECEIPT_CONTEXT.storeName,
-    storeAddress: receiptConfig.address || settings?.businessAddress || '',
-    storePhone: receiptConfig.phone || settings?.businessPhone || user?.phone || '',
-    storeGstin: receiptConfig.gstin || settings?.businessGSTIN || '',
-    storeLogoUrl,
-    upiId: receiptConfig.upiId || settings?.upiId,
-    footerMessage: receiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
-    ...(isRestaurant ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' } : {}),
-  }), [receiptConfig, settings, storeLogoUrl, user, isRestaurant])
-
   const previewGstOpts = useMemo(() => {
-    const resolved = resolveReceiptPrintGstFromForm(gstForm, receiptConfig)
+    const resolved = resolveReceiptPrintGstFromForm(gstForm)
     return {
-      showTaxBreakdown: resolved.showTaxBreakdown,
       gstStyle: resolved.gstStyle,
       itemWiseGst: resolved.itemWiseGst,
       isRestaurant,
       receiptQrSize: receiptConfig.receiptQrSize,
     }
-  }, [gstForm, receiptConfig, isRestaurant])
+  }, [gstForm, receiptConfig.receiptQrSize, isRestaurant])
 
-  // Test Print via Bluetooth or Browser Spooler.
-  // BLE only ever fires for the tab currently being tested — a thermal/label
-  // printer can't render an A4 invoice, and each tab's bytes are shaped
-  // specifically for that output, so cross-firing them would print garbage.
   const handleTestPrint = async () => {
-    trackUserAction('feature_test_print', { tab: activeTab, mode: config.labelPrinterMode })
-
-    const effectiveReceiptConfig = {
-      ...receiptConfig,
-      showLogo: config.showLogo,
-      logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
-      showPaymentQR: receiptConfig.showPaymentQR ?? false,
-      paymentQrURL: receiptConfig.paymentQrURL || '',
-    }
-
     if (activeTab === 'receiptBuilder') {
-      await receiptBuilderRef.current?.runTestPrint()
+      if (receiptBuilderRef.current) {
+        await receiptBuilderRef.current.runTestPrint()
+      } else {
+        toast.error('Receipt builder is initializing')
+      }
       return
     }
 
+    const effectiveReceiptConfig = resolveEffectiveReceiptConfig(
+      {
+        ...settings,
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        receiptConfig: {
+          ...receiptConfig,
+          showPaymentQR: config.invoiceShowPaymentQR,
+        },
+        printerConfig: config,
+      },
+      receiptConfig,
+    )
+
     if (activeTab === 'receipt') {
-      const templateId =
-        activeCustomTemplateId ||
-        resolveActiveFromTemplates(customTemplates, activeCustomTemplateId)?.id ||
-        customTemplates[0]?.id
-
-      if (!templateId) {
-        toast.error('No receipt template found — create one in Receipt Builder')
-        return
+      const testSale = {
+        id: 'test-sale-1',
+        invoiceNumber: 'INV-TEST-001',
+        items: [
+          { productId: '1', productName: 'Demo Premium Item A', quantity: 2, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 162.00, total: 900.00 },
+          { productId: '2', productName: 'Standard Service B', quantity: 1, sellingPrice: 250.00, discount: 0, taxRate: 18, taxAmount: 45.00, total: 250.00 },
+        ],
+        subtotal: 1150.00,
+        totalDiscount: 0,
+        totalTax: 207.00,
+        grandTotal: 1357.00,
+        paymentMethod: 'cash',
+        amountPaid: 1500.00,
+        changeReturned: 143.00,
+        isQuickBill: false,
+        createdAt: new Date().toISOString(),
       }
 
-      try {
-        const mode = await runReceiptTemplateTestPrint({
-          sale: sampleTestSaleFromContext(),
-          receiptConfig: {
-            ...receiptConfig,
-            logoURL: storeLogoUrl || receiptConfig.logoURL || settings?.businessLogoURL || '',
-            showLogo: config.showLogo ?? receiptConfig.showLogo ?? true,
-            showPaymentQR: receiptConfig.showPaymentQR,
-            upiId: receiptConfig.upiId || settings?.upiId || '',
-            customTemplates,
-            activeCustomTemplateId: templateId,
-          },
-          customTemplates,
-          templateId,
-          paperSize: config.paperSize,
-          settings,
-          businessName: receiptPreviewContext.storeName,
-          businessAddress: receiptPreviewContext.storeAddress,
-          businessPhone: receiptPreviewContext.storePhone,
-          businessGSTIN: receiptPreviewContext.storeGstin,
-          customerName: receiptPreviewContext.customerName,
-          logoURL: storeLogoUrl,
-          businessLogoURL: settings?.businessLogoURL,
-          invoiceConfig: settings?.invoiceConfig,
-          connectionType: config.connectionType,
-          bleConnected: bleState.status === 'connected',
-          isRestaurant,
-        })
-        toast.success(
-          mode === 'ble' ? 'Test receipt sent to Bluetooth printer!' : 'Test receipt opened in browser print dialog'
-        )
-      } catch (err) {
-        console.error('Receipt test print error:', err)
-        toast.error(err instanceof Error ? err.message : 'Test print failed')
+      if (bleState.status === 'connected' || config.connectionType === 'bluetooth') {
+        try {
+          if (bleState.status !== 'connected') {
+            await requestAndConnectPrinter()
+          }
+          const bytes = await generateReceiptEscPos({
+            sale: testSale as any,
+            receiptConfig: effectiveReceiptConfig,
+            paperSize: config.paperSize,
+            businessName: settings?.businessName,
+            businessAddress: settings?.businessAddress,
+          })
+          await printEscPos(bytes)
+          toast.success('Test receipt sent to Bluetooth printer!')
+          return
+        } catch (err) {
+          console.error('BLE Print error:', err)
+          toast.error('Connect the Bluetooth printer first. Thermal test print does not open the system print dialog.')
+          return
+        }
       }
+
+      const receiptHTML = generateReceiptHTML({
+        sale: testSale as any,
+        receiptConfig: effectiveReceiptConfig,
+        businessName: settings?.businessName,
+        businessAddress: settings?.businessAddress,
+        customerName: 'Sample Customer',
+        width: config.paperSize === '80mm' ? '80mm' : '50mm',
+        logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
+        settingsTaxName: 'GST',
+      })
+      printReceipt(receiptHTML, config.paperSize === '80mm' ? '80mm' : '50mm', 'Test Receipt')
       return
     }
 
     if (activeTab === 'label') {
       const mode = config.labelPrinterMode || 'tspl'
-      if (config.connectionType === 'bluetooth' && bleState.status === 'connected') {
+      if (bleState.status === 'connected') {
         try {
           const bytes = mode === 'tspl'
             ? generateLabelTspl(
-                config.labelTemplate,
+                labelTemplate,
                 config.labelBarcodeType,
                 labelData,
                 config.labelWidth,
@@ -700,17 +607,22 @@ export const PrintersPage = () => {
                 config.labelDirection ?? 0,
                 config.labelBarcodeOffsetX ?? 4
               )
-            : generateLabelEscPos(config.labelTemplate, config.labelBarcodeType, labelData)
+            : generateLabelEscPos(labelTemplate, config.labelBarcodeType, labelData)
           await printEscPos(bytes)
-          toast.success(`Label sent to printer in ${mode.toUpperCase()} mode!`)
+          toast.success(mode === 'tspl' ? 'Label sent to sticker printer.' : 'Label sent to receipt printer.')
           return
         } catch (err) {
           console.error('BLE Print error:', err)
-          toast.error('BLE print error. Falling back to browser print.')
+          toast.error('Connect the Bluetooth printer first. Label test print does not open the system print dialog.')
+          return
         }
       }
 
-      // Browser label fallback
+      if (config.connectionType === 'bluetooth') {
+        toast.error('Connect the Bluetooth printer first to test labels.')
+        return
+      }
+
       const printWindow = window.open('', '_blank')
       if (!printWindow) {
         toast.error('Please allow popups to test printing')
@@ -726,88 +638,62 @@ export const PrintersPage = () => {
       return
     }
 
-    // Invoice Tab
-    const testInvoiceSale: Sale = {
-      id: 'test_invoice',
-      invoiceNumber: 'INV-2026-0089',
-      items: [
-        { productId: 'p1', productName: 'Seznik POS Terminal Machine', quantity: 1, sellingPrice: 25000.00, discount: 0, taxRate: 18, taxAmount: 4500.00, total: 29500.00 },
-        { productId: 'p2', productName: 'Thermal Paper Roll 80mm (Pack of 10)', quantity: 5, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 405.00, total: 2655.00 },
-      ],
-      subtotal: 27250.00,
-      totalDiscount: 0,
-      totalTax: 4905.00,
-      grandTotal: 32155.00,
-      paymentMethod: 'cash',
-      amountPaid: 32155.00,
-      changeReturned: 0,
-      isQuickBill: false,
-      createdAt: new Date().toISOString(),
-    }
+    // A4 Invoice Tab
+    const testInvoiceSale = sampleSaleForTemplate(config.invoiceTemplateId)
     const invoiceHTML = generateReceiptHTML({
       sale: testInvoiceSale,
       receiptConfig: effectiveReceiptConfig,
+      printerConfig: config,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
-      customerName: 'Sample Corporate Client',
+      customerName: 'Sample Customer',
       width: '210mm',
       logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
       settingsTaxName: 'GST',
-      invoiceConfig: settings?.invoiceConfig,
     })
     printReceipt(invoiceHTML, '210mm', 'Test Invoice')
   }
 
-  if (isLoading) {
-    return <SettingsPageSkeleton />
-  }
+  if (isLoading) return <SettingsPageSkeleton />
 
   return (
-    <div className="space-y-5 pb-12 w-full max-w-full min-w-0 overflow-x-hidden">
-      {/* Top Header & Quick Actions */}
-      <div data-tour="printers-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-sky-400 text-white flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
-            <Printer size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Printers</h1>
-              <button
-                onClick={pageTutorial.openTutorial}
-                type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm shrink-0"
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Page Header */}
+      <div className="flex flex-col gap-1">
+        <PageHeader
+          title="Printers & Invoicing"
+          subtitle="Configure thermal receipts, barcode labels, and A4 invoices"
+          tutorialKey="printers"
+          onWatchTutorial={pageTutorial.openTutorial}
+          action={
+            <div className="flex items-center gap-2">
+              <Button
+                data-tour="printer-test-btn"
+                variant="outline"
+                onClick={handleTestPrint}
+                className="flex items-center gap-2 text-xs sm:text-sm"
               >
-                <Video size={14} className="animate-pulse" />
-                <span>Video Guide</span>
-              </button>
+                <Printer size={16} />
+                {activeTab === 'label' ? 'Print label' : 'Test print'}
+              </Button>
+              <Button
+                onClick={handleSaveClick}
+                loading={saving}
+                disabled={isError}
+                className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-white flex items-center gap-2 text-xs sm:text-sm shadow-sm"
+              >
+                <Save size={16} />
+                Save
+              </Button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Receipts, labels, and invoices — all from one place.</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            data-tour="printer-test-btn"
-            variant="outline"
-            onClick={handleTestPrint}
-            className="flex items-center gap-2 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs sm:text-sm"
-          >
-            <Printer size={16} />
-            {activeTab === 'label' ? 'Print Label' : `Test Print`}
-          </Button>
-          <Button
-            onClick={handleSaveClick}
-            loading={saving}
-            className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white flex items-center gap-2 shadow-lg shadow-[#0a0a2e]/20 text-xs sm:text-sm"
-          >
-            <Save size={16} />
-            Save
-          </Button>
-        </div>
+          }
+        />
+        <p className="text-sm text-slate-500 dark:text-slate-400 -mt-3 mb-1 max-w-2xl">
+          Connect a printer, then set up receipts, barcode labels, or A4 invoices. Nothing here changes until you save.
+        </p>
       </div>
 
-      {/* Printer connection status — two real, honest cards */}
+      {/* Printer connection status — honest cards from main */}
       <div data-tour="printers-status" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
           className={`p-4 rounded-2xl border transition-all ${
@@ -822,421 +708,585 @@ export const PrintersPage = () => {
                 <Bluetooth size={18} />
               </div>
               <div>
-                <h3 className="font-bold text-gray-900 dark:text-gray-100 text-sm truncate max-w-[200px]">
-                  {bleState.status === 'connected' ? (bleState.deviceName || 'Bluetooth Printer') : 'Bluetooth Printer'}
-                </h3>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  {bleState.status === 'connected' ? 'Connected' : bleState.status === 'connecting' ? 'Connecting…' : 'Not connected'}
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Bluetooth Thermal Printer</h4>
+                  <StatusDot on={bleState.status === 'connected'} />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {bleState.status === 'connected'
+                    ? `${bleState.deviceName || 'Thermal Printer'}${bleState.profileName ? ` · ${bleState.profileName}` : ''}`
+                    : bleState.status === 'unsupported'
+                      ? 'Web Bluetooth unsupported in this browser'
+                      : 'Not connected'}
                 </p>
               </div>
             </div>
             {bleState.status === 'connected' ? (
-              <button onClick={handleDisconnectBluetooth} className="text-red-600 hover:underline text-xs font-semibold flex items-center gap-1">
-                <Unplug size={12} /> Disconnect
-              </button>
-            ) : (
-              <button
-                data-tour="printer-connect-btn"
-                onClick={handleConnectBluetooth}
-                disabled={connectingBle || !isBluetoothSupported()}
-                className="text-purple-600 hover:underline text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnectBluetooth}
+                className="text-xs text-red-600 dark:text-red-400 border-red-200 hover:bg-red-50 dark:border-red-800"
               >
-                <Bluetooth size={12} /> {connectingBle ? 'Pairing…' : 'Connect'}
-              </button>
+                <Unplug size={14} className="mr-1" />
+                Disconnect
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleConnectBluetooth}
+                loading={connectingBle}
+                disabled={bleState.status === 'unsupported'}
+                className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Bluetooth size={14} className="mr-1" />
+                Connect
+              </Button>
             )}
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 pl-11">
-            Supports Seznik Veer, the Caysn label printer, and other compatible BLE thermal/label printers.
-          </p>
+          {linkPulse && (
+            <div
+              className={`mt-2 p-2 rounded-xl text-xs flex items-center gap-2 ${
+                linkPulse === 'connected'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200'
+                  : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'
+              }`}
+            >
+              <StatusDot on={linkPulse === 'connected'} />
+              <span>{linkPulse === 'connected' ? 'Bluetooth thermal printer ready' : 'Bluetooth thermal printer disconnected'}</span>
+            </div>
+          )}
         </div>
 
         <div className="p-4 rounded-2xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300 rounded-lg">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg">
               <Monitor size={18} />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 dark:text-gray-100 text-sm">Browser / System Print</h3>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">Always available — used for A4 invoices and as a fallback.</p>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">System Driver / Browser Print</h4>
+                <StatusDot on={true} />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Always available — used for A4 invoices and as a fallback.</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Tabs Navigation Header */}
-      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+      {/* Main Tabs Navigation Header — Pill Navigation from Main */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto">
         {([
-          { key: 'receipt', label: 'Receipt', icon: FileText },
-          { key: 'receiptBuilder', label: 'Receipt Builder', icon: Sparkles },
-          { key: 'label', label: 'Labels', icon: Tag },
-          { key: 'invoice', label: 'A4 Invoice', icon: Layers },
+          { key: 'receipt', label: 'Receipts', hint: 'Thermal bills', icon: FileText },
+          { key: 'receiptBuilder', label: 'Receipt Builder', hint: 'Custom layout', icon: Sparkles },
+          { key: 'label', label: 'Labels', hint: 'Barcode stickers', icon: Tag },
+          { key: 'invoice', label: 'A4 invoice', hint: 'Full-page bill', icon: Layers },
         ] as const).map(t => (
           <button
             key={t.key}
+            type="button"
             onClick={() => setActiveTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-sm border-b-2 whitespace-nowrap transition-all ${
+            className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors duration-150 ${
               activeTab === t.key
-                ? 'border-[#0a0a2e] text-[#0a0a2e] dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <t.icon size={16} />
-            {t.label}
+            <t.icon size={15} />
+            <span>{t.label}</span>
+            <span className={`hidden sm:inline text-[11px] font-medium ${activeTab === t.key ? 'text-slate-400' : 'text-slate-400/80'}`}>
+              {t.hint}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Tab 1: Thermal Receipt Settings & Live Preview */}
+      {/* Tab 1: Thermal Receipt Settings & Live Preview (with Main's Toggle Sections & Dev's Sizing) */}
       {activeTab === 'receipt' && (
         <div className="space-y-4 w-full min-w-0">
-        <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
-          <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-indigo-950 dark:text-indigo-100">Receipt layout lives in Receipt Builder</p>
-                <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300 mt-1 leading-relaxed">
-                  Blocks, logo, tax rows, QR, and paper width are edited in Receipt Builder. This tab is for the printer and the store details that appear on the bill.
-                </p>
-              </div>
-              <Button type="button" size="sm" onClick={() => setActiveTab('receiptBuilder')} className="shrink-0">
-                Open Receipt Builder
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Paper Width
-                  <FieldInfo textKey="tip.printer.paperWidth" />
-                </label>
-                <div className="flex gap-2">
-                  {(['58mm', '80mm'] as const).map(size => (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => setConfig(prev => ({ ...prev, paperSize: size }))}
-                      className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                        config.paperSize === size
-                          ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 rounded-lg p-2 flex items-start gap-1.5 leading-relaxed">
-                  <Sparkles size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                  <span><strong>Note:</strong> For best print quality, use <strong>58mm</strong> for 2-inch printers.</span>
-                </p>
-              </div>
-
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Print Destination
-                  <FieldInfo textKey="tip.printer.printDestination" />
-                </label>
-                <select
-                  value={config.connectionType}
-                  onChange={(e) => setConfig(prev => ({ ...prev, connectionType: e.target.value as 'bluetooth' | 'system_driver' }))}
-                  disabled={bleState.status !== 'connected'}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-                >
-                  <option value="bluetooth">Bluetooth Printer</option>
-                  <option value="system_driver">Browser Print Dialog</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="pt-1">
-              <div className="flex items-center justify-between mb-2">
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Store details printed on the bill
-                  <FieldInfo textKey="tip.printer.receiptDetails" />
-                </label>
-                <span className="text-[10px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                  Used in Receipt Builder blocks
-                </span>
-              </div>
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={receiptConfig.companyName}
-                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, companyName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                    placeholder="Company name"
-                  />
-                  <input
-                    type="text"
-                    value={receiptConfig.gstin}
-                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, gstin: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                    placeholder="GSTIN"
-                  />
-                </div>
-                <input
-                  type="text"
-                  value={receiptConfig.address}
-                  onChange={(e) => setReceiptConfig(prev => ({ ...prev, address: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                  placeholder="Address"
-                />
-                <input
-                  type="text"
-                  value={receiptConfig.phone}
-                  onChange={(e) => setReceiptConfig(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                  placeholder="Phone number"
-                />
-                <textarea
-                  rows={2}
-                  value={receiptConfig.footerMessage}
-                  onChange={(e) => setReceiptConfig(prev => ({ ...prev, footerMessage: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs resize-none"
-                  placeholder="Footer message"
-                />
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={receiptConfig.termsLine1}
-                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine1: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                    placeholder="Terms line 1"
-                  />
-                  <input
-                    type="text"
-                    value={receiptConfig.termsLine2}
-                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine2: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                    placeholder="Terms line 2"
-                  />
-                  <input
-                    type="text"
-                    value={receiptConfig.termsLine3}
-                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine3: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
-                    placeholder="Terms line 3 (optional)"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                  <ImageIcon size={16} />
-                </div>
+          <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
+            <div className="w-full lg:w-7/12 space-y-4 min-w-0">
+              <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Store logo</span>
-                  <p className="text-[11px] text-gray-500">Used by logo/image blocks in Receipt Builder</p>
-                </div>
-              </div>
-              <ImageUpload
-                label="Store Logo Image (PNG / JPG / WebP)"
-                value={receiptConfig.logoURL || settings?.businessLogoURL || ''}
-                onChange={(url) => setReceiptConfig(prev => ({ ...prev, logoURL: url, showLogo: true }))}
-                previewSize="md"
-                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
-                enableBackgroundCleanup
-              />
-              {/* Logo Size Picker */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
-                  Logo Size on Receipt
-                </label>
-                <div className="flex gap-2">
-                  {(['small', 'medium', 'large'] as const).map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => setReceiptConfig(prev => ({ ...prev, receiptLogoSize: chip }))}
-                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                        (receiptConfig.receiptLogoSize ?? 'medium') === chip
-                          ? 'bg-purple-600 text-white border-purple-600'
-                          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-purple-400'
-                      }`}
-                    >
-                      {chip.charAt(0).toUpperCase() + chip.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Small: 58px · Medium: 88px · Large: 115px tall</p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                    <QrCode size={16} />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-gray-900 dark:text-gray-100">QR Code on Receipt</span>
-                    <p className="text-[11px] text-gray-500">Choose what to display when customers scan the QR</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* QR Purpose Dropdown */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-                  QR Code Type / Purpose
-                </label>
-                <select
-                  value={activeQrPurpose}
-                  onChange={(e) => handleQrPurposeChange(e.target.value as QrPurpose)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium text-gray-900 dark:text-gray-100"
-                >
-                  <option value="upi">💳 UPI / Payment QR (Accept payments via GPay, PhonePe, Paytm)</option>
-                  <option value="digital_bill">📄 Digital Bill / Invoice PDF QR (Customer scans to view & download bill)</option>
-                  <option value="custom">🔗 Custom Website / Promo Link (Your store website, review link, etc.)</option>
-                  <option value="none">🚫 No QR Code (Do not print any QR on receipts)</option>
-                </select>
-              </div>
-
-              {/* Option: No QR */}
-              {activeQrPurpose === 'none' && (
-                <div className="p-3 bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-400">
-                  🚫 QR Code is disabled. Your printed receipts and live preview will not contain any QR code.
-                </div>
-              )}
-
-              {/* Option 1: UPI ID */}
-              {activeQrPurpose === 'upi' && (
-                <div className="space-y-3 pt-1">
-                  <div>
-                    <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-                      Store UPI ID / VPA (To Receive Payments)
-                    </label>
-                    <input
-                      type="text"
-                      value={receiptConfig.upiId || ''}
-                      onChange={(e) => {
-                        const nextUpi = e.target.value.trim()
-                        setReceiptConfig((prev) => ({ ...prev, upiId: nextUpi }))
-                        if (activeCustomTemplate) {
-                          const updated = applyUpiQrToTemplate(activeCustomTemplate, nextUpi)
-                          saveTemplate(updated)
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-mono"
-                      placeholder="yourname@okhdfcbank or 9876543210@paytm"
-                    />
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
-                      Auto-Pay: Prefills your UPI ID and the live bill amount when scanned by PhonePe, Google Pay, or Paytm.
-                    </p>
-                  </div>
-                  <ImageUpload
-                    label="Or upload a static payment QR image"
-                    value={receiptConfig.paymentQrURL || ''}
-                    onChange={(url) => setReceiptConfig((prev) => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
-                    previewSize="md"
-                    accept="image/png,image/jpeg,image/jpg,image/webp"
-                  />
-                </div>
-              )}
-
-              {/* Option 2: Digital Bill */}
-              {activeQrPurpose === 'digital_bill' && (
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs space-y-1">
-                  <div className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-                    <FileText size={14} className="text-blue-600" />
-                    Digital Tax Invoice Link
-                  </div>
-                  <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                    Customers can scan this QR code on their printed receipt with any smartphone camera to open and download their full PDF receipt online.
+                  <p className="text-sm font-bold text-indigo-950 dark:text-indigo-100">Advanced layout in Receipt Builder</p>
+                  <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300 mt-1 leading-relaxed">
+                    Custom blocks, restaurant layouts, and fine-grained positioning can also be edited in Receipt Builder.
                   </p>
                 </div>
-              )}
+                <Button type="button" size="sm" onClick={() => setActiveTab('receiptBuilder')} className="shrink-0">
+                  Open Receipt Builder
+                </Button>
+              </div>
 
-              {/* Option 3: Custom Link */}
-              {activeQrPurpose === 'custom' && (
-                <div className="space-y-2 pt-1">
+              <Section
+                eyebrow="Checkout"
+                title="Paper and print destination"
+                description="Choose roll width and where a receipt goes after a sale."
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-                      Custom Website / Review Link URL
+                    <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                      Paper Width
+                      <FieldInfo textKey="tip.printer.paperWidth" />
                     </label>
-                    <input
-                      type="url"
-                      value={activeQrEntry && activeQrEntry.qrType === 'custom' && !activeQrEntry.value?.includes('{{') ? activeQrEntry.value : ''}
-                      onChange={(e) => handleCustomQrUrlChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-mono"
-                      placeholder="https://yourstore.com/review or https://instagram.com/yourstore"
-                    />
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      Customers scan this QR code to visit your website, Google review page, or promo campaign.
-                    </p>
+                    <div className="flex gap-2">
+                      {(['58mm', '80mm'] as const).map(size => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => setConfig(prev => ({ ...prev, paperSize: size }))}
+                          className={`flex-1 py-2 px-3 ${chipClass(config.paperSize === size)}`}
+                        >
+                          {size === '58mm' ? '2" (58mm)' : '3" (80mm)'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                      Print Destination
+                      <FieldInfo textKey="tip.printer.connectionType" />
+                    </label>
+                    <div className="flex gap-2">
+                      {([
+                        { id: 'system_driver', label: 'System Driver' },
+                        { id: 'bluetooth', label: 'Bluetooth' },
+                      ] as const).map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setConfig(prev => ({ ...prev, connectionType: t.id }))}
+                          className={`flex-1 py-2 px-3 ${chipClass(config.connectionType === t.id)}`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Statement printed below QR (editable) */}
-              {activeQrPurpose !== 'none' && (
-                <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block">
-                    QR Statement / Caption (Printed below code)
-                  </label>
-                  <input
-                    type="text"
-                    value={activeQrCaptionText}
-                    onChange={(e) => handleQrCaptionChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100 font-medium"
-                    placeholder="e.g. Scan to pay with UPI or Scan to download bill PDF"
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <Switch
+                    checked={config.cutPaper ?? true}
+                    onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))}
+                    label="Auto Cut Paper"
+                    info={<FieldInfo textKey="tip.printer.cutPaper" />}
                   />
-                  <p className="text-[10px] text-gray-500">
-                    This custom text statement will appear directly under the QR code on every receipt.
-                  </p>
+                  <Switch
+                    checked={config.openCashDrawer ?? true}
+                    onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))}
+                    label="Open Cash Drawer"
+                    info={<FieldInfo textKey="tip.printer.openCashDrawer" />}
+                  />
                 </div>
-              )}
-              {/* QR Code Size Picker */}
-              {activeQrPurpose !== 'none' && (
-                <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80">
-                  <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
-                    QR Code Size on Receipt
+
+                <div>
+                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                    Font Size
+                    <FieldInfo textKey="tip.printer.fontSize" />
                   </label>
                   <div className="flex gap-2">
-                    {(['small', 'medium', 'large'] as const).map((chip) => (
+                    {(['small', 'medium', 'large'] as const).map(size => (
                       <button
-                        key={chip}
+                        key={size}
                         type="button"
-                        onClick={() => setReceiptConfig(prev => ({ ...prev, receiptQrSize: chip }))}
-                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                          (receiptConfig.receiptQrSize ?? 'medium') === chip
-                            ? 'bg-emerald-600 text-white border-emerald-600'
-                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-emerald-400'
-                        }`}
+                        onClick={() => setConfig(prev => ({ ...prev, fontSize: size }))}
+                        className={`flex-1 py-2 px-3 capitalize ${chipClass(config.fontSize === size)}`}
                       >
-                        {chip.charAt(0).toUpperCase() + chip.slice(1)}
+                        {size}
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">Small: 125px · Medium: 165px · Large: 195px</p>
                 </div>
-              )}
+              </Section>
+
+              <Section
+                eyebrow="Header & footer"
+                title="Store & Invoice details"
+                description="These fields are shared with Settings → Invoice."
+                action={
+                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+                    Synced with Settings
+                  </span>
+                }
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                    onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
+                    placeholder="e.g. TAX INVOICE, RETAIL BILL, ESTIMATE"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100"
+                  />
+                  <select
+                    value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
+                    onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="TAX INVOICE">TAX INVOICE</option>
+                    <option value="RETAIL BILL">RETAIL BILL</option>
+                    <option value="BILL OF SUPPLY">BILL OF SUPPLY</option>
+                    <option value="ESTIMATE / QUOTATION">ESTIMATE</option>
+                    <option value="CASH MEMO">CASH MEMO</option>
+                    <option value="">None (Hide Header Title)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={receiptConfig.companyName}
+                      onChange={(e) => setReceiptConfig(prev => ({ ...prev, companyName: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      placeholder="Company name"
+                    />
+                    <input
+                      type="text"
+                      value={receiptConfig.gstin}
+                      onChange={(e) => setReceiptConfig(prev => ({ ...prev, gstin: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      placeholder="GSTIN"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={receiptConfig.address}
+                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                    placeholder="Address"
+                  />
+                  <input
+                    type="text"
+                    value={receiptConfig.phone}
+                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                    placeholder="Phone number"
+                  />
+                  <textarea
+                    rows={2}
+                    value={receiptConfig.footerMessage}
+                    onChange={(e) => setReceiptConfig(prev => ({ ...prev, footerMessage: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs resize-none"
+                    placeholder="Footer message"
+                  />
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={receiptConfig.termsLine1}
+                      onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine1: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      placeholder="Terms line 1"
+                    />
+                    <input
+                      type="text"
+                      value={receiptConfig.termsLine2}
+                      onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine2: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      placeholder="Terms line 2"
+                    />
+                    <input
+                      type="text"
+                      value={receiptConfig.termsLine3}
+                      onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine3: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      placeholder="Terms line 3 (optional)"
+                    />
+                  </div>
+                </div>
+              </Section>
+
+              <Section
+                eyebrow="Layout"
+                title="What prints on the receipt"
+                description="Turn lines on or off. The live preview on the right updates immediately."
+                action={
+                  <div className="flex gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptConfig(prev => ({
+                          ...prev,
+                          showCompanyHeader: true,
+                          showAddress: true,
+                          showPhone: true,
+                          showGSTIN: true,
+                          showCustomerDetails: true,
+                          showInvoiceNoAndDate: true,
+                          showSubtotalDiscount: true,
+                          showTaxBreakdown: true,
+                          showFooterMessage: true,
+                          showTerms: true,
+                          showBarcode: true,
+                          compactMode: false
+                        }))
+                        setConfig(prev => ({ ...prev, showLogo: true, showGSTIN: true, showCustomerDetails: true, showBarcode: true }))
+                      }}
+                      className="font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                    >
+                      Show all
+                    </button>
+                    <span className="text-slate-300">·</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptConfig(prev => ({
+                          ...prev,
+                          showCompanyHeader: true,
+                          showAddress: false,
+                          showPhone: false,
+                          showGSTIN: false,
+                          showCustomerDetails: false,
+                          showInvoiceNoAndDate: true,
+                          showSubtotalDiscount: false,
+                          showTaxBreakdown: false,
+                          showFooterMessage: false,
+                          showTerms: false,
+                          showBarcode: false,
+                          compactMode: true
+                        }))
+                        setConfig(prev => ({ ...prev, showLogo: false, showGSTIN: false, showCustomerDetails: false, showBarcode: false }))
+                      }}
+                      className="font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                    >
+                      Show less
+                    </button>
+                  </div>
+                }
+              >
+                {/* Store Logo Graphic Section + Dev's Logo Size Selector */}
+                <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <ImageIcon size={16} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Store Logo Graphic</span>
+                        <p className="text-[11px] text-gray-500">Show high-contrast brand logo at top of receipt</p>
+                      </div>
+                    </div>
+                    <Switch
+                      label="Show Store Logo Graphic"
+                      checked={config.showLogo ?? true}
+                      onChange={v => setConfig(prev => ({ ...prev, showLogo: v }))}
+                    />
+                  </div>
+                  {config.showLogo && (
+                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                      <ImageUpload
+                        label="Store Logo Image"
+                        value={receiptConfig.logoURL || settings?.businessLogoURL || ''}
+                        onChange={(url) => setReceiptConfig(prev => ({ ...prev, logoURL: url }))}
+                        previewSize="md"
+                        accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                        enableBackgroundCleanup
+                      />
+                      {/* Logo Size Picker from Dev */}
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
+                          Logo Size on Receipt
+                        </label>
+                        <div className="flex gap-2">
+                          {(['small', 'medium', 'large'] as const).map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setReceiptConfig(prev => ({ ...prev, receiptLogoSize: chip }))}
+                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                                (receiptConfig.receiptLogoSize ?? 'medium') === chip
+                                  ? 'bg-purple-600 text-white border-purple-600'
+                                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                              }`}
+                            >
+                              {chip.charAt(0).toUpperCase() + chip.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">Small: 32px · Medium: 56px · Large: 80px tall</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content & Information Toggles */}
+                <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
+                  <Switch
+                    checked={receiptConfig.showCompanyHeader ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showCompanyHeader: v }))}
+                    label="Company Name & Title Header"
+                  />
+                  <Switch
+                    checked={receiptConfig.showAddress ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showAddress: v }))}
+                    label="Business Address line"
+                  />
+                  <Switch
+                    checked={receiptConfig.showPhone ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showPhone: v }))}
+                    label="Business Phone Number line"
+                  />
+                  <Switch
+                    checked={receiptConfig.showGSTIN ?? true}
+                    onChange={v => {
+                      setReceiptConfig(prev => ({ ...prev, showGSTIN: v }))
+                      setConfig(prev => ({ ...prev, showGSTIN: v }))
+                    }}
+                    label="GSTIN / Tax Registration Number"
+                    info={<FieldInfo textKey="tip.printer.showGSTIN" />}
+                  />
+                  <Switch
+                    checked={receiptConfig.showCustomerDetails ?? true}
+                    onChange={v => {
+                      setReceiptConfig(prev => ({ ...prev, showCustomerDetails: v }))
+                      setConfig(prev => ({ ...prev, showCustomerDetails: v }))
+                    }}
+                    label="Customer Name & Mobile Number"
+                    info={<FieldInfo textKey="tip.printer.showCustomerDetails" />}
+                  />
+                  <Switch
+                    checked={receiptConfig.showInvoiceNoAndDate ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showInvoiceNoAndDate: v }))}
+                    label="Invoice Number & Date Header"
+                  />
+                  <Switch
+                    checked={receiptConfig.showSubtotalDiscount ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showSubtotalDiscount: v }))}
+                    label="Subtotal & Item Discount breakdown"
+                  />
+                  <Switch
+                    checked={receiptConfig.showTaxBreakdown ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showTaxBreakdown: v }))}
+                    label="SGST / CGST Tax breakdown lines"
+                  />
+                  <Switch
+                    checked={receiptConfig.showFooterMessage ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showFooterMessage: v }))}
+                    label="Footer Thank You message"
+                  />
+                  <Switch
+                    checked={receiptConfig.showTerms ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, showTerms: v }))}
+                    label="Terms & Conditions lines"
+                  />
+                  <Switch
+                    checked={receiptConfig.showBarcode ?? true}
+                    onChange={v => {
+                      setReceiptConfig(prev => ({ ...prev, showBarcode: v }))
+                      setConfig(prev => ({ ...prev, showBarcode: v }))
+                    }}
+                    label="Bottom Invoice Barcode / Identifier graphic"
+                    info={<FieldInfo textKey="tip.printer.showBarcode" />}
+                  />
+                </div>
+
+                {/* Payment QR Code (UPI / QR Pay) Section + Dev's QR Size Selector */}
+                <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <QrCode size={16} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Payment QR Code (UPI / QR Pay)</span>
+                        <p className="text-[11px] text-gray-500">Print UPI QR code image on bills for direct customer payments</p>
+                      </div>
+                    </div>
+                    <Switch
+                      label="Enable Payment QR Code on Bills"
+                      checked={receiptConfig.showPaymentQR ?? false}
+                      onChange={v => {
+                        setReceiptConfig(prev => ({ ...prev, showPaymentQR: v }))
+                        setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))
+                      }}
+                    />
+                  </div>
+                  {receiptConfig.showPaymentQR && (
+                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1 block">
+                          UPI ID for live QR (recommended)
+                        </label>
+                        <input
+                          type="text"
+                          value={receiptConfig.upiId || ''}
+                          onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                          placeholder="yourname@okhdfcbank"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Generates a real QR encoding the exact bill amount, live at checkout and on every printed
+                          receipt — this is your actual UPI ID, not a phone number.
+                        </p>
+                      </div>
+                      <ImageUpload
+                        label="Or upload a static Payment QR Code image (PNG / JPG)"
+                        value={receiptConfig.paymentQrURL || ''}
+                        onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
+                        previewSize="md"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                      />
+                      <p className="text-[11px] text-gray-400">
+                        Used only as a fallback when no UPI ID is set above.
+                      </p>
+
+                      {/* QR Code Size Selector from Dev */}
+                      <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80">
+                        <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
+                          QR Code Size on Receipt
+                        </label>
+                        <div className="flex gap-2">
+                          {(['small', 'medium', 'large'] as const).map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setReceiptConfig(prev => ({ ...prev, receiptQrSize: chip }))}
+                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                                (receiptConfig.receiptQrSize ?? 'medium') === chip
+                                  ? 'bg-emerald-600 text-white border-emerald-600'
+                                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-emerald-400'
+                              }`}
+                            >
+                              {chip.charAt(0).toUpperCase() + chip.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">Small: 80px · Medium: 110px · Large: 140px</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Section>
             </div>
 
-            <GstPrintDisplaySection
-              form={gstForm}
-              onStyleChange={setGstStyle}
-              onPrintOnReceiptChange={setGstPrintOnReceipt}
-              onItemWiseGstChange={setGstItemWiseGst}
-              onSave={() => saveGstBilling()}
-              isSaving={isSavingGst}
-            />
+            {/* Right Column: Live Sticky Preview */}
+            <div className="w-full lg:w-5/12 flex flex-col min-w-0 max-w-full self-start lg:sticky lg:top-6">
+              <Section
+                eyebrow="Preview"
+                title={`Thermal receipt · ${config.paperSize}`}
+                action={
+                  receiptConfig.compactMode ? (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      Compact
+                    </span>
+                  ) : null
+                }
+              >
+                <ReceiptLivePreview
+                  paperSize={config.paperSize === '80mm' ? '80mm' : '58mm'}
+                  receiptConfig={receiptConfig}
+                  settings={settings}
+                  showLogo={!!config.showLogo}
+                  cutPaper={false}
+                />
+              </Section>
+            </div>
           </div>
-
-          <div className="w-full lg:w-5/12 lg:sticky lg:top-6">
-            <ReceiptLivePreviewPanel
-              template={previewTemplate}
-              context={receiptPreviewContext}
-              gstOpts={previewGstOpts}
-            />
-          </div>
-        </div>
         </div>
       )}
 
+      {/* Tab 2: Receipt Builder from Dev */}
       {activeTab === 'receiptBuilder' && (
         <ReceiptBuilderTab
           ref={receiptBuilderRef}
@@ -1253,356 +1303,323 @@ export const PrintersPage = () => {
         />
       )}
 
-      {/* Tab 2: Label Designer */}
+      {/* Tab 3: Label Designer from Main */}
       {activeTab === 'label' && (
         <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-            {/* Controls */}
-            <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-              {/* Preset Templates */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
-                <label className="flex items-center text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Quick Layout Presets
-                  <FieldInfo textKey="tip.printer.labelPresets" />
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_RETAIL_DUAL_CODE }))}
-                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-semibold transition-all"
-                  >
-                    Image 1 Dual-Code
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_CENTERED_STANDARD }))}
-                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all"
-                  >
-                    Centered Standard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelTemplate: PRESET_MINIMAL_TAG }))}
-                    className="py-1.5 px-2 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all"
-                  >
-                    Minimal Tag
-                  </button>
-                </div>
-              </div>
-
-              {/* Hardware Alignment & Gap Calibration Box */}
-              <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-xl space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="flex items-center text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                      Label Command Protocol & Calibration
-                      <FieldInfo textKey="tip.printer.labelMode" />
-                    </h4>
-                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
-                      Select <strong>TSPL Mode</strong> for label printers (Xprinter/TSC/Gprinter) to lock print inside 1 sticker gap.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCalibrateGap}
-                    title="Sends a command that makes the printer auto-detect the gap between stickers"
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex-shrink-0"
-                  >
-                    Calibrate Paper Gap
-                  </button>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelPrinterMode: 'tspl' }))}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-all ${
-                      (config.labelPrinterMode || 'tspl') === 'tspl'
-                        ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    TSPL Mode (Gap Sensing)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig(prev => ({ ...prev, labelPrinterMode: 'escpos' }))}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-all ${
-                      config.labelPrinterMode === 'escpos'
-                        ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    ESC/POS Compact Mode
-                  </button>
-                </div>
-
-                {/* Printer Calibration Offsets */}
-                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-indigo-200/60 dark:border-indigo-800/40">
-                  <div>
-                    <label className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
-                      Printer Offset X (mm)
-                      <FieldInfo textKey="tip.printer.labelOffset" />
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={config.labelOffsetX ?? 0}
-                      onChange={(e) => setConfig(prev => ({ ...prev, labelOffsetX: Number(e.target.value) || 0 }))}
-                      placeholder="0"
-                      className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
-                    />
-                    <span className="text-[10px] text-gray-500">Shift left/right on paper</span>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
-                      Printer Offset Y (mm)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={config.labelOffsetY ?? 0}
-                      onChange={(e) => setConfig(prev => ({ ...prev, labelOffsetY: Number(e.target.value) || 0 }))}
-                      placeholder="0"
-                      className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
-                    />
-                    <span className="text-[10px] text-gray-500">Shift up/down on paper</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
-                  <label className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
-                    Barcode Center Nudge (mm)
-                    <FieldInfo textKey="tip.printer.labelBarcodeOffset" />
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={config.labelBarcodeOffsetX ?? 4}
-                    onChange={(e) => setConfig(prev => ({ ...prev, labelBarcodeOffsetX: Number(e.target.value) || 0 }))}
-                    placeholder="4"
-                    className="w-full px-2.5 py-1.5 border border-indigo-300 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-xs font-semibold"
-                  />
-                  <span className="text-[10px] text-gray-500">If the barcode prints off-center, increase (shift right) or decrease/go negative (shift left) until it's centered</span>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/40">
-                  <span className="flex items-center text-[11px] font-bold text-indigo-900 dark:text-indigo-200">
-                    Label Upside Down? Flip 180°
-                    <FieldInfo textKey="tip.printer.labelDirection" />
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={(config.labelDirection ?? 0) === 1}
-                    onClick={() => setConfig(prev => ({ ...prev, labelDirection: (prev.labelDirection ?? 0) === 1 ? 0 : 1 }))}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 ${
-                      (config.labelDirection ?? 0) === 1 ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                        (config.labelDirection ?? 0) === 1 ? 'translate-x-6' : 'translate-x-1'
+          <div className="w-full lg:w-7/12 space-y-4 min-w-0">
+            <Section
+              eyebrow="Layout"
+              title="Label layout"
+              description="Pick a starting layout, then add or remove fields below."
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {([
+                  { preset: PRESET_RETAIL_DUAL_CODE, title: 'Barcode + QR', hint: 'Name, barcode, QR, and price' },
+                  { preset: PRESET_CENTERED_STANDARD, title: 'Standard price tag', hint: 'Store name, product, barcode, price' },
+                  { preset: PRESET_MINIMAL_TAG, title: 'Name + barcode', hint: 'Small tag with product and price' },
+                ]).map(opt => {
+                  const active = labelTemplate.map(e => e.type).join('|') === opt.preset.map(e => e.type).join('|')
+                  return (
+                    <button
+                      key={opt.title}
+                      type="button"
+                      onClick={() => setConfig(prev => ({ ...prev, labelTemplate: opt.preset }))}
+                      className={`text-left py-2.5 px-3 rounded-xl text-xs transition-colors border ${
+                        active
+                          ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 text-slate-800 dark:text-slate-200'
                       }`}
-                    />
-                  </button>
-                </div>
+                    >
+                      <div className="font-semibold">{opt.title}</div>
+                      <div className={`text-[10px] mt-0.5 ${active ? 'text-slate-300 dark:text-slate-600' : 'text-slate-500'}`}>
+                        {opt.hint}
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
+            </Section>
 
-              <div className="grid grid-cols-2 gap-4">
+            <Section
+              eyebrow="Hardware"
+              title="Dimensions and speed"
+              description="Adjust for your roll width, height, and printer language."
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
                     Width (mm)
-                    <FieldInfo textKey="tip.printer.labelSize" />
                   </label>
                   <input
                     type="number"
                     value={config.labelWidth}
-                    onChange={(e) => setConfig(prev => ({ ...prev, labelWidth: Number(e.target.value) || 50 }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                    onChange={e => setConfig(prev => ({ ...prev, labelWidth: Number(e.target.value) || 50 }))}
+                    className={fieldClass}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Height (mm)</label>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                    Height (mm)
+                  </label>
                   <input
                     type="number"
                     value={config.labelHeight}
-                    onChange={(e) => setConfig(prev => ({ ...prev, labelHeight: Number(e.target.value) || 30 }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                    onChange={e => setConfig(prev => ({ ...prev, labelHeight: Number(e.target.value) || 30 }))}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                    Shift X (px)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.labelOffsetX ?? 0}
+                    onChange={e => setConfig(prev => ({ ...prev, labelOffsetX: Number(e.target.value) }))}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                    Shift Y (px)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.labelOffsetY ?? 0}
+                    onChange={e => setConfig(prev => ({ ...prev, labelOffsetY: Number(e.target.value) }))}
+                    className={fieldClass}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Default Barcode Type
-                  <FieldInfo textKey="tip.printer.labelBarcodeType" />
-                </label>
-                <div className="flex gap-2">
-                  {(['CODE128', 'EAN13', 'QR'] as const).map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setConfig(prev => ({ ...prev, labelBarcodeType: type }))}
-                      className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                        config.labelBarcodeType === type
-                          ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                    Barcode Type
+                  </label>
+                  <select
+                    value={config.labelBarcodeType || 'CODE128'}
+                    onChange={e => setConfig(prev => ({ ...prev, labelBarcodeType: e.target.value as any }))}
+                    className={fieldClass}
+                  >
+                    <option value="CODE128">Code 128 (Standard)</option>
+                    <option value="EAN13">EAN-13 (Retail Standard)</option>
+                    <option value="QR">QR Code Matrix</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                    Barcode Offset X
+                  </label>
+                  <input
+                    type="number"
+                    value={config.labelBarcodeOffsetX ?? 0}
+                    onChange={e => setConfig(prev => ({ ...prev, labelBarcodeOffsetX: Number(e.target.value) }))}
+                    className={fieldClass}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Preview With Product
-                  <FieldInfo textKey="tip.printer.previewProduct" />
-                </label>
+              <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Printer Command Language</span>
+                    <p className="text-[11px] text-slate-500">TSPL is native for thermal sticker printers.</p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(['tspl', 'escpos'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, labelPrinterMode: mode }))}
+                        className={`py-1 px-3 ${chipClass(config.labelPrinterMode === mode)}`}
+                      >
+                        {mode === 'tspl' ? 'TSPL / TSC' : 'ESC/POS'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                  <span className="text-xs text-slate-600 dark:text-slate-400">Sensor calibration:</span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCalibrateGap}
+                      disabled={bleState.status !== 'connected'}
+                      className="text-xs"
+                    >
+                      Calibrate Gap
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setConfig(prev => ({ ...prev, labelDirection: prev.labelDirection === 1 ? 0 : 1 }))}
+                      className={`text-xs px-2.5 py-1 rounded-lg border ${
+                        config.labelDirection === 1
+                          ? 'bg-purple-100 border-purple-300 text-purple-800'
+                          : 'border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      {config.labelDirection === 1 ? '180° Flip ON' : '180° Flip OFF'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Section>
+
+            <Section
+              eyebrow="Test & preview"
+              title="Pick a product to preview"
+              description="Preview and test print with real catalog items."
+            >
+              <div className="flex gap-2">
                 <select
                   value={previewProductId}
                   onChange={(e) => setPreviewProductId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
                 >
-                  <option value="">Sample data</option>
-                  {products?.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                  <option value="">-- Select Real Product --</option>
+                  {(products || []).map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.barcode || p.sku || 'No code'}) - {formatINR(p.sellingPrice)}
+                    </option>
                   ))}
                 </select>
+                <Button size="sm" onClick={handleTestPrint} className="flex items-center gap-1.5">
+                  <Printer size={14} />
+                  Print
+                </Button>
               </div>
+            </Section>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    Label Contents & Formatting
-                    <FieldInfo textKey="tip.printer.addElement" />
-                  </label>
+            <Section
+              eyebrow="Elements"
+              title="Label content & fields"
+              description="Add, arrange, and style text, barcode, price, and QR codes."
+              action={
+                <div className="flex items-center gap-2">
                   <select
-                    value=""
-                    onChange={(e) => { if (e.target.value) addLabelElement(e.target.value as LabelElementType) }}
-                    className="text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-lg px-2 py-1"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        addLabelElement(e.target.value as LabelElementType)
+                        e.target.value = ''
+                      }
+                    }}
+                    className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                    defaultValue=""
                   >
-                    <option value="">+ Add element…</option>
-                    {(Object.keys(LABEL_ELEMENT_META) as LabelElementType[]).map(type => (
-                      <option key={type} value={type}>{LABEL_ELEMENT_META[type].label}</option>
+                    <option value="" disabled>+ Add Element...</option>
+                    {Object.entries(LABEL_ELEMENT_META).map(([type, meta]) => (
+                      <option key={type} value={type}>
+                        {meta.icon} {meta.label}
+                      </option>
                     ))}
                   </select>
                 </div>
-
-                {labelTemplate.length === 0 && (
-                  <p className="text-xs text-gray-400 italic py-4 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-                    No elements yet — add one above.
-                  </p>
-                )}
-
-                <div className="space-y-3">
-                  {labelTemplate.map((el, idx) => (
-                    <div key={el.id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-xl space-y-2 bg-gray-50/50 dark:bg-gray-800/40">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm w-5 text-center flex-shrink-0">{LABEL_ELEMENT_META[el.type]?.icon || '📄'}</span>
-
-                        {el.type === 'custom' ? (
-                          <input
-                            type="text"
-                            value={el.text ?? ''}
-                            onChange={(e) => updateLabelElement(el.id, { text: e.target.value })}
-                            placeholder="Enter text..."
-                            className="flex-1 min-w-0 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs"
-                          />
-                        ) : el.type === 'mrpHeader' ? (
-                          <input
-                            type="text"
-                            value={el.prefix ?? 'MRP (Incl. of all taxes)'}
-                            onChange={(e) => updateLabelElement(el.id, { prefix: e.target.value })}
-                            placeholder="MRP Label text..."
-                            className="flex-1 min-w-0 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs font-semibold"
-                          />
-                        ) : (
-                          <span className="flex-1 min-w-0 text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
-                            {LABEL_ELEMENT_META[el.type]?.label || el.type}
-                          </span>
-                        )}
-
-                        <div className="flex items-center gap-0.5 flex-shrink-0">
-                          {(['left', 'center', 'right'] as const).map(a => {
-                            const Icon = a === 'left' ? AlignLeft : a === 'center' ? AlignCenter : AlignRight
-                            return (
-                              <button
-                                key={a}
-                                type="button"
-                                title={`Align ${a}`}
-                                onClick={() => updateLabelElement(el.id, { align: a })}
-                                className={`p-1 rounded ${el.align === a ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                              >
-                                <Icon size={13} />
-                              </button>
-                            )
-                          })}
-                          {el.type !== 'barcode' && el.type !== 'qrCode' && el.type !== 'sideBySideBarcodeQr' && el.type !== 'divider' && (
-                            <>
-                              <button
-                                type="button"
-                                title="Toggle Bold"
-                                onClick={() => updateLabelElement(el.id, { bold: !el.bold })}
-                                className={`p-1 rounded ${el.bold ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                              >
-                                <Bold size={13} />
-                              </button>
-                              <select
-                                value={el.fontSize || (el.large ? 'large' : 'medium')}
-                                onChange={(e) => updateLabelElement(el.id, { fontSize: e.target.value as any })}
-                                className="text-[10px] font-bold px-1 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                              >
-                                <option value="small">Small</option>
-                                <option value="medium">Medium</option>
-                                <option value="large">Large</option>
-                                <option value="xlarge">X-Large</option>
-                              </select>
-                            </>
-                          )}
-                          <button type="button" onClick={() => moveLabelElement(el.id, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
-                            <ArrowUp size={13} />
-                          </button>
-                          <button type="button" onClick={() => moveLabelElement(el.id, 1)} disabled={idx === labelTemplate.length - 1} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
-                            <ArrowDown size={13} />
-                          </button>
-                          <button type="button" onClick={() => removeLabelElement(el.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+              }
+            >
+              <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+                {labelTemplate.map((el, idx) => (
+                  <div
+                    key={el.id}
+                    className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm">{LABEL_ELEMENT_META[el.type]?.icon || '📄'}</span>
+                        <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+                          {LABEL_ELEMENT_META[el.type]?.label || el.type}
+                        </span>
                       </div>
 
-                      {/* Optional Prefix/Suffix for price, business, product, custom */}
-                      {(el.type === 'price' || el.type === 'businessName' || el.type === 'productName' || el.type === 'sku' || el.type === 'custom') && (
-                        <div className="flex gap-2 text-[10px] pt-1">
-                          <input
-                            type="text"
-                            placeholder="Prefix (e.g. Rs. )"
-                            value={el.prefix ?? ''}
-                            onChange={(e) => updateLabelElement(el.id, { prefix: e.target.value })}
-                            className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                          />
-                          <input
-                            type="text"
-                            placeholder="Suffix (e.g. /-)"
-                            value={el.suffix ?? ''}
-                            onChange={(e) => updateLabelElement(el.id, { suffix: e.target.value })}
-                            className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+                      <div className="flex items-center gap-1">
+                        {el.type !== 'divider' && (
+                          <>
+                            <div className="flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mr-1">
+                              <button
+                                type="button"
+                                onClick={() => updateLabelElement(el.id, { align: 'left' })}
+                                className={`p-1 ${el.align === 'left' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                              >
+                                <AlignLeft size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateLabelElement(el.id, { align: 'center' })}
+                                className={`p-1 ${el.align === 'center' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                              >
+                                <AlignCenter size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateLabelElement(el.id, { align: 'right' })}
+                                className={`p-1 ${el.align === 'right' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                              >
+                                <AlignRight size={13} />
+                              </button>
+                            </div>
 
-            {/* Live Preview */}
-            <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
-              <span className="text-xs font-semibold text-gray-400 mb-3">
-                Live Preview — {config.labelWidth}mm × {config.labelHeight}mm
-              </span>
+                            <button
+                              type="button"
+                              onClick={() => updateLabelElement(el.id, { bold: !el.bold })}
+                              className={`p-1 rounded ${el.bold ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                            >
+                              <Bold size={13} />
+                            </button>
+                            <select
+                              value={el.fontSize || (el.large ? 'large' : 'medium')}
+                              onChange={(e) => updateLabelElement(el.id, { fontSize: e.target.value as any })}
+                              className="text-[10px] font-bold px-1 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                            >
+                              <option value="small">Small</option>
+                              <option value="medium">Medium</option>
+                              <option value="large">Large</option>
+                              <option value="xlarge">X-Large</option>
+                            </select>
+                          </>
+                        )}
+                        <button type="button" onClick={() => moveLabelElement(el.id, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                          <ArrowUp size={13} />
+                        </button>
+                        <button type="button" onClick={() => moveLabelElement(el.id, 1)} disabled={idx === labelTemplate.length - 1} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                          <ArrowDown size={13} />
+                        </button>
+                        <button type="button" onClick={() => removeLabelElement(el.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {(el.type === 'price' || el.type === 'businessName' || el.type === 'productName' || el.type === 'sku' || el.type === 'custom') && (
+                      <div className="flex gap-2 text-[10px] pt-1">
+                        <input
+                          type="text"
+                          placeholder="Prefix (e.g. Rs. )"
+                          value={el.prefix ?? ''}
+                          onChange={(e) => updateLabelElement(el.id, { prefix: e.target.value })}
+                          className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Suffix (e.g. /-)"
+                          value={el.suffix ?? ''}
+                          onChange={(e) => updateLabelElement(el.id, { suffix: e.target.value })}
+                          className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </div>
+
+          <div className="w-full lg:w-5/12 flex flex-col lg:sticky lg:top-6 min-w-0 max-w-full">
+            <Section
+              eyebrow="Preview"
+              title={`Label · ${config.labelWidth}mm × ${config.labelHeight}mm`}
+            >
               <div className="p-6 sm:p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px] max-w-full overflow-hidden relative">
                 <div
                   className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
@@ -1663,136 +1680,52 @@ export const PrintersPage = () => {
                 </div>
               </div>
               {!selectedProduct && (
-                <p className="text-[11px] text-gray-400 mt-3 text-center">Pick a product above to preview with real data.</p>
+                <p className="text-[11px] text-slate-500 mt-1 text-center">Pick a product above to preview with real data.</p>
               )}
+            </Section>
           </div>
         </div>
       )}
 
-      {/* Tab 3: A4 Full Invoice Settings & Live Preview */}
+      {/* Tab 4: A4 Full Invoice Settings & Live Preview from Main */}
       {activeTab === 'invoice' && (
-        <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-          <div className="w-full lg:w-7/12 space-y-5 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Document Size
-                  <FieldInfo textKey="tip.printer.invoiceSize" />
-                </label>
-                <select
-                  value={config.invoicePaperSize}
-                  onChange={(e) => setConfig(prev => ({ ...prev, invoicePaperSize: e.target.value as PrinterConfig['invoicePaperSize'] }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium"
-                >
-                  <option value="A4">A4</option>
-                  <option value="Letter">US Letter</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                  Color Theme
-                  <FieldInfo textKey="tip.printer.invoiceTheme" />
-                </label>
-                <select
-                  value={config.invoiceColorTheme}
-                  onChange={(e) => setConfig(prev => ({ ...prev, invoiceColorTheme: e.target.value as PrinterConfig['invoiceColorTheme'] }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-medium"
-                >
-                  <option value="navy">Deep Navy</option>
-                  <option value="emerald">Emerald</option>
-                  <option value="slate">Slate</option>
-                  <option value="royal">Royal Blue</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                Terms & Conditions
-                <FieldInfo textKey="tip.printer.invoiceTerms" />
-              </label>
-              <textarea
-                rows={3}
-                value={config.invoiceTermsText}
-                onChange={(e) => setConfig(prev => ({ ...prev, invoiceTermsText: e.target.value }))}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-mono"
-              />
-            </div>
-
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4">
-              <Switch checked={config.invoiceShowHeader} onChange={v => setConfig(prev => ({ ...prev, invoiceShowHeader: v }))} label="Header banner" info={<FieldInfo textKey="tip.printer.invoiceShowHeader" />} />
-              <Switch checked={config.invoiceShowTerms} onChange={v => setConfig(prev => ({ ...prev, invoiceShowTerms: v }))} label="Print terms & conditions" info={<FieldInfo textKey="tip.printer.invoiceShowTerms" />} />
-              <Switch checked={config.invoiceShowPaymentQR} onChange={v => setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))} label="UPI payment QR code" info={<FieldInfo textKey="tip.printer.invoiceShowPaymentQR" />} />
-            </div>
-          </div>
-
-          <div className="w-full lg:w-5/12 flex flex-col items-center lg:sticky lg:top-6 min-w-0 max-w-full overflow-hidden">
-            <span className="text-xs font-semibold text-gray-400 mb-3">Live Preview</span>
-            <div className="w-full max-w-[320px] bg-white text-gray-900 p-5 sm:p-6 rounded-xl shadow-2xl border border-gray-200 text-xs min-h-[420px] flex flex-col justify-between overflow-hidden">
-              <div>
-                <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                  <div>
-                    <h4 className="font-extrabold text-sm" style={{ color: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e' }}>
-                      {receiptConfig.companyName ||
-                        settings?.businessName ||
-                        user?.businessName ||
-                        user?.displayName ||
-                        'Your Store'}
-                    </h4>
-                    <p className="text-[10px] text-gray-500">
-                      GSTIN: {receiptConfig.gstin || settings?.businessGSTIN || '—'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-extrabold text-xs block">TAX INVOICE</span>
-                    <span className="text-[9px] text-gray-500">INV-2026-0089</span>
-                  </div>
-                </div>
-
-                <table className="w-full mt-4 text-[10px] text-left border-collapse">
-                  <thead>
-                    <tr style={{ background: config.invoiceColorTheme === 'emerald' ? '#059669' : config.invoiceColorTheme === 'royal' ? '#2563eb' : '#0a0a2e', color: '#fff' }}>
-                      <th className="p-1">Description</th>
-                      <th className="p-1 text-center">Qty</th>
-                      <th className="p-1 text-right">Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-100">
-                      <td className="p-1 font-medium">Smart POS Terminal</td>
-                      <td className="p-1 text-center">1</td>
-                      <td className="p-1 text-right">₹24,999</td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="p-1 font-medium">Barcode Scanner 2D</td>
-                      <td className="p-1 text-center">2</td>
-                      <td className="p-1 text-right">₹3,800</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex justify-between items-end">
-                  {config.invoiceShowPaymentQR ? (
-                    <div className="flex items-center gap-2">
-                      <QrCode size={28} className="text-slate-800" />
-                      <span className="text-[9px] font-semibold text-gray-600">Scan & Pay via UPI</span>
-                    </div>
-                  ) : <div />}
-                  <div className="text-right font-bold text-xs">Total: ₹28,799.00</div>
-                </div>
-                {config.invoiceShowTerms && (
-                  <p className="text-[8px] text-gray-400 mt-3 whitespace-pre-line border-t pt-2">
-                    {config.invoiceTermsText}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <A4InvoiceTab
+          config={config}
+          setConfig={setConfig}
+          receiptConfig={receiptConfig}
+          setReceiptConfig={setReceiptConfig}
+          settings={settings}
+        />
       )}
+
+      {/* Unchanged Save Confirmation Modal */}
+      <Modal
+        isOpen={isUnchangedSaveConfirmOpen}
+        onClose={() => setIsUnchangedSaveConfirmOpen(false)}
+        title="Settings are unchanged"
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-2 w-full">
+            <Button variant="outline" size="sm" onClick={() => setIsUnchangedSaveConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setIsUnchangedSaveConfirmOpen(false)
+                executeSave()
+              }}
+              className="bg-slate-900 hover:bg-slate-800 text-white"
+            >
+              Save anyway
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          You haven't changed any printer or receipt settings since they were loaded. Do you still want to re-save them to the database?
+        </p>
+      </Modal>
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal
@@ -1807,39 +1740,6 @@ export const PrintersPage = () => {
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
       />
-
-      {/* Confirmation Modal when no changes are detected */}
-      <Modal
-        isOpen={isUnchangedSaveConfirmOpen}
-        onClose={() => setIsUnchangedSaveConfirmOpen(false)}
-        title="Save Settings"
-        size="sm"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsUnchangedSaveConfirmOpen(false)}
-              className="text-xs sm:text-sm"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                setIsUnchangedSaveConfirmOpen(false)
-                handleSave()
-              }}
-              loading={saving}
-              className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white text-xs sm:text-sm"
-            >
-              Save Anyway
-            </Button>
-          </div>
-        }
-      >
-        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-          No new changes were detected in your printer or receipt settings. Do you want to save current settings anyway?
-        </p>
-      </Modal>
     </div>
   )
 }
