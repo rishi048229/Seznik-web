@@ -1054,7 +1054,7 @@ export const PrintersPage = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">Small: 32px · Medium: 56px · Large: 80px tall</p>
+                <p className="text-[10px] text-gray-500 mt-1">Small: 44px · Medium: 68px · Large: 88px tall</p>
               </div>
             </div>
 
@@ -1204,7 +1204,7 @@ export const PrintersPage = () => {
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">Small: 80px · Medium: 110px · Large: 140px</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Small: 95px · Medium: 125px · Large: 150px</p>
                 </div>
               )}
             </div>

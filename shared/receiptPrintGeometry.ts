@@ -20,9 +20,9 @@ export type ReceiptSizeChip = 'small' | 'medium' | 'large'
  * Used by both Web (receipt.ts, customReceiptEngine.ts) and Mobile (PrinterService.ts).
  */
 export function receiptLogoHtmlMaxPxFromChip(chip: ReceiptSizeChip = 'medium'): { maxHeight: number; maxWidth: number } {
-  if (chip === 'small') return { maxHeight: 32, maxWidth: 100 }
-  if (chip === 'large') return { maxHeight: 80, maxWidth: 240 }
-  return { maxHeight: 56, maxWidth: 180 } // medium (default)
+  if (chip === 'small') return { maxHeight: 44, maxWidth: 140 }
+  if (chip === 'large') return { maxHeight: 88, maxWidth: 260 }
+  return { maxHeight: 68, maxWidth: 200 } // medium (default)
 }
 
 /**
@@ -30,9 +30,9 @@ export function receiptLogoHtmlMaxPxFromChip(chip: ReceiptSizeChip = 'medium'): 
  * Used by both Web (receipt.ts, customReceiptEngine.ts) and Mobile (PrinterService.ts).
  */
 export function receiptStandardQrHtmlPxFromChip(chip: ReceiptSizeChip = 'medium'): number {
-  if (chip === 'small') return 80
-  if (chip === 'large') return 140
-  return 110 // medium (default)
+  if (chip === 'small') return 95
+  if (chip === 'large') return 150
+  return 125 // medium (default)
 }
 
 /** Custom template default — image blocks use 60% of paper width. */
@@ -47,18 +47,18 @@ export function receiptLogoMaxDotsFromChip(
 ): { maxWidth: number; maxHeight: number } {
   if (chip === 'small') {
     return paperWidth === '80mm'
-      ? { maxWidth: 180, maxHeight: 48 }
-      : { maxWidth: 130, maxHeight: 38 }
+      ? { maxWidth: 260, maxHeight: 72 }
+      : { maxWidth: 180, maxHeight: 56 }
   }
   if (chip === 'large') {
     return paperWidth === '80mm'
-      ? { maxWidth: 440, maxHeight: 150 }
-      : { maxWidth: 320, maxHeight: 110 }
+      ? { maxWidth: 500, maxHeight: 170 }
+      : { maxWidth: 360, maxHeight: 130 }
   }
   // medium (default)
   return paperWidth === '80mm'
-    ? { maxWidth: 320, maxHeight: 96 }
-    : { maxWidth: 224, maxHeight: 72 }
+    ? { maxWidth: 400, maxHeight: 120 }
+    : { maxWidth: 280, maxHeight: 90 }
 }
 
 export function receiptLogoMaxDots(paperWidth: ThermalPaper): { maxWidth: number; maxHeight: number } {
@@ -70,7 +70,7 @@ export function receiptLogoMaxDots(paperWidth: ThermalPaper): { maxWidth: number
  * Used by web generateReceiptHTML and mobile HTML fallback alike.
  */
 export function receiptLogoHtmlMaxPx(_paperWidth?: ThermalPaper): { maxHeight: number; maxWidth: number } {
-  return { maxHeight: 56, maxWidth: 180 }
+  return { maxHeight: 68, maxWidth: 200 }
 }
 
 /**
@@ -86,25 +86,25 @@ export function receiptLogoPrintWidthDots(
 ): number {
   const { maxWidth, maxHeight } = receiptLogoMaxDotsFromChip(paperWidth, chip)
   const pct = Math.min(Math.max(widthPercent, 1), 100)
-  const allowedWidth = Math.max(36, Math.floor((maxWidth * pct) / 100))
+  const allowedWidth = Math.max(48, Math.floor((maxWidth * pct) / 100))
   if (!imageWidth || !imageHeight) {
     return Math.min(allowedWidth, maxHeight)
   }
   const scale = Math.min(1, allowedWidth / imageWidth, maxHeight / imageHeight)
-  return Math.max(36, Math.round(imageWidth * scale))
+  return Math.max(48, Math.round(imageWidth * scale))
 }
 
 /** Native GS ( k module size used for the standard payment QR. */
 export function receiptQrEscPosModuleSize(paperWidth: ThermalPaper, chip?: ReceiptSizeChip): number {
   if (chip) return receiptQrEscPosModuleSizeForEntry(chip)
-  return paperWidth === '80mm' ? 6 : 4
+  return paperWidth === '80mm' ? 6 : 5
 }
 
 /** Native GS ( k module size for a custom template QR block. */
 export function receiptQrEscPosModuleSizeForEntry(size: ReceiptQrSize = 'medium'): number {
   if (size === 'large') return 6
-  if (size === 'small') return 3
-  return 4
+  if (size === 'small') return 4
+  return 5
 }
 
 /**
@@ -121,22 +121,22 @@ export function receiptQrBitmapDots(paperWidth: ThermalPaper, size?: ReceiptQrSi
 
 /** On-screen custom-receipt preview. */
 export function receiptQrPreviewPx(size: ReceiptQrSize = 'medium'): number {
-  if (size === 'large') return 120
-  if (size === 'small') return 85
-  return 100
+  if (size === 'large') return 135
+  if (size === 'small') return 95
+  return 115
 }
 
 /**
  * Mobile-standard HTML payment QR size (UPI / digital bill on thermal HTML).
- * 58mm → 110px, 80mm → 130px.
+ * 58mm → 125px, 80mm → 145px.
  */
 export function receiptStandardQrHtmlPx(paperWidth: ThermalPaper = '58mm'): number {
-  return paperWidth === '80mm' ? 130 : 110
+  return paperWidth === '80mm' ? 145 : 125
 }
 
 /** Custom-template HTML QR by size chip (small / medium / large). */
 export function receiptQrHtmlPx(size: ReceiptQrSize = 'medium'): number {
-  if (size === 'large') return 130
-  if (size === 'small') return 100
-  return 120
+  if (size === 'large') return 145
+  if (size === 'small') return 105
+  return 125
 }

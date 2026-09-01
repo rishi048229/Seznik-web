@@ -1286,7 +1286,7 @@ export default function PrintersScreen() {
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt Logo Size</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 32px · Medium: 56px · Large: 80px</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 44px · Medium: 68px · Large: 88px</Text>
                 </View>
                 <View style={styles.stepperControls}>
                   {(['small', 'medium', 'large'] as const).map((size) => (
@@ -1307,7 +1307,7 @@ export default function PrintersScreen() {
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt QR Code Size</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 80px · Medium: 110px · Large: 140px</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 95px · Medium: 125px · Large: 150px</Text>
                 </View>
                 <View style={styles.stepperControls}>
                   {(['small', 'medium', 'large'] as const).map((size) => (
