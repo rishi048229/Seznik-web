@@ -38,6 +38,9 @@ export function receiptStandardQrHtmlPxFromChip(chip: ReceiptSizeChip = 'medium'
 /** Custom template default — image blocks use 60% of paper width. */
 export const RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT = 60
 
+/** Standard receipt logo uses the full chip max width (matches web receipt.ts ESC/POS). */
+export const RECEIPT_LOGO_STANDARD_WIDTH_PERCENT = 100
+
 /** Typical UPI QR (version 4) plus quiet zone, in modules. */
 const TYPICAL_QR_MODULES = 41
 
@@ -74,6 +77,46 @@ export function receiptLogoHtmlMaxPx(_paperWidth?: ThermalPaper): { maxHeight: n
 }
 
 /**
+ * ESC/POS raster bounds for a logo block — mirrors web tryAppendEscPosLogo /
+ * rasterizeImageForEscPos maxWidth / maxHeight inputs.
+ */
+export function receiptLogoEscPosBounds(
+  paperWidth: ThermalPaper,
+  chip: ReceiptSizeChip = 'medium',
+  widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT
+): { maxWidthDots: number; maxHeightDots: number } {
+  const { maxWidth, maxHeight } = receiptLogoMaxDotsFromChip(paperWidth, chip)
+  const pct = Math.min(Math.max(widthPercent, 1), 100)
+  return {
+    maxWidthDots: Math.max(48, Math.floor((maxWidth * pct) / 100)),
+    maxHeightDots: maxHeight,
+  }
+}
+
+/**
+ * Target printer-dot dimensions after proportional scaling — same math as web
+ * rasterizeImageForEscPos (width aligned to 8 dots for clean 1bpp packing).
+ */
+export function receiptLogoScaledDots(
+  paperWidth: ThermalPaper,
+  widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  imageWidth = 0,
+  imageHeight = 0,
+  chip: ReceiptSizeChip = 'medium'
+): { widthDots: number; heightDots: number } {
+  const { maxWidthDots, maxHeightDots } = receiptLogoEscPosBounds(paperWidth, chip, widthPercent)
+  if (!imageWidth || !imageHeight) {
+    const side = Math.min(maxWidthDots, maxHeightDots)
+    return { widthDots: side, heightDots: side }
+  }
+  const scale = Math.min(1, maxWidthDots / imageWidth, maxHeightDots / imageHeight)
+  let widthDots = Math.max(8, Math.round(imageWidth * scale))
+  widthDots = Math.ceil(widthDots / 8) * 8
+  const heightDots = Math.max(1, Math.round(imageHeight * scale))
+  return { widthDots, heightDots }
+}
+
+/**
  * Width to send to a width-only bitmap API (`printPic`) so the printed logo
  * also respects the height cap and user selected size chip.
  */
@@ -84,14 +127,7 @@ export function receiptLogoPrintWidthDots(
   imageHeight = 0,
   chip: ReceiptSizeChip = 'medium'
 ): number {
-  const { maxWidth, maxHeight } = receiptLogoMaxDotsFromChip(paperWidth, chip)
-  const pct = Math.min(Math.max(widthPercent, 1), 100)
-  const allowedWidth = Math.max(48, Math.floor((maxWidth * pct) / 100))
-  if (!imageWidth || !imageHeight) {
-    return Math.min(allowedWidth, maxHeight)
-  }
-  const scale = Math.min(1, allowedWidth / imageWidth, maxHeight / imageHeight)
-  return Math.max(48, Math.round(imageWidth * scale))
+  return receiptLogoScaledDots(paperWidth, widthPercent, imageWidth, imageHeight, chip).widthDots
 }
 
 /** Native GS ( k module size used for the standard payment QR. */

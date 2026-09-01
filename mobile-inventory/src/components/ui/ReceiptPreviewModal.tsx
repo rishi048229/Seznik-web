@@ -204,6 +204,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       editableSale?.storeGstin,
       editableSale?.storeLogoUrl,
       editableSale?.upiId,
+      receiptLogoSize,
+      receiptQrSize,
     ]
   );
 

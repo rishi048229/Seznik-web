@@ -867,7 +867,7 @@ function loadImageRgbaWeb(
   });
 }
 
-async function loadImageRgba(
+export async function loadImageRgba(
   imageUri: string
 ): Promise<{ pixels: Uint8Array; width: number; height: number } | null> {
   if (Platform.OS === 'web' && typeof document !== 'undefined') {

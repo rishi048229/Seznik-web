@@ -16,7 +16,6 @@ import {
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { resolveThermalPaper } from '@/utils/printerThermal'
 import { printKotSlipSmart } from '@/utils/kotPrint'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
@@ -206,7 +205,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         modifiers: it.modifiers,
       })),
     }
-    const paperSize = resolveThermalPaper(settings?.printerConfig)
+    const paperSize = settings?.printerConfig?.paperSize || '58mm'
     try {
       const via = await printKotSlipSmart(slip, {
         paperSize,
@@ -278,17 +277,14 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       createdAt: String(saleRaw.createdAt ?? new Date().toISOString()),
     }
 
-    const paperSize = resolveThermalPaper(settings?.printerConfig)
+    const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
     const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
 
-    if (useBle && blePrinter) {
+    if (useBle && blePrinter?.status === 'connected') {
       try {
-        if (blePrinter.status !== 'connected') {
-          await blePrinter.connect()
-        }
         const bytes = await generateReceiptEscPos({
           sale,
           receiptConfig,
@@ -302,9 +298,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         toast.success('Receipt printed')
         return
       } catch (err) {
-        console.warn('Bluetooth print failed:', err)
-        toast.error(err instanceof Error ? err.message : 'Bluetooth print failed')
-        return
+        console.warn('Bluetooth print failed, falling back to system print:', err)
       }
     }
 

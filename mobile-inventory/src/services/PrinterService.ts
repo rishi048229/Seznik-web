@@ -1,5 +1,5 @@
 import * as Print from 'expo-print';
-import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, EmitterSubscription, Image } from 'react-native';
+import { NativeModules, NativeEventEmitter, Platform, PermissionsAndroid, EmitterSubscription } from 'react-native';
 import { ReceiptTemplate, getTemplateById, isRestaurantLayout } from '../constants/receiptTemplates';
 import { LabelTemplate, LabelTextElement, LabelBarcodeElement, LabelQrElement } from '../types/labelTemplate';
 import { CustomReceiptTemplate } from '../types/customReceipt';
@@ -17,9 +17,9 @@ import {
 } from '../utils/receiptDiscount';
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  RECEIPT_LOGO_STANDARD_WIDTH_PERCENT,
   receiptLogoHtmlMaxPx,
   receiptLogoHtmlMaxPxFromChip,
-  receiptLogoPrintWidthDots,
   receiptQrBitmapDots,
   receiptQrHtmlPx,
   receiptStandardQrHtmlPx,
@@ -28,6 +28,8 @@ import {
   type ReceiptSizeChip,
 } from '@shared/receiptPrintGeometry';
 import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/receiptLogo';
+import { rasterizeReceiptLogoForPrint, clearLogoRasterCache } from '../utils/receiptLogoRaster';
+import { debugSessionLog } from '../utils/debugSessionLog';
 import { isRestaurantBusiness } from '../constants/businessTypes';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -361,6 +363,7 @@ class ThermalPrinterServiceManager {
   /** Clear the cached bitmap data for logos so updated logos from Web/Mobile are re-processed immediately. */
   public clearLogoCache(): void {
     this.logoBase64Cache.clear();
+    clearLogoRasterCache();
   }
 
   /** Resolves the fallback instead of hanging when a native call never settles its promise. */
@@ -4124,27 +4127,22 @@ class ThermalPrinterServiceManager {
     `;
   }
 
-  private async logoPrintWidthDots(
+  private async prepareLogoForEscPos(
     uri: string | undefined,
     paperWidth: '58mm' | '80mm',
-    widthPercent = RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+    widthPercent: number,
     chip: ReceiptSizeChip = 'medium'
-  ): Promise<number> {
-    let imageWidth = 0
-    let imageHeight = 0
-    const src = String(uri || '').trim()
-    if (src) {
-      try {
-        const size = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-          Image.getSize(src, (width, height) => resolve({ width, height }), reject)
-        })
-        imageWidth = size.width
-        imageHeight = size.height
-      } catch {
-        // Unknown aspect: treat as square so the web height cap still applies.
-      }
-    }
-    return receiptLogoPrintWidthDots(paperWidth, widthPercent, imageWidth, imageHeight, chip)
+  ): Promise<{ base64: string; widthDots: number } | null> {
+    const t0 = Date.now();
+    const prepared = await rasterizeReceiptLogoForPrint(uri, paperWidth, widthPercent, chip);
+    debugSessionLog(
+      'PrinterService.ts:prepareLogo',
+      'prepareLogoForEscPos done',
+      { ms: Date.now() - t0, ok: !!prepared, widthDots: prepared?.widthDots ?? 0, chip, paperWidth, runId: 'post-fix' },
+      'D'
+    );
+    if (!prepared) return null;
+    return { base64: prepared.base64, widthDots: prepared.widthDots };
   }
 
   /**
@@ -4156,11 +4154,24 @@ class ThermalPrinterServiceManager {
     opts: { width: number; center?: boolean; autoCut?: boolean; paperSize?: number }
   ): Promise<void> {
     if (typeof NativeEscposPrinter.printPic !== 'function') return;
+    const t0 = Date.now();
     const result = NativeEscposPrinter.printPic(base64, { autoCut: false, ...opts });
     if (result && typeof result.then === 'function') {
       await result;
+      debugSessionLog(
+        'PrinterService.ts:printPic',
+        'printPic promise resolved',
+        { ms: Date.now() - t0, width: opts.width, path: 'promise' },
+        'E'
+      );
     } else {
       await new Promise((resolve) => setTimeout(resolve, 200));
+      debugSessionLog(
+        'PrinterService.ts:printPic',
+        'printPic fire-and-forget + 200ms wait',
+        { ms: Date.now() - t0, width: opts.width, path: 'fallback200ms' },
+        'E'
+      );
     }
   }
 
@@ -4245,20 +4256,26 @@ class ThermalPrinterServiceManager {
           const scale = effectiveOptions.fontSize === 'large' ? 1 : 0;
           const printOptions = { widthtimes: scale, heigthtimes: scale, cut: false };
 
-          const logoBase64 = saleData.storeLogoUrl ? await this.uriToBase64(saleData.storeLogoUrl) : null;
+          const logoPrepared = saleData.storeLogoUrl
+            ? await this.prepareLogoForEscPos(
+                saleData.storeLogoUrl,
+                effectivePaperWidth,
+                RECEIPT_LOGO_STANDARD_WIDTH_PERCENT,
+                effectiveLogoSize
+              )
+            : null;
           const paperSizeDots = effectivePaperWidth === '80mm' ? 80 : 58;
-          const logoWidthDots = await this.logoPrintWidthDots(
-            saleData.storeLogoUrl,
-            effectivePaperWidth,
-            RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
-            effectiveLogoSize
-          );
           const upiString = this.upiPayPayload(saleData);
 
           for (let i = 0; i < copies; i++) {
             // printPic defaults autoCut:true internally — must pass autoCut:false explicitly.
-            if (logoBase64 && typeof NativeEscposPrinter.printPic === 'function') {
-              await this.printEscPosBitmap(logoBase64, { width: logoWidthDots, center: true, autoCut: false, paperSize: paperSizeDots });
+            if (logoPrepared && typeof NativeEscposPrinter.printPic === 'function') {
+              await this.printEscPosBitmap(logoPrepared.base64, {
+                width: logoPrepared.widthDots,
+                center: true,
+                autoCut: false,
+                paperSize: paperSizeDots,
+              });
             }
 
             await NativeEscposPrinter.printText(textContent, printOptions);
@@ -4348,12 +4365,11 @@ class ThermalPrinterServiceManager {
   ): Promise<boolean> {
     if (!storeLogoUrl || typeof NativeEscposPrinter.printPic !== 'function') return false;
     try {
-      const base64 = await this.uriToBase64(storeLogoUrl);
-      if (!base64) return false;
+      const prepared = await this.prepareLogoForEscPos(storeLogoUrl, paperWidth, widthPercent, chip);
+      if (!prepared) return false;
       const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-      const logoWidthDots = await this.logoPrintWidthDots(storeLogoUrl, paperWidth, widthPercent, chip);
-      await this.printEscPosBitmap(base64, {
-        width: logoWidthDots,
+      await this.printEscPosBitmap(prepared.base64, {
+        width: prepared.widthDots,
         center: true,
         autoCut: false,
         paperSize: paperSizeDots,
@@ -4423,19 +4439,15 @@ class ThermalPrinterServiceManager {
           const uri = resolveReceiptImageSrc(entry, data.storeLogoUrl);
           if (uri && typeof NativeEscposPrinter.printPic === 'function') {
             try {
-              let base64 = await this.uriToBase64(uri);
-              if (!base64 && data.storeLogoUrl && uri !== data.storeLogoUrl) {
-                base64 = await this.uriToBase64(data.storeLogoUrl);
+              const widthPct = entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT;
+              const chip = options.receiptLogoSize || 'medium';
+              let prepared = await this.prepareLogoForEscPos(uri, paperWidth, widthPct, chip);
+              if (!prepared && data.storeLogoUrl && uri !== data.storeLogoUrl) {
+                prepared = await this.prepareLogoForEscPos(data.storeLogoUrl, paperWidth, widthPct, chip);
               }
-              if (base64) {
-                const logoWidthDots = await this.logoPrintWidthDots(
-                  uri,
-                  paperWidth,
-                  entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
-                  options.receiptLogoSize || 'medium'
-                );
-                await this.printEscPosBitmap(base64, {
-                  width: logoWidthDots,
+              if (prepared) {
+                await this.printEscPosBitmap(prepared.base64, {
+                  width: prepared.widthDots,
                   center: entry.align !== 'left',
                   autoCut: false,
                   paperSize: paperSizeDots,
