@@ -1286,20 +1286,23 @@ export default function PrintersScreen() {
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt Logo Size</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 58px · Medium: 88px · Large: 115px</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 32px · Medium: 56px · Large: 80px tall</Text>
                 </View>
                 <View style={styles.stepperControls}>
-                  {(['small', 'medium', 'large'] as const).map((size) => (
-                    <TouchableOpacity
-                      key={size}
-                      onPress={() => setReceiptLogoSizeVal(size)}
-                      style={[styles.widthChip, receiptLogoSizeVal === size && styles.widthChipActive]}
-                    >
-                      <Text style={[styles.widthChipText, receiptLogoSizeVal === size && styles.widthChipTextActive]}>
-                        {size.charAt(0).toUpperCase() + size.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {(['small', 'medium', 'large'] as const).map((size) => {
+                    const label = size === 'small' ? 'Small (32px)' : size === 'medium' ? 'Medium (56px)' : 'Large (80px)';
+                    return (
+                      <TouchableOpacity
+                        key={size}
+                        onPress={() => setReceiptLogoSizeVal(size)}
+                        style={[styles.widthChip, receiptLogoSizeVal === size && styles.widthChipActive]}
+                      >
+                        <Text style={[styles.widthChipText, receiptLogoSizeVal === size && styles.widthChipTextActive]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -1307,20 +1310,23 @@ export default function PrintersScreen() {
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt QR Code Size</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 125px · Medium: 165px · Large: 195px</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Small: 80px · Medium: 110px · Large: 140px</Text>
                 </View>
                 <View style={styles.stepperControls}>
-                  {(['small', 'medium', 'large'] as const).map((size) => (
-                    <TouchableOpacity
-                      key={size}
-                      onPress={() => setReceiptQrSizeVal(size)}
-                      style={[styles.widthChip, receiptQrSizeVal === size && styles.widthChipActive]}
-                    >
-                      <Text style={[styles.widthChipText, receiptQrSizeVal === size && styles.widthChipTextActive]}>
-                        {size.charAt(0).toUpperCase() + size.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {(['small', 'medium', 'large'] as const).map((size) => {
+                    const label = size === 'small' ? 'Small (80px)' : size === 'medium' ? 'Medium (110px)' : 'Large (140px)';
+                    return (
+                      <TouchableOpacity
+                        key={size}
+                        onPress={() => setReceiptQrSizeVal(size)}
+                        style={[styles.widthChip, receiptQrSizeVal === size && styles.widthChipActive]}
+                      >
+                        <Text style={[styles.widthChipText, receiptQrSizeVal === size && styles.widthChipTextActive]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 

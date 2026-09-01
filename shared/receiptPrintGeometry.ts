@@ -20,9 +20,9 @@ export type ReceiptSizeChip = 'small' | 'medium' | 'large'
  * Used by both Web (receipt.ts, customReceiptEngine.ts) and Mobile (PrinterService.ts).
  */
 export function receiptLogoHtmlMaxPxFromChip(chip: ReceiptSizeChip = 'medium'): { maxHeight: number; maxWidth: number } {
-  if (chip === 'small') return { maxHeight: 58, maxWidth: 180 }
-  if (chip === 'large') return { maxHeight: 115, maxWidth: 340 }
-  return { maxHeight: 88, maxWidth: 260 } // medium (default)
+  if (chip === 'small') return { maxHeight: 32, maxWidth: 140 }
+  if (chip === 'large') return { maxHeight: 80, maxWidth: 300 }
+  return { maxHeight: 56, maxWidth: 220 } // medium (default)
 }
 
 /**
@@ -30,9 +30,9 @@ export function receiptLogoHtmlMaxPxFromChip(chip: ReceiptSizeChip = 'medium'): 
  * Used by both Web (receipt.ts, customReceiptEngine.ts) and Mobile (PrinterService.ts).
  */
 export function receiptStandardQrHtmlPxFromChip(chip: ReceiptSizeChip = 'medium'): number {
-  if (chip === 'small') return 125
-  if (chip === 'large') return 195
-  return 165 // medium (default)
+  if (chip === 'small') return 80
+  if (chip === 'large') return 140
+  return 110 // medium (default)
 }
 
 /** Custom template default — image blocks use 60% of paper width. */
@@ -47,18 +47,18 @@ export function receiptLogoMaxDotsFromChip(
 ): { maxWidth: number; maxHeight: number } {
   if (chip === 'small') {
     return paperWidth === '80mm'
-      ? { maxWidth: 340, maxHeight: 95 }
-      : { maxWidth: 230, maxHeight: 72 }
+      ? { maxWidth: 280, maxHeight: 80 }
+      : { maxWidth: 200, maxHeight: 68 }
   }
   if (chip === 'large') {
     return paperWidth === '80mm'
-      ? { maxWidth: 576, maxHeight: 210 }
-      : { maxWidth: 384, maxHeight: 160 }
+      ? { maxWidth: 576, maxHeight: 180 }
+      : { maxWidth: 384, maxHeight: 170 }
   }
   // medium (default)
   return paperWidth === '80mm'
-    ? { maxWidth: 500, maxHeight: 155 }
-    : { maxWidth: 340, maxHeight: 115 }
+    ? { maxWidth: 440, maxHeight: 130 }
+    : { maxWidth: 320, maxHeight: 120 }
 }
 
 export function receiptLogoMaxDots(paperWidth: ThermalPaper): { maxWidth: number; maxHeight: number } {

@@ -107,6 +107,29 @@ export interface PrintSaleData {
   tokenNo?: string;
 }
 
+function numberToIndianWords(amount: number): string {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const toWords = (n: number): string => {
+    if (n === 0) return '';
+    if (n < 20) return ones[n] + ' ';
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '') + ' ';
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred ' + toWords(n % 100);
+    if (n < 100000) return toWords(Math.floor(n / 1000)) + 'Thousand ' + toWords(n % 1000);
+    if (n < 10000000) return toWords(Math.floor(n / 100000)) + 'Lakh ' + toWords(n % 100000);
+    return toWords(Math.floor(n / 10000000)) + 'Crore ' + toWords(n % 10000000);
+  };
+
+  const rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+  let result = toWords(rupees).trim();
+  if (paise > 0) result += ` and ${toWords(paise).trim()} Paise`;
+  return 'Rupees ' + result + ' Only';
+}
+
 /**
  * Kitchen Order Ticket content — deliberately has NO prices/tax/totals anywhere in it. A KOT is
  * what the kitchen reads to cook, not a customer-facing bill, so it prints item names/quantities/
@@ -1426,164 +1449,240 @@ class ThermalPrinterServiceManager {
     }
     const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
     const showItemGst = effectiveShowItemGst(options, showBreakdown);
-    // 58mm paper rolls have a 48mm printable head (384 dots). Standard Font A is 32 cols.
-    // 80mm rolls have a 72mm printable head (576 dots). Standard Font A is 48 cols.
-    const width = paperWidth === '58mm' ? 32 : 48;
-    const divider = template.dividerChar.repeat(width);
-    const doubleDivider = '='.repeat(width);
+    const COLS = paperWidth === '58mm' ? 32 : 48;
 
-    const padLine = (left: string, right: string) => {
-      const leftStr = String(left ?? '');
-      const rightStr = String(right ?? '');
-      const available = width - leftStr.length - rightStr.length;
-      if (available <= 0) {
-        const maxLeft = Math.max(1, width - rightStr.length - 1);
-        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
+    const wrapProse = (text: string, width: number, center = false): string[] => {
+      const trimmed = (text || '').trim();
+      if (!trimmed) return [];
+      const words = trimmed.split(/\s+/);
+      const res: string[] = [];
+      let current = '';
+      for (const w of words) {
+        if (!current) {
+          current = w;
+        } else if (current.length + 1 + w.length <= width) {
+          current += ' ' + w;
+        } else {
+          res.push(center ? centerText(current, width) : current.padEnd(width, ' '));
+          current = w;
+        }
       }
-      return leftStr + ' '.repeat(available) + rightStr;
+      if (current) {
+        res.push(center ? centerText(current, width) : current.padEnd(width, ' '));
+      }
+      return res;
+    };
+
+    const centerText = (str: string, width: number): string => {
+      const trimmed = str.trim();
+      if (!trimmed) return '';
+      if (trimmed.length >= width) return trimmed.slice(0, width);
+      const pad = Math.floor((width - trimmed.length) / 2);
+      return ' '.repeat(pad) + trimmed;
+    };
+
+    const divider = (char: string, width: number): string => char.repeat(width);
+
+    const row = (left: string, right: string, width: number): string => {
+      const l = left || '';
+      const r = right || '';
+      const available = width - l.length - r.length;
+      if (available <= 0) {
+        const maxL = Math.max(1, width - r.length - 1);
+        return l.slice(0, maxL) + ' ' + r;
+      }
+      return l + ' '.repeat(available) + r;
+    };
+
+    const cols = (fields: { text: string; width: number; align: 'L' | 'R' }[], width: number): string => {
+      let out = '';
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i];
+        const t = f.text || '';
+        if (f.align === 'R') {
+          out += t.length >= f.width ? t.slice(0, f.width) : ' '.repeat(f.width - t.length) + t;
+        } else {
+          out += t.length >= f.width ? t.slice(0, f.width) : t + ' '.repeat(f.width - t.length);
+        }
+      }
+      if (out.length < width) out = out.padEnd(width, ' ');
+      return out.slice(0, width);
     };
 
     const lines: string[] = [];
 
-    const wrapAndCenter = (str: string) => {
-      const trimmed = String(str ?? '').trim();
-      if (!trimmed) return;
-      if (trimmed.length <= width) {
-        const padLeft = Math.max(0, Math.floor((width - trimmed.length) / 2));
-        lines.push(' '.repeat(padLeft) + trimmed);
-        return;
-      }
-      // Word-wrap cleanly so long names, taglines, or footers never get clipped at the right margin
-      const words = trimmed.split(' ');
-      let currentLine = '';
-      for (const word of words) {
-        if (!currentLine) {
-          currentLine = word;
-        } else if (currentLine.length + 1 + word.length <= width) {
-          currentLine += ' ' + word;
-        } else {
-          const padLeft = Math.max(0, Math.floor((width - currentLine.length) / 2));
-          lines.push(' '.repeat(padLeft) + currentLine);
-          currentLine = word;
-        }
-      }
-      if (currentLine) {
-        const padLeft = Math.max(0, Math.floor((width - currentLine.length) / 2));
-        lines.push(' '.repeat(padLeft) + currentLine);
-      }
-    };
-
-    // Top margin: blank feed lines before anything prints (see usePrinterStore.topMargin).
+    // Top margin: blank feed lines
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
 
-    // Header — tagline + contact lines
+    // ── 1. HEADER ──
+    let hasHeader = false;
     if (data.storeName) {
-      wrapAndCenter(data.storeName.toUpperCase());
+      lines.push(...wrapProse(data.storeName.toUpperCase(), COLS, true));
+      hasHeader = true;
     }
-    if (template.tagline) wrapAndCenter(template.tagline);
-    if (data.storeAddress) wrapAndCenter(data.storeAddress);
-    if (data.storePhone) wrapAndCenter(`Phone: ${data.storePhone}`);
-    if (showBreakdown && data.storeGstin) wrapAndCenter(`GSTIN: ${data.storeGstin}`);
-    lines.push(divider);
+    if (template.tagline) {
+      lines.push(...wrapProse(template.tagline, COLS, true));
+      hasHeader = true;
+    }
+    if (data.storeAddress) {
+      lines.push(...wrapProse(data.storeAddress, COLS, true));
+      hasHeader = true;
+    }
+    if (data.storePhone) {
+      lines.push(centerText(`Phone: ${data.storePhone}`, COLS));
+      hasHeader = true;
+    }
+    if (showBreakdown && data.storeGstin) {
+      lines.push(centerText(`GSTIN: ${data.storeGstin}`, COLS));
+      hasHeader = true;
+    }
+    if (hasHeader) {
+      lines.push(divider('=', COLS));
+    }
 
-    // Meta / Bill Info
-    lines.push(padLine(`${template.billLabel}: ${data.invoiceNumber}`, data.date));
+    // ── Document Title ──
+    const docTitle = data.storeGstin ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+    lines.push(centerText(docTitle, COLS));
+    lines.push(divider('=', COLS));
+
+    // ── 2. META DETAILS ──
+    lines.push(row('Bill No :', data.invoiceNumber, COLS));
+    lines.push(row('Date    :', data.date, COLS));
     if (template.showCustomerLine && data.customerName) {
-      const custLine = `Customer: ${data.customerName}`;
-      if (custLine.length <= width) {
-        lines.push(custLine);
-      } else {
-        lines.push(custLine.slice(0, width));
+      lines.push(row('Customer:', data.customerName, COLS));
+      if (data.customerPhone) {
+        lines.push(row('Phone   :', data.customerPhone, COLS));
       }
     }
-    lines.push(divider);
+    lines.push(divider('-', COLS));
 
-    // Item Table Header
-    lines.push(padLine(template.itemColumnLeft, template.itemColumnRight));
-    lines.push(divider);
-
-    // Items
-    data.items.forEach((item, idx) => {
-      const namePrefix = `${idx + 1}. `;
-      const rawName = String(item.productName || 'Item');
-      if (namePrefix.length + rawName.length <= width) {
-        lines.push(namePrefix + rawName);
-      } else {
-        const maxFirstLine = Math.max(1, width - namePrefix.length);
-        lines.push(namePrefix + rawName.slice(0, maxFirstLine));
-        const rem = rawName.slice(maxFirstLine);
-        if (rem) {
-          lines.push('   ' + rem.slice(0, Math.max(1, width - 3)));
-        }
-      }
-
-      if (showItemGst && item.gstRate) {
-        lines.push(`   ${item.gstRate.toFixed(2)}% GST`);
-      }
-      lines.push(
-        padLine(
-          `   ${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}`,
-          item.total.toFixed(2)
-        )
+    // ── 3. ITEMS TABLE ──
+    const items = data.items || [];
+    if (COLS >= 48) {
+      // 48-Column One-Line Layout
+      const headerFields: { text: string; width: number; align: 'L' | 'R' }[] = [
+        { text: 'ITEM', width: showItemGst ? 22 : 27, align: 'L' },
+        { text: 'QTY', width: 5, align: 'R' },
+      ];
+      if (showItemGst) headerFields.push({ text: 'GST', width: 5, align: 'R' });
+      headerFields.push(
+        { text: 'RATE', width: 8, align: 'R' },
+        { text: 'AMOUNT', width: 8, align: 'R' }
       );
-      if (shouldShowItemDiscount(item.discount)) {
-        lines.push(`   Disc: -Rs.${item.discount!.toFixed(2)}`);
-      }
-    });
+      lines.push(cols(headerFields, COLS));
+      lines.push(divider('-', COLS));
 
-    lines.push(divider);
+      items.forEach((item, index) => {
+        const lineAmt = item.total;
+        const gstStr = showItemGst && item.gstRate && item.gstRate > 0 ? `${item.gstRate.toFixed(1)}%` : '';
+        const nameWidth = showItemGst ? 22 : 27;
+        const fullName = `${index + 1}. ${item.productName}`;
+        const firstLineName = fullName.slice(0, nameWidth);
 
-    if (showBreakdown) {
-      // Full tax-invoice style breakdown — retail/electronics/jewellery/restaurants.
-      const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
-      const halfTax = data.totalTax / 2;
-      const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
-      const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
+        const rowFields: { text: string; width: number; align: 'L' | 'R' }[] = [
+          { text: firstLineName, width: nameWidth, align: 'L' },
+          { text: item.quantity.toString(), width: 5, align: 'R' },
+        ];
+        if (showItemGst) rowFields.push({ text: gstStr, width: 5, align: 'R' });
+        rowFields.push(
+          { text: item.unitPrice.toFixed(2), width: 8, align: 'R' },
+          { text: lineAmt.toFixed(2), width: 8, align: 'R' }
+        );
+        lines.push(cols(rowFields, COLS));
 
-      lines.push(padLine('Sub Total', `Rs.${data.subtotal.toFixed(2)}`));
-      if (data.totalDiscount > 0) lines.push(padLine('Discount', `-Rs.${data.totalDiscount.toFixed(2)}`));
+        let remainingName = fullName.slice(nameWidth);
+        const padWidth = showItemGst ? 26 : 21;
+        while (remainingName.length > 0) {
+          const chunk = '  ' + remainingName.slice(0, nameWidth - 2);
+          remainingName = remainingName.slice(nameWidth - 2);
+          lines.push(cols([
+            { text: chunk, width: nameWidth, align: 'L' },
+            { text: '', width: padWidth, align: 'L' },
+          ], COLS));
+        }
+      });
+    } else {
+      // 32-Column Two-Line Layout
+      lines.push(row('ITEM', 'AMOUNT', COLS));
+      lines.push(divider('-', COLS));
+
+      items.forEach((item, index) => {
+        const lineAmt = item.total;
+        const gstStr = showItemGst && item.gstRate && item.gstRate > 0 ? `${item.gstRate.toFixed(1)}%` : '';
+        const fullName = `${index + 1}. ${item.productName}`;
+        lines.push(...wrapProse(fullName, COLS, false));
+
+        const qtyRateStr = `${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}`;
+        if (showItemGst && gstStr) {
+          lines.push(cols([
+            { text: '  ', width: 2, align: 'L' },
+            { text: qtyRateStr, width: 16, align: 'L' },
+            { text: gstStr, width: 4, align: 'R' },
+            { text: lineAmt.toFixed(2), width: 10, align: 'R' },
+          ], COLS));
+        } else {
+          lines.push(cols([
+            { text: '  ', width: 2, align: 'L' },
+            { text: qtyRateStr, width: 20, align: 'L' },
+            { text: lineAmt.toFixed(2), width: 10, align: 'R' },
+          ], COLS));
+        }
+      });
+    }
+
+    lines.push(divider('-', COLS));
+
+    // ── 4. TOTALS BLOCK ──
+    lines.push(row('Sub Total', data.subtotal.toFixed(2), COLS));
+    if (data.totalDiscount > 0) {
+      lines.push(row('Discount', `-${data.totalDiscount.toFixed(2)}`, COLS));
+    }
+    if (showBreakdown && data.totalTax > 0) {
       if (data.gstStyle === 'slab_wise' && data.gstSlabs && data.gstSlabs.length > 0) {
         data.gstSlabs.forEach((slab) => {
-          if (slab.gstRate === 0) {
-            lines.push(padLine('Nil / Exempt', `Rs.${slab.taxableValue.toFixed(2)}`));
-            return;
+          if (slab.gstRate > 0) {
+            lines.push(row(`Taxable @ ${slab.gstRate}%`, slab.taxableValue.toFixed(2), COLS));
+            lines.push(row(`  CGST @ ${slab.cgstRate}%`, slab.cgstAmount.toFixed(2), COLS));
+            lines.push(row(`  SGST @ ${slab.sgstRate}%`, slab.sgstAmount.toFixed(2), COLS));
           }
-          lines.push(padLine(`Taxable @ ${slab.gstRate}%`, `Rs.${slab.taxableValue.toFixed(2)}`));
-          lines.push(padLine(`CGST ${slab.cgstRate}%`, `Rs.${slab.cgstAmount.toFixed(2)}`));
-          lines.push(padLine(`SGST ${slab.sgstRate}%`, `Rs.${slab.sgstAmount.toFixed(2)}`));
         });
       } else {
-        lines.push(padLine('Taxable Amt', `Rs.${taxable.toFixed(2)}`));
-        lines.push(padLine('SGST', `Rs.${sgstVal.toFixed(2)}`));
-        lines.push(padLine('CGST', `Rs.${cgstVal.toFixed(2)}`));
+        const taxable = data.taxableAmt !== undefined ? data.taxableAmt : data.subtotal;
+        const halfTax = data.totalTax / 2;
+        const sgstVal = data.sgst !== undefined ? data.sgst : halfTax;
+        const cgstVal = data.cgst !== undefined ? data.cgst : halfTax;
+        lines.push(row('Taxable Value', taxable.toFixed(2), COLS));
+        lines.push(row('  CGST', cgstVal.toFixed(2), COLS));
+        lines.push(row('  SGST', sgstVal.toFixed(2), COLS));
       }
-      const extraCharges = data.billCharges?.filter((c) => c.amount > 0) || [];
-      extraCharges.forEach((charge) => {
-        lines.push(padLine(charge.label, `Rs.${charge.amount.toFixed(2)}`));
-      });
-      lines.push(doubleDivider);
-      lines.push(padLine('Total Amount', `Rs.${data.grandTotal.toFixed(2)}`));
-      const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
-      const balance = data.changeReturned !== undefined ? data.changeReturned : 0;
-      lines.push(padLine('Paid Amount', `Rs.${paid.toFixed(2)}`));
-      lines.push(padLine('Balance', `Rs.${balance.toFixed(2)}`));
-    } else {
-      // Compact style — cafe/bakery/salon/garage/bookstore: just the bottom line, no tax table.
-      if (data.totalDiscount > 0) lines.push(padLine('Discount', `-Rs.${data.totalDiscount.toFixed(2)}`));
-      if (data.totalTax > 0) lines.push(padLine('Tax', `Rs.${data.totalTax.toFixed(2)}`));
-      const extraCharges = data.billCharges?.filter((c) => c.amount > 0) || [];
-      extraCharges.forEach((charge) => {
-        lines.push(padLine(charge.label, `Rs.${charge.amount.toFixed(2)}`));
-      });
-      lines.push(doubleDivider);
-      lines.push(padLine('Grand Total', `Rs.${data.grandTotal.toFixed(2)}`));
+      lines.push(divider('-', COLS));
     }
-    lines.push(divider);
 
-    // Footer
-    wrapAndCenter(template.footerMessage);
-    lines.push('');
-    lines.push('');
+    const extraCharges = data.billCharges?.filter((c) => c.amount > 0) || [];
+    extraCharges.forEach((charge) => {
+      lines.push(row(charge.label, charge.amount.toFixed(2), COLS));
+    });
+
+    lines.push(divider('=', COLS));
+    lines.push(row('GRAND TOTAL', data.grandTotal.toFixed(2), COLS));
+    lines.push(divider('=', COLS));
+
+    // ── 5. SUMMARY STATS & PAYMENT ──
+    const totalQty = items.reduce((sum, it) => sum + it.quantity, 0);
+    lines.push(row(`Items: ${items.length}`, `Total Qty: ${totalQty}`, COLS));
+    const payMethodStr = (data.paymentMethod || 'CASH').toUpperCase();
+    lines.push(row('Payment:', payMethodStr, COLS));
+    lines.push(divider('-', COLS));
+
+    // ── 6. AMOUNT IN WORDS ──
+    const wordsText = numberToIndianWords(data.grandTotal);
+    lines.push(...wrapProse(wordsText, COLS, true));
+    lines.push(divider('-', COLS));
+
+    // ── 7. FOOTER & TERMS ──
+    if (template.footerMessage) {
+      lines.push(...wrapProse(template.footerMessage, COLS, true));
+    }
 
     return lines.join('\n');
   }
@@ -2393,57 +2492,25 @@ class ThermalPrinterServiceManager {
       return this.generateRestaurantBillHtml(data, template, paperWidth, options);
     }
 
-    const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
     const widthPx = paperWidth === '80mm' ? '380px' : '280px';
     const effectivePaperWidth = paperWidth === '80mm' ? '80mm' : '58mm';
     const effectiveLogoSize = options.receiptLogoSize;
     const effectiveQrSize = options.receiptQrSize;
     const widthStyle = `max-width: ${widthPx};`;
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
-    const topMarginPx = (options.topMargin || 0) * 10;
 
-    const paid = data.amountPaid !== undefined ? data.amountPaid : data.grandTotal;
-    const balance = data.changeReturned !== undefined ? data.changeReturned : 0;
-
-    const itemsHtml = data.items
-      .map(
-        (item) => `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          <span>${item.productName}</span>
-          <span class="right">Rs.${item.total.toFixed(2)}</span>
-        </div>
-        <div style="font-size: 0.85em; color: #555; margin-bottom: 4px;">
-          ${item.quantity} ${item.unit || 'Pc'} x Rs.${item.unitPrice.toFixed(2)}
-        </div>`
-      )
-      .join('');
-
-    const totalsHtml = showBreakdown
-      ? (() => {
-          return `
-          <table>
-            <tr><td>Sub Total</td><td class="right">Rs.${data.subtotal.toFixed(2)}</td></tr>
-            ${data.totalDiscount > 0 ? `<tr><td>Discount</td><td class="right">-Rs.${data.totalDiscount.toFixed(2)}</td></tr>` : ''}
-            ${gstTotalsHtml(data)}
-            ${billChargesHtml(data)}
-          </table>
-          <div class="double-divider"></div>
-          <table class="bold">
-            <tr><td>Total Amount</td><td class="right">Rs.${data.grandTotal.toFixed(2)}</td></tr>
-            <tr><td>Paid Amount</td><td class="right">Rs.${paid.toFixed(2)}</td></tr>
-            <tr><td>Balance</td><td class="right">Rs.${balance.toFixed(2)}</td></tr>
-          </table>`;
-        })()
-      : `
-          <table>
-            ${data.totalDiscount > 0 ? `<tr><td>Discount</td><td class="right">-Rs.${data.totalDiscount.toFixed(2)}</td></tr>` : ''}
-            ${data.totalTax > 0 ? `<tr><td>Tax</td><td class="right">Rs.${data.totalTax.toFixed(2)}</td></tr>` : ''}
-            ${billChargesHtml(data)}
-          </table>
-          <div class="double-divider"></div>
-          <table class="bold">
-            <tr><td>Grand Total</td><td class="right">Rs.${data.grandTotal.toFixed(2)}</td></tr>
-          </table>`;
+    const text = this.formatReceiptText(data, paperWidth, options);
+    const textLines = text.split('\n');
+    const logo = receiptLogoHtmlMaxPxFromChip(effectiveLogoSize);
+    const qrDimension = receiptStandardQrHtmlPxFromChip(effectiveQrSize);
+    const upiQrImg = data.upiId ? this.upiPayPayload(data) : '';
+    const upiImgUrl = upiQrImg ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(upiQrImg)}` : '';
+    const { usePrinterStore } = require('../store/usePrinterStore');
+    const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+    const billPdfUrl = buildBillPdfUrl(data);
+    const billQrImg = shouldPrintBillQr && billPdfUrl
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(billPdfUrl)}`
+      : '';
 
     return `
       <!DOCTYPE html>
@@ -2451,70 +2518,38 @@ class ThermalPrinterServiceManager {
         <head>
           <meta charset="utf-8">
           <style>
-            @page { size: ${effectivePaperWidth}; margin: 0; }
+            @page { size: ${effectivePaperWidth} auto; margin: 2mm 1mm 8mm 1mm; }
             * { box-sizing: border-box; }
             body {
               font-family: 'Courier New', Courier, monospace;
               font-size: ${fontSize};
-              line-height: 1.3;
+              line-height: 1.25;
               margin: 0 auto;
-              padding: 10px;
+              padding: 6px;
               width: 100%;
               ${widthStyle}
               color: #000;
               background: #fff;
               box-sizing: border-box;
             }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-bottom: 1px dashed #000; margin: 6px 0; }
-            .double-divider { border-bottom: 2px double #000; margin: 6px 0; }
-            table { width: 100%; border-collapse: collapse; }
           </style>
         </head>
         <body>
-          <div class="center" style="margin-bottom: 6px;">
-            ${
-              data.storeLogoUrl
-                ? (() => {
-                    const logo = receiptLogoHtmlMaxPxFromChip(effectiveLogoSize);
-                    return `<img src="${data.storeLogoUrl}" style="max-height: ${logo.maxHeight}px; max-width: ${logo.maxWidth}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />`;
-                  })()
-                : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: ${template.accentColor}; font-size: 22px; line-height: 1;">${template.emoji}</div>`
-            }
-          </div>
-          ${data.storeName ? `<div class="center bold" style="font-size: 16px;">${data.storeName.toUpperCase()}</div>` : ''}
-          ${template.tagline ? `<div class="center" style="color: ${template.accentColor}; font-weight: bold;">${template.tagline}</div>` : ''}
-          ${data.storeAddress ? `<div class="center">${data.storeAddress}</div>` : ''}
-          ${data.storePhone ? `<div class="center">Phone: ${data.storePhone}</div>` : ''}
-          ${showBreakdown && data.storeGstin ? `<div class="center">GSTIN: ${data.storeGstin}</div>` : ''}
-
-          <div class="divider"></div>
-
-          <div style="display: flex; justify-content: space-between;">
-            <span>${template.billLabel}: ${data.invoiceNumber}</span>
-            <span>${data.date}</span>
-          </div>
-          ${template.showCustomerLine && data.customerName ? `<div>Customer: ${data.customerName}</div>` : ''}
-
-          <div class="divider"></div>
-
-          <div class="bold" style="display: flex; justify-content: space-between;">
-            <span>${template.itemColumnLeft}</span>
-            <span>${template.itemColumnRight}</span>
-          </div>
-          <div style="margin-top: 4px;">${itemsHtml}</div>
-
-          <div class="divider"></div>
-
-          ${totalsHtml}
-
-          <div class="divider"></div>
-
-          ${this.upiQrHtml(data, effectivePaperWidth, effectiveQrSize)}
-
-          ${template.footerMessage ? `<div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>` : ''}
+          ${data.storeLogoUrl ? `
+          <div style="text-align: center; margin-bottom: 6px;">
+            <img src="${data.storeLogoUrl}" style="max-height: ${logo.maxHeight}px; max-width: ${logo.maxWidth}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />
+          </div>` : ''}
+          ${textLines.map((l) => `<div style="white-space: pre; overflow: hidden; width: 100%; font-family: 'Courier New', Courier, monospace;">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
+          ${upiImgUrl ? `
+          <div style="text-align: center; margin-top: 10px; padding: 6px 0; border-top: 1px dashed #000; display: block;">
+            <div style="font-size: 10px; font-weight: 900; margin-bottom: 4px; letter-spacing: 0.5px;">SCAN TO PAY VIA UPI</div>
+            <img src="${upiImgUrl}" alt="Payment QR" style="width: ${qrDimension}px; height: ${qrDimension}px; object-fit: contain; margin: 0 auto; display: block;" />
+          </div>` : ''}
+          ${billQrImg ? `
+          <div style="text-align: center; margin-top: 8px; padding: 4px 0; display: block;">
+            <div style="font-size: 9px; font-weight: 700; margin-bottom: 4px;">Scan QR to View &amp; Download Bill PDF</div>
+            <img src="${billQrImg}" alt="Digital Bill QR" style="width: ${qrDimension}px; height: ${qrDimension}px; object-fit: contain; margin: 0 auto; display: block;" />
+          </div>` : ''}
         </body>
       </html>
     `;
