@@ -55,6 +55,8 @@ export default function QuickBillScreen() {
     autoCut,
     fontSize,
     printCopies,
+    receiptLogoSize,
+    receiptQrSize,
   } = usePrinterStore();
 
   const [quickBillItems, setQuickBillItems] = useState<QuickBillRow[]>([
@@ -142,6 +144,8 @@ export default function QuickBillScreen() {
       storeLogoUrl: settings?.businessLogoURL || storeProfile.storeLogoUrl,
       upiId: settings?.upiId || storeProfile.upiId,
       footerMessage: storeProfile.footerMessage,
+      receiptLogoSize,
+      receiptQrSize,
     });
 
     resetForm();

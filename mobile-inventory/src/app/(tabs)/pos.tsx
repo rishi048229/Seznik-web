@@ -121,6 +121,8 @@ function PosScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    receiptLogoSize,
+    receiptQrSize,
   } = usePrinterStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -558,6 +560,8 @@ function PosScreen() {
           storeLogoUrl: printData.storeLogoUrl,
           upiId: printData.upiId,
           footerMessage: printData.footerMessage,
+          receiptLogoSize,
+          receiptQrSize,
           ...(gstPrintOptionOverrides(gstBilling)),
         })
       );

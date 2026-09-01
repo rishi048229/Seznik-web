@@ -2449,14 +2449,16 @@ class ThermalPrinterServiceManager {
             @page { margin: 0; size: auto; }
             * { box-sizing: border-box; }
             body {
-              width: ${widthPx};
-              margin: ${topMarginPx}px auto 0 auto;
-              padding-left: 16px;
-              padding-right: 16px;
-              padding-top: 10px;
-              padding-bottom: 10px;
+            @page { size: ${effectivePaperWidth}; margin: 0; }
+            * { box-sizing: border-box; }
+            body {
               font-family: 'Courier New', Courier, monospace;
               font-size: ${fontSize};
+              line-height: 1.3;
+              margin: 0 auto;
+              padding: 10px;
+              width: 100%;
+              ${widthStyle}
               color: #000;
               background: #fff;
               box-sizing: border-box;
@@ -2474,7 +2476,7 @@ class ThermalPrinterServiceManager {
             ${
               data.storeLogoUrl
                 ? (() => {
-                    const logo = receiptLogoHtmlMaxPxFromChip(options?.receiptLogoSize);
+                    const logo = receiptLogoHtmlMaxPxFromChip(effectiveLogoSize);
                     return `<img src="${data.storeLogoUrl}" style="max-height: ${logo.maxHeight}px; max-width: ${logo.maxWidth}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />`;
                   })()
                 : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: ${template.accentColor}; font-size: 22px; line-height: 1;">${template.emoji}</div>`
@@ -2508,7 +2510,7 @@ class ThermalPrinterServiceManager {
 
           <div class="divider"></div>
 
-          ${this.upiQrHtml(data, paperWidth, options?.receiptQrSize)}
+          ${this.upiQrHtml(data, effectivePaperWidth, effectiveQrSize)}
 
           <div class="center" style="margin-top: 8px; font-weight: bold; color: ${template.accentColor};">${template.footerMessage}</div>
         </body>
@@ -4113,17 +4115,40 @@ class ThermalPrinterServiceManager {
    * Prints `options.copies` times sequentially (default 1) — e.g. customer + merchant copy.
    */
   public async printReceipt(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
+    const printerState = require('../store/usePrinterStore').usePrinterStore.getState();
+    const effectiveLogoSize: ReceiptSizeChip =
+      options.receiptLogoSize || printerState.receiptLogoSize || 'medium';
+    const effectiveQrSize: ReceiptSizeChip =
+      options.receiptQrSize || printerState.receiptQrSize || 'medium';
+    const effectiveFontSize =
+      options.fontSize || printerState.fontSize || 'medium';
+    const effectiveTopMargin =
+      options.topMargin !== undefined ? options.topMargin : printerState.topMargin || 0;
+    const effectiveAutoCut =
+      options.autoCut !== undefined ? options.autoCut : printerState.autoCut;
+    const effectiveCopies = Math.max(1, options.copies || printerState.printCopies || 1);
+    const effectivePaperWidth = paperWidth || printerState.paperWidth || '58mm';
 
-    const copies = Math.max(1, options.copies || 1);
+    const effectiveOptions: ReceiptPrintOptions = {
+      ...options,
+      receiptLogoSize: effectiveLogoSize,
+      receiptQrSize: effectiveQrSize,
+      fontSize: effectiveFontSize,
+      topMargin: effectiveTopMargin,
+      autoCut: effectiveAutoCut,
+      copies: effectiveCopies,
+    };
+
+    const copies = effectiveCopies;
     const saleData: PrintSaleData = {
       ...data,
-      storeLogoUrl: data.storeLogoUrl || options.storeLogoUrl,
-      footerMessage: data.footerMessage || options.footerMessage,
-      upiId: data.upiId || options.upiId,
-      storeName: data.storeName || options.storeName,
-      storeAddress: data.storeAddress || options.storeAddress,
-      storePhone: data.storePhone || options.storePhone,
-      storeGstin: data.storeGstin || options.storeGstin,
+      storeLogoUrl: data.storeLogoUrl || effectiveOptions.storeLogoUrl,
+      footerMessage: data.footerMessage || effectiveOptions.footerMessage,
+      upiId: data.upiId || effectiveOptions.upiId,
+      storeName: data.storeName || effectiveOptions.storeName,
+      storeAddress: data.storeAddress || effectiveOptions.storeAddress,
+      storePhone: data.storePhone || effectiveOptions.storePhone,
+      storeGstin: data.storeGstin || effectiveOptions.storeGstin,
     };
 
     try {
@@ -4134,12 +4159,12 @@ class ThermalPrinterServiceManager {
 
         try {
           // Reset printer state before every job to prevent tilted/shifted output
-          await this.initPrinter(paperWidth);
+          await this.initPrinter(effectivePaperWidth);
 
-          const customTemplate = this.resolveActiveCustomTemplate(options);
+          const customTemplate = this.resolveActiveCustomTemplate(effectiveOptions);
           if (customTemplate) {
             for (let i = 0; i < copies; i++) {
-              await this.printCustomReceiptEscpos(saleData, customTemplate, paperWidth, options);
+              await this.printCustomReceiptEscpos(saleData, customTemplate, effectivePaperWidth, effectiveOptions);
             }
             return true;
           }
@@ -4147,17 +4172,17 @@ class ThermalPrinterServiceManager {
           // sanitizeForThermalPrint strips/normalizes anything the GBK-default native printText()
           // can't render (emoji, em/en dashes, curly quotes, ...) — without this, free-text fields
           // like footerMessage (e.g. "...stopping by — see you tomorrow!") print as garbled bytes.
-          const textContent = this.sanitizeForThermalPrint(this.formatReceiptText(saleData, paperWidth, options));
-          const scale = options.fontSize === 'large' ? 1 : 0;
+          const textContent = this.sanitizeForThermalPrint(this.formatReceiptText(saleData, effectivePaperWidth, effectiveOptions));
+          const scale = effectiveOptions.fontSize === 'large' ? 1 : 0;
           const printOptions = { widthtimes: scale, heigthtimes: scale, cut: false };
 
           const logoBase64 = saleData.storeLogoUrl ? await this.uriToBase64(saleData.storeLogoUrl) : null;
-          const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
+          const paperSizeDots = effectivePaperWidth === '80mm' ? 80 : 58;
           const logoWidthDots = await this.logoPrintWidthDots(
             saleData.storeLogoUrl,
-            paperWidth,
+            effectivePaperWidth,
             RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
-            options.receiptLogoSize || 'medium'
+            effectiveLogoSize
           );
           const upiString = this.upiPayPayload(saleData);
 
@@ -4181,7 +4206,7 @@ class ThermalPrinterServiceManager {
                   heigthtimes: 0,
                   cut: false,
                 });
-                await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(paperWidth, options.receiptQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(effectivePaperWidth, effectiveQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
                 }
