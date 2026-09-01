@@ -1264,6 +1264,8 @@ export const PrintersPage = () => {
                   settings={settings}
                   showLogo={!!config.showLogo}
                   cutPaper={false}
+                  activeTemplate={activeCustomTemplate}
+                  isRestaurant={isRestaurant}
                 />
               </Section>
             </div>

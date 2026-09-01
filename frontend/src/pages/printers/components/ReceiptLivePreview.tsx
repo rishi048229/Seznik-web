@@ -3,6 +3,10 @@ import { Scissors } from 'lucide-react'
 import { compileReceiptTextLines, getCols } from '@/utils/receiptEngine'
 import { getUpiQrImageUrl } from '@/utils/upiQr'
 import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
+import type { CustomReceiptTemplate } from '@/types/customReceipt'
+import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
+import { CustomReceiptPreview } from '../receipt-builder/CustomReceiptPreview'
+import type { ReceiptPrintContext } from '@/utils/customReceiptEngine'
 import { receiptLogoHtmlMaxPxFromChip, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
 
 interface ReceiptLivePreviewProps {
@@ -11,25 +15,8 @@ interface ReceiptLivePreviewProps {
   settings?: UserSettings | null
   showLogo: boolean
   cutPaper: boolean
-}
-
-const SAMPLE_SALE = {
-  id: 'preview-1',
-  invoiceNumber: 'INV/2026/00142',
-  items: [
-    { productId: 'p1', productName: 'Wireless Keyboard', quantity: 1, sellingPrice: 1499, discount: 0, taxRate: 18, taxAmount: 228.66, total: 1499 },
-    { productId: 'p2', productName: 'Optical Mouse Pro', quantity: 2, sellingPrice: 600, discount: 0, taxRate: 18, taxAmount: 183.05, total: 1200 },
-    { productId: 'p3', productName: 'Fresh Milk 1L', quantity: 2, sellingPrice: 30, discount: 0, taxRate: 0, taxAmount: 0, total: 60 },
-  ],
-  subtotal: 2759,
-  totalDiscount: 0,
-  totalTax: 411.71,
-  grandTotal: 2759,
-  paymentMethod: 'cash' as const,
-  amountPaid: 2759,
-  changeReturned: 0,
-  isQuickBill: false,
-  createdAt: new Date().toISOString(),
+  activeTemplate?: CustomReceiptTemplate | null
+  isRestaurant?: boolean
 }
 
 export const ReceiptLivePreview = ({
@@ -38,26 +25,99 @@ export const ReceiptLivePreview = ({
   settings,
   showLogo,
   cutPaper,
+  activeTemplate,
+  isRestaurant = false,
 }: ReceiptLivePreviewProps) => {
   const cols = getCols(paperSize)
   const stageRef = useRef<HTMLDivElement>(null)
   const slipRef = useRef<HTMLDivElement>(null)
   const [metrics, setMetrics] = useState({ scale: 1, height: 0 })
 
+  const isRest = isRestaurant || isRestaurantReceiptTemplate(activeTemplate ?? undefined)
+
+  const previewContext: ReceiptPrintContext = useMemo(() => {
+    const items = isRest
+      ? [
+          { productName: 'Butter Chicken', quantity: 1, unitPrice: 380, total: 380, gstRate: 5 },
+          { productName: 'Garlic Naan', quantity: 3, unitPrice: 60, total: 180, gstRate: 5 },
+          { productName: 'Fresh Lime Soda', quantity: 2, unitPrice: 70, total: 140, gstRate: 5 },
+        ]
+      : [
+          { productName: 'Wireless Keyboard', quantity: 1, unitPrice: 1499, total: 1499, gstRate: 18 },
+          { productName: 'Optical Mouse Pro', quantity: 2, unitPrice: 600, total: 1200, gstRate: 18 },
+          { productName: 'Fresh Milk 1L', quantity: 2, unitPrice: 30, total: 60, gstRate: 0 },
+        ]
+    const subtotal = items.reduce((s, it) => s + it.total, 0)
+    const totalTax = isRest ? 35 : 411.71
+    const grandTotal = subtotal + (isRest ? totalTax : 0)
+
+    return {
+      storeName: receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE',
+      storeAddress: receiptConfig.address || settings?.businessAddress || '',
+      storePhone: receiptConfig.phone || settings?.businessPhone || '',
+      storeGstin: receiptConfig.gstin || settings?.businessGSTIN || '',
+      storeLogoUrl: showLogo ? (receiptConfig.logoURL || settings?.businessLogoURL || '') : undefined,
+      upiId: receiptConfig.upiId || settings?.upiId,
+      invoiceNumber: 'INV/2026/00142',
+      date: new Date().toLocaleDateString('en-GB'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      customerName: '',
+      customerPhone: '',
+      items,
+      subtotal,
+      totalDiscount: 0,
+      totalTax,
+      grandTotal,
+      amountPaid: grandTotal,
+      changeReturned: 0,
+      paymentMethod: 'CASH',
+      footerMessage: receiptConfig.footerMessage || (isRest ? 'Thank you! Visit again.' : 'Thank you for your purchase!'),
+      tableNo: isRest ? 'T-4' : undefined,
+      waiterName: isRest ? 'Raj' : undefined,
+    }
+  }, [receiptConfig, settings, showLogo, isRest])
+
+  const sampleSale = useMemo(() => {
+    return {
+      id: 'preview-1',
+      invoiceNumber: 'INV/2026/00142',
+      items: previewContext.items.map((it, idx) => ({
+        productId: `p${idx + 1}`,
+        productName: it.productName,
+        quantity: it.quantity,
+        sellingPrice: it.unitPrice,
+        discount: 0,
+        taxRate: it.gstRate || 0,
+        taxAmount: (it.total * (it.gstRate || 0)) / 100,
+        total: it.total,
+      })),
+      subtotal: previewContext.subtotal,
+      totalDiscount: 0,
+      totalTax: previewContext.totalTax,
+      grandTotal: previewContext.grandTotal,
+      paymentMethod: 'cash' as const,
+      amountPaid: previewContext.amountPaid || previewContext.grandTotal,
+      changeReturned: 0,
+      isQuickBill: false,
+      createdAt: new Date().toISOString(),
+    }
+  }, [previewContext])
+
   const lines = useMemo(
     () =>
       compileReceiptTextLines({
-        sale: SAMPLE_SALE,
+        sale: sampleSale,
         receiptConfig,
-        businessName: receiptConfig.companyName || settings?.businessName || '',
-        businessAddress: receiptConfig.address || settings?.businessAddress || '',
-        businessPhone: receiptConfig.phone || settings?.businessPhone || '',
-        businessGSTIN: receiptConfig.gstin || settings?.businessGSTIN || '',
+        businessName: previewContext.storeName,
+        businessAddress: previewContext.storeAddress,
+        businessPhone: previewContext.storePhone,
+        businessGSTIN: previewContext.storeGstin,
         customerName: '',
         customerPhone: '',
         paperSize,
+        isRestaurant: isRest,
       }),
-    [receiptConfig, settings, paperSize]
+    [sampleSale, receiptConfig, previewContext, paperSize, isRest]
   )
 
   useLayoutEffect(() => {
@@ -78,7 +138,7 @@ export const ReceiptLivePreview = ({
     ro.observe(stage)
     ro.observe(slip)
     return () => ro.disconnect()
-  }, [lines, paperSize, showLogo, receiptConfig.showPaymentQR, receiptConfig.upiId, receiptConfig.paymentQrURL, receiptConfig.logoURL, settings?.businessLogoURL, cutPaper])
+  }, [lines, paperSize, showLogo, receiptConfig.showPaymentQR, receiptConfig.upiId, receiptConfig.paymentQrURL, receiptConfig.logoURL, settings?.businessLogoURL, cutPaper, activeTemplate])
 
   const showQr = !!(receiptConfig.showPaymentQR && (receiptConfig.upiId || receiptConfig.paymentQrURL))
   const logoSrc = receiptConfig.logoURL || settings?.businessLogoURL || ''
@@ -98,63 +158,69 @@ export const ReceiptLivePreview = ({
             }}
           >
             <div ref={slipRef} className="flex flex-col items-stretch" style={{ width: `calc(${cols}ch + 1.25rem)` }}>
-              <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">
-                {showLogo && logoSrc && (
-                  <div className="flex justify-center px-2 pt-2.5 pb-2 border-b border-dashed border-gray-300">
-                    <img
-                      src={logoSrc}
-                      alt="Store Logo"
-                      className="object-contain"
-                      style={{
-                        maxHeight: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxHeight}px`,
-                        maxWidth: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxWidth}px`,
-                      }}
-                    />
-                  </div>
-                )}
-                <pre
-                  className="m-0 py-2 whitespace-pre text-gray-900 overflow-hidden"
-                  style={{
-                    width: `${cols}ch`,
-                    marginLeft: 'auto',
-                    marginRight: 'auto',
-                    fontSize: paperSize === '80mm' ? '12px' : '11px',
-                    lineHeight: 1.35,
-                    fontVariantNumeric: 'tabular-nums',
-                    fontFamily: '"Courier New", Courier, ui-monospace, monospace',
-                  }}
-                >
-                  {lines.join('\n')}
-                </pre>
-                {showQr && (
-                  <div className="px-2 pb-2 pt-2 border-t border-dashed border-gray-300 text-center flex flex-col items-center">
-                    <span className="text-[9px] font-bold tracking-wider text-gray-800 mb-1">
-                      SCAN TO PAY VIA UPI
-                    </span>
-                    <img
-                      src={
-                        receiptConfig.upiId
-                          ? getUpiQrImageUrl(
-                              {
-                                upiId: receiptConfig.upiId,
-                                payeeName: settings?.businessName || 'SEZNIK POS STORE',
-                                amount: 2759,
-                                note: 'INV/2026/00142',
-                              },
-                              140
-                            )
-                          : receiptConfig.paymentQrURL
-                      }
-                      alt="Payment QR Code"
-                      style={{
-                        width: `${receiptStandardQrHtmlPxFromChip(receiptConfig.receiptQrSize)}px`,
-                        height: `${receiptStandardQrHtmlPxFromChip(receiptConfig.receiptQrSize)}px`,
-                      }}
-                      className="object-contain border border-gray-200 rounded p-1 bg-white"
-                    />
-                  </div>
-                )}
-              </div>
+              {activeTemplate ? (
+                <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden p-2">
+                  <CustomReceiptPreview template={activeTemplate} context={previewContext} />
+                </div>
+              ) : (
+                <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">
+                  {showLogo && logoSrc && (
+                    <div className="flex justify-center px-2 pt-2.5 pb-2 border-b border-dashed border-gray-300">
+                      <img
+                        src={logoSrc}
+                        alt="Store Logo"
+                        className="object-contain"
+                        style={{
+                          maxHeight: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxHeight}px`,
+                          maxWidth: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxWidth}px`,
+                        }}
+                      />
+                    </div>
+                  )}
+                  <pre
+                    className="m-0 py-2 whitespace-pre text-gray-900 overflow-hidden"
+                    style={{
+                      width: `${cols}ch`,
+                      marginLeft: 'auto',
+                      marginRight: 'auto',
+                      fontSize: paperSize === '80mm' ? '12px' : '11px',
+                      lineHeight: 1.35,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontFamily: '"Courier New", Courier, ui-monospace, monospace',
+                    }}
+                  >
+                    {lines.join('\n')}
+                  </pre>
+                  {showQr && (
+                    <div className="px-2 pb-2 pt-2 border-t border-dashed border-gray-300 text-center flex flex-col items-center">
+                      <span className="text-[9px] font-bold tracking-wider text-gray-800 mb-1">
+                        SCAN TO PAY VIA UPI
+                      </span>
+                      <img
+                        src={
+                          receiptConfig.upiId
+                            ? getUpiQrImageUrl(
+                                {
+                                  upiId: receiptConfig.upiId,
+                                  payeeName: settings?.businessName || 'SEZNIK POS STORE',
+                                  amount: 2759,
+                                  note: 'INV/2026/00142',
+                                },
+                                140
+                              )
+                            : receiptConfig.paymentQrURL
+                        }
+                        alt="Payment QR Code"
+                        style={{
+                          width: `${receiptStandardQrHtmlPxFromChip(receiptConfig.receiptQrSize)}px`,
+                          height: `${receiptStandardQrHtmlPxFromChip(receiptConfig.receiptQrSize)}px`,
+                        }}
+                        className="object-contain border border-gray-200 rounded p-1 bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
               <div
                 className="h-3 w-full bg-white shrink-0"
                 style={{
