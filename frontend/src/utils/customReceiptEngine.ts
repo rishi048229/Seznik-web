@@ -6,6 +6,7 @@ import { gstSummaryFromCart } from './gst'
 import { buildUpiPayLink, isValidUpiVpa } from './upiQr'
 import { EscPosBuilder, rasterizeImageForEscPos, type EscPosAlign } from './escpos'
 import { resolveActiveFromTemplates } from './ensureReceiptTemplates'
+import { isRestaurantReceiptTemplate } from './restaurantReceiptTemplate'
 import { isReceiptEntryEnabled, isBrowserLoadableImageSrc, prefetchPrintableLogoSrc, resolveReceiptImageSrc } from './receiptLogo'
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
@@ -244,6 +245,14 @@ export function isCompactItemsTable(entry: CustomReceiptEntry): entry is TableRe
   return entry.type === 'table' && entry.tableType === 'advanced'
 }
 
+/** Word-wrap long dish names for restaurant/cafe bills and the restaurant receipt template. */
+export function resolveCompactTableWrap(
+  opts?: CustomReceiptGstOpts,
+  template?: Pick<CustomReceiptTemplate, 'id' | 'name'> | null
+): boolean {
+  return opts?.isRestaurant === true || isRestaurantReceiptTemplate(template ?? undefined)
+}
+
 type TableReceiptEntry = Extract<CustomReceiptEntry, { type: 'table' }>
 
 function padColLeft(str: string, len: number): string {
@@ -266,8 +275,99 @@ function formatCompactQty(qty: number): string {
 function compactItemLine(name: string, qty: string, amount: string, width: number): string {
   const amt = padColLeft(amount, 8)
   const qtyCol = padColLeft(qty, 4)
-  const nameWidth = Math.max(8, width - amt.length - qtyCol.length - 2)
+  const nameWidth = compactTableNameWidth(width)
   return `${padColRight(name.toUpperCase(), nameWidth)} ${qtyCol} ${amt}`.slice(0, width)
+}
+
+/** Name column width for compact ITEM | QTY | AMT rows (58mm ≈ 18 chars). */
+export function compactTableNameWidth(width: number): number {
+  const amtWidth = 8
+  const qtyWidth = 4
+  return Math.max(8, width - amtWidth - qtyWidth - 2)
+}
+
+/** Word-boundary wrap for compact table name column — never splits mid-word. */
+export function wrapCompactTableName(name: string, nameWidth: number): string[] {
+  const words = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return ['']
+
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (candidate.length <= nameWidth) {
+      current = candidate
+    } else {
+      if (current) lines.push(current)
+      current = word
+    }
+  }
+  if (current) lines.push(current)
+  return lines
+}
+
+/** Hybrid compact item: single line when short; wrapped name + aligned qty/amt when long (restaurant/cafe only). */
+export function renderCompactTableItemLines(
+  item: ReceiptPrintContext['items'][number],
+  width: number,
+  wrapNames?: boolean
+): string[] {
+  const name = String(item.productName || 'ITEM').toUpperCase()
+  const qty = formatCompactQty(item.quantity)
+  const amount = thermalAmount(item.total)
+  const nameWidth = compactTableNameWidth(width)
+
+  if (!wrapNames || name.length <= nameWidth) {
+    return [compactItemLine(name, qty, amount, width)]
+  }
+
+  const nameLines = wrapCompactTableName(name, nameWidth)
+  const output = [compactItemLine(nameLines[0]!, qty, amount, width)]
+  for (let i = 1; i < nameLines.length; i++) {
+    output.push(nameLines[i]!)
+  }
+  return output
+}
+
+function renderCompactTableItemHtml(
+  item: ReceiptPrintContext['items'][number],
+  fontSize: string,
+  width: number,
+  wrapNames?: boolean
+): string {
+  const name = String(item.productName || 'ITEM').toUpperCase()
+  const qty = formatCompactQty(item.quantity)
+  const amount = thermalAmount(item.total)
+  const nameWidth = compactTableNameWidth(width)
+
+  if (!wrapNames || name.length <= nameWidth) {
+    return `<div style="display:flex;justify-content:space-between;font-size:${fontSize};margin-bottom:2px;"><span style="flex:1;font-weight:700;${wrapNames ? '' : 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}">${escapeHtmlText(name)}</span><span style="width:28px;text-align:right;flex-shrink:0;">${escapeHtmlText(qty)}</span><span style="width:52px;text-align:right;font-weight:700;flex-shrink:0;">${escapeHtmlText(amount)}</span></div>`
+  }
+
+  const nameLines = wrapCompactTableName(name, nameWidth)
+  const continuation = nameLines
+    .slice(1)
+    .map(
+      (line) =>
+        `<div style="font-size:${fontSize};font-weight:700;line-height:1.25;">${escapeHtmlText(line)}</div>`
+    )
+    .join('')
+  return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:${fontSize};"><span style="flex:1;font-weight:700;line-height:1.25;">${escapeHtmlText(nameLines[0]!)}</span><span style="width:28px;text-align:right;flex-shrink:0;line-height:1.25;">${escapeHtmlText(qty)}</span><span style="width:52px;text-align:right;font-weight:700;flex-shrink:0;line-height:1.25;">${escapeHtmlText(amount)}</span></div>${continuation}</div>`
+}
+
+function appendCompactTableItemLines(
+  target: string[],
+  item: ReceiptPrintContext['items'][number],
+  width: number,
+  wrapNames: boolean,
+  addLeadingGap: boolean
+): void {
+  if (addLeadingGap) target.push('')
+  target.push(...renderCompactTableItemLines(item, width, wrapNames))
 }
 
 function renderCompactTableHeader(entry: TableReceiptEntry, width: number): string {
@@ -399,6 +499,7 @@ export function compileCustomReceiptTextLines(
   const width = getCols(paperSize)
   const lines: string[] = []
   const globalItemWiseGst = opts?.itemWiseGst
+  const wrapCompactNames = resolveCompactTableWrap(opts, template)
 
   const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
     const trimmed = str.trim()
@@ -458,15 +559,8 @@ export function compileCustomReceiptTextLines(
         if (isCompactItemsTable(entry)) {
           lines.push(renderCompactTableHeader(entry, width))
           lines.push('-'.repeat(width))
-          data.items.forEach((item) => {
-            lines.push(
-              compactItemLine(
-                item.productName || 'ITEM',
-                formatCompactQty(item.quantity),
-                thermalAmount(item.total),
-                width
-              )
-            )
+          data.items.forEach((item, idx) => {
+            appendCompactTableItemLines(lines, item, width, wrapCompactNames, wrapCompactNames && idx > 0)
           })
           break
         }
@@ -537,6 +631,7 @@ export function compileCustomReceiptHtml(
     isRestaurant: opts?.isRestaurant,
   }
   const cols = getCols(paperSize)
+  const wrapCompactNames = resolveCompactTableWrap(opts, template)
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
   const hasEnabledImageBlock = enabledEntries.some((e) => e.type === 'image')
   const parts: string[] = []
@@ -595,10 +690,7 @@ export function compileCustomReceiptHtml(
         const totalCol = entry.columnHeaders?.total || 'AMT'
         const header = `<div style="display:flex;justify-content:space-between;font-weight:700;font-size:${smallFS};border-bottom:1px dashed #000;padding-bottom:2px;margin-bottom:2px;"><span style="flex:1;">${escapeHtmlText(itemCol)}</span><span style="width:28px;text-align:right;">${escapeHtmlText(qtyCol)}</span><span style="width:52px;text-align:right;">${escapeHtmlText(totalCol)}</span></div>`
         const rows = data.items
-          .map(
-            (item) =>
-              `<div style="display:flex;justify-content:space-between;font-size:${smallFS};margin-bottom:2px;"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlText(String(item.productName || 'ITEM').toUpperCase())}</span><span style="width:28px;text-align:right;">${escapeHtmlText(formatCompactQty(item.quantity))}</span><span style="width:52px;text-align:right;font-weight:700;">${escapeHtmlText(thermalAmount(item.total))}</span></div>`
-          )
+          .map((item) => renderCompactTableItemHtml(item, smallFS, cols, wrapCompactNames))
           .join('')
         parts.push(`<div style="width:100%;">${header}${rows}</div>`)
         continue
@@ -720,6 +812,7 @@ export async function appendCustomTemplateToEscPos(
   const width = getCols(paperSize)
   const showLogo = opts?.showLogo ?? true
   const globalItemWiseGst = opts?.itemWiseGst
+  const wrapCompactNames = resolveCompactTableWrap(opts, template)
   const gstOpts: CustomReceiptGstOpts = {
     itemWiseGst: opts?.itemWiseGst,
     gstStyle: opts?.gstStyle,
@@ -822,15 +915,9 @@ export async function appendCustomTemplateToEscPos(
         if (isCompactItemsTable(entry)) {
           b.line(renderCompactTableHeader(entry, width))
           b.hr(width, '-')
-          data.items.forEach((item) => {
-            b.line(
-              compactItemLine(
-                item.productName || 'ITEM',
-                formatCompactQty(item.quantity),
-                thermalAmount(item.total),
-                width
-              )
-            )
+          data.items.forEach((item, idx) => {
+            if (wrapCompactNames && idx > 0) b.line('')
+            renderCompactTableItemLines(item, width, wrapCompactNames).forEach((line) => b.line(line))
           })
           break
         }

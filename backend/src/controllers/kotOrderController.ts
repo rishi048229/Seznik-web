@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
@@ -422,7 +423,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
 export const generateBill = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const id = String(req.params.id);
     const {
       paymentMethod = 'cash',
@@ -448,117 +449,178 @@ export const generateBill = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Order is already billed' });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Generate sequential Invoice Number
-      const count = await tx.sale.count({ where: { userId } });
-      const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
+    const billableItems = order.items.filter((it) => it.status !== 'voided');
+    if (billableItems.length === 0) {
+      return res.status(400).json({ error: 'No billable items on this order' });
+    }
 
-      // 2. Compute totals for active non-voided items only
-      const billableItems = order.items.filter((it) => it.status !== 'voided');
-      const subtotal = billableItems.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-      const itemTax = billableItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
-      const overrideTaxRate = taxRate !== undefined && taxRate !== null && taxRate !== '' ? Number(taxRate) : null;
-      const totalTax =
-        overrideTaxRate !== null && !Number.isNaN(overrideTaxRate)
-          ? (subtotal * overrideTaxRate) / 100
-          : itemTax;
-      const service = Math.max(0, Number(serviceCharge) || 0);
-      const room = Math.max(0, Number(roomCharge) || 0);
-      const totalDiscount = Number(discount) || 0;
-      const grandTotal = Math.max(0, subtotal + totalTax + service + room - totalDiscount);
-      const paid = amountPaid !== undefined ? Number(amountPaid) : grandTotal;
-      const change = Math.max(0, paid - grandTotal);
-      const resolvedCustomerId = customerId || order.customerId || null;
+    const subtotal = billableItems.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+    const itemTax = billableItems.reduce(
+      (acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100,
+      0
+    );
+    const overrideTaxRate = taxRate !== undefined && taxRate !== null && taxRate !== '' ? Number(taxRate) : null;
+    const totalTax =
+      overrideTaxRate !== null && !Number.isNaN(overrideTaxRate)
+        ? (subtotal * overrideTaxRate) / 100
+        : itemTax;
+    const service = Math.max(0, Number(serviceCharge) || 0);
+    const room = Math.max(0, Number(roomCharge) || 0);
+    const totalDiscount = Number(discount) || 0;
+    const grandTotal = Math.max(0, subtotal + totalTax + service + room - totalDiscount);
+    const paid = amountPaid !== undefined ? Number(amountPaid) : grandTotal;
+    const change = Math.max(0, paid - grandTotal);
+    const resolvedCustomerId =
+      customerId && String(customerId).trim()
+        ? String(customerId).trim()
+        : order.customerId || null;
+    const locationId = order.locationId || null;
 
-      const saleItems = billableItems.map((it) => ({
-        productId: it.productId || undefined,
-        productName: it.productName,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
-        total: it.unitPrice * it.quantity,
-      }));
-      if (service > 0) {
-        saleItems.push({
-          productId: undefined,
-          productName: 'Service Charge',
-          quantity: 1,
-          unitPrice: service,
-          taxRate: 0,
-          total: service,
-        });
-      }
-      if (room > 0) {
-        saleItems.push({
-          productId: undefined,
-          productName: String(roomChargeLabel || 'Room Charge'),
-          quantity: 1,
-          unitPrice: room,
-          taxRate: 0,
-          total: room,
-        });
-      }
-
-      // 4. Create real Sale
-      const sale = await tx.sale.create({
-        data: {
-          invoiceNumber,
-          customerId: resolvedCustomerId,
-          items: saleItems as any,
-          subtotal,
-          totalDiscount,
-          totalTax,
-          grandTotal,
-          paymentMethod,
-          amountPaid: paid,
-          changeReturned: change,
-          userId,
-        },
+    const saleItems = billableItems.map((it) => ({
+      productId: it.productId || undefined,
+      productName: it.productName,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
+      total: it.unitPrice * it.quantity,
+    }));
+    if (service > 0) {
+      saleItems.push({
+        productId: undefined,
+        productName: 'Service Charge',
+        quantity: 1,
+        unitPrice: service,
+        taxRate: 0,
+        total: service,
       });
+    }
+    if (room > 0) {
+      saleItems.push({
+        productId: undefined,
+        productName: String(roomChargeLabel || 'Room Charge'),
+        quantity: 1,
+        unitPrice: room,
+        taxRate: 0,
+        total: room,
+      });
+    }
 
-      // 5. Decrement Stock for tracked products
-      for (const it of billableItems) {
-        if (it.productId) {
+    const count = await prisma.sale.count({ where: { userId } });
+    const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
+
+    // Avoid Prisma interactive $transaction on RDS — stock updates inside a long-lived tx
+    // hit P2028 (5s timeout) when the database has cross-region latency.
+    const sale = await prisma.sale.create({
+      data: {
+        invoiceNumber,
+        customerId: resolvedCustomerId,
+        items: saleItems as any,
+        subtotal,
+        totalDiscount,
+        totalTax,
+        grandTotal,
+        paymentMethod,
+        amountPaid: paid,
+        changeReturned: change,
+        locationId,
+        userId,
+      },
+    });
+
+    const stockUpdates: Promise<void>[] = [];
+    for (const it of billableItems) {
+      if (!it.productId) continue;
+      const productId = it.productId;
+      const qty = it.quantity;
+      stockUpdates.push(
+        (async () => {
           try {
-            await tx.product.update({
-              where: { id: it.productId },
-              data: { currentStock: { decrement: it.quantity } },
+            const product = await prisma.product.findFirst({
+              where: { id: productId, userId },
             });
-            await tx.stockHistory.create({
+            if (!product) {
+              console.warn(`generateBill: skipping stock for unknown product ${productId}`);
+              return;
+            }
+
+            if (locationId) {
+              await prisma.productLocationStock.upsert({
+                where: { productId_locationId: { productId: product.id, locationId } },
+                update: { stock: { decrement: qty } },
+                create: { productId: product.id, locationId, userId, stock: -qty },
+              });
+            } else {
+              await prisma.product.update({
+                where: { id: product.id },
+                data: { currentStock: { decrement: qty } },
+              });
+            }
+            await prisma.stockHistory.create({
               data: {
-                productId: it.productId,
-                change: -it.quantity,
+                productId: product.id,
+                change: -qty,
                 reason: `KOT Order #${order.orderNumber} (Invoice ${invoiceNumber})`,
+                locationId,
                 userId,
               },
             });
           } catch (stockErr) {
-            console.warn(`Could not decrement stock for product ${it.productId}:`, stockErr);
+            console.warn(`generateBill: stock update failed for ${productId}`, stockErr);
           }
+        })()
+      );
+    }
+
+    if (stockUpdates.length > 0) {
+      await Promise.all(stockUpdates);
+    }
+
+    const unpaid = grandTotal - paid;
+    if (unpaid > 0.01 && resolvedCustomerId) {
+      try {
+        const customer = await prisma.customer.findFirst({
+          where: { id: resolvedCustomerId, userId },
+        });
+        if (customer) {
+          await prisma.customer.update({
+            where: { id: resolvedCustomerId },
+            data: { creditBalance: { increment: unpaid } },
+          });
+          await prisma.creditTransaction.create({
+            data: {
+              customerId: resolvedCustomerId,
+              amount: unpaid,
+              type: 'credit',
+              referenceId: sale.id,
+              notes: `Credit for KOT #${order.orderNumber} (${invoiceNumber})`,
+              userId,
+            },
+          });
         }
+      } catch (creditErr) {
+        console.warn('generateBill: credit update failed (sale was saved)', creditErr);
       }
+    }
 
-      // 6. Update KOT Order to billed
-      const updatedOrder = await tx.kOTOrder.update({
-        where: { id },
-        data: {
-          status: 'billed',
-          saleId: sale.id,
-        },
-        include: {
-          table: true,
-          customer: true,
-          items: true,
-          sale: true,
-        },
-      });
-
-      return { order: updatedOrder, sale };
+    const updatedOrder = await prisma.kOTOrder.update({
+      where: { id },
+      data: {
+        status: 'billed',
+        saleId: sale.id,
+      },
+      include: {
+        table: true,
+        customer: true,
+        items: true,
+        sale: true,
+      },
     });
 
-    res.json(result);
-  } catch (error) {
+    res.json({ order: updatedOrder, sale });
+  } catch (error: any) {
     console.error('generateBill error:', error);
-    res.status(500).json({ error: 'Failed to generate bill from KOT order' });
+    res.status(500).json({
+      error: error?.message || 'Failed to generate bill from KOT order',
+    });
   }
 };

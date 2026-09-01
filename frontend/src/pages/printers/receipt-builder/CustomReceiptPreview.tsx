@@ -3,13 +3,17 @@ import { QRCodeSVG } from 'qrcode.react'
 import { ImageIcon } from 'lucide-react'
 import type { CustomReceiptEntry, CustomReceiptTemplate } from '@/types/customReceipt'
 import {
+  compactTableNameWidth,
   compileGstBreakdownPairs,
   interpolateReceiptVariables,
+  resolveCompactTableWrap,
   resolveShowItemNumbers,
   resolveShowTaxColumn,
+  wrapCompactTableName,
   type CustomReceiptGstOpts,
   type ReceiptPrintContext,
 } from '@/utils/customReceiptEngine'
+import { getCols } from '@/utils/receiptEngine'
 import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from '@/utils/upiQr'
 import { getReceiptPreviewFontStyle, getReceiptPreviewMaxWidth } from './receiptPreviewStyles'
 import { isReceiptEntryEnabled, resolveReceiptImageSrc } from '@/utils/receiptLogo'
@@ -63,6 +67,7 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
   const logoUrl = context.storeLogoUrl
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
   const hasEnabledImageBlock = enabledEntries.some((e) => e.type === 'image')
+  const wrapCompactNames = resolveCompactTableWrap(gstOpts, template)
 
   const renderEntry = (entry: CustomReceiptEntry, idx: number) => {
     if (!isReceiptEntryEnabled(entry)) return null
@@ -201,6 +206,8 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
           const itemCol = entry.columnHeaders?.item || 'ITEM'
           const qtyCol = entry.columnHeaders?.qty || 'QTY'
           const totalCol = entry.columnHeaders?.total || 'AMT'
+          const cols = getCols(template.paperWidth)
+          const nameWidth = compactTableNameWidth(cols)
           return (
             <div key={entry.id || idx} className="my-1 text-black" style={{ fontFamily: 'inherit' }}>
               <div className="flex justify-between border-b border-dashed border-black pb-1 mb-1 font-bold" style={{ fontSize: '0.85em' }}>
@@ -208,13 +215,33 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
                 <span className="w-7 text-right">{qtyCol}</span>
                 <span className="w-12 text-right">{totalCol}</span>
               </div>
-              {context.items.map((it, sIdx) => (
-                <div key={sIdx} className="flex justify-between mb-0.5" style={{ fontSize: '0.85em' }}>
-                  <span className="flex-1 truncate font-bold">{it.productName.toUpperCase()}</span>
-                  <span className="w-7 text-right">{Number.isInteger(it.quantity) ? it.quantity : it.quantity.toFixed(3)}</span>
-                  <span className="w-12 text-right font-bold">{it.total.toFixed(2)}</span>
-                </div>
-              ))}
+              {context.items.map((it, sIdx) => {
+                const name = it.productName.toUpperCase()
+                const qtyLabel = Number.isInteger(it.quantity) ? String(it.quantity) : it.quantity.toFixed(3)
+                const amountLabel = it.total.toFixed(2)
+                if (!wrapCompactNames || name.length <= nameWidth) {
+                  return (
+                    <div key={sIdx} className="flex justify-between mb-0.5" style={{ fontSize: '0.85em' }}>
+                      <span className={`flex-1 font-bold ${!wrapCompactNames ? 'truncate' : ''}`}>{name}</span>
+                      <span className="w-7 text-right shrink-0">{qtyLabel}</span>
+                      <span className="w-12 text-right font-bold shrink-0">{amountLabel}</span>
+                    </div>
+                  )
+                }
+                const nameLines = wrapCompactTableName(name, nameWidth)
+                return (
+                  <div key={sIdx} className="mb-2" style={{ fontSize: '0.85em' }}>
+                    <div className="flex justify-between items-start">
+                      <span className="flex-1 font-bold leading-tight">{nameLines[0]}</span>
+                      <span className="w-7 text-right shrink-0 leading-tight">{qtyLabel}</span>
+                      <span className="w-12 text-right font-bold shrink-0 leading-tight">{amountLabel}</span>
+                    </div>
+                    {nameLines.slice(1).map((line, lineIdx) => (
+                      <div key={lineIdx} className="font-bold leading-tight">{line.trimEnd()}</div>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
           )
         }
