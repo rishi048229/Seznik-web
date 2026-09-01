@@ -230,22 +230,6 @@ const HeatmapColorLegend: React.FC<{
 const EMBEDDED_HEATMAP_ROW_HEIGHT = 20;
 const FULL_HEATMAP_ROW_HEIGHT = 28;
 
-function getEmbeddedDayCap(): number {
-  return 3;
-}
-
-function getHeatmapDayOverride(): number {
-  return 3;
-}
-
-function getSkeletonDayCount() {
-  return 3;
-}
-
-function scopeLabel(): string {
-  return 'Last 3 Days';
-}
-
 const HeatmapLegendSkeleton: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
   <div className={`heatmap-color-legend heatmap-skeleton-legend${compact ? ' heatmap-color-legend--compact' : ''}`}>
     <div className="heatmap-color-legend__head">
@@ -508,14 +492,9 @@ const PALETTES: Record<HeatmapPalette, PaletteOption> = {
   },
 };
 
-function heatmapDayOverride(): number {
-  return 3;
-}
-
 export const PeakUsageHeatmap: React.FC<{ embedded?: boolean; timeRange?: string }> = ({
   embedded = false,
 }) => {
-  const activeRange = '3d';
   const [heatmapData, setHeatmapData] = useState<HeatmapCell[] | HeatmapResponse | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

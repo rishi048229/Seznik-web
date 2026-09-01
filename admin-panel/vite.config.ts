@@ -6,12 +6,9 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import {
   getTimeIntervals,
-  computeRealTopFeatures,
-  buildMetricsResponse,
   mapUserRows,
   getUsersWhereClause,
   applyTableAlias,
-  metricsSalesQuery,
 } from './analyticsShared.js';
 import {
   credentialsMatch,
