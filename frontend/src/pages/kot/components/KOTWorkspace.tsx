@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Printer, CreditCard } from 'lucide-react'
+import { X, Printer, CreditCard, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { LocationSelector } from '@/components/common/LocationSelector'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
-import { useSettings } from '@/hooks/useSettings'
+import { useLocationStock } from '@/hooks/useLocations'
+import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
   useAddKotItems,
   useCreateKotOrder,
   useGenerateKotBill,
   useKotOrder,
+  useKotOrders,
   useSendKotToKitchen,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
-import { resolveKotReceiptPrintContext } from '@/utils/kotReceiptPrint'
-import { useAuth } from '@/contexts/AuthContext'
-import * as settingsService from '@/services/settingsService'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { printKotSlipSmart } from '@/utils/kotPrint'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
@@ -29,6 +29,9 @@ import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
 import { mergeKotConfig, orderTypeLabel, ticketTitle } from '../kotConfig'
+import { ticketLaneLabel } from '../kotUtils'
+
+const LAST_WAITER_KEY = 'kot_last_waiter'
 
 interface KOTWorkspaceProps {
   table?: RestaurantTable | null
@@ -49,10 +52,11 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
   }))
 
 export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
-  const { user } = useAuth()
   const { data: products = [], isLoading: productsLoading } = useProducts()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
+  const { mutate: updateSettings } = useUpdateSettings()
+  const { mutate: createSettings } = useCreateSettings()
   const blePrinter = useBlePrinter()
   const kotCfg = mergeKotConfig(settings?.kotConfig)
 
@@ -60,7 +64,14 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [orderType, setOrderType] = useState<KOTOrderType>(
     initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
-  const [waiterName, setWaiterName] = useState('')
+  const [locationId, setLocationId] = useState<string | null>(null)
+  const [waiterName, setWaiterName] = useState(() => {
+    try {
+      return localStorage.getItem(LAST_WAITER_KEY) || ''
+    } catch {
+      return ''
+    }
+  })
   const [pendingItems, setPendingItems] = useState<KOTDraftItem[]>([])
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -72,19 +83,43 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [mobileTab, setMobileTab] = useState<'menu' | 'ticket'>('menu')
 
   const { data: order, isLoading: orderLoading } = useKotOrder(orderId)
+  const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 8000 })
+  const { data: locationStockRows = [] } = useLocationStock(locationId)
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
   const { mutate: generateBill, isPending: isBilling } = useGenerateKotBill()
 
+  const persistKotConfig = (next: typeof kotCfg, ok?: string) => {
+    const data = { kotConfig: next }
+    const onSuccess = () => {
+      if (ok) toast.success(ok)
+    }
+    const onError = (err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed to save')
+    if (settings?.id) {
+      updateSettings({ settingsId: settings.id, data }, { onSuccess, onError })
+      return
+    }
+    createSettings(data as Parameters<typeof createSettings>[0], { onSuccess, onError })
+  }
+
   useEffect(() => {
-    if (order?.waiterName && !waiterName) setWaiterName(order.waiterName)
-    if (order?.customerId && !customerId) setCustomerId(order.customerId)
+    if (order?.waiterName) setWaiterName(order.waiterName)
+    if (order?.customerId) setCustomerId(order.customerId)
     if (order?.orderType === 'dine_in' || order?.orderType === 'takeaway' || order?.orderType === 'delivery') {
       setOrderType(order.orderType)
     }
-  }, [order, waiterName, customerId])
+  }, [order?.id, order?.waiterName, order?.customerId, order?.orderType])
 
+  useEffect(() => {
+    const trimmed = waiterName.trim()
+    if (!trimmed) return
+    try {
+      localStorage.setItem(LAST_WAITER_KEY, trimmed)
+    } catch {
+      /* ignore */
+    }
+  }, [waiterName])
 
   useEffect(() => {
     if (orderId) return
@@ -93,20 +128,35 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }, [orderId, kotCfg.allowedOrderTypes, kotCfg.defaultOrderType, orderType])
 
-  const stockFor = (product: Product) => product.currentStock
+  const locationStockMap = useMemo(() => {
+    const map = new Map<string, { stock: number; priceOverride?: number | null }>()
+    for (const row of locationStockRows) {
+      map.set(row.productId, { stock: row.stock, priceOverride: row.priceOverride })
+    }
+    return map
+  }, [locationStockRows])
 
-  const priceFor = (product: Product) => product.sellingPrice
+  const stockFor = (product: Product) => {
+    if (!locationId) return product.currentStock
+    return locationStockMap.get(product.id)?.stock ?? 0
+  }
+
+  const priceFor = (product: Product) => {
+    if (!locationId) return product.sellingPrice
+    return locationStockMap.get(product.id)?.priceOverride ?? product.sellingPrice
+  }
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase()
     const childIds = categoryId ? getChildCategories(categories, categoryId).map((c) => c.id) : []
     return products.filter((p) => {
       if (!p.isActive) return false
+      if (locationId && !locationStockMap.has(p.id)) return false
       const matchesCategory = !categoryId || p.categoryId === categoryId || childIds.includes(p.categoryId)
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.barcode ?? '').toLowerCase().includes(q)
       return matchesCategory && matchesSearch
     })
-  }, [products, search, categoryId, categories])
+  }, [products, search, categoryId, categories, locationId, locationStockMap])
 
   const sentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt)
   const unprintedServerItems = (order?.items ?? []).filter((it) => !it.sentToKitchenAt)
@@ -122,13 +172,75 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   }, [order?.items, pendingItems])
 
   const busy = isCreating || isAdding || isSending
-  const displayName = ticketTitle(table?.name, orderType)
+  const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
+
+  const openTickets = useMemo(() => {
+    const list = [...runningOrders]
+    if (order && !list.some((t) => t.id === order.id) && order.status !== 'billed' && order.status !== 'cancelled') {
+      list.unshift(order)
+    }
+    return list
+  }, [runningOrders, order])
+
+  const startFreshBill = () => {
+    setPendingItems([])
+    setBillOpen(false)
+    setCustomerId('')
+    setOrderId(null)
+    setMobileTab('menu')
+    if (!kotCfg.allowedOrderTypes.includes(orderType)) {
+      setOrderType(kotCfg.defaultOrderType)
+    }
+  }
+
+  const switchTicket = async (id: string | null) => {
+    if (id === orderId) return
+    try {
+      if (pendingItems.length > 0) {
+        if (orderId) {
+          await persistPending(orderId)
+        } else {
+          const created = await createOrder(startOrderPayload(pendingItems))
+          setPendingItems([])
+          if (!id) {
+            setOrderId(created.id)
+            toast.success('Bill kept in the bar')
+            return
+          }
+        }
+      }
+      if (!id) {
+        startFreshBill()
+        return
+      }
+      setPendingItems([])
+      setBillOpen(false)
+      setOrderId(id)
+      setMobileTab('ticket')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not switch bills')
+    }
+  }
+
+  const handleAddWaiter = () => {
+    const name = waiterName.trim()
+    if (!name) {
+      toast.error('Type a waiter name first')
+      return
+    }
+    if (kotCfg.waiterNames.some((n) => n.toLowerCase() === name.toLowerCase())) {
+      toast.success(`${name} is already saved`)
+      return
+    }
+    persistKotConfig({ ...kotCfg, waiterNames: [...kotCfg.waiterNames, name] }, `${name} saved`)
+  }
 
   const startOrderPayload = (items: KOTDraftItem[]) => ({
     orderType,
     tableId: table?.id,
     partyLabel: table?.name || orderTypeLabel(orderType),
     waiterName: waiterName.trim() || undefined,
+    locationId: locationId || undefined,
     status: 'open' as const,
     items: toPayloadItems(items),
   })
@@ -233,6 +345,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       const result = await sendKitchen({
         id,
         waiterName: waiterName.trim() || undefined,
+        locationId: locationId || undefined,
       })
       const toPrint = result.newlySentItems?.length ? result.newlySentItems : result.items.filter((it) => !it.sentToKitchenAt)
       await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName)
@@ -272,59 +385,38 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       createdAt: String(saleRaw.createdAt ?? new Date().toISOString()),
     }
 
+    const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
     const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
-    const { receiptConfig, template, shouldPersist } = resolveKotReceiptPrintContext(settings)
-    const tableNo = table?.name ?? order?.partyLabel
-    const effectiveWaiter = waiterName.trim() || order?.waiterName
-
-    if (shouldPersist && user?.id) {
-      settingsService
-        .updateReceiptConfig(user.id, {
-          customTemplates: receiptConfig.customTemplates,
-          activeCustomTemplateId: receiptConfig.activeCustomTemplateId,
-          receiptConfigUpdatedAt: new Date().toISOString(),
-        })
-        .catch(() => {})
-    }
-
-    if (useBle && blePrinter?.status === 'connected') {
+    if (useBle) {
       try {
+        if (blePrinter.status !== 'connected') await blePrinter.connect()
         const bytes = await generateReceiptEscPos({
           sale,
           receiptConfig,
-          templateOverride: template,
           paperSize,
           businessName: settings?.businessName,
           businessAddress: settings?.businessAddress,
-          businessLogoURL: settings?.businessLogoURL,
-          invoiceConfig: settings?.invoiceConfig,
-          isRestaurant: true,
-          tableNo,
-          waiterName: effectiveWaiter,
         })
         await blePrinter.print(bytes)
         toast.success('Receipt printed')
         return
       } catch (err) {
-        console.warn('Bluetooth print failed, falling back to system print:', err)
+        console.error(err)
+        toast.error('Bluetooth print failed. Connect the printer on the Printers page and try again.')
+        return
       }
     }
 
     const html = generateReceiptHTML({
       sale,
       receiptConfig,
-      templateOverride: template,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       width: htmlWidth,
       logoURL: settings?.businessLogoURL || receiptConfig.logoURL,
-      invoiceConfig: settings?.invoiceConfig,
-      isRestaurant: true,
-      tableNo,
-      waiterName: effectiveWaiter,
     })
     printReceipt(html, htmlWidth, sale.invoiceNumber)
   }
@@ -354,24 +446,62 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const hasAnyItems = hasNewItems || sentItems.length > 0
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-bg flex flex-col">
-      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 dark:border-dark-border bg-white/80 dark:bg-dark-bg/80 backdrop-blur-xl">
+    <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
         <div className="min-w-0">
           <p className="text-xs text-gray-500 dark:text-gray-400">{orderTypeLabel(orderType)} bill</p>
           <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h1>
         </div>
-        <div className="flex-1" />
+        <div className="flex-1 flex justify-end min-w-0 overflow-x-auto no-scrollbar">
+          <LocationSelector onChange={setLocationId} />
+        </div>
         <button
           type="button"
           onClick={onClose}
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-card"
+          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
           aria-label="Close"
         >
           <X size={20} />
         </button>
       </header>
 
-      <div className="sm:hidden flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
+      <div className="shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          onClick={() => void switchTicket(null)}
+          className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+            !orderId
+              ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+          }`}
+        >
+          <Plus size={12} />
+          New
+        </button>
+        {openTickets.map((ticket) => {
+          const active = ticket.id === orderId
+          return (
+            <button
+              key={ticket.id}
+              type="button"
+              onClick={() => void switchTicket(ticket.id)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border text-left transition-colors ${
+                active
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              <span className="block leading-tight">#{ticket.orderNumber}</span>
+              <span className={`block text-[10px] font-medium ${active ? 'text-blue-100' : 'text-amber-600 dark:text-amber-400'}`}>
+                {ticketLaneLabel(ticket.status)}
+                {ticket.partyLabel || ticket.table?.name ? ` · ${ticket.partyLabel || ticket.table?.name}` : ''}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <button
           type="button"
           onClick={() => setMobileTab('menu')}
@@ -413,7 +543,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         </div>
 
         <div
-          className={`w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card flex flex-col min-h-0 ${
+          className={`w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col min-h-0 ${
             mobileTab === 'menu' ? 'hidden sm:flex' : 'flex'
           }`}
         >
@@ -430,6 +560,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               waiterName={waiterName}
               onWaiterChange={setWaiterName}
               showWaiter={kotCfg.showWaiterField}
+              waiterNames={kotCfg.waiterNames}
+              onAddWaiter={handleAddWaiter}
               allowedOrderTypes={kotCfg.allowedOrderTypes}
               sentItems={sentItems}
               unprintedServerItems={unprintedServerItems}
@@ -448,21 +580,23 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
             />
           )}
 
-          <div className="shrink-0 p-3 border-t border-gray-200 dark:border-dark-border space-y-2 pb-16 sm:pb-3">
-            <Button
-              onClick={handleSendToKitchen}
-              disabled={!hasNewItems || busy}
-              loading={isSending || isAdding || isCreating}
-              className="w-full"
-              variant="secondary"
-            >
-              <Printer size={16} className="mr-2" />
-              Send to Kitchen / Print KOT
-            </Button>
+          <div className="shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 space-y-2 pb-16 sm:pb-3">
+            {kotCfg.kitchenTicketsEnabled && (
+              <Button
+                onClick={handleSendToKitchen}
+                disabled={!hasNewItems || busy}
+                loading={isSending || isAdding || isCreating}
+                className="w-full"
+                variant="secondary"
+              >
+                <Printer size={16} className="mr-2" />
+                Send to Kitchen / Print KOT
+              </Button>
+            )}
             <Button
               onClick={handleSettle}
               disabled={!hasAnyItems || busy}
-              className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
+              className="w-full bg-[#0a0a2e] hover:bg-[#1a1555]"
             >
               <CreditCard size={16} className="mr-2" />
               Settle Bill
@@ -500,14 +634,14 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
             { id: orderId, data: payload },
             {
               onSuccess: async (result) => {
-                toast.success('Bill settled')
+                toast.success('Bill settled — start the next one')
                 setBillOpen(false)
                 try {
                   await printCustomerReceipt(result.sale)
                 } catch (err) {
                   console.error(err)
                 }
-                onClose()
+                startFreshBill()
               },
               onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to settle bill'),
             }

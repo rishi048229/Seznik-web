@@ -127,6 +127,12 @@ export const KotSettingsFields = ({ value, onChange }: KotSettingsFieldsProps) =
           onChange={(checked) => setField('showTables', checked)}
         />
         <Switch
+          label="Kitchen tickets (KOT)"
+          description="Send to kitchen / print KOT. Turn off for cloud kitchens that only take online orders."
+          checked={value.kitchenTicketsEnabled}
+          onChange={(checked) => setField('kitchenTicketsEnabled', checked)}
+        />
+        <Switch
           label="Waiter name on tickets"
           checked={value.showWaiterField}
           onChange={(checked) => setField('showWaiterField', checked)}

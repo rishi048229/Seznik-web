@@ -14,6 +14,8 @@ interface OrderTicketPanelProps {
   waiterName: string
   onWaiterChange: (value: string) => void
   showWaiter?: boolean
+  waiterNames?: string[]
+  onAddWaiter?: () => void
   allowedOrderTypes?: KotConfig['allowedOrderTypes']
   sentItems: KOTOrderItem[]
   unprintedServerItems: KOTOrderItem[]
@@ -33,6 +35,8 @@ export const OrderTicketPanel = ({
   waiterName,
   onWaiterChange,
   showWaiter = true,
+  waiterNames = [],
+  onAddWaiter,
   allowedOrderTypes,
   sentItems,
   unprintedServerItems,
@@ -73,12 +77,44 @@ export const OrderTicketPanel = ({
           ))}
         </div>
         {showWaiter && (
-          <Input
-            placeholder="Waiter / server name"
-            value={waiterName}
-            onChange={(e) => onWaiterChange(e.target.value)}
-            className="h-9 text-sm"
-          />
+          <div className="space-y-1.5">
+            {waiterNames.length > 0 && (
+              <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                {waiterNames.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => onWaiterChange(name)}
+                    className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                      waiterName === name
+                        ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  placeholder="Waiter / server name"
+                  value={waiterName}
+                  onChange={(e) => onWaiterChange(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onAddWaiter}
+                disabled={!waiterName.trim()}
+                className="shrink-0 h-9 px-2.5 rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40"
+              >
+                Add Waiter
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

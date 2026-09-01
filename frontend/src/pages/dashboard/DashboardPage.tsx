@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
-import { DashboardSkeleton, ChartWidgetSkeleton } from '@/components/ui/PageSkeleton'
+import { Spinner } from '@/components/ui/Spinner'
+import { DashboardSkeleton } from '@/components/ui/PageSkeleton'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -26,9 +27,6 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import type { TranslationKey } from '@/i18n/translations'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
-import { useAuth } from '@/contexts/AuthContext'
-import { isNavFeatureVisible } from '@/utils/businessFeatures'
-import { isRestaurantBusiness } from '@/constants/businessTypes'
 import toast from 'react-hot-toast'
 import {
   TrendingUp,
@@ -48,10 +46,7 @@ import {
   PieChart as PieChartIcon,
   Tag,
   ExternalLink,
-  Ticket,
-  ChefHat,
 } from 'lucide-react'
-import { MobileLoginQrCard } from '@/components/dashboard/MobileLoginQrCard'
 
 const PRINTER_STATUS_KEY: Record<string, TranslationKey> = {
   unsupported: 'dashboard.printerNotSupported',
@@ -111,14 +106,14 @@ const DonutChart = ({ data, size = 180, thickness = 20 }: { data: { value: numbe
 }
 
 const WidgetHeader = ({ icon, title, onView }: { icon: React.ReactNode; title: string; onView: () => void }) => (
-  <div className="flex items-center justify-between mb-4">
-    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+  <div className="flex items-center justify-between gap-2 mb-4 min-w-0">
+    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0 truncate">
       {icon}
       {title}
     </h3>
     <button
       onClick={onView}
-      className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+      className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
     >
       <ExternalLink size={14} />
       View
@@ -136,7 +131,7 @@ const ProgressRow = ({ left, right, sub, percent, badge }: { left: string; right
       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{right}</p>
     </div>
     {sub && <p className="text-xs text-gray-400 mb-1.5">{sub}</p>}
-    <div className="w-full h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden mt-1.5">
+    <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mt-1.5">
       <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(percent, 100)}%` }} />
     </div>
   </div>
@@ -146,9 +141,6 @@ export const DashboardPage = () => {
   const pageTutorial = usePageTutorial('dashboard')
   const { isLoading } = useDashboardStats()
   const { data: products } = useProducts()
-  const { userProfile } = useAuth()
-  const isRestaurant = isRestaurantBusiness(userProfile?.businessType)
-  const showTokens = isNavFeatureVisible(userProfile?.businessType, 'tokens')
 
   const { data: sales } = useSales()
   const navigate = useNavigate()
@@ -231,70 +223,27 @@ export const DashboardPage = () => {
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
-              {isRestaurant ? 'Open POS billing' : t('dashboard.openScanToBill')}
+              {t('dashboard.openScanToBill')}
             </Button>
           }
         />
       </div>
 
-      {isRestaurant ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          {showTokens ? (
-            <Card className="p-5 bg-white border border-gray-100 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                    <Ticket size={22} className="text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Counter tokens</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Issue cafe and counter tickets without opening a full table order.
-                    </p>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.TOKENS)}>
-                  Open tokens
-                </Button>
-              </div>
-            </Card>
-          ) : null}
-          <Card className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-100 dark:border-orange-800">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                  <ChefHat size={22} className="text-orange-600 dark:text-orange-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Kitchen orders & tables</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                    Open the floor plan to manage tables, fire KOTs, and settle dine-in bills. The same orders stay available in the mobile app.
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.KOT)}>
-                Open KOT
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : null}
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total Revenue */}
-        <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center">
+        <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
               <IndianRupee size={22} className="text-gray-600 dark:text-gray-300" />
             </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+            <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full shrink-0">
               <ArrowUpRight size={14} />
               +12.5%
             </div>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalRevenue')}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1 truncate" title={formatINR(totalRevenue)}>
             {formatINR(totalRevenue)}
           </p>
         </Card>
@@ -302,7 +251,7 @@ export const DashboardPage = () => {
         {/* Total Sales */}
         <Card className="p-5 bg-white border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
               <ShoppingBag size={22} className="text-gray-600 dark:text-gray-300" />
             </div>
             <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
@@ -353,8 +302,6 @@ export const DashboardPage = () => {
         </Card>
       </div>
 
-      <MobileLoginQrCard />
-
       {/* Receipt Printer */}
       <Card data-tour="printer-card" className="p-5 bg-white border border-gray-100 shadow-sm mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -362,7 +309,7 @@ export const DashboardPage = () => {
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
               printer.status === 'connected' || printer.status === 'printing'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                : 'bg-gray-100 dark:bg-dark-elevated'
+                : 'bg-gray-100 dark:bg-gray-700'
             }`}>
               {printer.status === 'connected' || printer.status === 'printing' ? (
                 <BluetoothConnected size={22} className="text-emerald-600 dark:text-emerald-400" />
@@ -410,7 +357,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<Wallet size={18} className="text-blue-500" />} title={t('dashboard.paymentModes')} onView={() => navigate(ROUTES.REPORTS_SALES)} />
           {loadingPaymentModes ? (
-            <ChartWidgetSkeleton />
+            <div className="flex justify-center py-10"><Spinner /></div>
           ) : !paymentModes || paymentModes.modes.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
@@ -444,7 +391,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<PieChartIcon size={18} className="text-emerald-500" />} title={t('dashboard.profitBreakdown')} onView={() => navigate(ROUTES.REPORTS_PL)} />
           {loadingProfitBreakdown ? (
-            <ChartWidgetSkeleton />
+            <div className="flex justify-center py-10"><Spinner /></div>
           ) : !profitBreakdown || profitBreakdown.revenue === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
@@ -478,7 +425,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<Package size={18} className="text-amber-500" />} title={t('dashboard.topProducts')} onView={() => navigate(ROUTES.PRODUCTS)} />
           {loadingTopProducts ? (
-            <ChartWidgetSkeleton />
+            <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topProducts || topProducts.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">{t('common.noSalesYet')}</p>
           ) : (
@@ -505,7 +452,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<Tag size={18} className="text-purple-500" />} title={t('dashboard.topCategories')} onView={() => navigate(ROUTES.CATEGORIES)} />
           {loadingTopCategories ? (
-            <ChartWidgetSkeleton />
+            <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topCategories || topCategories.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">{t('common.noSalesYet')}</p>
           ) : (
@@ -526,7 +473,7 @@ export const DashboardPage = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <WidgetHeader icon={<IndianRupee size={18} className="text-red-500" />} title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
           {loadingExpenseSummary ? (
-            <ChartWidgetSkeleton />
+            <div className="flex justify-center py-10"><Spinner /></div>
           ) : !expenseSummary ? (
             <p className="text-sm text-gray-400 text-center py-8">{t('dashboard.noData')}</p>
           ) : (
@@ -556,19 +503,19 @@ export const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Revenue Trends Chart */}
         <Card className="lg:col-span-2 p-6 bg-white border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div className="min-w-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.revenueTrends')}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.revenueTrendsDesc')}</p>
             </div>
-            <div className="flex bg-gray-100 dark:bg-dark-elevated rounded-lg p-1">
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 self-start sm:self-auto shrink-0">
               {(['daily', 'weekly', 'monthly'] as const).map(period => (
                 <button
                   key={period}
                   onClick={() => setChartPeriod(period)}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                     chartPeriod === period
-                      ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
@@ -674,7 +621,7 @@ export const DashboardPage = () => {
           <div className="space-y-4">
             {lowStockProducts.length > 0 ? lowStockProducts.map(product => (
               <div key={product.id} className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center overflow-hidden flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {product.imageURL ? (
                     <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
@@ -691,7 +638,7 @@ export const DashboardPage = () => {
                   }`}>
                     {product.currentStock} {t('dashboard.left')}
                   </p>
-                  <div className="w-20 h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full mt-1">
+                  <div className="w-20 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mt-1">
                     <div
                       className={`h-full rounded-full ${
                         product.currentStock <= 0 ? 'bg-red-500' : product.currentStock <= product.lowStockThreshold ? 'bg-amber-500' : 'bg-emerald-500'
@@ -709,7 +656,7 @@ export const DashboardPage = () => {
           {lowStockAlerts > 0 && (
             <button
               onClick={() => navigate(ROUTES.PRODUCTS)}
-              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-elevated rounded-xl hover:bg-gray-200 dark:hover:bg-dark-hover transition-colors"
+              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               {t('dashboard.restockAll')}
             </button>
@@ -742,14 +689,14 @@ export const DashboardPage = () => {
                   <th className="pb-3">{t('common.status')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-dark-border">
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                 {recentSales.length > 0 ? recentSales.map(sale => {
                   const customerName = sale.customerId ? t('dashboard.customerLabel') : t('dashboard.walkInCustomer')
                   const initials = customerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                   const colors = ['bg-sky-500', 'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
                   const colorIndex = Math.abs(sale.grandTotal * 100) % colors.length
                   return (
-                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-dark-card/50 transition-colors">
+                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-full ${colors[colorIndex]} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>

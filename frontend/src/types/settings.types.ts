@@ -221,6 +221,8 @@ export interface KotConfig {
   showServiceCharge?: boolean
   tableNoun?: KotTableNoun
   allowedOrderTypes?: Array<'dine_in' | 'takeaway' | 'delivery'>
+  kitchenTicketsEnabled?: boolean
+  waiterNames?: string[]
 }
 
 export interface UserSettings {

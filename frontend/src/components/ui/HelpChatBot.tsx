@@ -66,9 +66,6 @@ const GREETINGS: Record<ChatLang, string> = {
   ta: "👋 வணக்கம்! நான் **Seznik உதவி போட்**. அச்சிடுதல், லேபிள்கள், தயாரிப்புகள், விற்பனை மற்றும் பலவற்றில் உதவ முடியும்!\n\nகேள்வி தட்டச்சு செய்யவும் அல்லது கீழே ஒரு தலைப்பைத் தேர்ந்தெடுக்கவும்.",
   te: "👋 నమస్కారం! నేను **Seznik హెల్ప్ బోట్**. ప్రింటింగ్, లేబుల్‌లు, ఉత్పత్తులు, అమ్మకాలు మరియు ఇతర విషయాలలో సహాయం చేయగలను!\n\nప్రశ్న టైప్ చేయండి లేదా కింద ఒక అంశాన్ని ఎంచుకోండి.",
   gu: "👋 નમસ્તે! હું **Seznik હેલ્પ બોટ** છું. હું પ્રિંટિંગ, લેબલ, પ્રોડક્ટ, વેચાણ અને વધુમાં મદદ કરી શકું છું!\n\nપ્રશ્ન ટાઈપ કરો અથવા નીચે વિષય પસંદ કરો.",
-  bn: "👋 Hi! I'm **Seznik Help Bot**. I can help you with printing, labels, products, sales, and more!\n\nType a question or pick a topic below.",
-  ml: "👋 Hi! I'm **Seznik Help Bot**. I can help you with printing, labels, products, sales, and more!\n\nType a question or pick a topic below.",
-  or: "👋 Hi! I'm **Seznik Help Bot**. I can help you with printing, labels, products, sales, and more!\n\nType a question or pick a topic below.",
 }
 
 const NO_RESULT: Record<ChatLang, string> = {
@@ -78,9 +75,6 @@ const NO_RESULT: Record<ChatLang, string> = {
   ta: "🤔 அதற்கான சரியான பதிலைக் கண்டுபிடிக்க முடியவில்லை.\n\n💡 *AI-இயக்கப்படும் பதில்கள் விரைவில் வரும்!*",
   te: "🤔 దానికి సరైన సమాధానం కనుగొనలేకపోయాను.\n\n💡 *AI-ఆధారిత సమాధానాలు త్వరలో వస్తాయి!*",
   gu: "🤔 તેના માટે ચોક્કસ જવાબ મળ્યો નથી.\n\n💡 *AI-સંચાલિત જવાબો ટૂંક સમયમાં આવશે!*",
-  bn: "🤔 I couldn't find an exact answer for that. Try rephrasing or pick a topic from the menu.\n\n💡 *AI-powered answers are coming soon!*",
-  ml: "🤔 I couldn't find an exact answer for that. Try rephrasing or pick a topic from the menu.\n\n💡 *AI-powered answers are coming soon!*",
-  or: "🤔 I couldn't find an exact answer for that. Try rephrasing or pick a topic from the menu.\n\n💡 *AI-powered answers are coming soon!*",
 }
 
 // ─── Simple markdown-like renderer ──────────────────────────────────────────
@@ -235,7 +229,7 @@ export const HelpChatBot = () => {
       {/* ─── Floating Button ─── */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${
+        className={`fixed right-4 lg:right-6 z-40 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] lg:bottom-6 ${
           isOpen
             ? 'bg-gray-700 hover:bg-gray-600 rotate-90'
             : 'bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 animate-pulse'
@@ -248,7 +242,7 @@ export const HelpChatBot = () => {
 
       {/* ─── Chat Window ─── */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-white dark:bg-dark-bg rounded-2xl shadow-2xl border border-gray-200 dark:border-dark-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+        <div className="fixed z-[45] flex flex-col overflow-hidden bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-gray-700 animate-in slide-in-from-bottom-4 inset-x-0 bottom-0 rounded-t-2xl h-[min(560px,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] sm:inset-x-auto sm:right-6 sm:bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+1rem)] sm:w-[380px] sm:max-w-[calc(100vw-2rem)] sm:rounded-2xl lg:bottom-6">
 
           {/* ─── Header ─── */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
@@ -282,15 +276,15 @@ export const HelpChatBot = () => {
 
           {/* ─── Language Picker ─── */}
           {showLangPicker && (
-            <div className="px-3 py-2 bg-blue-50 dark:bg-dark-card border-b border-blue-100 dark:border-dark-border flex flex-wrap gap-1.5">
+            <div className="px-3 py-2 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 flex flex-wrap gap-1.5">
               {CHAT_LANGUAGES.map(l => (
                 <button
                   key={l.code}
                   onClick={() => handleLangChange(l.code)}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
                     lang === l.code
-                      ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 shadow-sm'
-                      : 'bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-200 hover:bg-blue-100 dark:hover:bg-dark-hover border border-gray-200 dark:border-dark-border-strong'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-blue-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
                   }`}
                 >
                   {l.flag} {l.label}
@@ -313,7 +307,7 @@ export const HelpChatBot = () => {
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.id)}
-                      className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-card hover:bg-blue-50 dark:hover:bg-dark-hover border border-gray-100 dark:border-dark-border text-left transition-all hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm"
+                      className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-750 border border-gray-100 dark:border-gray-700 text-left transition-all hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm"
                     >
                       <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
                         {cat.label}
@@ -329,7 +323,7 @@ export const HelpChatBot = () => {
               <div className="space-y-2">
                 <button
                   onClick={() => setSelectedCategory(null)}
-                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-white font-semibold hover:underline mb-1"
+                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline mb-1"
                 >
                   <ChevronLeft size={14} /> Back to Topics
                 </button>
@@ -340,7 +334,7 @@ export const HelpChatBot = () => {
                   <button
                     key={faq.id}
                     onClick={() => handleFaqClick(faq)}
-                    className="w-full text-left px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-card hover:bg-blue-50 dark:hover:bg-dark-hover border border-gray-100 dark:border-dark-border transition-all hover:border-blue-200 dark:hover:border-blue-800"
+                    className="w-full text-left px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-750 border border-gray-100 dark:border-gray-700 transition-all hover:border-blue-200 dark:hover:border-blue-800"
                   >
                     <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
                       {faq.question[lang] || faq.question.en}
@@ -364,13 +358,13 @@ export const HelpChatBot = () => {
                 <div
                   className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 rounded-br-sm'
-                      : 'bg-gray-100 dark:bg-dark-card text-gray-800 dark:text-gray-200 rounded-bl-sm border border-gray-200 dark:border-dark-border'
+                      ? 'bg-blue-600 text-white rounded-br-sm'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm border border-gray-200 dark:border-gray-700'
                   }`}
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
                 />
                 {msg.role === 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-dark-elevated flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <User size={14} className="text-gray-600 dark:text-gray-300" />
                   </div>
                 )}
@@ -383,7 +377,7 @@ export const HelpChatBot = () => {
                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
                   <Bot size={14} className="text-white" />
                 </div>
-                <div className="bg-gray-100 dark:bg-dark-card px-4 py-2.5 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-dark-border">
+                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-gray-700">
                   <div className="flex gap-1">
                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -395,7 +389,7 @@ export const HelpChatBot = () => {
           </div>
 
           {/* ─── Input Area ─── */}
-          <div className="px-3 py-2.5 border-t border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-dark-card/50 flex-shrink-0">
+          <div className="px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend() }}
               className="flex items-center gap-2"
@@ -406,12 +400,12 @@ export const HelpChatBot = () => {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 placeholder={lang === 'hi' ? 'अपना सवाल टाइप करें...' : lang === 'mr' ? 'तुमचा प्रश्न टाइप करा...' : lang === 'ta' ? 'உங்கள் கேள்வியை தட்டச்சு செய்யவும்...' : lang === 'te' ? 'మీ ప్రశ్నను టైప్ చేయండి...' : lang === 'gu' ? 'તમારો પ્રશ્ન ટાઈપ કરો...' : 'Type your question...'}
-                className="flex-1 px-3 py-2 bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong rounded-xl text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
               />
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center justify-center transition-all disabled:cursor-not-allowed"
+                className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center justify-center transition-all disabled:cursor-not-allowed"
               >
                 <Send size={14} className="text-white" />
               </button>

@@ -2,6 +2,17 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 
+const syncFlatProductStock = async (tx: { productLocationStock: typeof prisma.productLocationStock; product: typeof prisma.product }, productId: string, userId: string) => {
+  const agg = await tx.productLocationStock.aggregate({
+    where: { productId, userId },
+    _sum: { stock: true },
+  });
+  await tx.product.update({
+    where: { id: productId },
+    data: { currentStock: agg._sum.stock ?? 0 },
+  });
+};
+
 // Multi-location inventory (opt-in feature — see Settings.locationConfig).
 // Mirrors categoryController.ts's CRUD pattern field-for-field. Ported from the
 // standalone `inventort-seznik` repo's `main` branch, where this feature was built
@@ -198,17 +209,21 @@ export const upsertProductLocationStock = async (req: Request, res: Response) =>
       lowStockThreshold: lowStockThreshold === '' || lowStockThreshold === null ? null : lowStockThreshold !== undefined ? Number(lowStockThreshold) : undefined,
     };
 
-    const row = await prisma.productLocationStock.upsert({
-      where: { productId_locationId: { productId: String(productId), locationId: String(locationId) } },
-      update: data,
-      create: {
-        productId: String(productId),
-        locationId: String(locationId),
-        userId,
-        stock: data.stock ?? 0,
-        priceOverride: data.priceOverride ?? null,
-        lowStockThreshold: data.lowStockThreshold ?? null,
-      },
+    const row = await prisma.$transaction(async (tx) => {
+      const upserted = await tx.productLocationStock.upsert({
+        where: { productId_locationId: { productId: String(productId), locationId: String(locationId) } },
+        update: data,
+        create: {
+          productId: String(productId),
+          locationId: String(locationId),
+          userId,
+          stock: data.stock ?? 0,
+          priceOverride: data.priceOverride ?? null,
+          lowStockThreshold: data.lowStockThreshold ?? null,
+        },
+      });
+      await syncFlatProductStock(tx, String(productId), userId);
+      return upserted;
     });
     res.json(row);
   } catch (error) {
@@ -270,6 +285,8 @@ export const createStockTransfer = async (req: Request, res: Response) => {
       await tx.stockHistory.create({
         data: { change: qty, reason: 'transfer_in', productId: String(productId), locationId: String(toLocationId), userId },
       });
+
+      await syncFlatProductStock(tx, String(productId), userId);
 
       return transfer;
     });
