@@ -48,6 +48,7 @@ import {
   receiptLogoHtmlMaxPxFromChip,
   receiptStandardQrHtmlPxFromChip,
 } from '@shared/receiptPrintGeometry';
+import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
@@ -56,6 +57,17 @@ interface ReceiptPreviewModalProps {
   autoCloseAfterPrint?: boolean;
   autoPrintOnOpen?: boolean;
   isSaleSaving?: boolean;
+  /**
+   * Sends the user back to the cart with this bill's items still loaded, instead
+   * of closing the sale. Only shown when provided — the invoice history reuses
+   * this modal to view an already-recorded bill, where editing makes no sense.
+   */
+  onEdit?: () => void;
+  /**
+   * Fired the first time the bill is actually acted on (printed or shared). The
+   * POS uses it to record the sale, which is why it no longer happens at Pay Now.
+   */
+  onConfirmed?: () => void;
 }
 
 export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
@@ -65,6 +77,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   autoCloseAfterPrint = true,
   autoPrintOnOpen = false,
   isSaleSaving = false,
+  onEdit,
+  onConfirmed,
 }) => {
   const {
     activeDevice,
@@ -164,10 +178,19 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       storeGstin: editableSale?.storeGstin,
       storeLogoUrl: editableSale?.storeLogoUrl,
       upiId: editableSale?.upiId,
+      // Same reason as the GST overrides below: the checkout used to pass this
+      // before printing directly, and printing happens here now, so leaving it out
+      // would quietly drop the footer line from every printed slip.
+      footerMessage: editableSale?.footerMessage || storeProfile.footerMessage,
       receiptLogoSize,
       receiptQrSize,
+      // Carried over from the POS checkout, which used to spread these in before
+      // printing directly. Printing moved in here, so without them the slip's GST
+      // breakdown would silently render differently than it did before.
+      ...gstPrintOptionOverrides(parseGstBilling(storeProfile.settings?.invoiceConfig)),
     }),
     [
+      storeProfile.settings?.invoiceConfig,
       template,
       activeCustomTemplate,
       enableBillQrCode,
@@ -236,12 +259,16 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
   const finishAfterPrint = useCallback(() => {
     setHasPrinted(true);
+    // Every completion route (thermal, A4, WhatsApp) funnels through here, so this
+    // is the one place the sale needs recording from. onConfirmed is itself
+    // idempotent, so a reprint does not record a second sale.
+    onConfirmed?.();
     if (autoCloseAfterPrint) {
       setTimeout(() => {
         onClose();
       }, 700);
     }
-  }, [autoCloseAfterPrint, onClose]);
+  }, [autoCloseAfterPrint, onClose, onConfirmed]);
 
   // Multi-Channel Print Triggers
   const handlePrintThermal = async () => {
@@ -321,7 +348,14 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
     const text = encodeURIComponent(lines.join('\n'));
     const url = custPhone ? `https://wa.me/91${custPhone}?text=${text}` : `https://wa.me/?text=${text}`;
-    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
+    Linking.openURL(url)
+      .then(() => {
+        // Sharing the bill also settles it, so the sale is recorded here too —
+        // otherwise a shop that only sends bills on WhatsApp would never save one.
+        onConfirmed?.();
+        setHasPrinted(true);
+      })
+      .catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
   };
 
   const upiQrString = useMemo(() => {
@@ -789,6 +823,26 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
               {/* Action Buttons Bar */}
               <View style={styles.bottomBar}>
+                {/* Editing is only offered before the bill has been printed. Once a
+                    physical copy exists, changing it silently would leave the customer
+                    holding a receipt that no longer matches the recorded sale. */}
+                {onEdit && !hasPrinted ? (
+                  <TouchableOpacity onPress={onEdit} style={[styles.editBillBtn, { borderColor: theme.borderColor }]}>
+                    <Edit3 size={15} color={theme.textPrimary} />
+                    <Text style={[styles.editBillBtnText, { color: theme.textPrimary }]}>
+                      Edit Bill
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {hasPrinted ? (
+                  <View style={styles.reprintNotice}>
+                    <Text style={styles.reprintNoticeText}>
+                      Already printed — printing again gives the customer a second copy.
+                    </Text>
+                  </View>
+                ) : null}
+
                 <View style={styles.actionRow}>
                   <TouchableOpacity
                     onPress={handlePrintThermal}
@@ -800,7 +854,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                     ) : (
                       <>
                         <Printer size={16} color="#FFFFFF" />
-                        <Text style={styles.primaryActionText}>Thermal Print</Text>
+                        <Text style={styles.primaryActionText}>
+                          {hasPrinted ? 'Reprint' : 'Thermal Print'}
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -1194,6 +1250,24 @@ const styles = StyleSheet.create({
 
   /* Bottom Actions */
   bottomBar: { paddingTop: 10, borderTopWidth: 1, borderColor: 'rgba(100, 116, 139, 0.2)' },
+  editBillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 11,
+    marginBottom: 8,
+  },
+  editBillBtnText: { fontSize: 13, fontWeight: '800', marginLeft: 7 },
+  reprintNotice: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  reprintNoticeText: { fontSize: 11, fontWeight: '700', color: '#F59E0B', lineHeight: 15 },
   actionRow: { flexDirection: 'row', gap: 8 },
   primaryActionBtn: {
     flex: 1.6,

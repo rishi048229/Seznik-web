@@ -68,7 +68,6 @@ import { computeGstBillSummary } from '@/utils/gst';
 import {
   buildReceiptPrintOptions,
   generateProvisionalInvoice,
-  printSaleReceiptNow,
 } from '@/utils/fastSaleCheckout';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
@@ -181,6 +180,12 @@ function PosScreen() {
 
   // Receipt Preview Modal State
   const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
+  // The sale payload is held until the bill is actually confirmed from the preview.
+  // It is no longer persisted at "Pay Now", because the preview can send the user
+  // back to the cart to edit — saving first would leave a committed sale that no
+  // longer matches what gets printed.
+  const pendingSalePayloadRef = useRef<any | null>(null);
+  const saleCommittedRef = useRef(false);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [isSavingSalePreview, setIsSavingSalePreview] = useState(false);
@@ -530,53 +535,44 @@ function PosScreen() {
       ...(selectedStoreId ? { locationId: selectedStoreId } : {}),
     };
 
+    // Pay Now only opens the preview now. Printing and saving both wait until the
+    // bill is confirmed there, so the user can still go back and edit it — saving
+    // first would leave a committed sale that no longer matches what is printed.
+    // The cart is deliberately left intact for that reason.
+    pendingSalePayloadRef.current = { payload: salePayload, provisionalInv };
+    saleCommittedRef.current = false;
     setPreviewSaleData(saleData);
     setShowReceiptPreviewModal(true);
+  };
+
+  /**
+   * Commits the pending sale exactly once, whatever confirms it (thermal print,
+   * A4 print or WhatsApp share). Guarded by a ref because the preview stays open
+   * afterwards and a reprint must not create a second sale.
+   */
+  const commitPendingSale = () => {
+    const pending = pendingSalePayloadRef.current;
+    if (!pending || saleCommittedRef.current) return;
+    saleCommittedRef.current = true;
     setIsSavingSalePreview(true);
 
-    // Cart clears immediately so the next customer can be served while print + save run.
-    setCreditAmountReceivedInput('0');
-    setBillDiscountInput('');
-    clearCart();
-
-    if (connectionState === 'connected' && activeDevice) {
-      const printData = applyStoreProfileToPrintData(saleData, storeProfile);
-      printSaleReceiptNow(
-        printData,
-        paperWidth,
-        buildReceiptPrintOptions({
-          activeTemplateId,
-          customTemplates,
-          activeCustomTemplateId,
-          enableBillQrCode,
-          topMargin,
-          autoCut,
-          fontSize,
-          printCopies,
-          storeName: printData.storeName,
-          storeAddress: printData.storeAddress,
-          storePhone: printData.storePhone,
-          storeGstin: printData.storeGstin,
-          storeLogoUrl: printData.storeLogoUrl,
-          upiId: printData.upiId,
-          footerMessage: printData.footerMessage,
-          receiptLogoSize,
-          receiptQrSize,
-          ...(gstPrintOptionOverrides(gstBilling)),
-        })
-      );
-    }
-
-    persistSaleInBackground(salePayload, {
+    persistSaleInBackground(pending.payload, {
       onSuccess: (sale) => {
+        const finalInv = sale.invoiceNumber || pending.provisionalInv;
         checkoutLockRef.current = false;
-        const finalInv = sale.invoiceNumber || provisionalInv;
         setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
         setIsSavingSalePreview(false);
+        // Only clear once the sale is actually recorded, so a failed save leaves
+        // the cart intact to retry from instead of losing the basket.
+        setCreditAmountReceivedInput('0');
+        setBillDiscountInput('');
+        clearCart();
       },
       onError: (err) => {
         checkoutLockRef.current = false;
         setIsSavingSalePreview(false);
+        // Allow another attempt — the bill printed but nothing was recorded.
+        saleCommittedRef.current = false;
         Alert.alert(
           t('saleFailed', 'Sale Not Saved'),
           err.message ||
@@ -1500,13 +1496,41 @@ function PosScreen() {
         saleData={previewSaleData}
         isSaleSaving={isSavingSalePreview}
         autoCloseAfterPrint={false}
-        onClose={() => {
+        onConfirmed={commitPendingSale}
+        onEdit={() => {
+          // Straight back to the cart, which was never cleared, so the basket is
+          // still exactly as it was. Nothing has been saved or printed yet.
           setShowReceiptPreviewModal(false);
-          setIsSavingSalePreview(false);
           checkoutLockRef.current = false;
-          // Defer clearing receipt data so the preview modal can finish its close animation
-          // without crashing on a null saleData mid-render.
+          pendingSalePayloadRef.current = null;
           setTimeout(() => setPreviewSaleData(null), 350);
+        }}
+        onClose={() => {
+          const dismiss = () => {
+            setShowReceiptPreviewModal(false);
+            setIsSavingSalePreview(false);
+            checkoutLockRef.current = false;
+            pendingSalePayloadRef.current = null;
+            // Defer clearing receipt data so the preview modal can finish its close animation
+            // without crashing on a null saleData mid-render.
+            setTimeout(() => setPreviewSaleData(null), 350);
+          };
+
+          // Nothing is recorded until the bill is printed or shared, so closing
+          // before that would look like a completed sale while leaving no record.
+          // The basket is still intact, so the honest option is to say so.
+          if (!saleCommittedRef.current && getCartItems().length > 0) {
+            Alert.alert(
+              'Bill Not Completed',
+              'This bill has not been printed or saved yet. Your items are still in the cart.',
+              [
+                { text: 'Keep Bill Open', style: 'cancel' },
+                { text: 'Back to Cart', style: 'destructive', onPress: dismiss },
+              ]
+            );
+            return;
+          }
+          dismiss();
         }}
       />
 
