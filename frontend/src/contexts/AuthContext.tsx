@@ -111,11 +111,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const handleUpdateBusinessType = async (businessType: BusinessType) => {
     if (!user) throw new Error('No user logged in')
-    const updated = await updateBusinessType(businessType)
-    const updatedProfile = await getUserProfile()
-    const nextProfile = updatedProfile ?? { ...user, ...updated, businessType }
-    setUser(nextProfile)
-    setUserProfile(prev => prev ? { ...nextProfile, role: prev.role } : nextProfile)
+    const previousType = userProfile?.businessType ?? user.businessType
+    setUserProfile((prev) => (prev ? { ...prev, businessType } : prev))
+    setUser((prev) => (prev ? { ...prev, businessType } : prev))
+    try {
+      const updated = await updateBusinessType(businessType)
+      const updatedProfile = await getUserProfile()
+      const nextProfile = updatedProfile ?? { ...user, ...updated, businessType }
+      setUser(nextProfile)
+      setUserProfile((prev) => (prev ? { ...nextProfile, role: prev.role } : nextProfile))
+    } catch (error) {
+      setUserProfile((prev) => (prev ? { ...prev, businessType: previousType } : prev))
+      setUser((prev) => (prev ? { ...prev, businessType: previousType } : prev))
+      throw error
+    }
   }
 
   const handleClearWorkspaceSelection = () => {

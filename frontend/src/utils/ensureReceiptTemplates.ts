@@ -168,6 +168,65 @@ function ensureRestaurantTemplateForBusiness(
   }
 }
 
+function ensureStandardShopTemplateForBusiness(
+  templates: CustomReceiptTemplate[],
+  businessType: BusinessType | null | undefined,
+  logoURL?: string,
+  upiId?: string
+): { templates: CustomReceiptTemplate[]; shouldPersist: boolean; preferredActiveId?: string } {
+  if (isRestaurantBusiness(businessType)) {
+    return { templates, shouldPersist: false }
+  }
+
+  const hasStandard = templates.some(
+    (t) => t.name === STANDARD_RECEIPT_TEMPLATE_NAME || (t.isDefault && !isRestaurantReceiptTemplate(t))
+  )
+  if (hasStandard) {
+    return { templates, shouldPersist: false }
+  }
+
+  let standardTpl = createDefaultReceiptTemplate(STANDARD_RECEIPT_TEMPLATE_NAME)
+  if (logoURL) standardTpl = ensureTemplateHasLogoBlock(standardTpl, logoURL)
+  if (isValidUpiVpa(upiId || '')) standardTpl = applyUpiQrOnSeed(standardTpl, upiId!)
+
+  return {
+    templates: [standardTpl, ...templates],
+    shouldPersist: true,
+    preferredActiveId: standardTpl.id,
+  }
+}
+
+function resolveActiveTemplateForBusinessType(
+  templates: CustomReceiptTemplate[],
+  businessType: BusinessType | null | undefined,
+  currentActiveId: string | null,
+  preferredActiveId?: string
+): { activeId: string | null; changed: boolean } {
+  const current = currentActiveId ? templates.find((t) => t.id === currentActiveId) : null
+
+  if (isRestaurantBusiness(businessType)) {
+    const restaurant = templates.find(isRestaurantReceiptTemplate)
+    if (!restaurant) {
+      const fallback = preferredActiveId ?? resolveDefaultActiveTemplateId(templates, businessType)
+      return { activeId: fallback, changed: fallback !== currentActiveId }
+    }
+    if (!current || !isRestaurantReceiptTemplate(current)) {
+      return { activeId: restaurant.id, changed: restaurant.id !== currentActiveId }
+    }
+    return { activeId: currentActiveId, changed: false }
+  }
+
+  const standardId =
+    preferredActiveId ?? resolveDefaultActiveTemplateId(templates, businessType)
+  if (!current || isRestaurantReceiptTemplate(current)) {
+    return { activeId: standardId, changed: standardId !== currentActiveId }
+  }
+  if (!currentActiveId || !templates.some((t) => t.id === currentActiveId)) {
+    return { activeId: standardId, changed: true }
+  }
+  return { activeId: currentActiveId, changed: false }
+}
+
 function resolveDefaultActiveTemplateId(
   templates: CustomReceiptTemplate[],
   businessType: BusinessType | null | undefined
@@ -178,7 +237,8 @@ function resolveDefaultActiveTemplateId(
   }
   return (
     templates.find((t) => t.name === STANDARD_RECEIPT_TEMPLATE_NAME)?.id ??
-    templates.find((t) => t.isDefault)?.id ??
+    templates.find((t) => t.isDefault && !isRestaurantReceiptTemplate(t))?.id ??
+    templates.find((t) => !isRestaurantReceiptTemplate(t))?.id ??
     templates[0]?.id ??
     null
   )
@@ -229,23 +289,27 @@ export function normalizeReceiptTemplates(
     shouldPersist = true
   }
 
-  // Deliberately no "always re-add the standard template" step here: it made a
-  // deleted template reappear on the next read. The empty-list branch above
-  // still guarantees at least one template exists.
+  const standardSeed = ensureStandardShopTemplateForBusiness(
+    templates,
+    opts?.businessType,
+    logoURL,
+    upiId
+  )
+  if (standardSeed.shouldPersist) {
+    templates = standardSeed.templates
+    shouldPersist = true
+  }
 
   let activeCustomTemplateId = receiptConfig?.activeCustomTemplateId ?? null
-  if (restaurantSeed.preferredActiveId) {
-    activeCustomTemplateId = restaurantSeed.preferredActiveId
-    shouldPersist = true
-  } else if (isRestaurantBusiness(opts?.businessType)) {
-    const restaurant = templates.find(isRestaurantReceiptTemplate)
-    const currentActive = templates.find((t) => t.id === activeCustomTemplateId)
-    if (restaurant && (!currentActive || currentActive.name === STANDARD_RECEIPT_TEMPLATE_NAME)) {
-      activeCustomTemplateId = restaurant.id
-      shouldPersist = true
-    }
-  } else if (!activeCustomTemplateId || !templates.some((t) => t.id === activeCustomTemplateId)) {
-    activeCustomTemplateId = resolveDefaultActiveTemplateId(templates, opts?.businessType)
+  const preferredActiveId = restaurantSeed.preferredActiveId ?? standardSeed.preferredActiveId
+  const activeResolution = resolveActiveTemplateForBusinessType(
+    templates,
+    opts?.businessType,
+    activeCustomTemplateId,
+    preferredActiveId
+  )
+  if (activeResolution.changed) {
+    activeCustomTemplateId = activeResolution.activeId
     shouldPersist = true
   }
 

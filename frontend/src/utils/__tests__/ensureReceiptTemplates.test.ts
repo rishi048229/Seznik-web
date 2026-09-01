@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createDefaultReceiptTemplate } from '@/types/customReceipt'
+import { createRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 import { ensureTemplateHasLogoBlock, normalizeReceiptTemplates } from '@/utils/ensureReceiptTemplates'
 
 describe('ensureReceiptTemplates', () => {
@@ -98,5 +99,26 @@ describe('ensureReceiptTemplates', () => {
       (e) => e.type === 'text' && /scan/i.test(e.type === 'text' ? e.text : '')
     )
     expect(caption && caption.type === 'text' ? caption.text : '').toBe('SCAN TO PAY VIA UPI')
+  })
+
+  it('switches active template to standard shop receipt when leaving restaurant_cafe', () => {
+    const shop = createDefaultReceiptTemplate('Standard Shop Receipt')
+    const restaurant = createRestaurantReceiptTemplate()
+    const result = normalizeReceiptTemplates(
+      { customTemplates: [shop, restaurant], activeCustomTemplateId: restaurant.id },
+      { businessType: 'retail_shop' }
+    )
+    expect(result.activeCustomTemplateId).toBe(shop.id)
+    expect(result.shouldPersist).toBe(true)
+  })
+
+  it('switches active template to restaurant bill when entering restaurant_cafe', () => {
+    const shop = createDefaultReceiptTemplate('Standard Shop Receipt')
+    const result = normalizeReceiptTemplates(
+      { customTemplates: [shop], activeCustomTemplateId: shop.id },
+      { businessType: 'restaurant_cafe' }
+    )
+    expect(result.activeCustomTemplateId).toBe('receipt-tpl-restaurant-bill')
+    expect(result.shouldPersist).toBe(true)
   })
 })

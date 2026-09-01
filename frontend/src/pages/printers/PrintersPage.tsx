@@ -153,8 +153,8 @@ const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string
 
 export const PrintersPage = () => {
   const pageTutorial = usePageTutorial('printers')
-  const { user } = useAuth()
-  const isRestaurant = isRestaurantBusiness(user?.businessType)
+  const { user, userProfile } = useAuth()
+  const isRestaurant = isRestaurantBusiness(user?.businessType ?? userProfile?.businessType)
   const { data: products } = useProducts()
   const { data: settings, isLoading, isError } = useSettings()
   const { mutate: updateSettingsMutation, isPending: isUpdating } = useUpdateSettings()
@@ -184,14 +184,11 @@ export const PrintersPage = () => {
   } = useGstBillingSettings()
   const receiptBuilderRef = useRef<ReceiptBuilderTabHandle>(null)
 
-  const effectiveCustomTemplates = useMemo(
-    () => (receiptConfig.customTemplates?.length ? receiptConfig.customTemplates : customTemplates),
-    [receiptConfig.customTemplates, customTemplates]
-  )
+  const effectiveCustomTemplates = customTemplates
 
   const activeCustomTemplate = useMemo(
-    () => resolveActiveFromTemplates(effectiveCustomTemplates, activeCustomTemplateId, user?.businessType) || effectiveCustomTemplates[0],
-    [effectiveCustomTemplates, activeCustomTemplateId, user?.businessType]
+    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId, user?.businessType ?? userProfile?.businessType) || customTemplates[0],
+    [customTemplates, activeCustomTemplateId, user?.businessType, userProfile?.businessType]
   )
 
   // Real product data to preview/print the label

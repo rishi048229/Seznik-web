@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useState, forwardRef } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
 import { Save, Printer, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
@@ -61,8 +61,10 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
   ref
 ) {
   const { t } = useLanguage()
-  const { user } = useAuth()
-  const isRestaurant = isRestaurantBusiness(user?.businessType)
+  const { user, userProfile } = useAuth()
+  const isRestaurant = isRestaurantBusiness(user?.businessType ?? userProfile?.businessType)
+  const businessType = user?.businessType ?? userProfile?.businessType
+  const prevBusinessTypeRef = useRef(businessType)
   const {
     settings,
     receiptConfig,
@@ -95,9 +97,18 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     [customTemplates, draft, selectedId]
   )
 
-  // Only pick a template when the current selection is missing (first load or
-  // after a delete). Re-selecting the active template on every render made it
-  // impossible to open any other template from the hub.
+  // Switch editor to the new default when business type changes.
+  useEffect(() => {
+    if (businessType === prevBusinessTypeRef.current) return
+    prevBusinessTypeRef.current = businessType
+    if (!activeCustomTemplateId) return
+    setSelectedId(activeCustomTemplateId)
+    setDraft(null)
+    setDirty(false)
+    setUpiDraft(null)
+  }, [businessType, activeCustomTemplateId])
+
+  // Only pick a template when the current selection is missing (first load or after delete).
   useEffect(() => {
     if (selectedId && customTemplates.some((t) => t.id === selectedId)) return
     setSelectedId(activeCustomTemplateId || customTemplates[0]?.id || '')

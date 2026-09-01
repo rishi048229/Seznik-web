@@ -13,11 +13,12 @@ import {
 } from '@/utils/ensureReceiptTemplates'
 
 export function useReceiptBuilderSync() {
-  const { user } = useAuth()
+  const { user, userProfile } = useAuth()
   const uid = user?.id || user?.uid || ''
   const qc = useQueryClient()
   const { data: settings, isLoading, refetch } = useSettings()
   const seededFingerprintRef = useRef('')
+  const businessType = user?.businessType ?? userProfile?.businessType
 
   const receiptConfig = useMemo(() => settings?.receiptConfig ?? ({} as ReceiptConfig), [settings?.receiptConfig])
 
@@ -26,16 +27,16 @@ export function useReceiptBuilderSync() {
       normalizeReceiptTemplates(receiptConfig, {
         businessLogoURL: settings?.businessLogoURL,
         upiId: receiptConfig.upiId || settings?.upiId,
-        businessType: user?.businessType,
+        businessType,
       }),
-    [receiptConfig, settings?.businessLogoURL, settings?.upiId, user?.businessType]
+    [receiptConfig, settings?.businessLogoURL, settings?.upiId, businessType]
   )
 
   const customTemplates = normalized.customTemplates
   const activeCustomTemplateId = normalized.activeCustomTemplateId
   const activeTemplate = useMemo(
-    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId, user?.businessType),
-    [customTemplates, activeCustomTemplateId, user?.businessType]
+    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId, businessType),
+    [customTemplates, activeCustomTemplateId, businessType]
   )
 
   const patchMutation = useMutation({
@@ -58,6 +59,11 @@ export function useReceiptBuilderSync() {
       } as Partial<ReceiptConfig>),
     [patchMutation]
   )
+
+  // Re-persist when business type changes so the active template switches immediately in cloud + UI.
+  useEffect(() => {
+    seededFingerprintRef.current = ''
+  }, [businessType])
 
   // Seed cloud when templates are missing, outdated, or need logo sync.
   useEffect(() => {
