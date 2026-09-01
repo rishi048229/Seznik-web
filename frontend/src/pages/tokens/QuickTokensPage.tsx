@@ -11,40 +11,26 @@ import { useTokenTypes, useCreateTokenType, useUpdateTokenType, useDeleteTokenTy
 import { useTokens, useIssueToken, useDeleteToken } from '@/hooks/useTokens'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { BleConnectButton } from '@/components/common/BleConnectButton'
+import {
+  TOKEN_SLIP_TEMPLATES,
+  TOKEN_ICONS,
+  TOKEN_COLORS,
+  printTokenSlip,
+  tokenSlipBytes,
+} from '@/utils/tokenSlip'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { clsx } from 'clsx'
 import {
-  Ticket, Coffee, UtensilsCrossed, Cookie, ParkingCircle, QrCode, Bike, Wallet,
-  Plus, Pencil, Trash2, Settings2, Printer, X, Minus, ChevronLeft, ChevronRight,
+  Ticket, Plus, Pencil, Trash2, Settings2, Printer, X, Minus, ChevronLeft, ChevronRight,
   Search, Download, ArrowUp, ArrowDown, Receipt as ReceiptIcon, TrendingUp, Award, Bluetooth,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 import type { TokenType, Token } from '@/types/token.types'
-import type { Sale } from '@/types/sale.types'
 
-const TOKEN_ICONS: Record<string, typeof Ticket> = {
-  ticket: Ticket,
-  coffee: Coffee,
-  food: UtensilsCrossed,
-  snack: Cookie,
-  parking: ParkingCircle,
-  qrcode: QrCode,
-  bike: Bike,
-  wallet: Wallet,
-}
-const ICON_KEYS = Object.keys(TOKEN_ICONS)
-
-const TOKEN_COLORS: Record<string, string> = {
-  blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-  sky: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
-  amber: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-  emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-  purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-  rose: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-}
+const ICON_KEYS = [...new Set([...TOKEN_SLIP_TEMPLATES.map((t) => t.icon), ...Object.keys(TOKEN_ICONS)])]
 const COLOR_KEYS = Object.keys(TOKEN_COLORS)
 
 const toDateInputValue = (d: Date) => d.toISOString().split('T')[0]
@@ -62,7 +48,7 @@ export const QuickTokensPage = () => {
   const [historyDate, setHistoryDate] = useState(todayStr())
   const { data: tokens, isLoading: tokensLoading } = useTokens(historyDate)
   const { data: settings } = useSettings()
-  const { mutate: createTokenType, isPending: isCreatingType } = useCreateTokenType()
+  const { mutate: createTokenType, mutateAsync: createTokenTypeAsync, isPending: isCreatingType } = useCreateTokenType()
   const { mutate: updateTokenType, isPending: isUpdatingType } = useUpdateTokenType()
   const { mutate: deleteTokenType } = useDeleteTokenType()
   const { mutate: issueToken, isPending: isIssuing } = useIssueToken()
@@ -149,6 +135,31 @@ export const QuickTokensPage = () => {
     }
   }
 
+  const addSampleTemplates = async () => {
+    const existing = new Set(sortedTypes.map((tt) => tt.name.toLowerCase()))
+    const missing = TOKEN_SLIP_TEMPLATES.filter((tpl) => !existing.has(tpl.name.toLowerCase()))
+    if (missing.length === 0) {
+      toast.success('All sample templates are already added')
+      return
+    }
+    try {
+      for (let i = 0; i < missing.length; i++) {
+        const tpl = missing[i]
+        await createTokenTypeAsync({
+          name: tpl.name,
+          price: tpl.price,
+          taxRate: tpl.taxRate,
+          icon: tpl.icon,
+          color: tpl.color,
+          sortOrder: sortedTypes.length + i,
+        })
+      }
+      toast.success(`Added ${missing.length} token templates`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add templates')
+    }
+  }
+
   const handleDeleteType = (tt: TokenType) => {
     if (!confirm(`Delete token type "${tt.name}"?`)) return
     deleteTokenType(tt.id, {
@@ -188,46 +199,22 @@ export const QuickTokensPage = () => {
   const closeIssue = () => setIssuingType(null)
 
   const printTokenBrowser = (token: Token) => {
-    if (!token.sale) return
-    const receiptConfig = settings?.receiptConfig
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const width: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
-    const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
-    const receiptHTML = generateReceiptHTML({
-      sale: token.sale as Sale,
-      receiptConfig,
-      businessName: settings?.businessName,
-      businessAddress: settings?.businessAddress,
-      customerName: `Token #${token.tokenNumber} · ${label}`,
-      width,
-      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
-      settingsTaxName: 'GST',
-    })
-    printReceipt(receiptHTML, width, `Token #${token.tokenNumber}`)
+    printTokenSlip(token, settings?.businessName, paperSize)
   }
 
   const printTokenBluetooth = async (token: Token) => {
-    if (!token.sale) return
     setIsBlePrinting(true)
     try {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = settings?.receiptConfig
-      const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
-      const bytes = await generateReceiptEscPos({
-        sale: token.sale as Sale,
-        receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || '58mm',
-        businessName: settings?.businessName,
-        businessAddress: settings?.businessAddress,
-        customerName: `Token #${token.tokenNumber} · ${label}`,
-      })
-      await blePrinter.print(bytes)
-      toast.success(`Token #${token.tokenNumber} printed via Bluetooth!`)
+      const paperSize = settings?.printerConfig?.paperSize || '58mm'
+      await blePrinter.print(tokenSlipBytes(token, settings?.businessName, paperSize))
+      toast.success(`Token #${token.tokenNumber} printed`)
     } catch (err) {
       console.error('BLE Print error:', err)
-      toast.error((err as Error).message || 'Failed to print via Bluetooth. Falling back to browser print...')
+      toast.error((err as Error).message || 'Bluetooth print failed. Falling back to browser print...')
       printTokenBrowser(token)
     } finally {
       setIsBlePrinting(false)
@@ -306,9 +293,12 @@ export const QuickTokensPage = () => {
       <PageHeader
         title={t('page.tokens')}
         action={
-          <Button variant="outline" leftIcon={<Settings2 size={16} />} onClick={() => { resetTypeForm(); setManageOpen(true) }}>
-            {t('token.manageTypes')}
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <BleConnectButton />
+            <Button variant="outline" leftIcon={<Settings2 size={16} />} onClick={() => { resetTypeForm(); setManageOpen(true) }}>
+              {t('token.manageTypes')}
+            </Button>
+          </div>
         }
       />
 
@@ -543,6 +533,9 @@ export const QuickTokensPage = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Print Destination
               </label>
+              <div className="flex items-center gap-2 mb-2">
+                <BleConnectButton />
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -597,6 +590,51 @@ export const QuickTokensPage = () => {
         <div className="space-y-6">
           <div className="space-y-3">
             <div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slip templates</p>
+              <p className="text-[11px] text-gray-400 mb-2">Pick a small ticket style — chai cup, parking stub, queue number, and more.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-44 overflow-y-auto">
+                {TOKEN_SLIP_TEMPLATES.map((tpl) => {
+                  const Icon = TOKEN_ICONS[tpl.icon] ?? Ticket
+                  const active = typeForm.icon === tpl.icon && typeForm.name === tpl.name
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() =>
+                        setTypeForm({
+                          name: tpl.name,
+                          price: tpl.price === null ? '' : String(tpl.price),
+                          taxRate: String(tpl.taxRate),
+                          icon: tpl.icon,
+                          color: tpl.color,
+                        })
+                      }
+                      className={clsx(
+                        'text-left rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors',
+                        active
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-200'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Icon size={13} />
+                        {tpl.name.replace(' Token', '')}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 w-full"
+                loading={isCreatingType}
+                onClick={() => void addSampleTemplates()}
+              >
+                Add all 16 sample templates
+              </Button>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('token.typeName')}
                 <FieldInfo textKey="tip.tokenType.name" />
@@ -636,7 +674,7 @@ export const QuickTokensPage = () => {
               </label>
               <div className="flex flex-wrap gap-2">
                 {ICON_KEYS.map(key => {
-                  const Icon = TOKEN_ICONS[key]
+                  const Icon = TOKEN_ICONS[key] ?? Ticket
                   return (
                     <button
                       key={key}

@@ -42,11 +42,14 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
     .map((it) => {
       const mods = (it.modifiers ?? []).filter(Boolean)
       const notes = it.notes?.trim()
-      return `<div style="margin:6px 0;padding-bottom:4px;border-bottom:1px dashed #000;">
-        <div style="font-size:${baseFs};font-weight:800;">${it.quantity} x ${escapeHtml(it.productName)}</div>
-        ${mods.length ? `<div style="font-size:${smallFs};font-style:italic;">* ${escapeHtml(mods.join(', '))}</div>` : ''}
-        ${notes ? `<div style="font-size:${smallFs};font-style:italic;color:#333;">Note: ${escapeHtml(notes)}</div>` : ''}
-      </div>`
+      return `<tr>
+        <td style="padding:5px 4px 5px 0;font-weight:900;vertical-align:top;width:28px;white-space:nowrap;">${it.quantity}x</td>
+        <td style="padding:5px 0;border-bottom:1px dashed #000;">
+          <div style="font-weight:800;">${escapeHtml(it.productName)}</div>
+          ${mods.length ? `<div style="font-size:${smallFs};font-style:italic;">* ${escapeHtml(mods.join(', '))}</div>` : ''}
+          ${notes ? `<div style="font-size:${smallFs};font-style:italic;">Note: ${escapeHtml(notes)}</div>` : ''}
+        </td>
+      </tr>`
     })
     .join('')
 
@@ -64,7 +67,9 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
     <div style="font-size:${smallFs};">Time: ${escapeHtml(formatTime(data.orderTime))}</div>
     ${showWaiter ? `<div style="font-size:${smallFs};">Waiter: ${escapeHtml(data.waiterName || '')}</div>` : ''}
     <div style="border-top:1px dashed #000;margin:8px 0;"></div>
-    ${itemRows || `<div style="font-size:${baseFs};">No new items</div>`}
+    <table style="width:100%;border-collapse:collapse;font-size:${baseFs};">
+      ${itemRows || `<tr><td style="font-size:${baseFs};">No new items</td></tr>`}
+    </table>
     ${data.notes ? `<div style="margin-top:8px;font-size:${smallFs};"><strong>Order note:</strong> ${escapeHtml(data.notes)}</div>` : ''}
     <div style="border-top:2px solid #000;margin:10px 0 4px;"></div>
     <div style="text-align:center;font-size:${smallFs};">-- Kitchen Copy --</div>

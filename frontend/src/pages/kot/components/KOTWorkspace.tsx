@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { LocationSelector } from '@/components/common/LocationSelector'
+import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useLocationStock } from '@/hooks/useLocations'
@@ -18,8 +19,9 @@ import {
   useSendKotToKitchen,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { printKotSlipSmart } from '@/utils/kotPrint'
+import { generateRestaurantBillEscPos, printRestaurantBill } from '@/utils/restaurantBill'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
@@ -322,7 +324,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       if (via === 'ble') toast.success('KOT sent to printer')
     } catch (err) {
       console.error(err)
-      toast.error('Could not print KOT. Connect the printer on the Printers page and try again.')
+        toast.error('Could not print KOT. Tap Connect printer on this page and try again.')
     }
   }
 
@@ -387,38 +389,33 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
+    const billCtx = {
+      sale,
+      receiptConfig,
+      businessName: settings?.businessName,
+      businessAddress: settings?.businessAddress,
+      tableName: displayName,
+      waiterName: waiterName || order?.waiterName,
+      orderType,
+      kotNumber: order?.orderNumber,
+      paperSize: paperSize as '58mm' | '80mm',
+    }
     const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
     if (useBle) {
       try {
         if (blePrinter.status !== 'connected') await blePrinter.connect()
-        const bytes = await generateReceiptEscPos({
-          sale,
-          receiptConfig,
-          paperSize,
-          businessName: settings?.businessName,
-          businessAddress: settings?.businessAddress,
-        })
-        await blePrinter.print(bytes)
-        toast.success('Receipt printed')
+        await blePrinter.print(generateRestaurantBillEscPos(billCtx))
+        toast.success('Guest bill printed')
         return
       } catch (err) {
         console.error(err)
-        toast.error('Bluetooth print failed. Connect the printer on the Printers page and try again.')
+        toast.error('Bluetooth print failed. Tap Connect printer on this page and try again.')
         return
       }
     }
 
-    const html = generateReceiptHTML({
-      sale,
-      receiptConfig,
-      businessName: settings?.businessName,
-      businessAddress: settings?.businessAddress,
-      width: htmlWidth,
-      logoURL: settings?.businessLogoURL || receiptConfig.logoURL,
-    })
-    printReceipt(html, htmlWidth, sale.invoiceNumber)
+    printRestaurantBill(billCtx)
   }
 
   const handleSettle = async () => {
@@ -452,8 +449,9 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           <p className="text-xs text-gray-500 dark:text-gray-400">{orderTypeLabel(orderType)} bill</p>
           <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h1>
         </div>
-        <div className="flex-1 flex justify-end min-w-0 overflow-x-auto no-scrollbar">
+        <div className="flex-1 flex justify-end min-w-0 overflow-x-auto no-scrollbar items-center gap-2">
           <LocationSelector onChange={setLocationId} />
+          <BleConnectButton />
         </div>
         <button
           type="button"
