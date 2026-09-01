@@ -2017,6 +2017,8 @@ export default function ReceiptEditorScreen() {
                 paymentMethod={samplePrintData.paymentMethod}
                 upiId={settings?.upiId || 'store@upi'}
                 paperWidth={template.paperWidth || '58mm'}
+                logoSizeChip={settings?.receiptConfig?.receiptLogoSize || 'medium'}
+                qrSizeChip={settings?.receiptConfig?.receiptQrSize || 'medium'}
               />
             </ScrollView>
           </View>

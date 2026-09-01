@@ -128,6 +128,8 @@ export function buildTestReceiptPrintOptions(input: {
   topMargin: number;
   autoCut: boolean;
   fontSize: 'small' | 'medium' | 'large';
+  receiptLogoSize?: ReceiptSizeChip;
+  receiptQrSize?: ReceiptSizeChip;
   settings: SettingsLike;
   customTemplate?: CustomReceiptTemplate | null;
   copies?: number;
@@ -136,8 +138,8 @@ export function buildTestReceiptPrintOptions(input: {
   const logo = resolveSettingsLogoUrl(input.settings);
   const footerMessage = resolveSettingsFooterMessage(input.settings?.receiptConfig);
   const receiptConfig = input.settings?.receiptConfig as Record<string, any> | undefined;
-  const receiptLogoSize = receiptConfig?.receiptLogoSize;
-  const receiptQrSize = receiptConfig?.receiptQrSize;
+  const receiptLogoSize = input.receiptLogoSize || receiptConfig?.receiptLogoSize;
+  const receiptQrSize = input.receiptQrSize || receiptConfig?.receiptQrSize;
   const options = buildReceiptPrintOptions({
     activeTemplateId: input.activeTemplateId,
     customTemplates: input.customTemplates,

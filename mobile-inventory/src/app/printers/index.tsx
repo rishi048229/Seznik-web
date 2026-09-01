@@ -120,6 +120,8 @@ export default function PrintersScreen() {
     setActiveCustomTemplate,
     enableBillQrCode,
     setEnableBillQrCode,
+    setReceiptLogoSize,
+    setReceiptQrSize,
   } = usePrinterStore();
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
   const activeCustomTemplate = customTemplates.find((t) => t.id === activeCustomTemplateId) || null;
@@ -443,6 +445,8 @@ export default function PrintersScreen() {
     topMargin: topMarginVal,
     autoCut: autoCutVal,
     fontSize: fontSizeVal,
+    receiptLogoSize: receiptLogoSizeVal,
+    receiptQrSize: receiptQrSizeVal,
     settings,
     customTemplate: activeCustomTemplate,
     copies: 1,
@@ -880,15 +884,17 @@ export default function PrintersScreen() {
                           <CustomReceiptMockup
                             template={ct}
                             storeName={storeProfile.storeName}
-                            storeAddress={settings?.businessAddress || '123 Market Road, City'}
-                            storePhone={settings?.businessPhone || '9999999999'}
+                            storeAddress={settings?.businessAddress || ''}
+                            storePhone={settings?.businessPhone || ''}
                             storeGstin={settings?.businessGSTIN || ''}
                             storeLogoUrl={printOptions.storeLogoUrl}
                             invoiceNumber="INV-1024"
                             date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                            customerName="Walk-in Customer"
+                            customerName=""
                             paperWidth={ct.paperWidth || '58mm'}
                             upiId={settings?.upiId || ''}
+                            logoSizeChip={receiptLogoSizeVal}
+                            qrSizeChip={receiptQrSizeVal}
                           />
 
                           {/* Quick Action to Edit in Builder */}
@@ -1294,7 +1300,10 @@ export default function PrintersScreen() {
                     return (
                       <TouchableOpacity
                         key={size}
-                        onPress={() => setReceiptLogoSizeVal(size)}
+                        onPress={async () => {
+                          setReceiptLogoSizeVal(size);
+                          await setReceiptLogoSize(size);
+                        }}
                         style={[styles.widthChip, receiptLogoSizeVal === size && styles.widthChipActive]}
                       >
                         <Text style={[styles.widthChipText, receiptLogoSizeVal === size && styles.widthChipTextActive]}>
@@ -1318,7 +1327,10 @@ export default function PrintersScreen() {
                     return (
                       <TouchableOpacity
                         key={size}
-                        onPress={() => setReceiptQrSizeVal(size)}
+                        onPress={async () => {
+                          setReceiptQrSizeVal(size);
+                          await setReceiptQrSize(size);
+                        }}
                         style={[styles.widthChip, receiptQrSizeVal === size && styles.widthChipActive]}
                       >
                         <Text style={[styles.widthChipText, receiptQrSizeVal === size && styles.widthChipTextActive]}>

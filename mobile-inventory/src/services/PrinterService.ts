@@ -4293,7 +4293,7 @@ class ThermalPrinterServiceManager {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
                 }
-                await NativeEscposPrinter.printQRCode(billPdfUrl, this.receiptQrDots(paperWidth, options.receiptQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+                await NativeEscposPrinter.printQRCode(billPdfUrl, this.receiptQrDots(effectivePaperWidth, effectiveQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
                 }
@@ -4597,7 +4597,7 @@ class ThermalPrinterServiceManager {
               }
               const qrDots = this.receiptQrDots(
                 paperWidth,
-                entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium'
+                entry.size === 'large' || entry.size === 'small' ? entry.size : options.receiptQrSize || 'medium'
               );
               await NativeEscposPrinter.printQRCode(rawVal.trim(), qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
               if (entry.showText) {
