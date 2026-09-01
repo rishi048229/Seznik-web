@@ -243,3 +243,125 @@ export async function sendImportantAnnouncementPush(
   });
   return result.success;
 }
+
+/**
+ * 5. Paper Rolls & Label Supplies Refill Reminder
+ */
+export async function sendPaperRollsRefillPush(userId: string): Promise<boolean> {
+  const title = '🧻 Thermal Paper & Label Refill Alert';
+  const body = 'Low on 58mm/80mm thermal rolls or barcode stickers? Stock up now to prevent checkout delays!';
+  const result = await sendPushNotificationToUser(userId, {
+    title,
+    body,
+    data: {
+      type: 'supplies_refill',
+      actionUrl: '/printers',
+    },
+  });
+  return result.success;
+}
+
+/**
+ * 6. New Product Launch / Catalog Announcement
+ */
+export async function sendNewProductLaunchPush(
+  userId: string,
+  payload: { productName: string; price?: number; category?: string }
+): Promise<boolean> {
+  const priceStr = payload.price !== undefined ? ` at ₹${payload.price.toFixed(2)}` : '';
+  const title = `🎉 New Launch: ${payload.productName}`;
+  const body = `"${payload.productName}"${priceStr} is now live and ready for billing. Tap to view catalog!`;
+  const result = await sendPushNotificationToUser(userId, {
+    title,
+    body,
+    data: {
+      type: 'product_launch',
+      productName: payload.productName,
+      actionUrl: '/products',
+    },
+  });
+  return result.success;
+}
+
+/**
+ * 7. Feature Highlight & Merchant Tip
+ */
+export async function sendFeatureTipPush(
+  userId: string,
+  tipType: 'barcode_studio' | 'voice_billing' | 'whatsapp_receipt' | 'offline_pos' = 'barcode_studio'
+): Promise<boolean> {
+  const tips: Record<string, { title: string; body: string; url: string }> = {
+    barcode_studio: {
+      title: '🏷️ Pro Tip: Custom Barcode Label Printing',
+      body: 'Generate and print custom 50x30mm / 40x30mm barcode price tags in 1-tap from Label Studio!',
+      url: '/products',
+    },
+    voice_billing: {
+      title: '🎙️ Pro Tip: Voice-Assisted POS Search',
+      body: 'Tap the microphone on the POS screen and speak product names in Hindi, Marathi, or English to add items instantly!',
+      url: '/(tabs)/pos',
+    },
+    whatsapp_receipt: {
+      title: '💬 Instant WhatsApp & UPI QR Invoicing',
+      body: 'Print dynamic UPI payment QR codes on every bill or share digital invoices on customer WhatsApp in seconds.',
+      url: '/settings',
+    },
+    offline_pos: {
+      title: '⚡ Lightning Fast Offline Billing',
+      body: 'Seznik POS works seamlessly even if internet drops. Sales sync automatically when connection restores!',
+      url: '/(tabs)/pos',
+    },
+  };
+
+  const selected = tips[tipType] || tips.barcode_studio;
+  const result = await sendPushNotificationToUser(userId, {
+    title: selected.title,
+    body: selected.body,
+    data: {
+      type: 'feature_tip',
+      actionUrl: selected.url,
+    },
+  });
+  return result.success;
+}
+
+/**
+ * 8. Weekly Business Performance Summary (Sundays)
+ */
+export async function sendWeeklySummaryPush(userId: string): Promise<boolean> {
+  try {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const weekSales = await prisma.sale.findMany({
+      where: {
+        userId,
+        createdAt: { gte: weekAgo },
+      },
+      select: { grandTotal: true },
+    });
+
+    const ordersCount = weekSales.length;
+    const totalSales = weekSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+
+    const title = `📊 Weekly Performance: ₹${totalSales.toFixed(2)}`;
+    const body = `This week your store completed ${ordersCount} bills generating ₹${totalSales.toFixed(2)}. Tap to view weekly trends.`;
+
+    const result = await sendPushNotificationToUser(userId, {
+      title,
+      body,
+      data: {
+        type: 'weekly_summary',
+        totalSales,
+        ordersCount,
+        actionUrl: '/reports',
+      },
+    });
+    return result.success;
+  } catch (err) {
+    console.error('[PushNotification] sendWeeklySummaryPush error:', err);
+    return false;
+  }
+}
+

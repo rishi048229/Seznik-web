@@ -7,6 +7,10 @@ import {
   checkAndSendCustomerCreditDuePush,
   sendDailyNightSalesSummaryPush,
   sendImportantAnnouncementPush,
+  sendPaperRollsRefillPush,
+  sendNewProductLaunchPush,
+  sendFeatureTipPush,
+  sendWeeklySummaryPush,
 } from '../services/pushNotificationService';
 
 const router = Router();
@@ -253,6 +257,67 @@ router.post('/send-announcement', protect, async (req: any, res: any) => {
   } catch (err) {
     console.error('[NotificationRoute] /send-announcement error:', err);
     return res.status(500).json({ error: 'Failed to send announcement' });
+  }
+});
+
+/**
+ * 5. Trigger Paper Rolls & Supplies Refill Alert
+ */
+router.post('/send-supplies-refill', protect, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const success = await sendPaperRollsRefillPush(userId);
+    return res.json({ success });
+  } catch (err) {
+    console.error('[NotificationRoute] /send-supplies-refill error:', err);
+    return res.status(500).json({ error: 'Failed to send supplies refill alert' });
+  }
+});
+
+/**
+ * 6. Trigger New Product Launch Alert
+ */
+router.post('/send-product-launch', protect, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const { productName, price, category } = req.body;
+    if (!productName) {
+      return res.status(400).json({ error: 'productName is required' });
+    }
+    const success = await sendNewProductLaunchPush(userId, { productName, price, category });
+    return res.json({ success });
+  } catch (err) {
+    console.error('[NotificationRoute] /send-product-launch error:', err);
+    return res.status(500).json({ error: 'Failed to send product launch alert' });
+  }
+});
+
+/**
+ * 7. Trigger Feature Highlight & Tip Alert
+ */
+router.post('/send-feature-tip', protect, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const { tipType } = req.body;
+    const success = await sendFeatureTipPush(userId, tipType);
+    return res.json({ success });
+  } catch (err) {
+    console.error('[NotificationRoute] /send-feature-tip error:', err);
+    return res.status(500).json({ error: 'Failed to send feature tip' });
+  }
+});
+
+/**
+ * 8. Trigger Weekly Summary Push
+ */
+router.post('/send-weekly-summary', protect, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const success = await sendWeeklySummaryPush(userId);
+    return res.json({ success });
+  } catch (err) {
+    console.error('[NotificationRoute] /send-weekly-summary error:', err);
+    return res.status(500).json({ error: 'Failed to send weekly summary' });
   }
 });
 

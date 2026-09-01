@@ -502,4 +502,58 @@ export async function setStoredSelectedStoreId(storeId: string | null): Promise<
   }
 }
 
+// Notification Inbox Storage
+const NOTIFICATIONS_STORAGE_KEY = 'seznik_notifications_list';
+const NOTIF_PREFS_STORAGE_KEY = 'seznik_notification_preferences';
 
+export async function getStoredNotifications(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(NOTIFICATIONS_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error reading stored notifications:', error);
+    return null;
+  }
+}
+
+export async function setStoredNotifications(json: string): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, json);
+      }
+      return;
+    }
+    await SecureStore.setItemAsync(NOTIFICATIONS_STORAGE_KEY, json);
+  } catch (error) {
+    console.error('Error saving notifications:', error);
+  }
+}
+
+export async function getStoredNotificationPreferences(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return typeof window !== 'undefined' ? window.localStorage.getItem(NOTIF_PREFS_STORAGE_KEY) : null;
+    }
+    return await SecureStore.getItemAsync(NOTIF_PREFS_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error reading notification preferences:', error);
+    return null;
+  }
+}
+
+export async function setStoredNotificationPreferences(json: string): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(NOTIF_PREFS_STORAGE_KEY, json);
+      }
+      return;
+    }
+    await SecureStore.setItemAsync(NOTIF_PREFS_STORAGE_KEY, json);
+  } catch (error) {
+    console.error('Error saving notification preferences:', error);
+  }
+}
