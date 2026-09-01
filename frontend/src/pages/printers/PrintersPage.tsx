@@ -58,6 +58,7 @@ import toast from 'react-hot-toast'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { Modal } from '@/components/ui/Modal'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import {
   Printer,
@@ -174,6 +175,7 @@ export const PrintersPage = () => {
   const [config, setConfig] = useState<PrinterConfig>(defaultPrinterConfig)
   const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig>(defaultReceiptConfig)
   const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice'>('receipt')
+  const [isUnchangedSaveConfirmOpen, setIsUnchangedSaveConfirmOpen] = useState(false)
 
   // Snapshot of the last server payload written into the drafts above. A
   // background settings refetch (window focus, or any other save invalidating
@@ -438,6 +440,19 @@ export const PrintersPage = () => {
     } catch (err) {
       onError(err)
     }
+  }
+
+  const hasUnsavedEdits = Boolean(
+    (hydratedConfigRef.current !== null && JSON.stringify(config) !== hydratedConfigRef.current) ||
+    (hydratedReceiptRef.current !== null && JSON.stringify(receiptConfig) !== hydratedReceiptRef.current)
+  )
+
+  const handleSaveClick = () => {
+    if (!hasUnsavedEdits) {
+      setIsUnchangedSaveConfirmOpen(true)
+      return
+    }
+    handleSave()
   }
 
   // Keep the connection-type setting truthful: whenever the real BLE link
@@ -782,20 +797,12 @@ export const PrintersPage = () => {
             {activeTab === 'label' ? 'Print Label' : `Test Print`}
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={handleSaveClick}
             loading={saving}
-            className={`flex items-center gap-2 text-xs sm:text-sm transition-all ${
-              (hydratedConfigRef.current !== null && JSON.stringify(config) !== hydratedConfigRef.current) ||
-              (hydratedReceiptRef.current !== null && JSON.stringify(receiptConfig) !== hydratedReceiptRef.current)
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400'
-                : 'bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white shadow-lg shadow-[#0a0a2e]/20'
-            }`}
+            className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white flex items-center gap-2 shadow-lg shadow-[#0a0a2e]/20 text-xs sm:text-sm"
           >
             <Save size={16} />
-            {(hydratedConfigRef.current !== null && JSON.stringify(config) !== hydratedConfigRef.current) ||
-            (hydratedReceiptRef.current !== null && JSON.stringify(receiptConfig) !== hydratedReceiptRef.current)
-              ? 'Save Changes *'
-              : 'Save'}
+            Save
           </Button>
         </div>
       </div>
@@ -1800,6 +1807,39 @@ export const PrintersPage = () => {
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
       />
+
+      {/* Confirmation Modal when no changes are detected */}
+      <Modal
+        isOpen={isUnchangedSaveConfirmOpen}
+        onClose={() => setIsUnchangedSaveConfirmOpen(false)}
+        title="Save Settings"
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsUnchangedSaveConfirmOpen(false)}
+              className="text-xs sm:text-sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setIsUnchangedSaveConfirmOpen(false)
+                handleSave()
+              }}
+              loading={saving}
+              className="bg-[#0a0a2e] hover:bg-[#1e1b6e] text-white text-xs sm:text-sm"
+            >
+              Save Anyway
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+          No new changes were detected in your printer or receipt settings. Do you want to save current settings anyway?
+        </p>
+      </Modal>
     </div>
   )
 }
