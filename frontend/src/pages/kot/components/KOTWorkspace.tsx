@@ -89,16 +89,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }, [orderId, kotCfg.allowedOrderTypes, kotCfg.defaultOrderType, orderType])
 
-  const locationStockMap = useMemo(() => {
-    const map = new Map<string, { stock: number; priceOverride?: number | null }>()
-    for (const row of locationStockRows) {
-      map.set(row.productId, { stock: row.stock, priceOverride: row.priceOverride })
-    }
-    return map
-  }, [locationStockRows])
-
   const stockFor = (product: Product) => product.currentStock
-
 
   const priceFor = (product: Product) => product.sellingPrice
 
