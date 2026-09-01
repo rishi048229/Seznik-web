@@ -347,8 +347,8 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
                 )
               }
             >
-              <option value="simple">Simple</option>
-              <option value="advanced">Advanced</option>
+              <option value="simple">Simple (item + amount)</option>
+              <option value="advanced">Compact columns (ITEM | QTY | AMT)</option>
             </select>
             <label className="flex items-center gap-2 text-xs">
               <input

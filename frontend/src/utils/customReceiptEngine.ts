@@ -77,6 +77,8 @@ export const SAMPLE_RECEIPT_CONTEXT: ReceiptPrintContext = {
   changeReturned: 19.5,
   paymentMethod: 'UPI',
   footerMessage: 'Thank you! Visit again.',
+  tableNo: 'T-4',
+  waiterName: 'Raj',
 }
 
 export function saleToReceiptContext(
@@ -235,6 +237,44 @@ export function resolveShowItemNumbers(entry: CustomReceiptEntry, isRestaurant?:
   if (entry.showItemNumbers === true) return true
   if (entry.showItemNumbers === false) return false
   return isRestaurant === true
+}
+
+/** Advanced table blocks use compact ITEM | QTY | AMT columns (restaurant thermal layout). */
+export function isCompactItemsTable(entry: CustomReceiptEntry): entry is TableReceiptEntry {
+  return entry.type === 'table' && entry.tableType === 'advanced'
+}
+
+type TableReceiptEntry = Extract<CustomReceiptEntry, { type: 'table' }>
+
+function padColLeft(str: string, len: number): string {
+  const s = String(str ?? '')
+  if (s.length >= len) return s.slice(s.length - len)
+  return ' '.repeat(len - s.length) + s
+}
+
+function padColRight(str: string, len: number): string {
+  const s = String(str ?? '')
+  if (s.length >= len) return s.slice(0, len)
+  return s + ' '.repeat(len - s.length)
+}
+
+function formatCompactQty(qty: number): string {
+  const rounded = Math.round(qty * 1000) / 1000
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(3)
+}
+
+function compactItemLine(name: string, qty: string, amount: string, width: number): string {
+  const amt = padColLeft(amount, 8)
+  const qtyCol = padColLeft(qty, 4)
+  const nameWidth = Math.max(8, width - amt.length - qtyCol.length - 2)
+  return `${padColRight(name.toUpperCase(), nameWidth)} ${qtyCol} ${amt}`.slice(0, width)
+}
+
+function renderCompactTableHeader(entry: TableReceiptEntry, width: number): string {
+  const itemCol = entry.columnHeaders?.item || 'ITEM'
+  const qtyCol = entry.columnHeaders?.qty || 'QTY'
+  const totalCol = entry.columnHeaders?.total || 'AMT'
+  return compactItemLine(itemCol, qtyCol, totalCol, width)
 }
 
 /** Product name on its own line(s); qty/rate and amount on a separate padded row. */
@@ -415,6 +455,21 @@ export function compileCustomReceiptTextLines(
         break
       }
       case 'table': {
+        if (isCompactItemsTable(entry)) {
+          lines.push(renderCompactTableHeader(entry, width))
+          lines.push('-'.repeat(width))
+          data.items.forEach((item) => {
+            lines.push(
+              compactItemLine(
+                item.productName || 'ITEM',
+                formatCompactQty(item.quantity),
+                thermalAmount(item.total),
+                width
+              )
+            )
+          })
+          break
+        }
         const itemCol = entry.columnHeaders?.item || 'Item'
         const totalCol = entry.columnHeaders?.total || 'Total'
         const showTaxColumn = resolveShowTaxColumn(entry, globalItemWiseGst)
@@ -534,6 +589,20 @@ export function compileCustomReceiptHtml(
     }
 
     if (entry.type === 'table') {
+      if (isCompactItemsTable(entry)) {
+        const itemCol = entry.columnHeaders?.item || 'ITEM'
+        const qtyCol = entry.columnHeaders?.qty || 'QTY'
+        const totalCol = entry.columnHeaders?.total || 'AMT'
+        const header = `<div style="display:flex;justify-content:space-between;font-weight:700;font-size:${smallFS};border-bottom:1px dashed #000;padding-bottom:2px;margin-bottom:2px;"><span style="flex:1;">${escapeHtmlText(itemCol)}</span><span style="width:28px;text-align:right;">${escapeHtmlText(qtyCol)}</span><span style="width:52px;text-align:right;">${escapeHtmlText(totalCol)}</span></div>`
+        const rows = data.items
+          .map(
+            (item) =>
+              `<div style="display:flex;justify-content:space-between;font-size:${smallFS};margin-bottom:2px;"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlText(String(item.productName || 'ITEM').toUpperCase())}</span><span style="width:28px;text-align:right;">${escapeHtmlText(formatCompactQty(item.quantity))}</span><span style="width:52px;text-align:right;font-weight:700;">${escapeHtmlText(thermalAmount(item.total))}</span></div>`
+          )
+          .join('')
+        parts.push(`<div style="width:100%;">${header}${rows}</div>`)
+        continue
+      }
       const itemCol = entry.columnHeaders?.item || 'Item'
       const totalCol = entry.columnHeaders?.total || 'Total'
       const showTaxColumn = resolveShowTaxColumn(entry, gstOpts.itemWiseGst)
@@ -750,6 +819,21 @@ export async function appendCustomTemplateToEscPos(
         break
       }
       case 'table': {
+        if (isCompactItemsTable(entry)) {
+          b.line(renderCompactTableHeader(entry, width))
+          b.hr(width, '-')
+          data.items.forEach((item) => {
+            b.line(
+              compactItemLine(
+                item.productName || 'ITEM',
+                formatCompactQty(item.quantity),
+                thermalAmount(item.total),
+                width
+              )
+            )
+          })
+          break
+        }
         const itemCol = entry.columnHeaders?.item || 'Item'
         const totalCol = entry.columnHeaders?.total || 'Total'
         const showTaxColumn = resolveShowTaxColumn(entry, globalItemWiseGst)

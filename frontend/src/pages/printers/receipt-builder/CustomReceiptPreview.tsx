@@ -197,6 +197,27 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
       case 'table': {
         const showTaxColumn = resolveShowTaxColumn(entry, gstOpts?.itemWiseGst)
         const showItemNumbers = resolveShowItemNumbers(entry, gstOpts?.isRestaurant)
+        if (entry.tableType === 'advanced') {
+          const itemCol = entry.columnHeaders?.item || 'ITEM'
+          const qtyCol = entry.columnHeaders?.qty || 'QTY'
+          const totalCol = entry.columnHeaders?.total || 'AMT'
+          return (
+            <div key={entry.id || idx} className="my-1 text-black" style={{ fontFamily: 'inherit' }}>
+              <div className="flex justify-between border-b border-dashed border-black pb-1 mb-1 font-bold" style={{ fontSize: '0.85em' }}>
+                <span className="flex-1">{itemCol}</span>
+                <span className="w-7 text-right">{qtyCol}</span>
+                <span className="w-12 text-right">{totalCol}</span>
+              </div>
+              {context.items.map((it, sIdx) => (
+                <div key={sIdx} className="flex justify-between mb-0.5" style={{ fontSize: '0.85em' }}>
+                  <span className="flex-1 truncate font-bold">{it.productName.toUpperCase()}</span>
+                  <span className="w-7 text-right">{Number.isInteger(it.quantity) ? it.quantity : it.quantity.toFixed(3)}</span>
+                  <span className="w-12 text-right font-bold">{it.total.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )
+        }
         return (
           <div key={entry.id || idx} className="my-1 text-black" style={{ fontFamily: 'inherit' }}>
             <div className="flex justify-between border-b border-dashed border-black pb-1 mb-1 font-bold" style={{ fontSize: '0.9em' }}>

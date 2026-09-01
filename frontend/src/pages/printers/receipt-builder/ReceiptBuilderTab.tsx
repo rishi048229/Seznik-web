@@ -21,6 +21,7 @@ import type { ReceiptConfig } from '@/types/settings.types'
 import { ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
 import { isRestaurantBusiness } from '@/constants/businessTypes'
+import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 import type { GstBillingFormState } from '@/hooks/useGstBillingSettings'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
 import type { CustomReceiptGstOpts } from '@/utils/customReceiptEngine'
@@ -288,6 +289,16 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
         }}
         isSaving={isSaving}
       />
+
+      {isRestaurant ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          Restaurant & Cafe uses the <span className="font-bold">Restaurant Bill</span> template by default — compact{' '}
+          <span className="font-mono">ITEM | QTY | AMT</span> columns with bill, table, and waiter lines.
+          {activeCustomTemplateId && customTemplates.find((t) => t.id === activeCustomTemplateId && isRestaurantReceiptTemplate(t))
+            ? ' This template is active for checkout.'
+            : ' Activate it from the list above to use at checkout.'}
+        </div>
+      ) : null}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
         <div className="w-full lg:w-7/12 space-y-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">

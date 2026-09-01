@@ -15,7 +15,10 @@ import {
   useSendKotToKitchen,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
+import { resolveKotReceiptPrintContext } from '@/utils/kotReceiptPrint'
+import { useAuth } from '@/contexts/AuthContext'
+import * as settingsService from '@/services/settingsService'
 import { printKotSlipSmart } from '@/utils/kotPrint'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
@@ -46,6 +49,7 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
   }))
 
 export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
+  const { user } = useAuth()
   const { data: products = [], isLoading: productsLoading } = useProducts()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
@@ -272,18 +276,34 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     const htmlWidth: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
     const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
-    const receiptConfig = resolveEffectiveReceiptConfig(settings)
+    const { receiptConfig, template, shouldPersist } = resolveKotReceiptPrintContext(settings)
+    const tableNo = table?.name ?? order?.partyLabel
+    const effectiveWaiter = waiterName.trim() || order?.waiterName
+
+    if (shouldPersist && user?.id) {
+      settingsService
+        .updateReceiptConfig(user.id, {
+          customTemplates: receiptConfig.customTemplates,
+          activeCustomTemplateId: receiptConfig.activeCustomTemplateId,
+          receiptConfigUpdatedAt: new Date().toISOString(),
+        })
+        .catch(() => {})
+    }
 
     if (useBle && blePrinter?.status === 'connected') {
       try {
         const bytes = await generateReceiptEscPos({
           sale,
           receiptConfig,
+          templateOverride: template,
           paperSize,
           businessName: settings?.businessName,
           businessAddress: settings?.businessAddress,
           businessLogoURL: settings?.businessLogoURL,
           invoiceConfig: settings?.invoiceConfig,
+          isRestaurant: true,
+          tableNo,
+          waiterName: effectiveWaiter,
         })
         await blePrinter.print(bytes)
         toast.success('Receipt printed')
@@ -296,11 +316,15 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     const html = generateReceiptHTML({
       sale,
       receiptConfig,
+      templateOverride: template,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
       width: htmlWidth,
       logoURL: settings?.businessLogoURL || receiptConfig.logoURL,
       invoiceConfig: settings?.invoiceConfig,
+      isRestaurant: true,
+      tableNo,
+      waiterName: effectiveWaiter,
     })
     printReceipt(html, htmlWidth, sale.invoiceNumber)
   }

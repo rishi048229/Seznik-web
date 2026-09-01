@@ -190,8 +190,8 @@ export const PrintersPage = () => {
   )
 
   const activeCustomTemplate = useMemo(
-    () => resolveActiveFromTemplates(effectiveCustomTemplates, activeCustomTemplateId) || effectiveCustomTemplates[0],
-    [effectiveCustomTemplates, activeCustomTemplateId]
+    () => resolveActiveFromTemplates(effectiveCustomTemplates, activeCustomTemplateId, user?.businessType) || effectiveCustomTemplates[0],
+    [effectiveCustomTemplates, activeCustomTemplateId, user?.businessType]
   )
 
   // Real product data to preview/print the label
@@ -864,21 +864,6 @@ export const PrintersPage = () => {
                       ))}
                     </div>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
-                  <Switch
-                    checked={config.cutPaper ?? true}
-                    onChange={v => setConfig(prev => ({ ...prev, cutPaper: v }))}
-                    label="Auto Cut Paper"
-                    info={<FieldInfo textKey="tip.printer.cutPaper" />}
-                  />
-                  <Switch
-                    checked={config.openCashDrawer ?? true}
-                    onChange={v => setConfig(prev => ({ ...prev, openCashDrawer: v }))}
-                    label="Open Cash Drawer"
-                    info={<FieldInfo textKey="tip.printer.openCashDrawer" />}
-                  />
                 </div>
 
                 <div>

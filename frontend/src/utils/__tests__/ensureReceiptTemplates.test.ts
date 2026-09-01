@@ -14,6 +14,27 @@ describe('ensureReceiptTemplates', () => {
     }
   })
 
+  it('seeds restaurant bill template for restaurant_cafe business type', () => {
+    const result = normalizeReceiptTemplates({}, { businessType: 'restaurant_cafe' })
+    expect(result.customTemplates.length).toBe(1)
+    expect(result.customTemplates[0]?.name).toBe('Restaurant Bill')
+    expect(result.customTemplates[0]?.entries.find((e) => e.type === 'table' && e.tableType === 'advanced')).toBeTruthy()
+    expect(result.activeCustomTemplateId).toBe(result.customTemplates[0]?.id)
+    expect(result.shouldPersist).toBe(true)
+  })
+
+  it('adds restaurant bill template when only the default shop receipt exists', () => {
+    const shop = createDefaultReceiptTemplate('Standard Shop Receipt')
+    const result = normalizeReceiptTemplates(
+      { customTemplates: [shop], activeCustomTemplateId: shop.id },
+      { businessType: 'restaurant_cafe' }
+    )
+    expect(result.customTemplates).toHaveLength(2)
+    expect(result.customTemplates.some((t) => t.name === 'Restaurant Bill')).toBe(true)
+    expect(result.activeCustomTemplateId).toBe('receipt-tpl-restaurant-bill')
+    expect(result.shouldPersist).toBe(true)
+  })
+
   it('seeds standard template when cloud has none', () => {
     const result = normalizeReceiptTemplates({}, { businessLogoURL: 'https://example.com/logo.png' })
     expect(result.customTemplates.length).toBe(1)
@@ -76,6 +97,6 @@ describe('ensureReceiptTemplates', () => {
     const caption = result.customTemplates[0]?.entries.find(
       (e) => e.type === 'text' && /scan/i.test(e.type === 'text' ? e.text : '')
     )
-    expect(caption && caption.type === 'text' ? caption.text : '').toBe('Scan to pay with UPI')
+    expect(caption && caption.type === 'text' ? caption.text : '').toBe('SCAN TO PAY VIA UPI')
   })
 })

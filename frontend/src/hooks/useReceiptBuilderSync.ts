@@ -26,15 +26,16 @@ export function useReceiptBuilderSync() {
       normalizeReceiptTemplates(receiptConfig, {
         businessLogoURL: settings?.businessLogoURL,
         upiId: receiptConfig.upiId || settings?.upiId,
+        businessType: user?.businessType,
       }),
-    [receiptConfig, settings?.businessLogoURL, settings?.upiId]
+    [receiptConfig, settings?.businessLogoURL, settings?.upiId, user?.businessType]
   )
 
   const customTemplates = normalized.customTemplates
   const activeCustomTemplateId = normalized.activeCustomTemplateId
   const activeTemplate = useMemo(
-    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId),
-    [customTemplates, activeCustomTemplateId]
+    () => resolveActiveFromTemplates(customTemplates, activeCustomTemplateId, user?.businessType),
+    [customTemplates, activeCustomTemplateId, user?.businessType]
   )
 
   const patchMutation = useMutation({

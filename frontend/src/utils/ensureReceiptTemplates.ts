@@ -1,8 +1,15 @@
 import type { CustomReceiptEntry, CustomReceiptTemplate } from '@/types/customReceipt'
 import { createDefaultReceiptTemplate } from '@/types/customReceipt'
+import type { BusinessType } from '@/constants/businessTypes'
+import { isRestaurantBusiness } from '@/constants/businessTypes'
 import type { ReceiptConfig } from '@/types/settings.types'
 import { isValidUpiVpa } from './upiQr'
 import { resolveStoreLogoUrl, isBrowserLoadableImageSrc } from './receiptLogo'
+import {
+  RESTAURANT_RECEIPT_TEMPLATE_NAME,
+  createRestaurantReceiptTemplate,
+  isRestaurantReceiptTemplate,
+} from './restaurantReceiptTemplate'
 
 export const STANDARD_RECEIPT_TEMPLATE_NAME = 'Standard Shop Receipt'
 
@@ -122,9 +129,68 @@ function applyUpiQrOnSeed(template: CustomReceiptTemplate, upiId: string): Custo
   }
 }
 
+function seedDefaultTemplate(
+  businessType: BusinessType | null | undefined,
+  logoURL?: string,
+  upiId?: string
+): CustomReceiptTemplate {
+  let def = isRestaurantBusiness(businessType)
+    ? createRestaurantReceiptTemplate()
+    : createDefaultReceiptTemplate(STANDARD_RECEIPT_TEMPLATE_NAME)
+  if (logoURL) def = ensureTemplateHasLogoBlock(def, logoURL)
+  if (isValidUpiVpa(upiId || '')) def = applyUpiQrOnSeed(def, upiId!)
+  return sanitizeScanToPayEntries(def)
+}
+
+function ensureRestaurantTemplateForBusiness(
+  templates: CustomReceiptTemplate[],
+  businessType: BusinessType | null | undefined,
+  logoURL?: string,
+  upiId?: string
+): { templates: CustomReceiptTemplate[]; shouldPersist: boolean; preferredActiveId?: string } {
+  if (!isRestaurantBusiness(businessType)) {
+    return { templates, shouldPersist: false }
+  }
+
+  const hasRestaurant = templates.some(isRestaurantReceiptTemplate)
+  if (hasRestaurant) {
+    return { templates, shouldPersist: false }
+  }
+
+  let restaurantTpl = createRestaurantReceiptTemplate()
+  if (logoURL) restaurantTpl = ensureTemplateHasLogoBlock(restaurantTpl, logoURL)
+  if (isValidUpiVpa(upiId || '')) restaurantTpl = applyUpiQrOnSeed(restaurantTpl, upiId!)
+
+  return {
+    templates: [restaurantTpl, ...templates],
+    shouldPersist: true,
+    preferredActiveId: restaurantTpl.id,
+  }
+}
+
+function resolveDefaultActiveTemplateId(
+  templates: CustomReceiptTemplate[],
+  businessType: BusinessType | null | undefined
+): string | null {
+  if (isRestaurantBusiness(businessType)) {
+    const restaurant = templates.find(isRestaurantReceiptTemplate)
+    if (restaurant) return restaurant.id
+  }
+  return (
+    templates.find((t) => t.name === STANDARD_RECEIPT_TEMPLATE_NAME)?.id ??
+    templates.find((t) => t.isDefault)?.id ??
+    templates[0]?.id ??
+    null
+  )
+}
+
 export function normalizeReceiptTemplates(
   receiptConfig: Partial<ReceiptConfig> | undefined,
-  opts?: { businessLogoURL?: string | null; upiId?: string | null }
+  opts?: {
+    businessLogoURL?: string | null
+    upiId?: string | null
+    businessType?: BusinessType | null
+  }
 ): {
   customTemplates: CustomReceiptTemplate[]
   activeCustomTemplateId: string | null
@@ -136,10 +202,7 @@ export function normalizeReceiptTemplates(
   let shouldPersist = false
 
   if (!Array.isArray(fromServer) || fromServer.length === 0) {
-    let def = createDefaultReceiptTemplate(STANDARD_RECEIPT_TEMPLATE_NAME)
-    if (logoURL) def = ensureTemplateHasLogoBlock(def, logoURL)
-    if (isValidUpiVpa(upiId)) def = applyUpiQrOnSeed(def, upiId)
-    def = sanitizeScanToPayEntries(def)
+    const def = seedDefaultTemplate(opts?.businessType, logoURL, upiId)
     return {
       customTemplates: [def],
       activeCustomTemplateId: def.id,
@@ -147,7 +210,7 @@ export function normalizeReceiptTemplates(
     }
   }
 
-  const templates = fromServer.map((t) => {
+  let templates = fromServer.map((t) => {
     const withLogo = ensureTemplateHasLogoBlock(t, logoURL)
     const withGst = normalizeLegacyTableGstColumn(withLogo)
     const next = sanitizeScanToPayEntries(withGst)
@@ -155,17 +218,34 @@ export function normalizeReceiptTemplates(
     return next
   })
 
+  const restaurantSeed = ensureRestaurantTemplateForBusiness(
+    templates,
+    opts?.businessType,
+    logoURL,
+    upiId
+  )
+  if (restaurantSeed.shouldPersist) {
+    templates = restaurantSeed.templates
+    shouldPersist = true
+  }
+
   // Deliberately no "always re-add the standard template" step here: it made a
   // deleted template reappear on the next read. The empty-list branch above
   // still guarantees at least one template exists.
 
   let activeCustomTemplateId = receiptConfig?.activeCustomTemplateId ?? null
-  if (!activeCustomTemplateId || !templates.some((t) => t.id === activeCustomTemplateId)) {
-    activeCustomTemplateId =
-      templates.find((t) => t.name === STANDARD_RECEIPT_TEMPLATE_NAME)?.id ??
-      templates.find((t) => t.isDefault)?.id ??
-      templates[0]?.id ??
-      null
+  if (restaurantSeed.preferredActiveId) {
+    activeCustomTemplateId = restaurantSeed.preferredActiveId
+    shouldPersist = true
+  } else if (isRestaurantBusiness(opts?.businessType)) {
+    const restaurant = templates.find(isRestaurantReceiptTemplate)
+    const currentActive = templates.find((t) => t.id === activeCustomTemplateId)
+    if (restaurant && (!currentActive || currentActive.name === STANDARD_RECEIPT_TEMPLATE_NAME)) {
+      activeCustomTemplateId = restaurant.id
+      shouldPersist = true
+    }
+  } else if (!activeCustomTemplateId || !templates.some((t) => t.id === activeCustomTemplateId)) {
+    activeCustomTemplateId = resolveDefaultActiveTemplateId(templates, opts?.businessType)
     shouldPersist = true
   }
 
@@ -180,16 +260,17 @@ export function applyLogoToTemplates(
 }
 export function resolveActiveFromTemplates(
   templates: CustomReceiptTemplate[],
-  activeCustomTemplateId?: string | null
+  activeCustomTemplateId?: string | null,
+  businessType?: BusinessType | null
 ): CustomReceiptTemplate | null {
   if (!templates.length) return null
   if (activeCustomTemplateId) {
     const match = templates.find((t) => t.id === activeCustomTemplateId)
     if (match) return match
   }
-  return (
-    templates.find((t) => t.name === STANDARD_RECEIPT_TEMPLATE_NAME) ??
-    templates.find((t) => t.isDefault) ??
-    templates[0]
-  )
+  const fallbackId = resolveDefaultActiveTemplateId(templates, businessType)
+  if (fallbackId) {
+    return templates.find((t) => t.id === fallbackId) ?? templates[0]
+  }
+  return templates[0]
 }
