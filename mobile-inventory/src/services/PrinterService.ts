@@ -29,7 +29,6 @@ import {
 } from '@shared/receiptPrintGeometry';
 import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/receiptLogo';
 import { rasterizeReceiptLogoForPrint, clearLogoRasterCache } from '../utils/receiptLogoRaster';
-import { debugSessionLog } from '../utils/debugSessionLog';
 import { isRestaurantBusiness } from '../constants/businessTypes';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -4133,14 +4132,7 @@ class ThermalPrinterServiceManager {
     widthPercent: number,
     chip: ReceiptSizeChip = 'medium'
   ): Promise<{ base64: string; widthDots: number } | null> {
-    const t0 = Date.now();
     const prepared = await rasterizeReceiptLogoForPrint(uri, paperWidth, widthPercent, chip);
-    debugSessionLog(
-      'PrinterService.ts:prepareLogo',
-      'prepareLogoForEscPos done',
-      { ms: Date.now() - t0, ok: !!prepared, widthDots: prepared?.widthDots ?? 0, chip, paperWidth, runId: 'post-fix' },
-      'D'
-    );
     if (!prepared) return null;
     return { base64: prepared.base64, widthDots: prepared.widthDots };
   }
@@ -4154,24 +4146,11 @@ class ThermalPrinterServiceManager {
     opts: { width: number; center?: boolean; autoCut?: boolean; paperSize?: number }
   ): Promise<void> {
     if (typeof NativeEscposPrinter.printPic !== 'function') return;
-    const t0 = Date.now();
     const result = NativeEscposPrinter.printPic(base64, { autoCut: false, ...opts });
     if (result && typeof result.then === 'function') {
       await result;
-      debugSessionLog(
-        'PrinterService.ts:printPic',
-        'printPic promise resolved',
-        { ms: Date.now() - t0, width: opts.width, path: 'promise' },
-        'E'
-      );
     } else {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      debugSessionLog(
-        'PrinterService.ts:printPic',
-        'printPic fire-and-forget + 200ms wait',
-        { ms: Date.now() - t0, width: opts.width, path: 'fallback200ms' },
-        'E'
-      );
     }
   }
 

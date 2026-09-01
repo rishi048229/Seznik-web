@@ -5,7 +5,6 @@ import {
   loadImageRgba,
   uint8ArrayToBase64,
 } from './imageBackgroundRemoval';
-import { debugSessionLog } from './debugSessionLog';
 
 export type RasterizedReceiptLogo = {
   base64: string;
@@ -46,35 +45,12 @@ export async function rasterizeReceiptLogoForPrint(
 
   const key = cacheKey(src, paperWidth, widthPercent, chip);
   const cached = logoRasterCache.get(key);
-  if (cached) {
-    debugSessionLog(
-      'receiptLogoRaster.ts:cache',
-      'raster cache hit',
-      { cacheHit: true, widthDots: cached.widthDots },
-      'D'
-    );
-    return cached;
-  }
+  if (cached) return cached;
 
-  const t0 = Date.now();
   try {
-    const tLoad0 = Date.now();
     const decoded = await loadImageRgba(src);
-    const tLoad1 = Date.now();
-    debugSessionLog(
-      'receiptLogoRaster.ts:load',
-      'loadImageRgba done',
-      {
-        ms: tLoad1 - tLoad0,
-        pixelW: decoded?.width ?? 0,
-        pixelH: decoded?.height ?? 0,
-        cacheHit: false,
-      },
-      'A'
-    );
     if (!decoded) return null;
 
-    const tRaster0 = Date.now();
     const raster = rasterizeLogoPixels(
       decoded.pixels,
       decoded.width,
@@ -83,36 +59,10 @@ export async function rasterizeReceiptLogoForPrint(
       widthPercent,
       chip
     );
-    const tRaster1 = Date.now();
-    debugSessionLog(
-      'receiptLogoRaster.ts:raster',
-      'rasterizeLogoPixels done',
-      {
-        ms: tRaster1 - tRaster0,
-        widthDots: raster?.widthDots ?? 0,
-        heightDots: raster?.heightDots ?? 0,
-        chip,
-        paperWidth,
-        widthPercent,
-      },
-      'B'
-    );
     if (!raster) return null;
 
-    const tPng0 = Date.now();
     const pngBytes = encodeRgbaToPng(raster.pixels, raster.widthDots, raster.heightDots);
     const base64 = uint8ArrayToBase64(pngBytes);
-    const tPng1 = Date.now();
-    debugSessionLog(
-      'receiptLogoRaster.ts:encode',
-      'PNG encode + base64 done',
-      {
-        encodePngMs: tPng1 - tPng0,
-        pngBytes: pngBytes.length,
-        base64Len: base64.length,
-      },
-      'B'
-    );
     if (!base64) return null;
 
     const result: RasterizedReceiptLogo = {
@@ -121,14 +71,6 @@ export async function rasterizeReceiptLogoForPrint(
       heightDots: raster.heightDots,
     };
     logoRasterCache.set(key, result);
-
-    debugSessionLog(
-      'receiptLogoRaster.ts:total',
-      'rasterizeReceiptLogoForPrint total',
-      { totalMs: Date.now() - t0, cacheHit: false, runId: 'post-fix' },
-      'D'
-    );
-
     return result;
   } catch (err) {
     console.warn('[receiptLogoRaster] rasterizeReceiptLogoForPrint failed:', err);
