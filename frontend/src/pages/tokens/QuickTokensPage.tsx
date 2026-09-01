@@ -4,48 +4,33 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { TokensGridSkeleton } from '@/components/ui/PageSkeleton'
+import { Spinner } from '@/components/ui/Spinner'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { useTokenTypes, useCreateTokenType, useUpdateTokenType, useDeleteTokenType } from '@/hooks/useTokenTypes'
 import { useTokens, useIssueToken, useDeleteToken } from '@/hooks/useTokens'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt } from '@/utils/receipt'
-import { resolveThermalPaper } from '@/utils/printerThermal'
+import { BleConnectButton } from '@/components/common/BleConnectButton'
+import {
+  TOKEN_SLIP_TEMPLATES,
+  TOKEN_ICONS,
+  TOKEN_COLORS,
+  printTokenSlip,
+  tokenSlipBytes,
+} from '@/utils/tokenSlip'
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { clsx } from 'clsx'
 import {
-  Ticket, Coffee, UtensilsCrossed, Cookie, ParkingCircle, QrCode, Bike, Wallet,
-  Plus, Pencil, Trash2, Settings2, Printer, X, Minus, ChevronLeft, ChevronRight,
+  Ticket, Plus, Pencil, Trash2, Settings2, Printer, X, Minus, ChevronLeft, ChevronRight,
   Search, Download, ArrowUp, ArrowDown, Receipt as ReceiptIcon, TrendingUp, Award, Bluetooth,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 import type { TokenType, Token } from '@/types/token.types'
-import type { Sale } from '@/types/sale.types'
 
-const TOKEN_ICONS: Record<string, typeof Ticket> = {
-  ticket: Ticket,
-  coffee: Coffee,
-  food: UtensilsCrossed,
-  snack: Cookie,
-  parking: ParkingCircle,
-  qrcode: QrCode,
-  bike: Bike,
-  wallet: Wallet,
-}
-const ICON_KEYS = Object.keys(TOKEN_ICONS)
-
-const TOKEN_COLORS: Record<string, string> = {
-  blue: 'bg-blue-100 text-blue-600 dark:bg-white/10 dark:text-white',
-  sky: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
-  amber: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-  emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-  purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-  rose: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-}
+const ICON_KEYS = [...new Set([...TOKEN_SLIP_TEMPLATES.map((t) => t.icon), ...Object.keys(TOKEN_ICONS)])]
 const COLOR_KEYS = Object.keys(TOKEN_COLORS)
 
 const toDateInputValue = (d: Date) => d.toISOString().split('T')[0]
@@ -63,7 +48,7 @@ export const QuickTokensPage = () => {
   const [historyDate, setHistoryDate] = useState(todayStr())
   const { data: tokens, isLoading: tokensLoading } = useTokens(historyDate)
   const { data: settings } = useSettings()
-  const { mutate: createTokenType, isPending: isCreatingType } = useCreateTokenType()
+  const { mutate: createTokenType, mutateAsync: createTokenTypeAsync, isPending: isCreatingType } = useCreateTokenType()
   const { mutate: updateTokenType, isPending: isUpdatingType } = useUpdateTokenType()
   const { mutate: deleteTokenType } = useDeleteTokenType()
   const { mutate: issueToken, isPending: isIssuing } = useIssueToken()
@@ -150,6 +135,31 @@ export const QuickTokensPage = () => {
     }
   }
 
+  const addSampleTemplates = async () => {
+    const existing = new Set(sortedTypes.map((tt) => tt.name.toLowerCase()))
+    const missing = TOKEN_SLIP_TEMPLATES.filter((tpl) => !existing.has(tpl.name.toLowerCase()))
+    if (missing.length === 0) {
+      toast.success('All sample templates are already added')
+      return
+    }
+    try {
+      for (let i = 0; i < missing.length; i++) {
+        const tpl = missing[i]
+        await createTokenTypeAsync({
+          name: tpl.name,
+          price: tpl.price,
+          taxRate: tpl.taxRate,
+          icon: tpl.icon,
+          color: tpl.color,
+          sortOrder: sortedTypes.length + i,
+        })
+      }
+      toast.success(`Added ${missing.length} token templates`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add templates')
+    }
+  }
+
   const handleDeleteType = (tt: TokenType) => {
     if (!confirm(`Delete token type "${tt.name}"?`)) return
     deleteTokenType(tt.id, {
@@ -189,49 +199,22 @@ export const QuickTokensPage = () => {
   const closeIssue = () => setIssuingType(null)
 
   const printTokenBrowser = (token: Token) => {
-    if (!token.sale) return
-    const receiptConfig = settings?.receiptConfig
-    const paperSize = resolveThermalPaper(settings?.printerConfig)
-    const width: '50mm' | '80mm' = paperSize === '80mm' ? '80mm' : '50mm'
-    const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
-    const receiptHTML = generateReceiptHTML({
-      sale: token.sale as Sale,
-      receiptConfig,
-      businessName: settings?.businessName,
-      businessAddress: settings?.businessAddress,
-      customerName: `Token #${token.tokenNumber} · ${label}`,
-      width,
-      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
-      settingsTaxName: 'GST',
-      invoiceConfig: settings?.invoiceConfig,
-    })
-    printReceipt(receiptHTML, width, `Token #${token.tokenNumber}`)
+    const paperSize = settings?.printerConfig?.paperSize || '58mm'
+    printTokenSlip(token, settings?.businessName, paperSize)
   }
 
   const printTokenBluetooth = async (token: Token) => {
-    if (!token.sale) return
     setIsBlePrinting(true)
     try {
       if (blePrinter.status !== 'connected') {
         await blePrinter.connect()
       }
-      const receiptConfig = settings?.receiptConfig
-      const label = token.tokenType?.name ?? token.sale.items?.[0]?.productName ?? 'Token'
-      const bytes = await generateReceiptEscPos({
-        sale: token.sale as Sale,
-        receiptConfig,
-        paperSize: resolveThermalPaper(settings?.printerConfig),
-        businessName: settings?.businessName,
-        businessAddress: settings?.businessAddress,
-        customerName: `Token #${token.tokenNumber} · ${label}`,
-        invoiceConfig: settings?.invoiceConfig,
-        businessLogoURL: settings?.businessLogoURL,
-      })
-      await blePrinter.print(bytes)
-      toast.success(`Token #${token.tokenNumber} printed via Bluetooth!`)
+      const paperSize = settings?.printerConfig?.paperSize || '58mm'
+      await blePrinter.print(tokenSlipBytes(token, settings?.businessName, paperSize))
+      toast.success(`Token #${token.tokenNumber} printed`)
     } catch (err) {
       console.error('BLE Print error:', err)
-      toast.error((err as Error).message || 'Failed to print via Bluetooth. Falling back to browser print...')
+      toast.error((err as Error).message || 'Bluetooth print failed. Falling back to browser print...')
       printTokenBrowser(token)
     } finally {
       setIsBlePrinting(false)
@@ -310,16 +293,19 @@ export const QuickTokensPage = () => {
       <PageHeader
         title={t('page.tokens')}
         action={
-          <Button variant="outline" leftIcon={<Settings2 size={16} />} onClick={() => { resetTypeForm(); setManageOpen(true) }}>
-            {t('token.manageTypes')}
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <BleConnectButton />
+            <Button variant="outline" leftIcon={<Settings2 size={16} />} onClick={() => { resetTypeForm(); setManageOpen(true) }}>
+              {t('token.manageTypes')}
+            </Button>
+          </div>
         }
       />
 
       {/* Issue grid */}
       <Card className="p-6 mb-6">
         {typesLoading ? (
-          <TokensGridSkeleton count={8} />
+          <div className="flex justify-center py-8"><Spinner size="lg" /></div>
         ) : activeTypes.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Ticket size={48} className="mx-auto mb-3 opacity-30" />
@@ -337,7 +323,7 @@ export const QuickTokensPage = () => {
                   key={tt.id}
                   type="button"
                   onClick={() => openIssue(tt)}
-                  className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all active:scale-[0.97] bg-white dark:bg-dark-card"
+                  className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all active:scale-[0.97] bg-white dark:bg-gray-800"
                 >
                   <div className={clsx('w-12 h-12 rounded-full flex items-center justify-center', TOKEN_COLORS[tt.color] ?? TOKEN_COLORS.blue)}>
                     <Icon size={22} />
@@ -356,7 +342,7 @@ export const QuickTokensPage = () => {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-white flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
             <ReceiptIcon size={18} />
           </div>
           <div>
@@ -389,16 +375,16 @@ export const QuickTokensPage = () => {
       {/* Token history */}
       <Card className="p-4 mb-4">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => shiftHistoryDate(-1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-elevated">
+          <button type="button" onClick={() => shiftHistoryDate(-1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
             <ChevronLeft size={18} />
           </button>
           <input
             type="date"
             value={historyDate}
             onChange={e => setHistoryDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
-          <button type="button" onClick={() => shiftHistoryDate(1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-elevated">
+          <button type="button" onClick={() => shiftHistoryDate(1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
             <ChevronRight size={18} />
           </button>
           {!isHistoryToday && (
@@ -412,7 +398,7 @@ export const QuickTokensPage = () => {
               value={historySearch}
               onChange={e => setHistorySearch(e.target.value)}
               placeholder={t('token.searchPlaceholder')}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <Button variant="outline" size="sm" leftIcon={<Download size={14} />} onClick={handleExport}>
@@ -435,7 +421,7 @@ export const QuickTokensPage = () => {
             {visibleTokens.map(token => {
               const Icon = TOKEN_ICONS[token.tokenType?.icon ?? 'ticket'] ?? Ticket
               return (
-                <div key={token.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-elevated/50 rounded-lg">
+                <div key={token.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={clsx('w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0', TOKEN_COLORS[token.tokenType?.color ?? 'blue'] ?? TOKEN_COLORS.blue)}>
                       <Icon size={16} />
@@ -507,7 +493,7 @@ export const QuickTokensPage = () => {
                 <button
                   type="button"
                   onClick={() => setIssueQty(q => Math.max(1, q - 1))}
-                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-dark-border-strong flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-dark-elevated"
+                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <Minus size={14} />
                 </button>
@@ -515,7 +501,7 @@ export const QuickTokensPage = () => {
                 <button
                   type="button"
                   onClick={() => setIssueQty(q => q + 1)}
-                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-dark-border-strong flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-dark-elevated"
+                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <Plus size={14} />
                 </button>
@@ -535,7 +521,7 @@ export const QuickTokensPage = () => {
                       'flex-1 py-2 rounded-lg text-sm font-medium border transition-colors',
                       issuePayment === opt.value
                         ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     )}
                   >
                     {opt.label}
@@ -547,6 +533,9 @@ export const QuickTokensPage = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Print Destination
               </label>
+              <div className="flex items-center gap-2 mb-2">
+                <BleConnectButton />
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -555,7 +544,7 @@ export const QuickTokensPage = () => {
                     'flex-1 py-2 px-2.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors',
                     printMode === 'bluetooth'
                       ? 'bg-indigo-600 border-indigo-600 text-white'
-                      : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   )}
                 >
                   <Bluetooth size={14} />
@@ -569,7 +558,7 @@ export const QuickTokensPage = () => {
                     'flex-1 py-2 px-2.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors',
                     printMode === 'browser'
                       ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   )}
                 >
                   <Printer size={14} />
@@ -578,7 +567,7 @@ export const QuickTokensPage = () => {
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-dark-border">
+            <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
               <span className="text-sm text-gray-500">{t('daybook.net')}</span>
               <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
                 {formatINR((parseFloat(issueAmount) || 0) * issueQty)}
@@ -600,6 +589,51 @@ export const QuickTokensPage = () => {
       <Modal isOpen={manageOpen} onClose={() => setManageOpen(false)} title={t('token.manageTypes')} size="md">
         <div className="space-y-6">
           <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slip templates</p>
+              <p className="text-[11px] text-gray-400 mb-2">Pick a small ticket style — chai cup, parking stub, queue number, and more.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-44 overflow-y-auto">
+                {TOKEN_SLIP_TEMPLATES.map((tpl) => {
+                  const Icon = TOKEN_ICONS[tpl.icon] ?? Ticket
+                  const active = typeForm.icon === tpl.icon && typeForm.name === tpl.name
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() =>
+                        setTypeForm({
+                          name: tpl.name,
+                          price: tpl.price === null ? '' : String(tpl.price),
+                          taxRate: String(tpl.taxRate),
+                          icon: tpl.icon,
+                          color: tpl.color,
+                        })
+                      }
+                      className={clsx(
+                        'text-left rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors',
+                        active
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-200'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Icon size={13} />
+                        {tpl.name.replace(' Token', '')}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 w-full"
+                loading={isCreatingType}
+                onClick={() => void addSampleTemplates()}
+              >
+                Add all 16 sample templates
+              </Button>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('token.typeName')}
@@ -640,7 +674,7 @@ export const QuickTokensPage = () => {
               </label>
               <div className="flex flex-wrap gap-2">
                 {ICON_KEYS.map(key => {
-                  const Icon = TOKEN_ICONS[key]
+                  const Icon = TOKEN_ICONS[key] ?? Ticket
                   return (
                     <button
                       key={key}
@@ -696,11 +730,11 @@ export const QuickTokensPage = () => {
             </div>
           </div>
 
-          <div className="border-t border-gray-100 dark:border-dark-border pt-4 space-y-2 max-h-64 overflow-y-auto">
+          <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-2 max-h-64 overflow-y-auto">
             {sortedTypes.map((tt, index) => {
               const Icon = TOKEN_ICONS[tt.icon] ?? Ticket
               return (
-                <div key={tt.id} className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-dark-elevated/50 rounded-lg">
+                <div key={tt.id} className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className={clsx('w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0', TOKEN_COLORS[tt.color] ?? TOKEN_COLORS.blue)}>
                       <Icon size={14} />
@@ -715,16 +749,16 @@ export const QuickTokensPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    <button type="button" disabled={index === 0} onClick={() => moveType(index, -1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-dark-hover disabled:opacity-30 disabled:hover:bg-transparent">
+                    <button type="button" disabled={index === 0} onClick={() => moveType(index, -1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-transparent">
                       <ArrowUp size={13} />
                     </button>
-                    <button type="button" disabled={index === sortedTypes.length - 1} onClick={() => moveType(index, 1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-dark-hover disabled:opacity-30 disabled:hover:bg-transparent">
+                    <button type="button" disabled={index === sortedTypes.length - 1} onClick={() => moveType(index, 1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-transparent">
                       <ArrowDown size={13} />
                     </button>
                     <button
                       type="button"
                       onClick={() => updateTokenType({ tokenTypeId: tt.id, data: { isActive: !tt.isActive } })}
-                      className="px-2 py-1 text-xs rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-dark-hover"
+                      className="px-2 py-1 text-xs rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
                     >
                       {tt.isActive ? t('common.active') : t('common.inactive')}
                     </button>

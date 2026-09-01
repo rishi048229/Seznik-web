@@ -6,6 +6,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { useLocationStock } from '@/hooks/useLocations'
 import { LocationSelector } from '@/components/common/LocationSelector'
+import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
 import { useProducts } from '@/hooks/useProducts'
@@ -756,8 +757,9 @@ export const POSLitePage = () => {
             </div>
           </div>
 
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
             <LocationSelector onChange={setSelectedLocationId} />
+            <BleConnectButton />
           </div>
 
           {isScanMode && (

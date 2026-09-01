@@ -10,6 +10,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { useLocationStock } from '@/hooks/useLocations'
 import { LocationSelector } from '@/components/common/LocationSelector'
+import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -672,8 +673,9 @@ export const POSPage = () => {
           </form>
 
           {/* Billing location (only shown when multi-location inventory is enabled) */}
-          <div className="mt-3">
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
             <LocationSelector onChange={setSelectedLocationId} />
+            <BleConnectButton />
           </div>
 
           {/* Category Tabs */}
