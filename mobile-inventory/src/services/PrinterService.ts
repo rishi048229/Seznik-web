@@ -1532,26 +1532,34 @@ class ThermalPrinterServiceManager {
     // Top margin: blank feed lines
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
 
+    const storeName = (data.storeName || '').trim();
+    const tagline = (template.tagline || '').trim();
+    const address = (data.storeAddress || '').trim();
+    const phone = (data.storePhone || '').trim();
+    const gstin = (data.storeGstin || '').trim();
+    const custName = (data.customerName || '').trim();
+    const custPhone = (data.customerPhone || '').trim();
+
     // ── 1. HEADER ──
     let hasHeader = false;
-    if (data.storeName) {
-      lines.push(...wrapProse(data.storeName.toUpperCase(), COLS, true));
+    if (storeName) {
+      lines.push(...wrapProse(storeName.toUpperCase(), COLS, true));
       hasHeader = true;
     }
-    if (template.tagline) {
-      lines.push(...wrapProse(template.tagline, COLS, true));
+    if (tagline) {
+      lines.push(...wrapProse(tagline, COLS, true));
       hasHeader = true;
     }
-    if (data.storeAddress) {
-      lines.push(...wrapProse(data.storeAddress, COLS, true));
+    if (address) {
+      lines.push(...wrapProse(address, COLS, true));
       hasHeader = true;
     }
-    if (data.storePhone) {
-      lines.push(centerText(`Phone: ${data.storePhone}`, COLS));
+    if (phone) {
+      lines.push(centerText(`Phone: ${phone}`, COLS));
       hasHeader = true;
     }
-    if (showBreakdown && data.storeGstin) {
-      lines.push(centerText(`GSTIN: ${data.storeGstin}`, COLS));
+    if (gstin) {
+      lines.push(centerText(`GSTIN: ${gstin}`, COLS));
       hasHeader = true;
     }
     if (hasHeader) {
@@ -1559,17 +1567,17 @@ class ThermalPrinterServiceManager {
     }
 
     // ── Document Title ──
-    const docTitle = data.storeGstin ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+    const docTitle = gstin ? 'TAX INVOICE' : 'BILL OF SUPPLY';
     lines.push(centerText(docTitle, COLS));
     lines.push(divider('=', COLS));
 
     // ── 2. META DETAILS ──
     lines.push(row('Bill No :', data.invoiceNumber, COLS));
     lines.push(row('Date    :', data.date, COLS));
-    if (template.showCustomerLine && data.customerName) {
-      lines.push(row('Customer:', data.customerName, COLS));
-      if (data.customerPhone) {
-        lines.push(row('Phone   :', data.customerPhone, COLS));
+    if (template.showCustomerLine && custName) {
+      lines.push(row('Customer:', custName, COLS));
+      if (custPhone) {
+        lines.push(row('Phone   :', custPhone, COLS));
       }
     }
     lines.push(divider('-', COLS));
@@ -4866,12 +4874,10 @@ class ThermalPrinterServiceManager {
 
     const now = new Date();
     const sampleData: PrintSaleData = {
-      storeName: options.storeName || (isRestaurantBill ? template.previewStoreName || 'YOUR RESTAURANT' : 'Your Store Name'),
-      storeAddress:
-        options.storeAddress ||
-        (isRestaurantBill ? template.previewAddress || '12 MG Road, City' : '123 Market Road, City Center'),
-      storePhone: options.storePhone || (isRestaurantBill ? template.previewPhone || '9876543210' : '9876543210'),
-      storeGstin: options.storeGstin || (isRestaurantBill ? template.previewGstin || '' : ''),
+      storeName: options.storeName || '',
+      storeAddress: options.storeAddress || '',
+      storePhone: options.storePhone || '',
+      storeGstin: options.storeGstin || '',
       storeLogoUrl: options.storeLogoUrl,
       upiId: options.upiId,
       footerMessage: options.footerMessage,
@@ -4881,8 +4887,8 @@ class ThermalPrinterServiceManager {
       date: isRestaurantBill
         ? template.previewDate || now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
         : now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-      customerName: isRestaurantBill ? template.previewCustomerName || 'Walk-in Customer' : 'Walk-in Customer',
-      customerPhone: isRestaurantBill ? template.previewCustomerPhone || '9988776655' : '9988776655',
+      customerName: options.customerName || '',
+      customerPhone: options.customerPhone || '',
       tableNo: isRestaurantBill ? template.previewTableNo || '12' : resolvePrintIsRestaurant(options) ? '12' : undefined,
       waiterName: isRestaurantBill ? template.previewWaiter || 'WAITER' : resolvePrintIsRestaurant(options) ? 'RAJ' : undefined,
       tokenNo: isRestaurantBill || resolvePrintIsRestaurant(options) ? '42' : undefined,
