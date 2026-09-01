@@ -386,7 +386,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       hasHeader = true
     }
     if (showPhone && companyPh) {
-      lines.push(centerText(`Ph: ${companyPh}`, COLS))
+      lines.push(centerText(`Phone: ${companyPh}`, COLS))
       hasHeader = true
     }
     if (showGSTIN && companyGst) {

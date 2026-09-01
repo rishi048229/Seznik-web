@@ -1477,8 +1477,9 @@ class ThermalPrinterServiceManager {
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
 
     // Header — tagline + contact lines
-    const storeName = (data.storeName || 'Your Store Name').toUpperCase();
-    wrapAndCenter(storeName);
+    if (data.storeName) {
+      wrapAndCenter(data.storeName.toUpperCase());
+    }
     if (template.tagline) wrapAndCenter(template.tagline);
     if (data.storeAddress) wrapAndCenter(data.storeAddress);
     if (data.storePhone) wrapAndCenter(`Phone: ${data.storePhone}`);
@@ -1487,8 +1488,8 @@ class ThermalPrinterServiceManager {
 
     // Meta / Bill Info
     lines.push(padLine(`${template.billLabel}: ${data.invoiceNumber}`, data.date));
-    if (template.showCustomerLine) {
-      const custLine = `Customer: ${data.customerName || 'Walk-in'}`;
+    if (template.showCustomerLine && data.customerName) {
+      const custLine = `Customer: ${data.customerName}`;
       if (custLine.length <= width) {
         lines.push(custLine);
       } else {
