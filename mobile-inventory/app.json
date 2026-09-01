@@ -12,6 +12,8 @@
       "bundleIdentifier": "com.rishi048229.seznikapp",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Seznik POS to scan barcodes and the login QR from your dashboard.",
+        "NSPhotoLibraryUsageDescription": "Allow Seznik POS to choose product photos from your gallery.",
+        "NSPhotoLibraryAddUsageDescription": "Allow Seznik POS to save product photos to your library.",
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
       }
@@ -44,6 +46,13 @@
           "cameraPermission": "Allow Seznik POS to scan barcodes and the login QR from your dashboard.",
           "microphonePermission": false,
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Seznik POS to choose product photos from your gallery.",
+          "cameraPermission": "Allow Seznik POS to take product photos."
         }
       ],
       [

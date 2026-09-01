@@ -69,6 +69,7 @@ import { ProductsListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
+import { prepareProductImageForUpload } from '@/utils/productImageStorage';
 import { GST_SLAB_OPTIONS, GST_CUSTOM_OPTION, getGstSlabLabel, isStandardGstSlab } from '@/constants/gstSlabs';
 import { calculateProductGstBreakdown } from '@/utils/gst';
 import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
@@ -152,6 +153,7 @@ export default function ProductsScreen() {
   const [lowStockThreshold, setLowStockThreshold] = useState('10');
   const [unit, setUnit] = useState('Piece');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [barcodeType, setBarcodeType] = useState<'EAN13' | 'CODE128'>('EAN13');
   const [taxRate, setTaxRate] = useState('0');
@@ -217,6 +219,18 @@ export default function ProductsScreen() {
     }
   };
 
+  const applyPickedProductPhoto = async (uri: string) => {
+    setProcessingPhoto(true);
+    try {
+      const dataUrl = await prepareProductImageForUpload(uri);
+      setImageUrl(dataUrl || uri);
+    } catch {
+      Alert.alert('Photo Error', 'Could not process the selected photo. Please try another image.');
+    } finally {
+      setProcessingPhoto(false);
+    }
+  };
+
   // Photo Selection Handlers (Camera & Photo Gallery)
   const handlePickPhotoFromGallery = async () => {
     const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -233,7 +247,7 @@ export default function ProductsScreen() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
-      setImageUrl(pickerResult.assets[0].uri);
+      await applyPickedProductPhoto(pickerResult.assets[0].uri);
     }
   };
 
@@ -252,7 +266,7 @@ export default function ProductsScreen() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
-      setImageUrl(pickerResult.assets[0].uri);
+      await applyPickedProductPhoto(pickerResult.assets[0].uri);
     }
   };
 
@@ -478,6 +492,7 @@ export default function ProductsScreen() {
     setSubmitting(true);
     try {
       const discVal = parseFloat(discountValue) || 0;
+      const resolvedImageUrl = imageUrl ? await prepareProductImageForUpload(imageUrl) : undefined;
       const payload = {
         name: name.trim(),
         sellingPrice: Math.max(0, parseFloat(sellingPrice) || 0),
@@ -485,7 +500,7 @@ export default function ProductsScreen() {
         currentStock: Math.max(0, parseInt(stock) || 0),
         lowStockThreshold: Math.max(0, parseInt(lowStockThreshold) || 10),
         unit: unit.trim() || 'Piece',
-        imageUrl: imageUrl || undefined,
+        imageUrl: resolvedImageUrl,
         barcode: barcode.trim() || undefined,
         taxRate: effectiveGstRate,
         priceIncludesGst,
@@ -1197,7 +1212,11 @@ export default function ProductsScreen() {
               )}
 
               <View style={styles.photoActionsRow}>
-                <TouchableOpacity onPress={handleTakePhotoWithCamera} style={styles.photoActionBtn}>
+                <TouchableOpacity
+                  onPress={handleTakePhotoWithCamera}
+                  style={styles.photoActionBtn}
+                  disabled={processingPhoto || submitting}
+                >
                   <Camera size={14} color="#FFFFFF" />
                   <Text style={styles.photoActionText}>Take Photo</Text>
                 </TouchableOpacity>
@@ -1205,11 +1224,20 @@ export default function ProductsScreen() {
                 <TouchableOpacity
                   onPress={handlePickPhotoFromGallery}
                   style={[styles.photoActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                  disabled={processingPhoto || submitting}
                 >
                   <ImageIcon size={14} color="#FFFFFF" />
                   <Text style={styles.photoActionText}>Gallery Pick</Text>
                 </TouchableOpacity>
               </View>
+              {processingPhoto ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                  <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                  <Text style={{ marginLeft: 8, fontSize: 11, color: theme.textSecondary, fontWeight: '600' }}>
+                    Preparing photo...
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Product Name */}

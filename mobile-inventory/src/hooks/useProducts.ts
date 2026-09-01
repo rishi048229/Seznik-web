@@ -30,10 +30,20 @@ export function useProducts() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const patchCatalogImage = (productId: string, imageUrl?: string | null) => {
+    if (!userId || !imageUrl) return;
+    queryClient.setQueryData(productsQueryKey(userId), (old: Product[] | undefined) =>
+      old?.map((product) => (product.id === productId ? { ...product, imageUrl } : product))
+    );
+  };
+
   const createProductMutation = useMutation({
     mutationFn: (payload: CreateProductPayload) => productsApi.createProduct(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      if (created.imageUrl) {
+        patchCatalogImage(created.id, created.imageUrl);
+      }
       queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
     },
   });
@@ -41,8 +51,11 @@ export function useProducts() {
   const updateProductMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<CreateProductPayload> }) =>
       productsApi.updateProduct(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      if (variables.payload.imageUrl) {
+        patchCatalogImage(variables.id, variables.payload.imageUrl);
+      }
       queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
     },
   });
