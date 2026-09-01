@@ -218,6 +218,8 @@ export interface ReceiptPrintOptions {
   storeLogoUrl?: string;
   upiId?: string;
   footerMessage?: string;
+  customerName?: string;
+  customerPhone?: string;
   /** When set, overrides ReceiptTemplate.showTaxBreakdown. */
   showTaxBreakdown?: boolean;
   /** Print each line's GST % under the item name. */

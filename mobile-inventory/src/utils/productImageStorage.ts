@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-let ImageManipulator: typeof import('expo-image-manipulator') | null = null;
+let ImageManipulator: any = null;
 try {
   ImageManipulator = require('expo-image-manipulator');
 } catch {
