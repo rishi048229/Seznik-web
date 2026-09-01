@@ -27,6 +27,7 @@ import {
   UserCircle2,
   ChevronDown,
   Barcode,
+  PackagePlus,
   Package,
   Layers,
   Printer,
@@ -69,6 +70,8 @@ import {
   buildReceiptPrintOptions,
   generateProvisionalInvoice,
 } from '@/utils/fastSaleCheckout';
+import { Product } from '@/types/product';
+import { PosProductSheet } from '@/components/pos/PosProductSheet';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
@@ -104,7 +107,30 @@ function PosScreen() {
     });
   }, [navigation, cartItemsCount]);
 
-  const { products, isInitialLoading: loadingProducts, isError: productsError, error: productsLoadError, refetch: refetchProducts, getByBarcode } = useProducts();
+  const {
+    products,
+    isInitialLoading: loadingProducts,
+    isError: productsError,
+    error: productsLoadError,
+    refetch: refetchProducts,
+    getByBarcode,
+    createProduct,
+    updateProduct,
+    adjustStock,
+  } = useProducts();
+
+  // Add or correct a product without leaving the counter. null = creating a new one.
+  const [productSheetOpen, setProductSheetOpen] = useState(false);
+  const [productSheetTarget, setProductSheetTarget] = useState<Product | null>(null);
+
+  const openNewProductSheet = () => {
+    setProductSheetTarget(null);
+    setProductSheetOpen(true);
+  };
+  const openEditProductSheet = (product: Product) => {
+    setProductSheetTarget(product);
+    setProductSheetOpen(true);
+  };
   const { categories } = useCategories();
   const { persistSaleInBackground, isCreating } = useSales();
   const storeProfile = useStoreProfile();
@@ -609,6 +635,15 @@ function PosScreen() {
         {/* Secondary tools — uniform neutral buttons so they read as a toolbar, not a
             competing set of colored calls-to-action next to the primary search/browse flow. */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {/* Add a product mid-sale. The counter case is an item that was never
+              entered, and leaving for the Products tab loses the cart. */}
+          <TouchableOpacity
+            onPress={openNewProductSheet}
+            style={[styles.toolBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+          >
+            <PackagePlus size={16} color={theme.textPrimary} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={async () => {
               if (!permission?.granted) await requestPermission();
@@ -654,10 +689,23 @@ function PosScreen() {
             onChangeText={setSearchQuery}
           />
           {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <X size={14} color={theme.textSecondary} />
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={15} color={theme.textSecondary} />
             </TouchableOpacity>
-          ) : null}
+          ) : (
+            /* Scanning is the fastest way to find one item, and it was only
+               reachable from the header toolbar before. */
+            <TouchableOpacity
+              onPress={async () => {
+                if (!permission?.granted) await requestPermission();
+                setShowScanner(true);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.searchScanBtn}
+            >
+              <Barcode size={16} color={BRAND_COLORS.blue600} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -769,7 +817,7 @@ function PosScreen() {
                 setSearchQuery('');
                 setSelectedCategoryId(null);
               }}
-              onProductLongPress={(p) => router.push('/products' as any)}
+              onProductLongPress={openEditProductSheet}
               onAddProductPress={() => router.push('/products' as any)}
             />
           )}
@@ -1491,6 +1539,15 @@ function PosScreen() {
       />
 
       {/* LIVE THERMAL RECEIPT PREVIEW MODAL — opens immediately after Print, closing it returns to POS */}
+      <PosProductSheet
+        visible={productSheetOpen}
+        product={productSheetTarget}
+        onClose={() => setProductSheetOpen(false)}
+        onCreate={(payload) => createProduct(payload as any)}
+        onUpdate={({ id, payload }) => updateProduct({ id, payload: payload as any })}
+        onAdjustStock={({ id, quantity, reason }) => adjustStock({ id, payload: { change: quantity, reason } })}
+      />
+
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
@@ -1762,23 +1819,25 @@ function PosScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   menuBtn: { padding: 9, borderRadius: 12, borderWidth: 1 },
   headerBadge: { fontSize: 9, fontWeight: '800', color: BRAND_COLORS.sky500, textTransform: 'uppercase', letterSpacing: 0.5 },
-  headerTitle: { fontSize: 18, fontWeight: '900' },
+  headerTitle: { fontSize: 19, fontWeight: '900', letterSpacing: -0.3 },
   toolBtn: { padding: 9, borderRadius: 12, borderWidth: 1, marginLeft: 6 },
   toolBtnBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   toolBtnBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
-  searchRowContainer: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 10 },
-  searchInputFull: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  inputField: { flex: 1, marginLeft: 8, fontSize: 13 },
-  categoryChipRow: { flexGrow: 0, marginBottom: 10 },
-  categorySearchBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, marginRight: 8 },
+  searchRowContainer: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 12, marginBottom: 12 },
+  searchInputFull: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+  inputField: { flex: 1, marginLeft: 10, fontSize: 14.5, fontWeight: '600' },
+  categoryChipRow: { flexGrow: 0, marginBottom: 12 },
+  categorySearchBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1.5, paddingVertical: 10, paddingHorizontal: 14, marginRight: 8 },
   categorySearchBtnText: { fontSize: 12, fontWeight: '800', marginHorizontal: 4 },
   categoryDivider: { width: 1, height: 20, marginRight: 8 },
-  categoryChip: { borderRadius: 12, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center', marginRight: 8, flexDirection: 'row' },
-  categoryChipText: { fontSize: 12, fontWeight: '800' },
-  categoryChipCount: { fontSize: 10, fontWeight: '700', marginLeft: 5 },
+  categoryChip: { borderRadius: 999, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', marginRight: 8, flexDirection: 'row' },
+  categoryChipText: { fontSize: 12.5, fontWeight: '800' },
+  chipSelectedLift: { elevation: 3, shadowColor: BRAND_COLORS.blue600, shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  searchScanBtn: { paddingLeft: 8 },
+  categoryChipCount: { fontSize: 10.5, fontWeight: '800', marginLeft: 6, opacity: 0.85 },
   productGridContainer: { flex: 1, paddingHorizontal: 16 },
   productTile: { width: '48.5%', borderRadius: 16, padding: 10, borderWidth: 1, marginBottom: 10, justifyContent: 'space-between', minHeight: 165 },
   tileHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
