@@ -50,6 +50,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintKotDeltaData } from '@/services/PrinterService';
 import { useSettings } from '@/hooks/useSettings';
+import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
 
 const VOID_REASONS = [
   'Guest cancelled',
@@ -107,6 +108,7 @@ export default function KotOrderDetailScreen() {
   const [newProductQty, setNewProductQty] = useState(1);
   const [newProductNote, setNewProductNote] = useState('');
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<Product | null>(null);
+  const [showAddFoodModal, setShowAddFoodModal] = useState(false);
 
   // Settlement / Bill Checkout Modal
   const [showSettleModal, setShowSettleModal] = useState(false);
@@ -953,16 +955,34 @@ export default function KotOrderDetailScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Product Search */}
-              <View style={[styles.searchBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-                <Search size={16} color={theme.textSecondary} />
-                <TextInput
-                  value={productSearch}
-                  onChangeText={setProductSearch}
-                  placeholder="Search food item..."
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.searchInput, { color: theme.textPrimary }]}
-                />
+              {/* Product Search & + New Dish Button */}
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <View style={[styles.searchBox, { backgroundColor: theme.bg, borderColor: theme.borderColor, flex: 1 }]}>
+                  <Search size={16} color={theme.textSecondary} />
+                  <TextInput
+                    value={productSearch}
+                    onChangeText={setProductSearch}
+                    placeholder="Search food item..."
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.searchInput, { color: theme.textPrimary }]}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setShowAddFoodModal(true)}
+                  style={{
+                    backgroundColor: BRAND_COLORS.navyInk,
+                    paddingHorizontal: 12,
+                    height: 38,
+                    borderRadius: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Plus size={14} color="#FFF" style={{ marginRight: 4 }} />
+                  <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '800' }}>+ Dish</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Products List */}
@@ -1140,6 +1160,17 @@ export default function KotOrderDetailScreen() {
             </View>
           </KeyboardAvoidingWrapper>
         </Modal>
+
+        {/* ADD FOOD DISH MODAL */}
+        <AddFoodItemModal
+          visible={showAddFoodModal}
+          onClose={() => setShowAddFoodModal(false)}
+          onItemCreated={(newDish) => {
+            if (newDish) {
+              setSelectedProductToAdd(newDish);
+            }
+          }}
+        />
       </View>
     </ScreenBackground>
   );
