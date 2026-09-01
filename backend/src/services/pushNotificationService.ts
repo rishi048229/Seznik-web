@@ -288,18 +288,13 @@ export async function sendNewProductLaunchPush(
  */
 export async function sendFeatureTipPush(
   userId: string,
-  tipType: 'barcode_studio' | 'voice_billing' | 'whatsapp_receipt' | 'offline_pos' = 'barcode_studio'
+  tipType: 'barcode_studio' | 'whatsapp_receipt' | 'offline_pos' = 'barcode_studio'
 ): Promise<boolean> {
   const tips: Record<string, { title: string; body: string; url: string }> = {
     barcode_studio: {
       title: '🏷️ Pro Tip: Custom Barcode Label Printing',
       body: 'Generate and print custom 50x30mm / 40x30mm barcode price tags in 1-tap from Label Studio!',
       url: '/products',
-    },
-    voice_billing: {
-      title: '🎙️ Pro Tip: Voice-Assisted POS Search',
-      body: 'Tap the microphone on the POS screen and speak product names in Hindi, Marathi, or English to add items instantly!',
-      url: '/(tabs)/pos',
     },
     whatsapp_receipt: {
       title: '💬 Instant WhatsApp & UPI QR Invoicing',

@@ -27,7 +27,6 @@
       "permissions": [
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
@@ -58,16 +57,6 @@
       "expo-sqlite",
       "expo-sharing",
       "expo-secure-store",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow Seznik POS to use the microphone for voice-to-cart.",
-          "speechRecognitionPermission": "Allow Seznik POS to use speech recognition for voice-to-cart.",
-          "androidSpeechServicePackages": [
-            "com.google.android.googlequicksearchbox"
-          ]
-        }
-      ],
       "expo-image",
       "expo-web-browser",
       [

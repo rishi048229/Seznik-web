@@ -30,8 +30,6 @@ import {
   ShoppingBag,
   Barcode,
   Package,
-  Mic,
-  MicOff,
   Printer,
   Minus,
   Flashlight,
@@ -62,8 +60,6 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import type { PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { generateProvisionalInvoice } from '@/utils/fastSaleCheckout';
-import { useVoiceCart, VOICE_LANGUAGES } from '@/hooks/useVoiceCart';
-import type { ParsedVoiceCommand } from '@/utils/voiceCommandParser';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
@@ -322,42 +318,6 @@ export default function PosLiteScreen() {
     );
   };
 
-  // Voice-to-cart: "2 bread" adds, "remove 2 breads" subtracts, "remove all bread" clears the line.
-  const handleVoiceCommand = useCallback(
-    (cmd: ParsedVoiceCommand) => {
-      if (!cmd.matchedProduct) return;
-      const product = products.find((p) => p.id === cmd.matchedProduct!.id);
-      if (!product) return;
-
-      if (cmd.action === 'add') {
-        addItem(product, cmd.quantity === Infinity ? 1 : cmd.quantity);
-      } else if (cmd.action === 'remove') {
-        const existing = cartItems.find((i) => i.product.id === product.id);
-        if (!existing) return;
-        if (cmd.quantity === Infinity) {
-          removeItem(product.id);
-        } else {
-          updateQuantity(product.id, existing.quantity - cmd.quantity);
-        }
-      }
-      Vibration.vibrate(60);
-    },
-    [products, cartItems, addItem, removeItem, updateQuantity]
-  );
-
-  const voiceProducts = React.useMemo(() => products.map((p) => ({ id: p.id, name: p.name })), [products]);
-  const [voiceLang, setVoiceLang] = useState('en-IN');
-  const { isListening: isVoiceListening, feedback: voiceFeedback, toggle: toggleVoice } = useVoiceCart({
-    products: voiceProducts,
-    onCommand: handleVoiceCommand,
-    lang: voiceLang,
-  });
-  const cycleVoiceLang = () => {
-    const idx = VOICE_LANGUAGES.findIndex((l) => l.code === voiceLang);
-    setVoiceLang(VOICE_LANGUAGES[(idx + 1) % VOICE_LANGUAGES.length].code);
-  };
-  const currentVoiceLangLabel = VOICE_LANGUAGES.find((l) => l.code === voiceLang)?.short || 'EN';
-
   return (
     <ScreenBackground color={theme.bg}>
     <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: insets.top || 12 }]}>
@@ -371,23 +331,6 @@ export default function PosLiteScreen() {
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* Voice Language Toggle — tap to cycle English/Hindi/Gujarati/Marathi recognition */}
-            <TouchableOpacity
-              onPress={cycleVoiceLang}
-              disabled={isVoiceListening}
-              style={[styles.voiceLangBadge, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, opacity: isVoiceListening ? 0.5 : 1 }]}
-            >
-              <Text style={[styles.voiceLangBadgeText, { color: theme.textPrimary }]}>{currentVoiceLangLabel}</Text>
-            </TouchableOpacity>
-
-            {/* Voice-to-Cart Mic Button */}
-            <TouchableOpacity
-              onPress={toggleVoice}
-              style={[styles.scanCartHeaderBtn, { backgroundColor: isVoiceListening ? '#EF4444' : BRAND_COLORS.blue600, paddingHorizontal: 8 }]}
-            >
-              {isVoiceListening ? <MicOff size={14} color="#FFFFFF" /> : <Mic size={14} color="#FFFFFF" />}
-            </TouchableOpacity>
-
             {/* Scan-to-Cart Camera Button */}
             <TouchableOpacity
               onPress={async () => {
@@ -406,20 +349,6 @@ export default function PosLiteScreen() {
             </View>
           </View>
         </View>
-
-        {/* Voice-to-cart status/feedback banner */}
-        {isVoiceListening || voiceFeedback ? (
-          <View
-            style={[
-              styles.voiceBanner,
-              voiceFeedback ? { backgroundColor: voiceFeedback.ok ? 'rgba(16,185,129,0.96)' : 'rgba(239,68,68,0.96)' } : { backgroundColor: 'rgba(37,99,235,0.96)' },
-            ]}
-          >
-            <Text style={styles.voiceBannerText} numberOfLines={1}>
-              {voiceFeedback ? voiceFeedback.message : 'Listening... say an item, e.g. "2 bread"'}
-            </Text>
-          </View>
-        ) : null}
 
         <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Quick Rest Cart</Text>
         <Text style={[styles.pageSub, { color: theme.textSecondary }]}>
@@ -917,10 +846,6 @@ const styles = StyleSheet.create({
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   scanCartHeaderBtn: { backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, flexDirection: 'row', alignItems: 'center', marginRight: 8 },
   scanCartHeaderBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', marginLeft: 4 },
-  voiceBanner: { borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14, marginTop: 10 },
-  voiceBannerText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', textAlign: 'center' },
-  voiceLangBadge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, borderWidth: 1, marginRight: 8 },
-  voiceLangBadgeText: { fontSize: 10, fontWeight: '900' },
   badge: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
   badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', marginLeft: 4 },
   pageTitle: { fontSize: 24, fontWeight: '900' },
