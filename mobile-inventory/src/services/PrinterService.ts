@@ -1027,16 +1027,34 @@ class ThermalPrinterServiceManager {
     const billPdfUrl = buildBillPdfUrl(data);
     const upiStr = this.upiPayPayload(data) || '';
 
+    const phoneVal = (data.storePhone || '').trim();
+    const gstinVal = (data.storeGstin || '').trim();
+    const custNameVal = (data.customerName || '').trim();
+    const custPhoneVal = (data.customerPhone || '').trim();
+    const tableVal = (data.tableNo || '').trim();
+    const waiterVal = (data.waiterName || '').trim();
+    const tokenVal = (data.tokenNo || '').trim();
+    const storeNameVal = (data.storeName || '').trim();
+    const storeAddrVal = (data.storeAddress || '').trim();
+    const footerVal = (data.footerMessage || '').trim();
+
     return text
-      .replace(/\{\{store_name\}\}/gi, data.storeName || 'Your Store')
-      .replace(/\{\{store_address\}\}/gi, data.storeAddress || '')
-      .replace(/\{\{store_phone\}\}/gi, data.storePhone || '')
-      .replace(/\{\{store_gstin\}\}/gi, data.storeGstin || '')
+      .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, phoneVal ? `Phone: ${phoneVal}` : '')
+      .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, gstinVal ? `GSTIN: ${gstinVal}` : '')
+      .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, custNameVal ? `Customer: ${custNameVal}` : '')
+      .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhoneVal ? `Phone: ${custPhoneVal}` : '')
+      .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, tableVal ? `Table: ${tableVal}` : '')
+      .replace(/(?:Waiter)?:\s*\{\{waiter_name\}\}/gi, waiterVal ? `Waiter: ${waiterVal}` : '')
+      .replace(/(?:Token)?:\s*\{\{token_no\}\}/gi, tokenVal ? `Token: ${tokenVal}` : '')
+      .replace(/\{\{store_name\}\}/gi, storeNameVal)
+      .replace(/\{\{store_address\}\}/gi, storeAddrVal)
+      .replace(/\{\{store_phone\}\}/gi, phoneVal)
+      .replace(/\{\{store_gstin\}\}/gi, gstinVal)
       .replace(/\{\{invoice_no\}\}/gi, data.invoiceNumber || 'INV-0000')
       .replace(/\{\{date\}\}/gi, dateStr)
       .replace(/\{\{time\}\}/gi, timeStr)
-      .replace(/\{\{customer_name\}\}/gi, data.customerName || 'Walk-in')
-      .replace(/\{\{customer_phone\}\}/gi, data.customerPhone || '')
+      .replace(/\{\{customer_name\}\}/gi, custNameVal)
+      .replace(/\{\{customer_phone\}\}/gi, custPhoneVal)
       .replace(/\{\{subtotal\}\}/gi, `₹${data.subtotal.toFixed(2)}`)
       .replace(/\{\{discount\}\}/gi, `₹${data.totalDiscount.toFixed(2)}`)
       .replace(/\{\{total_tax\}\}/gi, `₹${data.totalTax.toFixed(2)}`)
@@ -1047,10 +1065,10 @@ class ThermalPrinterServiceManager {
       .replace(/\{\{payment_method\}\}/gi, data.paymentMethod || 'CASH')
       .replace(/\{\{upi_qr\}\}/gi, upiStr)
       .replace(/\{\{bill_pdf_url\}\}/gi, billPdfUrl)
-      .replace(/\{\{footer_message\}\}/gi, data.footerMessage || 'Thank you for your business!')
-      .replace(/\{\{token_no\}\}/gi, data.tokenNo || '')
-      .replace(/\{\{table_no\}\}/gi, data.tableNo || '')
-      .replace(/\{\{waiter_name\}\}/gi, data.waiterName || '');
+      .replace(/\{\{footer_message\}\}/gi, footerVal)
+      .replace(/\{\{token_no\}\}/gi, tokenVal)
+      .replace(/\{\{table_no\}\}/gi, tableVal)
+      .replace(/\{\{waiter_name\}\}/gi, waiterVal);
   }
 
   public formatCustomReceiptText(
@@ -1106,7 +1124,7 @@ class ThermalPrinterServiceManager {
         case 'text':
         case 'text_special': {
           const rawText = this.interpolateReceiptVariables(entry.text, data);
-          const splitted = rawText.split('\n');
+          const splitted = rawText.split('\n').filter((line) => line.trim().length > 0);
           splitted.forEach((line) => {
             lines.push(alignText(line, entry.align || 'left'));
           });
@@ -2093,7 +2111,10 @@ class ThermalPrinterServiceManager {
       .map((entry) => {
         switch (entry.type) {
           case 'text': {
-            const txt = this.interpolateReceiptVariables(entry.text, data).replace(/\n/g, '<br/>');
+            const raw = this.interpolateReceiptVariables(entry.text, data);
+            const lines = raw.split('\n').filter((l) => l.trim().length > 0);
+            if (lines.length === 0) return '';
+            const txt = lines.join('<br/>');
             const align = entry.align || 'left';
             const isBold = entry.bold ? 'font-weight: bold;' : '';
             const isUnderline = entry.underline ? 'text-decoration: underline;' : '';
@@ -2121,7 +2142,10 @@ class ThermalPrinterServiceManager {
           }
 
           case 'text_special': {
-            const txt = this.interpolateReceiptVariables(entry.text, data).replace(/\n/g, '<br/>');
+            const raw = this.interpolateReceiptVariables(entry.text, data);
+            const lines = raw.split('\n').filter((l) => l.trim().length > 0);
+            if (lines.length === 0) return '';
+            const txt = lines.join('<br/>');
             const align = entry.align || 'left';
             const isBold = entry.bold ? 'font-weight: bold;' : '';
             const isItalic = entry.italic ? 'font-style: italic;' : '';
@@ -4419,6 +4443,9 @@ class ThermalPrinterServiceManager {
         case 'text':
         case 'text_special': {
           const rawText = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.text, data));
+          const lines = rawText.split('\n').filter((l) => l.trim().length > 0);
+          if (lines.length === 0) break;
+          const cleanText = lines.join('\n');
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(alignCode(entry.align));
           }
@@ -4441,7 +4468,7 @@ class ThermalPrinterServiceManager {
               scaleH = 1;
             }
           }
-          await NativeEscposPrinter.printText(rawText + '\n', { widthtimes: Math.min(1, scaleW + fontBump), heigthtimes: Math.min(1, scaleH + fontBump), cut: false });
+          await NativeEscposPrinter.printText(cleanText + '\n', { widthtimes: Math.min(1, scaleW + fontBump), heigthtimes: Math.min(1, scaleH + fontBump), cut: false });
           break;
         }
 

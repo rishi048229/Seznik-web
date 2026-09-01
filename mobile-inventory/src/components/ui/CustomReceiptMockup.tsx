@@ -85,29 +85,38 @@ export function CustomReceiptMockup({
 
   const replaceVars = (str?: string): string => {
     if (!str) return '';
+    const phoneVal = (storePhone || '').trim();
+    const gstinVal = (storeGstin || '').trim();
+    const custNameVal = (customerName || '').trim();
+    const custPhoneVal = (customerPhone || '').trim();
+    const storeNameVal = (storeName || '').trim();
+    const storeAddrVal = (storeAddress || '').trim();
+
     return str
-      .replace(/(?:Phone|Ph|Tel)?:\s*{{store_phone}}/gi, storePhone ? `Ph: ${storePhone}` : '')
-      .replace(/GST(?:IN)?:\s*{{store_gstin}}/gi, storeGstin ? `GSTIN: ${storeGstin}` : '')
-      .replace(/{{store_name}}/gi, storeName || 'SEZNIK STORE')
-      .replace(/{{store_address}}/gi, storeAddress || '')
-      .replace(/{{store_phone}}/gi, storePhone || '')
-      .replace(/{{store_gstin}}/gi, storeGstin || '')
-      .replace(/{{invoice_no}}/gi, invoiceNumber)
-      .replace(/{{date}}/gi, date)
-      .replace(/{{time}}/gi, time)
-      .replace(/{{customer_name}}/gi, customerName)
-      .replace(/{{customer_phone}}/gi, customerPhone)
-      .replace(/{{grand_total}}/gi, `₹${grandTotal.toFixed(2)}`)
-      .replace(/{{subtotal}}/gi, `₹${subtotal.toFixed(2)}`)
-      .replace(/{{tax}}/gi, `₹${totalTax.toFixed(2)}`)
-      .replace(/{{total_tax}}/gi, `₹${totalTax.toFixed(2)}`)
-      .replace(/{{discount}}/gi, `₹${totalDiscount.toFixed(2)}`)
-      .replace(/{{paid_amount}}/gi, `₹${amountPaid.toFixed(2)}`)
-      .replace(/{{change_returned}}/gi, `₹${changeReturned.toFixed(2)}`)
-      .replace(/{{payment_method}}/gi, paymentMethod)
-      .replace(/{{bill_pdf_url}}/gi, sampleBillPdfUrl)
-      .replace(/{{upi_qr}}/gi, sampleUpiStr)
-      .replace(/{{footer_message}}/gi, 'Thank you! Visit again.');
+      .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, phoneVal ? `Phone: ${phoneVal}` : '')
+      .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, gstinVal ? `GSTIN: ${gstinVal}` : '')
+      .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, custNameVal ? `Customer: ${custNameVal}` : '')
+      .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhoneVal ? `Phone: ${custPhoneVal}` : '')
+      .replace(/\{\{store_name\}\}/gi, storeNameVal)
+      .replace(/\{\{store_address\}\}/gi, storeAddrVal)
+      .replace(/\{\{store_phone\}\}/gi, phoneVal)
+      .replace(/\{\{store_gstin\}\}/gi, gstinVal)
+      .replace(/\{\{invoice_no\}\}/gi, invoiceNumber || '')
+      .replace(/\{\{date\}\}/gi, date || '')
+      .replace(/\{\{time\}\}/gi, time || '')
+      .replace(/\{\{customer_name\}\}/gi, custNameVal)
+      .replace(/\{\{customer_phone\}\}/gi, custPhoneVal)
+      .replace(/\{\{grand_total\}\}/gi, `₹${grandTotal.toFixed(2)}`)
+      .replace(/\{\{subtotal\}\}/gi, `₹${subtotal.toFixed(2)}`)
+      .replace(/\{\{tax\}\}/gi, `₹${totalTax.toFixed(2)}`)
+      .replace(/\{\{total_tax\}\}/gi, `₹${totalTax.toFixed(2)}`)
+      .replace(/\{\{discount\}\}/gi, `₹${totalDiscount.toFixed(2)}`)
+      .replace(/\{\{paid_amount\}\}/gi, `₹${amountPaid.toFixed(2)}`)
+      .replace(/\{\{change_returned\}\}/gi, `₹${changeReturned.toFixed(2)}`)
+      .replace(/\{\{payment_method\}\}/gi, paymentMethod || '')
+      .replace(/\{\{bill_pdf_url\}\}/gi, sampleBillPdfUrl)
+      .replace(/\{\{upi_qr\}\}/gi, sampleUpiStr)
+      .replace(/\{\{footer_message\}\}/gi, '');
   };
 
   const renderEntry = (entry: CustomReceiptEntry, idx: number) => {
