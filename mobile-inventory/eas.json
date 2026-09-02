@@ -24,6 +24,9 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5000/api"
+      },
+      "android": {
+        "buildType": "apk"
       }
     }
   },
