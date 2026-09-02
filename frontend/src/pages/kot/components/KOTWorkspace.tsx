@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X, Printer, CreditCard, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { LocationSelector } from '@/components/common/LocationSelector'
@@ -97,7 +98,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     const onSuccess = () => {
       if (ok) toast.success(ok)
     }
-    const onError = (err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed to save')
+    const onError = (err: unknown) => toastError(err, 'Could not save. Please try again.')
     if (settings?.id) {
       updateSettings({ settingsId: settings.id, data }, { onSuccess, onError })
       return
@@ -220,7 +221,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       setOrderId(id)
       setMobileTab('ticket')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not switch bills')
+      toastError(err, 'Could not switch bills')
     }
   }
 
@@ -272,7 +273,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         setOrderId(created.id)
         toast.success('Order started')
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to start order')
+        toastError(err, 'Could not start the order')
       }
       return
     }
@@ -353,7 +354,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName)
       toast.success('Sent to kitchen')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send to kitchen')
+      toastError(err, 'Could not send to kitchen')
     }
   }
 
@@ -435,7 +436,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       }
       setBillOpen(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to prepare bill')
+      toastError(err, 'Could not prepare the bill')
     }
   }
 
@@ -641,7 +642,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
                 }
                 startFreshBill()
               },
-              onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to settle bill'),
+              onError: (err) => toastError(err, 'Could not settle the bill'),
             }
           )
         }}

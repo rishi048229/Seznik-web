@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { ChefHat, Check, Clock, CreditCard, LayoutGrid, MoreVertical, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +19,7 @@ import { TableCard } from './components/TableCard'
 import { TableManageModal } from './components/TableManageModal'
 import { KOTWorkspace } from './components/KOTWorkspace'
 import { KOTSettingsModal, type KOTSettingsTab } from './components/KOTSettingsModal'
+import { KotInsightsPanel } from './components/KotInsightsPanel'
 import { mergeKotConfig, orderTypeLabel, tableNounLabel, VENUE_PRESETS } from './kotConfig'
 import { venueIcon } from './components/VenueTypePicker'
 import { formatElapsed } from './kotUtils'
@@ -75,8 +77,7 @@ export const KOTPage = () => {
     const data = { kotConfig: { ...kotCfg, kitchenTicketsEnabled: next } }
     const onSuccess = () =>
       toast.success(next ? 'Kitchen tickets turned on' : 'Kitchen tickets turned off — bills only')
-    const onError = (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : 'Failed to update kitchen tickets')
+    const onError = (err: unknown) => toastError(err, 'Could not update kitchen tickets')
     if (settings?.id) {
       updateSettings({ settingsId: settings.id, data }, { onSuccess, onError })
       return
@@ -191,33 +192,39 @@ export const KOTPage = () => {
         </div>
       ) : !kotCfg.showTables ? (
         walkIns.length === 0 ? (
-          <EmptyState
-            icon={<CreditCard size={40} />}
-            title="Ready for the next bill"
-            description={`${venue.label} mode — tap New Bill for takeaway or delivery. No floor plan.`}
-            action={
-              <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
-                New Bill
-              </Button>
-            }
-          />
+          <>
+            <KotInsightsPanel />
+            <EmptyState
+              icon={<CreditCard size={40} />}
+              title="Ready for the next bill"
+              description={`${venue.label} mode — tap New Bill for takeaway or delivery. No floor plan.`}
+              action={
+                <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
+                  New Bill
+                </Button>
+              }
+            />
+          </>
         ) : null
       ) : tables.length === 0 ? (
-        <EmptyState
-          icon={<UtensilsCrossed size={40} />}
-          title={`No ${floorLabel.toLowerCase()} yet`}
-          description={`You can still take takeaway and delivery bills. Add ${floorLabel.toLowerCase()} when you need dine-in.`}
-          action={
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
-                New Bill
-              </Button>
-              <Button variant="outline" onClick={() => setManageOpen(true)} leftIcon={<Plus size={16} />}>
-                Add {floorLabel.toLowerCase()}
-              </Button>
-            </div>
-          }
-        />
+        <>
+          <KotInsightsPanel />
+          <EmptyState
+            icon={<UtensilsCrossed size={40} />}
+            title={`No ${floorLabel.toLowerCase()} yet`}
+            description={`You can still take takeaway and delivery bills. Add ${floorLabel.toLowerCase()} when you need dine-in.`}
+            action={
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
+                  New Bill
+                </Button>
+                <Button variant="outline" onClick={() => setManageOpen(true)} leftIcon={<Plus size={16} />}>
+                  Add {floorLabel.toLowerCase()}
+                </Button>
+              </div>
+            }
+          />
+        </>
       ) : (
         <section>
           <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{floorLabel}</h2>
@@ -251,21 +258,22 @@ const WalkInCard = ({ order, onClick }: { order: KOTOrder; onClick: () => void }
   <button
     type="button"
     onClick={onClick}
-    className="text-left rounded-2xl border border-sky-300 bg-sky-50/70 dark:bg-sky-950/25 dark:border-sky-500/50 p-3 sm:p-4 transition-colors duration-150 hover:border-sky-400 dark:hover:border-sky-400"
+    className="relative text-left overflow-hidden rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-indigo-50 dark:from-sky-950/30 dark:via-gray-900 dark:to-indigo-950/20 dark:border-sky-800/50 p-4 min-h-[132px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-200/40 dark:hover:shadow-sky-950/40"
   >
-    <div className="flex items-start justify-between gap-2 mb-2">
-      <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
+    <div className="absolute top-0 left-0 w-1.5 h-full bg-sky-500" />
+    <div className="flex items-start justify-between gap-2 pl-1 mb-3">
+      <h3 className="text-lg font-extrabold tracking-tight text-gray-900 dark:text-gray-100 truncate">
         {order.partyLabel || orderTypeLabel(order.orderType)}
       </h3>
-      <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/70 dark:text-sky-200">
+      <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-900/70 dark:text-sky-200">
         {orderTypeLabel(order.orderType)}
       </span>
     </div>
-    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{formatINR(order.grandTotal)}</p>
-    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-      KOT #{order.orderNumber} · {order.items?.length ?? 0} item{(order.items?.length ?? 0) === 1 ? '' : 's'}
+    <p className="pl-1 text-base font-bold text-gray-900 dark:text-gray-100">{formatINR(order.grandTotal)}</p>
+    <p className="pl-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
+      #{order.orderNumber} · {order.items?.length ?? 0} item{(order.items?.length ?? 0) === 1 ? '' : 's'}
     </p>
-    <p className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300 mt-1">
+    <p className="pl-1 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 mt-2">
       <Clock size={12} />
       {formatElapsed(order.createdAt)}
     </p>

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PasswordRequirementsList } from '@/components/ui/PasswordRequirementsList'
 import { validatePassword } from '@/utils/password'
+import { toUserMessage } from '@/utils/userMessage'
 import { trackUserAction } from '@/utils/analytics'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -109,7 +110,7 @@ export const LoginPage = () => {
       setOtpMessage(`We sent a 6-digit code to ${email.trim()}`)
     } catch (err) {
       setVerifyStep('idle')
-      setError(err instanceof Error ? err.message : 'Failed to send verification code')
+      setError(toUserMessage(err, 'Failed to send verification code'))
     }
   }
 
@@ -124,7 +125,7 @@ export const LoginPage = () => {
       setOtpMessage('')
     } catch (err) {
       setVerifyStep('sent')
-      setError(err instanceof Error ? err.message : 'Incorrect verification code')
+      setError(toUserMessage(err, 'Incorrect verification code'))
     }
   }
 
@@ -165,7 +166,7 @@ export const LoginPage = () => {
             await verifyEmailOtp(cleanEmail, cleanOtp)
             setVerifyStep('verified')
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Incorrect verification code')
+            setError(toUserMessage(err, 'Incorrect verification code'))
             return
           }
         } else {
@@ -203,7 +204,7 @@ export const LoginPage = () => {
       }
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in')
+      setError(toUserMessage(err, 'Failed to sign in'))
     } finally {
       setIsSigningIn(false)
     }
@@ -247,7 +248,7 @@ export const LoginPage = () => {
       setForgotResendIn(60)
       setForgotMessage(`We sent a 6-digit code to ${forgotEmail.trim()}`)
     } catch (err) {
-      setForgotError(err instanceof Error ? err.message : 'Failed to send reset code')
+      setForgotError(toUserMessage(err, 'Failed to send reset code'))
     } finally {
       setForgotLoading(false)
     }
@@ -267,7 +268,7 @@ export const LoginPage = () => {
       setForgotError('')
       setForgotMessage('')
     } catch (err) {
-      setForgotError(err instanceof Error ? err.message : 'Incorrect verification code')
+      setForgotError(toUserMessage(err, 'Incorrect verification code'))
     } finally {
       setForgotLoading(false)
     }
@@ -291,7 +292,7 @@ export const LoginPage = () => {
       await resetPasswordWithOtp(forgotEmail.trim(), forgotNewPassword)
       setForgotStep('success')
     } catch (err) {
-      setForgotError(err instanceof Error ? err.message : 'Failed to update password')
+      setForgotError(toUserMessage(err, 'Failed to update password'))
     } finally {
       setForgotLoading(false)
     }

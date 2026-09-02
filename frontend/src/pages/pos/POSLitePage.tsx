@@ -29,6 +29,7 @@ import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import type { Sale } from '@/types/sale.types'
 import type { Product } from '@/types/product.types'
 
@@ -521,9 +522,8 @@ export const POSLitePage = () => {
         setIsPrintModalOpen(true)
       },
       onError: (error) => {
-        const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')
         console.error('Sale creation failed:', error)
-        toast.error(msg)
+        toastError(error, t('pos.errFailedCreateSale'))
       },
     })
   }
@@ -664,8 +664,7 @@ export const POSLitePage = () => {
       await blePrinter.print(bytes)
       finishPrintFlow()
     } catch (error) {
-      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
-      toast.error(msg)
+      toastError(error, t('pos.errFailedPrintBluetooth'))
     } finally {
       setIsBlePrinting(false)
     }

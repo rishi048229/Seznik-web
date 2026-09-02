@@ -16,7 +16,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
@@ -35,8 +35,116 @@ import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
+import type { Category } from '@/services/categoryService'
+
+const pillClass = (active: boolean, nested = false) =>
+  `rounded-full font-semibold whitespace-nowrap transition-all shrink-0 ${
+    nested ? 'px-3.5 py-1.5 text-xs' : 'px-5 py-1.5 text-xs sm:text-sm'
+  } ${
+    active
+      ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
+      : nested
+        ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
+  }`
+
+const CategoryTabsRow = ({
+  categories,
+  selectedCategory,
+  onSelect,
+  allLabel,
+}: {
+  categories: Category[] | undefined
+  selectedCategory: string
+  onSelect: (id: string) => void
+  allLabel: string
+}) => {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+
+  const updateOverflow = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 8)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8)
+  }
+
+  useEffect(() => {
+    updateOverflow()
+    const el = scrollerRef.current
+    if (!el) return
+    const frame = window.requestAnimationFrame(updateOverflow)
+    el.addEventListener('scroll', updateOverflow, { passive: true })
+    window.addEventListener('resize', updateOverflow)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      el.removeEventListener('scroll', updateOverflow)
+      window.removeEventListener('resize', updateOverflow)
+    }
+  }, [categories, selectedCategory])
+
+  const scrollByAmt = (dir: -1 | 1) => {
+    scrollerRef.current?.scrollBy({ left: dir * 280, behavior: 'smooth' })
+  }
+
+  return (
+    <div className="relative mt-2 flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Scroll categories left"
+        onClick={() => scrollByAmt(-1)}
+        disabled={!canLeft}
+        className="hidden md:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <div
+        ref={scrollerRef}
+        data-tour="pos-category-tabs"
+        onWheel={(e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.currentTarget.scrollLeft += e.deltaY
+          }
+        }}
+        className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 no-scrollbar scroll-smooth overscroll-x-contain touch-pan-x select-none min-w-0 flex-1"
+      >
+        <button type="button" onClick={() => onSelect('')} className={pillClass(!selectedCategory)}>
+          {allLabel}
+        </button>
+        {getTopLevelCategories(categories).map((parent) => (
+          <Fragment key={parent.id}>
+            <button type="button" onClick={() => onSelect(parent.id)} className={pillClass(selectedCategory === parent.id)}>
+              {parent.name}
+            </button>
+            {getChildCategories(categories, parent.id).map((child) => (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => onSelect(child.id)}
+                className={pillClass(selectedCategory === child.id, true)}
+              >
+                › {child.name}
+              </button>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+      <button
+        type="button"
+        aria-label="Scroll categories right"
+        onClick={() => scrollByAmt(1)}
+        disabled={!canRight}
+        className="hidden md:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  )
+}
 
 export const POSPage = () => {
   const { t } = useLanguage()
@@ -348,9 +456,8 @@ export const POSPage = () => {
         setIsPrintModalOpen(true)
       },
       onError: (error) => {
-        const msg = error instanceof Error ? error.message : t('pos.errFailedCreateSale')
         console.error('Sale creation failed:', error)
-        toast.error(msg)
+        toastError(error, t('pos.errFailedCreateSale'))
       },
     })
   }
@@ -485,8 +592,7 @@ export const POSPage = () => {
       await blePrinter.print(bytes)
       finishPrintFlow()
     } catch (error) {
-      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
-      toast.error(msg)
+      toastError(error, t('pos.errFailedPrintBluetooth'))
     } finally {
       setIsBlePrinting(false)
     }
@@ -679,55 +785,12 @@ export const POSPage = () => {
           </div>
 
           {/* Category Tabs */}
-          <div
-            data-tour="pos-category-tabs"
-            onWheel={(e) => {
-              if (e.currentTarget && (e.deltaY !== 0 || e.deltaX !== 0)) {
-                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                  e.currentTarget.scrollLeft += e.deltaY
-                }
-              }
-            }}
-            className="flex items-center gap-2 mt-2 overflow-x-auto py-1 px-0.5 no-scrollbar scroll-smooth overscroll-x-contain touch-pan-x select-none"
-          >
-            <button
-              onClick={() => setSelectedCategory('')}
-              className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
-                !selectedCategory
-                  ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
-              }`}
-            >
-              {t('pos.allProducts')}
-            </button>
-            {getTopLevelCategories(categories).map(parent => (
-              <Fragment key={parent.id}>
-                <button
-                  onClick={() => setSelectedCategory(parent.id)}
-                  className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
-                    selectedCategory === parent.id
-                      ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300'
-                  }`}
-                >
-                  {parent.name}
-                </button>
-                {getChildCategories(categories, parent.id).map(child => (
-                  <button
-                    key={child.id}
-                    onClick={() => setSelectedCategory(child.id)}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
-                      selectedCategory === child.id
-                        ? 'bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    › {child.name}
-                  </button>
-                ))}
-              </Fragment>
-            ))}
-          </div>
+          <CategoryTabsRow
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelect={setSelectedCategory}
+            allLabel={t('pos.allProducts')}
+          />
         </div>
 
         {/* Product Grid */}

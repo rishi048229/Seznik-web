@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -10,9 +9,9 @@ import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { useAuth } from '@/contexts/AuthContext'
 
 import { LANGUAGES } from '@/i18n/translations'
+import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
@@ -21,7 +20,7 @@ import { mergeKotConfig } from '@/pages/kot/kotConfig'
 import type { KotConfig } from '@/types/settings.types'
 import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { BUSINESS_TYPE_OPTIONS, getBusinessTypeLabel, type BusinessType } from '@/constants/businessTypes'
+import { toastError } from '@/utils/userMessage'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -47,34 +46,22 @@ const DEFAULT_SETTINGS = {
 
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
-  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('business')
   const { data: settings, isLoading, isError, refetch } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
+  const [prevLogo, setPrevLogo] = useState(settings?.businessLogoURL ?? '')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const [kotForm, setKotForm] = useState<Required<KotConfig>>(() => mergeKotConfig(undefined))
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
-  const { userProfile, updateBusinessType } = useAuth()
-  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(
-    userProfile?.businessType ?? 'retail_shop'
-  )
-  const [isSavingType, setIsSavingType] = useState(false)
 
   const current = settings ?? DEFAULT_SETTINGS
 
-  useEffect(() => {
-    if (userProfile?.businessType) {
-      setSelectedBusinessType(userProfile.businessType)
-    }
-  }, [userProfile?.businessType])
-
-  useEffect(() => {
-    if (settings?.businessLogoURL !== undefined) {
-      setBusinessLogo(settings.businessLogoURL ?? '')
-    }
-  }, [settings?.businessLogoURL])
+  if (current.businessLogoURL !== prevLogo) {
+    setPrevLogo(current.businessLogoURL ?? '')
+    setBusinessLogo(current.businessLogoURL ?? '')
+  }
 
   useEffect(() => {
     setKotForm(mergeKotConfig(settings?.kotConfig))
@@ -90,14 +77,6 @@ export const SettingsPage = () => {
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
     { key: 'language', label: t('settings.language'), icon: Globe, description: t('settings.descLanguage') },
   ]
-
-  useEffect(() => {
-    const tab = searchParams.get('tab')
-    const validTabs = ['business', 'personal', 'invoice', 'notifications', 'permissions', 'security', 'language'] as const
-    if (tab && validTabs.includes(tab as typeof validTabs[number])) {
-      setActiveTab(tab)
-    }
-  }, [searchParams])
 
   const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
 
@@ -128,8 +107,7 @@ export const SettingsPage = () => {
           onSuccess: () => toast.success(`${key} ${t('settings.savedSuffix')}`),
           onError: (err) => {
             console.error('Settings save error:', err)
-            const msg = err instanceof Error ? err.message : `${t('settings.failedToSavePrefix')} ${key}`
-            toast.error(msg)
+            toastError(err, `${t('settings.failedToSavePrefix')} ${key}`)
           },
         }
       )
@@ -139,22 +117,9 @@ export const SettingsPage = () => {
         onSuccess: () => toast.success(`${key} ${t('settings.savedSuffix')}`),
         onError: (err) => {
           console.error('Settings create error:', err)
-          const msg = err instanceof Error ? err.message : `${t('settings.failedToSavePrefix')} ${key}`
-          toast.error(msg)
+          toastError(err, `${t('settings.failedToSavePrefix')} ${key}`)
         },
       })
-    }
-  }
-
-  const handleSaveBusinessType = async () => {
-    setIsSavingType(true)
-    try {
-      await updateBusinessType(selectedBusinessType)
-      toast.success(`Workspace updated for ${getBusinessTypeLabel(selectedBusinessType)}.`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not update business type')
-    } finally {
-      setIsSavingType(false)
     }
   }
 
@@ -183,8 +148,7 @@ export const SettingsPage = () => {
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
-          // Keep receiptConfig.logoURL in sync so mobile/web receipt prints see the same logo.
-          receiptConfig:   { ...curReceipt, ...(businessLogo ? { logoURL: businessLogo } : {}) },
+          receiptConfig:   curReceipt,
         })
         break
       case 'personal':
@@ -207,7 +171,6 @@ export const SettingsPage = () => {
       case 'invoice':
         handleSave(t('settings.invoiceSettingsLabel'), {
           receiptConfig: {
-            ...curReceipt,
             companyName:   val('settings-receipt-company'),
             address:       val('settings-receipt-address'),
             phone:         val('settings-receipt-phone'),
@@ -293,7 +256,7 @@ export const SettingsPage = () => {
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                         active
                           ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-md shadow-sky-400/30'
-                          : 'bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-dark-border'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
                       }`}
                     >
                       <Icon size={15} />
@@ -315,7 +278,7 @@ export const SettingsPage = () => {
                       className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all mb-0.5 ${
                         active
                           ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-md shadow-sky-400/30'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-elevated/60'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60'
                       }`}
                     >
                       <Icon size={17} className={`mt-0.5 flex-shrink-0 ${active ? 'text-white' : 'text-gray-400'}`} />
@@ -334,7 +297,7 @@ export const SettingsPage = () => {
             {/* Content panel */}
             <Card className="flex-1 w-full min-w-0 p-4 sm:p-6">
               {/* Section heading — consistent across every tab */}
-              <div className="flex items-center gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-gray-700">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-sky-400 text-white flex items-center justify-center flex-shrink-0">
                   <activeTabMeta.icon size={19} />
                 </div>
@@ -355,7 +318,6 @@ export const SettingsPage = () => {
                     }}
                     previewSize="lg"
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                    enableBackgroundCleanup
                   />
                   {isLogoUploading && (
                     <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
@@ -384,52 +346,6 @@ export const SettingsPage = () => {
                     placeholder="+91 98765 43210"
                   />
                 </div>
-                {userProfile?.accountType !== 'managed' ? (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Business type</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Current: {getBusinessTypeLabel(userProfile?.businessType)}. Changing this shows or hides kitchen features such as KOT and tokens.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {BUSINESS_TYPE_OPTIONS.map(option => {
-                        const selected = selectedBusinessType === option.id
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => setSelectedBusinessType(option.id)}
-                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                              selected
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card hover:bg-gray-50 dark:hover:bg-dark-elevated/50'
-                            }`}
-                          >
-                            <span className="text-2xl">{option.emoji}</span>
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                {option.label}
-                              </span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                {option.description}
-                              </span>
-                            </span>
-                            {selected ? <Check size={16} className="text-blue-600 shrink-0" /> : null}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <Button
-                      onClick={handleSaveBusinessType}
-                      loading={isSavingType}
-                      disabled={selectedBusinessType === userProfile?.businessType}
-                      className="w-full sm:w-auto"
-                    >
-                      Update business type
-                    </Button>
-                  </div>
-                ) : null}
                 <Input
                   label={t('settings.businessAddressLabel')}
                   defaultValue={current.businessAddress ?? ''}
@@ -519,19 +435,19 @@ export const SettingsPage = () => {
                     <input
                       id="settings-receipt-terms1"
                       defaultValue={current.receiptConfig?.termsLine1 !== undefined ? current.receiptConfig.termsLine1 : '1. Goods once sold will not be taken back or exchanged'}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       placeholder={t('settings.termsLine1Placeholder')}
                     />
                     <input
                       id="settings-receipt-terms2"
                       defaultValue={current.receiptConfig?.termsLine2 !== undefined ? current.receiptConfig.termsLine2 : ''}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       placeholder={t('settings.termsLine2Placeholder')}
                     />
                     <input
                       id="settings-receipt-terms3"
                       defaultValue={current.receiptConfig?.termsLine3 !== undefined ? current.receiptConfig.termsLine3 : ''}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       placeholder={t('settings.termsLine3Placeholder')}
                     />
                   </div>
@@ -545,7 +461,7 @@ export const SettingsPage = () => {
                     id="settings-receipt-footer"
                     defaultValue={current.receiptConfig?.footerMessage ?? 'Thank you for your purchase!'}
                     rows={3}
-                    className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
+                    className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
                     placeholder={t('settings.footerMessagePlaceholder')}
                   />
                 </div>
@@ -615,11 +531,11 @@ export const SettingsPage = () => {
                         className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
                           selected
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
-                            : 'border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated/50'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                         }`}
                       >
                         <span>{lang.label}</span>
-                        {selected && <Check size={16} className="text-blue-600 dark:text-white" />}
+                        {selected && <Check size={16} className="text-blue-600 dark:text-blue-400" />}
                       </button>
                     )
                   })}
