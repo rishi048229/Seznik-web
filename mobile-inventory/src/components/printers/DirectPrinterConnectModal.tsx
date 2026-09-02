@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Vibration,
   Platform,
   Alert,
 } from 'react-native';
@@ -75,7 +74,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     setConnectingId(device.id);
     try {
       await connectDevice(device.id, device.name);
-      Vibration.vibrate(100);
       if (onConnected) {
         onConnected();
       }
@@ -131,7 +129,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
           </View>
 
           {/* Warning Banner if any */}
-          {warningText ? (
+          {warningText && connectionState !== 'connected' ? (
             <View style={[styles.warningBanner, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <AlertCircle size={14} color="#EF4444" style={{ marginRight: 6 }} />
               <Text style={styles.warningText}>{warningText}</Text>

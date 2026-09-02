@@ -7,6 +7,7 @@ import { buildBillPdfUrl, buildUpiPayString, isValidUpiVpa } from '../utils/bill
 import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
+import { playPrinterConnectFeedback } from '../utils/printerConnectFeedback';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement } from '../../modules/josh-label-printer';
 import { getStoredJoshPrinter, setStoredJoshPrinter } from './secureStore';
 import {
@@ -555,6 +556,7 @@ class ThermalPrinterServiceManager {
   }
 
   public getWarningText(): string {
+    if (this.connectionState === 'connected' && this.activeDevice) return '';
     return this.warningText;
   }
 
@@ -582,8 +584,44 @@ class ThermalPrinterServiceManager {
   }
 
   private notifyStatusChange(state: 'connected' | 'disconnected' | 'connecting' | 'scanning') {
+    if (this.connectionState === state) return;
     this.connectionState = state;
+    if (state === 'connected') {
+      this.warningText = '';
+    }
     this.statusListeners.forEach((cb) => cb(state));
+  }
+
+  /** Maps raw native Bluetooth module codes (e.g. NOT_STARTED) to actionable copy. */
+  private humanizeBluetoothWarning(raw: string | undefined | null): string {
+    const msg = String(raw || '').trim();
+    if (!msg) return 'Bluetooth scan failed.';
+
+    const upper = msg.toUpperCase();
+    if (upper === 'NOT_STARTED' || upper.includes('NOT_STARTED')) {
+      return 'Could not start Bluetooth scan. Turn on Bluetooth and Location (GPS), grant Nearby Devices permission, then tap Scan Again.';
+    }
+    if (upper === 'DISCOVER' || upper.includes('DISCOVER')) {
+      return 'Bluetooth device search failed. Ensure Bluetooth and Location are on, then scan again.';
+    }
+    // Drop opaque ALL_CAPS native error tokens — they read like crashes to cashiers.
+    if (/^[A-Z0-9_]+$/.test(msg) && msg.length <= 32) {
+      return 'Bluetooth scan failed. Check that Bluetooth is on and try again.';
+    }
+    return msg;
+  }
+
+  private setScanWarning(raw: string | undefined | null, discoveredCount = 0): void {
+    if (this.connectionState === 'connected' && this.activeDevice) {
+      this.warningText = '';
+      return;
+    }
+    // Events may have populated the list even when the native scan promise rejects.
+    if (discoveredCount > 0) {
+      this.warningText = '';
+      return;
+    }
+    this.warningText = this.humanizeBluetoothWarning(raw || 'Bluetooth scan failed.');
   }
 
   /**
@@ -703,7 +741,7 @@ class ThermalPrinterServiceManager {
       return Array.from(deviceMap.values());
     } catch (err: any) {
       console.warn('Native Bluetooth scan error:', err);
-      this.warningText = err?.message || 'Bluetooth scan failed.';
+      this.setScanWarning(err?.message, deviceMap.size);
       return Array.from(deviceMap.values());
     } finally {
       this.onDeviceDiscovered = null;
@@ -3148,6 +3186,7 @@ class ThermalPrinterServiceManager {
     if (ok) {
       setStoredJoshPrinter({ address, name: name || address }).catch(() => {});
       this.joshReconnectFailedAt = 0;
+      playPrinterConnectFeedback();
     }
     return ok;
   }
