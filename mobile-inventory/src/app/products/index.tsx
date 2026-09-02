@@ -442,6 +442,7 @@ export default function ProductsScreen() {
   };
 
   const handleOpenEditModal = async (p: Product) => {
+    setShowDetailModal(false);
     const full = await enrichProductDetails(p);
     setEditingProduct(full);
     setName(full.name);
@@ -1114,20 +1115,26 @@ export default function ProductsScreen() {
                 {/* 1. Delete Action */}
                 <TouchableOpacity
                   onPress={() => {
-                    Alert.alert('Delete Product', `Are you sure you want to permanently delete "${detailProduct.name}"?`, [
+                    Alert.alert('Delete Product', `Permanently delete "${detailProduct.name}"? This action cannot be undone.`, [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Delete',
                         style: 'destructive',
-                        onPress: () => {
-                          deleteProduct(detailProduct.id);
-                          setShowDetailModal(false);
+                        onPress: async () => {
+                          try {
+                            await deleteProduct(detailProduct.id);
+                            setShowDetailModal(false);
+                            Alert.alert('Deleted', 'Product was removed successfully.');
+                          } catch (err: any) {
+                            Alert.alert('Delete Failed', err?.message || 'Could not delete product');
+                          }
                         },
                       },
                     ]);
                   }}
                   activeOpacity={0.7}
                   style={styles.footerIconBtnDanger}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Trash2 size={18} color="#EF4444" />
                 </TouchableOpacity>
@@ -1140,6 +1147,7 @@ export default function ProductsScreen() {
                   }}
                   activeOpacity={0.7}
                   style={[styles.footerActionTile, { backgroundColor: 'rgba(37, 99, 235, 0.1)', borderColor: 'rgba(37, 99, 235, 0.3)' }]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Barcode size={17} color={BRAND_COLORS.blue600} />
                   <Text style={[styles.footerActionTileText, { color: BRAND_COLORS.blue600 }]}>Print</Text>
@@ -1150,6 +1158,7 @@ export default function ProductsScreen() {
                   onPress={() => setShowRestockModal(true)}
                   activeOpacity={0.7}
                   style={[styles.footerActionTile, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Tag size={17} color="#10B981" />
                   <Text style={[styles.footerActionTileText, { color: '#10B981' }]}>Restock</Text>
@@ -1160,9 +1169,10 @@ export default function ProductsScreen() {
                   onPress={() => handleOpenEditModal(detailProduct)}
                   activeOpacity={0.8}
                   style={styles.footerEditPrimaryBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Edit3 size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.footerEditPrimaryText}>Edit Product</Text>
+                  <Text style={styles.footerEditPrimaryText}>Edit</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1178,15 +1188,22 @@ export default function ProductsScreen() {
       />
 
       {/* ADD / EDIT PRODUCT FORM SHEET (With Product Photo Upload!) */}
-      <Modal visible={showProductModal} animationType="slide">
+      <Modal visible={showProductModal} animationType="slide" onRequestClose={() => setShowProductModal(false)}>
         <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: theme.bg }]}>
           <KeyboardAvoidingWrapper inModal>
-          <ScrollView style={{ flex: 1, padding: 16 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>
                 {editingProduct ? 'Edit Product Record' : 'Add New Product Record'}
               </Text>
-              <TouchableOpacity onPress={() => setShowProductModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowProductModal(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
                 <X size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -1198,7 +1215,11 @@ export default function ProductsScreen() {
               {imageUrl ? (
                 <View style={styles.photoPreviewContainer}>
                   <Image source={{ uri: imageUrl }} style={styles.photoPreviewImage} />
-                  <TouchableOpacity onPress={() => setImageUrl(null)} style={styles.removePhotoBtn}>
+                  <TouchableOpacity
+                    onPress={() => setImageUrl(null)}
+                    style={styles.removePhotoBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     <X size={14} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -1216,6 +1237,7 @@ export default function ProductsScreen() {
                   onPress={handleTakePhotoWithCamera}
                   style={styles.photoActionBtn}
                   disabled={processingPhoto || submitting}
+                  activeOpacity={0.7}
                 >
                   <Camera size={14} color="#FFFFFF" />
                   <Text style={styles.photoActionText}>Take Photo</Text>
@@ -1225,6 +1247,7 @@ export default function ProductsScreen() {
                   onPress={handlePickPhotoFromGallery}
                   style={[styles.photoActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
                   disabled={processingPhoto || submitting}
+                  activeOpacity={0.7}
                 >
                   <ImageIcon size={14} color="#FFFFFF" />
                   <Text style={styles.photoActionText}>Gallery Pick</Text>
@@ -1260,6 +1283,7 @@ export default function ProductsScreen() {
             </View>
             <TouchableOpacity
               onPress={() => setShowCatDropdown(!showCatDropdown)}
+              activeOpacity={0.7}
               style={[styles.dropdownSelect, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
             >
               <Text style={[styles.dropdownSelectText, { color: theme.textPrimary }]}>
@@ -1295,6 +1319,7 @@ export default function ProductsScreen() {
             </View>
             <TouchableOpacity
               onPress={() => setShowSupplierDropdown(!showSupplierDropdown)}
+              activeOpacity={0.7}
               style={[styles.dropdownSelect, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
             >
               <Text style={[styles.dropdownSelectText, { color: theme.textPrimary }]}>
@@ -1336,72 +1361,77 @@ export default function ProductsScreen() {
             ) : null}
 
             {/* Selling Price & Cost Price */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
-              <View style={{ flex: 1, marginRight: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+              <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
-                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={[styles.label, { color: theme.textPrimary }]}>Selling Price (₹) *</Text>
-                    <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 8, padding: 2, borderWidth: 1, borderColor: theme.borderColor }}>
-                      <TouchableOpacity
-                        onPress={() => setPriceIncludesGst(false)}
-                        style={[
-                          { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-                          !priceIncludesGst && { backgroundColor: BRAND_COLORS.blue600 },
-                        ]}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: !priceIncludesGst ? '#FFFFFF' : theme.textSecondary }}>
-                          Excl. GST
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => setPriceIncludesGst(true)}
-                        style={[
-                          { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-                          priceIncludesGst && { backgroundColor: BRAND_COLORS.blue600 },
-                        ]}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: priceIncludesGst ? '#FFFFFF' : theme.textSecondary }}>
-                          Incl. GST
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                  <Text style={[styles.label, { color: theme.textPrimary }]} numberOfLines={1}>Selling Price (₹) *</Text>
                 </View>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 4 }]}
+                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0 }]}
                   value={sellingPrice}
                   onChangeText={setSellingPrice}
                   keyboardType="numeric"
-                  placeholder={priceIncludesGst ? 'MRP incl. GST' : 'Taxable value excl. GST'}
+                  placeholder="0.00"
                   placeholderTextColor="#94A3B8"
                 />
-                <Text style={{ fontSize: 10, color: theme.textSecondary, marginBottom: 0, fontWeight: '600' }}>
-                  {priceIncludesGst
-                    ? 'Entered price is the final MRP (GST already included)'
-                    : 'Entered price is taxable value — GST will be added at billing'}
-                </Text>
               </View>
 
-              <View style={{ flex: 1, marginLeft: 6 }}>
+              <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: theme.textPrimary }]}>Cost Price (₹)</Text>
+                  <Text style={[styles.label, { color: theme.textPrimary }]} numberOfLines={1}>Cost Price (₹)</Text>
                   <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
                 </View>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 0 }]}
                   value={costPrice}
                   onChangeText={setCostPrice}
                   keyboardType="numeric"
-                  placeholder="380.00"
+                  placeholder="0.00"
                   placeholderTextColor="#94A3B8"
                 />
               </View>
             </View>
 
+            {/* Tax Inclusion Switcher */}
+            <View style={[styles.priceToggleRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: theme.textPrimary }}>Tax Inclusion</Text>
+                <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                  {priceIncludesGst ? 'Selling price includes GST (MRP)' : 'Taxable value (GST added at bill)'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 10, padding: 3, borderWidth: 1, borderColor: theme.borderColor }}>
+                <TouchableOpacity
+                  onPress={() => setPriceIncludesGst(false)}
+                  style={[
+                    { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+                    !priceIncludesGst && { backgroundColor: BRAND_COLORS.blue600 },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: !priceIncludesGst ? '#FFFFFF' : theme.textSecondary }}>
+                    Excl.
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setPriceIncludesGst(true)}
+                  style={[
+                    { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+                    priceIncludesGst && { backgroundColor: BRAND_COLORS.blue600 },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: priceIncludesGst ? '#FFFFFF' : theme.textSecondary }}>
+                    Incl.
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* GST Configuration */}
-            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, padding: 12 }]}>
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, padding: 14 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                <Receipt size={14} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                <Receipt size={15} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
                 <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]}>GST Rate (Slab)</Text>
               </View>
 
@@ -1409,8 +1439,9 @@ export default function ProductsScreen() {
                 onPress={() => {
                   setShowGstDropdown(!showGstDropdown);
                   setShowCatDropdown(false);
-                  setShowUnitDropdown(false);
+                  setShowSupplierDropdown(false);
                 }}
+                activeOpacity={0.7}
                 style={[styles.dropdownSelect, { backgroundColor: theme.bg, borderColor: theme.borderColor, marginBottom: showGstDropdown ? 0 : 10 }]}
               >
                 <Text style={[styles.dropdownSelectText, { color: theme.textPrimary }]}>
@@ -1487,29 +1518,31 @@ export default function ProductsScreen() {
             </View>
 
             {/* PRODUCT DISCOUNT CONFIGURATION SECTION */}
-            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, padding: 12 }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Tag size={14} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
-                  <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]}>Fixed Product Discount (Optional)</Text>
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, padding: 14 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                  <Tag size={15} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                  <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]} numberOfLines={1}>Product Discount</Text>
                 </View>
                 {/* Segmented Type Picker */}
-                <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 8, padding: 2, borderWidth: 1, borderColor: theme.borderColor }}>
+                <View style={{ flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 10, padding: 2, borderWidth: 1, borderColor: theme.borderColor }}>
                   <TouchableOpacity
                     onPress={() => setDiscountType('percent')}
                     style={[
-                      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+                      { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
                       discountType === 'percent' && { backgroundColor: BRAND_COLORS.blue600 },
                     ]}
+                    activeOpacity={0.8}
                   >
                     <Text style={{ fontSize: 11, fontWeight: '800', color: discountType === 'percent' ? '#FFFFFF' : theme.textSecondary }}>% Percent</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setDiscountType('flat')}
                     style={[
-                      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+                      { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
                       discountType === 'flat' && { backgroundColor: BRAND_COLORS.blue600 },
                     ]}
+                    activeOpacity={0.8}
                   >
                     <Text style={{ fontSize: 11, fontWeight: '800', color: discountType === 'flat' ? '#FFFFFF' : theme.textSecondary }}>₹ Flat</Text>
                   </TouchableOpacity>
@@ -1529,17 +1562,17 @@ export default function ProductsScreen() {
                 <View style={[styles.marginBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 0, marginTop: 4 }]}>
                   <Text style={[styles.marginText, { color: '#10B981' }]}>
                     {discountType === 'percent'
-                      ? `Effective Price: ₹${(parseFloat(sellingPrice) * (1 - Math.min(100, parseFloat(discountValue)) / 100)).toFixed(2)} (Save ₹${((parseFloat(sellingPrice) * Math.min(100, parseFloat(discountValue))) / 100).toFixed(2)})`
-                      : `Effective Price: ₹${Math.max(0, parseFloat(sellingPrice) - parseFloat(discountValue)).toFixed(2)} (Save ₹${Math.min(parseFloat(sellingPrice), parseFloat(discountValue)).toFixed(2)})`}
+                      ? `Effective: ₹${(parseFloat(sellingPrice) * (1 - Math.min(100, parseFloat(discountValue)) / 100)).toFixed(2)} (Save ₹${((parseFloat(sellingPrice) * Math.min(100, parseFloat(discountValue))) / 100).toFixed(2)})`
+                      : `Effective: ₹${Math.max(0, parseFloat(sellingPrice) - parseFloat(discountValue)).toFixed(2)} (Save ₹${Math.min(parseFloat(sellingPrice), parseFloat(discountValue)).toFixed(2)})`}
                   </Text>
                 </View>
               ) : null}
             </View>
 
             {/* Stock & Threshold */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
-              <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={[styles.label, { color: theme.textPrimary }]}>Current Stock</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 6 }]}>Current Stock</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                   value={stock}
@@ -1549,8 +1582,8 @@ export default function ProductsScreen() {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={[styles.label, { color: theme.textPrimary }]}>Low Stock Threshold</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 6 }]}>Low Stock Alert</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                   value={lowStockThreshold}
@@ -1566,7 +1599,7 @@ export default function ProductsScreen() {
             <View style={styles.barcodeSection}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 0 }]}>Original Barcode Value</Text>
-                <TouchableOpacity onPress={handleGenerateBarcode} style={styles.genBarcodeBtn}>
+                <TouchableOpacity onPress={handleGenerateBarcode} style={styles.genBarcodeBtn} activeOpacity={0.8}>
                   <Zap size={14} color="#FFFFFF" />
                   <Text style={styles.genBarcodeText}>Generate</Text>
                 </TouchableOpacity>
@@ -1590,8 +1623,15 @@ export default function ProductsScreen() {
           </ScrollView>
 
           <View style={[styles.stickySaveBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
-            <TouchableOpacity onPress={handleSaveProduct} disabled={submitting} style={styles.submitBtn}>
-              {submitting && <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />}
+            <TouchableOpacity
+              onPress={handleSaveProduct}
+              disabled={submitting}
+              style={styles.submitBtn}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />
+              ) : null}
               <Text style={styles.submitBtnText}>{editingProduct ? 'Save Product Record' : 'Create Product Record'}</Text>
             </TouchableOpacity>
           </View>
@@ -1676,8 +1716,25 @@ const styles = StyleSheet.create({
   barcodeSection: { marginTop: 10, marginBottom: 20 },
   genBarcodeBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
   genBarcodeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', marginLeft: 4 },
+  priceToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
   stickySaveBar: { padding: 16, borderTopWidth: 1 },
-  submitBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  submitBtn: {
+    backgroundColor: BRAND_COLORS.navyInk,
+    borderRadius: 14,
+    minHeight: 52,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
   submitBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
   detailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
   detailTitle: { fontSize: 20, fontWeight: '900' },
