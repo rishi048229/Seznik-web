@@ -152,10 +152,8 @@ function RootLayoutNav() {
       router.replace('/(auth)/login' as any);
     } else if (isAuthenticated && needsSetup && !onOnboarding) {
       router.replace('/onboarding' as any);
-    } else if (isAuthenticated && inAuthGroup && !needsSetup) {
-      router.replace('/');
-    } else if (isAuthenticated && onOnboarding && !needsSetup) {
-      router.replace('/');
+    } else if (isAuthenticated && (inAuthGroup || onOnboarding) && !needsSetup) {
+      router.replace('/(tabs)' as any);
     }
 
     SplashScreen.hideAsync().catch(() => {});
@@ -176,11 +174,13 @@ function RootLayoutNav() {
           gestureEnabled: true,
         }}
       >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" />
         <Stack.Screen name="(auth)/register" />
         <Stack.Screen name="(auth)/forgot-password" />
         <Stack.Screen name="onboarding/index" />
-        <Stack.Screen name="index" />
       </Stack>
       {/* Global custom themed alert popup matching app design system */}
       <CustomAlertModal />
