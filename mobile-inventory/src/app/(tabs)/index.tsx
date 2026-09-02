@@ -12,6 +12,7 @@ import {
   StatusBar,
   Linking,
   Platform,
+  Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -281,25 +282,13 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleDisconnectPrinter = () => {
-    Alert.alert(
-      t('disconnectPrinter', 'Disconnect Printer'),
-      `${activeDevice?.name || t('thermalPrinter', 'Thermal POS Printer')} ${t('disconnectPrinterBody', 'will be unlinked. Receipts cannot print until you connect again.')}`,
-      [
-        { text: t('cancel', 'Cancel'), style: 'cancel' },
-        {
-          text: t('disconnect', 'Disconnect'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await disconnectDevice();
-            } catch (e: any) {
-              Alert.alert(t('printerError', 'Printer Error'), e?.message || 'Could not disconnect the printer.');
-            }
-          },
-        },
-      ]
-    );
+  const handleDisconnectPrinter = async () => {
+    try {
+      await disconnectDevice();
+      try { Vibration.vibrate(60); } catch (e) {}
+    } catch (e: any) {
+      // Ignored
+    }
   };
 
   const handleTestPrint = async () => {
