@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, PermissionsAndroid } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, PermissionsAndroid, Vibration } from 'react-native';
 import { Tag, Bluetooth, PowerOff, RefreshCw, CheckCircle2 } from 'lucide-react-native';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
 import ThermalPrinterService from '@/services/PrinterService';
@@ -144,25 +144,15 @@ export function JoshPrinterCard() {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     if (!JoshLabelPrinter) return;
-    Alert.alert('Disconnect Label Printer', 'Label prints will go back to your receipt printer until you reconnect.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Disconnect',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            // Via PrinterService so the saved link is cleared too — otherwise the
-            // next label print would silently re-connect the printer just removed.
-            await ThermalPrinterService.joshDisconnect();
-            await refreshConnection();
-          } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Could not disconnect.');
-          }
-        },
-      },
-    ]);
+    try {
+      await ThermalPrinterService.joshDisconnect();
+      await refreshConnection();
+      try { Vibration.vibrate(60); } catch (e) {}
+    } catch (e: any) {
+      // Ignored
+    }
   };
 
   const [isTestPrinting, setIsTestPrinting] = useState(false);
