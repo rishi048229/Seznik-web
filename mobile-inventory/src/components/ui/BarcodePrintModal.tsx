@@ -14,7 +14,7 @@ import {
 import { X, QrCode, Barcode, Printer, Download, Share2, Sparkles, Check, FileText } from 'lucide-react-native';
 import QRCodeSVG from 'react-native-qrcode-svg';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Product } from '@/types/product';
 import ThermalPrinterService from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';

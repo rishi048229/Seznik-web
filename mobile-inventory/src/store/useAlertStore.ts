@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Alert as RNAlert, AlertButton, AlertOptions } from 'react-native';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export type AlertType = 'info' | 'success' | 'warning' | 'error' | 'destructive';
 
@@ -86,11 +87,16 @@ export const useAlertStore = create<AlertState>((set) => ({
         : [{ text: 'OK', style: 'default' as const }];
 
     const type = inferAlertType(title, message, alertButtons);
+    const sanitizedMsg = message
+      ? type === 'error' || type === 'destructive'
+        ? sanitizeErrorMessage(message)
+        : stripEmojis(message)
+      : message;
 
     set({
       visible: true,
       title: stripEmojis(title),
-      message: message ? stripEmojis(message) : message,
+      message: sanitizedMsg,
       type,
       buttons: alertButtons,
       options,

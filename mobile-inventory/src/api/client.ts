@@ -2,6 +2,7 @@ import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 import { getAuthToken, removeAuthToken, removeStoredUser } from '@/services/secureStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 // Environment Configurable Base URLs
 const PROD_DEFAULT_API_URL = 'http://54.175.133.69:5000/api';
@@ -154,8 +155,9 @@ export async function fetchApi<T = any>(
           await removeAuthToken();
           await removeStoredUser();
         }
-        const errorMessage = data.error || data.message || `HTTP ${response.status} error`;
-        throw new ApiError(errorMessage, response.status, data);
+        const rawErrorMessage = data.error || data.message || `HTTP ${response.status} error`;
+        const sanitized = sanitizeErrorMessage(rawErrorMessage);
+        throw new ApiError(sanitized, response.status, data);
       }
 
       return data as T;
@@ -166,12 +168,12 @@ export async function fetchApi<T = any>(
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
         throw new ApiError(
-          `Request timed out. Server at ${baseUrl} took too long to respond.`,
+          'The request timed out. Please verify your connection and try again.',
           0
         );
       }
       throw new ApiError(
-        `Cannot connect to backend server (${baseUrl}). Ensure backend is running and reachable on port ${DEFAULT_PORT}.`,
+        'Unable to connect to the server. Please check your internet connection.',
         0
       );
     }

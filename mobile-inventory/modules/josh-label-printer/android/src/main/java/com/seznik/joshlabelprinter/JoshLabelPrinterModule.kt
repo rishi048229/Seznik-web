@@ -118,14 +118,29 @@ class JoshLabelPrinterModule : Module() {
     val reason = arg as? IDzPrinter.PrintFailReason ?: return "Printing failed (unspecified error)."
     return when (reason) {
       IDzPrinter.PrintFailReason.OK -> "Success"
-      IDzPrinter.PrintFailReason.No_Paper -> "Printer is out of paper."
-      IDzPrinter.PrintFailReason.No_Label -> "Printer detected no label in feed."
-      IDzPrinter.PrintFailReason.CoverOpened -> "Printer cover is open. Please close it and retry."
-      IDzPrinter.PrintFailReason.VolTooLow -> "Printer battery is too low to print."
-      IDzPrinter.PrintFailReason.TphTooHot -> "Print head is too hot. Let the printer cool down."
+      IDzPrinter.PrintFailReason.No_Paper -> "Printer is out of paper. Please insert a label roll."
+      IDzPrinter.PrintFailReason.No_Label,
+      IDzPrinter.PrintFailReason.Usedup_Label -> "Printer ran out of labels. Please load a new label roll."
+      IDzPrinter.PrintFailReason.Unmatched_Label -> "Label roll size does not match the configured label dimensions."
+      IDzPrinter.PrintFailReason.CoverOpened,
+      IDzPrinter.PrintFailReason.LabelCanOpend -> "Printer cover is open or unlocked. Please close and latch the cover."
+      IDzPrinter.PrintFailReason.VolTooLow -> "Printer battery is too low to print. Please connect the charger."
+      IDzPrinter.PrintFailReason.VolTooHigh -> "Printer battery voltage is too high. Please disconnect charger and retry."
+      IDzPrinter.PrintFailReason.TphTooHot -> "Print head is too hot. Please allow the printer to cool down."
+      IDzPrinter.PrintFailReason.TphTooCold -> "Printer temperature is too low. Move to a warmer environment."
+      IDzPrinter.PrintFailReason.TphNotFound,
+      IDzPrinter.PrintFailReason.TphOpened -> "Print head not detected or latch is open. Please check the print head lock."
+      IDzPrinter.PrintFailReason.No_Ribbon,
+      IDzPrinter.PrintFailReason.No_Ribbon2 -> "Ribbon not detected. Please install or check the ribbon cartridge."
+      IDzPrinter.PrintFailReason.Usedup_Ribbon,
+      IDzPrinter.PrintFailReason.Usedup_Ribbon2 -> "Ribbon has run out. Please replace the ribbon cartridge."
+      IDzPrinter.PrintFailReason.Unmatched_Ribbon,
+      IDzPrinter.PrintFailReason.Unmatched_Ribbon2 -> "Installed ribbon does not match this printer."
+      IDzPrinter.PrintFailReason.EnvNotReady -> "Printer is not ready. Please turn it off and on again."
       IDzPrinter.PrintFailReason.Disconnected -> "Printer disconnected during print."
       IDzPrinter.PrintFailReason.Timeout -> "Printer timed out while printing."
-      else -> "The printer reported a print failure (${reason.name})."
+      IDzPrinter.PrintFailReason.Cancelled -> "Print job was cancelled."
+      else -> "Printer error: ${reason.name.replace('_', ' ')}."
     }
   }
 

@@ -9,6 +9,9 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_PORT": "5001"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "preview": {
