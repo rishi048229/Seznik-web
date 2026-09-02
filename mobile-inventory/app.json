@@ -33,7 +33,10 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
       ]
     },
     "web": {
@@ -84,8 +87,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "fe03bcde-b899-40d9-96d8-a59892db22a3"
+        "projectId": "f680be5e-7598-45be-ac1c-e42a9be86704"
       }
-    }
+    },
+    "owner": "kyro-labs"
   }
 }
