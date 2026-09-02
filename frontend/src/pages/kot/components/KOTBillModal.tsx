@@ -69,13 +69,13 @@ export const KOTBillModal = ({
   useEffect(() => {
     if (!isOpen) return
     setMethod('cash')
+    setAmountPaid('')
     setDiscount('')
     setOverrideTax(kot.applyTaxOverride)
     setTaxPercent(kot.applyTaxOverride || kot.taxRate ? String(kot.taxRate) : itemTax > 0 && subtotal > 0 ? (itemTax / subtotal * 100).toFixed(2) : '0')
     setServiceCharge(String(computeServiceCharge(subtotal, kot) || ''))
     setRoomType(kot.defaultRoomType)
     setRoomAmount(String(roomChargeFor(kot.defaultRoomType, kot) || ''))
-    // amountPaid set below after net is known via the next effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, subtotal, itemTax])
 
@@ -86,10 +86,6 @@ export const KOTBillModal = ({
       return
     }
     if (method === 'upi' || method === 'card') {
-      setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
-      return
-    }
-    if (!amountPaid || amountPaid === '0') {
       setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -270,8 +266,8 @@ export const KOTBillModal = ({
                     setAmountPaid('0')
                   } else if (id === 'upi' || id === 'card') {
                     setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
-                  } else if (!amountPaid || amountPaid === '0') {
-                    setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
+                  } else {
+                    setAmountPaid('')
                   }
                 }}
                 className={`group flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-xl transition-colors duration-150 ${
