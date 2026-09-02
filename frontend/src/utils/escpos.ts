@@ -250,10 +250,19 @@ export async function rasterizeImageForEscPos(
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image()
+      let settled = false
+      const timer = window.setTimeout(() => finish(() => reject(new Error('Image load timeout'))), 2500)
+      const finish = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        fn()
+      }
       if (!src.startsWith('data:')) el.crossOrigin = 'anonymous'
-      el.onload = () => resolve(el)
-      el.onerror = () => reject(new Error('Failed to load logo image'))
+      el.onload = () => finish(() => resolve(el))
+      el.onerror = () => finish(() => reject(new Error('Failed to load logo image')))
       el.src = src
+      if (el.complete && el.naturalWidth > 0) finish(() => resolve(el))
     })
 
     if (!img.width || !img.height) return null
