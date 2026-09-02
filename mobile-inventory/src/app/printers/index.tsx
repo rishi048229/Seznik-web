@@ -267,18 +267,17 @@ export default function PrintersScreen() {
 
   /** connectDevice rejects on failure — surface it with a retry instead of leaving the row silent. */
   const handleConnectDevice = async (deviceId: string, deviceName?: string) => {
-    // If the device is a dedicated Label printer (e.g. LD0801, LP..., or contains Label/Josh),
-    // route it directly to the Josh Label Printer connector instead of failing on the ESC/POS socket!
-    const isLabelPrinter = /^(LD|LP|JOSH|HM-|B11|B21|B3S|M110|M200)/i.test(deviceName || '') || (deviceName || '').toLowerCase().includes('label');
-    if (isLabelPrinter && ThermalPrinterService.isJoshSupported()) {
+    // If the device is explicitly an LD/LP/Josh brand printer, offer Josh LPAPI connection, but don't hijack standard Bluetooth printers!
+    const isDedicatedJoshModel = /^(LD|LP|JOSH)/i.test(deviceName || '');
+    if (isDedicatedJoshModel && ThermalPrinterService.isJoshSupported()) {
       try {
         const ok = await ThermalPrinterService.joshConnect(deviceId, deviceName);
         if (ok) {
-          setActiveTab('label');
+          try { Vibration.vibrate([0, 50, 40, 50]); } catch (e) {}
           return;
         }
       } catch (err: any) {
-        // Fall through
+        // Fall through to standard Bluetooth socket connection
       }
     }
 
@@ -1072,6 +1071,13 @@ export default function PrintersScreen() {
                   <ChevronRight size={20} color={theme.textSecondary} />
                 </View>
               </TouchableOpacity>
+
+              {/* Dedicated LPAPI / Josh Label Printer connector */}
+              {ThermalPrinterService.isJoshSupported() && (
+                <View style={{ marginBottom: 4 }}>
+                  <JoshPrinterCard />
+                </View>
+              )}
 
               {/* Section: PAIRED & SAVED BLUETOOTH PRINTERS */}
               <View style={styles.sectionHeaderRow}>

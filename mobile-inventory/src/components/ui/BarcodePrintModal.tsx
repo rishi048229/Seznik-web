@@ -74,37 +74,25 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       let ok: boolean;
       let modeLabel: string;
 
-      // A chosen stock layout wins: it is rebuilt at the selected size, so the
-      // same design prints correctly on a 25mm tag or a 100mm label.
+      const isJosh = await ThermalPrinterService.joshIsConnected();
+
       if (presetId) {
         const preset = buildLabelPreset(presetId, sizeW, sizeH, storeName);
         ok = await ThermalPrinterService.printLabelFromTemplate(product, preset, 1, labelGapMm);
-        modeLabel = `${preset.name} — ${sizeW}x${sizeH}mm`;
-      } else
-      if (printMode === 'template' && usableTemplate) {
-        if (await ThermalPrinterService.joshEnsureConnected()) {
-          ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
-          modeLabel = `"${usableTemplate.name}" template (label printer)`;
-        } else if (labelPaperMode === 'continuous') {
+        modeLabel = isJosh ? `${preset.name} (Josh — ${sizeW}x${sizeH}mm)` : `${preset.name} — ${sizeW}x${sizeH}mm`;
+      } else if (printMode === 'template' && usableTemplate) {
+        if (labelPaperMode === 'continuous' && !isJosh) {
           ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, usableTemplate, paperWidth);
           modeLabel = `"${usableTemplate.name}" template (receipt roll)`;
         } else {
           ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
-          modeLabel = `"${usableTemplate.name}" template (TSPL)`;
+          modeLabel = isJosh
+            ? `"${usableTemplate.name}" template (Josh Label)`
+            : `"${usableTemplate.name}" template (TSPL Label)`;
         }
       } else {
-        // Direct Product Barcode/QR Print (Real product data, no static template text)
-        if (await ThermalPrinterService.joshEnsureConnected()) {
-          ok = await ThermalPrinterService.printCustomLabel(
-            product,
-            selectedFormat,
-            undefined,
-            sizeW,
-            sizeH,
-            labelGapMm
-          );
-          modeLabel = `Label Printer (${selectedFormat.toUpperCase()})`;
-        } else if (labelPaperMode === 'continuous') {
+        // Direct Product Barcode/QR Print
+        if (labelPaperMode === 'continuous' && !isJosh) {
           ok = await ThermalPrinterService.printLabelOnReceiptPaper(product, selectedFormat, paperWidth);
           modeLabel = `Receipt Roll (${selectedFormat.toUpperCase()})`;
         } else {
@@ -116,7 +104,9 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             sizeH,
             labelGapMm
           );
-          modeLabel = `TSPL Label Printer (${selectedFormat.toUpperCase()})`;
+          modeLabel = isJosh
+            ? `Josh Label Printer (${selectedFormat.toUpperCase()})`
+            : `Label Printer (${selectedFormat.toUpperCase()})`;
         }
       }
 

@@ -176,3 +176,10 @@ export function receiptQrHtmlPx(size: ReceiptQrSize = 'medium'): number {
   if (size === 'small') return 135
   return 165
 }
+
+/** Format GST rate for item rows (e.g. 18% -> "18%") */
+export function formatItemGstRate(rate?: number | null): string {
+  if (rate == null || isNaN(rate) || rate <= 0) return ''
+  return `${Number(rate.toFixed(2))}%`
+}
+

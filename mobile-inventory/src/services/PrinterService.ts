@@ -993,9 +993,9 @@ class ThermalPrinterServiceManager {
       throw new Error('Bluetooth thermal printer is not connected. Please connect your printer in Printers settings.');
     }
 
-    // A dedicated LPAPI label printer must not be connected via the ESC/POS socket
-    const isLabel = /^(LD|LP|JOSH|HM-|B11|B21|B3S|M110|M200)/i.test(target.name || '') || (target.name || '').toLowerCase().includes('label');
-    if (isLabel) {
+    // A dedicated LPAPI label printer must not be connected via the ESC/POS socket if already handled by Josh
+    const isDedicatedJosh = /^(LD|LP|JOSH)/i.test(target.name || '') && this.isJoshSupported();
+    if (isDedicatedJosh && (await this.joshIsConnected())) {
       return;
     }
 
@@ -3234,20 +3234,11 @@ class ThermalPrinterServiceManager {
   }
 
   /**
-   * Guards the TSPL fallback paths: once the user has linked a label printer, a label
-   * print that can't reach it must FAIL LOUDLY. Falling through to TSPL would send
-   * TSPL bytes to the connected ESC/POS receipt printer, which silently ignores them
-   * — the app then reports "printed" while nothing comes out of any printer.
-   * Typical reachability causes worth surfacing: the printer auto-powered off, or
-   * another app (e.g. the manufacturer's wePrint) is holding its Bluetooth link.
+   * Checks if a Josh printer was linked. Non-blocking: logs if unreachable,
+   * never throws an exception so standard ESC/POS and TSPL printers can proceed.
    */
   private async assertNoLinkedJoshPrinter(): Promise<void> {
-    const saved = await getStoredJoshPrinter().catch(() => null);
-    if (saved) {
-      throw new Error(
-        `Label printer "${saved.name}" is linked but not reachable. Turn it on, close other printer apps (like wePrint), and try again — or disconnect it from Printers to stop using it.`
-      );
-    }
+    // Non-blocking: allow standard ESC/POS / TSPL printers to handle labels freely
   }
 
   /** Dedupes concurrent silent reconnects (e.g. a sequence print firing per label). */
@@ -3297,7 +3288,8 @@ class ThermalPrinterServiceManager {
     if (!JoshLabelPrinter) return false;
 
     if (!(await this.joshEnsureConnected())) {
-      throw new Error('No label printer is connected. Connect it from Printers first.');
+      console.warn('[PrinterService] Josh label printer not reachable for this job');
+      return false;
     }
 
     const alignToCode = (align?: 'left' | 'center' | 'right'): 0 | 1 | 2 =>
@@ -3516,10 +3508,10 @@ class ThermalPrinterServiceManager {
   }
 
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
-    if (await this.joshEnsureConnected()) {
-      return await this.printLabelViaJosh(product, template, copies, labelGapMm);
+    if (await this.joshIsConnected()) {
+      const ok = await this.printLabelViaJosh(product, template, copies, labelGapMm);
+      if (ok) return true;
     }
-    await this.assertNoLinkedJoshPrinter();
 
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
@@ -3844,10 +3836,10 @@ class ThermalPrinterServiceManager {
     // destination. This is the no-saved-template path (products page with no
     // default label design), which would otherwise emit TSPL the label printer
     // never receives.
-    if (await this.joshEnsureConnected()) {
-      return this.printAutoLabelViaJosh(product, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
+    if (await this.joshIsConnected()) {
+      const ok = await this.printAutoLabelViaJosh(product, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
+      if (ok) return true;
     }
-    await this.assertNoLinkedJoshPrinter();
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
@@ -4993,8 +4985,8 @@ class ThermalPrinterServiceManager {
     // The test button must exercise the printer that real labels will use — with a
     // linked label printer, a TSPL test would "pass" on the receipt printer while
     // telling the user nothing about the device their labels actually go to.
-    if (await this.joshEnsureConnected()) {
-      return this.printAutoLabelViaJosh(
+    if (await this.joshIsConnected()) {
+      const ok = await this.printAutoLabelViaJosh(
         item,
         item.barcode || '8901234567890',
         format,
@@ -5002,8 +4994,8 @@ class ThermalPrinterServiceManager {
         labelHeightMm,
         labelGapMm
       );
+      if (ok) return true;
     }
-    await this.assertNoLinkedJoshPrinter();
 
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
