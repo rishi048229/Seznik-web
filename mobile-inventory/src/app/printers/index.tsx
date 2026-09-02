@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Bluetooth,
+  Printer,
+  LayoutGrid,
   Plus,
   Minus,
   GripVertical,
@@ -496,66 +498,81 @@ export default function PrintersScreen() {
           </View>
         ) : null}
 
-        {/* Hero Banner: connection status + scan + quick test actions */}
-        <View style={[styles.heroCard, { backgroundColor: BRAND_COLORS.blue600 }]}>
-          <View style={styles.heroTopRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
-              <View style={[styles.iconBox, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.2)' }]}>
-                <Bluetooth size={22} color={connectionState === 'connected' ? '#6EE7B7' : '#FFFFFF'} />
-              </View>
-              <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={styles.heroPrinterName} numberOfLines={1}>
-                  {activeDevice ? activeDevice.name : 'No Printer Paired'}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: connectionState === 'connected' ? '#6EE7B7' : '#F59E0B', marginRight: 5 }} />
-                  <Text style={[styles.heroPrinterSub, { color: connectionState === 'connected' ? '#6EE7B7' : 'rgba(255,255,255,0.85)' }]}>
-                    {connectionState === 'connected' ? `Connected (${paperWidthVal}mm) • Ready` : 'Disconnected'}
-                  </Text>
-                </View>
-              </View>
+        {/* Printer status card.
+            Replaces a full-bleed blue panel with white-on-blue controls: on a
+            status surface the colour has to carry meaning, so the card stays
+            neutral and only the state dot and its caption change colour. */}
+        <View style={[styles.statusCard, { backgroundColor: theme.cardBg, borderColor: connectionState === 'connected' ? '#10B981' : theme.borderColor }]}>
+          <View style={styles.statusTopRow}>
+            <View style={[styles.statusIcon, { backgroundColor: connectionState === 'connected' ? 'rgba(16,185,129,0.12)' : 'rgba(100,116,139,0.12)' }]}>
+              <Printer size={20} color={connectionState === 'connected' ? '#10B981' : theme.textSecondary} />
             </View>
 
-            <TouchableOpacity onPress={handleScanBluetooth} disabled={isScanning} style={styles.scanBtn}>
-              {isScanning ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <>
-                  <RefreshCw size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.scanBtnText}>Scan BT</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={{ flex: 1, marginLeft: 12, marginRight: 10 }}>
+              <Text style={[styles.statusTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                {activeDevice ? activeDevice.name : 'No printer connected'}
+              </Text>
+              <View style={styles.statusLine}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: connectionState === 'connected' ? '#10B981' : '#F59E0B' },
+                  ]}
+                />
+                <Text style={[styles.statusCaption, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {connectionState === 'connected'
+                    ? `Ready · ${paperWidthVal}mm paper`
+                    : 'Tap Find Printers to connect one'}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {!nativeModuleAvailable && Platform.OS !== 'web' ? (
-            <View style={styles.nativeWarningBanner}>
-              <Text style={styles.nativeWarningText}>
-                ⚠️ This build doesn't include native Bluetooth. Rebuild with a dev-client (EAS Build) to scan real devices.
+            <View style={styles.warnBanner}>
+              <Text style={styles.warnBannerText}>
+                This build has no Bluetooth support. Install a development build to connect a printer.
               </Text>
             </View>
           ) : warningText ? (
-            <View style={styles.nativeWarningBanner}>
-              <Text style={styles.nativeWarningText}>⚠️ {warningText}</Text>
+            <View style={styles.warnBanner}>
+              <Text style={styles.warnBannerText}>{warningText}</Text>
             </View>
           ) : null}
 
-          <View style={styles.testPrintRow}>
-            <TouchableOpacity onPress={handleSelectSystemPrinter} style={styles.testPrintBtn}>
-              <ExternalLink size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.testPrintBtnText} numberOfLines={1}>System</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleScanBluetooth}
+            disabled={isScanning}
+            style={[styles.primaryAction, { opacity: isScanning ? 0.6 : 1 }]}
+          >
+            {isScanning ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Bluetooth size={16} color="#FFFFFF" />
+                <Text style={styles.primaryActionText}>
+                  {activeDevice ? 'Change Printer' : 'Find Printers'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
 
+          {/* Test prints. Given their own labelled row rather than three cramped
+              10px chips, since this is how a shop confirms the printer works. */}
+          <Text style={[styles.rowCaption, { color: theme.textSecondary }]}>SEND A TEST PRINT</Text>
+          <View style={styles.testRow}>
             <TouchableOpacity
               onPress={async () => {
                 const ok = await ThermalPrinterService.printTestReceipt(paperWidthVal === 80 ? '80mm' : '58mm', printOptions);
                 const activeName = activeCustomTemplate ? activeCustomTemplate.name : activeTemplate.name;
                 if (ok) Alert.alert('Test Receipt Sent', `Printed using "${activeName}".`);
               }}
-              style={styles.testPrintBtn}
+              style={[styles.testBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
             >
-              <FileText size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.testPrintBtnText} numberOfLines={1}>Receipt</Text>
+              <FileText size={15} color={theme.textPrimary} />
+              <Text style={[styles.testBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
+                Receipt
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -586,10 +603,22 @@ export default function PrintersScreen() {
                   if (ok) Alert.alert('Test Label Sent', `Printed for a ${labelWidthMm}x${labelHeightMm}mm label.`);
                 }
               }}
-              style={styles.testPrintBtn}
+              style={[styles.testBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
             >
-              <Tag size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.testPrintBtnText} numberOfLines={1}>Label</Text>
+              <Tag size={15} color={theme.textPrimary} />
+              <Text style={[styles.testBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
+                Label
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSelectSystemPrinter}
+              style={[styles.testBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+            >
+              <ExternalLink size={15} color={theme.textPrimary} />
+              <Text style={[styles.testBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
+                A4 / PDF
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -604,6 +633,13 @@ export default function PrintersScreen() {
                 onPress={() => setActiveTab(tab)}
                 style={[styles.segBtn, selected && styles.segBtnActive]}
               >
+                {tab === 'receipt' ? (
+                  <FileText size={14} color={selected ? '#FFFFFF' : '#64748B'} />
+                ) : tab === 'label' ? (
+                  <Tag size={14} color={selected ? '#FFFFFF' : '#64748B'} />
+                ) : (
+                  <LayoutGrid size={14} color={selected ? '#FFFFFF' : '#64748B'} />
+                )}
                 <Text style={[styles.segText, selected && styles.segTextActive]}>
                   {tab === 'receipt' ? t('thermalPrinter', 'Receipt') : tab === 'label' ? t('labelStudio', 'Label') : t('receiptTemplates', 'Templates')}
                 </Text>
@@ -1550,24 +1586,27 @@ const styles = StyleSheet.create({
   guideStep: { fontSize: 12, marginTop: 4, lineHeight: 18 },
   title: { fontSize: 24, fontWeight: '900' },
   subtitle: { fontSize: 12, marginTop: 2, marginBottom: 14 },
-  heroCard: { borderRadius: 20, padding: 16, marginBottom: 14, width: '100%', overflow: 'hidden' },
-  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
-  heroPrinterName: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
-  heroPrinterSub: { fontSize: 11, marginTop: 2, fontWeight: '600' },
+  statusCard: { borderRadius: 18, borderWidth: 1.5, padding: 16, marginBottom: 14, width: '100%' },
+  statusTopRow: { flexDirection: 'row', alignItems: 'center' },
+  statusIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  statusTitle: { fontSize: 15.5, fontWeight: '900' },
+  statusLine: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  statusDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6 },
+  statusCaption: { fontSize: 12, fontWeight: '600', flex: 1 },
+  warnBanner: { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderRadius: 10, padding: 10, marginTop: 12 },
+  warnBannerText: { fontSize: 11.5, fontWeight: '700', color: '#F59E0B', lineHeight: 16 },
+  primaryAction: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: BRAND_COLORS.blue600, borderRadius: 14, paddingVertical: 13, marginTop: 14 },
+  primaryActionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  rowCaption: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6, marginTop: 16, marginBottom: 8 },
+  testRow: { flexDirection: 'row', gap: 8 },
+  testBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingVertical: 11 },
+  testBtnText: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
   segmentedBar: { flexDirection: 'row', padding: 4, borderRadius: 16, borderWidth: 1, marginBottom: 14, width: '100%' },
-  segBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12 },
-  segBtnActive: { backgroundColor: BRAND_COLORS.blue600 },
-  segText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
+  segBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  segBtnActive: { backgroundColor: BRAND_COLORS.blue600, elevation: 2, shadowColor: BRAND_COLORS.blue600, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  segText: { fontSize: 12.5, fontWeight: '800', color: '#64748B' },
   segTextActive: { color: '#FFFFFF' },
   card: { borderRadius: 18, padding: 16, borderWidth: 1 },
-  iconBox: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  scanBtn: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
-  scanBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', marginLeft: 4 },
-  nativeWarningBanner: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: 10, marginTop: 12 },
-  nativeWarningText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
-  testPrintRow: { flexDirection: 'row', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.2)', width: '100%' },
-  testPrintBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: 10, marginHorizontal: 2, backgroundColor: 'rgba(255,255,255,0.15)' },
-  testPrintBtnText: { fontSize: 10, fontWeight: '800', marginLeft: 3, color: '#FFFFFF' },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sectionHeader: { fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.5 },
   manualInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13 },
