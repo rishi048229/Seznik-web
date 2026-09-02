@@ -96,6 +96,8 @@ interface PrinterState {
 
   /** True while an automatic reconnect is being retried in the background after an unexpected drop. */
   isAutoReconnecting: boolean;
+  /** True when the user explicitly disconnected, preventing auto-reconnect from firing immediately */
+  isUserDisconnected: boolean;
 
   initListener: () => () => void;
   scanForDevices: () => Promise<void>;
@@ -155,6 +157,8 @@ interface PrinterState {
 export const usePrinterStore = create<PrinterState>((set, get) => ({
   connectionState: 'disconnected',
   activeDevice: null,
+  isAutoReconnecting: false,
+  isUserDisconnected: false,
   // Starts empty — populated only from the phone's real Bluetooth adapter via scanForDevices().
   scannedDevices: [],
   isScanning: false,
@@ -186,7 +190,6 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   labelTemplates: [],
   activeLabelTemplateId: null,
   isHydrated: false,
-  isAutoReconnecting: false,
 
   initListener: () => {
     // Mirrors PrinterService into store state. Must be mounted once at app root: every screen gates
@@ -232,7 +235,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
     // Unexpected drops only (printer switched off / out of range), never a user-initiated disconnect.
     const unsubscribeLost = PrinterService.onConnectionLost(() => {
-      if (!get().autoConnect) return;
+      if (!get().autoConnect || get().isUserDisconnected) return;
       get().attemptAutoConnect().catch(() => {});
     });
 
@@ -250,7 +253,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
     // Keep whatever is already on screen. Wiping the list meant a printer found seconds ago
     // vanished the moment the user tapped "Scan Again"; re-discovery simply refreshes each entry.
-    set({ isScanning: true, warningText: '' });
+    set({ isScanning: true, warningText: '', isUserDisconnected: false });
 
     // Live-merge each device the moment the phone's Bluetooth adapter reports it,
     // instead of waiting for the whole ~12s discovery window to finish.
@@ -284,6 +287,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
    * rest of the app printing into a socket that was never opened.
    */
   connectDevice: async (deviceId: string, deviceName?: string, opts?: { auto?: boolean }) => {
+    if (!opts?.auto) {
+      set({ isUserDisconnected: false });
+    }
     await PrinterService.connect(deviceId, deviceName, opts);
 
     const target =
@@ -308,6 +314,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
       return {
         activeDevice: target,
+        isUserDisconnected: false,
         // Mirrors what PrinterService already reported; the status subscription remains the
         // authority, this just avoids a frame of stale state for screens reading it immediately.
         connectionState: PrinterService.getActiveDevice() ? 'connected' : prev.connectionState,
@@ -324,8 +331,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     try {
       // A deliberate disconnect also means "stop trying to reconnect for me".
       PrinterService.cancelAutoConnect();
+      set({ isUserDisconnected: true, isAutoReconnecting: false });
       await PrinterService.disconnect();
-      set({ activeDevice: null, connectionState: 'disconnected', warningText: '', isAutoReconnecting: false });
+      set({ activeDevice: null, connectionState: 'disconnected', warningText: '', isAutoReconnecting: false, isUserDisconnected: true });
     } catch (e) {
       // Ignored
     }
@@ -337,8 +345,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
    * having to open the Printers screen.
    */
   attemptAutoConnect: async () => {
-    const { autoConnect, pairedPrinters, isAutoReconnecting, connectionState, nativeModuleAvailable } = get();
-    if (!autoConnect || isAutoReconnecting || connectionState === 'connected') return;
+    const { autoConnect, pairedPrinters, isAutoReconnecting, connectionState, nativeModuleAvailable, isUserDisconnected } = get();
+    if (!autoConnect || isAutoReconnecting || connectionState === 'connected' || isUserDisconnected) return;
     // Nothing to reconnect to in Expo Go / a build without the native Bluetooth module — retrying
     // would just log three guaranteed failures on every launch.
     if (!nativeModuleAvailable) return;

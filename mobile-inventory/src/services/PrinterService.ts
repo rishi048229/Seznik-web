@@ -18,6 +18,7 @@ import {
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   RECEIPT_LOGO_STANDARD_WIDTH_PERCENT,
+  formatItemGstRate,
   receiptLogoHtmlMaxPx,
   receiptLogoHtmlMaxPxFromChip,
   receiptQrBitmapDots,
@@ -353,6 +354,8 @@ class ThermalPrinterServiceManager {
   private connectionLostListeners: (() => void)[] = [];
   /** The device we last connected to, kept after a drop so auto-reconnect knows what to reach for. */
   private lastConnectedDevice: BluetoothPrinterDevice | null = null;
+  /** True while the user intentionally requested a disconnect, so EVENT_CONNECTION_LOST ignores it */
+  private isUserDisconnecting = false;
 
   constructor() {
     this.activeDevice = null;
@@ -506,6 +509,13 @@ class ThermalPrinterServiceManager {
 
       this.eventSubscriptions.push(
         this.eventEmitter.addListener('EVENT_CONNECTION_LOST', () => {
+          if (this.isUserDisconnecting) {
+            this.activeDevice = null;
+            this.lastConnectedDevice = null;
+            this.warningText = '';
+            this.notifyStatusChange('disconnected');
+            return;
+          }
           // Keep lastConnectedDevice — it's the target auto-reconnect will retry.
           this.lastConnectedDevice = this.activeDevice || this.lastConnectedDevice;
           this.activeDevice = null;
@@ -961,22 +971,30 @@ class ThermalPrinterServiceManager {
   }
 
   public async disconnect(): Promise<void> {
+    this.isUserDisconnecting = true;
+    this.cancelAutoConnect();
     const address = this.activeDevice?.macAddress || this.activeDevice?.id;
-    if (this.isNativeModuleAvailable() && typeof NativeBluetoothManager.disconnect === 'function' && address) {
-      try {
-        await NativeBluetoothManager.disconnect(address);
-      } catch (e) {
-        console.warn('Native Bluetooth disconnect error:', e);
+    try {
+      if (this.isNativeModuleAvailable() && typeof NativeBluetoothManager.disconnect === 'function' && address) {
+        try {
+          await NativeBluetoothManager.disconnect(address);
+        } catch (e) {
+          console.warn('Native Bluetooth disconnect error:', e);
+        }
       }
+    } finally {
+      this.activeDevice = null;
+      // Deliberately forget the reconnect target: disconnecting is an explicit user action, and
+      // auto-reconnect pulling the printer straight back would make the button look broken.
+      this.lastConnectedDevice = null;
+      // Not a warning — this is the expected outcome of the user tapping Disconnect, and putting text
+      // here renders it as a red error banner in the connect modal.
+      this.warningText = '';
+      this.notifyStatusChange('disconnected');
+      setTimeout(() => {
+        this.isUserDisconnecting = false;
+      }, 2500);
     }
-    this.activeDevice = null;
-    // Deliberately forget the reconnect target: disconnecting is an explicit user action, and
-    // auto-reconnect pulling the printer straight back would make the button look broken.
-    this.lastConnectedDevice = null;
-    // Not a warning — this is the expected outcome of the user tapping Disconnect, and putting text
-    // here renders it as a red error banner in the connect modal.
-    this.warningText = '';
-    this.notifyStatusChange('disconnected');
   }
 
   public resolveActiveTemplate(options?: ReceiptPrintOptions): ReceiptTemplate {
@@ -1178,7 +1196,8 @@ class ThermalPrinterServiceManager {
             }
 
             if ((showItemGst || entry.showTaxColumn) && item.gstRate) {
-              lines.push(`   ${item.gstRate.toFixed(1)}% GST`);
+              const gstLabel = formatItemGstRate(item.gstRate);
+              if (gstLabel) lines.push(`   ${gstLabel} GST`);
             }
 
             lines.push(
@@ -1604,7 +1623,7 @@ class ThermalPrinterServiceManager {
 
       items.forEach((item, index) => {
         const lineAmt = item.total;
-        const gstStr = showItemGst && item.gstRate && item.gstRate > 0 ? `${item.gstRate.toFixed(1)}%` : '';
+        const gstStr = showItemGst && item.gstRate && item.gstRate > 0 ? formatItemGstRate(item.gstRate) : '';
         const nameWidth = showItemGst ? 22 : 27;
         const fullName = `${index + 1}. ${item.productName}`;
         const firstLineName = fullName.slice(0, nameWidth);
@@ -1638,7 +1657,7 @@ class ThermalPrinterServiceManager {
 
       items.forEach((item, index) => {
         const lineAmt = item.total;
-        const gstStr = showItemGst && item.gstRate && item.gstRate > 0 ? `${item.gstRate.toFixed(1)}%` : '';
+        const gstStr = showItemGst && item.gstRate && item.gstRate > 0 ? formatItemGstRate(item.gstRate) : '';
         const fullName = `${index + 1}. ${item.productName}`;
         lines.push(...wrapProse(fullName, COLS, false));
 
@@ -1646,10 +1665,10 @@ class ThermalPrinterServiceManager {
         if (showItemGst && gstStr) {
           lines.push(cols([
             { text: '  ', width: 2, align: 'L' },
-            { text: qtyRateStr, width: 16, align: 'L' },
-            { text: gstStr, width: 4, align: 'R' },
+            { text: qtyRateStr, width: 20, align: 'L' },
             { text: lineAmt.toFixed(2), width: 10, align: 'R' },
           ], COLS));
+          lines.push(`   ${gstStr} GST`.padEnd(COLS, ' '));
         } else {
           lines.push(cols([
             { text: '  ', width: 2, align: 'L' },
@@ -2206,7 +2225,7 @@ class ThermalPrinterServiceManager {
                 return `
                 <div style="margin-bottom: 5px;">
                   <div><b>${namePrefix}${item.productName}</b></div>
-                  ${(showItemGst || entry.showTaxColumn) && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${item.gstRate.toFixed(1)}% GST</div>` : ''}
+                  ${(showItemGst || entry.showTaxColumn) && item.gstRate ? `<div style="font-size: 0.85em; color: #555;">${formatItemGstRate(item.gstRate)} GST</div>` : ''}
                   <div style="display: flex; justify-content: space-between; font-size: 0.95em;">
                     <span>&nbsp;&nbsp;${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}</span>
                     <span>${item.total.toFixed(2)}</span>
@@ -2615,7 +2634,7 @@ class ThermalPrinterServiceManager {
           <td>${item.productName}</td>
           <td class="c">${item.quantity} ${item.unit || 'Pc'}</td>
           <td class="r">${item.unitPrice.toFixed(2)}</td>
-          <td class="c">${item.gstRate != null ? `${item.gstRate.toFixed(1)}%` : '-'}</td>
+          <td class="c">${item.gstRate != null ? formatItemGstRate(item.gstRate) : '-'}</td>
           <td class="r">${item.total.toFixed(2)}</td>
         </tr>`
       )
@@ -4526,7 +4545,8 @@ class ThermalPrinterServiceManager {
             }
 
             if ((showItemGst || entry.showTaxColumn) && item.gstRate) {
-              await NativeEscposPrinter.printText(`   ${item.gstRate.toFixed(1)}% GST\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
+              const gstLabel = formatItemGstRate(item.gstRate);
+              if (gstLabel) await NativeEscposPrinter.printText(`   ${gstLabel} GST\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
             }
 
             await NativeEscposPrinter.printText(
