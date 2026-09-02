@@ -385,8 +385,10 @@ export const POSLitePage = () => {
     if (isPaymentOpen) {
       if (method === "credit") {
         setAmountPaid("0");
+      } else if (method === "upi" || method === "card") {
+        setAmountPaid(finalTotal > 0 ? Number(finalTotal.toFixed(2)).toString() : "");
       } else if (!amountPaid || amountPaid === "0") {
-        setAmountPaid(finalTotal.toString());
+        setAmountPaid(finalTotal > 0 ? Number(finalTotal.toFixed(2)).toString() : "");
       }
     }
   }, [isPaymentOpen, method, finalTotal]);
@@ -1198,7 +1200,16 @@ export const POSLitePage = () => {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setMethod(id)}
+                  onClick={() => {
+                    setMethod(id);
+                    if (id === "credit") {
+                      setAmountPaid("0");
+                    } else if (id === "upi" || id === "card") {
+                      setAmountPaid(finalTotal > 0 ? Number(finalTotal.toFixed(2)).toString() : "");
+                    } else if (!amountPaid || amountPaid === "0") {
+                      setAmountPaid(finalTotal > 0 ? Number(finalTotal.toFixed(2)).toString() : "");
+                    }
+                  }}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
                       ? "border-[#0a0a2e] bg-[#0a0a2e]/5"

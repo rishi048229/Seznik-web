@@ -85,7 +85,13 @@ export const KOTBillModal = ({
       setAmountPaid('0')
       return
     }
-    setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
+    if (method === 'upi' || method === 'card') {
+      setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
+      return
+    }
+    if (!amountPaid || amountPaid === '0') {
+      setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, method, net])
 
@@ -258,7 +264,16 @@ export const KOTBillModal = ({
               <button
                 key={id}
                 type="button"
-                onClick={() => setMethod(id)}
+                onClick={() => {
+                  setMethod(id)
+                  if (id === 'credit') {
+                    setAmountPaid('0')
+                  } else if (id === 'upi' || id === 'card') {
+                    setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
+                  } else if (!amountPaid || amountPaid === '0') {
+                    setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
+                  }
+                }}
                 className={`group flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-xl transition-colors duration-150 ${
                   method === id
                     ? 'bg-[#0a0a2e] text-white'
