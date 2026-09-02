@@ -124,7 +124,7 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
         onItemCreated(result);
       }
 
-      Alert.alert('Food Item Added! 🍽️', `"${trimmedName}" is now live on your food menu.`);
+      Alert.alert('Food Item Added!', `"${trimmedName}" is now live on your food menu.`);
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to create food item');
     }

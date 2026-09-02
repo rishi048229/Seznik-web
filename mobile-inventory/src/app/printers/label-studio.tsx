@@ -297,7 +297,7 @@ export default function LabelStudioScreen() {
       const toSave: LabelTemplate = { ...template, updatedAt: new Date().toISOString() };
       await saveLabelTemplate(toSave);
       setTemplate(toSave);
-      Alert.alert('Template Saved! 💾', `"${toSave.name}" has been saved successfully.`);
+      Alert.alert('Template Saved!', `"${toSave.name}" has been saved successfully.`);
     } catch (e: any) {
       Alert.alert('Save Failed', e?.message || 'Could not save this template.');
     } finally {
@@ -312,7 +312,7 @@ export default function LabelStudioScreen() {
       await saveLabelTemplate(toSave);
       await setActiveLabelTemplate(toSave.id);
       setTemplate(toSave);
-      Alert.alert('Default Template Set! ⭐', `"${toSave.name}" is now the active default template for all product label prints.`);
+      Alert.alert('Default Template Set!', `"${toSave.name}" is now the active default template for all product label prints.`);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not set this template as default.');
     } finally {
@@ -337,7 +337,7 @@ export default function LabelStudioScreen() {
         labelPaperMode === 'continuous'
           ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, template, paperWidth)
           : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template, 1, labelGapMm);
-      if (ok) Alert.alert('Test Print Sent! 🖨️', `Printed test label for "${targetProduct.name}".`);
+      if (ok) Alert.alert('Test Print Sent!', `Printed test label for "${targetProduct.name}".`);
       else Alert.alert('Print Failed', 'Could not send label to printer. Make sure printer is connected.');
     } catch (e: any) {
       Alert.alert('Print Failed', e?.message || 'Could not print this template.');
@@ -373,7 +373,7 @@ export default function LabelStudioScreen() {
       );
       if (result.ok) {
         setShowSequencePrompt(false);
-        Alert.alert('Sequence Printed! 🔢', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
+        Alert.alert('Sequence Printed!', `Printed ${result.printedCount} labels starting from "${startPattern}".`);
       } else if (result.printedCount === 0) {
         Alert.alert('Invalid Pattern', 'The starting pattern must include at least one number to increment (e.g. "0001" or "A01").');
       } else {
@@ -1156,7 +1156,7 @@ export default function LabelStudioScreen() {
                           <TouchableOpacity
                             onPress={async () => {
                               await setActiveLabelTemplate(t.id);
-                              Alert.alert('Default Updated! ⭐', `"${t.name}" is now default.`);
+                              Alert.alert('Default Updated!', `"${t.name}" is now default.`);
                             }}
                             style={[styles.setDefSmallBtn, { borderColor: theme.borderColor }]}
                           >

@@ -305,7 +305,7 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
         msg = `Created ${createdCount} new products in your inventory!`;
       }
 
-      Alert.alert('🎉 Import Successful!', msg, [
+      Alert.alert('Import Successful!', msg, [
         {
           text: 'View Inventory',
           onPress: () => {

@@ -218,10 +218,10 @@ export default function ExpensesScreen() {
       };
       if (editingExpense) {
         await updateExpense({ id: editingExpense.id, payload });
-        Alert.alert('Expense Updated! ✅', 'The expense record was updated.');
+        Alert.alert('Expense Updated!', 'The expense record was updated.');
       } else {
         await createExpense(payload);
-        Alert.alert('Expense Recorded! 💸', 'Your business expense has been logged.');
+        Alert.alert('Expense Recorded!', 'Your business expense has been logged.');
       }
       setShowModal(false);
       resetForm();

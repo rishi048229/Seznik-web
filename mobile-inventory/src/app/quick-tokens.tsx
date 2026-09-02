@@ -108,7 +108,7 @@ export default function QuickTokensScreen() {
         time: new Date(token.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         note: token.note || undefined,
       });
-      Alert.alert('Token Printed! 🖨️', `Token #${seq} slip printed successfully.`);
+      Alert.alert('Token Printed!', `Token #${seq} slip printed successfully.`);
     } catch (err: any) {
       Alert.alert('Print Error', err?.message || 'Failed to print token');
     }
@@ -158,7 +158,7 @@ export default function QuickTokensScreen() {
       setIssueQty('1');
       setCustomPrice('');
       setNote('');
-      Alert.alert('Ticket Issued! 🎟️', `Token #${nextSeq} issued successfully for ${selectedType.name}.`);
+      Alert.alert('Ticket Issued!', `Token #${nextSeq} issued successfully for ${selectedType.name}.`);
     } catch (err: any) {
       Alert.alert('Issue Error', err?.message || 'Failed to issue token');
     } finally {

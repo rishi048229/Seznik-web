@@ -50,6 +50,10 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintKotDeltaData } from '@/services/PrinterService';
 import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
+import { getTemplateById } from '@/constants/receiptTemplates';
+import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
+import { printInvoiceReceipt } from '@/utils/invoiceActions';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
 
 const VOID_REASONS = [
@@ -82,8 +86,9 @@ export default function KotOrderDetailScreen() {
   const { order, isLoading, isRefetching, isError, refetch } = useKotOrder(id);
   const { updateStatus, editOrder, generateBill, isEditing, isGeneratingBill } = useKotOrders();
   const { products } = useProducts();
-  const { paperWidth, connectionState } = usePrinterStore();
+  const { paperWidth, connectionState, activeTemplateId, customTemplates, activeCustomTemplateId, enableBillQrCode, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
 
   const [reprintCounter, setReprintCounter] = useState(0);
 
@@ -191,7 +196,7 @@ export default function KotOrderDetailScreen() {
         },
         paperWidth || '58mm'
       );
-      Alert.alert('Printed! 🖨️', `Full kitchen slip for KOT #${order.orderNumber} printed.`);
+      Alert.alert('Printed!', `Full kitchen slip for KOT #${order.orderNumber} printed.`);
     } catch (err: any) {
       Alert.alert('Printer Error', err?.message || 'Failed to print kitchen slip');
     }
@@ -318,7 +323,7 @@ export default function KotOrderDetailScreen() {
       setPendingNewItems([]);
       await refetch();
 
-      Alert.alert('Updated! 👨‍🍳', autoPrintDelta ? `Changes sent to kitchen and Delta KOT printed.` : `Order items saved.`);
+      Alert.alert('Updated!', autoPrintDelta ? `Changes sent to kitchen and Delta KOT printed.` : `Order items saved.`);
     } catch (err: any) {
       Alert.alert('Edit Error', err?.message || 'Failed to update KOT order');
     }
@@ -364,46 +369,30 @@ export default function KotOrderDetailScreen() {
       // Auto print customer tax invoice receipt if connected
       if (connectionState === 'connected') {
         try {
-          const billableItems = order.items
-            .filter((it) => it.status !== 'voided' && !voidedItems[it.id])
-            .map((it) => ({
-              productName: it.productName,
-              quantity: itemQuantities[it.id] ?? it.quantity,
-              unitPrice: it.unitPrice,
-              total: it.unitPrice * (itemQuantities[it.id] ?? it.quantity),
-            }));
-
-          // Add newly added items that were just billed
-          pendingNewItems.forEach((p) => {
-            billableItems.push({
-              productName: p.productName,
-              quantity: p.quantity,
-              unitPrice: p.unitPrice,
-              total: p.unitPrice * p.quantity,
-            });
-          });
-
-          const sub = billableItems.reduce((acc, it) => acc + it.total, 0);
-          const total = Math.max(0, sub - disc);
-
-          await ThermalPrinterService.printSaleReceipt(
+          const template = getTemplateById(activeTemplateId);
+          const customTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
+          const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
+          await printInvoiceReceipt(
+            result.sale,
+            storeProfile,
+            paperWidth || '58mm',
             {
-              storeName: settings?.businessName || 'SEZNIK STORE',
-              storeAddress: settings?.businessAddress || '',
-              storePhone: settings?.businessPhone || '',
-              invoiceNumber: result.sale.invoiceNumber,
-              date: new Date().toLocaleDateString('en-GB'),
-              customerName: customerNameInput.trim() || order.table?.name || order.partyLabel || 'Dine-in Guest',
-              items: billableItems,
-              subtotal: sub,
-              totalTax: 0,
-              totalDiscount: disc,
-              grandTotal: total,
-              amountPaid: total,
-              changeReturned: 0,
-              paymentMethod: paymentMethod.toUpperCase(),
+              template,
+              customTemplate,
+              includeBillQr: enableBillQrCode,
+              topMargin,
+              autoCut,
+              fontSize,
+              copies: printCopies,
+              storeName: storeProfile.storeName,
+              storeAddress: storeProfile.storeAddress,
+              storePhone: storeProfile.storePhone,
+              storeGstin: storeProfile.storeGstin,
+              storeLogoUrl: storeProfile.storeLogoUrl,
+              upiId: storeProfile.upiId,
+              ...gstPrintOptionOverrides(gstBilling),
             },
-            { paperWidth: paperWidth || '58mm' }
+            connectionState
           );
         } catch (printErr) {
           console.warn('Auto print receipt failed:', printErr);
@@ -411,7 +400,7 @@ export default function KotOrderDetailScreen() {
       }
 
       setShowSettleModal(false);
-      Alert.alert('Bill Settled! 🧾', `Invoice #${result.sale.invoiceNumber} recorded successfully.`, [
+      Alert.alert('Bill Settled!', `Invoice #${result.sale.invoiceNumber} recorded successfully.`, [
         {
           text: 'OK',
           onPress: () => router.replace('/kot' as any),

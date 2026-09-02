@@ -274,7 +274,7 @@ export default function DashboardScreen() {
       // The dashboard's own low-stock list comes from the reports query, so it
       // has to be refreshed too or the restocked row lingers until next reload.
       queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
-      Alert.alert('Restock Successful! 📦', `Added +${delta} ${product.unit || 'units'} to ${product.name}.\nNew In-Stock: ${newStock}`);
+      Alert.alert('Restock Successful!', `Added +${delta} ${product.unit || 'units'} to ${product.name}.\nNew In-Stock: ${newStock}`);
     } catch (err: any) {
       Alert.alert('Stock Update Failed', err?.message || 'Could not update stock.');
     } finally {
@@ -311,7 +311,7 @@ export default function DashboardScreen() {
           copies: 1,
         })
       );
-      Alert.alert('Test Receipt Sent! 🖨️', 'Diagnostic print job sent to your thermal printer.');
+      Alert.alert('Test Receipt Sent!', 'Diagnostic print job sent to your thermal printer.');
     } catch (err: any) {
       Alert.alert('Print Error', err?.message || 'Failed to print test receipt.');
     }

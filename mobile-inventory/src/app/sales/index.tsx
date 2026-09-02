@@ -131,7 +131,7 @@ export default function SalesHistoryScreen() {
         gstSlabs: summary.slabs,
       }, gstPrintOptionOverrides(gstBilling));
 
-      Alert.alert('Reprint Success! 🖨️', `Receipt #${sale.invoiceNumber} reprinted successfully.`);
+      Alert.alert('Reprint Success!', `Receipt #${sale.invoiceNumber} reprinted successfully.`);
     } catch (err: any) {
       Alert.alert('Printer Error', err?.message || 'Failed to reprint receipt');
     } finally {

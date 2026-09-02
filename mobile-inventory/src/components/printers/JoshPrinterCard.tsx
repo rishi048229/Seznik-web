@@ -168,7 +168,7 @@ export function JoshPrinterCard() {
       };
       const ok = await ThermalPrinterService.printCustomLabel(sample, 'ean13', undefined, 50, 30, 3);
       if (ok) {
-        Alert.alert('Test Label Sent! 🖨️', 'Printed test label via Josh Label Printer.');
+        Alert.alert('Test Label Sent!', 'Printed test label via Josh Label Printer.');
       } else {
         Alert.alert('Print Error', 'Could not send test label.');
       }

@@ -46,6 +46,11 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService from '@/services/PrinterService';
 import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
+import { getTemplateById } from '@/constants/receiptTemplates';
+import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
+import { printInvoiceReceipt } from '@/utils/invoiceActions';
+import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
 import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 
@@ -69,8 +74,20 @@ export default function NewKotOrderScreen() {
   const { categories } = useCategories();
   const { tables } = useRestaurantTables();
   const { createOrder, isCreating } = useKotOrders();
-  const { connectionState, paperWidth } = usePrinterStore();
+  const {
+    connectionState,
+    paperWidth,
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+  } = usePrinterStore();
   const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
 
   // Dual Tabs: 'menu' or 'ticket'
   const [activeTab, setActiveTab] = useState<'menu' | 'ticket'>('menu');
@@ -222,7 +239,7 @@ export default function NewKotOrderScreen() {
         console.warn('KOT Print warning:', printErr);
       }
 
-      Alert.alert('KOT Sent to Kitchen! 👨‍🍳', `KOT #${created.orderNumber} dispatched to kitchen stations.`, [
+      Alert.alert('KOT Sent to Kitchen!', `KOT #${created.orderNumber} dispatched to kitchen stations.`, [
         {
           text: 'View KOT Order',
           onPress: () => router.replace(`/kot/${created.id}` as any),
@@ -272,19 +289,21 @@ export default function NewKotOrderScreen() {
       });
 
       // Auto print customer receipt if connected
-      try {
-        await ThermalPrinterService.printSaleReceipt(
-          {
-            storeName: settings?.businessName || 'SEZNIK RESTAURANT',
-            storeAddress: settings?.businessAddress || '',
-            storePhone: settings?.businessPhone || '',
+      if (connectionState === 'connected') {
+        try {
+          const template = getTemplateById(activeTemplateId);
+          const customTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
+          const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
+          const provisionalSale: Sale = {
+            id: created.id,
             invoiceNumber: `INV-${created.orderNumber}`,
-            date: new Date().toLocaleDateString('en-GB'),
+            createdAt: new Date().toISOString(),
             customerName: effectivePartyLabel,
             items: selectedItems.map((it) => ({
               productName: it.productName,
               quantity: it.quantity,
               unitPrice: it.unitPrice,
+              taxRate: it.taxRate,
               total: it.unitPrice * it.quantity,
             })),
             subtotal,
@@ -293,16 +312,38 @@ export default function NewKotOrderScreen() {
             grandTotal,
             amountPaid: grandTotal,
             changeReturned: 0,
-            paymentMethod: paymentMethod.toUpperCase(),
-          },
-          { paperWidth: paperWidth || '58mm' }
-        );
-      } catch (printErr) {
-        console.warn('Customer Receipt print warning:', printErr);
+            paymentMethod,
+            isQuickBill: false,
+          };
+          await printInvoiceReceipt(
+            provisionalSale,
+            storeProfile,
+            paperWidth || '58mm',
+            {
+              template,
+              customTemplate,
+              includeBillQr: enableBillQrCode,
+              topMargin,
+              autoCut,
+              fontSize,
+              copies: printCopies,
+              storeName: storeProfile.storeName,
+              storeAddress: storeProfile.storeAddress,
+              storePhone: storeProfile.storePhone,
+              storeGstin: storeProfile.storeGstin,
+              storeLogoUrl: storeProfile.storeLogoUrl,
+              upiId: storeProfile.upiId,
+              ...gstPrintOptionOverrides(gstBilling),
+            },
+            connectionState
+          );
+        } catch (printErr) {
+          console.warn('Customer Receipt print warning:', printErr);
+        }
       }
 
       setShowSettleModal(false);
-      Alert.alert('Bill Settled! 🧾', `Order #${created.orderNumber} successfully paid via ${paymentMethod.toUpperCase()}.`, [
+      Alert.alert('Bill Settled!', `Order #${created.orderNumber} successfully paid via ${paymentMethod.toUpperCase()}.`, [
         {
           text: 'New Order',
           onPress: () => {

@@ -105,7 +105,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       }
 
       if (ok) {
-        Alert.alert('Label Sent! 🖨️', `Printed via ${modeLabel}.`);
+        Alert.alert('Label Sent!', `Printed via ${modeLabel}.`);
       } else {
         Alert.alert('Print Error', 'Could not send label to printer.');
       }
