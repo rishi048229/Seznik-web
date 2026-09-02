@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Smartphone,
   Share2,
+  ChevronDown,
 } from 'lucide-react-native';
 import { usePrinterStore, PhoneBluetoothDevice } from '@/store/usePrinterStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -60,6 +61,12 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   } = usePrinterStore();
 
   const [connectingId, setConnectingId] = useState<string | null>(null);
+
+  // A Bluetooth scan in a shop picks up phones, earbuds and TVs as well as the
+  // printer, so the full list is long and the printer is rarely at the top.
+  // Show a short list first and let the rest be revealed deliberately.
+  const VISIBLE_DEVICE_LIMIT = 5;
+  const [showAllDevices, setShowAllDevices] = useState(false);
   const theme = useAppTheme();
 
 
@@ -226,7 +233,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                   </Text>
                 </View>
               ) : (
-                scannedDevices.map((d) => {
+                (showAllDevices ? scannedDevices : scannedDevices.slice(0, VISIBLE_DEVICE_LIMIT)).map((d) => {
                   const isThisConnecting = connectingId === d.id;
                   const isThisActive = activeDevice?.id === d.id && connectionState === 'connected';
 
@@ -269,6 +276,21 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                   );
                 })
               )}
+
+              {/* Reveals the rest of the scan rather than making the user wade
+                  through every phone and TV in range to reach the printer. */}
+              {!showAllDevices && scannedDevices.length > VISIBLE_DEVICE_LIMIT ? (
+                <TouchableOpacity
+                  onPress={() => setShowAllDevices(true)}
+                  style={[styles.showMoreBtn, { borderColor: theme.borderColor }]}
+                >
+                  <ChevronDown size={15} color={theme.textPrimary} />
+                  <Text style={[styles.showMoreText, { color: theme.textPrimary }]}>
+                    Show {scannedDevices.length - VISIBLE_DEVICE_LIMIT} more device
+                    {scannedDevices.length - VISIBLE_DEVICE_LIMIT === 1 ? '' : 's'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </ScrollView>
 
@@ -385,6 +407,8 @@ const styles = StyleSheet.create({
     color: BRAND_COLORS.blue600,
     marginLeft: 4,
   },
+  showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 12, paddingVertical: 11, marginTop: 4 },
+  showMoreText: { fontSize: 12.5, fontWeight: '800' },
   deviceItem: {
     flexDirection: 'row',
     alignItems: 'center',
