@@ -1,6 +1,7 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
+import { formatItemGstRate } from '@shared/receiptPrintGeometry'
 import { gstSummaryFromCart } from '@/utils/gst'
 import { toPrinterSafeText } from './escpos'
 
@@ -455,7 +456,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
       const gstStr =
         showItemGst && totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0
-          ? `${Math.round(item.taxRate * 100) / 100}%`
+          ? formatItemGstRate(item.taxRate)
           : ''
 
       const nameWidth = showItemGst ? 22 : 27
@@ -493,7 +494,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
       const gstStr =
         showItemGst && totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0
-          ? `${Math.round(item.taxRate * 100) / 100}%`
+          ? formatItemGstRate(item.taxRate)
           : ''
 
       const fullName = isRestaurant ? `${index + 1} ${item.productName}` : item.productName
@@ -501,13 +502,13 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       lines.push(...nameLines)
 
       const qtyRateStr = `${item.quantity} x ${formatThermalAmount(item.sellingPrice)}`
-      if (showItemGst) {
+      if (showItemGst && gstStr) {
         lines.push(cols([
           { text: '  ', width: 2, align: 'L' },
-          { text: qtyRateStr, width: 16, align: 'L' },
-          { text: gstStr, width: 4, align: 'R' },
+          { text: qtyRateStr, width: 20, align: 'L' },
           { text: formatThermalAmount(lineAmt), width: 10, align: 'R' },
         ], COLS))
+        lines.push(`   ${gstStr} GST`.padEnd(COLS, ' '))
       } else {
         lines.push(cols([
           { text: '  ', width: 2, align: 'L' },

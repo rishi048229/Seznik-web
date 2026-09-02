@@ -8,6 +8,26 @@
 export type ThermalPaper = '58mm' | '80mm'
 export type ReceiptQrSize = 'small' | 'medium' | 'large'
 
+/** Coerce a product / line GST rate (0–100) for receipt display. */
+export function coerceGstRate(rate: unknown): number {
+  const n = Number(rate)
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return n
+}
+
+/**
+ * Per-item GST rate label for thermal receipts.
+ * Uses whole-number percents when possible (18% not 18.0%) so 58mm columns do not truncate.
+ */
+export function formatItemGstRate(rate: unknown): string {
+  const n = coerceGstRate(rate)
+  if (n <= 0) return ''
+  const rounded = Math.round(n * 100) / 100
+  if (Number.isInteger(rounded)) return `${rounded}%`
+  const trimmed = rounded.toFixed(2).replace(/\.?0+$/, '')
+  return `${trimmed}%`
+}
+
 /**
  * User-selectable size chip for logo and QR on a receipt.
  * Stored in ReceiptConfig as receiptLogoSize / receiptQrSize.

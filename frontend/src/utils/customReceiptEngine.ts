@@ -10,6 +10,8 @@ import { isRestaurantReceiptTemplate } from './restaurantReceiptTemplate'
 import { isReceiptEntryEnabled, isBrowserLoadableImageSrc, prefetchPrintableLogoSrc, resolveReceiptImageSrc } from './receiptLogo'
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
+  coerceGstRate,
+  formatItemGstRate,
   receiptLogoMaxDots,
   receiptLogoMaxDotsFromChip,
   receiptLogoHtmlMaxPxFromChip,
@@ -103,7 +105,7 @@ export function saleToReceiptContext(
     quantity: it.quantity ?? 1,
     unitPrice: it.sellingPrice ?? 0,
     total: it.total ?? it.quantity * (it.sellingPrice ?? 0),
-    gstRate: it.taxRate,
+    gstRate: coerceGstRate(it.taxRate),
     discount: it.discount,
     priceIncludesGst: it.priceIncludesGst,
   }))
@@ -314,22 +316,30 @@ export function wrapCompactTableName(name: string, nameWidth: number): string[] 
 export function renderCompactTableItemLines(
   item: ReceiptPrintContext['items'][number],
   width: number,
-  wrapNames?: boolean
+  wrapNames?: boolean,
+  showTaxColumn?: boolean
 ): string[] {
   const name = String(item.productName || 'ITEM').toUpperCase()
   const qty = formatCompactQty(item.quantity)
   const amount = thermalAmount(item.total)
   const nameWidth = compactTableNameWidth(width)
 
+  const output: string[] = []
   if (!wrapNames || name.length <= nameWidth) {
-    return [compactItemLine(name, qty, amount, width)]
+    output.push(compactItemLine(name, qty, amount, width))
+  } else {
+    const nameLines = wrapCompactTableName(name, nameWidth)
+    output.push(compactItemLine(nameLines[0]!, qty, amount, width))
+    for (let i = 1; i < nameLines.length; i++) {
+      output.push(nameLines[i]!)
+    }
   }
 
-  const nameLines = wrapCompactTableName(name, nameWidth)
-  const output = [compactItemLine(nameLines[0]!, qty, amount, width)]
-  for (let i = 1; i < nameLines.length; i++) {
-    output.push(nameLines[i]!)
+  if (showTaxColumn && item.gstRate) {
+    const gstLabel = formatItemGstRate(item.gstRate)
+    if (gstLabel) output.push(`   ${gstLabel} GST`)
   }
+
   return output
 }
 
@@ -337,15 +347,25 @@ function renderCompactTableItemHtml(
   item: ReceiptPrintContext['items'][number],
   fontSize: string,
   width: number,
-  wrapNames?: boolean
+  wrapNames?: boolean,
+  showTaxColumn?: boolean
 ): string {
   const name = String(item.productName || 'ITEM').toUpperCase()
   const qty = formatCompactQty(item.quantity)
   const amount = thermalAmount(item.total)
   const nameWidth = compactTableNameWidth(width)
+  const gstHtml =
+    showTaxColumn && item.gstRate
+      ? (() => {
+          const gstLabel = formatItemGstRate(item.gstRate)
+          return gstLabel
+            ? `<div style="font-size:${fontSize};padding-left:8px;color:#555;">${escapeHtmlText(gstLabel)} GST</div>`
+            : ''
+        })()
+      : ''
 
   if (!wrapNames || name.length <= nameWidth) {
-    return `<div style="display:flex;justify-content:space-between;font-size:${fontSize};margin-bottom:2px;"><span style="flex:1;font-weight:700;${wrapNames ? '' : 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}">${escapeHtmlText(name)}</span><span style="width:28px;text-align:right;flex-shrink:0;">${escapeHtmlText(qty)}</span><span style="width:52px;text-align:right;font-weight:700;flex-shrink:0;">${escapeHtmlText(amount)}</span></div>`
+    return `<div style="display:flex;justify-content:space-between;font-size:${fontSize};margin-bottom:2px;"><span style="flex:1;font-weight:700;${wrapNames ? '' : 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}">${escapeHtmlText(name)}</span><span style="width:28px;text-align:right;flex-shrink:0;">${escapeHtmlText(qty)}</span><span style="width:52px;text-align:right;font-weight:700;flex-shrink:0;">${escapeHtmlText(amount)}</span></div>${gstHtml}`
   }
 
   const nameLines = wrapCompactTableName(name, nameWidth)
@@ -356,7 +376,7 @@ function renderCompactTableItemHtml(
         `<div style="font-size:${fontSize};font-weight:700;line-height:1.25;">${escapeHtmlText(line)}</div>`
     )
     .join('')
-  return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:${fontSize};"><span style="flex:1;font-weight:700;line-height:1.25;">${escapeHtmlText(nameLines[0]!)}</span><span style="width:28px;text-align:right;flex-shrink:0;line-height:1.25;">${escapeHtmlText(qty)}</span><span style="width:52px;text-align:right;font-weight:700;flex-shrink:0;line-height:1.25;">${escapeHtmlText(amount)}</span></div>${continuation}</div>`
+  return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:${fontSize};"><span style="flex:1;font-weight:700;line-height:1.25;">${escapeHtmlText(nameLines[0]!)}</span><span style="width:28px;text-align:right;flex-shrink:0;line-height:1.25;">${escapeHtmlText(qty)}</span><span style="width:52px;text-align:right;font-weight:700;flex-shrink:0;line-height:1.25;">${escapeHtmlText(amount)}</span></div>${continuation}${gstHtml}</div>`
 }
 
 function appendCompactTableItemLines(
@@ -364,10 +384,11 @@ function appendCompactTableItemLines(
   item: ReceiptPrintContext['items'][number],
   width: number,
   wrapNames: boolean,
-  addLeadingGap: boolean
+  addLeadingGap: boolean,
+  showTaxColumn?: boolean
 ): void {
   if (addLeadingGap) target.push('')
-  target.push(...renderCompactTableItemLines(item, width, wrapNames))
+  target.push(...renderCompactTableItemLines(item, width, wrapNames, showTaxColumn))
 }
 
 function renderCompactTableHeader(entry: TableReceiptEntry, width: number): string {
@@ -397,7 +418,8 @@ function renderTableItemLines(
   }
 
   if (showTaxColumn && item.gstRate) {
-    lines.push(`   ${item.gstRate.toFixed(1)}% GST`)
+    const gstLabel = formatItemGstRate(item.gstRate)
+    if (gstLabel) lines.push(`   ${gstLabel} GST`)
   }
 
   const qtyRate = `${item.quantity} ${item.unit || 'Pc'} x ${thermalAmount(item.unitPrice)}`
@@ -423,7 +445,10 @@ function renderTableItemHtml(
     `<div style="font-size:${fontSize};word-break:break-word;overflow-wrap:anywhere;">${escapeHtmlText(name)}</div>`,
   ]
   if (showTaxColumn && item.gstRate) {
-    parts.push(`<div style="font-size:${fontSize};padding-left:8px;">${item.gstRate.toFixed(1)}% GST</div>`)
+    const gstLabel = formatItemGstRate(item.gstRate)
+    if (gstLabel) {
+      parts.push(`<div style="font-size:${fontSize};padding-left:8px;">${escapeHtmlText(gstLabel)} GST</div>`)
+    }
   }
   parts.push(htmlTwoColRow(qtyRate, thermalAmount(item.total), fontSize))
   if (item.discount && item.discount > 0) {
@@ -557,10 +582,18 @@ export function compileCustomReceiptTextLines(
       }
       case 'table': {
         if (isCompactItemsTable(entry)) {
+          const showTaxColumn = resolveShowTaxColumn(entry, globalItemWiseGst)
           lines.push(renderCompactTableHeader(entry, width))
           lines.push('-'.repeat(width))
           data.items.forEach((item, idx) => {
-            appendCompactTableItemLines(lines, item, width, wrapCompactNames, wrapCompactNames && idx > 0)
+            appendCompactTableItemLines(
+              lines,
+              item,
+              width,
+              wrapCompactNames,
+              wrapCompactNames && idx > 0,
+              showTaxColumn
+            )
           })
           break
         }
@@ -685,12 +718,13 @@ export function compileCustomReceiptHtml(
 
     if (entry.type === 'table') {
       if (isCompactItemsTable(entry)) {
+        const showTaxColumn = resolveShowTaxColumn(entry, gstOpts.itemWiseGst)
         const itemCol = entry.columnHeaders?.item || 'ITEM'
         const qtyCol = entry.columnHeaders?.qty || 'QTY'
         const totalCol = entry.columnHeaders?.total || 'AMT'
         const header = `<div style="display:flex;justify-content:space-between;font-weight:700;font-size:${smallFS};border-bottom:1px dashed #000;padding-bottom:2px;margin-bottom:2px;"><span style="flex:1;">${escapeHtmlText(itemCol)}</span><span style="width:28px;text-align:right;">${escapeHtmlText(qtyCol)}</span><span style="width:52px;text-align:right;">${escapeHtmlText(totalCol)}</span></div>`
         const rows = data.items
-          .map((item) => renderCompactTableItemHtml(item, smallFS, cols, wrapCompactNames))
+          .map((item) => renderCompactTableItemHtml(item, smallFS, cols, wrapCompactNames, showTaxColumn))
           .join('')
         parts.push(`<div style="width:100%;">${header}${rows}</div>`)
         continue
@@ -913,11 +947,14 @@ export async function appendCustomTemplateToEscPos(
       }
       case 'table': {
         if (isCompactItemsTable(entry)) {
+          const showTaxColumn = resolveShowTaxColumn(entry, globalItemWiseGst)
           b.line(renderCompactTableHeader(entry, width))
           b.hr(width, '-')
           data.items.forEach((item, idx) => {
             if (wrapCompactNames && idx > 0) b.line('')
-            renderCompactTableItemLines(item, width, wrapCompactNames).forEach((line) => b.line(line))
+            renderCompactTableItemLines(item, width, wrapCompactNames, showTaxColumn).forEach((line) =>
+              b.line(line)
+            )
           })
           break
         }
