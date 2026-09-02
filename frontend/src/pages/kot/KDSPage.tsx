@@ -50,7 +50,7 @@ export const KDSPage = () => {
             return (
               <div
                 key={order.id}
-                className={`rounded-2xl border-2 bg-white dark:bg-gray-800 p-4 shadow-sm ${
+                className={`rounded-2xl border-2 bg-white dark:bg-dark-card p-4 shadow-sm ${
                   order.priority === 'urgent'
                     ? 'border-red-400'
                     : isReady

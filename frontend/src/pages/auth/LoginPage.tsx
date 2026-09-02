@@ -305,9 +305,9 @@ export const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-slate-100 p-3 sm:p-6 md:p-8 overflow-y-auto">
+    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-slate-100 dark:bg-dark-bg p-3 sm:p-6 md:p-8 overflow-y-auto">
       {/* Main Card */}
-      <div className="flex flex-col md:flex-row w-full max-w-4xl rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 bg-white my-auto">
+      <div className="flex flex-col md:flex-row w-full max-w-4xl rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 dark:border-dark-border bg-white dark:bg-dark-card my-auto">
 
         {/* Top / Left Panel — Branding */}
         <div className="md:w-5/12 px-6 py-8 sm:p-10 md:p-12 flex flex-col justify-between gap-6 sm:gap-8"
@@ -350,10 +350,10 @@ export const LoginPage = () => {
         <div className="md:w-7/12 p-6 sm:p-10 md:p-12 flex flex-col justify-center">
           <div className="flex items-center justify-between gap-3 mb-6 sm:mb-8">
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-gray-100">
                 {isRegistering ? t('login.createAccount') : t('login.welcomeBack')}
               </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 mt-1">
                 {isRegistering ? t('login.registerSubtitle') : t('login.signInSubtitle')}
               </p>
             </div>
@@ -371,7 +371,7 @@ export const LoginPage = () => {
           </div>
 
           {error && (
-            <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm">
+            <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs sm:text-sm">
               {error}
             </div>
           )}
@@ -380,30 +380,30 @@ export const LoginPage = () => {
             {isRegistering && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">First Name</label>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">First Name</label>
                   <input
                     type="text"
                     required
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 dark:border-dark-border-strong rounded-xl dark:bg-dark-elevated dark:text-gray-100 text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Last Name</label>
                   <input
                     type="text"
                     required
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                    className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 dark:border-dark-border-strong rounded-xl dark:bg-dark-elevated dark:text-gray-100 text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Email</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Email</label>
               <div className="flex gap-2">
                 <input
                   type="email"
@@ -411,10 +411,10 @@ export const LoginPage = () => {
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   readOnly={isRegistering && verifyStep === 'verified'}
-                  className={`flex-1 min-w-0 px-3.5 py-2.5 sm:py-2 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] ${
+                  className={`flex-1 min-w-0 px-3.5 py-2.5 sm:py-2 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 ${
                     isRegistering && verifyStep === 'verified'
                       ? 'border-emerald-300 bg-emerald-50/50'
-                      : 'border-slate-300'
+                      : 'border-slate-300 dark:border-dark-border-strong dark:bg-dark-elevated'
                   }`}
                   placeholder="admin@example.com"
                 />
@@ -436,13 +436,13 @@ export const LoginPage = () => {
                 )}
               </div>
               {isRegistering && otpMessage && verifyStep !== 'verified' && (
-                <p className="text-xs text-slate-500 mt-1">{otpMessage}</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">{otpMessage}</p>
               )}
             </div>
 
             {isRegistering && (verifyStep === 'sent' || verifyStep === 'verifying') && (
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Verification Code</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Verification Code</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -450,7 +450,7 @@ export const LoginPage = () => {
                     maxLength={6}
                     value={otp}
                     onChange={(e) => handleOtpChange(e.target.value)}
-                    className="flex-1 px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center"
+                    className="flex-1 px-3.5 py-2.5 sm:py-2 border border-slate-300 dark:border-dark-border-strong rounded-xl dark:bg-dark-elevated dark:text-gray-100 text-[16px] sm:text-base focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 tracking-[0.4em] font-semibold text-center"
                     placeholder="••••••"
                   />
                 </div>
@@ -459,13 +459,13 @@ export const LoginPage = () => {
 
             {isRegistering && (
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Phone Number</label>
                 <input
                   type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e]"
+                  className="w-full px-3.5 py-2.5 sm:py-2 border border-slate-300 dark:border-dark-border-strong rounded-xl dark:bg-dark-elevated dark:text-gray-100 text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400"
                   placeholder="+91 98765 43210"
                 />
               </div>
@@ -474,14 +474,14 @@ export const LoginPage = () => {
             {/* Password Field with Eye Toggle and Visual Validation */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs sm:text-sm font-medium text-slate-700">
+                <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300">
                   {isRegistering ? 'Create Password' : 'Password'}
                 </label>
                 {!isRegistering && (
                   <button
                     type="button"
                     onClick={handleOpenForgotModal}
-                    className="text-xs text-[#0a0a2e] font-semibold hover:underline"
+                    className="text-xs text-[#0a0a2e] dark:text-indigo-300 font-semibold hover:underline"
                   >
                     Forgot Password?
                   </button>
@@ -498,7 +498,7 @@ export const LoginPage = () => {
                       ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
                       : isRegistering && isRegPassInvalid
                       ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
-                      : 'border-slate-300 focus:ring-[#0a0a2e]'
+                      : 'border-slate-300 dark:border-dark-border-strong dark:bg-dark-elevated focus:ring-[#0a0a2e] dark:focus:ring-zinc-400'
                   }`}
                   placeholder="••••••••"
                 />
@@ -518,7 +518,7 @@ export const LoginPage = () => {
             {/* Confirm Password Field (Signup only) with Eye Toggle & Match Indicator */}
             {isRegistering && (
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Confirm Password</label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
@@ -530,7 +530,7 @@ export const LoginPage = () => {
                         ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
                         : isRegConfirmInvalid
                         ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
-                        : 'border-slate-300 focus:ring-[#0a0a2e]'
+                        : 'border-slate-300 dark:border-dark-border-strong dark:bg-dark-elevated focus:ring-[#0a0a2e] dark:focus:ring-zinc-400'
                     }`}
                     placeholder="••••••••"
                   />
@@ -565,7 +565,7 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={isSigningIn || loading || (isRegistering && (!isRegPassValid || !isRegConfirmValid))}
-              className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
             >
               {isSigningIn || loading ? <Spinner size="sm" className="text-white" /> : (isRegistering ? 'Sign Up' : 'Sign In')}
@@ -575,7 +575,7 @@ export const LoginPage = () => {
           {/* Sign Up / Log In Link */}
           <p className="text-center mt-8 text-sm text-slate-500">
             {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
-            <button onClick={switchMode} className="text-[#0a0a2e] font-semibold hover:underline">
+            <button onClick={switchMode} className="text-[#0a0a2e] dark:text-indigo-300 font-semibold hover:underline">
               {isRegistering ? 'Log in' : 'Sign Up'}
             </button>
           </p>
@@ -618,7 +618,7 @@ export const LoginPage = () => {
                 autoFocus
               />
               <Button
-                className="w-full bg-[#0a0a2e] text-white hover:bg-[#1e1b6e]"
+                className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                 onClick={handleSendForgotOtp}
                 loading={forgotLoading}
                 disabled={!forgotEmail.trim()}
@@ -634,14 +634,14 @@ export const LoginPage = () => {
                 Enter the 6-digit verification code sent to <strong className="text-slate-900">{forgotEmail}</strong>.
               </p>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Verification Code</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Verification Code</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
                   value={forgotOtp}
                   onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] tracking-[0.4em] font-semibold text-center text-lg"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 tracking-[0.4em] font-semibold text-center text-lg"
                   placeholder="••••••"
                   autoFocus
                 />
@@ -659,7 +659,7 @@ export const LoginPage = () => {
                   Back
                 </Button>
                 <Button
-                  className="w-2/3 bg-[#0a0a2e] text-white hover:bg-[#1e1b6e]"
+                  className="w-2/3 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                   onClick={handleVerifyForgotOtp}
                   loading={forgotLoading}
                   disabled={forgotOtp.length !== 6}
@@ -673,7 +673,7 @@ export const LoginPage = () => {
                   type="button"
                   onClick={handleSendForgotOtp}
                   disabled={forgotResendIn > 0 || forgotLoading}
-                  className="text-xs text-[#0a0a2e] font-semibold disabled:opacity-50 hover:underline"
+                  className="text-xs text-[#0a0a2e] dark:text-indigo-300 font-semibold disabled:opacity-50 hover:underline"
                 >
                   {forgotResendIn > 0 ? `Resend code in ${forgotResendIn}s` : 'Resend Code'}
                 </button>
@@ -722,7 +722,7 @@ export const LoginPage = () => {
                 </p>
               )}
               <Button
-                className="w-full bg-[#0a0a2e] text-white hover:bg-[#1e1b6e]"
+                className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                 onClick={handleResetPassword}
                 loading={forgotLoading}
                 disabled={!isForgotPassValid || !isForgotConfirmValid}
@@ -744,7 +744,7 @@ export const LoginPage = () => {
                 </p>
               </div>
               <Button
-                className="w-full bg-[#0a0a2e] text-white hover:bg-[#1e1b6e]"
+                className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                 onClick={handleFinishForgot}
               >
                 Back to Login

@@ -525,7 +525,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
             </div>
 
             {/* Continuous Batch Sequence Mode Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border border-purple-200 dark:border-purple-800 text-xs font-bold text-purple-900 dark:text-purple-100 shadow-sm">
+            <label className="flex items-center gap-2 cursor-pointer bg-white dark:bg-dark-card px-3 py-1 rounded-lg border border-purple-200 dark:border-purple-800 text-xs font-bold text-purple-900 dark:text-purple-100 shadow-sm">
               <input
                 type="checkbox"
                 checked={isContinuousBatchSeq}
@@ -617,7 +617,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                   placeholder="Filter products..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
+                  className="pl-8 pr-3 py-1 text-xs border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg"
                 />
               </div>
 
@@ -642,16 +642,16 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
             </div>
           </div>
 
-          <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
-            <table className="w-full text-left text-xs divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800 font-bold text-gray-700 dark:text-gray-300 sticky top-0 z-10">
+          <div className="border border-gray-200 dark:border-dark-border rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+            <table className="w-full text-left text-xs divide-y divide-gray-200 dark:divide-dark-border">
+              <thead className="bg-gray-50 dark:bg-dark-card font-bold text-gray-700 dark:text-gray-300 sticky top-0 z-10">
                 <tr>
                   <th className="p-2.5 text-center w-10">
                     <input
                       type="checkbox"
                       checked={productConfigs.length > 0 && productConfigs.every(c => c.selected)}
                       onChange={e => handleToggleSelectAll(e.target.checked)}
-                      className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                      className="rounded border-gray-300 dark:border-dark-border-strong text-purple-600 focus:ring-purple-500"
                     />
                   </th>
                   <th className="p-2.5 min-w-[150px]">Product Name</th>
@@ -663,7 +663,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                   <th className="p-2.5 text-center w-10">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+              <tbody className="divide-y divide-gray-100 dark:divide-dark-border bg-white dark:bg-dark-bg">
                 {filteredConfigs.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-gray-500">
@@ -679,14 +679,14 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                     return (
                       <tr
                         key={cfg.product.id}
-                        className={cfg.selected ? 'bg-purple-50/20 dark:bg-purple-900/10' : 'opacity-50 bg-gray-50/50 dark:bg-gray-800/20'}
+                        className={cfg.selected ? 'bg-purple-50/20 dark:bg-purple-900/10' : 'opacity-50 bg-gray-50/50 dark:bg-dark-card/20'}
                       >
                         <td className="p-2.5 text-center">
                           <input
                             type="checkbox"
                             checked={cfg.selected}
                             onChange={e => handleToggleProductSelection(realIndex, e.target.checked)}
-                            className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                            className="rounded border-gray-300 dark:border-dark-border-strong text-purple-600 focus:ring-purple-500"
                           />
                         </td>
                         <td className="p-2.5 font-bold text-gray-900 dark:text-gray-100">
@@ -704,7 +704,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                             value={cfg.copies}
                             disabled={!cfg.selected}
                             onChange={e => handleUpdateProductCopies(realIndex, parseInt(e.target.value) || 1)}
-                            className="w-16 text-center border border-gray-200 dark:border-gray-700 rounded px-1 py-1 font-bold text-purple-600 dark:text-purple-400 disabled:opacity-40"
+                            className="w-16 text-center border border-gray-200 dark:border-dark-border rounded px-1 py-1 font-bold text-purple-600 dark:text-purple-400 disabled:opacity-40"
                           />
                         </td>
                         <td className="p-2">
@@ -713,7 +713,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                             value={cfg.prefix}
                             disabled={!cfg.selected || isContinuousBatchSeq}
                             onChange={e => handleUpdateProductPrefix(realIndex, e.target.value)}
-                            className="w-24 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs disabled:opacity-40"
+                            className="w-24 border border-gray-200 dark:border-dark-border rounded px-2 py-1 text-xs disabled:opacity-40"
                           />
                         </td>
                         <td className="p-2 text-center">
@@ -723,7 +723,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                             value={cfg.startNum}
                             disabled={!cfg.selected || isContinuousBatchSeq}
                             onChange={e => handleUpdateProductStartNum(realIndex, parseInt(e.target.value) || 1)}
-                            className="w-16 text-center border border-gray-200 dark:border-gray-700 rounded px-1 py-1 text-xs font-semibold disabled:opacity-40"
+                            className="w-16 text-center border border-gray-200 dark:border-dark-border rounded px-1 py-1 text-xs font-semibold disabled:opacity-40"
                           />
                         </td>
                         <td className="p-2.5">
@@ -758,7 +758,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
         {flatLabelsList.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
             {/* Live Sticker Card Preview */}
-            <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center space-y-3 relative">
+            <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-card/60 border border-gray-200 dark:border-dark-border flex flex-col items-center justify-center space-y-3 relative">
               <div className="flex items-center justify-between w-full">
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
                   Live Sticker Preview ({previewIndex + 1} of {flatLabelsList.length})
@@ -769,7 +769,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                     type="button"
                     disabled={previewIndex === 0}
                     onClick={() => setPreviewIndex(prev => Math.max(0, prev - 1))}
-                    className="p-1 rounded bg-white dark:bg-gray-700 border text-gray-600 dark:text-gray-200 disabled:opacity-30"
+                    className="p-1 rounded bg-white dark:bg-dark-elevated border text-gray-600 dark:text-gray-200 disabled:opacity-30"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -778,7 +778,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                     type="button"
                     disabled={previewIndex >= flatLabelsList.length - 1}
                     onClick={() => setPreviewIndex(prev => Math.min(flatLabelsList.length - 1, prev + 1))}
-                    className="p-1 rounded bg-white dark:bg-gray-700 border text-gray-600 dark:text-gray-200 disabled:opacity-30"
+                    className="p-1 rounded bg-white dark:bg-dark-elevated border text-gray-600 dark:text-gray-200 disabled:opacity-30"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -786,7 +786,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
               </div>
 
               {/* Sticker Card with Interactive Editable Serial Badge */}
-              <div className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-700 shadow-lg flex flex-col justify-between items-center text-center space-y-1 relative">
+              <div className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-dark-bg border-2 border-gray-300 dark:border-dark-border shadow-lg flex flex-col justify-between items-center text-center space-y-1 relative">
                 {/* Editable Serial Badge directly on the Sticker Preview */}
                 <div className="absolute top-2 right-2 flex items-center gap-1">
                   <input
@@ -842,7 +842,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                     className={`p-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-colors ${
                       previewIndex === idx
                         ? 'bg-purple-100 dark:bg-purple-900/50 border-purple-400 font-bold text-purple-900 dark:text-purple-100'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-50/40'
+                        : 'bg-white dark:bg-dark-card border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-purple-50/40'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -863,7 +863,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
                             handleUpdateIndividualLabelSeq(configIdx, labelIdx, val)
                           }
                         }}
-                        className="w-28 text-right font-mono font-bold bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs text-purple-900 dark:text-purple-200"
+                        className="w-28 text-right font-mono font-bold bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border-strong rounded px-2 py-0.5 text-xs text-purple-900 dark:text-purple-200"
                       />
                     </div>
                   </div>
@@ -874,7 +874,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
         )}
 
         {/* Print Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-gray-200 dark:border-gray-800">
+        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-gray-200 dark:border-dark-border">
           <Button
             variant="primary"
             leftIcon={<Printer size={16} />}

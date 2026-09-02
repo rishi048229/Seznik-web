@@ -93,7 +93,7 @@ export function ReceiptFieldPicker({ onSelect, groups = VARIABLE_GROUPS }: Recei
         <Plus size={12} /> Insert field
       </button>
       {open ? (
-        <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg p-2">
+        <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto rounded-xl border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-card shadow-lg p-2">
           {groups.map((group) => (
             <div key={group.id} className="mb-2 last:mb-0">
               <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 px-1.5 py-1">{group.label}</div>
@@ -197,7 +197,7 @@ export function ReceiptTokenField({
           data-placeholder={placeholder}
           contentEditable
           suppressContentEditableWarning
-          className={`w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs min-h-[2.1rem] ${
+          className={`w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated text-xs min-h-[2.1rem] ${
             multiline ? 'min-h-[4.5rem]' : ''
           } focus:outline-none focus:ring-2 focus:ring-blue-500/30 empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:pointer-events-none`}
           onInput={emitFromDom}

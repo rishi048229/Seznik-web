@@ -92,7 +92,7 @@ export const PageVideoTutorialModal = ({
             {tutorial.keyFeatures.map((feat, idx) => (
               <div
                 key={idx}
-                className="p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-start gap-3"
+                className="p-3.5 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card flex items-start gap-3"
               >
                 <CheckCircle2 size={18} className="text-emerald-500 shrink-0 mt-0.5" />
                 <div>

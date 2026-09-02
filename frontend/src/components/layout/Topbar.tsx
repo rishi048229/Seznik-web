@@ -34,7 +34,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
                          location.pathname !== ROUTES.ONBOARDING
 
   return (
-    <header className="sticky top-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800 px-3 lg:px-6 py-2.5 flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-20 bg-white/80 dark:bg-dark-bg/90 backdrop-blur-xl border-b border-gray-100 dark:border-dark-border px-3 lg:px-6 py-2.5 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <Button variant="ghost" size="sm" onClick={onMenuClick} className="lg:hidden p-2 flex-shrink-0">
           <Menu size={20} />
@@ -44,7 +44,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
             variant="ghost"
             size="sm"
             onClick={handleGoBack}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 flex-shrink-0"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-card flex-shrink-0"
           >
             <ArrowLeft size={20} />
           </Button>
@@ -66,13 +66,13 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
         <Button variant="ghost" size="sm" className="p-2 hidden sm:flex">
           <HelpCircle size={18} className="text-gray-500" />
         </Button>
-        <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-dark-elevated mx-1" />
         {/* New Sale — icon-only on mobile, icon+text on desktop */}
         <Button
           variant="ghost"
           size="sm"
           onClick={() => navigate(ROUTES.POS)}
-          className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
+          className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:shadow-none p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
         >
           <Plus size={16} className="sm:mr-1" />
           <span className="hidden sm:inline">{t('action.newSale')}</span>

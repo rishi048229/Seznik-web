@@ -96,7 +96,7 @@ export const KOTPage = () => {
               type="button"
               onClick={() => openSettings('kot')}
               title={venue.hint}
-              className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150"
+              className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-card hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150"
             >
               <VenueIcon size={15} strokeWidth={1.75} />
               {venue.label}

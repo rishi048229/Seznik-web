@@ -143,7 +143,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
           <button
             type="button"
             onClick={() => setProductOpen((o) => !o)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-card text-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           >
             <span className={selectedProduct ? 'text-gray-900 dark:text-gray-100 line-clamp-2' : 'text-gray-400'}>
               {selectedProduct ? selectedProduct.name : 'Search and select a product...'}
@@ -151,8 +151,8 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
             <ChevronDown size={18} className="shrink-0 text-gray-400" />
           </button>
           {productOpen && (
-            <div className="absolute z-20 mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
-              <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-card shadow-lg overflow-hidden">
+              <div className="p-2 border-b border-gray-100 dark:border-dark-border">
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -160,7 +160,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
                     placeholder="Search by name, SKU, or category..."
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border-strong bg-gray-50 dark:bg-dark-bg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     autoFocus
                   />
                 </div>
@@ -243,7 +243,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
             value={message}
             onChange={e => setMessage(e.target.value)}
             placeholder="What can we improve? What do you need that's missing?"
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
           />
           <p className="text-[11px] text-gray-400 mt-1 text-right">{message.length}/2000</p>
         </div>

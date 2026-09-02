@@ -462,14 +462,14 @@ export const SalesPage = () => {
                 {t("sales.deleteSelected")} ({selectedIds.size})
               </Button>
             )}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-card rounded-lg p-1">
               {(["all", "today", "week", "month"] as const).map((period) => (
                 <button
                   key={period}
                   onClick={() => setDateFilter(period)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     dateFilter === period
-                      ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                      ? "bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm"
                       : "text-gray-500 dark:text-gray-400"
                   }`}
                 >
@@ -574,7 +574,7 @@ export const SalesPage = () => {
                 setPrintFormat("a4");
                 handlePrint();
               }}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-dark-border-strong hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] dark:border-zinc-500 transition-all"
             >
               <FileText size={32} className="text-gray-400" />
               <div className="text-center">
@@ -591,7 +591,7 @@ export const SalesPage = () => {
                 setPrintFormat("thermal");
                 handlePrint();
               }}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-dark-border-strong hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] dark:border-zinc-500 transition-all"
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">

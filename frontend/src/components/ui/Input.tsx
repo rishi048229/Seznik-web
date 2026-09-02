@@ -35,13 +35,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             type={actualType}
             className={cn(
-              'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 dark:text-gray-100 transition-colors',
+              'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-dark-elevated dark:text-gray-100 transition-colors',
               isPasswordType && showPasswordToggle ? 'pr-10' : '',
               error
                 ? 'border-red-500 focus:ring-red-400 focus:border-red-500 bg-red-50/10'
                 : success
                 ? 'border-emerald-500 focus:ring-emerald-400 focus:border-emerald-500 bg-emerald-50/10'
-                : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-transparent',
+                : 'border-gray-300 dark:border-dark-border-strong focus:ring-primary-500 focus:border-transparent',
               className
             )}
             {...props}

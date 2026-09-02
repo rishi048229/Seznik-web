@@ -20,7 +20,7 @@ export const MobileLoginQrCard = () => {
     <Card data-tour="mobile-qr-login" className="p-5 bg-white border border-gray-100 shadow-sm mb-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-5">
         <div className="flex-shrink-0 self-center sm:self-start">
-          <div className="relative w-[188px] h-[188px] rounded-2xl bg-white border border-gray-200 dark:border-gray-600 p-2 flex items-center justify-center">
+          <div className="relative w-[188px] h-[188px] rounded-2xl bg-white border border-gray-200 dark:border-dark-border-strong p-2 flex items-center justify-center">
             {status === 'consumed' ? (
               <div className="flex flex-col items-center text-center px-3">
                 <CheckCircle2 size={40} className="text-emerald-500 mb-2" />
@@ -29,7 +29,7 @@ export const MobileLoginQrCard = () => {
                 </p>
               </div>
             ) : isLoading || !session?.qrPayload ? (
-              <div className="w-40 h-40 rounded-xl bg-gray-100 dark:bg-gray-700 animate-pulse" />
+              <div className="w-40 h-40 rounded-xl bg-gray-100 dark:bg-dark-elevated animate-pulse" />
             ) : (
               <QRCodeSVG
                 value={session.qrPayload}
@@ -47,7 +47,7 @@ export const MobileLoginQrCard = () => {
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-3 mb-2">
             <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-              <Smartphone size={20} className="text-blue-600 dark:text-blue-400" />
+              <Smartphone size={20} className="text-blue-600 dark:text-white" />
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">

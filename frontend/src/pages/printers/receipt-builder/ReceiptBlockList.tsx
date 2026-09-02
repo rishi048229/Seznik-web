@@ -85,7 +85,7 @@ function SortableBlock({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border bg-white dark:bg-gray-800 ${isDragging ? 'border-blue-500 shadow-lg z-10' : 'border-gray-200 dark:border-gray-700'}`}
+      className={`rounded-xl border bg-white dark:bg-dark-card ${isDragging ? 'border-blue-500 shadow-lg z-10' : 'border-gray-200 dark:border-dark-border'}`}
     >
       <div className="flex items-center gap-2 p-3">
         <button type="button" className="cursor-grab text-gray-400 hover:text-gray-600 touch-none" {...attributes} {...listeners}>
@@ -100,7 +100,7 @@ function SortableBlock({
         <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} className="p-1 text-gray-400 disabled:opacity-30"><ChevronDown size={16} /></button>
         <button type="button" onClick={onDelete} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
       </div>
-      {expanded ? <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-3">{editor}</div> : null}
+      {expanded ? <div className="px-3 pb-3 border-t border-gray-100 dark:border-dark-border pt-3">{editor}</div> : null}
     </div>
   )
 }

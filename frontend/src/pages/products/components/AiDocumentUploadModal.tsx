@@ -530,7 +530,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-purple-300 dark:border-purple-700/60 hover:border-purple-600 dark:hover:border-purple-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-gray-800/40 hover:bg-purple-50/40 dark:hover:bg-purple-900/20 group"
+              className="border-2 border-dashed border-purple-300 dark:border-purple-700/60 hover:border-purple-600 dark:hover:border-purple-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-dark-card/40 hover:bg-purple-50/40 dark:hover:bg-purple-900/20 group"
             >
               <input
                 ref={fileInputRef}
@@ -545,7 +545,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   <img
                     src={filePreview}
                     alt="Document preview"
-                    className="max-h-48 mx-auto rounded-xl shadow-md border border-gray-200 dark:border-gray-700 object-contain"
+                    className="max-h-48 mx-auto rounded-xl shadow-md border border-gray-200 dark:border-dark-border object-contain"
                   />
                   <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">{selectedFile?.name}</p>
                   <p className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">Click or drag to replace document</p>
@@ -723,16 +723,16 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             </div>
 
             {/* DESKTOP TABLE VIEW (md:block hidden) */}
-            <div className="hidden md:block max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl">
-              <table className="w-full text-left text-xs divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 font-bold text-gray-700 dark:text-gray-300 z-10">
+            <div className="hidden md:block max-h-96 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-xl">
+              <table className="w-full text-left text-xs divide-y divide-gray-200 dark:divide-dark-border">
+                <thead className="bg-gray-50 dark:bg-dark-card sticky top-0 font-bold text-gray-700 dark:text-gray-300 z-10">
                   <tr>
                     <th className="p-3 text-center w-10">
                       <input
                         type="checkbox"
                         checked={extractedProducts.length > 0 && extractedProducts.every(p => p.selected)}
                         onChange={e => handleToggleSelectAll(e.target.checked)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                        className="rounded border-gray-300 dark:border-dark-border-strong text-purple-600 focus:ring-purple-500"
                       />
                     </th>
                     <th className="p-3 min-w-[160px]">Product Name</th>
@@ -746,7 +746,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                     <th className="p-3 text-center w-12">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                <tbody className="divide-y divide-gray-100 dark:divide-dark-border bg-white dark:bg-dark-bg">
                   {filteredProducts.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="p-6 text-center text-gray-500">
@@ -772,7 +772,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="checkbox"
                             checked={product.selected}
                             onChange={() => handleToggleSelectProduct(product.id)}
-                            className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                            className="rounded border-gray-300 dark:border-dark-border-strong text-purple-600 focus:ring-purple-500"
                           />
                         </td>
                         <td className="p-2 font-semibold text-gray-900 dark:text-gray-100">
@@ -780,7 +780,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="text"
                             value={product.name}
                             onChange={e => handleUpdateProductField(product.id, 'name', e.target.value)}
-                            className="w-full bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-2 py-1 text-xs font-semibold"
+                            className="w-full bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs font-semibold"
                           />
                           {rowIssues && (
                             <p className="mt-1 flex items-start gap-1 text-[10px] font-medium text-rose-700 dark:text-rose-300">
@@ -794,7 +794,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="text"
                             value={product.categoryName}
                             onChange={e => handleUpdateProductField(product.id, 'categoryName', e.target.value)}
-                            className="w-full bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-2 py-1 text-xs"
+                            className="w-full bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs"
                           />
                         </td>
                         <td className="p-2 text-right">
@@ -803,7 +803,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             step="0.01"
                             value={product.sellingPrice}
                             onChange={e => handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-2 py-1 text-xs font-bold text-purple-900 dark:text-purple-100"
+                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs font-bold text-purple-900 dark:text-purple-100"
                           />
                         </td>
                         <td className="p-2 text-right">
@@ -812,7 +812,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             step="0.01"
                             value={product.costPrice}
                             onChange={e => handleUpdateProductField(product.id, 'costPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-2 py-1 text-xs text-gray-700 dark:text-gray-300"
+                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs text-gray-700 dark:text-gray-300"
                           />
                         </td>
                         <td className="p-2">
@@ -821,7 +821,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             step="1"
                             value={product.taxRate}
                             onChange={e => handleUpdateProductField(product.id, 'taxRate', parseFloat(e.target.value) || 0)}
-                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-1.5 py-1 text-xs"
+                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs"
                           />
                         </td>
                         <td className="p-2 font-mono">
@@ -830,13 +830,13 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                               type="text"
                               value={product.barcode}
                               onChange={e => handleUpdateProductField(product.id, 'barcode', e.target.value)}
-                              className="w-28 bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-1.5 py-1 text-xs font-mono font-bold"
+                              className="w-28 bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs font-mono font-bold"
                             />
                             <button
                               type="button"
                               onClick={() => handleRegenerateBarcode(product.id)}
                               title="Regenerate Barcode"
-                              className="p-1 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                              className="p-1 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 rounded hover:bg-gray-100 dark:hover:bg-dark-card"
                             >
                               <RotateCw className="w-3.5 h-3.5" />
                             </button>
@@ -856,7 +856,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="number"
                             value={product.currentStock}
                             onChange={e => handleUpdateProductField(product.id, 'currentStock', parseInt(e.target.value) || 0)}
-                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-1.5 py-1 text-xs font-semibold"
+                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs font-semibold"
                           />
                         </td>
                         <td className="p-2">
@@ -864,7 +864,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="text"
                             value={product.unit}
                             onChange={e => handleUpdateProductField(product.id, 'unit', e.target.value)}
-                            className="w-16 bg-transparent border border-gray-200 dark:border-gray-700 hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-gray-800 rounded px-1.5 py-1 text-xs"
+                            className="w-16 bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs"
                           />
                         </td>
                         <td className="p-2 text-center">
@@ -887,7 +887,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             {/* MOBILE CARD VIEW (md:hidden block) */}
             <div className="md:hidden space-y-3 max-h-96 overflow-y-auto pr-1">
               {filteredProducts.length === 0 ? (
-                <div className="p-6 text-center text-xs text-gray-500 border border-gray-200 dark:border-gray-700 rounded-xl">
+                <div className="p-6 text-center text-xs text-gray-500 border border-gray-200 dark:border-dark-border rounded-xl">
                   No products match your search filter.
                 </div>
               ) : (
@@ -898,7 +898,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                     key={product.id}
                     className={`p-3.5 rounded-xl border text-xs space-y-3 transition-colors ${
                       !product.selected
-                        ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-60'
+                        ? 'bg-gray-50 dark:bg-dark-card/40 border-gray-200 dark:border-dark-border opacity-60'
                         : rowIssues
                         ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/60'
                         : 'bg-purple-50/40 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/60'
@@ -924,7 +924,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           type="text"
                           value={product.name}
                           onChange={e => handleUpdateProductField(product.id, 'name', e.target.value)}
-                          className="w-full font-bold text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:border-purple-500 rounded-lg px-2.5 py-1 text-gray-900 dark:text-gray-100"
+                          className="w-full font-bold text-sm bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border focus:border-purple-500 rounded-lg px-2.5 py-1 text-gray-900 dark:text-gray-100"
                         />
                       </div>
                       <button
@@ -944,7 +944,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           type="text"
                           value={product.categoryName}
                           onChange={e => handleUpdateProductField(product.id, 'categoryName', e.target.value)}
-                          className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 font-medium"
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-medium"
                         />
                       </div>
                       <div>
@@ -954,7 +954,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           step="0.01"
                           value={product.sellingPrice}
                           onChange={e => handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 font-bold text-purple-900 dark:text-purple-100"
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-bold text-purple-900 dark:text-purple-100"
                         />
                       </div>
                       <div>
@@ -964,7 +964,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           step="0.01"
                           value={product.costPrice}
                           onChange={e => handleUpdateProductField(product.id, 'costPrice', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300"
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300"
                         />
                       </div>
                     </div>
@@ -986,7 +986,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           type="text"
                           value={product.barcode}
                           onChange={e => handleUpdateProductField(product.id, 'barcode', e.target.value)}
-                          className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 font-mono font-bold"
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-mono font-bold"
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-1">
@@ -996,7 +996,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="number"
                             value={product.taxRate}
                             onChange={e => handleUpdateProductField(product.id, 'taxRate', parseFloat(e.target.value) || 0)}
-                            className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-1.5 py-1 text-center"
+                            className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1.5 py-1 text-center"
                           />
                         </div>
                         <div>
@@ -1005,7 +1005,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="number"
                             value={product.currentStock}
                             onChange={e => handleUpdateProductField(product.id, 'currentStock', parseInt(e.target.value) || 0)}
-                            className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-1.5 py-1 text-center font-bold"
+                            className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1.5 py-1 text-center font-bold"
                           />
                         </div>
                         <div>
@@ -1014,7 +1014,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             type="text"
                             value={product.unit}
                             onChange={e => handleUpdateProductField(product.id, 'unit', e.target.value)}
-                            className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-1 py-1 text-center"
+                            className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1 py-1 text-center"
                           />
                         </div>
                       </div>
@@ -1036,7 +1036,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             )}
 
             {/* Action Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-dark-border">
               <p className="text-xs text-gray-600 dark:text-gray-400">
                 Ready to import <strong className="text-purple-600 dark:text-purple-400">{selectedCount}</strong> products into your inventory.
               </p>

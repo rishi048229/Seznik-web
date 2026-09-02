@@ -35,8 +35,8 @@ export const VenueTypePicker = ({ value, onChange }: VenueTypePickerProps) => {
               onClick={() => onChange(id)}
               className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-[11px] font-medium transition-colors duration-150 ${
                 active
-                  ? 'bg-[#0a0a2e] text-white'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200'
+                  ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-card hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
               <Icon size={18} strokeWidth={active ? 2.25 : 1.75} />

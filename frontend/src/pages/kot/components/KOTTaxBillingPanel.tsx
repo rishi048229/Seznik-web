@@ -50,7 +50,7 @@ export function KOTTaxBillingPanel({
         hintText="Show CGST/SGST or slab totals on KOT bills and POS checkout."
       />
 
-      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
         <BillChargesSettingsPanel presets={chargePresets} onChange={onChargePresetsChange} />
       </div>
     </div>

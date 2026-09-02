@@ -12,7 +12,7 @@ export const ScanReadyIndicator = ({ isActive, label = 'Scan Ready' }: ScanReady
         )}
         <span
           className={`relative inline-flex rounded-full h-3 w-3 transition-colors ${
-            isActive ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+            isActive ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-hover'
           }`}
         />
       </span>

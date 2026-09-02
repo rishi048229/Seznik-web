@@ -38,7 +38,7 @@ interface ReceiptSimpleEditorProps {
   isRestaurant?: boolean
 }
 
-const inputCls = 'w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs'
+const inputCls = 'w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated text-xs'
 
 const FIELD_OPTIONS = [
   { value: '', label: 'Plain text only' },
@@ -56,7 +56,7 @@ function CompactSwitch({ checked, onChange }: { checked: boolean; onChange: (nex
         onChange(!checked)
       }}
       className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-        checked ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+        checked ? 'bg-blue-600' : 'bg-gray-300 dark:bg-dark-hover'
       }`}
     >
       <span
@@ -88,7 +88,7 @@ function SectionCard({
   const showBody = expanded
 
   return (
-    <div className={`rounded-xl border bg-white dark:bg-gray-800 ${enabled ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-70'}`}>
+    <div className={`rounded-xl border bg-white dark:bg-dark-card ${enabled ? 'border-gray-200 dark:border-dark-border' : 'border-gray-100 dark:border-dark-border opacity-70'}`}>
       <div className="flex items-center gap-2 p-3">
         <button type="button" className="flex-1 text-left min-w-0" onClick={() => setOpen((v) => !v)}>
           <div className="flex items-center gap-1.5">
@@ -101,7 +101,7 @@ function SectionCard({
         </button>
         <CompactSwitch checked={enabled} onChange={onToggle} />
       </div>
-      {showBody ? <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-2">{children}</div> : null}
+      {showBody ? <div className="px-3 pb-3 border-t border-gray-100 dark:border-dark-border pt-3 space-y-2">{children}</div> : null}
     </div>
   )
 }
@@ -384,7 +384,7 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
         ) : null}
       </SectionCard>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-1">
+      <div className="rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card p-3 space-y-1">
         <div className="text-xs font-bold text-gray-900 dark:text-gray-100">Totals</div>
         <p className="text-[11px] text-gray-500 pb-1">Turn each amount line on or off</p>
         {(
@@ -465,7 +465,7 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
                 }
               />
             ) : null}
-            <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80 space-y-1">
+            <div className="pt-2 border-t border-gray-100 dark:border-dark-border/80 space-y-1">
               <label className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 block">
                 Statement below QR (Printed on bill)
               </label>
@@ -515,7 +515,7 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
         <div className="space-y-2 pt-2">
           <div className="text-xs font-bold text-gray-900 dark:text-gray-100">Custom lines</div>
           {mapped.customEntries.map((entry) => (
-            <div key={entry.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
+            <div key={entry.id} className="rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Custom line</span>
                 <div className="flex items-center gap-2">
@@ -549,21 +549,21 @@ export function ReceiptSimpleEditor({ template, onChange, logoFallback, upiId = 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-semibold"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border-strong text-xs font-semibold"
             onClick={() => onChange(appendBlocks(template, [SIMPLE_ADD_DIVIDER()]))}
           >
             <Minus size={14} /> Divider
           </button>
           <button
             type="button"
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-semibold"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border-strong text-xs font-semibold"
             onClick={() => onChange(appendBlocks(template, [SIMPLE_ADD_CUSTOM_LINE()]))}
           >
             <Type size={14} /> Custom line
           </button>
           <button
             type="button"
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-semibold"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border-strong text-xs font-semibold"
             onClick={() => onChange(appendBlocks(template, [SIMPLE_ADD_QR()]))}
           >
             <QrCode size={14} /> Extra QR

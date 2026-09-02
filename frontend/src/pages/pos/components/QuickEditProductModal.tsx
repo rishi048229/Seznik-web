@@ -182,18 +182,18 @@ export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: Qui
                   {t('products.sellingPrice')} *
                   <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: false }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
                     {t('products.exclGst')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: true }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
                     {t('products.inclGst')}
                   </button>

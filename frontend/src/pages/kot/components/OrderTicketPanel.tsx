@@ -48,11 +48,11 @@ export const OrderTicketPanel = ({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="shrink-0 p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 space-y-2">
+      <div className="shrink-0 p-3 sm:p-4 border-b border-gray-200 dark:border-dark-border space-y-2">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{tableName}</h2>
           {orderNumber != null && (
-            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">#KOT-{orderNumber}</span>
+            <span className="text-sm font-semibold text-blue-600 dark:text-white">#KOT-{orderNumber}</span>
           )}
         </div>
         <div className={`grid gap-1 ${typeOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
@@ -63,8 +63,8 @@ export const OrderTicketPanel = ({
               onClick={() => onOrderTypeChange(opt.id)}
               className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-colors duration-150 ${
                 orderType === opt.id
-                  ? 'bg-[#0a0a2e] text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
               }`}
               aria-pressed={orderType === opt.id}
             >
@@ -90,7 +90,7 @@ export const OrderTicketPanel = ({
             </h3>
             <ul className="space-y-2">
               {sentItems.map((it) => (
-                <li key={it.id} className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                <li key={it.id} className="rounded-lg border border-gray-200 dark:border-dark-border px-3 py-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -154,7 +154,7 @@ export const OrderTicketPanel = ({
                     </button>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-1">
+                    <div className="flex items-center gap-1 bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border-strong px-1">
                       <button type="button" onClick={() => onPendingQty(it.tempId, it.quantity - 1)} className="w-7 h-7 flex items-center justify-center">
                         <Minus size={12} />
                       </button>
@@ -176,7 +176,7 @@ export const OrderTicketPanel = ({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-4 space-y-1 text-sm">
+      <div className="shrink-0 border-t border-gray-200 dark:border-dark-border p-4 space-y-1 text-sm">
         <div className="flex justify-between text-gray-500 dark:text-gray-400">
           <span>Subtotal</span>
           <span>{formatINR(subtotal)}</span>

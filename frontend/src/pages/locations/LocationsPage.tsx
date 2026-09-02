@@ -248,7 +248,7 @@ export const LocationsPage = () => {
                   className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
                     activeLocationId === loc.id
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                      : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
                   } ${!loc.isActive ? 'opacity-50' : ''}`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
@@ -269,7 +269,7 @@ export const LocationsPage = () => {
             </div>
 
             {transfers.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-dark-border">
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">{t('locations.recentTransfers') || 'Recent Transfers'}</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {transfers.slice(0, 10).map(tr => (
@@ -298,7 +298,7 @@ export const LocationsPage = () => {
                         value={stockSearch}
                         onChange={e => setStockSearch(e.target.value)}
                         placeholder={t('common.search') || 'Search products...'}
-                        className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                        className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated"
                       />
                     </div>
                     <Button size="sm" variant="secondary" onClick={() => setAddProductOpen(true)} className="whitespace-nowrap">
@@ -324,18 +324,18 @@ export const LocationsPage = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                          <tr className="text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-100 dark:border-dark-border">
                             <th className="py-2.5 pr-2">{t('common.product') || 'Product'}</th>
                             <th className="py-2.5 px-2">{t('locations.stockAtLocation') || 'Stock here'}</th>
                             <th className="py-2.5 px-2">{t('locations.priceOverride') || 'Price override'}</th>
                             <th className="py-2.5 px-2 text-right">Transfer</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                        <tbody className="divide-y divide-gray-50 dark:divide-dark-border">
                           {paginatedProducts.map(p => {
                             const stockRow = stockByProductId.get(p.id)
                             return (
-                              <tr key={p.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                              <tr key={p.id} className="hover:bg-gray-50/50 dark:hover:bg-dark-card/30 transition-colors">
                                 <td className="py-2.5 pr-2">
                                   <p className="font-medium text-gray-900 dark:text-gray-100">{p.name}</p>
                                   <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
@@ -349,7 +349,7 @@ export const LocationsPage = () => {
                                     type="number"
                                     defaultValue={stockRow?.stock ?? 0}
                                     onBlur={e => handleStockChange(p.id, 'stock', e.target.value)}
-                                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 font-semibold"
+                                    className="w-20 px-2 py-1 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated font-semibold"
                                   />
                                 </td>
                                 <td className="py-2.5 px-2">
@@ -358,14 +358,14 @@ export const LocationsPage = () => {
                                     placeholder={String(p.sellingPrice)}
                                     defaultValue={stockRow?.priceOverride ?? ''}
                                     onBlur={e => handleStockChange(p.id, 'priceOverride', e.target.value)}
-                                    className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                                    className="w-24 px-2 py-1 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated"
                                   />
                                 </td>
                                 <td className="py-2.5 px-2 text-right">
                                   <button
                                     type="button"
                                     onClick={() => openTransferForProduct(p.id)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg transition-colors"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 dark:text-white bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg transition-colors"
                                     title="Transfer stock of this product to another store"
                                   >
                                     <ArrowRightLeft size={12} />
@@ -388,7 +388,7 @@ export const LocationsPage = () => {
 
                     {/* Pagination Controls */}
                     {filteredProducts.length > 0 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-2 border-t border-gray-100 dark:border-dark-border text-xs text-gray-500">
                         <div className="flex items-center gap-2">
                           <span>
                             Showing {(stockPage - 1) * stockPageSize + 1}–{Math.min(stockPage * stockPageSize, filteredProducts.length)} of {filteredProducts.length} items
@@ -399,7 +399,7 @@ export const LocationsPage = () => {
                               setStockPageSize(Number(e.target.value))
                               setStockPage(1)
                             }}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs"
+                            className="px-2 py-1 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated text-xs"
                           >
                             <option value={15}>15 per page</option>
                             <option value={30}>30 per page</option>
@@ -413,7 +413,7 @@ export const LocationsPage = () => {
                             type="button"
                             disabled={stockPage <= 1}
                             onClick={() => setStockPage(p => Math.max(1, p - 1))}
-                            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                            className="p-1.5 rounded-lg border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-elevated disabled:opacity-40"
                           >
                             <ChevronLeft size={14} />
                           </button>
@@ -424,7 +424,7 @@ export const LocationsPage = () => {
                             type="button"
                             disabled={stockPage >= totalStockPages}
                             onClick={() => setStockPage(p => Math.min(totalStockPages, p + 1))}
-                            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                            className="p-1.5 rounded-lg border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-elevated disabled:opacity-40"
                           >
                             <ChevronRight size={14} />
                           </button>
@@ -485,10 +485,10 @@ export const LocationsPage = () => {
                 value={transferSearch}
                 onChange={e => setTransferSearch(e.target.value)}
                 placeholder="Search by name, SKU or barcode..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated"
               />
             </div>
-            <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+            <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-xl divide-y divide-gray-100 dark:divide-dark-border bg-gray-50/50 dark:bg-dark-card/50">
               {(products ?? [])
                 .filter(p => p.isActive !== false && (
                   !transferSearch.trim() ||
@@ -506,7 +506,7 @@ export const LocationsPage = () => {
                       onClick={() => setTransferProductId(p.id)}
                       className={`w-full px-3 py-2 text-left flex items-center justify-between transition-colors ${
                         isSelected
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900'
                           : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-800 dark:text-gray-200'
                       }`}
                     >
@@ -529,7 +529,7 @@ export const LocationsPage = () => {
               <select
                 value={transferFromId}
                 onChange={e => setTransferFromId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-semibold"
               >
                 <option value="">Select source store</option>
                 {locations.filter(l => l.isActive).map(l => (
@@ -542,7 +542,7 @@ export const LocationsPage = () => {
               <select
                 value={transferToId}
                 onChange={e => setTransferToId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-semibold"
               >
                 <option value="">Select destination</option>
                 {locations.filter(l => l.isActive).map(l => (

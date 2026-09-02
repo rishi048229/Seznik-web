@@ -23,12 +23,12 @@ export function BillChargesSettingsPanel({ presets, onChange }: BillChargesSetti
         </p>
       </div>
       {presets.map((preset, index) => (
-        <div key={preset.id} className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 space-y-3">
+        <div key={preset.id} className="rounded-lg border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-card p-3 space-y-3">
           <div className="flex gap-2">
             <input
               value={preset.label}
               onChange={(e) => update(index, { label: e.target.value })}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm"
               placeholder="Charge label"
             />
             <button
@@ -43,14 +43,14 @@ export function BillChargesSettingsPanel({ presets, onChange }: BillChargesSetti
             <button
               type="button"
               onClick={() => update(index, { type: 'percent' })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'percent' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-500'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'percent' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
             >
               %
             </button>
             <button
               type="button"
               onClick={() => update(index, { type: 'flat' })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'flat' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-500'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'flat' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
             >
               ₹
             </button>
@@ -60,7 +60,7 @@ export function BillChargesSettingsPanel({ presets, onChange }: BillChargesSetti
               step="0.01"
               value={preset.value}
               onChange={(e) => update(index, { value: Math.max(0, parseFloat(e.target.value) || 0) })}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm"
             />
           </div>
           {preset.type === 'percent' ? (
@@ -68,14 +68,14 @@ export function BillChargesSettingsPanel({ presets, onChange }: BillChargesSetti
               <button
                 type="button"
                 onClick={() => update(index, { applyOn: 'net_subtotal' })}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn !== 'gross' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-500'}`}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn !== 'gross' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
               >
                 On net (after discount)
               </button>
               <button
                 type="button"
                 onClick={() => update(index, { applyOn: 'gross' })}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn === 'gross' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-500'}`}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn === 'gross' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
               >
                 On gross (before discount)
               </button>

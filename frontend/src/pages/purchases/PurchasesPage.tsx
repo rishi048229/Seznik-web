@@ -420,7 +420,7 @@ export const PurchasesPage = () => {
             {items.length > 0 ? (
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {items.map(item => (
-                  <div key={item.productId} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div key={item.productId} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-elevated/50 rounded-lg">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
                       <p className="text-xs text-gray-400">{formatINR(item.costPrice)} {t('purchases.eachSuffix')}</p>
@@ -432,7 +432,7 @@ export const PurchasesPage = () => {
                         min="1"
                         value={item.quantity}
                         onChange={e => handleUpdateItemQty(item.productId, parseInt(e.target.value) || 1)}
-                        className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                     <button

@@ -76,7 +76,7 @@ export const ExportModal = ({
       title: 'PDF Document',
       ext: '.PDF',
       description: 'Professional print-ready document with company header, GSTIN, styled tables & totals.',
-      icon: <FileText className="text-blue-600 dark:text-blue-400" size={28} />,
+      icon: <FileText className="text-blue-600 dark:text-white" size={28} />,
       accentColor: 'border-blue-500 ring-blue-500/20 bg-blue-50/40 dark:bg-blue-950/20',
       badgeBg: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
     },
@@ -107,7 +107,7 @@ export const ExportModal = ({
             onClick={handleExecuteExport}
             loading={isExporting}
             leftIcon={<Download size={16} />}
-            className="font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95"
+            className="font-bold bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white shadow-md transition-all active:scale-95"
           >
             Download {selectedFormat.toUpperCase()}
           </Button>
@@ -116,7 +116,7 @@ export const ExportModal = ({
     >
       <div className="space-y-5">
         {/* Info & Meta Summary Card */}
-        <div className="p-4 rounded-xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-700 space-y-2.5">
+        <div className="p-4 rounded-xl bg-slate-50 dark:bg-dark-bg/60 border border-slate-200 dark:border-dark-border space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -127,14 +127,14 @@ export const ExportModal = ({
               </h4>
             </div>
             {subtitle && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 text-slate-700 dark:text-slate-300">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border text-slate-700 dark:text-slate-300">
                 {subtitle}
               </span>
             )}
           </div>
 
           {/* Business & Store tags */}
-          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300 border-t border-slate-200/80 dark:border-gray-800">
+          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300 border-t border-slate-200/80 dark:border-dark-border">
             {businessName && (
               <span className="flex items-center gap-1 font-semibold">
                 <Building2 size={12} className="text-slate-400" /> {businessName}
@@ -173,11 +173,11 @@ export const ExportModal = ({
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between relative ${
                     isSelected
                       ? `${fmt.accentColor} ring-2 shadow-sm`
-                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                      : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card hover:border-gray-300 dark:hover:border-dark-border-strong'
                   }`}
                 >
                   {isSelected && (
-                    <div className="absolute top-2.5 right-2.5 text-blue-600 dark:text-blue-400">
+                    <div className="absolute top-2.5 right-2.5 text-blue-600 dark:text-white">
                       <CheckCircle2 size={16} />
                     </div>
                   )}
@@ -194,11 +194,11 @@ export const ExportModal = ({
                     </p>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                  <div className="mt-3 pt-2 border-t border-gray-100 dark:border-dark-border/60 flex items-center justify-between">
                     <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${fmt.badgeBg}`}>
                       {fmt.ext}
                     </span>
-                    <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                    <span className="text-[11px] font-semibold text-blue-600 dark:text-white">
                       {isSelected ? 'Selected' : 'Select'}
                     </span>
                   </div>

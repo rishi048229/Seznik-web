@@ -128,20 +128,20 @@ export const OnboardingPage = () => {
     <div className="flex items-center gap-2 min-w-0">
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-          active ? 'bg-[#0a0a2e] text-white' : 'bg-slate-200 text-slate-500'
+          active ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900' : 'bg-slate-200 dark:bg-dark-elevated text-slate-500 dark:text-gray-400'
         }`}
       >
         {n}
       </div>
-      <span className={`text-sm font-medium truncate ${active ? 'text-slate-900 font-semibold' : 'text-slate-400'}`}>
+      <span className={`text-sm font-medium truncate ${active ? 'text-slate-900 dark:text-gray-100 font-semibold' : 'text-slate-400 dark:text-gray-500'}`}>
         {label}
       </span>
     </div>
   )
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] dark:bg-dark-bg p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl dark:border dark:border-dark-border">
         <section
           className="sm:w-[42%] px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
           style={{ background: BANNER_GRADIENT, color: '#fff' }}
@@ -193,7 +193,7 @@ export const OnboardingPage = () => {
           </div>
         </section>
 
-        <section className="sm:w-[58%] px-8 py-10 sm:px-12 sm:py-14 bg-white flex flex-col justify-center max-h-[90vh] overflow-y-auto">
+        <section className="sm:w-[58%] px-8 py-10 sm:px-12 sm:py-14 bg-white dark:bg-dark-card flex flex-col justify-center max-h-[90vh] overflow-y-auto">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
             {t('onboarding.stepOf')
               .replace('{step}', String(step))
@@ -203,15 +203,15 @@ export const OnboardingPage = () => {
             {pickTypeOnly ? (
               <>
                 {stepLabel(1, t('onboarding.stepBusinessType'), step === 1)}
-                <div className="w-8 h-px bg-slate-200 hidden sm:block" />
+                <div className="w-8 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
                 {stepLabel(2, t('onboarding.stepWorkspace'), step === 2)}
               </>
             ) : (
               <>
                 {stepLabel(1, t('onboarding.stepShopDetails'), step === 1)}
-                <div className="w-6 h-px bg-slate-200 hidden sm:block" />
+                <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
                 {stepLabel(2, t('onboarding.stepPayment'), step === 2)}
-                <div className="w-6 h-px bg-slate-200 hidden sm:block" />
+                <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
                 {stepLabel(3, t('onboarding.stepWorkspace'), step === 3)}
               </>
             )}
@@ -298,7 +298,7 @@ export const OnboardingPage = () => {
                           onClick={() => setSelectedBusinessType(option.id)}
                           className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3 ${
                             selected
-                              ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 ring-1 ring-[#0a0a2e]'
+                              ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 ring-1 ring-[#0a0a2e] dark:ring-zinc-500'
                               : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
@@ -311,7 +311,7 @@ export const OnboardingPage = () => {
                               {option.description}
                             </span>
                           </span>
-                          {selected ? <Check size={16} className="text-[#0a0a2e] shrink-0" /> : null}
+                          {selected ? <Check size={16} className="text-[#0a0a2e] dark:text-indigo-300 shrink-0" /> : null}
                         </button>
                       )
                     })}
@@ -331,14 +331,14 @@ export const OnboardingPage = () => {
                           }}
                           className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all flex items-center justify-between gap-2 ${
                             selected
-                              ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 ring-1 ring-[#0a0a2e]'
+                              ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 ring-1 ring-[#0a0a2e] dark:ring-zinc-500'
                               : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
                           <span className="text-sm font-medium text-slate-900 truncate">
                             {lang.label}
                           </span>
-                          {selected ? <Check size={14} className="text-[#0a0a2e] shrink-0" /> : null}
+                          {selected ? <Check size={14} className="text-[#0a0a2e] dark:text-indigo-300 shrink-0" /> : null}
                         </button>
                       )
                     })}
@@ -380,13 +380,13 @@ export const OnboardingPage = () => {
             ) : null}
 
             {showWorkspaceStep ? (
-              <div className="rounded-xl border border-[#0a0a2e] bg-[#0a0a2e]/5 p-5">
+              <div className="rounded-xl border border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 p-5">
                 <p className="text-base font-semibold text-slate-900">{template.title}</p>
                 <p className="text-sm text-slate-500 mt-1 mb-4">{template.subtitle}</p>
                 <ul className="space-y-2">
                   {template.features.map(feature => (
                     <li key={feature} className="flex items-start gap-2 text-sm text-slate-800">
-                      <Check size={14} className="mt-0.5 text-[#0a0a2e] shrink-0" />
+                      <Check size={14} className="mt-0.5 text-[#0a0a2e] dark:text-indigo-300 shrink-0" />
                       {feature}
                     </li>
                   ))}
@@ -400,7 +400,7 @@ export const OnboardingPage = () => {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] text-white text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
               >
                 {isSaving ? (
@@ -435,13 +435,13 @@ export const OnboardingPage = () => {
 }
 
 const fieldClass =
-  'w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] bg-white'
+  'w-full px-4 py-2.5 border border-slate-300 dark:border-dark-border-strong rounded-lg text-slate-900 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 bg-white dark:bg-dark-elevated'
 
 function Field({ label, children }: { label?: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
       {label ? (
-        <label className="block text-sm font-medium text-slate-700">{label}</label>
+        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">{label}</label>
       ) : null}
       {children}
     </div>

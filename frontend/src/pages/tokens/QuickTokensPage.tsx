@@ -39,7 +39,7 @@ const TOKEN_ICONS: Record<string, typeof Ticket> = {
 const ICON_KEYS = Object.keys(TOKEN_ICONS)
 
 const TOKEN_COLORS: Record<string, string> = {
-  blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+  blue: 'bg-blue-100 text-blue-600 dark:bg-white/10 dark:text-white',
   sky: 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   amber: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
   emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -337,7 +337,7 @@ export const QuickTokensPage = () => {
                   key={tt.id}
                   type="button"
                   onClick={() => openIssue(tt)}
-                  className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all active:scale-[0.97] bg-white dark:bg-gray-800"
+                  className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all active:scale-[0.97] bg-white dark:bg-dark-card"
                 >
                   <div className={clsx('w-12 h-12 rounded-full flex items-center justify-center', TOKEN_COLORS[tt.color] ?? TOKEN_COLORS.blue)}>
                     <Icon size={22} />
@@ -356,7 +356,7 @@ export const QuickTokensPage = () => {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-white flex items-center justify-center flex-shrink-0">
             <ReceiptIcon size={18} />
           </div>
           <div>
@@ -389,16 +389,16 @@ export const QuickTokensPage = () => {
       {/* Token history */}
       <Card className="p-4 mb-4">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => shiftHistoryDate(-1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
+          <button type="button" onClick={() => shiftHistoryDate(-1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-elevated">
             <ChevronLeft size={18} />
           </button>
           <input
             type="date"
             value={historyDate}
             onChange={e => setHistoryDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
-          <button type="button" onClick={() => shiftHistoryDate(1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
+          <button type="button" onClick={() => shiftHistoryDate(1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-elevated">
             <ChevronRight size={18} />
           </button>
           {!isHistoryToday && (
@@ -412,7 +412,7 @@ export const QuickTokensPage = () => {
               value={historySearch}
               onChange={e => setHistorySearch(e.target.value)}
               placeholder={t('token.searchPlaceholder')}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <Button variant="outline" size="sm" leftIcon={<Download size={14} />} onClick={handleExport}>
@@ -435,7 +435,7 @@ export const QuickTokensPage = () => {
             {visibleTokens.map(token => {
               const Icon = TOKEN_ICONS[token.tokenType?.icon ?? 'ticket'] ?? Ticket
               return (
-                <div key={token.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div key={token.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-elevated/50 rounded-lg">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={clsx('w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0', TOKEN_COLORS[token.tokenType?.color ?? 'blue'] ?? TOKEN_COLORS.blue)}>
                       <Icon size={16} />
@@ -507,7 +507,7 @@ export const QuickTokensPage = () => {
                 <button
                   type="button"
                   onClick={() => setIssueQty(q => Math.max(1, q - 1))}
-                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-dark-border-strong flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-dark-elevated"
                 >
                   <Minus size={14} />
                 </button>
@@ -515,7 +515,7 @@ export const QuickTokensPage = () => {
                 <button
                   type="button"
                   onClick={() => setIssueQty(q => q + 1)}
-                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="w-9 h-9 rounded-lg border border-gray-300 dark:border-dark-border-strong flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-dark-elevated"
                 >
                   <Plus size={14} />
                 </button>
@@ -535,7 +535,7 @@ export const QuickTokensPage = () => {
                       'flex-1 py-2 rounded-lg text-sm font-medium border transition-colors',
                       issuePayment === opt.value
                         ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated'
                     )}
                   >
                     {opt.label}
@@ -555,7 +555,7 @@ export const QuickTokensPage = () => {
                     'flex-1 py-2 px-2.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors',
                     printMode === 'bluetooth'
                       ? 'bg-indigo-600 border-indigo-600 text-white'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated'
                   )}
                 >
                   <Bluetooth size={14} />
@@ -569,7 +569,7 @@ export const QuickTokensPage = () => {
                     'flex-1 py-2 px-2.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors',
                     printMode === 'browser'
                       ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated'
                   )}
                 >
                   <Printer size={14} />
@@ -578,7 +578,7 @@ export const QuickTokensPage = () => {
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-dark-border">
               <span className="text-sm text-gray-500">{t('daybook.net')}</span>
               <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
                 {formatINR((parseFloat(issueAmount) || 0) * issueQty)}
@@ -696,11 +696,11 @@ export const QuickTokensPage = () => {
             </div>
           </div>
 
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-2 max-h-64 overflow-y-auto">
+          <div className="border-t border-gray-100 dark:border-dark-border pt-4 space-y-2 max-h-64 overflow-y-auto">
             {sortedTypes.map((tt, index) => {
               const Icon = TOKEN_ICONS[tt.icon] ?? Ticket
               return (
-                <div key={tt.id} className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div key={tt.id} className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-dark-elevated/50 rounded-lg">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className={clsx('w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0', TOKEN_COLORS[tt.color] ?? TOKEN_COLORS.blue)}>
                       <Icon size={14} />
@@ -715,16 +715,16 @@ export const QuickTokensPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    <button type="button" disabled={index === 0} onClick={() => moveType(index, -1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-transparent">
+                    <button type="button" disabled={index === 0} onClick={() => moveType(index, -1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-dark-hover disabled:opacity-30 disabled:hover:bg-transparent">
                       <ArrowUp size={13} />
                     </button>
-                    <button type="button" disabled={index === sortedTypes.length - 1} onClick={() => moveType(index, 1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-transparent">
+                    <button type="button" disabled={index === sortedTypes.length - 1} onClick={() => moveType(index, 1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-dark-hover disabled:opacity-30 disabled:hover:bg-transparent">
                       <ArrowDown size={13} />
                     </button>
                     <button
                       type="button"
                       onClick={() => updateTokenType({ tokenTypeId: tt.id, data: { isActive: !tt.isActive } })}
-                      className="px-2 py-1 text-xs rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      className="px-2 py-1 text-xs rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-dark-hover"
                     >
                       {tt.isActive ? t('common.active') : t('common.inactive')}
                     </button>

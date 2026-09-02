@@ -354,8 +354,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const hasAnyItems = hasNewItems || sentItems.length > 0
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900 flex flex-col">
-      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+    <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-dark-bg flex flex-col">
+      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 dark:border-dark-border bg-white/80 dark:bg-dark-bg/80 backdrop-blur-xl">
         <div className="min-w-0">
           <p className="text-xs text-gray-500 dark:text-gray-400">{orderTypeLabel(orderType)} bill</p>
           <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h1>
@@ -364,14 +364,14 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         <button
           type="button"
           onClick={onClose}
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-card"
           aria-label="Close"
         >
           <X size={20} />
         </button>
       </header>
 
-      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
         <button
           type="button"
           onClick={() => setMobileTab('menu')}
@@ -413,7 +413,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         </div>
 
         <div
-          className={`w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col min-h-0 ${
+          className={`w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card flex flex-col min-h-0 ${
             mobileTab === 'menu' ? 'hidden sm:flex' : 'flex'
           }`}
         >
@@ -448,7 +448,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
             />
           )}
 
-          <div className="shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 space-y-2 pb-16 sm:pb-3">
+          <div className="shrink-0 p-3 border-t border-gray-200 dark:border-dark-border space-y-2 pb-16 sm:pb-3">
             <Button
               onClick={handleSendToKitchen}
               disabled={!hasNewItems || busy}
@@ -462,7 +462,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
             <Button
               onClick={handleSettle}
               disabled={!hasAnyItems || busy}
-              className="w-full bg-[#0a0a2e] hover:bg-[#1a1555]"
+              className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
             >
               <CreditCard size={16} className="mr-2" />
               Settle Bill

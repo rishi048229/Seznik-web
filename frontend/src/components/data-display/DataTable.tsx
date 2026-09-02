@@ -114,7 +114,7 @@ export function DataTable<T>({
               <select
                 value={pageSize}
                 onChange={e => { setPageSize(Number(e.target.value)); setPage(0) }}
-                className="px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="px-2 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-gray-100 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -133,9 +133,9 @@ export function DataTable<T>({
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700/80 shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur">
+          <div className="hidden sm:block overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-border/80 shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-dark-border">
+              <thead className="bg-gray-50/80 dark:bg-dark-elevated/80 backdrop-blur">
                 <tr>
                   {columns.map(col => (
                     <th
@@ -158,14 +158,14 @@ export function DataTable<T>({
                   ))}
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+              <tbody className="bg-white dark:bg-dark-card divide-y divide-gray-100 dark:divide-dark-border">
                 {paginated.map((row, i) => (
                   <tr
                     key={i}
                     onClick={() => onRowClick?.(row)}
                     className={clsx(
                       'transition-colors duration-150',
-                      onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10' : 'hover:bg-gray-50/60 dark:hover:bg-gray-800/40'
+                      onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10' : 'hover:bg-gray-50/60 dark:hover:bg-dark-card/40'
                     )}
                   >
                     {columns.map(col => (
@@ -186,14 +186,14 @@ export function DataTable<T>({
                 key={i}
                 onClick={() => onRowClick?.(row)}
                 className={clsx(
-                  'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/80 p-3.5 shadow-sm transition-all',
-                  onRowClick && 'cursor-pointer active:scale-[0.99] active:bg-gray-50 dark:active:bg-gray-700/60'
+                  'bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border/80 p-3.5 shadow-sm transition-all',
+                  onRowClick && 'cursor-pointer active:scale-[0.99] active:bg-gray-50 dark:active:bg-dark-elevated/60'
                 )}
               >
                 {columns.map(col => {
                   const label = typeof col.header === 'function' ? null : col.header
                   return (
-                    <div key={col.key} className="flex items-start justify-between py-1.5 gap-2 border-b border-gray-50 dark:border-gray-700/40 last:border-none">
+                    <div key={col.key} className="flex items-start justify-between py-1.5 gap-2 border-b border-gray-50 dark:border-dark-border/40 last:border-none">
                       {label && (
                         <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide flex-shrink-0 pt-0.5 min-w-[80px]">
                           {label}
@@ -222,7 +222,7 @@ export function DataTable<T>({
                 <button
                   disabled={currentPage === 0}
                   onClick={() => setPage(p => Math.max(0, p - 1))}
-                  className="p-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-gray-600 dark:text-gray-300"
+                  className="p-2 text-sm border border-gray-200 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-card disabled:opacity-40 disabled:cursor-not-allowed transition-all text-gray-600 dark:text-gray-300"
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={16} />
@@ -237,7 +237,7 @@ export function DataTable<T>({
                         'w-8 h-8 rounded-lg text-xs font-semibold transition-all',
                         currentPage === pNum
                           ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
-                          : 'border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                          : 'border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-card'
                       )}
                     >
                       {pNum + 1}
@@ -252,7 +252,7 @@ export function DataTable<T>({
                 <button
                   disabled={currentPage >= totalPages - 1}
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                  className="p-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-gray-600 dark:text-gray-300"
+                  className="p-2 text-sm border border-gray-200 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-card disabled:opacity-40 disabled:cursor-not-allowed transition-all text-gray-600 dark:text-gray-300"
                   aria-label="Next page"
                 >
                   <ChevronRight size={16} />

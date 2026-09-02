@@ -121,7 +121,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       )}
       <aside
         className={clsx(
-          'fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-[#f1f5f9] border-r border-gray-200 dark:bg-gray-900 dark:border-gray-700 transform transition-all duration-300 ease-in-out flex-shrink-0',
+          'fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-[#f1f5f9] border-r border-gray-200 dark:bg-dark-sidebar dark:border-dark-border transform transition-all duration-300 ease-in-out flex-shrink-0',
           collapsed ? 'lg:w-[76px]' : 'lg:w-64',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
@@ -131,7 +131,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           type="button"
           onClick={toggleCollapsed}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hidden lg:flex absolute -right-3 top-7 z-50 w-6 h-6 items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:shadow-sky-200/60 transition-all duration-200 active:scale-90"
+          className="hidden lg:flex absolute -right-3 top-7 z-50 w-6 h-6 items-center justify-center rounded-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border-strong shadow-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:shadow-sky-200/60 transition-all duration-200 active:scale-90"
         >
           <ChevronsLeft
             size={14}
@@ -179,9 +179,9 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       'active:scale-[0.98]',
                       collapsed && 'lg:px-0 lg:justify-center',
                       isActive
-                        ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-lg shadow-sky-400/40'
+                        ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-lg shadow-sky-400/40 dark:from-blue-600 dark:to-blue-600 dark:text-white dark:shadow-md dark:shadow-blue-600/30 dark:ring-1 dark:ring-blue-400/40'
                         : clsx(
-                            'text-gray-600 hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-gray-700/50',
+                            'text-gray-600 hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
                             // The slide-right hover only suits the expanded, left-aligned layout.
                             !collapsed && 'hover:translate-x-1'
                           )
@@ -248,7 +248,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <MessageSquareHeart size={18} className="flex-shrink-0" />
               <span className={clsx('text-left min-w-0', collapsed && 'lg:hidden')}>
                 <span className="block text-xs font-bold truncate">{t('sidebar.reviewSuggest')}</span>
-                <span className="block text-[10px] text-blue-500/80 dark:text-blue-400/70 truncate">{t('sidebar.reviewSuggestSub')}</span>
+                <span className="block text-[10px] text-blue-500/80 dark:text-gray-400 truncate">{t('sidebar.reviewSuggestSub')}</span>
               </span>
             </button>
           </div>
@@ -260,7 +260,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               onClick={() => { navigate(ROUTES.PROFILE); onClose() }}
               title={collapsed ? `${displayName} — ${t('profile.viewProfile')}` : t('profile.viewProfile')}
               className={clsx(
-                'w-full text-left bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700',
+                'w-full text-left bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-dark-border',
                 'hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md transition-all active:scale-[0.98]',
                 collapsed ? 'p-3 lg:p-1.5' : 'p-3'
               )}
@@ -270,7 +270,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   src={logoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=2563eb&color=fff`}
                   alt={displayName}
                   title={collapsed ? `${displayName} (${userProfile?.role?.toUpperCase() || 'USER'})` : undefined}
-                  className="w-9 h-9 rounded-full object-cover border border-gray-200 dark:border-gray-700 bg-white"
+                  className="w-9 h-9 rounded-full object-cover border border-gray-200 dark:border-dark-border bg-white"
                 />
                 <div className={clsx('flex-1 min-w-0', collapsed && 'lg:hidden')}>
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">

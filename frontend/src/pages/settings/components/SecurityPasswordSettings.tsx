@@ -107,10 +107,10 @@ export const SecurityPasswordSettings = () => {
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header Info */}
-      <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+      <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-100 dark:border-dark-border">
         <div>
           <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Shield className="text-blue-600 dark:text-blue-400" size={20} />
+            <Shield className="text-blue-600 dark:text-white" size={20} />
             {t('security.title')}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -121,7 +121,7 @@ export const SecurityPasswordSettings = () => {
 
       <Card className="p-6 space-y-5">
         {/* Account Info Box */}
-        <div className="p-4 bg-gray-50 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <div className="p-4 bg-gray-50 dark:bg-dark-card/80 rounded-xl border border-gray-100 dark:border-dark-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg">
               <Mail size={18} />
@@ -140,7 +140,7 @@ export const SecurityPasswordSettings = () => {
         {step === 'initial' && (
           <div className="space-y-4 pt-2">
             <div className="flex items-center gap-3 p-4 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60 rounded-xl">
-              <KeyRound className="text-blue-600 dark:text-blue-400 flex-shrink-0" size={22} />
+              <KeyRound className="text-blue-600 dark:text-white flex-shrink-0" size={22} />
               <div>
                 <h4 className="text-xs font-bold text-blue-950 dark:text-blue-200">{t('security.resetAccountPassword')}</h4>
                 <p className="text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">
@@ -181,7 +181,7 @@ export const SecurityPasswordSettings = () => {
                 value={otp}
                 onChange={e => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="123456"
-                className="w-full max-w-xs px-4 py-2.5 text-center text-lg font-mono tracking-[0.4em] font-bold border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full max-w-xs px-4 py-2.5 text-center text-lg font-mono tracking-[0.4em] font-bold border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-card dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
 
@@ -197,7 +197,7 @@ export const SecurityPasswordSettings = () => {
                 type="button"
                 onClick={handleSendCode}
                 disabled={resendTimer > 0 || loading}
-                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 flex items-center gap-1"
+                className="text-xs font-semibold text-blue-600 dark:text-white hover:underline disabled:opacity-50 flex items-center gap-1"
               >
                 <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
                 {resendTimer > 0 ? `${t('security.resendCodeInPrefix')} ${resendTimer}s` : t('security.resendCode')}

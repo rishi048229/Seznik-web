@@ -136,9 +136,9 @@ export const TableManageModal = ({ isOpen, onClose, tables, itemLabel = 'table' 
         {tables.length === 0 ? (
           <EmptyState icon={<LayoutGrid size={36} />} title={`No ${itemLabel}s yet`} description="Add your first one above." />
         ) : (
-          <ul className="divide-y divide-gray-200 dark:divide-gray-700 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <ul className="divide-y divide-gray-200 dark:divide-dark-border rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
             {tables.map((table) => (
-              <li key={table.id} className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-gray-800">
+              <li key={table.id} className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-dark-card">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{table.name}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">

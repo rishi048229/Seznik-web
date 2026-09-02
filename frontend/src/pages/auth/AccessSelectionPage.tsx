@@ -10,10 +10,12 @@ import { getAllUsers } from '@/services/authService'
 import toast from 'react-hot-toast'
 import { ROUTES } from '@/constants/routes'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export const AccessSelectionPage = () => {
   const navigate = useNavigate()
   const { t } = useLanguage()
+  const { isDark } = useTheme()
   const { user, setUserRole, signOut } = useAuth()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -137,20 +139,20 @@ export const AccessSelectionPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] flex flex-col">
+    <div className="min-h-screen bg-[#f7f9fb] dark:bg-dark-bg text-[#191c1e] dark:text-gray-100 flex flex-col">
       {/* Header */}
       <header className="w-full top-0 sticky bg-transparent flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 max-w-screen-2xl mx-auto z-50">
         <div className="flex items-center gap-3">
           <img
             className="h-10 w-auto"
-            src="/seznik_logo.png"
+            src={isDark ? '/seznik_white_logo.png' : '/seznik_logo.png'}
             alt="Seznik"
           />
         </div>
         <div className="flex gap-4">
           <button
             onClick={handleCompleteLogout}
-            className="text-[#070235]/60 hover:opacity-80 transition-opacity p-2 flex items-center justify-center"
+            className="text-[#070235]/60 dark:text-gray-400 hover:opacity-80 transition-opacity p-2 flex items-center justify-center"
             aria-label={t('access.logout')}
             title={t('access.logout')}
           >
@@ -163,10 +165,10 @@ export const AccessSelectionPage = () => {
       <main className="flex-grow flex flex-col items-center justify-center px-4 sm:px-6 py-4">
         <div className="max-w-3xl w-full">
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-[#070235] font-extrabold text-2xl sm:text-3xl md:text-4xl tracking-tight mb-2 sm:mb-3">
+            <h1 className="text-[#070235] dark:text-gray-100 font-extrabold text-2xl sm:text-3xl md:text-4xl tracking-tight mb-2 sm:mb-3">
               {t('access.chooseWorkstation')}
             </h1>
-            <p className="text-[#47464f] text-sm sm:text-base max-w-xl mx-auto">
+            <p className="text-[#47464f] dark:text-gray-400 text-sm sm:text-base max-w-xl mx-auto">
               {t('access.chooseWorkstationDesc')}
             </p>
           </div>
@@ -174,20 +176,20 @@ export const AccessSelectionPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Admin Card */}
             <div
-              className="group relative bg-white rounded-xl p-6 shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] transition-all duration-500 border border-transparent hover:border-[#006591]/20 flex flex-col items-start overflow-hidden cursor-pointer"
+              className="group relative bg-white dark:bg-dark-card rounded-xl p-6 shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] transition-all duration-500 border border-transparent dark:border-dark-border hover:border-[#006591]/20 flex flex-col items-start overflow-hidden cursor-pointer"
               onClick={() => handleRoleSelect('admin')}
             >
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                 <Shield size={120} />
               </div>
               <div className="w-14 h-14 bg-[#1e1b4b]/5 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
-                <Shield className="text-[#070235]" size={32} />
+                <Shield className="text-[#070235] dark:text-indigo-300" size={32} />
               </div>
-              <h2 className="text-[#070235] font-bold text-xl mb-2">{t('access.adminAccess')}</h2>
-              <p className="text-[#47464f] text-sm leading-relaxed mb-6">
+              <h2 className="text-[#070235] dark:text-gray-100 font-bold text-xl mb-2">{t('access.adminAccess')}</h2>
+              <p className="text-[#47464f] dark:text-gray-400 text-sm leading-relaxed mb-6">
                 {t('access.adminAccessDesc')}
               </p>
-              <button className="mt-auto w-full py-3 px-5 bg-[#070235] text-white font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#1e1b4b] transition-all active:scale-[0.98]">
+              <button className="mt-auto w-full py-3 px-5 bg-[#070235] dark:bg-zinc-100 dark:text-zinc-900 font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#1e1b4b] dark:hover:bg-white transition-all active:scale-[0.98]">
                 <span>{t('access.loginAsAdmin')}</span>
                 <ArrowRight size={16} />
               </button>
@@ -197,8 +199,8 @@ export const AccessSelectionPage = () => {
             <div
               className={`group relative rounded-xl p-6 transition-all duration-500 border flex flex-col items-start overflow-hidden ${
                 hasAgents
-                  ? 'bg-white shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] border-transparent hover:border-[#006591]/20 cursor-pointer'
-                  : 'bg-slate-100/90 dark:bg-slate-800/50 border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-85'
+                  ? 'bg-white dark:bg-dark-card shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] border-transparent dark:border-dark-border hover:border-[#006591]/20 cursor-pointer'
+                  : 'bg-slate-100/90 dark:bg-dark-card/50 border-slate-300 dark:border-dark-border cursor-not-allowed opacity-85'
               }`}
               onClick={() => handleRoleSelect('agent')}
             >
@@ -207,7 +209,7 @@ export const AccessSelectionPage = () => {
               </div>
               <div className="flex items-center justify-between w-full mb-5">
                 <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-500 ${
-                  hasAgents ? 'bg-[#006591]/5 group-hover:scale-110' : 'bg-gray-200/80 dark:bg-gray-700/80'
+                  hasAgents ? 'bg-[#006591]/5 group-hover:scale-110' : 'bg-gray-200/80 dark:bg-dark-elevated/80'
                 }`}>
                   <Store className={hasAgents ? 'text-[#006591]' : 'text-gray-400'} size={32} />
                 </div>
@@ -224,10 +226,10 @@ export const AccessSelectionPage = () => {
                   </span>
                 )}
               </div>
-              <h2 className={`font-bold text-xl mb-2 ${hasAgents ? 'text-[#070235]' : 'text-gray-600 dark:text-gray-300'}`}>
+              <h2 className={`font-bold text-xl mb-2 ${hasAgents ? 'text-[#070235] dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
                 Agent Access
               </h2>
-              <p className="text-[#47464f] text-sm leading-relaxed mb-6">
+              <p className="text-[#47464f] dark:text-gray-400 text-sm leading-relaxed mb-6">
                 {hasAgents
                   ? 'Front-of-house sales, terminal access, and stock check. Optimized for rapid transaction flow and inventory tracking.'
                   : 'Agent workstation is currently disabled because no agent accounts have been created yet. Create an agent account under Admin Settings → Permissions & Accounts.'}
@@ -237,7 +239,7 @@ export const AccessSelectionPage = () => {
                 className={`mt-auto w-full py-3 px-5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
                   hasAgents
                     ? 'bg-[#006591] text-white group-hover:bg-[#00557a] active:scale-[0.98]'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-200 dark:bg-dark-elevated text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 }`}
               >
                 <span>{hasAgents ? 'Login as Agent' : 'Agent Access Disabled'}</span>
@@ -308,7 +310,7 @@ export const AccessSelectionPage = () => {
                   const chosen = agents.find(a => a.uid === e.target.value)
                   if (chosen) setName(chosen.displayName || chosen.email || '')
                 }}
-                className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-elevated text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
               >
                 {agents.map(a => (
                   <option key={a.uid} value={a.uid}>

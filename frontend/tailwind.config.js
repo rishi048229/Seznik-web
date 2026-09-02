@@ -21,6 +21,16 @@ module.exports = {
           800: '#1e40af',
           900: '#1e3a8a',
         },
+        // Pure dark surfaces (cool navy undertone, matches brand #0a0a2e).
+        dark: {
+          bg: '#05050c',
+          sidebar: '#080810',
+          card: '#0e0e16',
+          elevated: '#161622',
+          hover: '#1e1e2e',
+          border: '#22222f',
+          'border-strong': '#34344a',
+        },
       },
       backgroundImage: {
         // Company brand gradient: blue → sky blue.

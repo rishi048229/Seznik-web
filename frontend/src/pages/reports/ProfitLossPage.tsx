@@ -158,21 +158,21 @@ export const ProfitLossPage = () => {
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('reports.statement')}</h3>
           <div className="space-y-3">
-            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-dark-border">
               <span className="text-gray-600 dark:text-gray-300">{t('reports.totalRevenue')}</span>
               <span className="font-medium text-gray-900 dark:text-gray-100">{formatINR(report.totalRevenue)}</span>
             </div>
-            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-dark-border">
               <span className="text-gray-600 dark:text-gray-300">{t('reports.costOfGoodsSold')}</span>
               <span className="font-medium text-gray-900 dark:text-gray-100">- {formatINR(report.totalCost)}</span>
             </div>
-            <div className="flex justify-between py-2 bg-gray-50 dark:bg-gray-700/50 px-3 rounded-lg">
+            <div className="flex justify-between py-2 bg-gray-50 dark:bg-dark-elevated/50 px-3 rounded-lg">
               <span className="font-medium text-gray-900 dark:text-gray-100">{t('reports.grossProfit')}</span>
               <span className={`font-bold ${grossProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {formatINR(grossProfit)} ({grossMargin.toFixed(1)}%)
               </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-dark-border">
               <span className="text-gray-600 dark:text-gray-300">{t('reports.operatingExpenses')}</span>
               <span className="font-medium text-gray-900 dark:text-gray-100">- {formatINR(report.totalExpenses)}</span>
             </div>
@@ -195,7 +195,7 @@ export const ProfitLossPage = () => {
                   <span className="text-gray-500">{t('reports.costOfGoods')}</span>
                   <span className="text-gray-900 dark:text-gray-100">{((report.totalCost / report.totalRevenue) * 100).toFixed(1)}%</span>
                 </div>
-                <div className="w-full h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="w-full h-3 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(report.totalCost / report.totalRevenue) * 100}%` }} />
                 </div>
               </div>
@@ -204,7 +204,7 @@ export const ProfitLossPage = () => {
                   <span className="text-gray-500">{t('reports.expensesLabel')}</span>
                   <span className="text-gray-900 dark:text-gray-100">{((report.totalExpenses / report.totalRevenue) * 100).toFixed(1)}%</span>
                 </div>
-                <div className="w-full h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="w-full h-3 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
                   <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min((report.totalExpenses / report.totalRevenue) * 100, 100)}%` }} />
                 </div>
               </div>
@@ -213,7 +213,7 @@ export const ProfitLossPage = () => {
                   <span className="text-gray-500">{t('reports.netProfit')}</span>
                   <span className="text-gray-900 dark:text-gray-100">{Math.max(netMargin, 0).toFixed(1)}%</span>
                 </div>
-                <div className="w-full h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="w-full h-3 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.max(netMargin, 0)}%` }} />
                 </div>
               </div>

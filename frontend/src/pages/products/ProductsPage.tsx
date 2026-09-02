@@ -742,7 +742,7 @@ export const ProductsPage = () => {
               data-tour="add-product-btn"
               leftIcon={<Plus size={16} />}
               onClick={openCreate}
-              className="shrink-0 whitespace-nowrap font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white"
+              className="shrink-0 whitespace-nowrap font-bold shadow-md bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white"
             >
               {t('products.addProduct')}
             </Button>
@@ -761,7 +761,7 @@ export const ProductsPage = () => {
                   ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
                   : bleStatus === 'connecting'
                   ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 animate-pulse'
-                  : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  : 'bg-slate-50 dark:bg-dark-bg text-slate-700 dark:text-slate-300 border-slate-200 dark:border-dark-border hover:bg-slate-100 dark:hover:bg-dark-card'
               }`}
               leftIcon={
                 <Bluetooth
@@ -802,7 +802,7 @@ export const ProductsPage = () => {
           <Button
             variant="outline"
             className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 font-bold shrink-0 whitespace-nowrap"
-            leftIcon={<Tag size={16} className="text-blue-600 dark:text-blue-400" />}
+            leftIcon={<Tag size={16} className="text-blue-600 dark:text-white" />}
             onClick={() => {
               const targetProds = selectedIds.size > 0
                 ? activeProducts.filter(p => selectedIds.has(p.id))
@@ -852,12 +852,12 @@ export const ProductsPage = () => {
       {/* Toolbar */}
       <div data-tour="products-search" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 max-w-full overflow-hidden">
         <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 shrink-0 no-scrollbar">
-          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1 shrink-0">
+          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-dark-card rounded-full p-1 shrink-0">
             <button
               onClick={() => setViewMode('list')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
+                  ? 'bg-white dark:bg-dark-elevated shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
@@ -868,7 +868,7 @@ export const ProductsPage = () => {
               onClick={() => setViewMode('grid')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                 viewMode === 'grid'
-                  ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
+                  ? 'bg-white dark:bg-dark-elevated shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
@@ -880,7 +880,7 @@ export const ProductsPage = () => {
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-xl appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-dark-border-strong"
             >
               <option value="">All Categories</option>
               {categoryOptions.map(c => (
@@ -897,7 +897,7 @@ export const ProductsPage = () => {
             <select
               value={stockFilter}
               onChange={e => setStockFilter(e.target.value)}
-              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-xl appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-dark-border-strong"
             >
               <option value="">All Statuses</option>
               <option value="in-stock">{t('pos.inStock')}</option>
@@ -927,8 +927,8 @@ export const ProductsPage = () => {
             className="pl-9 w-full text-xs h-9"
           />
           {showSearchSuggestions && search.trim().length > 0 && searchSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
-              <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-dark-card rounded-xl shadow-xl border border-gray-200 dark:border-dark-border py-1.5 z-50 overflow-hidden">
+              <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-dark-border">
                 Matching Products ({searchSuggestions.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
@@ -945,7 +945,7 @@ export const ProductsPage = () => {
                         setShowSearchSuggestions(false)
                         setCurrentPage(1)
                       }}
-                      className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                      className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-dark-border/50 last:border-none"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
@@ -955,7 +955,7 @@ export const ProductsPage = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
+                        <span className="text-xs font-bold text-blue-600 dark:text-white">{formatINR(price)}</span>
                         <span className={`block text-[10px] ${stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
                           {stock <= 0 ? 'Out of Stock' : `${stock} in stock`}
                         </span>
@@ -995,7 +995,7 @@ export const ProductsPage = () => {
           <button
             type="button"
             onClick={() => scrollCategories('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -ml-2"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-dark-card/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong transition-all -ml-2"
             aria-label="Scroll Left"
           >
             <ChevronLeft size={15} />
@@ -1013,8 +1013,8 @@ export const ProductsPage = () => {
             onClick={() => setCategoryFilter('')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
               !categoryFilter
-                ? 'bg-[#0a0a2e] text-white shadow-xs ring-2 ring-blue-500/20'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
+                : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
             }`}
           >
             All Categories ({activeProducts.length})
@@ -1028,8 +1028,8 @@ export const ProductsPage = () => {
                 onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
                   categoryFilter === c.value
-                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/20'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
+                    : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
                 }`}
               >
                 {c.label} ({count})
@@ -1042,7 +1042,7 @@ export const ProductsPage = () => {
           <button
             type="button"
             onClick={() => scrollCategories('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -mr-2"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-dark-card/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong transition-all -mr-2"
             aria-label="Scroll Right"
           >
             <ChevronRight size={15} />
@@ -1055,7 +1055,7 @@ export const ProductsPage = () => {
         {/* Product List - Left */}
         <div data-tour="products-table" className="xl:col-span-3">
           <Card className="overflow-hidden">
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+            <div className="p-6 border-b border-gray-100 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Inventory Catalog</h3>
             </div>
 
@@ -1065,7 +1065,7 @@ export const ProductsPage = () => {
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
+                    <thead className="bg-gray-50 dark:bg-dark-card">
                       <tr className="text-xs font-bold uppercase tracking-wider text-gray-500">
                         <th className="px-4 py-4 w-10">
                           <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1082,7 +1082,7 @@ export const ProductsPage = () => {
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                       {paginated.map(product => {
                         const storeStock = getBrowseStock(product)
                         const storePrice = getBrowsePrice(product)
@@ -1093,7 +1093,7 @@ export const ProductsPage = () => {
                           <tr
                             key={product.id}
                             onClick={() => openDetail(product)}
-                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-gray-800/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-dark-card/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
                           >
                             <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1104,7 +1104,7 @@ export const ProductsPage = () => {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
+                                <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-dark-elevated overflow-hidden flex-shrink-0">
                                   {product.imageURL ? (
                                     <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                                   ) : (
@@ -1159,7 +1159,7 @@ export const ProductsPage = () => {
                                 {browseStoreId && (
                                   <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
                                 )}
-                                <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div className="w-24 h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
                                       isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
@@ -1180,13 +1180,13 @@ export const ProductsPage = () => {
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
                                   title="Print label"
-                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-elevated rounded-full transition-colors"
                                 >
                                   <Tag size={16} className="text-gray-400" />
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); openEdit(product) }}
-                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-elevated rounded-full transition-colors"
                                 >
                                   <MoreHorizontal size={18} className="text-gray-400" />
                                 </button>
@@ -1201,7 +1201,7 @@ export const ProductsPage = () => {
 
                 {/* Pagination */}
                 {filtered.length > 0 && (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <div className="p-4 bg-gray-50 dark:bg-dark-card border-t border-gray-100 dark:border-dark-border flex items-center justify-between">
                     <span className="text-xs text-gray-500">
                       Showing {paginated.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0} to {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} products
                     </span>
@@ -1209,7 +1209,7 @@ export const ProductsPage = () => {
                       <button
                         disabled={currentPage === 1}
                         onClick={() => setCurrentPage(p => p - 1)}
-                        className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        className="p-2 rounded-lg border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:bg-gray-50 disabled:opacity-50"
                       >
                         <ChevronLeft size={16} />
                       </button>
@@ -1219,8 +1219,8 @@ export const ProductsPage = () => {
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold ${
                             currentPage === page
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                              ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900'
+                              : 'bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
                           }`}
                         >
                           {page}
@@ -1229,7 +1229,7 @@ export const ProductsPage = () => {
                       <button
                         disabled={currentPage >= totalPages}
                         onClick={() => setCurrentPage(p => p + 1)}
-                        className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        className="p-2 rounded-lg border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:bg-gray-50 disabled:opacity-50"
                       >
                         <ChevronRight size={16} />
                       </button>
@@ -1244,7 +1244,7 @@ export const ProductsPage = () => {
                   {paginated.map(product => (
                     <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openDetail(product)}>
                       <div>
-                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
+                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-dark-elevated mb-2 sm:mb-3 overflow-hidden relative group">
                           {product.imageURL ? (
                             <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
@@ -1256,7 +1256,7 @@ export const ProductsPage = () => {
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
                             title="Print Label"
-                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-dark-card/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
                           >
                             <Tag size={14} />
                           </button>
@@ -1266,7 +1266,7 @@ export const ProductsPage = () => {
                           {product.name}
                         </p>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-dark-border">
                         <Badge variant={
                           product.currentStock <= 0 ? 'danger' :
                           product.currentStock <= product.lowStockThreshold ? 'warning' : 'success'
@@ -1413,7 +1413,7 @@ export const ProductsPage = () => {
                       <span className="text-gray-600 dark:text-gray-300">{getCategoryName(catId)}</span>
                       <span className="text-gray-900 dark:text-gray-100">{percent}%</span>
                     </div>
-                    <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
+                    <div className="w-full h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full">
                       <div className="h-full bg-blue-500 rounded-full" style={{ width: `${percent}%` }} />
                     </div>
                   </div>
@@ -1622,18 +1622,18 @@ export const ProductsPage = () => {
                   {t('products.sellingPrice')} *
                   <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: false }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
                     {t('products.exclGst')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: true }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
                     {t('products.inclGst')}
                   </button>
@@ -1737,7 +1737,7 @@ export const ProductsPage = () => {
 
           {/* Stock by Location — only shown when multi-location inventory is enabled */}
           {locationFeatureEnabled && activeLocations.length > 0 && (
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+            <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
                 {t('locations.stockAtLocation') || 'Stock by Location'}
               </p>
@@ -1763,7 +1763,7 @@ export const ProductsPage = () => {
                             data: { stock: Number(e.target.value) || 0 },
                           })}
                           placeholder="Stock"
-                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated"
                         />
                         <input
                           type="number"
@@ -1774,7 +1774,7 @@ export const ProductsPage = () => {
                             data: { priceOverride: e.target.value === '' ? null : Number(e.target.value) },
                           })}
                           placeholder={`Price (default ${form.sellingPrice || '0'})`}
-                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated"
                         />
                       </div>
                     )
@@ -1785,7 +1785,7 @@ export const ProductsPage = () => {
           )}
 
           {/* Additional Details — entirely optional, never validated as required */}
-          <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+          <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
               {t('products.additionalDetails')} <span className="font-normal">({t('common.optional')})</span>
             </p>
@@ -1822,7 +1822,7 @@ export const ProductsPage = () => {
                   onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder={t('products.descriptionPlaceholder')}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-sm resize-none"
                 />
               </div>
             </div>
@@ -1868,7 +1868,7 @@ export const ProductsPage = () => {
             />
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
             <Button
               variant="primary"
               onClick={handleManualBarcodeUpdate}
@@ -1951,7 +1951,7 @@ export const ProductsPage = () => {
             {/* Product Summary Header */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/60">
               <div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">Product</p>
+                <p className="text-xs text-blue-600 dark:text-white font-semibold uppercase tracking-wider">Product</p>
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mt-0.5">{labelProduct.name}</h3>
                 <p className="text-xs text-gray-500 font-mono mt-0.5">SKU: {labelProduct.sku} | Price: {formatINR(labelProduct.sellingPrice)}</p>
               </div>
@@ -1968,7 +1968,7 @@ export const ProductsPage = () => {
                   <Tag size={13} className="text-blue-500" />
                   Label Sticker Size
                 </label>
-                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                <span className="text-xs font-semibold text-blue-600 dark:text-white bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
                   {labelWidth}mm × {labelHeight}mm
                 </span>
               </div>
@@ -1982,8 +1982,8 @@ export const ProductsPage = () => {
                       onClick={() => handleSelectSizePreset(p.id)}
                       className={`p-2 rounded-xl border text-center transition-all ${
                         isSelected
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
-                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
+                          ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
+                          : 'bg-white dark:bg-dark-card/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
                       }`}
                     >
                       <div className="text-xs font-bold">{p.label}</div>
@@ -2048,7 +2048,7 @@ export const ProductsPage = () => {
                       className={`p-2.5 rounded-xl border text-left transition-all ${
                         isSelected
                           ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-400/30 font-semibold'
-                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                          : 'bg-white dark:bg-dark-card/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-blue-300'
                       }`}
                     >
                       <div className="text-xs font-bold">{tmpl.label}</div>
@@ -2092,10 +2092,10 @@ export const ProductsPage = () => {
             </div>
 
             {/* Live Canvas Sticker Preview */}
-            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
+            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-dark-card/60 border border-dashed border-gray-300 dark:border-dark-border-strong relative overflow-hidden">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({labelWidth}mm × {labelHeight}mm)</span>
               <div
-                className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
+                className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
                 style={{
                   minHeight: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
                   transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
@@ -2104,10 +2104,10 @@ export const ProductsPage = () => {
                 {activeLabelTemplate.map((el: LabelElement) => {
                   const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
                   const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
-                  const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-blue-400' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
+                  const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-white' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-white font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
 
                   if (el.type === 'divider') {
-                    return <hr key={el.id} className="border-t border-gray-300 dark:border-gray-600 my-1 w-full" />
+                    return <hr key={el.id} className="border-t border-gray-300 dark:border-dark-border-strong my-1 w-full" />
                   }
 
                   if (el.type === 'sideBySideBarcodeQr') {

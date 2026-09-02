@@ -136,7 +136,7 @@ const ProgressRow = ({ left, right, sub, percent, badge }: { left: string; right
       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{right}</p>
     </div>
     {sub && <p className="text-xs text-gray-400 mb-1.5">{sub}</p>}
-    <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mt-1.5">
+    <div className="w-full h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden mt-1.5">
       <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(percent, 100)}%` }} />
     </div>
   </div>
@@ -285,7 +285,7 @@ export const DashboardPage = () => {
         {/* Total Revenue */}
         <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center">
               <IndianRupee size={22} className="text-gray-600 dark:text-gray-300" />
             </div>
             <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
@@ -302,7 +302,7 @@ export const DashboardPage = () => {
         {/* Total Sales */}
         <Card className="p-5 bg-white border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center">
               <ShoppingBag size={22} className="text-gray-600 dark:text-gray-300" />
             </div>
             <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
@@ -362,7 +362,7 @@ export const DashboardPage = () => {
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
               printer.status === 'connected' || printer.status === 'printing'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                : 'bg-gray-100 dark:bg-gray-700'
+                : 'bg-gray-100 dark:bg-dark-elevated'
             }`}>
               {printer.status === 'connected' || printer.status === 'printing' ? (
                 <BluetoothConnected size={22} className="text-emerald-600 dark:text-emerald-400" />
@@ -561,14 +561,14 @@ export const DashboardPage = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.revenueTrends')}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.revenueTrendsDesc')}</p>
             </div>
-            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div className="flex bg-gray-100 dark:bg-dark-elevated rounded-lg p-1">
               {(['daily', 'weekly', 'monthly'] as const).map(period => (
                 <button
                   key={period}
                   onClick={() => setChartPeriod(period)}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                     chartPeriod === period
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm'
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
@@ -674,7 +674,7 @@ export const DashboardPage = () => {
           <div className="space-y-4">
             {lowStockProducts.length > 0 ? lowStockProducts.map(product => (
               <div key={product.id} className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center overflow-hidden flex-shrink-0">
                   {product.imageURL ? (
                     <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
@@ -691,7 +691,7 @@ export const DashboardPage = () => {
                   }`}>
                     {product.currentStock} {t('dashboard.left')}
                   </p>
-                  <div className="w-20 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mt-1">
+                  <div className="w-20 h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full mt-1">
                     <div
                       className={`h-full rounded-full ${
                         product.currentStock <= 0 ? 'bg-red-500' : product.currentStock <= product.lowStockThreshold ? 'bg-amber-500' : 'bg-emerald-500'
@@ -709,7 +709,7 @@ export const DashboardPage = () => {
           {lowStockAlerts > 0 && (
             <button
               onClick={() => navigate(ROUTES.PRODUCTS)}
-              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              className="w-full mt-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-elevated rounded-xl hover:bg-gray-200 dark:hover:bg-dark-hover transition-colors"
             >
               {t('dashboard.restockAll')}
             </button>
@@ -742,14 +742,14 @@ export const DashboardPage = () => {
                   <th className="pb-3">{t('common.status')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              <tbody className="divide-y divide-gray-50 dark:divide-dark-border">
                 {recentSales.length > 0 ? recentSales.map(sale => {
                   const customerName = sale.customerId ? t('dashboard.customerLabel') : t('dashboard.walkInCustomer')
                   const initials = customerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                   const colors = ['bg-sky-500', 'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500']
                   const colorIndex = Math.abs(sale.grandTotal * 100) % colors.length
                   return (
-                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-dark-card/50 transition-colors">
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-full ${colors[colorIndex]} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>

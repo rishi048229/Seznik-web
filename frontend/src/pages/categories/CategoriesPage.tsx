@@ -37,7 +37,7 @@ const CATEGORY_ICONS: React.ReactNode[] = [
 ]
 
 const ICON_COLORS = [
-  'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+  'bg-blue-100 text-blue-600 dark:bg-white/10 dark:text-white',
   'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
   'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
   'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
@@ -192,7 +192,7 @@ export const CategoriesPage = () => {
         { onSuccess: () => toast.success(`Category ${category.isActive !== false ? 'deactivated' : 'activated'}`) }
       )}
       className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-        category.isActive !== false ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+        category.isActive !== false ? 'bg-blue-600' : 'bg-gray-300 dark:bg-dark-hover'
       }`}
     >
       <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
@@ -239,21 +239,21 @@ export const CategoriesPage = () => {
         {/* Category Management Table - Left */}
         <div data-tour="categories-table" className="lg:col-span-8">
           <Card className="overflow-hidden">
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div className="p-6 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Management</h3>
               <Button
                 variant="outline"
                 size="sm"
                 leftIcon={<Download size={14} />}
                 onClick={() => setShowExportModal(true)}
-                className="font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800"
+                className="font-semibold text-blue-600 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800"
               >
                 Export
               </Button>
             </div>
 
             {/* Table Header */}
-            <div className="hidden sm:flex items-center px-4 py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400 bg-gray-50 dark:bg-gray-800 gap-3">
+            <div className="hidden sm:flex items-center px-4 py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400 bg-gray-50 dark:bg-dark-card gap-3">
               <div className="w-14 flex-shrink-0" />
               <div className="flex-1 min-w-0 flex items-center">
                 Category Name
@@ -277,7 +277,7 @@ export const CategoriesPage = () => {
               <div className="p-4"><TableSkeleton rows={5} columns={5} /></div>
             ) : (
               <>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-dark-border">
                   {paginated.map((category, index) => {
                     const productCount = getCategoryProductCount(category.id)
                     const children = childrenOf(category.id)
@@ -287,7 +287,7 @@ export const CategoriesPage = () => {
                     return (
                       <div key={category.id}>
                         {/* Parent row */}
-                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all">
+                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-card/50 transition-all">
                           {/* Expand toggle + icon */}
                           <div className="w-14 flex items-center gap-1 flex-shrink-0">
                             <button
@@ -357,7 +357,7 @@ export const CategoriesPage = () => {
                             return (
                               <div
                                 key={child.id}
-                                className="flex items-center gap-3 pl-14 pr-4 py-2.5 bg-gray-50/70 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-all border-t border-gray-100/70 dark:border-gray-800"
+                                className="flex items-center gap-3 pl-14 pr-4 py-2.5 bg-gray-50/70 dark:bg-dark-card/30 hover:bg-gray-100 dark:hover:bg-dark-card/60 transition-all border-t border-gray-100/70 dark:border-dark-border"
                               >
                                 <CornerDownRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
@@ -397,7 +397,7 @@ export const CategoriesPage = () => {
 
                 {/* Pagination */}
                 {filteredTopLevel.length > 0 && (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <div className="p-4 bg-gray-50 dark:bg-dark-card border-t border-gray-100 dark:border-dark-border flex items-center justify-between">
                     <span className="text-xs text-gray-400">
                       Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filteredTopLevel.length)} of {filteredTopLevel.length} categories
                     </span>
@@ -405,7 +405,7 @@ export const CategoriesPage = () => {
                       <button
                         disabled={currentPage === 1}
                         onClick={() => setCurrentPage(p => p - 1)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-400 disabled:opacity-50"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong text-gray-400 disabled:opacity-50"
                       >
                         <ChevronLeft size={14} />
                       </button>
@@ -415,8 +415,8 @@ export const CategoriesPage = () => {
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold ${
                             currentPage === page
-                              ? 'bg-[#0a0a2e] text-white'
-                              : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                              ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                              : 'bg-gray-200 dark:bg-dark-hover text-gray-600 dark:text-gray-300'
                           }`}
                         >
                           {page}
@@ -425,7 +425,7 @@ export const CategoriesPage = () => {
                       <button
                         disabled={currentPage >= totalPages}
                         onClick={() => setCurrentPage(p => p + 1)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-400 disabled:opacity-50"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong text-gray-400 disabled:opacity-50"
                       >
                         <ChevronRight size={14} />
                       </button>
@@ -521,7 +521,7 @@ export const CategoriesPage = () => {
                     <span className="text-gray-600 dark:text-gray-300">{cat.name}</span>
                     <span className="text-gray-900 dark:text-gray-100">{cat.percent}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
+                  <div className="w-full h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full">
                     <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${cat.percent}%` }} />
                   </div>
                 </div>
@@ -564,7 +564,7 @@ export const CategoriesPage = () => {
           </div>
 
           {editingHasChildren ? (
-            <p className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+            <p className="text-xs text-gray-400 bg-gray-50 dark:bg-dark-card rounded-lg p-3">
               This category has its own subcategories, so it can't be moved under another category.
             </p>
           ) : (

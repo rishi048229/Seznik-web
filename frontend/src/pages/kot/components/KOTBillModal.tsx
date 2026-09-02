@@ -125,7 +125,7 @@ export const KOTBillModal = ({
           }
           disabled={!isComplete || loading || net < 0}
           loading={loading}
-          className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+          className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
         >
           <Printer size={18} className="mr-2" />
           {isComplete ? 'Print Bill & Mark Settled' : 'Select customer for unpaid balance'}
@@ -143,8 +143,8 @@ export const KOTBillModal = ({
                 onClick={() => onOrderTypeChange(opt.id)}
                 className={`py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                   orderType === opt.id
-                    ? 'bg-[#0a0a2e] text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
                 }`}
               >
                 {opt.label}
@@ -153,12 +153,12 @@ export const KOTBillModal = ({
           </div>
         </div>
 
-        <div className="text-center py-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+        <div className="text-center py-4 bg-gray-50 dark:bg-dark-elevated/50 rounded-xl">
           <p className="text-sm text-gray-500 dark:text-gray-400">Amount due</p>
           <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatINR(net)}</p>
         </div>
 
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-1.5 text-sm">
+        <div className="rounded-xl border border-gray-200 dark:border-dark-border p-3 space-y-1.5 text-sm">
           {breakdown.map((row) => (
             <div key={row.label} className="flex justify-between text-gray-600 dark:text-gray-300">
               <span>{row.label}</span>
@@ -220,8 +220,8 @@ export const KOTBillModal = ({
                 }}
                 className={`py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                   roomType === opt.id
-                    ? 'bg-[#0a0a2e] text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
                 }`}
               >
                 {opt.label}
@@ -272,8 +272,8 @@ export const KOTBillModal = ({
                 }}
                 className={`group flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-xl transition-colors duration-150 ${
                   method === id
-                    ? 'bg-[#0a0a2e] text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+                    ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'bg-gray-100 dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-elevated hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
                 <Icon size={18} strokeWidth={method === id ? 2.2 : 1.75} />
@@ -305,7 +305,7 @@ export const KOTBillModal = ({
                     key={amt}
                     type="button"
                     onClick={() => setAmountPaid(String(amt))}
-                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated dark:border-dark-border-strong dark:text-gray-300"
                   >
                     {formatINR(amt)}
                   </button>

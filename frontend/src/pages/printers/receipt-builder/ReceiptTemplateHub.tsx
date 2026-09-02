@@ -32,7 +32,7 @@ export function ReceiptTemplateHub({
           type="button"
           onClick={onCreate}
           disabled={isSaving}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0a0a2e] text-white text-xs font-semibold"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold"
         >
           <Plus size={14} /> New
         </button>
@@ -45,7 +45,7 @@ export function ReceiptTemplateHub({
             <div
               key={t.id}
               className={`flex-shrink-0 min-w-[160px] rounded-xl border p-3 cursor-pointer transition-all ${
-                selected ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                selected ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card'
               }`}
               onClick={() => onSelect(t.id)}
             >

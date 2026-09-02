@@ -99,7 +99,7 @@ export const CreditsPage = () => {
 
             <Card className="p-5 bg-white border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-dark-elevated flex items-center justify-center">
                   <Wallet size={20} className="text-gray-600 dark:text-gray-300" />
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('credits.customersWithDues')}</p>
@@ -109,7 +109,7 @@ export const CreditsPage = () => {
 
             <Card className="p-5 bg-white border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-dark-elevated flex items-center justify-center">
                   <Receipt size={20} className="text-gray-600 dark:text-gray-300" />
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('credits.totalTransactions')}</p>
@@ -139,11 +139,11 @@ export const CreditsPage = () => {
                     return (
                       <div
                         key={customer.id}
-                        className="bg-gray-50 dark:bg-gray-700/50 rounded-xl overflow-hidden"
+                        className="bg-gray-50 dark:bg-dark-elevated/50 rounded-xl overflow-hidden"
                       >
                         <div className="flex items-center justify-between p-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-sm">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-white font-semibold text-sm">
                               {customer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                             </div>
                             <div>
@@ -162,7 +162,7 @@ export const CreditsPage = () => {
                                 setPaymentAmount(String(customer.creditBalance))
                                 setIsPaymentOpen(true)
                               }}
-                              className="bg-[#0a0a2e] hover:bg-[#1a1555] text-white"
+                              className="bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white text-white"
                             >
                               {t('action.pay')}
                             </Button>
@@ -179,7 +179,7 @@ export const CreditsPage = () => {
 
                         {/* Credit History */}
                         {isExpanded && custTxs.length > 0 && (
-                          <div className="border-t border-gray-200 dark:border-gray-600 p-3 space-y-2 bg-gray-100 dark:bg-gray-800/50">
+                          <div className="border-t border-gray-200 dark:border-dark-border-strong p-3 space-y-2 bg-gray-100 dark:bg-dark-card/50">
                             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Credit History ({custTxs.length} entries)</p>
                             {custTxs.slice(0, 10).map(tx => (
                               <div key={tx.id} className="flex items-center justify-between text-sm">
@@ -229,7 +229,7 @@ export const CreditsPage = () => {
                     const customerObj = customerList.find(c => c.id === tx.customerId) || (tx as any).customer
                     const customerName = customerObj?.name || (tx as any).customerName || (tx as any).customer?.name || 'Customer'
                     return (
-                      <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                      <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-elevated/50 rounded-xl">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                             tx.type === 'payment'
@@ -284,7 +284,7 @@ export const CreditsPage = () => {
       >
         <div className="space-y-4">
           {selectedCustomer && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+            <div className="p-4 bg-gray-50 dark:bg-dark-elevated/50 rounded-xl">
               <p className="text-sm text-gray-500 dark:text-gray-400">Customer</p>
               <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{selectedCustomer.name}</p>
               <p className="text-sm text-red-600 dark:text-red-400 mt-1">

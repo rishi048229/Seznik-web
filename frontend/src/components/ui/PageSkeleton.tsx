@@ -4,7 +4,7 @@ import { TableSkeleton } from './TableSkeleton'
 export const StatCardsSkeleton = ({ count = 4 }: { count?: number }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
     {Array.from({ length: count }).map((_, i) => (
-      <div key={i} className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700/60 shadow-sm space-y-3">
+      <div key={i} className="bg-white dark:bg-dark-card p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-dark-border/60 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <Skeleton variant="text" className="h-3.5 w-24" />
           <Skeleton variant="circular" className="w-9 h-9" />
@@ -29,7 +29,7 @@ export const TablePageSkeleton = ({
 }) => (
   <div className="space-y-6 w-full animate-fadeIn">
     {/* Page Header Skeleton */}
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-dark-card p-5 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm">
       <div className="flex items-center gap-3">
         <Skeleton variant="circular" className="w-11 h-11" />
         <div className="space-y-2">
@@ -47,7 +47,7 @@ export const TablePageSkeleton = ({
     {showCards && <StatCardsSkeleton count={cards} />}
 
     {/* Search & Filter Bar Skeleton */}
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
+    <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
       <Skeleton variant="rectangular" className="h-10 w-full sm:w-72 rounded-xl" />
       <div className="flex gap-2 w-full sm:w-auto">
         <Skeleton variant="rectangular" className="h-10 w-28 rounded-xl" />
@@ -76,11 +76,11 @@ export const DashboardSkeleton = () => (
 
     {/* Charts & Grid */}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+      <div className="lg:col-span-2 bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-4">
         <Skeleton variant="text" className="h-5 w-40" />
         <Skeleton variant="rectangular" className="h-64 w-full rounded-xl" />
       </div>
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-4">
         <Skeleton variant="text" className="h-5 w-36" />
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="flex items-center gap-3">
@@ -100,7 +100,7 @@ export const POSPageSkeleton = () => (
   <div className="flex flex-col lg:flex-row gap-6 w-full h-full animate-fadeIn">
     {/* Left Panel: Catalog Skeleton */}
     <div className="flex-1 space-y-5">
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-3">
+      <div className="bg-white dark:bg-dark-card p-4 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-3">
         <Skeleton variant="rectangular" className="h-10 w-full rounded-xl" />
         <div className="flex gap-2 overflow-x-auto pb-1">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -111,7 +111,7 @@ export const POSPageSkeleton = () => (
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 p-3.5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-3">
+          <div key={i} className="bg-white dark:bg-dark-card p-3.5 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-3">
             <Skeleton variant="rectangular" className="h-28 w-full rounded-xl" />
             <Skeleton variant="text" className="h-4 w-3/4" />
             <div className="flex justify-between items-center">
@@ -124,9 +124,9 @@ export const POSPageSkeleton = () => (
     </div>
 
     {/* Right Panel: Cart Skeleton */}
-    <div className="w-full lg:w-96 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-between space-y-4">
+    <div className="w-full lg:w-96 bg-white dark:bg-dark-card p-5 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm flex flex-col justify-between space-y-4">
       <div className="space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-dark-border">
           <Skeleton variant="text" className="h-5 w-28" />
           <Skeleton variant="text" className="h-4 w-16" />
         </div>
@@ -140,7 +140,7 @@ export const POSPageSkeleton = () => (
           </div>
         ))}
       </div>
-      <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+      <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-dark-border">
         <div className="flex justify-between">
           <Skeleton variant="text" className="h-4 w-20" />
           <Skeleton variant="text" className="h-4 w-24" />
@@ -153,12 +153,12 @@ export const POSPageSkeleton = () => (
 
 export const SettingsPageSkeleton = () => (
   <div className="space-y-6 w-full animate-fadeIn">
-    <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-3">
+    <div className="flex gap-2 border-b border-gray-200 dark:border-dark-border pb-3">
       {Array.from({ length: 4 }).map((_, i) => (
         <Skeleton key={i} variant="rectangular" className="h-9 w-32 rounded-xl" />
       ))}
     </div>
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-6">
+    <div className="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="space-y-2">
@@ -173,8 +173,8 @@ export const SettingsPageSkeleton = () => (
 )
 
 export const AuthPageSkeleton = () => (
-  <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 animate-fadeIn" aria-busy="true" aria-label="Loading">
-    <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg p-8 space-y-6">
+  <div className="min-h-[100dvh] bg-gray-50 dark:bg-dark-bg flex items-center justify-center p-4 animate-fadeIn" aria-busy="true" aria-label="Loading">
+    <div className="w-full max-w-md bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border shadow-lg p-8 space-y-6">
       <div className="flex flex-col items-center gap-3">
         <Skeleton variant="rectangular" className="h-14 w-14 rounded-2xl" />
         <Skeleton variant="text" className="h-6 w-44" />
@@ -212,17 +212,17 @@ export const DetailPageSkeleton = () => (
       </div>
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+      <div className="lg:col-span-2 bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-4">
         <Skeleton variant="text" className="h-5 w-36" />
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-0">
+          <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-dark-border/60 last:border-0">
             <Skeleton variant="text" className="h-4 w-40" />
             <Skeleton variant="text" className="h-4 w-20" />
           </div>
         ))}
         <Skeleton variant="rectangular" className="h-10 w-full rounded-xl mt-4" />
       </div>
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm space-y-4">
         <Skeleton variant="text" className="h-5 w-28" />
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="flex justify-between">
@@ -239,7 +239,7 @@ export const DetailPageSkeleton = () => (
 export const TokensGridSkeleton = ({ count = 10 }: { count?: number }) => (
   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-fadeIn">
     {Array.from({ length: count }).map((_, i) => (
-      <div key={i} className="flex flex-col items-center gap-3 p-5 rounded-xl border border-gray-100 dark:border-gray-700">
+      <div key={i} className="flex flex-col items-center gap-3 p-5 rounded-xl border border-gray-100 dark:border-dark-border">
         <Skeleton variant="circular" className="h-12 w-12" />
         <Skeleton variant="text" className="h-4 w-20" />
         <Skeleton variant="text" className="h-3 w-14" />
@@ -254,7 +254,7 @@ export const TokensPageSkeleton = () => (
       <Skeleton variant="text" className="h-7 w-36" />
       <Skeleton variant="rectangular" className="h-10 w-36 rounded-xl" />
     </div>
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+    <div className="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm">
       <TokensGridSkeleton />
     </div>
     <TableSkeleton rows={5} columns={4} />

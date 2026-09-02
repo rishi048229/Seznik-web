@@ -2,7 +2,7 @@ import { useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
 import { LanguageProvider } from '@/contexts/LanguageContext'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -220,13 +220,33 @@ const BusinessFeatureRoute = ({
   return <>{children}</>
 }
 
+function ThemedToaster() {
+  const { isDark } = useTheme()
+  return (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        style: isDark
+          ? { background: '#0e0e16', color: '#f3f4f6', border: '1px solid #22222f' }
+          : undefined,
+        success: {
+          iconTheme: isDark ? { primary: '#34d399', secondary: '#0e0e16' } : undefined,
+        },
+        error: {
+          iconTheme: isDark ? { primary: '#f87171', secondary: '#0e0e16' } : undefined,
+        },
+      }}
+    />
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
         <LanguageProvider>
         <AuthProvider>
-          <Toaster position="top-right" />
+          <ThemedToaster />
           <Suspense fallback={LoadingFallback}>
             <Routes>
               <Route path="/" element={<Navigate to={ROUTES.LOGIN} replace />} />

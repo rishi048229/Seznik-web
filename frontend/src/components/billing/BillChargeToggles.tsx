@@ -31,7 +31,7 @@ export function BillChargeToggles({
             className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
               selected
                 ? 'bg-violet-600 text-white border-violet-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                : 'border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
             }`}
           >
             {preset.label} · {formatINR(preview)}

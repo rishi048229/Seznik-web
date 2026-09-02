@@ -186,7 +186,7 @@ export const SaleDetailPage = () => {
       <div className="max-w-2xl mx-auto">
         <Card className="overflow-hidden">
           {/* Receipt Header */}
-          <div className="bg-[#0a0a2e] text-white p-6 text-center">
+          <div className="bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 p-6 text-center">
             <div className="flex flex-col items-center justify-center gap-1.5 mb-1">
               <img
                 src={settings?.businessLogoURL || "/seznik_logo.png"}
@@ -206,7 +206,7 @@ export const SaleDetailPage = () => {
 
           <div className="p-6 space-y-4">
             {/* Invoice Info */}
-            <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-dark-border">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {t("sales.invoiceHeader")}
@@ -271,7 +271,7 @@ export const SaleDetailPage = () => {
             <div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <tr className="border-b border-gray-200 dark:border-dark-border">
                     <th className="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">
                       {t("sales.itemHeader")}
                     </th>
@@ -286,7 +286,7 @@ export const SaleDetailPage = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                   {sale.items?.map((item, i) => (
                     <tr key={i}>
                       <td className="py-3">
@@ -315,7 +315,7 @@ export const SaleDetailPage = () => {
             </div>
 
             {/* Totals */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
+            <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 dark:text-gray-400">
                   {t("pos.subtotal")}
@@ -349,11 +349,11 @@ export const SaleDetailPage = () => {
               {sale.billCharges && sale.billCharges.length > 0 ? (
                 <BillChargesBreakdown charges={sale.billCharges} />
               ) : null}
-              <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-dark-border">
                 <span className="text-gray-900 dark:text-gray-100">
                   {t("sales.grandTotal")}
                 </span>
-                <span className="text-[#0a0a2e]">
+                <span className="text-[#0a0a2e] dark:text-indigo-300">
                   {formatINR(sale.grandTotal)}
                 </span>
               </div>
@@ -386,7 +386,7 @@ export const SaleDetailPage = () => {
             </div>
 
             {/* Footer */}
-            <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-center pt-4 border-t border-gray-200 dark:border-dark-border">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {t("sales.thankYouShopping")}
               </p>
@@ -413,7 +413,7 @@ export const SaleDetailPage = () => {
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => handlePrint("a4")}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-dark-border-strong hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] dark:border-zinc-500 transition-all"
             >
               <FileText size={32} className="text-gray-400" />
               <div className="text-center">
@@ -427,7 +427,7 @@ export const SaleDetailPage = () => {
             </button>
             <button
               onClick={() => handlePrint("thermal")}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
+              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-dark-border-strong hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] dark:border-zinc-500 transition-all"
             >
               <Printer size={32} className="text-gray-400" />
               <div className="text-center">

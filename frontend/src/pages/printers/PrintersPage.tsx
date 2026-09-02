@@ -695,13 +695,13 @@ export const PrintersPage = () => {
         <div
           className={`p-4 rounded-2xl border transition-all ${
             bleState.status === 'connected'
-              ? 'bg-gradient-to-b from-purple-50/80 to-indigo-50/40 border-purple-500 dark:from-purple-900/30 dark:to-indigo-900/20'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+              ? 'bg-gradient-to-b from-blue-50/80 to-sky-50/40 border-blue-500 dark:from-blue-900/30 dark:to-sky-900/20 dark:border-blue-500/60'
+              : 'bg-white dark:bg-dark-card border-gray-200 dark:border-dark-border'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 rounded-lg">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg">
                 <Bluetooth size={18} />
               </div>
               <div>
@@ -734,7 +734,7 @@ export const PrintersPage = () => {
                 onClick={handleConnectBluetooth}
                 loading={connectingBle}
                 disabled={bleState.status === 'unsupported'}
-                className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-white"
               >
                 <Bluetooth size={14} className="mr-1" />
                 Connect
@@ -755,7 +755,7 @@ export const PrintersPage = () => {
           )}
         </div>
 
-        <div className="p-4 rounded-2xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <div className="p-4 rounded-2xl border bg-white dark:bg-dark-card border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg">
               <Monitor size={18} />
@@ -772,7 +772,7 @@ export const PrintersPage = () => {
       </div>
 
       {/* Main Tabs Navigation Header — Pill Navigation from Main */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto">
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-dark-card/80 rounded-2xl border border-slate-200/80 dark:border-dark-border/80 overflow-x-auto">
         {([
           { key: 'receipt', label: 'Receipts', hint: 'Thermal bills', icon: FileText },
           { key: 'receiptBuilder', label: 'Receipt Builder', hint: 'Custom layout', icon: Sparkles },
@@ -785,7 +785,7 @@ export const PrintersPage = () => {
             onClick={() => setActiveTab(t.key)}
             className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors duration-150 ${
               activeTab === t.key
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                ? 'bg-white dark:bg-dark-bg text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
@@ -888,7 +888,7 @@ export const PrintersPage = () => {
                 title="Store & Invoice details"
                 description="These fields are shared with Settings → Invoice."
                 action={
-                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 dark:bg-dark-card px-2 py-1 rounded-full">
                     Synced with Settings
                   </span>
                 }
@@ -899,12 +899,12 @@ export const PrintersPage = () => {
                     value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
                     onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
                     placeholder="e.g. TAX INVOICE, RETAIL BILL, ESTIMATE"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-bold text-gray-900 dark:text-gray-100"
                   />
                   <select
                     value={receiptConfig.headerTitle ?? 'TAX INVOICE'}
                     onChange={e => setReceiptConfig(prev => ({ ...prev, headerTitle: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold text-gray-900 dark:text-gray-100"
+                    className="px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-semibold text-gray-900 dark:text-gray-100"
                   >
                     <option value="TAX INVOICE">TAX INVOICE</option>
                     <option value="RETAIL BILL">RETAIL BILL</option>
@@ -921,14 +921,14 @@ export const PrintersPage = () => {
                       type="text"
                       value={receiptConfig.companyName}
                       onChange={(e) => setReceiptConfig(prev => ({ ...prev, companyName: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                       placeholder="Company name"
                     />
                     <input
                       type="text"
                       value={receiptConfig.gstin}
                       onChange={(e) => setReceiptConfig(prev => ({ ...prev, gstin: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                       placeholder="GSTIN"
                     />
                   </div>
@@ -936,21 +936,21 @@ export const PrintersPage = () => {
                     type="text"
                     value={receiptConfig.address}
                     onChange={(e) => setReceiptConfig(prev => ({ ...prev, address: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                     placeholder="Address"
                   />
                   <input
                     type="text"
                     value={receiptConfig.phone}
                     onChange={(e) => setReceiptConfig(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                     placeholder="Phone number"
                   />
                   <textarea
                     rows={2}
                     value={receiptConfig.footerMessage}
                     onChange={(e) => setReceiptConfig(prev => ({ ...prev, footerMessage: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs resize-none"
                     placeholder="Footer message"
                   />
                   <div className="space-y-2">
@@ -958,21 +958,21 @@ export const PrintersPage = () => {
                       type="text"
                       value={receiptConfig.termsLine1}
                       onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine1: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                       placeholder="Terms line 1"
                     />
                     <input
                       type="text"
                       value={receiptConfig.termsLine2}
                       onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine2: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                       placeholder="Terms line 2"
                     />
                     <input
                       type="text"
                       value={receiptConfig.termsLine3}
                       onChange={(e) => setReceiptConfig(prev => ({ ...prev, termsLine3: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                       placeholder="Terms line 3 (optional)"
                     />
                   </div>
@@ -1038,10 +1038,10 @@ export const PrintersPage = () => {
                 }
               >
                 {/* Store Logo Graphic Section + Dev's Logo Size Selector */}
-                <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="p-4 bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-xl space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-white flex items-center justify-center">
                         <ImageIcon size={16} />
                       </div>
                       <div>
@@ -1056,7 +1056,7 @@ export const PrintersPage = () => {
                     />
                   </div>
                   {config.showLogo && (
-                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                    <div className="pt-3 border-t border-gray-100 dark:border-dark-border space-y-3">
                       <ImageUpload
                         label="Store Logo Image"
                         value={receiptConfig.logoURL || settings?.businessLogoURL || ''}
@@ -1079,7 +1079,7 @@ export const PrintersPage = () => {
                               className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
                                 (receiptConfig.receiptLogoSize ?? 'medium') === chip
                                   ? 'bg-purple-600 text-white border-purple-600'
-                                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                                  : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-dark-border-strong hover:border-purple-400'
                               }`}
                             >
                               {chip.charAt(0).toUpperCase() + chip.slice(1)}
@@ -1093,7 +1093,7 @@ export const PrintersPage = () => {
                 </div>
 
                 {/* Content & Information Toggles */}
-                <div className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl px-4 bg-white dark:bg-gray-800">
+                <div className="divide-y divide-gray-100 dark:divide-dark-border border border-gray-100 dark:border-dark-border rounded-xl px-4 bg-white dark:bg-dark-card">
                   <Switch
                     checked={receiptConfig.showCompanyHeader ?? true}
                     onChange={v => setReceiptConfig(prev => ({ ...prev, showCompanyHeader: v }))}
@@ -1164,7 +1164,7 @@ export const PrintersPage = () => {
                 </div>
 
                 {/* Payment QR Code (UPI / QR Pay) Section + Dev's QR Size Selector */}
-                <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="p-4 bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-xl space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -1185,7 +1185,7 @@ export const PrintersPage = () => {
                     />
                   </div>
                   {receiptConfig.showPaymentQR && (
-                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                    <div className="pt-3 border-t border-gray-100 dark:border-dark-border space-y-3">
                       <div>
                         <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1 block">
                           UPI ID for live QR (recommended)
@@ -1194,7 +1194,7 @@ export const PrintersPage = () => {
                           type="text"
                           value={receiptConfig.upiId || ''}
                           onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
                           placeholder="yourname@okhdfcbank"
                         />
                         <p className="text-[11px] text-gray-400 mt-1">
@@ -1214,7 +1214,7 @@ export const PrintersPage = () => {
                       </p>
 
                       {/* QR Code Size Selector from Dev */}
-                      <div className="pt-2 border-t border-gray-100 dark:border-gray-700/80">
+                      <div className="pt-2 border-t border-gray-100 dark:border-dark-border/80">
                         <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
                           QR Code Size on Receipt
                         </label>
@@ -1227,7 +1227,7 @@ export const PrintersPage = () => {
                               className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
                                 (receiptConfig.receiptQrSize ?? 'medium') === chip
                                   ? 'bg-emerald-600 text-white border-emerald-600'
-                                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-emerald-400'
+                                  : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-dark-border-strong hover:border-emerald-400'
                               }`}
                             >
                               {chip.charAt(0).toUpperCase() + chip.slice(1)}
@@ -1311,7 +1311,7 @@ export const PrintersPage = () => {
                       className={`text-left py-2.5 px-3 rounded-xl text-xs transition-colors border ${
                         active
                           ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 text-slate-800 dark:text-slate-200'
+                          : 'border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-card/60 hover:bg-slate-100 text-slate-800 dark:text-slate-200'
                       }`}
                     >
                       <div className="font-semibold">{opt.title}</div>
@@ -1404,7 +1404,7 @@ export const PrintersPage = () => {
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="p-3 bg-slate-50 dark:bg-dark-bg/40 rounded-xl border border-slate-200 dark:border-dark-border space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Printer Command Language</span>
@@ -1424,7 +1424,7 @@ export const PrintersPage = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-dark-border">
                   <span className="text-xs text-slate-600 dark:text-slate-400">Sensor calibration:</span>
                   <div className="flex gap-2">
                     <Button
@@ -1461,7 +1461,7 @@ export const PrintersPage = () => {
                 <select
                   value={previewProductId}
                   onChange={(e) => setPreviewProductId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-semibold"
                 >
                   <option value="">-- Select Real Product --</option>
                   {(products || []).map(p => (
@@ -1490,7 +1490,7 @@ export const PrintersPage = () => {
                         e.target.value = ''
                       }
                     }}
-                    className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                    className="text-xs font-bold text-blue-600 dark:text-white bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
                     defaultValue=""
                   >
                     <option value="" disabled>+ Add Element...</option>
@@ -1507,7 +1507,7 @@ export const PrintersPage = () => {
                 {labelTemplate.map((el, idx) => (
                   <div
                     key={el.id}
-                    className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs space-y-2"
+                    className="p-3 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-xs space-y-2"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -1520,25 +1520,25 @@ export const PrintersPage = () => {
                       <div className="flex items-center gap-1">
                         {el.type !== 'divider' && (
                           <>
-                            <div className="flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mr-1">
+                            <div className="flex border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden mr-1">
                               <button
                                 type="button"
                                 onClick={() => updateLabelElement(el.id, { align: 'left' })}
-                                className={`p-1 ${el.align === 'left' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                className={`p-1 ${el.align === 'left' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-elevated'}`}
                               >
                                 <AlignLeft size={13} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => updateLabelElement(el.id, { align: 'center' })}
-                                className={`p-1 ${el.align === 'center' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                className={`p-1 ${el.align === 'center' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-elevated'}`}
                               >
                                 <AlignCenter size={13} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => updateLabelElement(el.id, { align: 'right' })}
-                                className={`p-1 ${el.align === 'right' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                className={`p-1 ${el.align === 'right' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-elevated'}`}
                               >
                                 <AlignRight size={13} />
                               </button>
@@ -1547,14 +1547,14 @@ export const PrintersPage = () => {
                             <button
                               type="button"
                               onClick={() => updateLabelElement(el.id, { bold: !el.bold })}
-                              className={`p-1 rounded ${el.bold ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                              className={`p-1 rounded ${el.bold ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-elevated'}`}
                             >
                               <Bold size={13} />
                             </button>
                             <select
                               value={el.fontSize || (el.large ? 'large' : 'medium')}
                               onChange={(e) => updateLabelElement(el.id, { fontSize: e.target.value as any })}
-                              className="text-[10px] font-bold px-1 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                              className="text-[10px] font-bold px-1 py-0.5 border border-gray-200 dark:border-dark-border-strong rounded bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-200"
                             >
                               <option value="small">Small</option>
                               <option value="medium">Medium</option>
@@ -1563,10 +1563,10 @@ export const PrintersPage = () => {
                             </select>
                           </>
                         )}
-                        <button type="button" onClick={() => moveLabelElement(el.id, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                        <button type="button" onClick={() => moveLabelElement(el.id, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-elevated disabled:opacity-30">
                           <ArrowUp size={13} />
                         </button>
-                        <button type="button" onClick={() => moveLabelElement(el.id, 1)} disabled={idx === labelTemplate.length - 1} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                        <button type="button" onClick={() => moveLabelElement(el.id, 1)} disabled={idx === labelTemplate.length - 1} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-elevated disabled:opacity-30">
                           <ArrowDown size={13} />
                         </button>
                         <button type="button" onClick={() => removeLabelElement(el.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
@@ -1582,14 +1582,14 @@ export const PrintersPage = () => {
                           placeholder="Prefix (e.g. Rs. )"
                           value={el.prefix ?? ''}
                           onChange={(e) => updateLabelElement(el.id, { prefix: e.target.value })}
-                          className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                          className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-dark-border-strong rounded bg-white dark:bg-dark-elevated text-gray-800 dark:text-gray-200"
                         />
                         <input
                           type="text"
                           placeholder="Suffix (e.g. /-)"
                           value={el.suffix ?? ''}
                           onChange={(e) => updateLabelElement(el.id, { suffix: e.target.value })}
-                          className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                          className="flex-1 px-2 py-0.5 border border-gray-200 dark:border-dark-border-strong rounded bg-white dark:bg-dark-elevated text-gray-800 dark:text-gray-200"
                         />
                       </div>
                     )}

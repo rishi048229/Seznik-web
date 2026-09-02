@@ -27,7 +27,7 @@ export const Switch = ({ checked, onChange, label, description, info }: SwitchPr
         onClick={() => onChange(!checked)}
         className={clsx(
           'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200',
-          checked ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+          checked ? 'bg-blue-600' : 'bg-gray-300 dark:bg-dark-hover'
         )}
       >
         <span

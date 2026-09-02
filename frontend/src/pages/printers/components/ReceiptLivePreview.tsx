@@ -144,7 +144,7 @@ export const ReceiptLivePreview = ({
   const logoSrc = receiptConfig.logoURL || settings?.businessLogoURL || ''
 
   return (
-    <div className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 p-3 sm:p-4 overflow-hidden">
+    <div className="w-full rounded-2xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-bg/60 p-3 sm:p-4 overflow-hidden">
       <div
         ref={stageRef}
         className="w-full max-h-[min(640px,calc(100dvh-12rem))] overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin"

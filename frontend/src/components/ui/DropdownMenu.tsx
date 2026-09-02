@@ -76,8 +76,8 @@ export const DropdownMenu = ({ trigger, children, align = 'right' }: DropdownMen
             role="menu"
             style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 80, minWidth: MENU_MIN_WIDTH }}
             className={clsx(
-              'bg-white dark:bg-gray-800',
-              'rounded-xl shadow-xl border border-gray-200 dark:border-gray-700',
+              'bg-white dark:bg-dark-card',
+              'rounded-xl shadow-xl border border-gray-200 dark:border-dark-border',
               'py-1',
               'animate-in fade-in zoom-in-95 duration-150'
             )}
@@ -99,7 +99,7 @@ export const DropdownMenuItem = ({ children, onClick }: { children: ReactNode; o
       onClick={() => {
         onClick?.()
       }}
-      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors flex items-center gap-2"
+      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-elevated/50 transition-colors flex items-center gap-2"
     >
       {children}
     </button>

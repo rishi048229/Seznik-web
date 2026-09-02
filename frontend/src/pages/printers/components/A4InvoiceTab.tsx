@@ -97,7 +97,7 @@ export function A4InvoiceTab({
                   className={`text-left rounded-xl border p-3 transition-colors ${
                     active
                       ? 'border-slate-900 dark:border-white bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 hover:border-slate-400'
+                      : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-bg/40 hover:border-slate-400'
                   }`}
                 >
                   <p className={`text-[10px] font-semibold uppercase tracking-wider ${active ? 'opacity-70' : 'text-slate-400'}`}>
@@ -315,7 +315,7 @@ export function A4InvoiceTab({
             />
           </label>
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl px-4">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-100 dark:border-dark-border rounded-xl px-4">
             <Switch checked={config.invoiceShowHeader} onChange={v => setField('invoiceShowHeader', v)} label="Header banner" info={<FieldInfo textKey="tip.printer.invoiceShowHeader" />} />
             <Switch checked={config.invoiceShowTerms} onChange={v => setField('invoiceShowTerms', v)} label="Print terms & conditions" info={<FieldInfo textKey="tip.printer.invoiceShowTerms" />} />
             <Switch checked={config.invoiceShowPaymentQR} onChange={v => setField('invoiceShowPaymentQR', v)} label="UPI payment QR code" info={<FieldInfo textKey="tip.printer.invoiceShowPaymentQR" />} />
@@ -333,7 +333,7 @@ export function A4InvoiceTab({
           title={template.name}
           description="This is the bill customers get for A4 print and PDF download. Save to use it on Sales and checkout."
         >
-          <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-3">
+          <div className="overflow-auto rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-bg p-3">
             <div className="mx-auto" style={{ width: 210 * 0.48, height: 297 * 0.48 }}>
               <iframe
                 title="A4 invoice preview"

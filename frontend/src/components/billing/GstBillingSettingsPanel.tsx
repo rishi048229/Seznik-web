@@ -84,7 +84,7 @@ export function GstBillingSettingsPanel({
                 className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
                   selected
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
+                    : 'border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-card'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">

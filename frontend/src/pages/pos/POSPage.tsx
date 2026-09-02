@@ -624,7 +624,7 @@ export const POSPage = () => {
   return (
     <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
       {/* Mobile Tab Switcher */}
-      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card flex-shrink-0">
         <button
           onClick={() => setMobileTab("products")}
           className={`flex-1 py-3 text-sm font-semibold transition-colors ${
@@ -645,7 +645,7 @@ export const POSPage = () => {
         >
           {t("pos.cartTab")}
           {items.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 text-[10px] font-bold">
               {items.length}
             </span>
           )}
@@ -659,7 +659,7 @@ export const POSPage = () => {
         {/* Search & Category Bar */}
         <div
           data-tour="pos-search-bar"
-          className="px-4 sm:px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10"
+          className="px-4 sm:px-6 pt-4 pb-3 bg-gray-50 dark:bg-dark-bg sticky top-0 z-10"
         >
           <div className="flex items-center gap-3">
             <div
@@ -694,7 +694,7 @@ export const POSPage = () => {
               >
                 <Filter size={18} />
                 {hasActiveFilters && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-600 border-2 border-white dark:border-gray-900" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-600 border-2 border-white dark:border-dark-bg" />
                 )}
               </Button>
 
@@ -704,7 +704,7 @@ export const POSPage = () => {
                     className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40 sm:hidden"
                     onClick={() => setIsFilterOpen(false)}
                   />
-                  <div className="fixed left-4 right-4 max-w-sm mx-auto top-28 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-none bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl z-50 p-5">
+                  <div className="fixed left-4 right-4 max-w-sm mx-auto top-28 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-none bg-white dark:bg-dark-card rounded-2xl border border-gray-200 dark:border-dark-border shadow-2xl z-50 p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">
                         {t("pos.filters")}
@@ -740,8 +740,8 @@ export const POSPage = () => {
                             onClick={() => setStockFilter(opt.value)}
                             className={`px-3 py-2 rounded-lg text-xs font-semibold text-center transition-colors ${
                               stockFilter === opt.value
-                                ? "bg-[#0a0a2e] text-white"
-                                : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                ? "bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900"
+                                : "bg-gray-100 dark:bg-dark-elevated text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-hover"
                             }`}
                           >
                             {opt.label}
@@ -786,7 +786,7 @@ export const POSPage = () => {
                         onChange={(e) =>
                           setSortBy(e.target.value as SortOption)
                         }
-                        className="w-full h-9 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        className="w-full h-9 px-3 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       >
                         <option value="name-asc">{t("pos.sortNameAsc")}</option>
                         <option value="name-desc">
@@ -815,8 +815,8 @@ export const POSPage = () => {
               onClick={toggleScanMode}
               className={`h-11 flex items-center gap-2 px-4 rounded-xl border-2 text-sm font-medium whitespace-nowrap transition-all ${
                 isScanMode
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                  : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400"
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-white"
+                  : "border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:border-gray-400"
               }`}
             >
               {isScanMode ? (
@@ -836,7 +836,7 @@ export const POSPage = () => {
           {/* Barcode Scan Input Panel */}
           {isScanMode && (
             <div className="mt-3 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-white font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
                 {t("pos.scanModeActive")}
               </div>
@@ -875,8 +875,8 @@ export const POSPage = () => {
               onClick={() => setSelectedCategory("")}
               className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                 !selectedCategory
-                  ? "bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300"
+                  ? "bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 shadow-sm ring-2 ring-blue-500/20 dark:ring-white/15"
+                  : "bg-gray-200 dark:bg-dark-elevated text-gray-600 dark:text-gray-300 hover:bg-gray-300"
               }`}
             >
               {t("pos.allProducts")}
@@ -887,8 +887,8 @@ export const POSPage = () => {
                   onClick={() => setSelectedCategory(parent.id)}
                   className={`px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
                     selectedCategory === parent.id
-                      ? "bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300"
+                      ? "bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 shadow-sm ring-2 ring-blue-500/20 dark:ring-white/15"
+                      : "bg-gray-200 dark:bg-dark-elevated text-gray-600 dark:text-gray-300 hover:bg-gray-300"
                   }`}
                 >
                   {parent.name}
@@ -899,8 +899,8 @@ export const POSPage = () => {
                     onClick={() => setSelectedCategory(child.id)}
                     className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                       selectedCategory === child.id
-                        ? "bg-[#0a0a2e] text-white shadow-sm ring-2 ring-blue-500/20"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                        ? "bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 shadow-sm ring-2 ring-blue-500/20 dark:ring-white/15"
+                        : "bg-gray-100 dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-elevated"
                     }`}
                   >
                     › {child.name}
@@ -930,8 +930,8 @@ export const POSPage = () => {
                   onClick={() => !isOutOfStock && handleProductClick(product)}
                   className={`relative group h-full flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
                     isOutOfStock
-                      ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40"
-                      : "cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-300 dark:hover:border-blue-800"
+                      ? "opacity-50 cursor-not-allowed border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-card/40"
+                      : "cursor-pointer border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/40 hover:border-blue-300 dark:hover:border-blue-800"
                   }`}
                 >
                   {/* Edit product — fix name/price/stock without leaving billing */}
@@ -939,13 +939,13 @@ export const POSPage = () => {
                     type="button"
                     onClick={(e) => openEditProduct(e, product)}
                     title={t("products.editProduct")}
-                    className="absolute top-1.5 right-1.5 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-500 dark:text-gray-300 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                    className="absolute top-1.5 right-1.5 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/90 dark:bg-dark-card/90 text-gray-500 dark:text-gray-300 hover:text-blue-600 shadow-md transition-all active:scale-95"
                   >
                     <Pencil size={14} />
                   </button>
 
                   {/* Thumbnail */}
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-dark-elevated flex items-center justify-center flex-shrink-0">
                     {product.imageURL ? (
                       <img
                         src={product.imageURL}
@@ -970,7 +970,7 @@ export const POSPage = () => {
                   {/* Price + stock badge + add */}
                   <div className="mt-auto pt-1 flex items-end justify-between gap-2">
                     <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-sm font-bold text-blue-600">
+                      <span className="text-sm font-bold text-blue-600 dark:text-sky-400">
                         {formatINR(product.sellingPrice)}
                       </span>
                       <span
@@ -993,7 +993,7 @@ export const POSPage = () => {
                         e.stopPropagation();
                         if (!isOutOfStock) handleProductClick(product);
                       }}
-                      className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                      className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                     >
                       <Plus size={16} />
                     </button>
@@ -1017,10 +1017,10 @@ export const POSPage = () => {
 
         {/* Mobile: View Cart sticky bar */}
         {items.length > 0 && (
-          <div className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
             <button
               onClick={() => setMobileTab("cart")}
-              className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"
+              className="w-full py-3 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 rounded-xl font-bold text-sm flex items-center justify-between px-5"
             >
               <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {items.length} items
@@ -1035,10 +1035,10 @@ export const POSPage = () => {
       {/* Right: Cart Panel */}
       <Card
         data-tour="pos-cart-panel"
-        className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col h-full min-h-0 max-h-full my-0 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden ${mobileTab === "products" ? "hidden sm:flex" : "flex"}`}
+        className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col h-full min-h-0 max-h-full my-0 sm:my-3 sm:mr-3 sm:ml-0 rounded-2xl border border-gray-200 dark:border-dark-border overflow-hidden ${mobileTab === "products" ? "hidden sm:flex" : "flex"}`}
       >
         {/* Cart Header */}
-        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-dark-border shrink-0">
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -1055,7 +1055,7 @@ export const POSPage = () => {
                 onClick={() => setIsPaymentOpen(true)}
                 disabled={isCreating}
                 title={t("pos.completeAndPrint")}
-                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
                 <span>{t("pos.print")}</span>
@@ -1090,11 +1090,11 @@ export const POSPage = () => {
               return (
                 <div
                   key={item.productId}
-                  className="group bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700/60 p-3 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                  className="group bg-gray-50 dark:bg-dark-elevated/30 rounded-lg border border-gray-100 dark:border-dark-border/60 p-3 hover:bg-gray-100 dark:hover:bg-dark-elevated/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     {/* Product Image */}
-                    <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-600 overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-dark-hover overflow-hidden flex-shrink-0">
                       {item.imageURL ? (
                         <img
                           src={item.imageURL}
@@ -1139,13 +1139,13 @@ export const POSPage = () => {
                   </div>
 
                   {/* Quantity Controls + Line Total - Separate Row */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
-                    <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-dark-border-strong">
+                    <div className="flex items-center bg-white dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border-strong px-1 py-0.5 gap-1">
                       <button
                         onClick={() =>
                           handleUpdateQty(item.productId, item.quantity - 1)
                         }
-                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-hover rounded transition-colors"
                       >
                         <Minus size={14} />
                       </button>
@@ -1156,7 +1156,7 @@ export const POSPage = () => {
                         onClick={() =>
                           handleUpdateQty(item.productId, item.quantity + 1)
                         }
-                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-hover rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         disabled={item.quantity >= available}
                       >
                         <Plus size={14} />
@@ -1173,7 +1173,7 @@ export const POSPage = () => {
         </div>
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-14 sm:pb-4 space-y-2">
+        <div className="shrink-0 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-card p-3 sm:p-4 pb-14 sm:pb-4 space-y-2">
           {/* Order Discount (Order-level only) */}
           {items.length > 0 && (
             <div className="flex items-center gap-2">
@@ -1192,7 +1192,7 @@ export const POSPage = () => {
                   onChange={(e) =>
                     setOrderDiscountType(e.target.value as "flat" | "percent")
                   }
-                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-dark-border-strong rounded-lg appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>
@@ -1240,7 +1240,7 @@ export const POSPage = () => {
             <Button
               onClick={() => setIsPaymentOpen(true)}
               disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+              className="w-full h-11 text-base font-bold bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
             >
               <Printer size={18} className="mr-2" />
               {t("pos.completeAndPrint")}
@@ -1260,7 +1260,7 @@ export const POSPage = () => {
             onClick={handleCheckout}
             disabled={!isComplete || isCreating}
             loading={isCreating}
-            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
           >
             <Printer size={18} className="mr-2" />
             {isComplete
@@ -1271,7 +1271,7 @@ export const POSPage = () => {
       >
         <div className="space-y-6">
           {/* Total Display */}
-          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+          <div className="text-center py-6 bg-gray-50 dark:bg-dark-elevated/50 rounded-xl">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {t("pos.totalAmount")}
             </p>
@@ -1280,7 +1280,7 @@ export const POSPage = () => {
             </p>
             {shouldShowGstBreakdown(gstBilling) &&
             gstSummary.taxableValue > 0 ? (
-              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3">
+              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-dark-border-strong pt-3">
                 <BillGstBreakdown
                   summary={gstSummary}
                   style={gstBilling.style}
@@ -1288,7 +1288,7 @@ export const POSPage = () => {
               </div>
             ) : null}
             {showCharges ? (
-              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3 space-y-3">
+              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-dark-border-strong pt-3 space-y-3">
                 <BillChargeToggles
                   presets={enabledPresets}
                   selectedIds={selectedIds}
@@ -1306,7 +1306,7 @@ export const POSPage = () => {
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
               <Calendar
                 size={14}
-                className="text-blue-600 dark:text-blue-400"
+                className="text-blue-600 dark:text-white"
               />
               Bill Date (Select for Backdated / Custom Date Invoice)
             </label>
@@ -1350,18 +1350,18 @@ export const POSPage = () => {
                   }}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
-                      ? "border-[#0a0a2e] bg-[#0a0a2e]/5"
-                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300"
+                      ? "border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10"
+                      : "border-gray-200 dark:border-dark-border-strong hover:border-gray-300"
                   }`}
                 >
                   <Icon
                     size={24}
                     className={
-                      method === id ? "text-[#0a0a2e]" : "text-gray-400"
+                      method === id ? "text-[#0a0a2e] dark:text-indigo-300" : "text-gray-400"
                     }
                   />
                   <span
-                    className={`text-xs font-medium ${method === id ? "text-[#0a0a2e]" : "text-gray-500"}`}
+                    className={`text-xs font-medium ${method === id ? "text-[#0a0a2e] dark:text-indigo-300" : "text-gray-500"}`}
                   >
                     {label}
                   </span>
@@ -1400,7 +1400,7 @@ export const POSPage = () => {
                     key={amt}
                     type="button"
                     onClick={() => setAmountPaid(String(amt))}
-                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
+                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated dark:border-dark-border-strong dark:text-gray-300 transition-colors"
                   >
                     {formatINR(amt)}
                   </button>

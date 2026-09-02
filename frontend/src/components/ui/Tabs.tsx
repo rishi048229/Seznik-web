@@ -10,7 +10,7 @@ interface TabsProps {
 
 export const Tabs = ({ tabs, activeTab, onChange, className }: TabsProps) => {
   return (
-    <div className={clsx('border-b border-gray-200 dark:border-gray-700', className)}>
+    <div className={clsx('border-b border-gray-200 dark:border-dark-border', className)}>
       <div className="flex overflow-x-auto scrollbar-hide -mb-px">
         {tabs.map(tab => (
           <button

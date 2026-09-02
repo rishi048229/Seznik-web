@@ -598,7 +598,7 @@ export const POSLitePage = () => {
   return (
     <div className="flex flex-col sm:flex-row h-[calc(100dvh-136px)] lg:h-[calc(100dvh-56px-3rem)] gap-0 -m-3 sm:-m-4 lg:-m-6 min-h-0 overflow-hidden">
       {/* Mobile Tab Switcher */}
-      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card flex-shrink-0">
         <button
           onClick={() => setMobileTab("products")}
           className={`flex-1 py-3 text-sm font-semibold transition-colors ${
@@ -619,7 +619,7 @@ export const POSLitePage = () => {
         >
           {t("pos.cartTab")}
           {items.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 text-[10px] font-bold">
               {items.length}
             </span>
           )}
@@ -632,7 +632,7 @@ export const POSLitePage = () => {
       >
         <div
           data-tour="pos-lite-header"
-          className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 sticky top-0 z-10"
+          className="px-6 pt-4 pb-3 bg-gray-50 dark:bg-dark-bg sticky top-0 z-10"
         >
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-3">
@@ -654,8 +654,8 @@ export const POSLitePage = () => {
               onClick={toggleScanMode}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
                 isScanMode
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                  : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400"
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-white"
+                  : "border-gray-300 dark:border-dark-border-strong text-gray-600 dark:text-gray-300 hover:border-gray-400"
               }`}
             >
               {isScanMode ? (
@@ -679,7 +679,7 @@ export const POSLitePage = () => {
           {/* Barcode Scan Input Panel */}
           {isScanMode && (
             <div className="mb-4 p-4 rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-900/20 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-sm">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-white font-medium text-sm">
                 <ScanLine size={18} className="animate-pulse" />
                 {t("pos.scanModeActive")}
               </div>
@@ -728,8 +728,8 @@ export const POSLitePage = () => {
                 {showNameSuggestions &&
                   productName.trim().length > 0 &&
                   nameSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
-                      <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-dark-card rounded-xl shadow-xl border border-gray-200 dark:border-dark-border py-1.5 z-50 overflow-hidden">
+                      <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-dark-border">
                         Suggested Catalog Items ({nameSuggestions.length})
                       </div>
                       <div className="max-h-56 overflow-y-auto">
@@ -743,7 +743,7 @@ export const POSLitePage = () => {
                                 e.preventDefault();
                                 handleSelectSuggestedProduct(p);
                               }}
-                              className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
+                              className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-dark-border/50 last:border-none"
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -757,7 +757,7 @@ export const POSLitePage = () => {
                                 </div>
                               </div>
                               <div className="text-right shrink-0">
-                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                <span className="text-xs font-bold text-blue-600 dark:text-sky-400">
                                   {formatINR(price)}
                                 </span>
                                 <span className="block text-[10px] text-gray-400">
@@ -815,13 +815,13 @@ export const POSLitePage = () => {
             </div>
             <div className="mt-4 flex flex-col md:flex-row items-start md:items-center gap-4">
               {/* GST Mode Toggle */}
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-1">
                 <button
                   type="button"
                   onClick={() => setGstMode("exclusive")}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     gstMode === "exclusive"
-                      ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                      ? "bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm"
                       : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                   }`}
                 >
@@ -832,7 +832,7 @@ export const POSLitePage = () => {
                   onClick={() => setGstMode("inclusive")}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     gstMode === "inclusive"
-                      ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                      ? "bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm"
                       : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                   }`}
                 >
@@ -848,7 +848,7 @@ export const POSLitePage = () => {
                 data-tour="pos-lite-add-cart-btn"
                 onClick={addItem}
                 leftIcon={<Plus size={16} />}
-                className="md:ml-auto w-full md:w-auto font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white"
+                className="md:ml-auto w-full md:w-auto font-bold shadow-md bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white"
               >
                 {t("pos.addToCart")}
               </Button>
@@ -857,7 +857,7 @@ export const POSLitePage = () => {
 
           {/* Quick-add Catalog Chips for Frequent Counter Items */}
           {products && products.length > 0 && (
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-2">
+            <div className="p-3 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border shadow-sm space-y-2">
               <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400">
                 <span className="flex items-center gap-1.5 font-bold text-gray-700 dark:text-gray-300">
                   <Sparkles size={14} className="text-amber-500" />
@@ -897,11 +897,11 @@ export const POSLitePage = () => {
                         }
                         toast.success(`${p.name} added`);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-700/60 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs font-medium text-gray-800 dark:text-gray-200 transition-all active:scale-95"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-dark-elevated/60 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 border border-gray-200 dark:border-dark-border-strong rounded-lg text-xs font-medium text-gray-800 dark:text-gray-200 transition-all active:scale-95"
                     >
                       <Plus size={12} className="text-blue-500" />
                       <span className="truncate max-w-[140px] font-semibold">{p.name}</span>
-                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                      <span className="font-bold text-blue-600 dark:text-sky-400">
                         {formatINR(price)}
                       </span>
                     </button>
@@ -916,11 +916,11 @@ export const POSLitePage = () => {
         {items.length > 0 && (
           <div
             data-tour="pos-lite-tab-cart"
-            className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+            className="sm:hidden flex-shrink-0 p-3 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card"
           >
             <button
               onClick={() => setMobileTab("cart")}
-              className="w-full py-3 bg-[#0a0a2e] text-white rounded-xl font-bold text-sm flex items-center justify-between px-5"
+              className="w-full py-3 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 rounded-xl font-bold text-sm flex items-center justify-between px-5"
             >
               <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {items.length} items
@@ -935,10 +935,10 @@ export const POSLitePage = () => {
       {/* Right: Cart Panel */}
       <Card
         data-tour="pos-lite-cart"
-        className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700 rounded-none h-full min-h-0 max-h-full overflow-hidden ${mobileTab === "products" ? "hidden sm:flex" : "flex"}`}
+        className={`sm:w-[400px] w-full flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-dark-border rounded-none h-full min-h-0 max-h-full overflow-hidden ${mobileTab === "products" ? "hidden sm:flex" : "flex"}`}
       >
         {/* Cart Header */}
-        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-dark-border shrink-0">
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -955,7 +955,7 @@ export const POSLitePage = () => {
                 onClick={() => setIsPaymentOpen(true)}
                 disabled={isCreating}
                 title={t("pos.completeAndPrint")}
-                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
               >
                 <Printer size={15} />
                 <span>{t("pos.print")}</span>
@@ -972,7 +972,7 @@ export const POSLitePage = () => {
         </div>
 
         {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-gray-100 dark:divide-dark-border">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
               <ShoppingCart size={48} className="mb-3 opacity-30" />
@@ -985,7 +985,7 @@ export const POSLitePage = () => {
             items.map((item) => (
               <div
                 key={item.id}
-                className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-dark-card/50 transition-colors"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
@@ -1002,11 +1002,11 @@ export const POSLitePage = () => {
                   </p>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5">
                     <button
                       type="button"
                       onClick={() => updateQty(item.id, item.quantity - 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-dark-hover text-gray-600 dark:text-gray-300 transition-colors"
                     >
                       <Minus size={14} />
                     </button>
@@ -1016,7 +1016,7 @@ export const POSLitePage = () => {
                     <button
                       type="button"
                       onClick={() => updateQty(item.id, item.quantity + 1)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-dark-hover text-gray-600 dark:text-gray-300 transition-colors"
                     >
                       <Plus size={14} />
                     </button>
@@ -1035,7 +1035,7 @@ export const POSLitePage = () => {
         </div>
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-14 sm:pb-4 space-y-2 mt-auto">
+        <div className="shrink-0 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-card p-3 sm:p-4 pb-14 sm:pb-4 space-y-2 mt-auto">
           {/* Order Discount */}
           {items.length > 0 && (
             <div className="flex items-center gap-2">
@@ -1054,7 +1054,7 @@ export const POSLitePage = () => {
                   onChange={(e) =>
                     setOrderDiscountType(e.target.value as "flat" | "percent")
                   }
-                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-dark-border-strong rounded-lg appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="flat">₹</option>
                   <option value="percent">%</option>
@@ -1102,7 +1102,7 @@ export const POSLitePage = () => {
             <Button
               onClick={() => setIsPaymentOpen(true)}
               disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+              className="w-full h-11 text-base font-bold bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
             >
               <Printer size={18} className="mr-2" />
               {t("pos.completeAndPrint")}
@@ -1122,7 +1122,7 @@ export const POSLitePage = () => {
             onClick={handleCheckout}
             loading={isCreating}
             disabled={method === "cash" && !isComplete}
-            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
           >
             <Printer size={18} className="mr-2" />
             {t("pos.completeAndPrint")}
@@ -1131,7 +1131,7 @@ export const POSLitePage = () => {
       >
         <div className="space-y-6">
           {/* Total Display */}
-          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+          <div className="text-center py-6 bg-gray-50 dark:bg-dark-elevated/50 rounded-xl">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {t("pos.totalAmount")}
             </p>
@@ -1140,7 +1140,7 @@ export const POSLitePage = () => {
             </p>
             {shouldShowGstBreakdown(gstBilling) &&
             gstSummary.taxableValue > 0 ? (
-              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3">
+              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-dark-border-strong pt-3">
                 <BillGstBreakdown
                   summary={gstSummary}
                   style={gstBilling.style}
@@ -1148,7 +1148,7 @@ export const POSLitePage = () => {
               </div>
             ) : null}
             {showCharges ? (
-              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-gray-600 pt-3 space-y-3">
+              <div className="mt-4 mx-6 text-left border-t border-gray-200 dark:border-dark-border-strong pt-3 space-y-3">
                 <BillChargeToggles
                   presets={enabledPresets}
                   selectedIds={selectedIds}
@@ -1166,7 +1166,7 @@ export const POSLitePage = () => {
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
               <Calendar
                 size={14}
-                className="text-blue-600 dark:text-blue-400"
+                className="text-blue-600 dark:text-white"
               />
               Bill Date (Select for Backdated / Custom Date Invoice)
             </label>
@@ -1210,18 +1210,18 @@ export const POSLitePage = () => {
                   }}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
-                      ? "border-[#0a0a2e] bg-[#0a0a2e]/5"
-                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300"
+                      ? "border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10"
+                      : "border-gray-200 dark:border-dark-border-strong hover:border-gray-300"
                   }`}
                 >
                   <Icon
                     size={24}
                     className={
-                      method === id ? "text-[#0a0a2e]" : "text-gray-400"
+                      method === id ? "text-[#0a0a2e] dark:text-indigo-300" : "text-gray-400"
                     }
                   />
                   <span
-                    className={`text-xs font-medium ${method === id ? "text-[#0a0a2e]" : "text-gray-500"}`}
+                    className={`text-xs font-medium ${method === id ? "text-[#0a0a2e] dark:text-indigo-300" : "text-gray-500"}`}
                   >
                     {label}
                   </span>
@@ -1260,7 +1260,7 @@ export const POSLitePage = () => {
                     key={amt}
                     type="button"
                     onClick={() => setAmountPaid(String(amt))}
-                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
+                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated dark:border-dark-border-strong dark:text-gray-300 transition-colors"
                   >
                     {formatINR(amt)}
                   </button>

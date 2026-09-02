@@ -52,7 +52,7 @@ export const MobileNav = () => {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 lg:hidden safe-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border lg:hidden safe-bottom">
         <div className="flex justify-around items-center h-16">
           {primaryItems.map(item => (
             <NavLink
@@ -85,10 +85,10 @@ export const MobileNav = () => {
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setIsDrawerOpen(false)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl pb-safe">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-dark-bg rounded-t-2xl pb-safe">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-dark-border">
               <span className="text-base font-semibold text-gray-900 dark:text-gray-100">Menu</span>
-              <button onClick={() => setIsDrawerOpen(false)} className="p-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+              <button onClick={() => setIsDrawerOpen(false)} className="p-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-card">
                 <X size={20} />
               </button>
             </div>
@@ -102,8 +102,8 @@ export const MobileNav = () => {
                     clsx(
                       'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-xs font-medium transition-colors',
                       isActive
-                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-600 dark:text-white dark:ring-1 dark:ring-blue-400/40'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-card'
                     )
                   }
                 >

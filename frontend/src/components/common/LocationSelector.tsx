@@ -49,8 +49,8 @@ export function LocationSelector({ onChange }: { onChange: (locationId: string |
           onClick={() => pick(null)}
           className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
             selected === null
-              ? 'bg-[#0a0a2e] text-white border-[#0a0a2e] shadow-xs'
-              : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-300'
+              ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500 shadow-xs'
+              : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border-strong hover:border-gray-300'
           }`}
         >
           All Stores
@@ -65,8 +65,8 @@ export function LocationSelector({ onChange }: { onChange: (locationId: string |
               title={isSelected ? 'Click to unselect' : `Filter by ${loc.name}`}
               className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
                 isSelected
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-400/30'
-                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                  ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600 shadow-xs ring-2 ring-blue-400/30'
+                  : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border-strong hover:border-gray-300'
               }`}
             >
               {loc.name}

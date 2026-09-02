@@ -173,14 +173,14 @@ export const SalesReportPage = () => {
               {report && report.labels.length > 0 ? (
                 <div className="overflow-y-auto max-h-64">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-white dark:bg-gray-800">
-                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <thead className="sticky top-0 bg-white dark:bg-dark-card">
+                      <tr className="border-b border-gray-200 dark:border-dark-border">
                         <th className="text-left py-2 text-gray-500 font-medium">{t('common.date')}</th>
                         <th className="text-right py-2 text-gray-500 font-medium">{t('reports.revenueLabel')}</th>
                         <th className="text-right py-2 text-gray-500 font-medium">{t('reports.invoicesLabel')}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                       {report.labels.map((label, i) => (
                         <tr key={i}>
                           <td className="py-2 text-gray-900 dark:text-gray-100">{label}</td>
@@ -190,7 +190,7 @@ export const SalesReportPage = () => {
                           <td className="py-2 text-right text-gray-500">{report.invoiceCount[i]}</td>
                         </tr>
                       ))}
-                      <tr className="border-t-2 border-gray-200 dark:border-gray-700 font-semibold">
+                      <tr className="border-t-2 border-gray-200 dark:border-dark-border font-semibold">
                         <td className="py-3 text-gray-900 dark:text-gray-100">{t('common.total')}</td>
                         <td className="py-3 text-right text-blue-600">{formatINR(totalRevenue)}</td>
                         <td className="py-3 text-right text-gray-900 dark:text-gray-100">{totalInvoices}</td>

@@ -52,10 +52,10 @@ function Row({
 }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className={muted ? 'text-gray-500 dark:text-gray-400' : accent ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>
+      <span className={muted ? 'text-gray-500 dark:text-gray-400' : accent ? 'text-blue-600 dark:text-white' : 'text-gray-700 dark:text-gray-300'}>
         {label}
       </span>
-      <span className={`font-semibold ${accent ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'}`}>
+      <span className={`font-semibold ${accent ? 'text-blue-600 dark:text-white' : 'text-gray-900 dark:text-gray-100'}`}>
         {accent ? `+${value}` : value}
       </span>
     </div>

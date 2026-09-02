@@ -70,8 +70,8 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
           onClick={() => setOpen(v => !v)}
           className={`w-full ${heightClass} pl-9 pr-9 rounded-lg flex items-center text-left transition-colors ${
             size === 'compact'
-              ? 'bg-gray-50 dark:bg-gray-700/40 border-0 hover:bg-gray-100 dark:hover:bg-gray-700/60'
-              : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:border-gray-400 dark:hover:border-gray-500'
+              ? 'bg-gray-50 dark:bg-dark-elevated/40 border-0 hover:bg-gray-100 dark:hover:bg-dark-elevated/60'
+              : 'bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border-strong rounded-xl hover:border-gray-400 dark:hover:border-dark-border-strong'
           } dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
         >
           <span className={`truncate ${selected ? '' : 'text-gray-500 dark:text-gray-400'}`}>
@@ -101,9 +101,9 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
 
         {/* Dropdown */}
         {open && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden">
+          <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border shadow-2xl overflow-hidden">
             {/* Search */}
-            <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="p-2 border-b border-gray-100 dark:border-dark-border">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                 <input
@@ -111,7 +111,7 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder={t('customers.searchPlaceholder')}
-                  className="w-full h-9 pl-8 pr-8 rounded-lg bg-gray-50 dark:bg-gray-700/50 border-0 text-sm dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full h-9 pl-8 pr-8 rounded-lg bg-gray-50 dark:bg-dark-elevated/50 border-0 text-sm dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
                 {query && (
                   <button
@@ -129,7 +129,7 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
             <button
               type="button"
               onClick={() => { setIsAddOpen(true); setOpen(false); setQuery('') }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-100 dark:border-gray-700"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-blue-600 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-100 dark:border-dark-border"
             >
               <span className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
                 <UserPlus size={14} />
@@ -146,11 +146,11 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
                 className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors ${
                   !value
                     ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-elevated/50'
                 }`}
               >
                 <span className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-400">
+                  <span className="w-7 h-7 rounded-full bg-gray-100 dark:bg-dark-elevated flex items-center justify-center flex-shrink-0 text-gray-400">
                     <User size={14} />
                   </span>
                   <span className="truncate">{t('pos.walkInCustomer')}</span>
@@ -169,7 +169,7 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors ${
                       isSelected
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-elevated/50'
                     }`}
                   >
                     <span className="flex items-center gap-2.5 min-w-0">

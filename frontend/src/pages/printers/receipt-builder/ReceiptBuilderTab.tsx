@@ -312,12 +312,12 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
       ) : null}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
-        <div className="w-full lg:w-7/12 space-y-4 bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="w-full lg:w-7/12 space-y-4 bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border">
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex-1 min-w-[140px]">
               <label className="text-xs font-semibold text-gray-500">{t('printers.receiptBuilder.templateName')}</label>
               <input
-                className="w-full mt-1 px-3 py-2 border rounded-xl text-xs dark:bg-gray-700 dark:border-gray-600"
+                className="w-full mt-1 px-3 py-2 border rounded-xl text-xs dark:bg-dark-elevated dark:border-dark-border-strong"
                 value={working.name}
                 onChange={(e) => updateDraft((t) => ({ ...t, name: e.target.value }))}
               />
@@ -330,7 +330,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
                     key={w}
                     type="button"
                     onClick={() => updateDraft((t) => ({ ...t, paperWidth: w }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${working.paperWidth === w ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]' : 'border-gray-200 dark:border-gray-600'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${working.paperWidth === w ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500' : 'border-gray-200 dark:border-dark-border-strong'}`}
                   >
                     {w}
                   </button>
@@ -350,7 +350,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
                   key={mode.id}
                   type="button"
                   onClick={() => setEditorMode(mode.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${editorMode === mode.id ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]' : 'border-gray-200 dark:border-gray-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${editorMode === mode.id ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500' : 'border-gray-200 dark:border-dark-border-strong'}`}
                 >
                   {mode.label}
                 </button>
@@ -401,7 +401,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
               <div className="pt-2">
                 <label className="text-xs font-semibold text-gray-500 block mb-1">{t('printers.receiptBuilder.addBlock')}</label>
                 <select
-                  className="w-full px-3 py-2 border rounded-xl text-xs dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full px-3 py-2 border rounded-xl text-xs dark:bg-dark-elevated dark:border-dark-border-strong"
                   defaultValue=""
                   onChange={(e) => {
                     const type = e.target.value as CustomReceiptEntry['type']

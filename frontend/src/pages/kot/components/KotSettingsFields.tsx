@@ -14,8 +14,8 @@ interface KotSettingsFieldsProps {
 const chipClass = (active: boolean) =>
   `inline-flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
     active
-      ? 'bg-[#0a0a2e] text-white'
-      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+      ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+      : 'bg-gray-100 dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-elevated hover:text-gray-800 dark:hover:text-gray-200'
   }`
 
 const ORDER_TYPE_ICONS = {
@@ -119,7 +119,7 @@ export const KotSettingsFields = ({ value, onChange }: KotSettingsFieldsProps) =
         </div>
       </div>
 
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="divide-y divide-gray-100 dark:divide-dark-border">
         <Switch
           label={`Show ${tableNounLabel(value.tableNoun).toLowerCase()}`}
           description="Floor plan on the KOT page"

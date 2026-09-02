@@ -52,7 +52,7 @@ export const ProfilePage = () => {
             <img
               src={photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=2563eb&color=fff`}
               alt={displayName}
-              className="w-20 h-20 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700 bg-white"
+              className="w-20 h-20 rounded-full object-cover border-2 border-gray-200 dark:border-dark-border bg-white"
             />
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h2>

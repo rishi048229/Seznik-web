@@ -165,7 +165,7 @@ export const CustomerDetailPage = () => {
           )}
           <Button
             onClick={handleOpenPaymentModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5"
+            className="bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white text-xs sm:text-sm font-bold flex items-center gap-1.5"
           >
             <IndianRupee size={16} />
             <span>{t('customers.settleCredit')}</span>
@@ -209,7 +209,7 @@ export const CustomerDetailPage = () => {
               </Button>
               <Button
                 onClick={handleOpenPaymentModal}
-                className="bg-[#0a0a2e] hover:bg-[#1a1555] text-white font-bold text-xs sm:text-sm px-4 py-2 flex items-center gap-2 rounded-xl shadow-md"
+                className="bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white text-white font-bold text-xs sm:text-sm px-4 py-2 flex items-center gap-2 rounded-xl shadow-md"
               >
                 <PlusCircle size={15} />
                 <span>{t('customers.recordPayment')}</span>
@@ -242,7 +242,7 @@ export const CustomerDetailPage = () => {
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 text-2xl font-bold mx-auto">
                   {initials}
                 </div>
-                <span className={`absolute bottom-1 right-1 w-5 h-5 border-4 border-white dark:border-gray-800 rounded-full ${hasUnpaidCredit ? 'bg-red-500' : 'bg-green-500'}`} />
+                <span className={`absolute bottom-1 right-1 w-5 h-5 border-4 border-white dark:border-dark-border rounded-full ${hasUnpaidCredit ? 'bg-red-500' : 'bg-green-500'}`} />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{customer.name}</h3>
               <p className="text-sm font-medium text-blue-600">
@@ -250,9 +250,9 @@ export const CustomerDetailPage = () => {
               </p>
             </div>
 
-            <div className="mt-6 space-y-4 pt-6 border-t border-gray-100 dark:border-gray-700 text-left">
+            <div className="mt-6 space-y-4 pt-6 border-t border-gray-100 dark:border-dark-border text-left">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500">
+                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-dark-elevated flex items-center justify-center text-gray-500">
                   <Mail size={18} />
                 </div>
                 <div>
@@ -261,7 +261,7 @@ export const CustomerDetailPage = () => {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500">
+                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-dark-elevated flex items-center justify-center text-gray-500">
                   <Phone size={18} />
                 </div>
                 <div>
@@ -270,7 +270,7 @@ export const CustomerDetailPage = () => {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500">
+                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-dark-elevated flex items-center justify-center text-gray-500">
                   <MapPin size={18} />
                 </div>
                 <div>
@@ -311,7 +311,7 @@ export const CustomerDetailPage = () => {
         <div className="col-span-12 lg:col-span-8 space-y-6">
           {/* Recent Purchases */}
           <Card className="overflow-hidden">
-            <div className="px-6 py-4 sm:px-8 sm:py-6 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
+            <div className="px-6 py-4 sm:px-8 sm:py-6 flex justify-between items-center border-b border-gray-100 dark:border-dark-border">
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t('customers.recentPurchases')}</h3>
                 <p className="text-xs text-gray-400">{t('customers.allTransactionsDesc')}</p>
@@ -326,7 +326,7 @@ export const CustomerDetailPage = () => {
             {customerSales.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+                  <thead className="bg-gray-50 dark:bg-dark-card">
                     <tr className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                       <th className="px-6 py-4">{t('customers.invoiceNumHeader')}</th>
                       <th className="px-6 py-4">{t('common.date')}</th>
@@ -335,13 +335,13 @@ export const CustomerDetailPage = () => {
                       <th className="px-6 py-4 text-center">{t('customers.creditStatusHeader')}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                     {customerSales.slice(0, 8).map(sale => {
                       const isCreditSale = sale.paymentMethod === 'credit'
                       const isUnpaid = isCreditSale && (sale.grandTotal - (sale.amountPaid ?? 0) > 0) && totalCreditBalance > 0
 
                       return (
-                        <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-dark-card/50 transition-colors">
                           <td className="px-6 py-4 font-mono font-medium text-blue-600">
                             #{sale.invoiceNumber}
                           </td>
@@ -360,7 +360,7 @@ export const CustomerDetailPage = () => {
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
                               isCreditSale
                                 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                : 'bg-gray-100 text-gray-800 dark:bg-dark-elevated dark:text-gray-300'
                             }`}>
                               {sale.paymentMethod || 'cash'}
                             </span>
@@ -392,10 +392,10 @@ export const CustomerDetailPage = () => {
 
           {/* Credit History */}
           <Card className="overflow-hidden">
-            <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+            <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-gray-100 dark:border-dark-border flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t('customers.creditLedgerTitle')}</h3>
               {hasUnpaidCredit && (
-                <Button size="sm" onClick={handleOpenPaymentModal} className="bg-blue-600 hover:bg-blue-700 text-xs font-bold">
+                <Button size="sm" onClick={handleOpenPaymentModal} className="bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-xs font-bold">
                   {t('customers.settleCredit')}
                 </Button>
               )}
@@ -476,7 +476,7 @@ export const CustomerDetailPage = () => {
           </div>
         </Card>
         <Card className="p-6 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600">
+          <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-dark-elevated flex items-center justify-center text-gray-600">
             <Calendar size={24} />
           </div>
           <div>
@@ -504,7 +504,7 @@ export const CustomerDetailPage = () => {
             <Button
               onClick={handleRecordPaymentSubmit}
               loading={isRecordingPayment}
-              className="flex-1 bg-[#0a0a2e] hover:bg-[#1a1555] text-white font-bold"
+              className="flex-1 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white text-white font-bold"
             >
               {t('customers.confirmPayment')}
             </Button>
@@ -513,7 +513,7 @@ export const CustomerDetailPage = () => {
       >
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{t('customers.currentOutstandingCredit')}</p>
+            <p className="text-xs text-blue-600 dark:text-white font-medium">{t('customers.currentOutstandingCredit')}</p>
             <p className="text-2xl font-extrabold text-blue-900 dark:text-blue-100">{formatINR(totalCreditBalance)}</p>
           </div>
 

@@ -30,7 +30,7 @@ export const MenuPicker = ({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="shrink-0 p-3 sm:p-4 space-y-3 border-b border-gray-200 dark:border-gray-700">
+      <div className="shrink-0 p-3 sm:p-4 space-y-3 border-b border-gray-200 dark:border-dark-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <Input
@@ -46,8 +46,8 @@ export const MenuPicker = ({
             onClick={() => onCategoryChange('')}
             className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${
               categoryId === ''
-                ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500'
+                : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border-strong'
             }`}
           >
             All
@@ -59,8 +59,8 @@ export const MenuPicker = ({
               onClick={() => onCategoryChange(cat.id)}
               className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${
                 categoryId === cat.id
-                  ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                  ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500'
+                  : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border-strong'
               }`}
             >
               {cat.name}
@@ -83,9 +83,9 @@ export const MenuPicker = ({
                   type="button"
                   onClick={() => !out && onPick(product)}
                   disabled={out}
-                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 transition-colors duration-150 hover:border-gray-400 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-left rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card p-2.5 transition-colors duration-150 hover:border-gray-400 dark:hover:border-dark-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="aspect-[4/3] rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden mb-2">
+                  <div className="aspect-[4/3] rounded-lg bg-gray-100 dark:bg-dark-elevated overflow-hidden mb-2">
                     {product.imageURL ? (
                       <img src={product.imageURL} alt="" className="w-full h-full object-cover" />
                     ) : (

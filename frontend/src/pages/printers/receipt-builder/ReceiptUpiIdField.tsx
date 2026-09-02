@@ -1,6 +1,6 @@
 import { isValidUpiVpa } from '@/utils/upiQr'
 
-const inputCls = 'w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-xs'
+const inputCls = 'w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated text-xs'
 
 interface ReceiptUpiIdFieldProps {
   value: string

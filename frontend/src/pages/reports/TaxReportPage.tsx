@@ -144,11 +144,11 @@ export const TaxReportPage = () => {
       <Card className="p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('reports.taxSummary')}</h3>
         <div className="space-y-3 max-w-md">
-          <div className="flex justify-between py-3 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex justify-between py-3 border-b border-gray-100 dark:border-dark-border">
             <span className="text-gray-600 dark:text-gray-300">{t('reports.totalOutputTaxCollected')}</span>
             <span className="font-bold text-blue-600">{formatINR(report.totalOutputTax)}</span>
           </div>
-          <div className="flex justify-between py-3 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex justify-between py-3 border-b border-gray-100 dark:border-dark-border">
             <span className="text-gray-600 dark:text-gray-300">{t('reports.numberOfTaxableSales')}</span>
             <span className="font-medium text-gray-900 dark:text-gray-100">{report.taxableSales}</span>
           </div>

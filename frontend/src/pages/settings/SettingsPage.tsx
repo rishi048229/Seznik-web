@@ -293,7 +293,7 @@ export const SettingsPage = () => {
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                         active
                           ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-md shadow-sky-400/30'
-                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
+                          : 'bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-dark-border'
                       }`}
                     >
                       <Icon size={15} />
@@ -315,7 +315,7 @@ export const SettingsPage = () => {
                       className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all mb-0.5 ${
                         active
                           ? 'bg-gradient-to-r from-blue-600 to-sky-400 text-white shadow-md shadow-sky-400/30'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-elevated/60'
                       }`}
                     >
                       <Icon size={17} className={`mt-0.5 flex-shrink-0 ${active ? 'text-white' : 'text-gray-400'}`} />
@@ -334,7 +334,7 @@ export const SettingsPage = () => {
             {/* Content panel */}
             <Card className="flex-1 w-full min-w-0 p-4 sm:p-6">
               {/* Section heading — consistent across every tab */}
-              <div className="flex items-center gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-dark-border">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-sky-400 text-white flex items-center justify-center flex-shrink-0">
                   <activeTabMeta.icon size={19} />
                 </div>
@@ -403,7 +403,7 @@ export const SettingsPage = () => {
                             className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
                               selected
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card hover:bg-gray-50 dark:hover:bg-dark-elevated/50'
                             }`}
                           >
                             <span className="text-2xl">{option.emoji}</span>
@@ -519,19 +519,19 @@ export const SettingsPage = () => {
                     <input
                       id="settings-receipt-terms1"
                       defaultValue={current.receiptConfig?.termsLine1 !== undefined ? current.receiptConfig.termsLine1 : '1. Goods once sold will not be taken back or exchanged'}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       placeholder={t('settings.termsLine1Placeholder')}
                     />
                     <input
                       id="settings-receipt-terms2"
                       defaultValue={current.receiptConfig?.termsLine2 !== undefined ? current.receiptConfig.termsLine2 : ''}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       placeholder={t('settings.termsLine2Placeholder')}
                     />
                     <input
                       id="settings-receipt-terms3"
                       defaultValue={current.receiptConfig?.termsLine3 !== undefined ? current.receiptConfig.termsLine3 : ''}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       placeholder={t('settings.termsLine3Placeholder')}
                     />
                   </div>
@@ -545,7 +545,7 @@ export const SettingsPage = () => {
                     id="settings-receipt-footer"
                     defaultValue={current.receiptConfig?.footerMessage ?? 'Thank you for your purchase!'}
                     rows={3}
-                    className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
+                    className="w-full px-4 py-3 border rounded-xl bg-gray-50 dark:bg-dark-card dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
                     placeholder={t('settings.footerMessagePlaceholder')}
                   />
                 </div>
@@ -615,11 +615,11 @@ export const SettingsPage = () => {
                         className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
                           selected
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            : 'border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-elevated/50'
                         }`}
                       >
                         <span>{lang.label}</span>
-                        {selected && <Check size={16} className="text-blue-600 dark:text-blue-400" />}
+                        {selected && <Check size={16} className="text-blue-600 dark:text-white" />}
                       </button>
                     )
                   })}

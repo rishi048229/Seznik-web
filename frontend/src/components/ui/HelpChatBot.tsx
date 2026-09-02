@@ -248,7 +248,7 @@ export const HelpChatBot = () => {
 
       {/* ─── Chat Window ─── */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-white dark:bg-dark-bg rounded-2xl shadow-2xl border border-gray-200 dark:border-dark-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
 
           {/* ─── Header ─── */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
@@ -282,15 +282,15 @@ export const HelpChatBot = () => {
 
           {/* ─── Language Picker ─── */}
           {showLangPicker && (
-            <div className="px-3 py-2 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 flex flex-wrap gap-1.5">
+            <div className="px-3 py-2 bg-blue-50 dark:bg-dark-card border-b border-blue-100 dark:border-dark-border flex flex-wrap gap-1.5">
               {CHAT_LANGUAGES.map(l => (
                 <button
                   key={l.code}
                   onClick={() => handleLangChange(l.code)}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
                     lang === l.code
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-blue-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+                      ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 shadow-sm'
+                      : 'bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-200 hover:bg-blue-100 dark:hover:bg-dark-hover border border-gray-200 dark:border-dark-border-strong'
                   }`}
                 >
                   {l.flag} {l.label}
@@ -313,7 +313,7 @@ export const HelpChatBot = () => {
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.id)}
-                      className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-750 border border-gray-100 dark:border-gray-700 text-left transition-all hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm"
+                      className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-card hover:bg-blue-50 dark:hover:bg-dark-hover border border-gray-100 dark:border-dark-border text-left transition-all hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm"
                     >
                       <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
                         {cat.label}
@@ -329,7 +329,7 @@ export const HelpChatBot = () => {
               <div className="space-y-2">
                 <button
                   onClick={() => setSelectedCategory(null)}
-                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline mb-1"
+                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-white font-semibold hover:underline mb-1"
                 >
                   <ChevronLeft size={14} /> Back to Topics
                 </button>
@@ -340,7 +340,7 @@ export const HelpChatBot = () => {
                   <button
                     key={faq.id}
                     onClick={() => handleFaqClick(faq)}
-                    className="w-full text-left px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-750 border border-gray-100 dark:border-gray-700 transition-all hover:border-blue-200 dark:hover:border-blue-800"
+                    className="w-full text-left px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-card hover:bg-blue-50 dark:hover:bg-dark-hover border border-gray-100 dark:border-dark-border transition-all hover:border-blue-200 dark:hover:border-blue-800"
                   >
                     <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
                       {faq.question[lang] || faq.question.en}
@@ -364,13 +364,13 @@ export const HelpChatBot = () => {
                 <div
                   className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm border border-gray-200 dark:border-gray-700'
+                      ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 rounded-br-sm'
+                      : 'bg-gray-100 dark:bg-dark-card text-gray-800 dark:text-gray-200 rounded-bl-sm border border-gray-200 dark:border-dark-border'
                   }`}
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
                 />
                 {msg.role === 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-dark-elevated flex items-center justify-center flex-shrink-0 mt-0.5">
                     <User size={14} className="text-gray-600 dark:text-gray-300" />
                   </div>
                 )}
@@ -383,7 +383,7 @@ export const HelpChatBot = () => {
                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
                   <Bot size={14} className="text-white" />
                 </div>
-                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-gray-100 dark:bg-dark-card px-4 py-2.5 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex gap-1">
                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -395,7 +395,7 @@ export const HelpChatBot = () => {
           </div>
 
           {/* ─── Input Area ─── */}
-          <div className="px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
+          <div className="px-3 py-2.5 border-t border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-dark-card/50 flex-shrink-0">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend() }}
               className="flex items-center gap-2"
@@ -406,12 +406,12 @@ export const HelpChatBot = () => {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 placeholder={lang === 'hi' ? 'अपना सवाल टाइप करें...' : lang === 'mr' ? 'तुमचा प्रश्न टाइप करा...' : lang === 'ta' ? 'உங்கள் கேள்வியை தட்டச்சு செய்யவும்...' : lang === 'te' ? 'మీ ప్రశ్నను టైప్ చేయండి...' : lang === 'gu' ? 'તમારો પ્રશ્ન ટાઈપ કરો...' : 'Type your question...'}
-                className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                className="flex-1 px-3 py-2 bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong rounded-xl text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
               />
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center justify-center transition-all disabled:cursor-not-allowed"
+                className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center justify-center transition-all disabled:cursor-not-allowed"
               >
                 <Send size={14} className="text-white" />
               </button>

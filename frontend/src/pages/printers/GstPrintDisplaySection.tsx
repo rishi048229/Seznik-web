@@ -51,7 +51,7 @@ export function GstPrintDisplaySection({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/80">
+      <div className="rounded-xl border border-gray-200 dark:border-dark-border p-4 bg-white dark:bg-dark-card/80">
         <GstBillingSettingsPanel
           showBreakdown={form.showBreakdown}
           style={form.style}

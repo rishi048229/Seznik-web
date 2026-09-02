@@ -434,7 +434,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Store & Merchant Details */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                 <Building2 size={14} /> Store &amp; Merchant Info
               </h4>
@@ -487,7 +487,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Bill Meta & Customer */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                 <Hash size={14} /> Bill &amp; Customer
               </h4>
@@ -531,7 +531,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Itemized Lines Editor */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   Bill Items ({receipt.items.length})
@@ -543,7 +543,7 @@ export const RealisticReceiptModal = ({
 
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {receipt.items.map((it, idx) => (
-                  <div key={it.id || idx} className="p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-xs space-y-2">
+                  <div key={it.id || idx} className="p-2.5 rounded-lg bg-gray-50 dark:bg-dark-bg/60 border border-gray-200 dark:border-dark-border text-xs space-y-2">
                     <div className="flex items-center gap-2">
                       <Input
                         value={it.productName}
@@ -568,7 +568,7 @@ export const RealisticReceiptModal = ({
                           min="1"
                           value={it.quantity}
                           onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value) || 1)}
-                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-card text-xs font-bold"
                         />
                       </div>
                       <div>
@@ -578,7 +578,7 @@ export const RealisticReceiptModal = ({
                           step="0.01"
                           value={it.unitPrice}
                           onChange={e => handleItemChange(idx, 'unitPrice', Number(e.target.value) || 0)}
-                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-card text-xs font-bold"
                         />
                       </div>
                       <div>
@@ -594,7 +594,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Discount & UPI ID & Footer */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Payment &amp; Footer Notes
               </h4>
@@ -606,7 +606,7 @@ export const RealisticReceiptModal = ({
                     step="0.01"
                     value={receipt.orderDiscount}
                     onChange={e => recalcTotals(receipt.items, Number(e.target.value) || 0)}
-                    className="w-full h-8 px-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs font-semibold"
+                    className="w-full h-8 px-2.5 rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-elevated text-xs font-semibold"
                   />
                 </div>
                 <div>
@@ -635,7 +635,7 @@ export const RealisticReceiptModal = ({
                   rows={2}
                   value={receipt.footerMessage}
                   onChange={e => setReceipt(prev => ({ ...prev, footerMessage: e.target.value }))}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-elevated"
                 />
               </div>
             </div>
@@ -643,7 +643,7 @@ export const RealisticReceiptModal = ({
         )}
 
         {/* RIGHT / MAIN COLUMN: HYPER-REALISTIC THERMAL RECEIPT CONTAINER */}
-        <div className={`${isEditing ? 'hidden lg:flex lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 min-w-0`}>
+        <div className={`${isEditing ? 'hidden lg:flex lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-dark-bg/60 rounded-2xl border border-slate-200 dark:border-dark-border min-w-0`}>
           {/* Realistic Thermal Paper Component */}
           <div className="relative w-full max-w-[340px] transition-all duration-300">
             {/* Serrated Top Edge */}

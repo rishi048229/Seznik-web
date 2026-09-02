@@ -140,7 +140,7 @@ export const BarcodeStockUpdateModal = ({ isOpen, onClose }: BarcodeStockUpdateM
     <Modal isOpen={isOpen} onClose={onClose} title="Scan to Update Stock" size="lg">
       <div className="space-y-6">
         {/* Scanner Status */}
-        <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-gray-700/50">
+        <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-dark-elevated/50">
           <div className="flex items-center gap-3">
             <Barcode size={20} className="text-emerald-600" />
             <div>
@@ -211,7 +211,7 @@ export const BarcodeStockUpdateModal = ({ isOpen, onClose }: BarcodeStockUpdateM
               {entries.map((entry, index) => (
                 <div
                   key={entry.barcode}
-                  className="flex items-center gap-4 p-3 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
+                  className="flex items-center gap-4 p-3 rounded-lg bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong"
                 >
                   <span className="text-sm font-bold text-gray-400 w-6">{index + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -225,7 +225,7 @@ export const BarcodeStockUpdateModal = ({ isOpen, onClose }: BarcodeStockUpdateM
                       min={0}
                       value={entry.qtyToAdd}
                       onChange={e => updateQty(entry.barcode, parseInt(e.target.value) || 0)}
-                      className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
                     <span className="text-xs text-gray-400 w-8">{entry.unit}</span>
                   </div>
@@ -251,7 +251,7 @@ export const BarcodeStockUpdateModal = ({ isOpen, onClose }: BarcodeStockUpdateM
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
           <Button
             variant="primary"
             onClick={handleUpdateStock}

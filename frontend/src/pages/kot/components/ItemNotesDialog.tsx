@@ -63,7 +63,7 @@ export const ItemNotesDialog = ({
                   className={`text-xs font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
                     selected
                       ? 'bg-amber-100 border-amber-400 text-amber-900 dark:bg-amber-900/40 dark:border-amber-500 dark:text-amber-100'
-                      : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                      : 'bg-white dark:bg-dark-elevated border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
                   }`}
                 >
                   {mod}

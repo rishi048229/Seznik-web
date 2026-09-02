@@ -201,8 +201,8 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               onClick={() => setTab(id)}
               className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold ${
                 tab === id
-                  ? 'bg-[#0a0a2e] text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-gray-100 dark:bg-dark-elevated text-gray-600 dark:text-gray-300'
               }`}
             >
               <Icon size={14} />
@@ -229,7 +229,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               value={businessAddress}
               onChange={(e) => setBusinessAddress(e.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-card px-3 py-2 text-sm"
             />
           </div>
         )}
@@ -300,8 +300,8 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
                     onClick={() => setKotField('defaultOrderType', opt.id)}
                     className={`py-2 rounded-lg text-sm font-semibold border-2 ${
                       kot.defaultOrderType === opt.id
-                        ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                        ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 text-[#0a0a2e] dark:text-indigo-300'
+                        : 'border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
                     }`}
                   >
                     {opt.label}
@@ -348,8 +348,8 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
                     onClick={() => setKotField('serviceChargeType', type)}
                     className={`py-2 rounded-lg text-sm font-semibold border-2 ${
                       kot.serviceChargeType === type
-                        ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                        ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 text-[#0a0a2e] dark:text-indigo-300'
+                        : 'border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
                     }`}
                   >
                     {type === 'percent' ? 'Percent of food' : 'Flat amount (₹)'}
@@ -397,8 +397,8 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
                     onClick={() => setKotField('defaultRoomType', opt.id)}
                     className={`py-2 rounded-lg text-sm font-semibold border-2 ${
                       kot.defaultRoomType === opt.id
-                        ? 'border-[#0a0a2e] bg-[#0a0a2e]/5 text-[#0a0a2e]'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                        ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 text-[#0a0a2e] dark:text-indigo-300'
+                        : 'border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
                     }`}
                   >
                     {opt.label}

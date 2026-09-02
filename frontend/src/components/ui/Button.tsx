@@ -35,13 +35,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         type={type}
         className={cn(
-          'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
+          'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg disabled:opacity-50 disabled:cursor-not-allowed',
           {
-            'bg-gradient-to-r from-blue-600 to-sky-400 text-white hover:from-blue-700 hover:to-sky-500 focus:ring-blue-500': variant === 'primary',
-            'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600': variant === 'secondary',
-            'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500': variant === 'danger',
-            'bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700': variant === 'ghost',
-            'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700': variant === 'outline',
+            // Light: brand blue→sky. Dark: soft off-white fill + dark text (calmer on pure black).
+            'bg-gradient-to-r from-blue-600 to-sky-400 text-white hover:from-blue-700 hover:to-sky-500 focus:ring-blue-500 shadow-sm shadow-blue-500/20 dark:from-zinc-100 dark:to-zinc-100 dark:text-zinc-900 dark:hover:from-white dark:hover:to-white dark:focus:ring-zinc-400 dark:shadow-none':
+              variant === 'primary',
+            'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 dark:bg-dark-elevated dark:text-gray-100 dark:hover:bg-dark-hover dark:border dark:border-dark-border-strong dark:hover:border-white/20 dark:focus:ring-zinc-500/40':
+              variant === 'secondary',
+            'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 dark:bg-red-600/90 dark:hover:bg-red-500 dark:focus:ring-red-400':
+              variant === 'danger',
+            'bg-transparent text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-elevated dark:hover:text-white':
+              variant === 'ghost',
+            'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border-strong dark:text-gray-200 dark:hover:bg-white/5 dark:hover:border-white/25 dark:hover:text-white':
+              variant === 'outline',
           },
           {
             'px-2.5 py-1.5 text-xs': size === 'sm',

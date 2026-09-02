@@ -9,7 +9,7 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ sidebar, topbar, children }: AppLayoutProps) => {
   return (
-    <div className="flex h-[100dvh] bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-[100dvh] bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100">
       {sidebar}
       <div className="flex-1 flex flex-col overflow-hidden">
         {topbar}

@@ -6,8 +6,8 @@ interface AppShellSkeletonProps {
 }
 
 export const AppShellSkeleton = ({ children }: AppShellSkeletonProps) => (
-  <div className="flex h-[100dvh] bg-gray-50 dark:bg-gray-900" aria-busy="true" aria-label="Loading page">
-    <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+  <div className="flex h-[100dvh] bg-gray-50 dark:bg-dark-bg" aria-busy="true" aria-label="Loading page">
+    <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col border-r border-gray-100 dark:border-dark-border bg-white dark:bg-dark-sidebar p-4">
       <div className="flex items-center gap-3 px-2 pb-6">
         <Skeleton variant="rectangular" className="h-10 w-10 rounded-xl" />
         <div className="flex-1 space-y-2">
@@ -26,7 +26,7 @@ export const AppShellSkeleton = ({ children }: AppShellSkeletonProps) => (
     </aside>
 
     <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-      <header className="sticky top-0 z-20 bg-white/80 dark:bg-gray-900/80 border-b border-gray-100 dark:border-gray-800 px-3 lg:px-6 py-2.5 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-20 bg-white/80 dark:bg-dark-bg/80 border-b border-gray-100 dark:border-dark-border px-3 lg:px-6 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <Skeleton variant="circular" className="h-9 w-9 lg:hidden" />
           <Skeleton variant="text" className="h-5 w-36 sm:w-48" />

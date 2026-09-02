@@ -8,7 +8,7 @@ export const Footer = () => {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="mt-8 pt-6 border-t border-gray-200/80 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
+    <footer className="mt-8 pt-6 border-t border-gray-200/80 dark:border-dark-border text-xs text-gray-500 dark:text-gray-400">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4">
         {/* Seznik App Info & Support Tagline */}
         <div className="flex flex-col items-center md:items-start gap-1 text-center md:text-left">
@@ -35,7 +35,7 @@ export const Footer = () => {
         <div className="flex flex-wrap items-center justify-center gap-2.5">
           <a
             href={`mailto:${seznikEmail}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 transition-all shadow-sm"
             title="Email Seznik Support"
           >
             <Mail className="w-3.5 h-3.5 text-blue-500" />
@@ -44,7 +44,7 @@ export const Footer = () => {
 
           <a
             href={`tel:${seznikPhone}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all shadow-sm"
             title="Call Seznik Helpline"
           >
             <Phone className="w-3.5 h-3.5 text-indigo-500" />
@@ -65,7 +65,7 @@ export const Footer = () => {
       </div>
 
       {/* Footer Copyright & Trust Badge */}
-      <div className="flex flex-col sm:flex-row items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800/60 text-[11px] text-gray-400 gap-2">
+      <div className="flex flex-col sm:flex-row items-center justify-between pt-3 border-t border-gray-100 dark:border-dark-border/60 text-[11px] text-gray-400 gap-2">
         <p>© {currentYear} Seznik POS & Retail Technologies. All rights reserved.</p>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
