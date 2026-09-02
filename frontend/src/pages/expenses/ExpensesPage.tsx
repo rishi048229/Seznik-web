@@ -20,6 +20,7 @@ import { formatINR } from '@/utils/currency'
 
 import { uploadExpenseReceipt } from '@/utils/storage'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import type { Expense } from '@/types/expense.types'
 import { useLanguage } from '@/contexts/LanguageContext'
 
@@ -256,7 +257,7 @@ export const ExpensesPage = () => {
           },
           onError: (error) => {
             console.error('Failed to update expense:', error)
-            toast.error(`${t('expenses.errUpdateFailedPrefix')} ${error instanceof Error ? error.message : 'Unknown error'}`)
+            toastError(error, t('expenses.errUpdateFailedPrefix'))
           },
         }
       )
@@ -269,7 +270,7 @@ export const ExpensesPage = () => {
         },
         onError: (error) => {
           console.error('Failed to create expense:', error)
-          toast.error(`${t('expenses.errCreateFailedPrefix')} ${error instanceof Error ? error.message : 'Unknown error'}`)
+          toastError(error, t('expenses.errCreateFailedPrefix'))
         },
       })
     }

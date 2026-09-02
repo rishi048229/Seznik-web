@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Pencil, Trash2, Plus, LayoutGrid } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import {
   useCreateRestaurantTable,
   useUpdateRestaurantTable,
@@ -60,7 +61,7 @@ export const TableManageModal = ({ isOpen, onClose, tables, itemLabel = 'table' 
             toast.success(`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} updated`)
             resetForm()
           },
-          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update table'),
+          onError: (err) => toastError(err, 'Could not update the table'),
         }
       )
     } else {
@@ -71,7 +72,7 @@ export const TableManageModal = ({ isOpen, onClose, tables, itemLabel = 'table' 
             toast.success(`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} added`)
             resetForm()
           },
-          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add table'),
+          onError: (err) => toastError(err, 'Could not add the table'),
         }
       )
     }
@@ -85,7 +86,7 @@ export const TableManageModal = ({ isOpen, onClose, tables, itemLabel = 'table' 
     if (!window.confirm(`Delete ${table.name}? This cannot be undone.`)) return
     deleteTable(table.id, {
       onSuccess: () => toast.success('Table deleted'),
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to delete table'),
+      onError: (err) => toastError(err, 'Could not delete the table'),
     })
   }
 

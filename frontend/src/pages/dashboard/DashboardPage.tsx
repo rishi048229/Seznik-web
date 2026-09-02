@@ -28,10 +28,9 @@ import type { TranslationKey } from '@/i18n/translations'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import {
   TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight,
   AlertTriangle,
   IndianRupee,
   ShoppingBag,
@@ -106,17 +105,17 @@ const DonutChart = ({ data, size = 180, thickness = 20 }: { data: { value: numbe
 }
 
 const WidgetHeader = ({ icon, title, onView }: { icon: React.ReactNode; title: string; onView: () => void }) => (
-  <div className="flex items-center justify-between gap-2 mb-4 min-w-0">
-    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0 truncate">
+  <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4 min-w-0">
+    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0 truncate text-sm sm:text-base">
       {icon}
       {title}
     </h3>
     <button
       onClick={onView}
-      className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
+      className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
     >
       <ExternalLink size={14} />
-      View
+      <span className="hidden sm:inline">View</span>
     </button>
   </div>
 )
@@ -155,8 +154,7 @@ export const DashboardPage = () => {
       await printer.connect()
       toast.success(`${t('dashboard.connectedToPrinter')} ${getBlePrinterState().deviceName ?? 'printer'}`)
     } catch (error) {
-      const msg = error instanceof Error ? error.message : t('dashboard.failedToConnectPrinter')
-      toast.error(msg)
+      toastError(error, t('dashboard.failedToConnectPrinter'))
     } finally {
       setIsConnectingPrinter(false)
     }
@@ -229,101 +227,92 @@ export const DashboardPage = () => {
         />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Stats Cards — 2×2 on phone so the whole row fits in one view */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
         {/* Total Revenue */}
-        <Card data-tour="kpi-revenue" className="p-5 bg-white border border-gray-100 shadow-sm min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
-              <IndianRupee size={22} className="text-gray-600 dark:text-gray-300" />
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full shrink-0">
-              <ArrowUpRight size={14} />
-              +12.5%
-            </div>
+        <Card data-tour="kpi-revenue" className="p-3 sm:p-5 bg-white border border-gray-100 shadow-sm min-w-0">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-2 sm:mb-3">
+            <IndianRupee size={18} className="text-gray-600 dark:text-gray-300 sm:hidden" />
+            <IndianRupee size={22} className="text-gray-600 dark:text-gray-300 hidden sm:block" />
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalRevenue')}</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1 truncate" title={formatINR(totalRevenue)}>
+          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-gray-400 leading-tight">{t('dashboard.totalRevenue')}</p>
+          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate" title={formatINR(totalRevenue)}>
             {formatINR(totalRevenue)}
           </p>
         </Card>
 
         {/* Total Sales */}
-        <Card className="p-5 bg-white border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-              <ShoppingBag size={22} className="text-gray-600 dark:text-gray-300" />
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-              <ArrowUpRight size={14} />
-              +8.2%
-            </div>
+        <Card className="p-3 sm:p-5 bg-white border border-gray-100 shadow-sm min-w-0">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-2 sm:mb-3">
+            <ShoppingBag size={18} className="text-gray-600 dark:text-gray-300 sm:hidden" />
+            <ShoppingBag size={22} className="text-gray-600 dark:text-gray-300 hidden sm:block" />
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalSales')}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-gray-400 leading-tight">{t('dashboard.totalSales')}</p>
+          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">
             {totalSales.toLocaleString()}
           </p>
         </Card>
 
         {/* Gross Profit */}
-        <Card className="p-5 bg-white border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
-              <CreditCard size={22} className="text-sky-600 dark:text-sky-400" />
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
-              <ArrowDownRight size={14} />
-              -2.4%
-            </div>
+        <Card className="p-3 sm:p-5 bg-white border border-gray-100 shadow-sm min-w-0">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center mb-2 sm:mb-3">
+            <CreditCard size={18} className="text-sky-600 dark:text-sky-400 sm:hidden" />
+            <CreditCard size={22} className="text-sky-600 dark:text-sky-400 hidden sm:block" />
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.grossProfit')}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+          <p className="text-[11px] sm:text-sm text-gray-500 dark:text-gray-400 leading-tight">{t('dashboard.grossProfit')}</p>
+          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate" title={formatINR(grossProfit)}>
             {formatINR(grossProfit)}
           </p>
         </Card>
 
         {/* Low Stock Alerts */}
-        <Card className="p-5 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-100 dark:border-red-800">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <AlertTriangle size={22} className="text-red-600 dark:text-red-400" />
+        <Card className="p-3 sm:p-5 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-100 dark:border-red-800 min-w-0">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <AlertTriangle size={18} className="text-red-600 dark:text-red-400 sm:hidden" />
+              <AlertTriangle size={22} className="text-red-600 dark:text-red-400 hidden sm:block" />
             </div>
             <button
               onClick={() => navigate(ROUTES.PRODUCTS)}
-              className="text-xs font-medium text-red-600 hover:underline"
+              className="hidden sm:inline text-xs font-medium text-red-600 hover:underline"
             >
               {t('dashboard.viewItems')}
             </button>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-300">{t('dashboard.lowStockAlerts')}</p>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+          <p className="text-[11px] sm:text-sm text-gray-600 dark:text-gray-300 leading-tight">{t('dashboard.lowStockAlerts')}</p>
+          <p className="text-base sm:text-2xl font-bold text-red-600 dark:text-red-400 mt-0.5">
             {lowStockAlerts}
           </p>
         </Card>
       </div>
 
       {/* Receipt Printer */}
-      <Card data-tour="printer-card" className="p-5 bg-white border border-gray-100 shadow-sm mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+      <Card data-tour="printer-card" className="p-3 sm:p-5 bg-white border border-gray-100 shadow-sm mb-4 sm:mb-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${
               printer.status === 'connected' || printer.status === 'printing'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30'
                 : 'bg-gray-100 dark:bg-gray-700'
             }`}>
               {printer.status === 'connected' || printer.status === 'printing' ? (
-                <BluetoothConnected size={22} className="text-emerald-600 dark:text-emerald-400" />
+                <BluetoothConnected size={18} className="text-emerald-600 dark:text-emerald-400 sm:hidden" />
               ) : (
-                <Bluetooth size={22} className="text-gray-500 dark:text-gray-300" />
+                <Bluetooth size={18} className="text-gray-500 dark:text-gray-300 sm:hidden" />
+              )}
+              {printer.status === 'connected' || printer.status === 'printing' ? (
+                <BluetoothConnected size={22} className="text-emerald-600 dark:text-emerald-400 hidden sm:block" />
+              ) : (
+                <Bluetooth size={22} className="text-gray-500 dark:text-gray-300 hidden sm:block" />
               )}
             </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('dashboard.receiptPrinter')}</p>
-              <div className="flex items-center gap-2 mt-0.5">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{t('dashboard.receiptPrinter')}</p>
+              <div className="flex items-center gap-2 mt-0.5 min-w-0">
                 <Badge variant={printer.status === 'connected' || printer.status === 'printing' ? 'success' : 'default'}>
                   {t(PRINTER_STATUS_KEY[printer.status])}
                 </Badge>
-                {printer.deviceName && <span className="text-xs text-gray-400">{printer.deviceName}</span>}
+                {printer.deviceName && <span className="text-xs text-gray-400 truncate">{printer.deviceName}</span>}
               </div>
             </div>
           </div>
@@ -679,7 +668,29 @@ export const DashboardPage = () => {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="sm:hidden space-y-2">
+            {recentSales.length > 0 ? recentSales.map(sale => {
+              const customerName = sale.customerId ? t('dashboard.customerLabel') : t('dashboard.walkInCustomer')
+              return (
+                <button
+                  key={sale.id}
+                  type="button"
+                  onClick={() => navigate(ROUTES.SALE_DETAIL(sale.id))}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{customerName}</p>
+                    <p className="text-[11px] text-gray-400">{sale.invoiceNumber}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">{formatINR(sale.grandTotal)}</p>
+                </button>
+              )
+            }) : (
+              <p className="text-sm text-gray-400 text-center py-6">{t('common.noSalesYet')}</p>
+            )}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider">

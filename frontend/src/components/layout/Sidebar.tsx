@@ -30,6 +30,7 @@ import {
 import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { prefetchPage } from '@/utils/prefetchPages'
 import type { TranslationKey } from '@/i18n/translations'
 
 interface NavItem {
@@ -159,6 +160,8 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   key={item.path}
                   to={item.path}
                   onClick={() => handleNavClick(item.path)}
+                  onMouseEnter={() => prefetchPage(item.path)}
+                  onFocus={() => prefetchPage(item.path)}
                   title={collapsed ? t(item.labelKey) : undefined}
                   className={({ isActive }) =>
                     clsx(

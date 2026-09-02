@@ -34,6 +34,7 @@ import { FieldInfo } from '@/components/ui/FieldInfo'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
@@ -281,7 +282,7 @@ export const PrintersPage = () => {
           },
           onError: (err) => {
             console.error('Save printer config error:', err)
-            toast.error(err instanceof Error ? err.message : 'Failed to save printer settings')
+            toastError(err, 'Could not save printer settings. Please try again.')
           },
         }
       )
@@ -306,7 +307,7 @@ export const PrintersPage = () => {
         },
         onError: (err) => {
           console.error('Create settings error:', err)
-          toast.error(err instanceof Error ? err.message : 'Failed to save printer settings')
+          toastError(err, 'Could not save printer settings. Please try again.')
         },
       }
     )
@@ -327,9 +328,7 @@ export const PrintersPage = () => {
       await requestAndConnectPrinter()
       toast.success('Connected to Bluetooth Printer!')
     } catch (err) {
-      if ((err as Error).name !== 'NotFoundError') {
-        toast.error((err as Error).message || 'Bluetooth connection failed')
-      }
+      toastError(err, 'Could not connect the printer. Please try again.')
     } finally {
       setConnectingBle(false)
     }

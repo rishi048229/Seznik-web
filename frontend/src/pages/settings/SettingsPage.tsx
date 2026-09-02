@@ -20,6 +20,7 @@ import { mergeKotConfig } from '@/pages/kot/kotConfig'
 import type { KotConfig } from '@/types/settings.types'
 import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -106,8 +107,7 @@ export const SettingsPage = () => {
           onSuccess: () => toast.success(`${key} ${t('settings.savedSuffix')}`),
           onError: (err) => {
             console.error('Settings save error:', err)
-            const msg = err instanceof Error ? err.message : `${t('settings.failedToSavePrefix')} ${key}`
-            toast.error(msg)
+            toastError(err, `${t('settings.failedToSavePrefix')} ${key}`)
           },
         }
       )
@@ -117,8 +117,7 @@ export const SettingsPage = () => {
         onSuccess: () => toast.success(`${key} ${t('settings.savedSuffix')}`),
         onError: (err) => {
           console.error('Settings create error:', err)
-          const msg = err instanceof Error ? err.message : `${t('settings.failedToSavePrefix')} ${key}`
-          toast.error(msg)
+          toastError(err, `${t('settings.failedToSavePrefix')} ${key}`)
         },
       })
     }

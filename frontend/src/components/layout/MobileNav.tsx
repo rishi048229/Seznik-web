@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
+import { prefetchPage } from '@/utils/prefetchPages'
 
 const primaryItems = [
   { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
@@ -42,6 +43,8 @@ export const MobileNav = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              onMouseEnter={() => prefetchPage(item.path)}
+              onFocus={() => prefetchPage(item.path)}
               className={({ isActive }) =>
                 clsx(
                   'flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-[11px] font-medium transition-colors',
@@ -82,6 +85,8 @@ export const MobileNav = () => {
                   key={item.path}
                   to={item.path}
                   onClick={() => setIsDrawerOpen(false)}
+                  onMouseEnter={() => prefetchPage(item.path)}
+                  onFocus={() => prefetchPage(item.path)}
                   className={({ isActive }) =>
                     clsx(
                       'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-xs font-medium transition-colors',

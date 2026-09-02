@@ -20,6 +20,7 @@ import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import type { Sale } from '@/types/sale.types'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 export const SalesPage = () => {
@@ -72,7 +73,7 @@ export const SalesPage = () => {
         setPrintSaleId(null)
         toast.success('Printed to Bluetooth printer')
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth'))
+        toastError(error, t('pos.errFailedPrintBluetooth'))
       } finally {
         setIsBlePrinting(false)
       }
@@ -120,8 +121,7 @@ export const SalesPage = () => {
       setIsPrintModalOpen(false)
       setPrintSaleId(null)
     } catch (error) {
-      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
-      toast.error(msg)
+      toastError(error, t('pos.errFailedPrintBluetooth'))
     } finally {
       setIsBlePrinting(false)
     }

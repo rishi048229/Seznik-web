@@ -1,5 +1,5 @@
-import { useState, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
+import { prefetchCorePages } from '@/utils/prefetchPages'
 import type { UserPermissions } from '@/types/auth.types'
 
 // Helper to lazy-load named exports as default components.
@@ -84,15 +85,27 @@ const LoadingFallback = (
   </div>
 )
 
-const MainLayout = ({ children }: { children: React.ReactNode }) => {
+const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    const idle = window.requestIdleCallback
+    if (idle) {
+      const id = idle(() => prefetchCorePages())
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = window.setTimeout(() => prefetchCorePages(), 400)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   return (
     <AppLayout
       sidebar={<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
       topbar={<Topbar onMenuClick={() => setSidebarOpen(true)} />}
     >
-      {children}
+      <Suspense fallback={LoadingFallback}>
+        <Outlet />
+      </Suspense>
       <MobileNav />
       <HelpChatBot />
     </AppLayout>
@@ -230,30 +243,32 @@ function App() {
                 }
               />
               <Route path={ROUTES.ONBOARDING} element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
-              <Route path={ROUTES.DASHBOARD} element={<AuthenticatedRoute><MainLayout><DashboardPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.POS} element={<AuthenticatedRoute><MainLayout><POSPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.POS_LITE} element={<AuthenticatedRoute><MainLayout><POSLitePage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.TOKENS} element={<AuthenticatedRoute><MainLayout><QuickTokensPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.PRODUCTS} element={<AuthenticatedRoute><MainLayout><ProductsPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.CATEGORIES} element={<AuthenticatedRoute><MainLayout><CategoriesPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.LOCATIONS} element={<AuthenticatedRoute><MainLayout><LocationsPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.CUSTOMERS} element={<AuthenticatedRoute><MainLayout><CustomersPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path="/customers/:id" element={<AuthenticatedRoute><MainLayout><CustomerDetailPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.SUPPLIERS} element={<AuthenticatedRoute><PermissionRoute permission="canAccessSuppliers"><MainLayout><SuppliersPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.SALES} element={<AuthenticatedRoute><MainLayout><SalesPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path="/sales/:id" element={<AuthenticatedRoute><MainLayout><SaleDetailPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.PURCHASES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessPurchases"><MainLayout><PurchasesPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.EXPENSES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessExpenses"><MainLayout><ExpensesPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.CREDITS} element={<AuthenticatedRoute><MainLayout><CreditsPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.DAYBOOK} element={<AuthenticatedRoute><MainLayout><DaybookPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ReportsPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS_SALES} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><SalesReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS_PL} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><ProfitLossPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.REPORTS_TAX} element={<AuthenticatedRoute><PermissionRoute permission="canAccessReports"><MainLayout><TaxReportPage /></MainLayout></PermissionRoute></AuthenticatedRoute>} />
-              <Route path={ROUTES.SETTINGS} element={<AuthenticatedRoute><MainLayout><SettingsPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.PRINTERS} element={<AuthenticatedRoute><MainLayout><PrintersPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.KOT_KDS} element={<AuthenticatedRoute><MainLayout><KDSPage /></MainLayout></AuthenticatedRoute>} />
-              <Route path={ROUTES.KOT} element={<AuthenticatedRoute><MainLayout><KOTPage /></MainLayout></AuthenticatedRoute>} />
+              <Route element={<AuthenticatedRoute><MainLayout /></AuthenticatedRoute>}>
+                <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+                <Route path={ROUTES.POS} element={<POSPage />} />
+                <Route path={ROUTES.POS_LITE} element={<POSLitePage />} />
+                <Route path={ROUTES.TOKENS} element={<QuickTokensPage />} />
+                <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
+                <Route path={ROUTES.CATEGORIES} element={<CategoriesPage />} />
+                <Route path={ROUTES.LOCATIONS} element={<LocationsPage />} />
+                <Route path={ROUTES.CUSTOMERS} element={<CustomersPage />} />
+                <Route path="/customers/:id" element={<CustomerDetailPage />} />
+                <Route path={ROUTES.SUPPLIERS} element={<PermissionRoute permission="canAccessSuppliers"><SuppliersPage /></PermissionRoute>} />
+                <Route path={ROUTES.SALES} element={<SalesPage />} />
+                <Route path="/sales/:id" element={<SaleDetailPage />} />
+                <Route path={ROUTES.PURCHASES} element={<PermissionRoute permission="canAccessPurchases"><PurchasesPage /></PermissionRoute>} />
+                <Route path={ROUTES.EXPENSES} element={<PermissionRoute permission="canAccessExpenses"><ExpensesPage /></PermissionRoute>} />
+                <Route path={ROUTES.CREDITS} element={<CreditsPage />} />
+                <Route path={ROUTES.DAYBOOK} element={<DaybookPage />} />
+                <Route path={ROUTES.REPORTS} element={<PermissionRoute permission="canAccessReports"><ReportsPage /></PermissionRoute>} />
+                <Route path={ROUTES.REPORTS_SALES} element={<PermissionRoute permission="canAccessReports"><SalesReportPage /></PermissionRoute>} />
+                <Route path={ROUTES.REPORTS_PL} element={<PermissionRoute permission="canAccessReports"><ProfitLossPage /></PermissionRoute>} />
+                <Route path={ROUTES.REPORTS_TAX} element={<PermissionRoute permission="canAccessReports"><TaxReportPage /></PermissionRoute>} />
+                <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
+                <Route path={ROUTES.PRINTERS} element={<PrintersPage />} />
+                <Route path={ROUTES.KOT_KDS} element={<KDSPage />} />
+                <Route path={ROUTES.KOT} element={<KOTPage />} />
+              </Route>
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>
           </Suspense>

@@ -8,6 +8,7 @@ import { Shield, Store, ArrowRight, Lock, BadgeCheck, History, AlertCircle } fro
 import type { UserRole, UserProfile } from '@/types/auth.types'
 import { getAllUsers } from '@/services/authService'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { ROUTES } from '@/constants/routes'
 
 export const AccessSelectionPage = () => {
@@ -113,7 +114,7 @@ export const AccessSelectionPage = () => {
       navigate(ROUTES.DASHBOARD)
     } catch (error) {
       console.error('Error setting role:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to set role')
+      toastError(error, 'Could not set your role. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

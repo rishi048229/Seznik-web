@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Check, Clock, Flame } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -92,7 +93,7 @@ export const KDSPage = () => {
                         { id: order.id, status: 'ready' },
                         {
                           onSuccess: () => toast.success(`KOT #${order.orderNumber} marked ready`),
-                          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update'),
+                          onError: (err) => toastError(err, 'Could not update the ticket'),
                         }
                       )
                     }

@@ -43,7 +43,7 @@ export const getSettings = async (req: Request, res: Response) => {
     res.json(settings);
   } catch (error) {
     console.error('Failed to fetch settings:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch settings' });
+    res.status(500).json({ error: 'Could not load settings. Please try again.' });
   }
 };
 
@@ -92,11 +92,7 @@ export const createSettings = async (req: Request, res: Response) => {
     res.status(201).json(settings);
   } catch (error) {
     console.error('Failed to create settings:', error);
-    // Authenticated internal endpoint — surface the real error (e.g. Prisma's
-    // "Unknown argument `locationConfig`" when the deployed schema/client is
-    // stale) instead of a generic message that gives no diagnostic signal.
-    const detail = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: `Failed to create settings: ${detail}` });
+    res.status(500).json({ error: 'Could not save settings. Please try again.' });
   }
 };
 
@@ -116,8 +112,7 @@ export const updateSettings = async (req: Request, res: Response) => {
     res.json(settings);
   } catch (error) {
     console.error('Failed to update settings:', error);
-    const detail = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: `Failed to update settings: ${detail}` });
+    res.status(500).json({ error: 'Could not save settings. Please try again.' });
   }
 };
 

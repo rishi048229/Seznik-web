@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 
 export const SaleDetailPage = () => {
   const { t } = useLanguage()
@@ -62,7 +63,7 @@ export const SaleDetailPage = () => {
         setIsPrintModalOpen(false)
         toast.success('Printed to Bluetooth printer')
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth'))
+        toastError(error, t('pos.errFailedPrintBluetooth'))
       } finally {
         setIsBlePrinting(false)
       }
@@ -130,8 +131,7 @@ export const SaleDetailPage = () => {
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)
     } catch (error) {
-      const msg = error instanceof Error ? error.message : t('pos.errFailedPrintBluetooth')
-      toast.error(msg)
+      toastError(error, t('pos.errFailedPrintBluetooth'))
     } finally {
       setIsBlePrinting(false)
     }

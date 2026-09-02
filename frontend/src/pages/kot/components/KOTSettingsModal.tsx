@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { Building2, ChefHat, Receipt, Store, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -102,7 +103,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
   const persist = (data: Record<string, unknown>, label: string) => {
     const onSuccess = () => toast.success(`${label} saved`)
     const onError = (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : `Failed to save ${label}`)
+      toastError(err, `Could not save ${label}`)
     }
     if (settings?.id) {
       updateSettings({ settingsId: settings.id, data }, { onSuccess, onError })

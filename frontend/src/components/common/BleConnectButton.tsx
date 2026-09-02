@@ -3,6 +3,7 @@ import { Bluetooth, BluetoothConnected } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getBluetoothUnsupportedReason } from '@/utils/blePrinter'
+import { toastError } from '@/utils/userMessage'
 import { clsx } from 'clsx'
 
 /** Compact Bluetooth printer chip for billing screens so staff can pair without leaving the page. */
@@ -27,7 +28,7 @@ export const BleConnectButton = ({ className }: { className?: string }) => {
       await ble.connect()
       toast.success('Printer connected')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not connect the printer')
+      toastError(err, 'Could not connect the printer. Please try again.')
     } finally {
       setBusy(false)
     }
