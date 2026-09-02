@@ -49,24 +49,24 @@ const getDynamicHostIp = () => {
     }
   }
 
-  // 4. Explicit Host from env (e.g. EXPO_PUBLIC_API_HOST="192.168.0.111")
+  // 4. In standalone production builds, ALWAYS default to the cloud production API!
+  if (!__DEV__) {
+    return PROD_DEFAULT_API_URL;
+  }
+
+  // 5. Explicit Host from env during local dev (e.g. EXPO_PUBLIC_API_HOST="192.168.0.111")
   const envHost = process.env.EXPO_PUBLIC_API_HOST?.trim();
   if (envHost) {
     return `http://${envHost}:${DEFAULT_PORT}/api`;
   }
 
-  // 5. If running on a physical device, fallback to the local LAN Wi-Fi machine IP
-  if (Constants.isDevice) {
-    return `http://192.168.0.111:${DEFAULT_PORT}/api`;
-  }
-
   // 6. Android Emulator loopback alias for host machine
-  if (Platform.OS === 'android') {
+  if (Platform.OS === 'android' && !Constants.isDevice) {
     return `http://10.0.2.2:${DEFAULT_PORT}/api`;
   }
 
-  // 7. Default localhost fallback
-  return `http://localhost:${DEFAULT_PORT}/api`;
+  // 7. Default to cloud backend so even dev devices work if local backend isn't running
+  return PROD_DEFAULT_API_URL;
 };
 
 let currentBaseUrl = getDynamicHostIp();

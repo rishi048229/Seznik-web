@@ -11,6 +11,7 @@ import {
   Platform,
   Switch,
   StatusBar,
+  Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {

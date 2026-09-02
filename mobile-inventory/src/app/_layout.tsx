@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useColorScheme, View, ActivityIndicator, Text, TextInput, AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -189,7 +189,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     IBMPlexSans_400Regular,
     IBMPlexSans_500Medium,
     IBMPlexSans_600SemiBold,
@@ -200,7 +200,17 @@ export default function RootLayout() {
     IBMPlexMono_700Bold,
   });
 
-  if (!fontsLoaded) {
+  const [fontTimeoutPassed, setFontTimeoutPassed] = React.useState(false);
+
+  useEffect(() => {
+    // Safety net: If fonts take longer than 2.5s to load on older Android devices, proceed anyway
+    const timer = setTimeout(() => {
+      setFontTimeoutPassed(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!fontsLoaded && !fontError && !fontTimeoutPassed) {
     return <AppSplashScreen />;
   }
 
