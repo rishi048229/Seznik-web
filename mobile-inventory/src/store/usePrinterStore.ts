@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Vibration } from 'react-native';
 import { ConnectionState, PrinterDevice } from '../types';
 import PrinterService from '../services/PrinterService';
 import { settingsApi } from '../api/settings';
@@ -200,6 +201,9 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       set((prev) => {
         const updatedPaired = [...prev.pairedPrinters];
         if (activeDevice && state === 'connected') {
+          try {
+            Vibration.vibrate([0, 50, 40, 50]);
+          } catch (e) {}
           const idx = updatedPaired.findIndex((d) => d.id === activeDevice.id);
           const nowStr = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           if (idx >= 0) {

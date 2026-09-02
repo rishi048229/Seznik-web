@@ -11,6 +11,7 @@ import {
   Platform,
   Switch,
   StatusBar,
+  Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -256,7 +257,7 @@ export default function PrintersScreen() {
       setManualName('');
       setManualMac('');
       setShowManualAdd(false);
-      Alert.alert('Printer Paired!', `${newDevice.name} connected & saved to your paired devices list.`);
+      try { Vibration.vibrate([0, 50, 40, 50]); } catch (e) {}
     } catch (e: any) {
       // Saved to the list either way, so the user can retry without retyping the address.
       Alert.alert(
@@ -275,7 +276,7 @@ export default function PrintersScreen() {
       try {
         const ok = await ThermalPrinterService.joshConnect(deviceId, deviceName);
         if (ok) {
-          Alert.alert('Label Printer Linked! 🏷️', `${deviceName || deviceId} is ready. Label Studio & Product labels will now print here.`);
+          try { Vibration.vibrate([0, 50, 40, 50]); } catch (e) {}
           setActiveTab('label');
           return;
         }
@@ -347,7 +348,7 @@ export default function PrintersScreen() {
           macAddress: printer.macAddress || printer.id,
           type: 'receipt',
         });
-        Alert.alert('Printer Connected!', `${printer.name} linked and ready for thermal printing.`);
+        try { Vibration.vibrate([0, 50, 40, 50]); } catch (e) {}
       }
     } catch (e: any) {
       Alert.alert('System Printer Dialog', 'Please pair your thermal printer in Phone Settings -> Bluetooth first.');
