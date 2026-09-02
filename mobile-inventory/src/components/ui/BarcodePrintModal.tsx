@@ -18,6 +18,9 @@ import * as FileSystem from 'expo-file-system';
 import { Product } from '@/types/product';
 import ThermalPrinterService from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useLabelPrinterStatus } from '@/hooks/useLabelPrinterStatus';
+import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
+import { LABEL_PRESETS, LabelPresetId, buildLabelPreset } from '@/constants/labelTemplatePresets';
 import { BRAND_COLORS } from '@/constants/theme';
 import { generateCode128Barcode, generateEAN13Barcode } from '@/utils/barcodeGenerator';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
@@ -40,10 +43,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { activeDevice, connectionState, paperWidth, labelPaperMode, labelWidthMm, labelHeightMm, labelGapMm, labelTemplates, activeLabelTemplateId } = usePrinterStore();
+  const labelPrinter = useLabelPrinterStatus();
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
 
   const [selectedFormat, setSelectedFormat] = useState<BarcodeFormat>('qr');
   const [printMode, setPrintMode] = useState<'direct' | 'template'>('direct');
+  // Size and layout are picked here rather than only on the Printers screen,
+  // because the roll and the sticker design change per print run, not per device.
+  const [sizeW, setSizeW] = useState(labelWidthMm);
+  const [sizeH, setSizeH] = useState(labelHeightMm);
+  const [presetId, setPresetId] = useState<LabelPresetId | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
@@ -65,6 +74,13 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       let ok: boolean;
       let modeLabel: string;
 
+      // A chosen stock layout wins: it is rebuilt at the selected size, so the
+      // same design prints correctly on a 25mm tag or a 100mm label.
+      if (presetId) {
+        const preset = buildLabelPreset(presetId, sizeW, sizeH, storeName);
+        ok = await ThermalPrinterService.printLabelFromTemplate(product, preset, 1, labelGapMm);
+        modeLabel = `${preset.name} — ${sizeW}x${sizeH}mm`;
+      } else
       if (printMode === 'template' && usableTemplate) {
         if (await ThermalPrinterService.joshEnsureConnected()) {
           ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, 1, labelGapMm);
@@ -83,8 +99,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             product,
             selectedFormat,
             undefined,
-            labelWidthMm,
-            labelHeightMm,
+            sizeW,
+            sizeH,
             labelGapMm
           );
           modeLabel = `Label Printer (${selectedFormat.toUpperCase()})`;
@@ -96,8 +112,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             product,
             selectedFormat,
             undefined,
-            labelWidthMm,
-            labelHeightMm,
+            sizeW,
+            sizeH,
             labelGapMm
           );
           modeLabel = `TSPL Label Printer (${selectedFormat.toUpperCase()})`;
@@ -238,6 +254,70 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             </TouchableOpacity>
           </View>
 
+          {/* Label size — the roll changes between print runs, so it is chosen here
+              rather than only in printer settings. */}
+          <Text style={[styles.pickerLabel, { color: theme.textSecondary }]}>LABEL SIZE</Text>
+          <View style={styles.pickerRow}>
+            {LABEL_SIZE_PRESETS.map((sz) => {
+              const on = sizeW === sz.widthMm && sizeH === sz.heightMm;
+              return (
+                <TouchableOpacity
+                  key={sz.label}
+                  onPress={() => {
+                    setSizeW(sz.widthMm);
+                    setSizeH(sz.heightMm);
+                  }}
+                  style={[
+                    styles.pickerChip,
+                    { borderColor: on ? BRAND_COLORS.blue600 : theme.borderColor, backgroundColor: on ? BRAND_COLORS.blue600 : theme.cardBg },
+                  ]}
+                >
+                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: on ? '#FFF' : theme.textSecondary }}>
+                    {sz.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Ready-made sticker layouts, matching what the web app prints. */}
+          <Text style={[styles.pickerLabel, { color: theme.textSecondary }]}>LABEL DESIGN</Text>
+          <View style={styles.pickerRow}>
+            <TouchableOpacity
+              onPress={() => setPresetId(null)}
+              style={[
+                styles.pickerChip,
+                { borderColor: !presetId ? BRAND_COLORS.blue600 : theme.borderColor, backgroundColor: !presetId ? BRAND_COLORS.blue600 : theme.cardBg },
+              ]}
+            >
+              <Text style={{ fontSize: 11.5, fontWeight: '800', color: !presetId ? '#FFF' : theme.textSecondary }}>
+                Default
+              </Text>
+            </TouchableOpacity>
+            {LABEL_PRESETS.map((pr) => {
+              const on = presetId === pr.id;
+              return (
+                <TouchableOpacity
+                  key={pr.id}
+                  onPress={() => setPresetId(pr.id)}
+                  style={[
+                    styles.pickerChip,
+                    { borderColor: on ? BRAND_COLORS.navyInk : theme.borderColor, backgroundColor: on ? BRAND_COLORS.navyInk : theme.cardBg },
+                  ]}
+                >
+                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: on ? '#FFF' : theme.textSecondary }}>
+                    {pr.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {presetId ? (
+            <Text style={[styles.pickerHint, { color: theme.textSecondary }]}>
+              {LABEL_PRESETS.find((pr) => pr.id === presetId)?.description}
+            </Text>
+          ) : null}
+
           {/* Optional Saved Template Switcher */}
           {usableTemplate ? (
             <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 4, gap: 6 }}>
@@ -306,11 +386,25 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             </View>
           </View>
 
-          {/* Connected Printer Status Pill */}
-          <View style={[styles.printerStatusPill, { backgroundColor: activeDevice ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)' }]}>
-            <Printer size={14} color={activeDevice ? '#10B981' : '#EF4444'} />
-            <Text style={[styles.printerStatusText, { color: activeDevice ? '#10B981' : '#EF4444' }]}>
-              {activeDevice ? `Printer: ${activeDevice.name} (${paperWidth})` : 'Bluetooth Label Printer'}
+          {/* Connected Printer Status Pill — reads both transports. It checked only
+              activeDevice (the ESC/POS socket), so a connected LPAPI label printer
+              showed as disconnected while it was printing perfectly. */}
+          <View
+            style={[
+              styles.printerStatusPill,
+              { backgroundColor: labelPrinter.isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)' },
+            ]}
+          >
+            <Printer size={14} color={labelPrinter.isConnected ? '#10B981' : '#EF4444'} />
+            <Text
+              style={[styles.printerStatusText, { color: labelPrinter.isConnected ? '#10B981' : '#EF4444' }]}
+              numberOfLines={1}
+            >
+              {labelPrinter.isConnected
+                ? labelPrinter.kind === 'label'
+                  ? `Label printer: ${labelPrinter.name}`
+                  : `Printer: ${labelPrinter.name} (${paperWidth})`
+                : 'No printer connected'}
             </Text>
           </View>
 
@@ -390,6 +484,10 @@ const styles = StyleSheet.create({
   barcodeVisualBox: { width: 165, backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
   barcodeLinesText: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 13, letterSpacing: 2, color: '#0F172A', fontWeight: 'bold' },
   codeSubtitle: { fontSize: 9, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', color: '#64748B', marginTop: 4 },
+  pickerLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginTop: 12, marginBottom: 6 },
+  pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  pickerChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  pickerHint: { fontSize: 10.5, marginTop: 6, lineHeight: 14 },
   printerStatusPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginVertical: 12 },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },

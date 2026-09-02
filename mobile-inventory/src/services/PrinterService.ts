@@ -3199,6 +3199,16 @@ class ThermalPrinterServiceManager {
     return JoshLabelPrinter.disconnect();
   }
 
+  /** Name/address of the connected label printer, for showing which one is live. */
+  public async joshGetPrinterInfo(): Promise<{ name: string; address: string } | null> {
+    if (!JoshLabelPrinter) return null;
+    try {
+      return await JoshLabelPrinter.getPrinterInfo();
+    } catch {
+      return null;
+    }
+  }
+
   public async joshIsConnected(): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
     try {
