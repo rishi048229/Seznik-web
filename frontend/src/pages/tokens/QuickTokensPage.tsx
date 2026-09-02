@@ -210,7 +210,7 @@ export const QuickTokensPage = () => {
         await blePrinter.connect()
       }
       const paperSize = settings?.printerConfig?.paperSize || '58mm'
-      await blePrinter.print(tokenSlipBytes(token, settings?.businessName, paperSize))
+      await blePrinter.print(await tokenSlipBytes(token, settings?.businessName, paperSize))
       toast.success(`Token #${token.tokenNumber} printed`)
     } catch (err) {
       console.error('BLE Print error:', err)
