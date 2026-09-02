@@ -193,7 +193,6 @@ export const KOTPage = () => {
       ) : !kotCfg.showTables ? (
         walkIns.length === 0 ? (
           <>
-            <KotInsightsPanel />
             <EmptyState
               icon={<CreditCard size={40} />}
               title="Ready for the next bill"
@@ -204,11 +203,13 @@ export const KOTPage = () => {
                 </Button>
               }
             />
+            <KotInsightsPanel />
           </>
-        ) : null
+        ) : (
+          <KotInsightsPanel />
+        )
       ) : tables.length === 0 ? (
         <>
-          <KotInsightsPanel />
           <EmptyState
             icon={<UtensilsCrossed size={40} />}
             title={`No ${floorLabel.toLowerCase()} yet`}
@@ -224,16 +225,22 @@ export const KOTPage = () => {
               </div>
             }
           />
+          <div className="mt-5">
+            <KotInsightsPanel />
+          </div>
         </>
       ) : (
-        <section>
-          <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{floorLabel}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
-            {tables.map((table) => (
-              <TableCard key={table.id} table={table} onClick={() => setWorkspace({ kind: 'table', table })} />
-            ))}
-          </div>
-        </section>
+        <>
+          <section className="mb-5">
+            <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{floorLabel}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
+              {tables.map((table) => (
+                <TableCard key={table.id} table={table} onClick={() => setWorkspace({ kind: 'table', table })} />
+              ))}
+            </div>
+          </section>
+          <KotInsightsPanel />
+        </>
       )}
 
       <TableManageModal isOpen={manageOpen} onClose={() => setManageOpen(false)} tables={tables} itemLabel={floorSingular} />
