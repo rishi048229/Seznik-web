@@ -25,7 +25,6 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.rishi048229.seznikapp",
-      "requestLegacyExternalStorage": true,
       "permissions": [
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
