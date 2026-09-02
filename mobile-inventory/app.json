@@ -78,6 +78,14 @@
         {
           "contactsPermission": "Allow Seznik POS to access your contacts to import them as customers."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "experiments": {
