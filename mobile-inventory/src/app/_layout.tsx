@@ -34,6 +34,17 @@ import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import '@/global.css';
 import { enableFreeze } from 'react-native-screens';
 
+const PureBlackDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#000000',
+    card: '#121212',
+    border: '#262626',
+    text: '#ffffff',
+  },
+};
+
 // Keep inactive tab screens frozen so cart/theme/query updates don't re-render every tab.
 enableFreeze(true);
 
@@ -164,7 +175,7 @@ function RootLayoutNav() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={colorScheme === 'dark' ? PureBlackDarkTheme : DefaultTheme}>
       <AppDataPrefetcher />
       <Stack
         screenOptions={{
@@ -176,7 +187,6 @@ function RootLayoutNav() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" />
         <Stack.Screen name="(auth)/register" />
         <Stack.Screen name="(auth)/forgot-password" />

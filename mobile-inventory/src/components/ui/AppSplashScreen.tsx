@@ -50,9 +50,9 @@ export function AppSplashScreen({ onFinish }: AppSplashScreenProps) {
     });
   }, [fadeAnim, scaleAnim, textFadeAnim, onFinish]);
 
-  const bgColor = isDark ? BRAND_COLORS.navyInk : '#F8FAFC';
+  const bgColor = isDark ? '#000000' : '#F8FAFC';
   const textColor = isDark ? '#FFFFFF' : '#0F172A';
-  const subtitleColor = isDark ? '#94A3B8' : '#64748B';
+  const subtitleColor = isDark ? '#A1A1AA' : '#64748B';
   const logoWrapperBg = isDark ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF';
   const logoBorderColor = isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0';
 

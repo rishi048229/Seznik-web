@@ -12,6 +12,7 @@ import {
   Switch,
   StatusBar,
   Vibration,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -196,6 +197,10 @@ export default function PrintersScreen() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [showPairingGuide, setShowPairingGuide] = useState(false);
 
+  // Device Scanner & Discovery Modal State
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [showAllDevices, setShowAllDevices] = useState(false);
+
   // Manual Add BT Printer State — always starts closed; only opens when the user taps "+ Add Manually".
   const [manualName, setManualName] = useState('');
   const [manualMac, setManualMac] = useState('');
@@ -299,11 +304,8 @@ export default function PrintersScreen() {
   };
 
   const handleScanBluetooth = async () => {
+    setShowDeviceModal(true);
     if (!nativeModuleAvailable && Platform.OS !== 'web') {
-      Alert.alert(
-        'Bluetooth Unavailable in This Build',
-        'Raw Bluetooth device scanning needs a custom dev-client build (Expo Go does not include native Bluetooth modules). Rebuild with "eas build --profile development" or use "System Printer Dialog" below instead.'
-      );
       return;
     }
     await scanForDevices();
@@ -1116,14 +1118,21 @@ export default function PrintersScreen() {
                 </View>
               )}
 
-              {/* Section: PAIRED & SAVED BLUETOOTH PRINTERS */}
+              {/* Section: PAIRED & DISCOVERED BLUETOOTH PRINTERS */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>PAIRED BLUETOOTH PRINTERS ({pairedPrinters.length})</Text>
-                <TouchableOpacity onPress={() => setShowManualAdd(!showManualAdd)}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
-                    {showManualAdd ? 'Cancel' : '+ Add Manually'}
-                  </Text>
-                </TouchableOpacity>
+                <Text style={styles.sectionHeader}>PAIRED & NEARBY PRINTERS ({scannedDevices.length})</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <TouchableOpacity onPress={() => setShowDeviceModal(true)}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
+                      Scan Devices
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowManualAdd(!showManualAdd)}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
+                      {showManualAdd ? 'Cancel' : '+ Add Manually'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Manual Add Card — only appears when the user taps "+ Add Manually" above */}
@@ -1153,66 +1162,45 @@ export default function PrintersScreen() {
                 </View>
               ) : null}
 
-              {/* Render Phone Bluetooth Devices List — paired devices arrive within ~1s via a live
-                  event (see PrinterService.scanForDevices), well before the full ~12s discovery
-                  cycle finishes, so the list shows as soon as anything arrives instead of blocking
-                  on the whole scan. isScanning only gates the very first render, before any device
-                  has come in yet; once any device shows up, further scanning is a small inline
-                  indicator, not a full-screen blocker. */}
-              {isScanning && scannedDevices.length === 0 ? (
-                <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, alignItems: 'center', paddingVertical: 20 }]}>
-                  <ActivityIndicator size="small" color={BRAND_COLORS.blue600} style={{ marginBottom: 8 }} />
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textPrimary }}>
-                    Fetching Phone's Paired & Available Bluetooth Devices...
-                  </Text>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                    Querying Android BluetoothAdapter & bonded devices
-                  </Text>
-                </View>
-              ) : scannedDevices.length === 0 ? (
+              {/* Compact Devices View: Top 3 Preview + Show More Modal */}
+              {scannedDevices.length === 0 ? (
                 <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, paddingVertical: 18, alignItems: 'center' }]}>
                   <Bluetooth size={24} color={theme.textSecondary} style={{ marginBottom: 6 }} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textPrimary }}>
                     No Bluetooth Devices Discovered
                   </Text>
                   <Text style={{ fontSize: 11, color: theme.textSecondary, textAlign: 'center', marginTop: 4, paddingHorizontal: 20 }}>
-                    Tap "Scan BT" above to fetch phone's paired devices or tap "+ Add Manually" to pair by MAC address.
+                    Tap "Find Printers" above or "Scan Devices" to search for nearby POS printers.
                   </Text>
                 </View>
               ) : (
                 <>
-                  {isScanning ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                      <ActivityIndicator size="small" color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textSecondary }}>
-                        Still scanning for nearby devices...
-                      </Text>
-                    </View>
-                  ) : null}
-                  {scannedDevices.map((dev) => {
+                  {(showAllDevices ? scannedDevices : scannedDevices.slice(0, 3)).map((dev) => {
                     const isCurrent = activeDevice?.id === dev.id || activeDevice?.macAddress === dev.macAddress;
                     const isPaired = dev.statusTag === 'Paired' || pairedPrinters.some(p => p.id === dev.id || p.macAddress === dev.macAddress);
 
                     return (
                       <View key={dev.id} style={[styles.deviceRow, { backgroundColor: theme.cardBg, borderColor: isCurrent ? BRAND_COLORS.blue600 : theme.borderColor }]}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                          <Bluetooth size={22} color={isCurrent ? '#10B981' : theme.textPrimary} />
-                          <View style={{ marginLeft: 12, flex: 1 }}>
+                          <Bluetooth size={20} color={isCurrent ? '#10B981' : theme.textPrimary} />
+                          <View style={{ marginLeft: 10, flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Text style={[styles.deviceName, { color: theme.textPrimary, fontSize: 14, fontWeight: '900' }]}>{dev.name}</Text>
+                              <Text style={[styles.deviceName, { color: theme.textPrimary, fontSize: 13, fontWeight: '800' }]} numberOfLines={1}>
+                                {dev.name}
+                              </Text>
                               <View style={[styles.statusTagPill, { backgroundColor: isPaired ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.18)' }]}>
                                 <Text style={[styles.statusTagText, { color: isPaired ? '#10B981' : '#64748B' }]}>
                                   {isPaired ? 'Paired' : 'New'}
                                 </Text>
                               </View>
                             </View>
-                            <Text style={[styles.deviceSub, { color: theme.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11, marginTop: 2 }]}>
+                            <Text style={[styles.deviceSub, { color: theme.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 10.5, marginTop: 1 }]}>
                               {dev.macAddress || dev.id}
                             </Text>
                           </View>
                         </View>
 
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <TouchableOpacity
                             onPress={() => (isCurrent ? disconnectDevice() : handleConnectDevice(dev.id, dev.name))}
                             style={[
@@ -1226,14 +1214,26 @@ export default function PrintersScreen() {
                           </TouchableOpacity>
 
                           {isPaired ? (
-                            <TouchableOpacity onPress={() => forgetPrinter(dev.id)} style={{ padding: 6, marginLeft: 2 }}>
-                              <Trash2 size={16} color="#EF4444" />
+                            <TouchableOpacity onPress={() => forgetPrinter(dev.id)} style={{ padding: 6 }}>
+                              <Trash2 size={15} color="#EF4444" />
                             </TouchableOpacity>
                           ) : null}
                         </View>
                       </View>
                     );
                   })}
+
+                  {scannedDevices.length > 3 ? (
+                    <TouchableOpacity
+                      onPress={() => setShowDeviceModal(true)}
+                      style={[styles.showMoreBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND_COLORS.blue600 }}>
+                        View All ({scannedDevices.length}) Devices in Scanner Pop-up
+                      </Text>
+                      <ChevronRight size={16} color={BRAND_COLORS.blue600} />
+                    </TouchableOpacity>
+                  ) : null}
                 </>
               )}
 
@@ -1562,6 +1562,154 @@ export default function PrintersScreen() {
         onClose={() => setShowAiBillModal(false)}
       />
 
+      {/* BLUETOOTH DEVICE DISCOVERY POP-UP MODAL */}
+      <Modal
+        visible={showDeviceModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDeviceModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: theme.cardBg }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                  Discovered Bluetooth Printers
+                </Text>
+                <Text style={[styles.modalSub, { color: theme.textSecondary }]}>
+                  {isScanning ? 'Searching for nearby devices...' : `Found ${scannedDevices.length} available device${scannedDevices.length === 1 ? '' : 's'}`}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowDeviceModal(false)}
+                style={[styles.modalCloseBtn, { backgroundColor: theme.borderColor }]}
+              >
+                <X size={18} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {isScanning ? (
+              <View style={styles.modalScanningBar}>
+                <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                <Text style={[styles.modalScanningText, { color: BRAND_COLORS.blue600 }]}>
+                  Scanning Android Bluetooth inquiry...
+                </Text>
+              </View>
+            ) : null}
+
+            <ScrollView style={{ maxHeight: 380, marginVertical: 10 }}>
+              {scannedDevices.length === 0 && !isScanning ? (
+                <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                  <Bluetooth size={36} color={theme.textSecondary} style={{ marginBottom: 8 }} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: theme.textPrimary }}>
+                    No Bluetooth Devices Detected
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: 'center', marginTop: 4, paddingHorizontal: 20 }}>
+                    Make sure the printer is turned on, pairing mode is enabled, and Bluetooth is ON in phone settings.
+                  </Text>
+                </View>
+              ) : (
+                scannedDevices.map((dev) => {
+                  const isCurrent = activeDevice?.id === dev.id || activeDevice?.macAddress === dev.macAddress;
+                  const isPaired = dev.statusTag === 'Paired' || pairedPrinters.some(p => p.id === dev.id || p.macAddress === dev.macAddress);
+
+                  return (
+                    <TouchableOpacity
+                      key={dev.id}
+                      activeOpacity={0.75}
+                      onPress={async () => {
+                        if (isCurrent) {
+                          disconnectDevice();
+                        } else {
+                          setShowDeviceModal(false);
+                          await handleConnectDevice(dev.id, dev.name);
+                        }
+                      }}
+                      style={[
+                        styles.modalDeviceItem,
+                        {
+                          backgroundColor: isCurrent ? 'rgba(16,185,129,0.08)' : theme.bg,
+                          borderColor: isCurrent ? '#10B981' : theme.borderColor,
+                        },
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <View
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 10,
+                            backgroundColor: isCurrent ? 'rgba(16,185,129,0.15)' : 'rgba(37,99,235,0.1)',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: 10,
+                          }}
+                        >
+                          <Bluetooth size={18} color={isCurrent ? '#10B981' : BRAND_COLORS.blue600} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={[styles.deviceName, { color: theme.textPrimary, fontSize: 13.5, fontWeight: '800' }]} numberOfLines={1}>
+                              {dev.name}
+                            </Text>
+                            {isPaired && (
+                              <View style={[styles.statusTagPill, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+                                <Text style={[styles.statusTagText, { color: '#10B981' }]}>Paired</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[styles.deviceSub, { color: theme.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11, marginTop: 1 }]}>
+                            {dev.macAddress || dev.id}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.connectChip,
+                          { backgroundColor: isCurrent ? 'rgba(239,68,68,0.12)' : BRAND_COLORS.blue600 },
+                        ]}
+                      >
+                        <Text style={[styles.connectChipText, { color: isCurrent ? '#EF4444' : '#FFFFFF' }]}>
+                          {isCurrent ? 'Disconnect' : 'Connect'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+              <TouchableOpacity
+                onPress={() => scanForDevices()}
+                disabled={isScanning}
+                style={[
+                  styles.modalScanAgainBtn,
+                  { backgroundColor: BRAND_COLORS.blue600, opacity: isScanning ? 0.7 : 1, flex: 1 },
+                ]}
+              >
+                {isScanning ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <RefreshCw size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>Scan Again</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setShowDeviceModal(false)}
+                style={[styles.modalCloseFooterBtn, { borderColor: theme.borderColor, flex: 1 }]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textPrimary }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <SequencePrintPrompt
         visible={showSequencePrompt}
         isPrinting={isSeqPrinting}
@@ -1728,5 +1876,85 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '82%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  modalSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalScanningBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  modalScanningText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalDeviceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+  },
+  modalScanAgainBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  modalCloseFooterBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
   },
 });

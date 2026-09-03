@@ -54,14 +54,12 @@ const SCAN_SAFETY_TIMEOUT_MS = 16000;
  * Bluetooth service state callback, so if that callback never arrives the promise hangs forever
  * and pins the UI at "Connecting…" with no way out.
  */
-const CONNECT_ATTEMPT_TIMEOUT_MS = 12000;
+const CONNECT_ATTEMPT_TIMEOUT_MS = 6000;
 
 /**
- * Backoff between connect attempts. An RFCOMM socket to a thermal printer routinely fails on the
- * first try when the printer has just woken from sleep, so a single attempt reports "printer
- * unreachable" for a printer that is sitting right there and working fine.
+ * Backoff between connect attempts.
  */
-const CONNECT_RETRY_DELAYS_MS = [600, 1800];
+const CONNECT_RETRY_DELAYS_MS = [500];
 
 /**
  * Guard for native probes that can never settle — notably isDeviceConnected(), which resolves no

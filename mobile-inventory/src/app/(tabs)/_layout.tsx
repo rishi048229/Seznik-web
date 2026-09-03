@@ -25,8 +25,8 @@ export default function TabsLayout() {
       tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
       tabBarInactiveTintColor: isDark ? BRAND_COLORS.slate400 : '#64748B',
       tabBarStyle: {
-        backgroundColor: isDark ? BRAND_COLORS.slate900 : '#FFFFFF',
-        borderTopColor: isDark ? BRAND_COLORS.slate800 : BRAND_COLORS.slate200,
+        backgroundColor: isDark ? '#000000' : '#FFFFFF',
+        borderTopColor: isDark ? '#1F1F1F' : BRAND_COLORS.slate200,
         height: 64,
         paddingBottom: 8,
         paddingTop: 8,

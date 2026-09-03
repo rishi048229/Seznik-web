@@ -29,9 +29,8 @@ import {
   setStoredPrinterCalibration,
 } from '@/services/secureStore';
 
-/** Backoff for automatic reconnects after an unexpected drop. Deliberately finite — after this the
- *  user is told to reconnect rather than the app retrying forever and draining the battery. */
-const AUTO_RECONNECT_DELAYS_MS = [1000, 3000, 8000];
+/** Backoff for automatic reconnects after an unexpected drop. Deliberately brief so app reload is instant. */
+const AUTO_RECONNECT_DELAYS_MS = [1500];
 
 export interface PhoneBluetoothDevice extends PrinterDevice {
   statusTag?: 'Paired' | 'New';

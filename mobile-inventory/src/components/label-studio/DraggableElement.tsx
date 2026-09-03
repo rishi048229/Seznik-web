@@ -16,6 +16,7 @@ interface DraggableElementProps extends ElementBox {
   pxPerMm: number;
   selected: boolean;
   onSelect: () => void;
+  onDoubleTap?: () => void;
   onChange: (next: ElementBox) => void;
   /** Fires once per gesture (not per frame) — the right place to push an undo-history snapshot. */
   onCommit?: () => void;
@@ -27,22 +28,6 @@ interface DraggableElementProps extends ElementBox {
   children: React.ReactNode;
 }
 
-/**
- * A freely draggable, corner-resizable element on the Label Studio canvas. Position/size are
- * always in mm (resolution-independent — the same unit the print pipeline and saved template use),
- * converted to on-screen pixels only via `pxPerMm`.
- *
- * Drag/resize now run as genuine UI-thread worklets via reanimated shared values — the wrapper's
- * on-screen transform updates every frame without ever crossing the JS bridge, which is what makes
- * this feel smooth. The previous version used `.runOnJS(true)` on every gesture callback (so each
- * pan update round-tripped: native -> JS -> React state -> re-render -> new gesture object -> back
- * to native), which is what made dragging feel laggy. JS state (the real xMm/yMm/widthMm/heightMm
- * that get saved) now only updates once, via `runOnJS`, when a gesture actually ends — during the
- * drag itself, only `translateX`/`translateY`/width/height shared values move, entirely on the UI
- * thread. `useSharedValue` mutation is unaffected by this project's React Compiler `react-hooks/refs`
- * rule — that rule targets plain `useRef`, not reanimated's shared values, which are worklet-safe by
- * design (confirmed already in use elsewhere in this app, e.g. print-animation-modal.tsx).
- */
 export function DraggableElement({
   xMm,
   yMm,
@@ -51,6 +36,7 @@ export function DraggableElement({
   pxPerMm,
   selected,
   onSelect,
+  onDoubleTap,
   onChange,
   onCommit,
   minWidthMm = 2,
@@ -74,21 +60,21 @@ export function DraggableElement({
     onCommit?.();
   };
 
-  const makeResizeGesture = (corner: 'tl' | 'tr' | 'bl' | 'br') =>
+  const makeResizeGesture = (handle: 'tl' | 'tr' | 'bl' | 'br' | 'l' | 'r' | 't' | 'b') =>
     Gesture.Pan()
       .minDistance(1)
       .onUpdate((e) => {
         const dx = e.translationX;
         const dy = e.translationY;
-        if (corner === 'br' || corner === 'tr') {
+        if (handle === 'br' || handle === 'tr' || handle === 'r') {
           growWidth.value = dx;
-        } else {
+        } else if (handle === 'bl' || handle === 'tl' || handle === 'l') {
           growWidth.value = -dx;
           shiftX.value = dx;
         }
-        if (corner === 'bl' || corner === 'br') {
+        if (handle === 'bl' || handle === 'br' || handle === 'b') {
           growHeight.value = dy;
-        } else {
+        } else if (handle === 'tl' || handle === 'tr' || handle === 't') {
           growHeight.value = -dy;
           shiftY.value = dy;
         }
@@ -98,15 +84,15 @@ export function DraggableElement({
         const dyMm = e.translationY / pxPerMm;
         const nextBox: ElementBox = { xMm, yMm, widthMm, heightMm };
 
-        if (corner === 'br' || corner === 'tr') {
+        if (handle === 'br' || handle === 'tr' || handle === 'r') {
           nextBox.widthMm = Math.max(minWidthMm, Math.min(widthMm + dxMm, boundsWidthMm - xMm));
-        } else {
+        } else if (handle === 'bl' || handle === 'tl' || handle === 'l') {
           nextBox.widthMm = Math.max(minWidthMm, widthMm - dxMm);
           nextBox.xMm = Math.max(0, xMm + (widthMm - nextBox.widthMm));
         }
-        if (corner === 'bl' || corner === 'br') {
+        if (handle === 'bl' || handle === 'br' || handle === 'b') {
           nextBox.heightMm = Math.max(minHeightMm, Math.min(heightMm + dyMm, boundsHeightMm - yMm));
-        } else {
+        } else if (handle === 'tl' || handle === 'tr' || handle === 't') {
           nextBox.heightMm = Math.max(minHeightMm, heightMm - dyMm);
           nextBox.yMm = Math.max(0, yMm + (heightMm - nextBox.heightMm));
         }
@@ -123,8 +109,28 @@ export function DraggableElement({
   const blGesture = makeResizeGesture('bl');
   const brGesture = makeResizeGesture('br');
 
+  const lGesture = makeResizeGesture('l');
+  const rGesture = makeResizeGesture('r');
+  const tGesture = makeResizeGesture('t');
+  const bGesture = makeResizeGesture('b');
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDuration(300)
+    .onEnd(() => {
+      if (onDoubleTap) {
+        runOnJS(onDoubleTap)();
+      }
+    });
+
+  const singleTapGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .onEnd(() => {
+      runOnJS(onSelect)();
+    });
+
   const moveGesture = Gesture.Pan()
-    .blocksExternalGesture(tlGesture, trGesture, blGesture, brGesture)
+    .blocksExternalGesture(tlGesture, trGesture, blGesture, brGesture, lGesture, rGesture, tGesture, bGesture)
     .activeOffsetX([-6, 6])
     .activeOffsetY([-6, 6])
     .onBegin(() => {
@@ -146,6 +152,9 @@ export function DraggableElement({
       runOnJS(commitBox)(nextBox);
     });
 
+  // Compose tap and move gestures
+  const composedBodyGesture = Gesture.Exclusive(doubleTapGesture, moveGesture, singleTapGesture);
+
   const baseLeft = xMm * pxPerMm;
   const baseTop = yMm * pxPerMm;
   const baseWidth = widthMm * pxPerMm;
@@ -159,9 +168,10 @@ export function DraggableElement({
     transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
   }));
 
-  const handleTouchSize = 32;
-  const handleDotSize = 14;
+  const handleTouchSize = 34;
+  const handleDotSize = 13;
   const handleOffset = -handleTouchSize / 2;
+
   const cornerPositions: Record<'tl' | 'tr' | 'bl' | 'br', ViewStyle> = {
     tl: { left: handleOffset, top: handleOffset },
     tr: { right: handleOffset, top: handleOffset },
@@ -176,12 +186,23 @@ export function DraggableElement({
   };
 
   return (
-    <GestureDetector gesture={moveGesture}>
-      <Animated.View style={[styles.wrapper, wrapperStyle, { borderColor: selected ? BRAND_COLORS.blue600 : 'transparent' }]}>
+    <GestureDetector gesture={composedBodyGesture}>
+      <Animated.View
+        style={[
+          styles.wrapper,
+          wrapperStyle,
+          {
+            borderColor: selected ? '#64748B' : 'transparent',
+            borderWidth: selected ? 1.5 : 0,
+            borderStyle: 'solid',
+          },
+        ]}
+      >
         {children}
 
         {selected ? (
           <>
+            {/* 4 Corner Round Handles matching reference design */}
             {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
               <GestureDetector key={corner} gesture={cornerGestures[corner]}>
                 <Animated.View
@@ -201,6 +222,21 @@ export function DraggableElement({
                 </Animated.View>
               </GestureDetector>
             ))}
+
+            {/* Top / Bottom Edge Touch Drag Zones */}
+            <GestureDetector gesture={tGesture}>
+              <Animated.View style={[styles.edgeTouchH, { top: -14 }]} hitSlop={{ top: 8, bottom: 8 }} />
+            </GestureDetector>
+            <GestureDetector gesture={bGesture}>
+              <Animated.View style={[styles.edgeTouchH, { bottom: -14 }]} hitSlop={{ top: 8, bottom: 8 }} />
+            </GestureDetector>
+            {/* Left / Right Edge Touch Drag Zones */}
+            <GestureDetector gesture={lGesture}>
+              <Animated.View style={[styles.edgeTouchV, { left: -14 }]} hitSlop={{ left: 8, right: 8 }} />
+            </GestureDetector>
+            <GestureDetector gesture={rGesture}>
+              <Animated.View style={[styles.edgeTouchV, { right: -14 }]} hitSlop={{ left: 8, right: 8 }} />
+            </GestureDetector>
           </>
         ) : null}
       </Animated.View>
@@ -209,7 +245,10 @@ export function DraggableElement({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { position: 'absolute', borderWidth: 1.5, borderStyle: 'dashed' },
+  wrapper: {
+    position: 'absolute',
+    borderRadius: 4,
+  },
   handleContainer: {
     position: 'absolute',
     alignItems: 'center',
@@ -217,13 +256,27 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   handleDot: {
-    backgroundColor: BRAND_COLORS.blue600,
+    backgroundColor: '#94A3B8',
     borderWidth: 2,
     borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2.5,
     elevation: 4,
+  },
+  edgeTouchH: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    height: 28,
+    zIndex: 998,
+  },
+  edgeTouchV: {
+    position: 'absolute',
+    top: 18,
+    bottom: 18,
+    width: 28,
+    zIndex: 998,
   },
 });

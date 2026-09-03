@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
+  ChevronLeft,
   Plus,
   Minus,
   Type,
@@ -35,6 +36,7 @@ import {
   FolderOpen,
   Check,
   Star,
+  Printer,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -194,6 +196,29 @@ export default function LabelStudioScreen() {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [showSavedTemplatesModal, setShowSavedTemplatesModal] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
+
+  // Double-tap direct text editing
+  const [doubleTapTextEditId, setDoubleTapTextEditId] = useState<string | null>(null);
+  const [doubleTapTextDraft, setDoubleTapTextDraft] = useState('');
+
+  const handleDoubleTapElement = (el: LabelElement) => {
+    setSelectedId(el.id);
+    if (el.type === 'text') {
+      const currentVal = el.customText || (previewProduct ? resolveTextValue(el, previewProduct) : '');
+      setDoubleTapTextDraft(currentVal);
+      setDoubleTapTextEditId(el.id);
+    }
+  };
+
+  const handleSaveDoubleTapText = () => {
+    if (doubleTapTextEditId) {
+      updateElementProps(doubleTapTextEditId, {
+        binding: 'custom',
+        customText: doubleTapTextDraft,
+      } as Partial<LabelTextElement>);
+      setDoubleTapTextEditId(null);
+    }
+  };
 
   const hasSequenceElement = template.elements.some((e) => e.type === 'text' && e.binding === 'sequence');
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
@@ -453,65 +478,33 @@ export default function LabelStudioScreen() {
     <ScreenBackground color={theme.bg}>
       <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
         <KeyboardAvoidingWrapper inModal>
-          {/* Top Header Row */}
-          <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <ArrowLeft size={18} color={theme.textPrimary} />
+          {/* 1. Header Bar: Chevron Back, Centered Title, Right Tool Icons */}
+          <View style={[styles.refHeaderBar, { borderBottomColor: theme.borderColor }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.refBackBtn}>
+              <ChevronLeft size={28} color={BRAND_COLORS.blue600} />
             </TouchableOpacity>
 
-            <TextInput
-              value={template.name}
-              onChangeText={(name) => setTemplate((prev) => ({ ...prev, name }))}
-              style={[styles.nameInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-              placeholder="Template Name"
-              placeholderTextColor="#94A3B8"
-            />
+            <View style={styles.refHeaderCenter}>
+              <Text style={[styles.refHeaderTitle, { color: theme.textPrimary }]}>
+                Label Studio Editor
+              </Text>
+            </View>
 
-            <TouchableOpacity
-              onPress={() => setShowSavedTemplatesModal(true)}
-              style={[styles.headerIconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-            >
-              <FolderOpen size={16} color={BRAND_COLORS.blue600} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setShowAiBillModal(true)}
-              style={[styles.aiBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-            >
-              <Sparkles size={14} color="#FFFFFF" />
-              <Text style={styles.aiBtnText}>AI</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleSaveTemplate}
-              disabled={isSaving}
-              style={[styles.saveBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
-            >
-              {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Save size={15} color="#FFFFFF" />}
-            </TouchableOpacity>
-          </View>
-
-          {/* Default Template Action Banner */}
-          <View style={{ marginHorizontal: 12, marginBottom: 8 }}>
-            {isCurrentTemplateDefault ? (
-              <View style={[styles.defaultStatusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
-                <CheckCircle2 size={14} color="#10B981" />
-                <Text style={styles.defaultStatusText}>Default Template (Used for real barcode label prints)</Text>
-              </View>
-            ) : (
+            <View style={styles.refHeaderRight}>
               <TouchableOpacity
-                onPress={handleSetDefault}
-                disabled={isSettingDefault}
-                style={[styles.setDefaultBtn, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: '#F59E0B' }]}
+                onPress={() => setShowSavedTemplatesModal(true)}
+                style={[styles.headerMiniIconBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               >
-                {isSettingDefault ? (
-                  <ActivityIndicator size="small" color="#B45309" style={{ marginRight: 6 }} />
-                ) : (
-                  <Star size={14} color="#B45309" style={{ marginRight: 6 }} />
-                )}
-                <Text style={styles.setDefaultBtnText}>Set as Active Default Label Template ⭐</Text>
+                <FolderOpen size={16} color={theme.textSecondary} />
               </TouchableOpacity>
-            )}
+
+              <TouchableOpacity
+                onPress={() => setShowAiBillModal(true)}
+                style={[styles.headerMiniAiBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+              >
+                <Sparkles size={13} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Main Unified Scrolling Content */}
@@ -520,17 +513,8 @@ export default function LabelStudioScreen() {
             contentContainerStyle={styles.mainScrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* CANVAS WORK AREA */}
-            <View style={[styles.canvasCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <View style={styles.canvasHeader}>
-                <Text style={[styles.canvasBadge, { color: theme.textSecondary }]}>
-                  CANVAS ({template.widthMm}mm × {template.heightMm}mm)
-                </Text>
-                <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                  Drag to reposition • Handles to resize
-                </Text>
-              </View>
-
+            {/* CANVAS WORK AREA CONTAINER (Dashed box matching reference) */}
+            <View style={[styles.refCanvasContainer, { borderColor: theme.isDark ? '#333333' : '#CBD5E1', backgroundColor: theme.isDark ? '#0A0A0A' : '#F8FAFC' }]}>
               <ScrollView
                 horizontal={canvasOverflowsScreen}
                 contentContainerStyle={canvasOverflowsScreen ? { minWidth: canvasWidthPx } : styles.canvasCenterWrapper}
@@ -539,7 +523,7 @@ export default function LabelStudioScreen() {
                 <TouchableOpacity activeOpacity={1} onPress={() => setSelectedId(null)}>
                   <View
                     style={[
-                      styles.canvas,
+                      styles.refCanvas,
                       {
                         width: template.widthMm * pxPerMm,
                         height: template.heightMm * pxPerMm,
@@ -559,6 +543,7 @@ export default function LabelStudioScreen() {
                         boundsHeightMm={template.heightMm}
                         selected={selectedId === el.id}
                         onSelect={() => setSelectedId(el.id)}
+                        onDoubleTap={() => handleDoubleTapElement(el)}
                         onChange={(box) => updateElement(el.id, box)}
                       >
                         {renderElementContent(el)}
@@ -567,407 +552,308 @@ export default function LabelStudioScreen() {
                   </View>
                 </TouchableOpacity>
               </ScrollView>
-
-              {/* QUICK ADD ELEMENTS TOOLBAR (Right below Canvas) */}
-              <View style={styles.quickAddBar}>
-                <TouchableOpacity
-                  onPress={() => addElement('text')}
-                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                >
-                  <Type size={14} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ Text</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => addElement('barcode')}
-                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                >
-                  <BarcodeIcon size={14} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ Barcode</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => addElement('qrcode')}
-                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                >
-                  <QrCode size={14} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ QR Code</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => addElement('image')}
-                  style={[styles.quickAddBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                >
-                  <ImageIcon size={14} color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.quickAddText, { color: theme.textPrimary }]}>+ Logo</Text>
-                </TouchableOpacity>
-              </View>
             </View>
 
-            {/* DIRECT ELEMENT EDITING INSPECTOR (Directly below Canvas) */}
-            {selectedElement ? (
-              <View style={[styles.inspectorCard, { backgroundColor: theme.cardBg, borderColor: BRAND_COLORS.blue600 }]}>
-                {/* Element Header with DELETE BUTTON */}
-                <View style={styles.inspectorHeaderRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={[styles.typeBadge, { backgroundColor: BRAND_COLORS.navyInk }]}>
-                      <Text style={styles.typeBadgeText}>{selectedElement.type.toUpperCase()}</Text>
-                    </View>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textSecondary }}>
-                      X:{Math.round(selectedElement.xMm)} Y:{Math.round(selectedElement.yMm)} • {Math.round(selectedElement.widthMm)}×{Math.round(selectedElement.heightMm)}mm
-                    </Text>
-                  </View>
+            {/* QUICK ADD ELEMENTS ROW (4 Circular Buttons: Text, Barcode, QR Code, Logo) */}
+            <View style={styles.refQuickAddRow}>
+              <TouchableOpacity onPress={() => addElement('text')} style={styles.refCircleItem}>
+                <View style={[styles.refCircleBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Type size={20} color={theme.textPrimary} />
+                  <Text style={styles.refCirclePlus}>+</Text>
+                </View>
+                <Text style={[styles.refCircleLabel, { color: theme.textSecondary }]}>Text</Text>
+              </TouchableOpacity>
 
-                  {/* PROMINENT DELETE BUTTON RIGHT BELOW CANVAS */}
-                  <TouchableOpacity
-                    onPress={deleteSelected}
-                    style={styles.deleteElementBtn}
-                  >
-                    <Trash2 size={14} color="#FFF" style={{ marginRight: 4 }} />
-                    <Text style={styles.deleteElementBtnText}>Delete</Text>
-                  </TouchableOpacity>
+              <TouchableOpacity onPress={() => addElement('barcode')} style={styles.refCircleItem}>
+                <View style={[styles.refCircleBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <BarcodeIcon size={20} color={theme.textPrimary} />
+                  <Text style={styles.refCirclePlus}>+</Text>
+                </View>
+                <Text style={[styles.refCircleLabel, { color: theme.textSecondary }]}>Barcode</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => addElement('qrcode')} style={styles.refCircleItem}>
+                <View style={[styles.refCircleBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <QrCode size={20} color={theme.textPrimary} />
+                  <Text style={styles.refCirclePlus}>+</Text>
+                </View>
+                <Text style={[styles.refCircleLabel, { color: theme.textSecondary }]}>QR Code</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => addElement('image')} style={styles.refCircleItem}>
+                <View style={[styles.refCircleBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <ImageIcon size={20} color={theme.textPrimary} />
+                  <Text style={styles.refCirclePlus}>+</Text>
+                </View>
+                <Text style={[styles.refCircleLabel, { color: theme.textSecondary }]}>Logo</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* EDIT PROPERTIES SECTION */}
+            <View style={styles.refSectionHeaderRow}>
+              <Text style={[styles.refSectionTitle, { color: theme.textSecondary }]}>EDIT PROPERTIES</Text>
+              {selectedElement && (
+                <TouchableOpacity onPress={deleteSelected} style={styles.refDeleteBtn}>
+                  <Trash2 size={13} color="#EF4444" />
+                  <Text style={styles.refDeleteText}>Delete</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {selectedElement ? (
+              <View style={[styles.refInspectorCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                {/* 1. Content Field Row */}
+                <View style={styles.refPropRow}>
+                  <Text style={[styles.refPropLabel, { color: theme.textPrimary }]}>Content:</Text>
+                  <View style={{ flex: 1 }}>
+                    {selectedElement.type === 'text' ? (
+                      <TextInput
+                        value={selectedElement.binding === 'custom' ? (selectedElement.customText || '') : (previewProduct ? resolveTextValue(selectedElement, previewProduct) : '')}
+                        onChangeText={(txt) => {
+                          updateElementProps(selectedElement.id, {
+                            binding: 'custom',
+                            customText: txt,
+                          } as Partial<LabelTextElement>);
+                        }}
+                        style={[styles.refInlineInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1C1C1E' : '#FFFFFF' }]}
+                        placeholder="Double-tap canvas or enter text..."
+                        placeholderTextColor="#94A3B8"
+                      />
+                    ) : selectedElement.type === 'barcode' ? (
+                      <TextInput
+                        value={selectedElement.binding === 'custom' ? (selectedElement.customValue || '') : (previewProduct ? resolveCodeValue(selectedElement, previewProduct) : '')}
+                        onChangeText={(val) => {
+                          updateElementProps(selectedElement.id, {
+                            binding: 'custom',
+                            customValue: val,
+                          } as Partial<LabelBarcodeElement>);
+                        }}
+                        style={[styles.refInlineInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1C1C1E' : '#FFFFFF' }]}
+                        placeholder="Barcode number / SKU..."
+                        placeholderTextColor="#94A3B8"
+                      />
+                    ) : selectedElement.type === 'qrcode' ? (
+                      <TextInput
+                        value={selectedElement.binding === 'custom' ? (selectedElement.customValue || '') : (previewProduct ? resolveCodeValue(selectedElement, previewProduct) : '')}
+                        onChangeText={(val) => {
+                          updateElementProps(selectedElement.id, {
+                            binding: 'custom',
+                            customValue: val,
+                          } as Partial<LabelQrElement>);
+                        }}
+                        style={[styles.refInlineInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1C1C1E' : '#FFFFFF' }]}
+                        placeholder="URL / UPI / QR Data..."
+                        placeholderTextColor="#94A3B8"
+                      />
+                    ) : selectedElement.type === 'image' ? (
+                      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                        <TouchableOpacity
+                          onPress={() => handlePickImageForElement(selectedElement.id)}
+                          style={[styles.imageActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                        >
+                          <ImageIcon size={13} color="#FFF" />
+                          <Text style={styles.imageActionBtnText}>Replace Logo</Text>
+                        </TouchableOpacity>
+                        {selectedElement.uri ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (selectedElement.uri) {
+                                openLogoBgOption(selectedElement.uri, (finalUri) => {
+                                  updateElementProps(selectedElement.id, { uri: finalUri } as Partial<LabelImageElement>);
+                                });
+                              }
+                            }}
+                            style={[styles.imageActionBtn, { backgroundColor: '#D97706' }]}
+                          >
+                            <Sparkles size={13} color="#FFF" />
+                            <Text style={styles.imageActionBtnText}>Remove BG</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
 
-                {/* TEXT ELEMENT CONTROLS */}
+                {/* 2. Font Size Stepper Row (for text) */}
                 {selectedElement.type === 'text' && (
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bind Content To:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-                      <View style={{ flexDirection: 'row', gap: 6 }}>
-                        {TEXT_BINDING_OPTIONS.map((opt) => (
+                  <View style={[styles.refPropRow, { marginTop: 14 }]}>
+                    <Text style={[styles.refPropLabel, { color: theme.textPrimary }]}>Font Size:</Text>
+                    <View style={styles.refFontSizeControls}>
+                      <Text style={[styles.refFontSizeVal, { color: theme.textPrimary }]}>
+                        {selectedElement.fontSizePt} Pt
+                      </Text>
+                      <View style={[styles.refStepperSegment, { backgroundColor: theme.isDark ? '#1C1C1E' : '#E2E8F0' }]}>
+                        <TouchableOpacity
+                          onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(1, selectedElement.fontSizePt - 1) } as Partial<LabelTextElement>)}
+                          style={styles.refStepperHalf}
+                        >
+                          <Minus size={14} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <View style={[styles.refStepperDivider, { backgroundColor: theme.isDark ? '#2E2E32' : '#CBD5E1' }]} />
+                        <TouchableOpacity
+                          onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(24, selectedElement.fontSizePt + 1) } as Partial<LabelTextElement>)}
+                          style={styles.refStepperHalf}
+                        >
+                          <Plus size={14} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* 3. Alignment Segmented Control (for text) */}
+                {selectedElement.type === 'text' && (
+                  <View style={[styles.refPropRow, { marginTop: 14 }]}>
+                    <Text style={[styles.refPropLabel, { color: theme.textPrimary }]}>Alignment:</Text>
+                    <View style={[styles.refSegmentedContainer, { backgroundColor: theme.isDark ? '#1C1C1E' : '#E2E8F0' }]}>
+                      {(['left', 'center', 'right'] as const).map((a) => {
+                        const isAlignActive = (selectedElement.align || 'center') === a;
+                        return (
                           <TouchableOpacity
-                            key={opt.value}
-                            onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelTextElement>)}
+                            key={a}
+                            onPress={() => updateElementProps(selectedElement.id, { align: a } as Partial<LabelTextElement>)}
                             style={[
-                              styles.chip,
-                              { borderColor: theme.borderColor, backgroundColor: theme.bg },
-                              selectedElement.binding === opt.value && styles.chipActive,
+                              styles.refSegmentBtn,
+                              isAlignActive && [styles.refSegmentBtnActive, { backgroundColor: theme.isDark ? '#2C2C2E' : '#FFFFFF' }],
                             ]}
                           >
                             <Text
                               style={[
-                                styles.chipText,
+                                styles.refSegmentText,
                                 { color: theme.textSecondary },
-                                selectedElement.binding === opt.value && styles.chipTextActive,
+                                isAlignActive && { color: theme.textPrimary, fontWeight: '800' },
+                              ]}
+                            >
+                              {a.charAt(0).toUpperCase() + a.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* 4. Bind to Data Row */}
+                <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.isDark ? '#262626' : '#F1F5F9' }}>
+                  <Text style={[styles.refPropLabel, { color: theme.textPrimary, marginBottom: 8 }]}>Bind to Data:</Text>
+                  {selectedElement.type === 'text' ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {TEXT_BINDING_OPTIONS.map((opt) => {
+                          const isBound = selectedElement.binding === opt.value;
+                          return (
+                            <TouchableOpacity
+                              key={opt.value}
+                              onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelTextElement>)}
+                              style={[
+                                styles.refChip,
+                                { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1C1C1E' : '#F1F5F9' },
+                                isBound && styles.refChipActive,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.refChipText,
+                                  { color: theme.textSecondary },
+                                  isBound && styles.refChipTextActive,
+                                ]}
+                              >
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  ) : selectedElement.type === 'barcode' ? (
+                    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                      {CODE_BINDING_OPTIONS.map((opt) => {
+                        const isBound = selectedElement.binding === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelBarcodeElement>)}
+                            style={[
+                              styles.refChip,
+                              { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1C1C1E' : '#F1F5F9' },
+                              isBound && styles.refChipActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.refChipText,
+                                { color: theme.textSecondary },
+                                isBound && styles.refChipTextActive,
                               ]}
                             >
                               {opt.label}
                             </Text>
                           </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
-
-                    {/* Direct Text Input */}
-                    {selectedElement.binding === 'custom' && (
-                      <TextInput
-                        value={selectedElement.customText || ''}
-                        onChangeText={(customText) => updateElementProps(selectedElement.id, { customText } as Partial<LabelTextElement>)}
-                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg, marginTop: 6 }]}
-                        placeholder="Enter custom text..."
-                        placeholderTextColor="#94A3B8"
-                      />
-                    )}
-
-                    {/* Font Styling Row */}
-                    <View style={styles.stylingRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>Font Size:</Text>
-                        <View style={styles.stepperMini}>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                      {CODE_BINDING_OPTIONS.map((opt) => {
+                        const isBound = (selectedElement as any).binding === opt.value;
+                        return (
                           <TouchableOpacity
-                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.max(1, selectedElement.fontSizePt - 1) } as Partial<LabelTextElement>)}
-                            style={[styles.stepMiniBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-                          >
-                            <Minus size={12} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                          <Text style={[styles.stepMiniVal, { color: theme.textPrimary }]}>{selectedElement.fontSizePt} Pt</Text>
-                          <TouchableOpacity
-                            onPress={() => updateElementProps(selectedElement.id, { fontSizePt: Math.min(12, selectedElement.fontSizePt + 1) } as Partial<LabelTextElement>)}
-                            style={[styles.stepMiniBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-                          >
-                            <Plus size={12} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={() => updateElementProps(selectedElement.id, { bold: !selectedElement.bold } as Partial<LabelTextElement>)}
-                        style={[
-                          styles.boldToggleBtn,
-                          { borderColor: theme.borderColor, backgroundColor: theme.bg },
-                          selectedElement.bold && styles.chipActive,
-                        ]}
-                      >
-                        <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.bold && styles.chipTextActive]}>
-                          Bold
-                        </Text>
-                      </TouchableOpacity>
-
-                      <View style={{ flexDirection: 'row', gap: 4 }}>
-                        {(['left', 'center', 'right'] as const).map((a) => (
-                          <TouchableOpacity
-                            key={a}
-                            onPress={() => updateElementProps(selectedElement.id, { align: a } as Partial<LabelTextElement>)}
+                            key={opt.value}
+                            onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as any)}
                             style={[
-                              styles.alignBtn,
-                              { borderColor: theme.borderColor, backgroundColor: theme.bg },
-                              selectedElement.align === a && styles.chipActive,
+                              styles.refChip,
+                              { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1C1C1E' : '#F1F5F9' },
+                              isBound && styles.refChipActive,
                             ]}
                           >
-                            <Text style={[styles.chipText, { color: theme.textSecondary, textTransform: 'capitalize' }, selectedElement.align === a && styles.chipTextActive]}>
-                              {a}
+                            <Text
+                              style={[
+                                styles.refChipText,
+                                { color: theme.textSecondary },
+                                isBound && styles.refChipTextActive,
+                              ]}
+                            >
+                              {opt.label}
                             </Text>
                           </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                )}
-
-                {/* BARCODE ELEMENT CONTROLS */}
-                {selectedElement.type === 'barcode' && (
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bind Barcode To:</Text>
-                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
-                      {CODE_BINDING_OPTIONS.map((opt) => (
-                        <TouchableOpacity
-                          key={opt.value}
-                          onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelBarcodeElement>)}
-                          style={[
-                            styles.chip,
-                            { borderColor: theme.borderColor, backgroundColor: theme.bg },
-                            selectedElement.binding === opt.value && styles.chipActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              { color: theme.textSecondary },
-                              selectedElement.binding === opt.value && styles.chipTextActive,
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    {selectedElement.binding === 'custom' && (
-                      <TextInput
-                        value={selectedElement.customValue || ''}
-                        onChangeText={(customValue) => updateElementProps(selectedElement.id, { customValue } as Partial<LabelBarcodeElement>)}
-                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg, marginTop: 4 }]}
-                        placeholder="Enter barcode numbers/text..."
-                        placeholderTextColor="#94A3B8"
-                      />
-                    )}
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginBottom: 0 }]}>Format:</Text>
-                      {(['ean13', 'code128'] as const).map((f) => (
-                        <TouchableOpacity
-                          key={f}
-                          onPress={() => updateElementProps(selectedElement.id, { format: f } as Partial<LabelBarcodeElement>)}
-                          style={[
-                            styles.chip,
-                            { borderColor: theme.borderColor, backgroundColor: theme.bg },
-                            selectedElement.format === f && styles.chipActive,
-                          ]}
-                        >
-                          <Text style={[styles.chipText, { color: theme.textSecondary }, selectedElement.format === f && styles.chipTextActive]}>
-                            {f.toUpperCase()}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* QR CODE ELEMENT CONTROLS */}
-                {selectedElement.type === 'qrcode' && (
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Bind QR Code To:</Text>
-                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
-                      {CODE_BINDING_OPTIONS.map((opt) => (
-                        <TouchableOpacity
-                          key={opt.value}
-                          onPress={() => updateElementProps(selectedElement.id, { binding: opt.value } as Partial<LabelQrElement>)}
-                          style={[
-                            styles.chip,
-                            { borderColor: theme.borderColor, backgroundColor: theme.bg },
-                            selectedElement.binding === opt.value && styles.chipActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              { color: theme.textSecondary },
-                              selectedElement.binding === opt.value && styles.chipTextActive,
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    {selectedElement.binding === 'custom' && (
-                      <TextInput
-                        value={selectedElement.customValue || ''}
-                        onChangeText={(customValue) => updateElementProps(selectedElement.id, { customValue } as Partial<LabelQrElement>)}
-                        style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg, marginTop: 4 }]}
-                        placeholder="Enter QR content / URL / UPI ID..."
-                        placeholderTextColor="#94A3B8"
-                      />
-                    )}
-                  </View>
-                )}
-
-                {/* IMAGE / LOGO CONTROLS */}
-                {selectedElement.type === 'image' && (
-                  <View style={{ marginTop: 8 }}>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <TouchableOpacity
-                        onPress={() => handlePickImageForElement(selectedElement.id)}
-                        style={[styles.imageActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-                      >
-                        <ImageIcon size={13} color="#FFF" />
-                        <Text style={styles.imageActionBtnText}>Replace Logo</Text>
-                      </TouchableOpacity>
-
-                      {selectedElement.uri ? (
-                        <TouchableOpacity
-                          onPress={() => {
-                            if (selectedElement.uri) {
-                              openLogoBgOption(selectedElement.uri, (finalUri) => {
-                                updateElementProps(selectedElement.id, { uri: finalUri } as Partial<LabelImageElement>);
-                              });
-                            }
-                          }}
-                          style={[styles.imageActionBtn, { backgroundColor: '#D97706' }]}
-                        >
-                          <Sparkles size={13} color="#FFF" />
-                          <Text style={styles.imageActionBtnText}>Remove BG</Text>
-                        </TouchableOpacity>
-                      ) : null}
-
-                      <TouchableOpacity
-                        onPress={() => updateElementProps(selectedElement.id, { invert: !selectedElement.invert } as Partial<LabelImageElement>)}
-                        style={[
-                          styles.imageActionBtn,
-                          {
-                            backgroundColor: selectedElement.invert ? BRAND_COLORS.navyInk : theme.bg,
-                            borderWidth: 1,
-                            borderColor: theme.borderColor,
-                          },
-                        ]}
-                      >
-                        <Text style={[styles.imageActionBtnText, { color: selectedElement.invert ? '#FFF' : theme.textPrimary }]}>
-                          Invert: {selectedElement.invert ? 'ON' : 'OFF'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {/* PRECISION ELEMENT SIZE & POSITION STEPPERS */}
-                <View style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(100,116,139,0.15)' }}>
-                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Element Size (Width × Height mm):</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 2 }}>Width</Text>
-                      <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
-                        <TouchableOpacity
-                          onPress={() => updateElementProps(selectedElement.id, { widthMm: Math.max(2, Math.round(selectedElement.widthMm) - 1) })}
-                          style={styles.stepBoxBtn}
-                        >
-                          <Minus size={12} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                        <Text style={[styles.stepBoxVal, { fontSize: 11, color: theme.textPrimary }]}>{Math.round(selectedElement.widthMm)} mm</Text>
-                        <TouchableOpacity
-                          onPress={() => updateElementProps(selectedElement.id, { widthMm: Math.min(template.widthMm - selectedElement.xMm, Math.round(selectedElement.widthMm) + 1) })}
-                          style={styles.stepBoxBtn}
-                        >
-                          <Plus size={12} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 2 }}>Height</Text>
-                      <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
-                        <TouchableOpacity
-                          onPress={() => updateElementProps(selectedElement.id, { heightMm: Math.max(2, Math.round(selectedElement.heightMm) - 1) })}
-                          style={styles.stepBoxBtn}
-                        >
-                          <Minus size={12} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                        <Text style={[styles.stepBoxVal, { fontSize: 11, color: theme.textPrimary }]}>{Math.round(selectedElement.heightMm)} mm</Text>
-                        <TouchableOpacity
-                          onPress={() => updateElementProps(selectedElement.id, { heightMm: Math.min(template.heightMm - selectedElement.yMm, Math.round(selectedElement.heightMm) + 1) })}
-                          style={styles.stepBoxBtn}
-                        >
-                          <Plus size={12} color={theme.textPrimary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Quick Scale Presets for Image */}
-                  {selectedElement.type === 'image' && (
-                    <View style={{ marginTop: 8 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Quick Logo Size Presets:</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                          {[8, 12, 16, 20, 25, 30].map((sz) => {
-                            const active = Math.round(selectedElement.widthMm) === sz && Math.round(selectedElement.heightMm) === sz;
-                            return (
-                              <TouchableOpacity
-                                key={sz}
-                                onPress={() => updateElementProps(selectedElement.id, { widthMm: sz, heightMm: sz })}
-                                style={[
-                                  styles.chip,
-                                  { borderColor: theme.borderColor, backgroundColor: theme.bg, paddingVertical: 4, paddingHorizontal: 8 },
-                                  active && styles.chipActive,
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.chipText,
-                                    { color: theme.textSecondary, fontSize: 10 },
-                                    active && styles.chipTextActive,
-                                  ]}
-                                >
-                                  {sz}×{sz}mm
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </ScrollView>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
+
+                {/* Freehand Resize Tip */}
+                <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Info size={13} color={BRAND_COLORS.blue600} />
+                  <Text style={{ fontSize: 10.5, color: theme.textSecondary }}>
+                    Drag corner dots or element borders directly on canvas to resize freely by hand.
+                  </Text>
+                </View>
               </View>
             ) : (
-              <View style={[styles.inspectorCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={[styles.refInspectorCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, paddingVertical: 18 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Info size={16} color={BRAND_COLORS.blue600} />
                   <Text style={{ fontSize: 12, color: theme.textSecondary, flex: 1 }}>
-                    Tap any item on the label above to edit its text, size, binding, or delete it.
+                    Select an item on the label canvas above to edit its content, font size, or alignment.
                   </Text>
                 </View>
               </View>
             )}
 
-            {/* LABEL SIZE PRESETS & DIMENSIONS SECTION */}
-            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.sectionCardTitle, { color: theme.textPrimary }]}>
-                Label Dimensions (Paper Stock)
-              </Text>
+            {/* LABEL DIMENSIONS & LIVE PREVIEW CONTROLS */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginTop: 12 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={[styles.sectionCardTitle, { color: theme.textPrimary }]}>
+                  Label Stock & Live Product Data
+                </Text>
+                <TouchableOpacity onPress={() => setShowProductPicker(true)}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>Change Product</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Presets Horizontal Strip */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {LABEL_SIZE_PRESETS.map((preset) => {
                     const isSelected = template.widthMm === preset.widthMm && template.heightMm === preset.heightMm;
@@ -996,59 +882,6 @@ export default function LabelStudioScreen() {
                 </View>
               </ScrollView>
 
-              {/* Custom Width / Height Stepper Controls */}
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.dimLabel, { color: theme.textSecondary }]}>Width (mm)</Text>
-                  <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
-                    <TouchableOpacity
-                      onPress={() => setTemplate((p) => applyLabelSize(p, Math.max(10, p.widthMm - 1), p.heightMm))}
-                      style={styles.stepBoxBtn}
-                    >
-                      <Minus size={14} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                    <Text style={[styles.stepBoxVal, { color: theme.textPrimary }]}>{template.widthMm}</Text>
-                    <TouchableOpacity
-                      onPress={() => setTemplate((p) => applyLabelSize(p, Math.min(100, p.widthMm + 1), p.heightMm))}
-                      style={styles.stepBoxBtn}
-                    >
-                      <Plus size={14} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.dimLabel, { color: theme.textSecondary }]}>Height (mm)</Text>
-                  <View style={[styles.stepperBox, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}>
-                    <TouchableOpacity
-                      onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.max(10, p.heightMm - 1)))}
-                      style={styles.stepBoxBtn}
-                    >
-                      <Minus size={14} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                    <Text style={[styles.stepBoxVal, { color: theme.textPrimary }]}>{template.heightMm}</Text>
-                    <TouchableOpacity
-                      onPress={() => setTemplate((p) => applyLabelSize(p, p.widthMm, Math.min(150, p.heightMm + 1)))}
-                      style={styles.stepBoxBtn}
-                    >
-                      <Plus size={14} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* LIVE PRODUCT PREVIEW SELECTOR */}
-            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <Text style={[styles.sectionCardTitle, { color: theme.textPrimary }]}>
-                  Test Product Preview
-                </Text>
-                <TouchableOpacity onPress={() => setShowProductPicker(true)}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>Change Product</Text>
-                </TouchableOpacity>
-              </View>
-
               <TouchableOpacity
                 onPress={() => setShowProductPicker(true)}
                 style={[styles.productPreviewCard, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
@@ -1065,36 +898,82 @@ export default function LabelStudioScreen() {
                   )}
                 </View>
               </TouchableOpacity>
-            </View>
-
-            {/* PRINTING & SEQUENCE ACTIONS */}
-            <View style={{ gap: 8, marginTop: 4 }}>
-              <TouchableOpacity
-                onPress={handleTestPrint}
-                disabled={isTestPrinting}
-                style={[styles.actionPrintBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
-              >
-                {isTestPrinting ? (
-                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 8 }} />
-                ) : (
-                  <BarcodeIcon size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                )}
-                <Text style={styles.actionPrintBtnText}>Test Print Label 🖨️</Text>
-              </TouchableOpacity>
 
               {hasSequenceElement && (
                 <TouchableOpacity
                   onPress={handleOpenSequencePrompt}
-                  style={[styles.actionPrintBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+                  style={[styles.actionPrintBtn, { backgroundColor: BRAND_COLORS.navyInk, marginTop: 8 }]}
                 >
-                  <Hash size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.actionPrintBtnText}>Run Sequential Number Printing (0001, 0002...)</Text>
+                  <Hash size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={[styles.actionPrintBtnText, { fontSize: 12 }]}>Sequential Number Printing (0001, 0002...)</Text>
                 </TouchableOpacity>
               )}
             </View>
           </ScrollView>
+
+          {/* STICKY BOTTOM ACTION BUTTONS: "Save Label" & "Preview Print" */}
+          <View style={[styles.refBottomBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+            <TouchableOpacity
+              onPress={handleSaveTemplate}
+              disabled={isSaving}
+              style={[styles.refSaveLabelBtn, { backgroundColor: '#0284C7' }]}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.refSaveLabelBtnText}>Save Label</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleTestPrint}
+              disabled={isTestPrinting}
+              style={[styles.refPreviewPrintBtn, { backgroundColor: '#0D9488' }]}
+            >
+              {isTestPrinting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.refPreviewPrintBtnText}>Preview Print</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingWrapper>
       </SafeAreaView>
+
+      {/* DOUBLE TAP DIRECT TEXT EDIT MODAL */}
+      <Modal visible={!!doubleTapTextEditId} transparent animationType="fade" onRequestClose={() => setDoubleTapTextEditId(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.doubleTapCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <Text style={[styles.doubleTapTitle, { color: theme.textPrimary }]}>Edit Text Directly</Text>
+            <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10 }}>
+              Edit the text content for this label element:
+            </Text>
+            <TextInput
+              value={doubleTapTextDraft}
+              onChangeText={setDoubleTapTextDraft}
+              style={[styles.doubleTapInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+              autoFocus
+              selectTextOnFocus
+              placeholder="Enter text..."
+              placeholderTextColor="#94A3B8"
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                onPress={() => setDoubleTapTextEditId(null)}
+                style={[styles.doubleTapCancelBtn, { borderColor: theme.borderColor }]}
+              >
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveDoubleTapText}
+                style={[styles.doubleTapApplyBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* SAVED TEMPLATES MODAL */}
       <Modal visible={showSavedTemplatesModal} animationType="slide" onRequestClose={() => setShowSavedTemplatesModal(false)}>
@@ -1370,4 +1249,301 @@ const styles = StyleSheet.create({
   newTemplateModalBtnText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
   unsupportedBox: { padding: 4, backgroundColor: '#FEE2E2', borderRadius: 4 },
   unsupportedText: { fontSize: 8, color: '#DC2626', fontWeight: 'bold' },
+
+  // Reference UI Redesign Styles
+  refHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  refBackBtn: {
+    padding: 4,
+    marginRight: 4,
+  },
+  refHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  refHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  refHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerMiniIconBtn: {
+    padding: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerMiniAiBtn: {
+    padding: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refCanvasContainer: {
+    marginVertical: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 180,
+  },
+  refCanvas: {
+    borderRadius: 4,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  refQuickAddRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginVertical: 12,
+    paddingHorizontal: 4,
+  },
+  refCircleItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  refCircleBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  refCirclePlus: {
+    position: 'absolute',
+    right: 7,
+    top: 7,
+    fontSize: 12,
+    fontWeight: '900',
+    color: BRAND_COLORS.blue600,
+  },
+  refCircleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  refSectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  refSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  refDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  refDeleteText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  refInspectorCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 8,
+  },
+  refPropRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  refPropLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    width: 80,
+  },
+  refInlineInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  refFontSizeControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  refFontSizeVal: {
+    fontSize: 14,
+    fontWeight: '800',
+    minWidth: 46,
+  },
+  refStepperSegment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    overflow: 'hidden',
+    height: 32,
+  },
+  refStepperHalf: {
+    width: 36,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refStepperDivider: {
+    width: 1,
+    height: 18,
+  },
+  refSegmentedContainer: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    padding: 3,
+    gap: 2,
+  },
+  refSegmentBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  refSegmentBtnActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  refSegmentText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  refChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  refChipActive: {
+    backgroundColor: BRAND_COLORS.blue600,
+    borderColor: BRAND_COLORS.blue600,
+  },
+  refChipText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  refChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  refBottomBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  refSaveLabelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  refSaveLabelBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  refPreviewPrintBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  refPreviewPrintBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  doubleTapCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  doubleTapTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  doubleTapInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  doubleTapCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  doubleTapApplyBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
 });

@@ -77,13 +77,13 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
 
   const theme = isDark
     ? {
-        bg: BRAND_COLORS.slate950,
-        cardBg: BRAND_COLORS.slate800,
-        borderColor: BRAND_COLORS.slate700,
-        textPrimary: '#F8FAFC',
-        textSecondary: '#94A3B8',
-        activeBg: 'rgba(37, 99, 235, 0.15)',
-        activeText: BRAND_COLORS.sky400,
+        bg: '#000000',
+        cardBg: '#121212',
+        borderColor: '#262626',
+        textPrimary: '#FFFFFF',
+        textSecondary: '#A1A1AA',
+        activeBg: 'rgba(255, 255, 255, 0.08)',
+        activeText: '#FFFFFF',
       }
     : {
         bg: '#FFFFFF',
