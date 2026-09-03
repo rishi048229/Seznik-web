@@ -48,7 +48,7 @@ const PureBlackDarkTheme = {
 // Keep inactive tab screens frozen so cart/theme/query updates don't re-render every tab.
 enableFreeze(true);
 
-// Intercept all Alert.alert calls across the app to render custom themed modal
+// Intercept all Alert.alert calls across the app to render iOS-style system popup
 installGlobalAlertInterceptor();
 
 SplashScreen.preventAutoHideAsync();

@@ -4,7 +4,7 @@ import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export type AlertType = 'info' | 'success' | 'warning' | 'error' | 'destructive';
 
-/** Strip emoji characters so alerts rely on iconography instead. */
+/** Strip emoji characters so alerts stay plain like native iOS dialogs. */
 function stripEmojis(text: string): string {
   return text
     .replace(
@@ -112,7 +112,7 @@ let isInstalled = false;
 
 /**
  * Seamlessly overrides React Native's default Alert.alert
- * so that every alert in the app automatically renders our custom themed popup.
+ * so that every alert in the app automatically renders a plain iOS-style popup.
  */
 export function installGlobalAlertInterceptor() {
   if (isInstalled) return;
