@@ -68,7 +68,10 @@ const CONNECT_RETRY_DELAYS_MS = [500];
 const NATIVE_PROBE_TIMEOUT_MS = 3000;
 
 /** ESC/POS dot feed after receipt/KOT body so the tail clears the tear bar before auto-cut. */
-const RECEIPT_BOTTOM_FEED = 90;
+const RECEIPT_BOTTOM_FEED = 120;
+
+/** Default terms line shown under the footer on standard retail slips (preview + print). */
+const RECEIPT_DEFAULT_TERMS = 'Goods once sold cannot be returned.';
 
 export interface PrintSaleData {
   storeName?: string;
@@ -108,7 +111,7 @@ export interface PrintSaleData {
   tokenNo?: string;
 }
 
-function numberToIndianWords(amount: number): string {
+export function numberToIndianWords(amount: number): string {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
     'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
     'Seventeen', 'Eighteen', 'Nineteen'];
@@ -421,6 +424,23 @@ class ThermalPrinterServiceManager {
     } catch (e) {
       // Non-fatal — the print will still proceed with whatever state the printer is in
       console.warn('initPrinter reset failed (non-fatal):', e);
+    }
+  }
+
+  /**
+   * Re-assert left margin + left justification after a centered bitmap/QR. Without this,
+   * space-padded body lines are hardware-re-centered and appear shifted to the right.
+   */
+  private async restoreLeftPrintMode(): Promise<void> {
+    try {
+      if (typeof NativeEscposPrinter.printerLeftSpace === 'function') {
+        await NativeEscposPrinter.printerLeftSpace(0);
+      }
+      if (typeof NativeEscposPrinter.printerAlign === 'function') {
+        await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+      }
+    } catch (e) {
+      console.warn('restoreLeftPrintMode failed (non-fatal):', e);
     }
   }
 
@@ -1498,7 +1518,7 @@ class ThermalPrinterServiceManager {
     lines.push(padLine(gstInvoice ? 'Grand Total' : 'Net Amount', data.grandTotal.toFixed(2)));
     lines.push(divider);
 
-    const footer = template.footerMessage || 'Thank you!';
+    const footer = (data.footerMessage || options.footerMessage || template.footerMessage || 'Thank you!').trim();
     if (footer.length <= width) {
       const centered = center(footer);
       if (centered) lines.push(centered);
@@ -1765,10 +1785,22 @@ class ThermalPrinterServiceManager {
     lines.push(divider('-', COLS));
 
     // ── 7. FOOTER & TERMS ──
-    if (template.footerMessage) {
-      lines.push(...wrapProse(template.footerMessage, COLS, true));
+    // Prefer the live sale / settings footer (what the on-screen preview shows) over the
+    // static template default, so preview and thermal slip stay in sync.
+    const footerText = (
+      data.footerMessage ||
+      options.footerMessage ||
+      template.footerMessage ||
+      ''
+    ).trim();
+    if (footerText) {
+      lines.push(...wrapProse(footerText, COLS, true));
     }
+    lines.push(...wrapProse(RECEIPT_DEFAULT_TERMS, COLS, true));
 
+    // Trailing blank lines help cheap firmware flush the final prose line before cut/feed.
+    lines.push('');
+    lines.push('');
     return lines.join('\n');
   }
 
@@ -2561,7 +2593,7 @@ class ThermalPrinterServiceManager {
 
           <div class="divider"></div>
           ${this.upiQrHtml(data, 'mm' as any, options?.receiptQrSize)}
-          <div class="center">${template.footerMessage}</div>
+          <div class="center">${(data.footerMessage || options?.footerMessage || template.footerMessage || '').trim()}</div>
         </body>
       </html>
     `;
@@ -4292,8 +4324,10 @@ class ThermalPrinterServiceManager {
           // can't render (emoji, em/en dashes, curly quotes, ...) — without this, free-text fields
           // like footerMessage (e.g. "...stopping by — see you tomorrow!") print as garbled bytes.
           const textContent = this.sanitizeForThermalPrint(this.formatReceiptText(saleData, effectivePaperWidth, effectiveOptions));
-          const scale = effectiveOptions.fontSize === 'large' ? 1 : 0;
-          const printOptions = { widthtimes: scale, heigthtimes: scale, cut: false };
+          // Height-only bump for "large" — doubling width blows past 32/48 cols and shoves
+          // space-padded lines toward the right edge of 58mm paper.
+          const scaleH = effectiveOptions.fontSize === 'large' ? 1 : 0;
+          const printOptions = { widthtimes: 0, heigthtimes: scaleH, cut: false };
 
           const logoPrepared = saleData.storeLogoUrl
             ? await this.prepareLogoForEscPos(
@@ -4315,6 +4349,9 @@ class ThermalPrinterServiceManager {
                 autoCut: false,
                 paperSize: paperSizeDots,
               });
+              // printPic(center) leaves hardware CENTER align; space-padded receipt lines then
+              // get re-centered and visually shift to the right. Restore left before body text.
+              await this.restoreLeftPrintMode();
             }
 
             await NativeEscposPrinter.printText(textContent, printOptions);
@@ -4413,6 +4450,7 @@ class ThermalPrinterServiceManager {
         autoCut: false,
         paperSize: paperSizeDots,
       });
+      await this.restoreLeftPrintMode();
       return true;
     } catch (err) {
       console.warn('Store logo print failed:', err);
@@ -4470,6 +4508,7 @@ class ThermalPrinterServiceManager {
     const hasEnabledImageEntry = receiptEntries.some((entry) => entry.type === 'image');
     if (!hasEnabledImageEntry && data.storeLogoUrl) {
       await this.printStoreLogoBitmap(data.storeLogoUrl, paperWidth, RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT, options.receiptLogoSize || 'medium');
+      await this.restoreLeftPrintMode();
     }
 
     for (const entry of receiptEntries) {
@@ -4491,6 +4530,9 @@ class ThermalPrinterServiceManager {
                   autoCut: false,
                   paperSize: paperSizeDots,
                 });
+                if (entry.align !== 'left') {
+                  await this.restoreLeftPrintMode();
+                }
               }
             } catch (err) {
               console.warn('Custom receipt image print error:', err);

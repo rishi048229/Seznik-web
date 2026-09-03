@@ -34,7 +34,7 @@ import {
   Bluetooth,
 } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
-import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
+import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions, numberToIndianWords } from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -102,6 +102,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const [activeTab, setActiveTab] = useState<'preview' | 'edit'>('preview');
   const theme = useAppTheme();
   const autoPrintStartedRef = useRef(false);
+  const printLockRef = useRef(false);
+  const wasVisibleRef = useRef(false);
   const pinnedSaleDataRef = useRef<PrintSaleData | null>(null);
 
   // Local Editable Copy
@@ -116,18 +118,29 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     if (!visible) {
       pinnedSaleDataRef.current = null;
       autoPrintStartedRef.current = false;
+      printLockRef.current = false;
       setActiveTab('preview');
     }
   }, [saleData, visible, storeProfile]);
 
+  // Reset print UI only when the modal actually opens — not when the saved sale
+  // later swaps the provisional invoice number, which used to retrigger auto-print.
   useEffect(() => {
-    if (visible) {
+    const justOpened = visible && !wasVisibleRef.current;
+    wasVisibleRef.current = visible;
+    if (!visible) {
+      autoPrintStartedRef.current = false;
+      printLockRef.current = false;
+      return;
+    }
+    if (justOpened) {
       setHasPrinted(false);
       setIsPrinting(false);
       setShowConnectModal(false);
       autoPrintStartedRef.current = false;
+      printLockRef.current = false;
     }
-  }, [visible, saleData?.invoiceNumber]);
+  }, [visible]);
 
   const activeCustomTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
   const template = getTemplateById(activeTemplateId);
@@ -204,6 +217,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       editableSale?.storeGstin,
       editableSale?.storeLogoUrl,
       editableSale?.upiId,
+      editableSale?.footerMessage,
+      storeProfile.footerMessage,
       receiptLogoSize,
       receiptQrSize,
     ]
@@ -275,13 +290,14 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   // Multi-Channel Print Triggers
   const handlePrintThermal = async () => {
     if (!editableSale) return;
-    if (isPrinting) return;
+    if (printLockRef.current || isPrinting) return;
 
     if (!activeDevice || connectionState !== 'connected') {
       setShowConnectModal(true);
       return;
     }
 
+    printLockRef.current = true;
     setIsPrinting(true);
     try {
       const payload: PrintSaleData = {
@@ -296,9 +312,30 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     } catch (e: any) {
       Alert.alert('Print Error', e?.message || 'Failed to print thermal receipt.');
     } finally {
+      printLockRef.current = false;
       setIsPrinting(false);
     }
   };
+
+  // Pay Now can open this modal with autoPrintOnOpen — fire thermal print once the
+  // editable sale is ready, then leave the popup open for A4 / WhatsApp / Close.
+  useEffect(() => {
+    if (!visible || !autoPrintOnOpen || !editableSale || !saleData) return;
+    if (editableSale.invoiceNumber !== saleData.invoiceNumber) return;
+    if (autoPrintStartedRef.current) return;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled || autoPrintStartedRef.current) return;
+      autoPrintStartedRef.current = true;
+      void handlePrintThermal();
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, autoPrintOnOpen, editableSale?.invoiceNumber, saleData?.invoiceNumber]);
 
   const handleSystemPrint = async () => {
     if (!editableSale) return;
@@ -418,6 +455,16 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
+                <TouchableOpacity
+                  onPress={handleSystemPrint}
+                  disabled={printDisabled}
+                  style={[styles.headerA4Btn, { borderColor: theme.borderColor }]}
+                  hitSlop={8}
+                >
+                  <ExternalLink size={14} color={theme.textPrimary} />
+                  <Text style={[styles.headerA4BtnText, { color: theme.textPrimary }]}>A4 Print</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
                   <X size={20} color={theme.textSecondary} />
                 </TouchableOpacity>
@@ -500,6 +547,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                       changeReturned={editableSale.changeReturned ?? 0}
                       paymentMethod={editableSale.paymentMethod}
                       upiId={editableSale.upiId || storeProfile.upiId}
+                      footerMessage={editableSale.footerMessage || storeProfile.footerMessage}
                       paperWidth={paperWidth}
                       logoSizeChip={receiptLogoSize}
                       qrSizeChip={receiptQrSize}
@@ -646,6 +694,23 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                         </View>
                       </View>
 
+                      {/* Amount in words + footer — same order as thermal print body */}
+                      <View style={styles.dashedLine} />
+                      <Text style={styles.amountInWords}>
+                        {numberToIndianWords(computedTotals.grandTotal)}
+                      </Text>
+                      <View style={styles.dashedLine} />
+
+                      <View style={styles.footerSection}>
+                        <Text style={styles.footerMsg}>
+                          {editableSale.footerMessage ||
+                            storeProfile.footerMessage ||
+                            template.footerMessage ||
+                            'Thank you for shopping with us!'}
+                        </Text>
+                        <Text style={styles.footerTerms}>Goods once sold cannot be returned.</Text>
+                      </View>
+
                       {/* Scannable UPI QR */}
                       {upiQrString ? (
                         <View style={styles.qrSection}>
@@ -667,12 +732,6 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                           <Text style={styles.qrFooter}>Scan to view & download bill PDF</Text>
                         </View>
                       ) : null}
-
-                      {/* Footer Policy */}
-                      <View style={styles.footerSection}>
-                        <Text style={styles.footerMsg}>{editableSale.footerMessage || storeProfile.footerMessage || 'Thank you for shopping with us!'}</Text>
-                        <Text style={styles.footerTerms}>Goods once sold cannot be returned.</Text>
-                      </View>
 
                       {/* Bottom Tear Edge */}
                       <View style={styles.tearEdgeBottom} />
@@ -863,20 +922,18 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={handleSystemPrint}
-                    disabled={printDisabled}
-                    style={[styles.secondaryActionBtn, { borderColor: theme.borderColor }]}
-                  >
-                    <ExternalLink size={15} color={theme.textPrimary} />
-                    <Text style={[styles.secondaryActionText, { color: theme.textPrimary }]}>A4 Print</Text>
-                  </TouchableOpacity>
-
                   <TouchableOpacity onPress={handleWhatsAppShare} style={styles.whatsAppBtn}>
                     <Share2 size={15} color="#10B981" />
                     <Text style={styles.whatsAppBtnText}>WhatsApp</Text>
                   </TouchableOpacity>
                 </View>
+
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={[styles.closeBottomBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                >
+                  <Text style={[styles.closeBottomBtnText, { color: theme.textPrimary }]}>Close</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </SafeAreaView>
@@ -959,8 +1016,29 @@ const styles = StyleSheet.create({
   },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 6 },
   paperScrollView: { flex: 1, minHeight: 200 },
-  paperScrollContent: { paddingVertical: 8, alignItems: 'center' },
+  paperScrollContent: { paddingVertical: 8, paddingBottom: 28, alignItems: 'center' },
   editScrollContent: { paddingVertical: 6, gap: 10 },
+
+  headerA4Btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginRight: 6,
+  },
+  headerA4BtnText: { fontSize: 11, fontWeight: '800' },
+  amountInWords: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#000000',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginVertical: 4,
+    paddingHorizontal: 4,
+  },
 
   paperWidthPillRow: {
     flexDirection: 'row',
@@ -1308,4 +1386,13 @@ const styles = StyleSheet.create({
   },
   whatsAppBtnText: { fontSize: 12, fontWeight: '800', color: '#10B981' },
   actionBtnDisabled: { opacity: 0.5 },
+  closeBottomBtn: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBottomBtnText: { fontSize: 14, fontWeight: '800' },
 });

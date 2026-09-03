@@ -40,6 +40,7 @@ interface CustomReceiptMockupProps {
   changeReturned?: number;
   paymentMethod?: string;
   upiId?: string;
+  footerMessage?: string;
   paperWidth?: '58mm' | '80mm';
   logoSizeChip?: ReceiptSizeChip;
   qrSizeChip?: ReceiptSizeChip;
@@ -72,6 +73,7 @@ export function CustomReceiptMockup({
   changeReturned = 19.5,
   paymentMethod = 'UPI',
   upiId = 'store@upi',
+  footerMessage = '',
   paperWidth,
   logoSizeChip,
   qrSizeChip,
@@ -116,7 +118,7 @@ export function CustomReceiptMockup({
       .replace(/\{\{payment_method\}\}/gi, paymentMethod || '')
       .replace(/\{\{bill_pdf_url\}\}/gi, sampleBillPdfUrl)
       .replace(/\{\{upi_qr\}\}/gi, sampleUpiStr)
-      .replace(/\{\{footer_message\}\}/gi, '');
+      .replace(/\{\{footer_message\}\}/gi, (footerMessage || '').trim());
   };
 
   const renderEntry = (entry: CustomReceiptEntry, idx: number) => {

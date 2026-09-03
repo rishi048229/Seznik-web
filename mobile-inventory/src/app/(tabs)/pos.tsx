@@ -561,10 +561,8 @@ function PosScreen() {
       ...(selectedStoreId ? { locationId: selectedStoreId } : {}),
     };
 
-    // Pay Now only opens the preview now. Printing and saving both wait until the
-    // bill is confirmed there, so the user can still go back and edit it — saving
-    // first would leave a committed sale that no longer matches what is printed.
-    // The cart is deliberately left intact for that reason.
+    // Pay Now opens the preview and auto-prints the thermal slip. Saving still waits
+    // until the bill is confirmed (print / share) so Edit Bill can still go back to the cart.
     pendingSalePayloadRef.current = { payload: salePayload, provisionalInv };
     saleCommittedRef.current = false;
     setPreviewSaleData(saleData);
@@ -1553,6 +1551,7 @@ function PosScreen() {
         saleData={previewSaleData}
         isSaleSaving={isSavingSalePreview}
         autoCloseAfterPrint={false}
+        autoPrintOnOpen={true}
         onConfirmed={commitPendingSale}
         onEdit={() => {
           // Straight back to the cart, which was never cleared, so the basket is

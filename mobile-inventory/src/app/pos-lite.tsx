@@ -826,6 +826,7 @@ export default function PosLiteScreen() {
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
         isSaleSaving={isSavingSalePreview}
+        autoPrintOnOpen={true}
         onClose={() => {
           setShowReceiptPreviewModal(false);
           setIsSavingSalePreview(false);
