@@ -121,7 +121,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       )}
       <aside
         className={clsx(
-          'fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-[#f1f5f9] border-r border-gray-200 dark:bg-dark-sidebar dark:border-dark-border transform transition-all duration-300 ease-in-out flex-shrink-0',
+          'fixed lg:relative inset-y-0 left-0 z-40 w-72 h-[100dvh] max-h-[100dvh] bg-[#f1f5f9] border-r border-gray-200 dark:bg-dark-sidebar dark:border-dark-border transform transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden overscroll-none',
           collapsed ? 'lg:w-[76px]' : 'lg:w-64',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
@@ -139,7 +139,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           />
         </button>
 
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden overscroll-none">
           {/* Logo */}
           <div className={clsx('py-5 flex items-center gap-3', collapsed ? 'px-5 lg:px-0 lg:justify-center' : 'px-5')}>
             {/* Compact brand mark shown only in the collapsed rail */}
@@ -163,7 +163,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           </div>
 
           {/* Navigation */}
-          <nav className={clsx('flex-1 overflow-y-auto py-4', collapsed ? 'px-3 lg:px-[15px]' : 'px-3')}>
+          <nav className={clsx('flex-1 min-h-0 overflow-hidden overscroll-none py-4', collapsed ? 'px-3 lg:px-[15px]' : 'px-3')}>
             {navItems.map(item => {
               const isProducts = item.path === ROUTES.PRODUCTS
               const Icon = item.icon
@@ -285,7 +285,10 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         </div>
       </aside>
 
-      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+      />
     </>
   )
 }
