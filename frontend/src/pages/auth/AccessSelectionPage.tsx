@@ -183,14 +183,14 @@ export const AccessSelectionPage = () => {
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                 <Shield size={120} />
               </div>
-              <div className="w-14 h-14 bg-[#1e1b4b]/5 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
+              <div className="w-14 h-14 bg-[#1e1b4b]/5 dark:bg-indigo-500/15 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
                 <Shield className="text-[#070235] dark:text-indigo-300" size={32} />
               </div>
               <h2 className="text-[#070235] dark:text-gray-100 font-bold text-xl mb-2">{t('access.adminAccess')}</h2>
               <p className="text-[#47464f] dark:text-gray-400 text-sm leading-relaxed mb-6">
                 {t('access.adminAccessDesc')}
               </p>
-              <button className="mt-auto w-full py-3 px-5 bg-[#070235] dark:bg-zinc-100 dark:text-zinc-900 font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#1e1b4b] dark:hover:bg-white transition-all active:scale-[0.98]">
+              <button className="mt-auto w-full py-3 px-5 bg-[#070235] text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#1e1b4b] dark:hover:bg-white transition-all active:scale-[0.98]">
                 <span>{t('access.loginAsAdmin')}</span>
                 <ArrowRight size={16} />
               </button>
@@ -210,9 +210,9 @@ export const AccessSelectionPage = () => {
               </div>
               <div className="flex items-center justify-between w-full mb-5">
                 <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-500 ${
-                  hasAgents ? 'bg-[#006591]/5 group-hover:scale-110' : 'bg-gray-200/80 dark:bg-dark-elevated/80'
+                  hasAgents ? 'bg-[#006591]/5 dark:bg-sky-500/15 group-hover:scale-110' : 'bg-gray-200/80 dark:bg-dark-elevated'
                 }`}>
-                  <Store className={hasAgents ? 'text-[#006591]' : 'text-gray-400'} size={32} />
+                  <Store className={hasAgents ? 'text-[#006591] dark:text-sky-300' : 'text-gray-400 dark:text-gray-500'} size={32} />
                 </div>
                 {!hasAgents && !isLoadingAgents && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50">
@@ -240,7 +240,7 @@ export const AccessSelectionPage = () => {
                 className={`mt-auto w-full py-3 px-5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
                   hasAgents
                     ? 'bg-[#006591] text-white group-hover:bg-[#00557a] active:scale-[0.98]'
-                    : 'bg-gray-200 dark:bg-dark-elevated text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-200 dark:bg-dark-elevated text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
                 <span>{hasAgents ? 'Login as Agent' : 'Agent Access Disabled'}</span>
@@ -250,15 +250,15 @@ export const AccessSelectionPage = () => {
           </div>
 
           <div className="mt-6 sm:mt-8 flex justify-center items-center gap-4 sm:gap-6 flex-wrap">
-            <div className="flex items-center gap-2 text-[#47464f]/40 text-xs font-medium uppercase tracking-widest">
+            <div className="flex items-center gap-2 text-[#47464f]/60 dark:text-gray-500 text-xs font-medium uppercase tracking-widest">
               <Lock size={14} />
               Secure TLS 1.3
             </div>
-            <div className="flex items-center gap-2 text-[#47464f]/40 text-xs font-medium uppercase tracking-widest">
+            <div className="flex items-center gap-2 text-[#47464f]/60 dark:text-gray-500 text-xs font-medium uppercase tracking-widest">
               <BadgeCheck size={14} />
               ISO 27001 Certified
             </div>
-            <div className="flex items-center gap-2 text-[#47464f]/40 text-xs font-medium uppercase tracking-widest">
+            <div className="flex items-center gap-2 text-[#47464f]/60 dark:text-gray-500 text-xs font-medium uppercase tracking-widest">
               <History size={14} />
               Uptime 99.9%
             </div>
@@ -322,9 +322,9 @@ export const AccessSelectionPage = () => {
             </div>
           ) : (
             <>
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold">Account Email</span>
-                <span className="text-sm font-bold text-slate-800">{user?.email}</span>
+              <div className="p-3 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border-strong rounded-lg">
+                <span className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wider block font-semibold">Account Email</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-gray-100">{user?.email}</span>
               </div>
 
               <Input

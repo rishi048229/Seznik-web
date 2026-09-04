@@ -7,6 +7,9 @@ import { FieldInfo } from '@/components/ui/FieldInfo'
 import { useCategories } from '@/hooks/useCategories'
 import { useUpdateProduct } from '@/hooks/useProducts'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { usesStockTracking } from '@/utils/businessFeatures'
+import { useSettings } from '@/hooks/useSettings'
 import { buildCategoryOptions } from '@/utils/categoryTree'
 import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
 import type { Product } from '@/types/product.types'
@@ -56,6 +59,9 @@ const emptyForm: QuickEditFormState = {
 // you'd normally correct mid-sale.
 export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: QuickEditProductModalProps) => {
   const { t } = useLanguage()
+  const { userProfile } = useAuth()
+  const { data: settings } = useSettings()
+  const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
   const { data: categories } = useCategories()
   const { mutate: updateProduct, isPending } = useUpdateProduct()
   const [form, setForm] = useState<QuickEditFormState>(emptyForm)
@@ -102,8 +108,8 @@ export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: Qui
           sellingPrice,
           taxRate,
           priceIncludesGst: form.priceIncludesGst,
-          currentStock: parseInt(form.currentStock) || 0,
-          lowStockThreshold: parseInt(form.lowStockThreshold) || 10,
+          currentStock: trackStock ? (parseInt(form.currentStock) || 0) : 999999,
+          lowStockThreshold: trackStock ? (parseInt(form.lowStockThreshold) || 10) : 0,
           unit: form.unit,
         },
       },
@@ -243,32 +249,34 @@ export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: Qui
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('products.currentStock')}
-                <FieldInfo textKey="tip.product.currentStock" />
-              </label>
-              <Input
-                type="number"
-                value={form.currentStock}
-                onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
-                placeholder="0"
-              />
+          {trackStock && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('products.currentStock')}
+                  <FieldInfo textKey="tip.product.currentStock" />
+                </label>
+                <Input
+                  type="number"
+                  value={form.currentStock}
+                  onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('products.lowStockThreshold')}
+                  <FieldInfo textKey="tip.product.lowStockThreshold" />
+                </label>
+                <Input
+                  type="number"
+                  value={form.lowStockThreshold}
+                  onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
+                  placeholder="10"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('products.lowStockThreshold')}
-                <FieldInfo textKey="tip.product.lowStockThreshold" />
-              </label>
-              <Input
-                type="number"
-                value={form.lowStockThreshold}
-                onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
-                placeholder="10"
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -21,6 +21,12 @@ import {
   ChevronDown, 
   X,
   Calculator,
+  MessageSquare,
+  Tags,
+  ChefHat,
+  Store,
+  Bell,
+  FileText,
 } from 'lucide-react';
 import type { SectionUsage } from '../types/admin';
 import { EmptyState } from './EmptyState';
@@ -47,12 +53,19 @@ const getModuleIcon = (iconName: string, path: string) => {
   if (path.includes('credit') || iconName === 'CreditCard') return <CreditCard size={16} color="#F59E0B" />;
   if (path.includes('onboarding') || path.includes('login') || path.includes('auth') || iconName === 'ShieldCheck') return <ShieldCheck size={16} color="#3B82F6" />;
   if (path.includes('token') || iconName === 'Ticket') return <Ticket size={16} color="#06B6D4" />;
+  if (iconName === 'Tags') return <Tags size={16} color="#06B6D4" />;
   if (path.includes('setting') || iconName === 'Settings') return <Settings size={16} color="#64748B" />;
   if (path.includes('report') || iconName === 'BarChart3') return <BarChart3 size={16} color="#3B82F6" />;
   if (path.includes('purchase') || iconName === 'Truck') return <Truck size={16} color="#F59E0B" />;
   if (path.includes('supplier') || iconName === 'Building') return <Building size={16} color="#8B5CF6" />;
   if (path.includes('expense') || iconName === 'Receipt') return <Receipt size={16} color="#EF4444" />;
   if (path.includes('printer') || iconName === 'Printer') return <Printer size={16} color="#64748B" />;
+  if (path.includes('feedback') || iconName === 'MessageSquare') return <MessageSquare size={16} color="#EC4899" />;
+  if (path.includes('table') || path.includes('kot') || iconName === 'ChefHat') return <ChefHat size={16} color="#F59E0B" />;
+  if (path.includes('store') || iconName === 'Store') return <Store size={16} color="#10B981" />;
+  if (iconName === 'Bell') return <Bell size={16} color="#8B5CF6" />;
+  if (path.includes('invoice') || iconName === 'FileText') return <FileText size={16} color="#64748B" />;
+  if (iconName === 'Calculator') return <Calculator size={16} color="#06B6D4" />;
   return <LayoutGrid size={16} color="#3B82F6" />;
 };
 
@@ -130,11 +143,11 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
               border: '1px solid rgba(59, 130, 246, 0.2)',
             }}
           >
-            {sections.length} Tracked Modules • {totalOperations.toLocaleString()} Total Records
+            {sections.length} Tracked Modules • {totalOperations.toLocaleString()} Total API Calls
           </span>
           {topModule && !compact && (
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '6px' }}>
-              • #1 Leader: <strong style={{ color: 'var(--text-main)' }}>{topModule.sectionName}</strong> ({topModule.viewCount.toLocaleString()} records • {topModule.percentageShare}%)
+              • #1 Leader: <strong style={{ color: 'var(--text-main)' }}>{topModule.sectionName}</strong> ({topModule.viewCount.toLocaleString()} calls • {topModule.percentageShare}%)
             </span>
           )}
         </div>
@@ -202,7 +215,7 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
       <div
         className="section-chart-body"
         style={{
-          maxHeight: (!isCollapsible || isExpanded) ? (compact ? 'none' : '600px') : '0px',
+          maxHeight: (!isCollapsible || isExpanded) ? (compact ? 'none' : '900px') : '0px',
           opacity: (!isCollapsible || isExpanded) ? 1 : 0,
           overflow: 'hidden',
           transition: 'max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin-top 0.35s ease',
@@ -214,18 +227,18 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
         {sections.length === 0 ? (
           <EmptyState
             icon={LayoutGrid}
-            title="No Traffic Recorded"
-            message="No section traffic recorded in this window."
+            title="No API Traffic Recorded"
+            message="No API calls recorded in this window yet. Counts start after backend tracking is deployed."
           />
         ) : (
           <div style={{ width: '100%', overflowX: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-            <table className="custom-table" style={{ width: '100%', minWidth: '640px', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
+            <table className="custom-table" style={{ width: '100%', minWidth: '720px', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
               <thead>
                 <tr>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '42%', fontSize: '0.74rem' }}>Section Module</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Record Volume</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '19%', fontSize: '0.74rem' }}>Traffic Share</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '20%', fontSize: '0.74rem' }}>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '40%', fontSize: '0.74rem' }}>Feature / API Route</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '18%', fontSize: '0.74rem' }}>API Calls</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '18%', fontSize: '0.74rem' }}>Traffic Share</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '24%', fontSize: '0.74rem' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <span>Trend</span>
                       <button
@@ -275,7 +288,6 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                         background: 'rgba(255, 255, 255, 0.02)',
                       }}
                     >
-                      {/* Section Module Name & Route Badge */}
                       <td style={{ padding: compact ? '4px 10px' : '8px 14px', borderRadius: '6px 0 0 6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: compact ? '8px' : '10px' }}>
                           <div
@@ -294,48 +306,60 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                             {getModuleIcon(sec.iconName, sec.path)}
                           </div>
                           <div style={{ minWidth: 0 }}>
-                            <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: compact ? '0.8rem' : '0.86rem' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: compact ? '0.8rem' : '0.86rem' }}>
                               {sec.sectionName}
-                            </span>
+                            </div>
                             {!compact && (
-                            <code
-                              style={{
-                                fontSize: '0.7rem',
-                                color: 'var(--accent-blue)',
-                                background: 'rgba(79, 142, 247, 0.1)',
-                                padding: '1px 6px',
-                                borderRadius: '3px',
-                                fontFamily: 'monospace',
-                                marginLeft: '8px',
-                              }}
-                            >
-                              {sec.path}
-                            </code>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                                <code
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    color: 'var(--accent-blue)',
+                                    background: 'rgba(79, 142, 247, 0.1)',
+                                    padding: '1px 6px',
+                                    borderRadius: '3px',
+                                    fontFamily: 'monospace',
+                                  }}
+                                >
+                                  {sec.apiRoute || sec.path}
+                                </code>
+                                {sec.apiRoute && sec.path ? (
+                                  <code
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      color: 'var(--text-muted)',
+                                      background: 'rgba(148, 163, 184, 0.12)',
+                                      padding: '1px 6px',
+                                      borderRadius: '3px',
+                                      fontFamily: 'monospace',
+                                    }}
+                                  >
+                                    UI {sec.path}
+                                  </code>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                         </div>
                       </td>
 
-                      {/* Number of records in window */}
                       <td style={{ padding: '8px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                             {sec.viewCount.toLocaleString()}
                           </span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            records
+                            calls
                           </span>
                         </div>
                       </td>
 
-                      {/* Traffic Share — percentage only */}
                       <td style={{ padding: '8px 14px' }}>
                         <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                           {sec.percentageShare}%
                         </span>
                       </td>
 
-                      {/* Trend Delta */}
                       <td style={{ padding: '8px 14px', borderRadius: '0 6px 6px 0' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontWeight: 600, fontSize: '0.76rem', color: trendColor, background: isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '2px 7px', borderRadius: '4px' }}>
                           <TrendIcon size={12} color={trendColor} />

@@ -9,6 +9,8 @@ import {
   metricsSalesQuery,
   buildFeedbackQuery,
   mapFeedbackRows,
+  computeTotalApiCalls,
+  computeBusinessProfiles,
 } from '../../analyticsShared.js';
 import { getPool, sendJson, readJsonBody } from '../../lib/adminDb.js';
 import {
@@ -99,7 +101,10 @@ export default async function handler(req, res) {
       `);
       const salesRes = await pool.query(metricsSalesQuery(intervals));
       const productRes = await pool.query('SELECT COUNT(*)::int as count FROM "Product"');
-      const topFeatures = await computeRealTopFeatures(pool, timeRange);
+      const [topFeatures, apiCalls] = await Promise.all([
+        computeRealTopFeatures(pool, timeRange),
+        computeTotalApiCalls(pool, timeRange),
+      ]);
       return sendJson(res, 200, buildMetricsResponse({
         userRes,
         salesRes,
@@ -107,6 +112,7 @@ export default async function handler(req, res) {
         topFeatures,
         timeRange,
         intervals,
+        apiCalls,
       }));
     }
 
@@ -121,6 +127,7 @@ export default async function handler(req, res) {
           u.phone,
           u."displayName",
           u."businessName",
+          u."businessType",
           u.plan,
           u.role,
           u."emailVerified",
@@ -183,6 +190,24 @@ export default async function handler(req, res) {
       const timeRange = query.timeRange || 'all';
       const topFeatures = await computeRealTopFeatures(pool, timeRange);
       return sendJson(res, 200, topFeatures);
+    }
+
+    if (method === 'GET' && route === 'profiles') {
+      const timeRange = query.timeRange || 'all';
+      const profiles = await computeBusinessProfiles(pool, timeRange);
+      return sendJson(res, 200, profiles);
+    }
+
+    const profileSectionsMatch = route.match(/^profiles\/([^/]+)\/sections$/);
+    if (method === 'GET' && profileSectionsMatch) {
+      const businessType = decodeURIComponent(profileSectionsMatch[1]);
+      const allowed = ['restaurant_cafe', 'online_store', 'retail_shop', 'unknown'];
+      if (!allowed.includes(businessType)) {
+        return sendJson(res, 400, { error: 'Invalid business type' });
+      }
+      const timeRange = query.timeRange || 'all';
+      const sections = await computeRealTopFeatures(pool, timeRange, businessType);
+      return sendJson(res, 200, sections);
     }
 
     if (method === 'GET' && route === 'heatmap') {

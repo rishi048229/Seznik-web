@@ -85,6 +85,9 @@ import { useLocationStock } from '@/hooks/useLocations';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { CartItem } from '@/store/useCartStore';
 import { useNavigation, router } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
+import { isProductAvailable, usesStockTracking } from '@/utils/businessFeatures';
 
 const EMPTY_CART: CartItem[] = [];
 
@@ -92,6 +95,9 @@ function PosScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
+  const { user } = useAuth();
+  const { settings } = useSettings();
+  const trackStock = usesStockTracking(user?.businessType, settings?.trackStock);
   const { contentReady } = useTabTransitionReady();
   const cartItemsCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
 
@@ -374,7 +380,14 @@ function PosScreen() {
     }
 
     if (matched) {
-      if (typeof matched.currentStock === 'number' && matched.currentStock <= 0) {
+      if (!trackStock) {
+        if (!isProductAvailable(matched)) {
+          setScanToast({ message: `"${matched.name}" is not available`, isError: true });
+        } else {
+          addItem(matched, 1);
+          setScanToast({ message: `+1 ${matched.name} (₹${matched.sellingPrice.toFixed(2)})` });
+        }
+      } else if (typeof matched.currentStock === 'number' && matched.currentStock <= 0) {
         setScanToast({ message: `🚨 Out of Stock: "${matched.name}" (0 left)`, isError: true });
         addItem(matched, 1);
       } else {
@@ -810,6 +823,7 @@ function PosScreen() {
               textPrimary={theme.textPrimary}
               textSecondary={theme.textSecondary}
               lowStockLabel={t('lowStock', 'Low')}
+              trackStock={trackStock}
               searchQuery={searchQuery}
               onClearFilters={() => {
                 setSearchQuery('');

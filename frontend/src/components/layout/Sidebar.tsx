@@ -227,7 +227,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       <aside
         className={clsx(
           'fixed lg:relative inset-y-0 left-0 z-40 w-72 h-[100dvh] max-h-[100dvh] bg-[#f8fafc] border-r border-gray-200/80 dark:bg-dark-sidebar dark:border-dark-border transform transition-all duration-300 ease-in-out flex-shrink-0 flex flex-col',
-          collapsed ? 'lg:w-[76px]' : 'lg:w-64',
+          collapsed ? 'lg:w-[76px]' : 'lg:w-72',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >

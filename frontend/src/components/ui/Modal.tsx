@@ -40,14 +40,14 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
       <button
         type="button"
         aria-label="Close dialog"
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-[1px]"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
         className={clsx(
-          'relative z-10 bg-white dark:bg-dark-card shadow-xl w-full max-h-[92dvh] sm:max-h-[90vh] flex flex-col min-w-0 pointer-events-auto',
+          'relative z-10 bg-white dark:bg-dark-card dark:border dark:border-dark-border shadow-xl w-full max-h-[92dvh] sm:max-h-[90vh] flex flex-col min-w-0 pointer-events-auto',
           'rounded-t-2xl sm:rounded-xl',
           sizeClasses[size]
         )}

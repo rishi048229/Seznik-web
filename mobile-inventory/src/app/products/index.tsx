@@ -77,14 +77,17 @@ import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 import { useLocations, useLocationStock } from '@/hooks/useLocations';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { useAuth } from '@/hooks/useAuth';
-import { isKotFirstNav } from '@/utils/businessFeatures';
+import { useSettings } from '@/hooks/useSettings';
+import { isKotFirstNav, isProductAvailable, usesStockTracking } from '@/utils/businessFeatures';
 
 export default function ProductsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
   const { user } = useAuth();
+  const { settings } = useSettings();
   const kotFirst = isKotFirstNav(user?.businessType);
+  const trackStock = usesStockTracking(user?.businessType, settings?.trackStock);
   const { contentReady } = useTabTransitionReady();
   const {
     products,
@@ -191,6 +194,7 @@ export default function ProductsScreen() {
 
   const lowStockCount = products.filter((p) => p.currentStock <= p.lowStockThreshold).length;
   const totalStockValue = products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * p.currentStock, 0);
+  const unavailableCount = products.filter((p) => !isProductAvailable(p)).length;
 
   // Multi-store inventory: browse/manage this catalog scoped to one store at a time (the same
   // shared selection as POS, via StoreSwitcher). A product with no stock row at the selected
@@ -502,8 +506,16 @@ export default function ProductsScreen() {
         name: name.trim(),
         sellingPrice: Math.max(0, parseFloat(sellingPrice) || 0),
         costPrice: Math.max(0, parseFloat(costPrice) || 0),
-        currentStock: Math.max(0, parseInt(stock) || 0),
-        lowStockThreshold: Math.max(0, parseInt(lowStockThreshold) || 10),
+        currentStock: trackStock
+          ? Math.max(0, parseInt(stock) || 0)
+          : editingProduct
+            ? editingProduct.currentStock
+            : 999999,
+        lowStockThreshold: trackStock
+          ? Math.max(0, parseInt(lowStockThreshold) || 10)
+          : editingProduct
+            ? editingProduct.lowStockThreshold
+            : 0,
         unit: unit.trim() || 'Piece',
         imageUrl: resolvedImageUrl,
         barcode: barcode.trim() || undefined,
@@ -551,6 +563,33 @@ export default function ProductsScreen() {
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to adjust stock');
     }
+  };
+
+  const handleToggleAvailability = (product: Product) => {
+    const nextAvailable = !isProductAvailable(product);
+    Alert.alert(
+      nextAvailable ? 'Mark available?' : 'Mark not available?',
+      nextAvailable
+        ? `"${product.name}" will show on the menu again.`
+        : `"${product.name}" will be hidden from the live menu until you mark it available.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: nextAvailable ? 'Mark available' : 'Not available',
+          style: nextAvailable ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              await updateProduct({ id: product.id, payload: { isAvailable: nextAvailable } });
+              setDetailProduct((prev) =>
+                prev && prev.id === product.id ? { ...prev, isAvailable: nextAvailable } : prev
+              );
+            } catch (err: any) {
+              Alert.alert('Update failed', err?.message || 'Could not update availability');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleQuickCreateCategory = async () => {
@@ -611,18 +650,20 @@ export default function ProductsScreen() {
               <Text style={[styles.headerBtnText, { color: BRAND_COLORS.blue600 }]}>{t('aiImport', 'AI Import')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={async () => {
-                if (!permission?.granted) await requestPermission();
-                setScannedProductForStock(null);
-                setLastScannedBarcode(null);
-                setShowStockScanMode(true);
-              }}
-              style={[styles.headerBtn, { backgroundColor: 'rgba(16, 185, 129, 0.15)', marginRight: 6 }]}
-            >
-              <Zap size={14} color="#10B981" />
-              <Text style={[styles.headerBtnText, { color: '#10B981' }]}>{t('scanStock', 'Scan Stock')}</Text>
-            </TouchableOpacity>
+            {trackStock ? (
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!permission?.granted) await requestPermission();
+                  setScannedProductForStock(null);
+                  setLastScannedBarcode(null);
+                  setShowStockScanMode(true);
+                }}
+                style={[styles.headerBtn, { backgroundColor: 'rgba(16, 185, 129, 0.15)', marginRight: 6 }]}
+              >
+                <Zap size={14} color="#10B981" />
+                <Text style={[styles.headerBtnText, { color: '#10B981' }]}>{t('scanStock', 'Scan Stock')}</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity onPress={handleOpenAddModal} style={styles.addBtn}>
               <Plus size={15} color="#FFFFFF" />
@@ -645,15 +686,26 @@ export default function ProductsScreen() {
               <Text style={[styles.statValue, { color: theme.textPrimary }]}>{products.length}</Text>
             </View>
 
-            <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
-              <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#EF4444' : '#10B981' }]}>{lowStockCount}</Text>
-            </View>
+            {trackStock ? (
+              <>
+                <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
+                  <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#EF4444' : '#10B981' }]}>{lowStockCount}</Text>
+                </View>
 
-            <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
-              <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
-            </View>
+                <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
+                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
+                </View>
+              </>
+            ) : (
+              <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Unavailable</Text>
+                <Text style={[styles.statValue, { color: unavailableCount > 0 ? '#EF4444' : '#10B981' }]}>
+                  {unavailableCount}
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </View>
 
@@ -775,12 +827,20 @@ export default function ProductsScreen() {
               const priceOverridden = isPriceOverridden(item);
               const notCarriedHere = !isCarriedAtBrowseStore(item);
               const isLowStock = storeStock <= item.lowStockThreshold;
+              const available = isProductAvailable(item);
 
               return (
                 <TouchableOpacity
                   onPress={() => handleOpenDetailModal(item)}
                   activeOpacity={0.8}
-                  style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: theme.cardBg,
+                      borderColor: theme.borderColor,
+                      opacity: !trackStock && !available ? 0.72 : 1,
+                    },
+                  ]}
                 >
                   {/* Product Image Thumbnail */}
                   {item.imageUrl ? (
@@ -806,12 +866,29 @@ export default function ProductsScreen() {
                       | Cost: ₹{(item.costPrice || 0).toFixed(2)}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
-                      <View style={[styles.stockPill, { backgroundColor: isLowStock ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
-                        <Text style={[styles.stockPillText, { color: isLowStock ? '#EF4444' : '#10B981' }]}>
-                          Stock: {storeStock} {item.unit || 'pcs'}
-                        </Text>
-                      </View>
-                      {notCarriedHere ? (
+                      {trackStock ? (
+                        <View style={[styles.stockPill, { backgroundColor: isLowStock ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
+                          <Text style={[styles.stockPillText, { color: isLowStock ? '#EF4444' : '#10B981' }]}>
+                            Stock: {storeStock} {item.unit || 'pcs'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View
+                          style={[
+                            styles.stockPill,
+                            {
+                              backgroundColor: available
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : 'rgba(239, 68, 68, 0.15)',
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.stockPillText, { color: available ? '#10B981' : '#EF4444' }]}>
+                            {available ? 'Available' : 'Not available'}
+                          </Text>
+                        </View>
+                      )}
+                      {trackStock && notCarriedHere ? (
                         <View style={[styles.stockPill, { backgroundColor: 'rgba(100, 116, 139, 0.15)' }]}>
                           <Text style={[styles.stockPillText, { color: '#64748B' }]}>Not sold here</Text>
                         </View>
@@ -843,7 +920,7 @@ export default function ProductsScreen() {
       </View>
 
       {/* SCAN TO UPDATE STOCK HUD MODAL */}
-      <Modal visible={showStockScanMode} animationType="slide">
+      <Modal visible={showStockScanMode && trackStock} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
           <View style={styles.hudTopBar}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -972,11 +1049,29 @@ export default function ProductsScreen() {
                     <View style={styles.heroPillDark}>
                       <Text style={styles.heroPillDarkText}>Unit: {detailProduct.unit || 'piece'}</Text>
                     </View>
-                    <View style={[styles.heroPillGreen, detailProduct.currentStock <= detailProduct.lowStockThreshold && { backgroundColor: 'rgba(239, 68, 68, 0.25)' }]}>
-                      <Text style={[styles.heroPillGreenText, detailProduct.currentStock <= detailProduct.lowStockThreshold && { color: '#EF4444' }]}>
-                        {detailProduct.currentStock <= detailProduct.lowStockThreshold ? 'Low Stock' : 'In Stock'}
-                      </Text>
-                    </View>
+                    {trackStock ? (
+                      <View style={[styles.heroPillGreen, detailProduct.currentStock <= detailProduct.lowStockThreshold && { backgroundColor: 'rgba(239, 68, 68, 0.25)' }]}>
+                        <Text style={[styles.heroPillGreenText, detailProduct.currentStock <= detailProduct.lowStockThreshold && { color: '#EF4444' }]}>
+                          {detailProduct.currentStock <= detailProduct.lowStockThreshold ? 'Low Stock' : 'In Stock'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.heroPillGreen,
+                          !isProductAvailable(detailProduct) && { backgroundColor: 'rgba(239, 68, 68, 0.25)' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.heroPillGreenText,
+                            !isProductAvailable(detailProduct) && { color: '#EF4444' },
+                          ]}
+                        >
+                          {!isProductAvailable(detailProduct) ? 'Not available' : 'Available'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   <Text style={styles.heroProductName}>{detailProduct.name}</Text>
@@ -1085,29 +1180,68 @@ export default function ProductsScreen() {
                   </View>
                 </View>
 
-                {/* Stock Management Card */}
-                <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Box size={16} color="#7C3AED" />
-                    <Text style={[styles.sectionTitle, { color: '#7C3AED' }]}>STOCK MANAGEMENT</Text>
-                  </View>
-
-                  <View style={styles.stockBlockGrid}>
-                    <View style={[styles.stockBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-                      <Text style={[styles.stockBoxLabel, { color: theme.textSecondary }]}>Current Stock</Text>
-                      <Text style={[styles.stockBoxVal, { color: theme.textPrimary }]}>
-                        {detailProduct.currentStock} {detailProduct.unit || 'piece'}
-                      </Text>
+                {/* Stock / Availability Card */}
+                {trackStock ? (
+                  <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={styles.sectionHeaderRow}>
+                      <Box size={16} color="#7C3AED" />
+                      <Text style={[styles.sectionTitle, { color: '#7C3AED' }]}>STOCK MANAGEMENT</Text>
                     </View>
 
-                    <View style={[styles.stockBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
-                      <Text style={[styles.stockBoxLabel, { color: theme.textSecondary }]}>Low Stock Threshold</Text>
-                      <Text style={[styles.stockBoxVal, { color: theme.textPrimary }]}>
-                        {detailProduct.lowStockThreshold} {detailProduct.unit || 'piece'}
-                      </Text>
+                    <View style={styles.stockBlockGrid}>
+                      <View style={[styles.stockBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                        <Text style={[styles.stockBoxLabel, { color: theme.textSecondary }]}>Current Stock</Text>
+                        <Text style={[styles.stockBoxVal, { color: theme.textPrimary }]}>
+                          {detailProduct.currentStock} {detailProduct.unit || 'piece'}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.stockBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                        <Text style={[styles.stockBoxLabel, { color: theme.textSecondary }]}>Low Stock Threshold</Text>
+                        <Text style={[styles.stockBoxVal, { color: theme.textPrimary }]}>
+                          {detailProduct.lowStockThreshold} {detailProduct.unit || 'piece'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                ) : (
+                  <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={styles.sectionHeaderRow}>
+                      <CheckCircle2 size={16} color="#7C3AED" />
+                      <Text style={[styles.sectionTitle, { color: '#7C3AED' }]}>AVAILABILITY</Text>
+                    </View>
+                    <Text style={[styles.detailLabel, { color: theme.textSecondary, marginBottom: 10 }]}>
+                      Menu items are prepared on demand. Mark items available or not available instead of tracking stock quantity.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleToggleAvailability(detailProduct)}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.availabilityToggleBtn,
+                        {
+                          backgroundColor:
+                            !isProductAvailable(detailProduct)
+                              ? 'rgba(16, 185, 129, 0.12)'
+                              : 'rgba(239, 68, 68, 0.12)',
+                          borderColor:
+                            !isProductAvailable(detailProduct)
+                              ? 'rgba(16, 185, 129, 0.35)'
+                              : 'rgba(239, 68, 68, 0.35)',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: '800',
+                          color: !isProductAvailable(detailProduct) ? '#10B981' : '#EF4444',
+                        }}
+                      >
+                        {!isProductAvailable(detailProduct) ? 'Mark available' : 'Mark not available'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Original Barcode & SVG QR Code Label Component */}
                 <BarcodeQRCodeLabel
@@ -1161,16 +1295,51 @@ export default function ProductsScreen() {
                   <Text style={[styles.footerActionTileText, { color: BRAND_COLORS.blue600 }]}>Print</Text>
                 </TouchableOpacity>
 
-                {/* 3. Restock Action */}
-                <TouchableOpacity
-                  onPress={() => setShowRestockModal(true)}
-                  activeOpacity={0.7}
-                  style={[styles.footerActionTile, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Tag size={17} color="#10B981" />
-                  <Text style={[styles.footerActionTileText, { color: '#10B981' }]}>Restock</Text>
-                </TouchableOpacity>
+                {/* 3. Restock / Availability Action */}
+                {trackStock ? (
+                  <TouchableOpacity
+                    onPress={() => setShowRestockModal(true)}
+                    activeOpacity={0.7}
+                    style={[styles.footerActionTile, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Tag size={17} color="#10B981" />
+                    <Text style={[styles.footerActionTileText, { color: '#10B981' }]}>Restock</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => handleToggleAvailability(detailProduct)}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.footerActionTile,
+                      {
+                        backgroundColor:
+                          !isProductAvailable(detailProduct)
+                            ? 'rgba(16, 185, 129, 0.1)'
+                            : 'rgba(239, 68, 68, 0.1)',
+                        borderColor:
+                          !isProductAvailable(detailProduct)
+                            ? 'rgba(16, 185, 129, 0.3)'
+                            : 'rgba(239, 68, 68, 0.3)',
+                      },
+                    ]}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    {!isProductAvailable(detailProduct) ? (
+                      <CheckCircle2 size={17} color="#10B981" />
+                    ) : (
+                      <MinusCircle size={17} color="#EF4444" />
+                    )}
+                    <Text
+                      style={[
+                        styles.footerActionTileText,
+                        { color: !isProductAvailable(detailProduct) ? '#10B981' : '#EF4444' },
+                      ]}
+                    >
+                      {!isProductAvailable(detailProduct) ? 'Available' : 'Hide'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* 4. Edit Product Primary CTA */}
                 <TouchableOpacity
@@ -1577,31 +1746,33 @@ export default function ProductsScreen() {
               ) : null}
             </View>
 
-            {/* Stock & Threshold */}
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 6 }]}>Current Stock</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                  value={stock}
-                  onChangeText={setStock}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#94A3B8"
-                />
+            {/* Stock & Threshold — hidden for restaurant/cafe (availability via isActive) */}
+            {trackStock ? (
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 6 }]}>Current Stock</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                    value={stock}
+                    onChangeText={setStock}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 6 }]}>Low Stock Alert</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                    value={lowStockThreshold}
+                    onChangeText={setLowStockThreshold}
+                    keyboardType="numeric"
+                    placeholder="10"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: theme.textPrimary, marginBottom: 6 }]}>Low Stock Alert</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                  value={lowStockThreshold}
-                  onChangeText={setLowStockThreshold}
-                  keyboardType="numeric"
-                  placeholder="10"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
+            ) : null}
 
             {/* Original Barcode Section */}
             <View style={styles.barcodeSection}>
@@ -1770,6 +1941,13 @@ const styles = StyleSheet.create({
   stockBox: { width: '48.5%', padding: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
   stockBoxLabel: { fontSize: 10, fontWeight: '600' },
   stockBoxVal: { fontSize: 16, fontWeight: '900', marginTop: 4 },
+  availabilityToggleBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   detailFooterBar: {
     paddingHorizontal: 14,
     paddingVertical: 12,

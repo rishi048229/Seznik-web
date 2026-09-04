@@ -2,6 +2,36 @@
 
 const IST_TZ = 'Asia/Kolkata';
 
+/** Mirrors backend/src/constants/apiFeatureCatalog.ts — keep in sync. */
+export const API_FEATURE_CATALOG = [
+  { id: 'auth', sectionName: 'Auth & Onboarding', routePrefix: '/api/auth', path: '/onboarding', iconName: 'ShieldCheck' },
+  { id: 'products', sectionName: 'Products & Inventory', routePrefix: '/api/products', path: '/products', iconName: 'Package' },
+  { id: 'categories', sectionName: 'Categories & Tax', routePrefix: '/api/categories', path: '/categories', iconName: 'Layers' },
+  { id: 'sales', sectionName: 'POS Billing & Invoices', routePrefix: '/api/sales', path: '/pos-lite', iconName: 'ShoppingBag' },
+  { id: 'customers', sectionName: 'Customer CRM', routePrefix: '/api/customers', path: '/customers', iconName: 'Users' },
+  { id: 'credits', sectionName: 'Credit Ledger', routePrefix: '/api/credits', path: '/credits', iconName: 'CreditCard' },
+  { id: 'purchases', sectionName: 'Purchases & Stock In', routePrefix: '/api/purchases', path: '/purchases', iconName: 'Truck' },
+  { id: 'suppliers', sectionName: 'Suppliers', routePrefix: '/api/suppliers', path: '/suppliers', iconName: 'Building' },
+  { id: 'expenses', sectionName: 'Expenses', routePrefix: '/api/expenses', path: '/expenses', iconName: 'Receipt' },
+  { id: 'reports', sectionName: 'Sales & Tax Reports', routePrefix: '/api/reports', path: '/reports', iconName: 'BarChart3' },
+  { id: 'tokens', sectionName: 'Counter Tokens', routePrefix: '/api/tokens', path: '/tokens', iconName: 'Ticket' },
+  { id: 'token-types', sectionName: 'Token Types', routePrefix: '/api/token-types', path: '/tokens', iconName: 'Tags' },
+  { id: 'settings', sectionName: 'Store Settings', routePrefix: '/api/settings', path: '/settings', iconName: 'Settings' },
+  { id: 'feedback', sectionName: 'In-app Feedback', routePrefix: '/api/feedback', path: '/feedback', iconName: 'MessageSquare' },
+  { id: 'restaurant-tables', sectionName: 'Table Floor Plan', routePrefix: '/api/restaurant-tables', path: '/tables', iconName: 'LayoutGrid' },
+  { id: 'kot-orders', sectionName: 'Kitchen Order Tickets', routePrefix: '/api/kot-orders', path: '/kot', iconName: 'ChefHat' },
+  { id: 'locations', sectionName: 'Multi-store Locations', routePrefix: '/api/locations', path: '/stores', iconName: 'Store' },
+  { id: 'notifications', sectionName: 'Push Notifications', routePrefix: '/api/notifications', path: '/settings', iconName: 'Bell' },
+  { id: 'public-receipts', sectionName: 'Public Invoice Links', routePrefix: '/api/public/receipt', path: '/invoice', iconName: 'FileText' },
+];
+
+export const BUSINESS_PROFILE_LABELS = {
+  restaurant_cafe: 'Restaurant & Cafe',
+  online_store: 'Online Store',
+  retail_shop: 'Retail Shop',
+  unknown: 'Unspecified',
+};
+
 /**
  * Prisma DateTime is TIMESTAMP(3) without time zone, stored in UTC.
  * Convert to IST wall-clock before taking ::date / EXTRACT(HOUR), otherwise
@@ -93,6 +123,31 @@ export function applyTableAlias(filter, alias) {
   return filter.replace(/"createdAt"/g, `${alias}."createdAt"`);
 }
 
+/** Same windows as getTimeIntervals, but keyed on ApiUsageBucket."bucketStart". */
+export function getBucketTimeIntervals(timeRange = 'all') {
+  const intervals = getTimeIntervals(timeRange);
+  const swap = (sql) => (sql || '').replace(/"createdAt"/g, '"bucketStart"');
+  return {
+    ...intervals,
+    currentFilter: swap(intervals.currentFilter),
+    prevFilter: swap(intervals.prevFilter),
+    currentClause: swap(intervals.currentClause),
+    prevClause: swap(intervals.prevClause),
+  };
+}
+
+async function tableExists(pool, tableName) {
+  try {
+    const res = await pool.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1 LIMIT 1`,
+      [tableName]
+    );
+    return (res.rowCount || 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function getWindowCount(row, timeRange) {
   if ((timeRange || '').toLowerCase() === 'all') return row?.count || 0;
   return row?.window_count || 0;
@@ -109,80 +164,66 @@ export function trendDirection(percent) {
   return 'neutral';
 }
 
-function activityCountSql(intervals, table, userIdExpr = '"userId"') {
-  return `SELECT
-    COUNT(*)::int AS count,
-    COUNT(DISTINCT ${userIdExpr}) FILTER (WHERE ${intervals.currentFilter})::int AS unique_users,
-    COUNT(*) FILTER (WHERE ${intervals.currentFilter})::int AS window_count,
-    COUNT(*) FILTER (WHERE ${intervals.prevFilter})::int AS prev_window_count
-  FROM "${table}"`;
-}
+/**
+ * Catalog-driven feature usage from ApiUsageBucket.
+ * Always returns every catalog feature (zeros when no traffic).
+ * @param {string|null} businessTypeFilter - when set, filter to that businessType
+ */
+export async function computeRealTopFeatures(pool, timeRange = 'all', businessTypeFilter = null) {
+  const intervals = getBucketTimeIntervals(timeRange);
+  const isAllTime = (timeRange || '').toLowerCase() === 'all';
+  const hasTable = await tableExists(pool, 'ApiUsageBucket');
 
-function featureFromQuery(res, timeRange, meta) {
-  const row = res.rows[0] || {};
-  const current = getWindowCount(row, timeRange);
-  const prev = row.prev_window_count || 0;
-  const trendPercent = computeTrendPercent(current, prev);
-  return {
-    ...meta,
-    viewCount: current,
-    uniqueUsers: row.unique_users || 0,
-    trend: trendDirection(trendPercent),
-    trendPercent,
-  };
-}
+  const usageByFeature = new Map();
 
-export async function computeRealTopFeatures(pool, timeRange = 'all') {
-  const intervals = getTimeIntervals(timeRange);
+  if (hasTable) {
+    const params = [];
+    let typeClause = '';
+    if (businessTypeFilter) {
+      params.push(businessTypeFilter);
+      typeClause = `AND "businessType" = $1`;
+    }
 
-  const [
-    sales,
-    products,
-    categories,
-    customers,
-    tokens,
-    purchases,
-    expenses,
-    credits,
-    suppliers,
-    stock,
-    settings,
-    feedback,
-    users,
-    dayClose,
-  ] = await Promise.all([
-    pool.query(activityCountSql(intervals, 'Sale')),
-    pool.query(activityCountSql(intervals, 'Product')),
-    pool.query(activityCountSql(intervals, 'Category')),
-    pool.query(activityCountSql(intervals, 'Customer')),
-    pool.query(activityCountSql(intervals, 'Token')),
-    pool.query(activityCountSql(intervals, 'Purchase')),
-    pool.query(activityCountSql(intervals, 'Expense')),
-    pool.query(activityCountSql(intervals, 'CreditTransaction')),
-    pool.query(activityCountSql(intervals, 'Supplier')),
-    pool.query(activityCountSql(intervals, 'StockHistory')),
-    pool.query(activityCountSql(intervals, 'Settings')),
-    pool.query(activityCountSql(intervals, 'Feedback')),
-    pool.query(activityCountSql(intervals, 'User', 'id')),
-    pool.query(activityCountSql(intervals, 'DayClose')).catch(() => ({ rows: [{ count: 0, unique_users: 0, window_count: 0, prev_window_count: 0 }] })),
-  ]);
+    try {
+      const res = await pool.query(
+        `
+        SELECT
+          "featureKey",
+          COALESCE(SUM("callCount"), 0)::int AS count,
+          COALESCE(SUM("callCount") FILTER (WHERE ${intervals.currentFilter}), 0)::int AS window_count,
+          COALESCE(SUM("callCount") FILTER (WHERE ${intervals.prevFilter}), 0)::int AS prev_window_count
+        FROM "ApiUsageBucket"
+        WHERE 1=1 ${typeClause}
+        GROUP BY "featureKey"
+        `,
+        params
+      );
 
-  const features = [
-    featureFromQuery(products, timeRange, { id: 'sec-products', sectionName: 'Products & Inventory Catalog', path: '/products', iconName: 'Package' }),
-    featureFromQuery(stock, timeRange, { id: 'sec-daybook', sectionName: 'Daily Cash Register & Daybook', path: '/daybook', iconName: 'BookOpen' }),
-    featureFromQuery(sales, timeRange, { id: 'sec-pos-lite', sectionName: 'POS Lite Billing & Invoicing', path: '/pos-lite', iconName: 'ShoppingBag' }),
-    featureFromQuery(categories, timeRange, { id: 'sec-categories', sectionName: 'Categories & Tax Classification', path: '/categories', iconName: 'Layers' }),
-    featureFromQuery(customers, timeRange, { id: 'sec-customers', sectionName: 'Customer CRM & Loyalty Records', path: '/customers', iconName: 'Users' }),
-    featureFromQuery(credits, timeRange, { id: 'sec-credits', sectionName: 'Customer Credit Ledger', path: '/credits', iconName: 'CreditCard' }),
-    featureFromQuery(users, timeRange, { id: 'sec-onboarding', sectionName: 'Merchant Auth & Onboarding Flow', path: '/onboarding', iconName: 'ShieldCheck' }),
-    featureFromQuery(tokens, timeRange, { id: 'sec-tokens', sectionName: 'Quick Token Generator & Kiosk', path: '/tokens', iconName: 'Ticket' }),
-    featureFromQuery(settings, timeRange, { id: 'sec-settings', sectionName: 'Store Profile & Tax Configuration', path: '/settings', iconName: 'Settings' }),
-    featureFromQuery(dayClose, timeRange, { id: 'sec-reports', sectionName: 'Sales & Profit Analytics Reports', path: '/reports', iconName: 'BarChart3' }),
-    featureFromQuery(purchases, timeRange, { id: 'sec-purchases', sectionName: 'Purchase Orders & Stock In', path: '/purchases', iconName: 'Truck' }),
-    featureFromQuery(suppliers, timeRange, { id: 'sec-suppliers', sectionName: 'Supplier & Vendor Directory', path: '/suppliers', iconName: 'Building' }),
-    featureFromQuery(expenses, timeRange, { id: 'sec-expenses', sectionName: 'Expense Tracker & Daily P&L', path: '/expenses', iconName: 'Receipt' }),
-    featureFromQuery(feedback, timeRange, { id: 'sec-feedback', sectionName: 'Customer Reviews & Feedback', path: '/feedback', iconName: 'Users' }),
-  ];
+      for (const row of res.rows) {
+        usageByFeature.set(row.featureKey, row);
+      }
+    } catch (err) {
+      console.warn('[analytics] ApiUsageBucket query failed, returning empty feature counts:', err.message);
+    }
+  }
+
+  const features = API_FEATURE_CATALOG.map((meta) => {
+    const row = usageByFeature.get(meta.id) || {};
+    const current = isAllTime ? row.count || 0 : row.window_count || 0;
+    const prev = row.prev_window_count || 0;
+    const trendPercent = computeTrendPercent(current, prev);
+    return {
+      id: `sec-${meta.id}`,
+      sectionName: meta.sectionName,
+      path: meta.path,
+      apiRoute: meta.routePrefix,
+      iconName: meta.iconName,
+      viewCount: current,
+      uniqueUsers: 0,
+      trend: trendDirection(trendPercent),
+      trendPercent: isAllTime ? 0 : trendPercent,
+    };
+  });
 
   const totalHits = features.reduce((acc, f) => acc + f.viewCount, 0);
   return features
@@ -191,6 +232,102 @@ export async function computeRealTopFeatures(pool, timeRange = 'all') {
       percentageShare: totalHits > 0 ? Math.round((f.viewCount / totalHits) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.viewCount - a.viewCount);
+}
+
+export async function computeTotalApiCalls(pool, timeRange = 'all') {
+  const intervals = getBucketTimeIntervals(timeRange);
+  const isAllTime = (timeRange || '').toLowerCase() === 'all';
+  const empty = { totalApiCalls: 0, totalApiCallsPrev: 0, totalApiCallsTrend: 0 };
+
+  if (!(await tableExists(pool, 'ApiUsageBucket'))) return empty;
+
+  try {
+    const res = await pool.query(`
+      SELECT
+        COALESCE(SUM("callCount"), 0)::int AS total_all,
+        COALESCE(SUM("callCount") FILTER (WHERE ${intervals.currentFilter}), 0)::int AS window_count,
+        COALESCE(SUM("callCount") FILTER (WHERE ${intervals.prevFilter}), 0)::int AS prev_window_count
+      FROM "ApiUsageBucket"
+    `);
+    const row = res.rows[0] || {};
+    const current = isAllTime ? row.total_all || 0 : row.window_count || 0;
+    const prev = row.prev_window_count || 0;
+    return {
+      totalApiCalls: current,
+      totalApiCallsPrev: prev,
+      totalApiCallsTrend: isAllTime ? 0 : computeTrendPercent(current, prev),
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export async function computeBusinessProfiles(pool, timeRange = 'all') {
+  const intervals = getBucketTimeIntervals(timeRange);
+  const isAllTime = (timeRange || '').toLowerCase() === 'all';
+  const profileOrder = ['restaurant_cafe', 'online_store', 'retail_shop', 'unknown'];
+
+  const userCounts = {};
+  try {
+    const userRes = await pool.query(`
+      SELECT
+        COALESCE(NULLIF(btrim("businessType"), ''), 'unknown') AS business_type,
+        COUNT(*)::int AS user_count
+      FROM "User"
+      GROUP BY 1
+    `);
+    for (const row of userRes.rows) {
+      userCounts[row.business_type] = row.user_count;
+    }
+  } catch {
+    // ignore
+  }
+
+  const usageByType = {};
+  if (await tableExists(pool, 'ApiUsageBucket')) {
+    try {
+      const usageRes = await pool.query(`
+        SELECT
+          "businessType",
+          COALESCE(SUM("callCount"), 0)::int AS total_all,
+          COALESCE(SUM("callCount") FILTER (WHERE ${intervals.currentFilter}), 0)::int AS window_count,
+          COALESCE(SUM("callCount") FILTER (WHERE ${intervals.prevFilter}), 0)::int AS prev_window_count
+        FROM "ApiUsageBucket"
+        GROUP BY "businessType"
+      `);
+      for (const row of usageRes.rows) {
+        usageByType[row.businessType] = row;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const topFeatureByType = {};
+  for (const type of profileOrder) {
+    const sections = await computeRealTopFeatures(pool, timeRange, type);
+    const top = sections.find((s) => s.viewCount > 0) || null;
+    topFeatureByType[type] = top
+      ? { id: top.id, sectionName: top.sectionName, apiRoute: top.apiRoute, viewCount: top.viewCount }
+      : null;
+  }
+
+  return profileOrder
+    .filter((type) => type !== 'unknown' || userCounts[type] || usageByType[type])
+    .map((type) => {
+      const usage = usageByType[type] || {};
+      const current = isAllTime ? usage.total_all || 0 : usage.window_count || 0;
+      const prev = usage.prev_window_count || 0;
+      const trendPercent = isAllTime ? 0 : computeTrendPercent(current, prev);
+      return {
+        businessType: type,
+        label: BUSINESS_PROFILE_LABELS[type] || type,
+        userCount: userCounts[type] || 0,
+        totalApiCalls: current,
+        totalApiCallsTrend: trendPercent,
+        topFeature: topFeatureByType[type],
+      };
+    });
 }
 
 export function getHeatmapDayCount(timeRange = '3d') {
@@ -217,6 +354,7 @@ export function mapUserRows(rows) {
     phone: u.phone,
     displayName: u.displayName || u.email?.split('@')[0] || 'User',
     businessName: u.businessName || 'Independent Store',
+    businessType: u.businessType || null,
     plan: u.plan || 'free',
     role: u.role ? u.role.charAt(0).toUpperCase() + u.role.slice(1) : 'Admin',
     emailVerified: Boolean(u.emailVerified),
@@ -230,7 +368,15 @@ export function mapUserRows(rows) {
   }));
 }
 
-export function buildMetricsResponse({ userRes, salesRes, productRes, topFeatures, timeRange, intervals }) {
+export function buildMetricsResponse({
+  userRes,
+  salesRes,
+  productRes,
+  topFeatures,
+  timeRange,
+  intervals,
+  apiCalls = null,
+}) {
   const isAllTime = (timeRange || '').toLowerCase() === 'all';
 
   const totalUsersAllTime = userRes.rows[0]?.total_users || 0;
@@ -266,10 +412,14 @@ export function buildMetricsResponse({ userRes, salesRes, productRes, topFeature
   const webInvoicesPercent = invoiceDenom > 0 ? Math.round((displayWeb / invoiceDenom) * 100) : 100;
 
   const topFeature = topFeatures[0] || {
-    sectionName: 'Products & Inventory Catalog',
+    sectionName: 'Products & Inventory',
     percentageShare: 0,
     trendPercent: 0,
   };
+
+  const totalApiCalls = apiCalls?.totalApiCalls ?? topFeatures.reduce((acc, f) => acc + (f.viewCount || 0), 0);
+  const totalApiCallsPrev = apiCalls?.totalApiCallsPrev ?? 0;
+  const totalApiCallsTrend = apiCalls?.totalApiCallsTrend ?? (isAllTime ? 0 : computeTrendPercent(totalApiCalls, totalApiCallsPrev));
 
   return {
     totalUsers,
@@ -295,6 +445,9 @@ export function buildMetricsResponse({ userRes, salesRes, productRes, topFeature
       ? salesRes.rows[0]?.total_revenue || 0
       : salesRes.rows[0]?.revenue_in_window || salesRes.rows[0]?.total_revenue || 0,
     totalProductsCount: productRes.rows[0]?.count || 0,
+    totalApiCalls,
+    totalApiCallsPrev,
+    totalApiCallsTrend,
     timeRange,
     timeWindowLabel: isAllTime ? 'All Time' : intervals.timeWindowName,
   };

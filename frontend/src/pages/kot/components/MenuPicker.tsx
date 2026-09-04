@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState, memo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { formatINR } from '@/utils/currency'
 import { getTopLevelCategories } from '@/utils/categoryTree'
+import { isProductAvailable } from '@/utils/businessFeatures'
 import type { Product } from '@/types/product.types'
 import type { Category } from '@/services/categoryService'
 
@@ -18,6 +19,16 @@ interface MenuPickerProps {
   onToggleAvailability?: (product: Product, nextActive: boolean) => void
   showUnavailable?: boolean
   onShowUnavailableChange?: (value: boolean) => void
+  onAddFoodItem?: () => void
+}
+
+const dietaryFromDescription = (description?: string | null): 'veg' | 'non_veg' | 'egg' | null => {
+  if (!description) return null
+  const d = description.toLowerCase()
+  if (d.startsWith('veg') || d.includes('· veg ·') || /^veg\b/.test(d)) return 'veg'
+  if (d.startsWith('egg') || d.includes('· egg ·')) return 'egg'
+  if (d.startsWith('non-veg') || d.includes('non-veg')) return 'non_veg'
+  return null
 }
 
 const COLS_SM = 2
@@ -35,6 +46,7 @@ const MenuCard = memo(function MenuCard({
   onPick: (product: Product) => void
   onToggleAvailability?: (product: Product, nextActive: boolean) => void
 }) {
+  const dietary = dietaryFromDescription(product.description)
   return (
     <div
       className={`text-left rounded-xl border bg-white dark:bg-dark-card p-2.5 transition-all duration-150 [content-visibility:auto] [contain-intrinsic-size:0_160px] group ${
@@ -68,6 +80,19 @@ const MenuCard = memo(function MenuCard({
           {unavailable && (
             <span className="absolute top-1.5 right-1.5 rounded-md bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5">
               N/A
+            </span>
+          )}
+          {dietary && !unavailable && (
+            <span
+              className={`absolute top-1.5 left-1.5 rounded-md text-[9px] font-bold px-1.5 py-0.5 border ${
+                dietary === 'veg'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
+                  : dietary === 'egg'
+                    ? 'bg-amber-50 text-amber-800 border-amber-400'
+                    : 'bg-red-50 text-red-700 border-red-400'
+              }`}
+            >
+              {dietary === 'veg' ? 'VEG' : dietary === 'egg' ? 'EGG' : 'N/V'}
             </span>
           )}
         </div>
@@ -109,6 +134,7 @@ export const MenuPicker = ({
   onToggleAvailability,
   showUnavailable = false,
   onShowUnavailableChange,
+  onAddFoodItem,
 }: MenuPickerProps) => {
   const topCats = useMemo(() => getTopLevelCategories(categories), [categories])
   const parentRef = useRef<HTMLDivElement>(null)
@@ -133,14 +159,26 @@ export const MenuPicker = ({
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="shrink-0 p-3 sm:p-4 space-y-3 border-b border-gray-200 dark:border-dark-border">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <Input
-            placeholder="Search menu..."
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9 h-10"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Input
+              placeholder="Search menu..."
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-9 h-10"
+            />
+          </div>
+          {onAddFoodItem && (
+            <button
+              type="button"
+              onClick={onAddFoodItem}
+              className="shrink-0 inline-flex items-center gap-1 h-10 px-3 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              <Plus size={14} />
+              Add Item
+            </button>
+          )}
         </div>
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           <button
@@ -193,11 +231,23 @@ export const MenuPicker = ({
 
       <div ref={parentRef} className="flex-1 overflow-y-auto p-3 sm:p-4 scrollbar-thin">
         {products.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-10">
-            {unavailableMode
-              ? 'No unavailable menu items.'
-              : 'No menu items match this search.'}
-          </p>
+          <div className="text-center py-10 space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {unavailableMode
+                ? 'No unavailable menu items.'
+                : 'No menu items match this search.'}
+            </p>
+            {onAddFoodItem && !unavailableMode && (
+              <button
+                type="button"
+                onClick={onAddFoodItem}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400"
+              >
+                <Plus size={14} />
+                Add a food item
+              </button>
+            )}
+          </div>
         ) : (
           <div
             style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}
@@ -223,7 +273,7 @@ export const MenuPicker = ({
                     <MenuCard
                       key={product.id}
                       product={product}
-                      unavailable={product.isActive === false}
+                      unavailable={!isProductAvailable(product)}
                       onPick={onPick}
                       onToggleAvailability={onToggleAvailability}
                     />

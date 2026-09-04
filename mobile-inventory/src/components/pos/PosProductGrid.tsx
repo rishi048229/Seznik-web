@@ -23,6 +23,7 @@ interface PosProductGridProps {
   textPrimary: string;
   textSecondary: string;
   lowStockLabel: string;
+  trackStock?: boolean;
   searchQuery?: string;
   onClearFilters?: () => void;
   onProductLongPress?: (product: Product) => void;
@@ -37,6 +38,7 @@ export const PosProductGrid = React.memo(function PosProductGrid({
   textPrimary,
   textSecondary,
   lowStockLabel,
+  trackStock = true,
   searchQuery,
   onClearFilters,
   onProductLongPress,
@@ -217,6 +219,7 @@ export const PosProductGrid = React.memo(function PosProductGrid({
             textPrimary={textPrimary}
             textSecondary={textSecondary}
             lowStockLabel={lowStockLabel}
+            trackStock={trackStock}
             viewMode={viewMode}
             onAdd={handleQuickAdd}
             onDecrement={handleQuickDecrement}

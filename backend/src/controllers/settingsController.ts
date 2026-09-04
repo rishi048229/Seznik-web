@@ -88,6 +88,7 @@ const ALLOWED_SETTINGS_FIELDS = [
   'labelConfig',
   'locationConfig',
   'kotConfig',
+  'trackStock',
 ];
 
 const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => {

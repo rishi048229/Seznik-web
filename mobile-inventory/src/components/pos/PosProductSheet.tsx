@@ -15,6 +15,9 @@ import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
+import { usesStockTracking } from '@/utils/businessFeatures';
 
 interface PosProductSheetProps {
   visible: boolean;
@@ -43,6 +46,9 @@ export function PosProductSheet({
   onAdjustStock,
 }: PosProductSheetProps) {
   const theme = useAppTheme();
+  const { user } = useAuth();
+  const { settings } = useSettings();
+  const trackStock = usesStockTracking(user?.businessType, settings?.trackStock);
   const isEditing = !!product;
 
   const [name, setName] = useState('');
@@ -100,9 +106,11 @@ export function PosProductSheet({
 
         // Stock goes through adjustStock rather than a plain field write so the
         // change is recorded as stock history like every other correction.
-        const delta = stockNum - (product.currentStock ?? 0);
-        if (delta !== 0) {
-          await onAdjustStock({ id: product.id, quantity: delta, reason: 'Corrected from POS' });
+        if (trackStock) {
+          const delta = stockNum - (product.currentStock ?? 0);
+          if (delta !== 0) {
+            await onAdjustStock({ id: product.id, quantity: delta, reason: 'Corrected from POS' });
+          }
         }
       } else {
         await onCreate({
@@ -110,8 +118,8 @@ export function PosProductSheet({
           sellingPrice: priceNum,
           costPrice: Number(costPrice) || 0,
           barcode: barcode.trim() || undefined,
-          currentStock: stockNum,
-          lowStockThreshold: 5,
+          currentStock: trackStock ? stockNum : 999999,
+          lowStockThreshold: trackStock ? 5 : 0,
           unit: 'Pc',
           taxRate: 0,
         });
@@ -193,44 +201,48 @@ export function PosProductSheet({
                 placeholderTextColor="#94A3B8"
               />
 
-              <Text style={[styles.label, { color: theme.textSecondary }]}>
-                {isEditing ? 'Stock on hand' : 'Opening stock'}
-              </Text>
-              <View style={styles.stockRow}>
-                <TouchableOpacity
-                  onPress={() => bumpStock(-1)}
-                  style={[styles.stockBtn, { borderColor: theme.borderColor }]}
-                >
-                  <Minus size={16} color={theme.textPrimary} />
-                </TouchableOpacity>
-                <TextInput
-                  style={[styles.stockInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
-                  value={stock}
-                  onChangeText={setStock}
-                  keyboardType="number-pad"
-                />
-                <TouchableOpacity
-                  onPress={() => bumpStock(1)}
-                  style={[styles.stockBtn, { borderColor: theme.borderColor }]}
-                >
-                  <Plus size={16} color={theme.textPrimary} />
-                </TouchableOpacity>
-                {[10, 50].map((n) => (
-                  <TouchableOpacity
-                    key={n}
-                    onPress={() => bumpStock(n)}
-                    style={[styles.quickStockChip, { borderColor: theme.borderColor }]}
-                  >
-                    <Text style={{ fontSize: 11.5, fontWeight: '800', color: theme.textPrimary }}>+{n}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {isEditing && stockNum !== (product?.currentStock ?? 0) ? (
-                <Text style={styles.stockDeltaNote}>
-                  Recorded as a stock correction of{' '}
-                  {stockNum - (product?.currentStock ?? 0) > 0 ? '+' : ''}
-                  {stockNum - (product?.currentStock ?? 0)}.
-                </Text>
+              {trackStock ? (
+                <>
+                  <Text style={[styles.label, { color: theme.textSecondary }]}>
+                    {isEditing ? 'Stock on hand' : 'Opening stock'}
+                  </Text>
+                  <View style={styles.stockRow}>
+                    <TouchableOpacity
+                      onPress={() => bumpStock(-1)}
+                      style={[styles.stockBtn, { borderColor: theme.borderColor }]}
+                    >
+                      <Minus size={16} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.stockInput, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
+                      value={stock}
+                      onChangeText={setStock}
+                      keyboardType="number-pad"
+                    />
+                    <TouchableOpacity
+                      onPress={() => bumpStock(1)}
+                      style={[styles.stockBtn, { borderColor: theme.borderColor }]}
+                    >
+                      <Plus size={16} color={theme.textPrimary} />
+                    </TouchableOpacity>
+                    {[10, 50].map((n) => (
+                      <TouchableOpacity
+                        key={n}
+                        onPress={() => bumpStock(n)}
+                        style={[styles.quickStockChip, { borderColor: theme.borderColor }]}
+                      >
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: theme.textPrimary }}>+{n}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {isEditing && stockNum !== (product?.currentStock ?? 0) ? (
+                    <Text style={styles.stockDeltaNote}>
+                      Recorded as a stock correction of{' '}
+                      {stockNum - (product?.currentStock ?? 0) > 0 ? '+' : ''}
+                      {stockNum - (product?.currentStock ?? 0)}.
+                    </Text>
+                  ) : null}
+                </>
               ) : null}
             </ScrollView>
 

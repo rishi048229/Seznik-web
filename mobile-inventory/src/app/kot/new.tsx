@@ -47,6 +47,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useSettings } from '@/hooks/useSettings';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
+import { isProductAvailable } from '@/utils/businessFeatures';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
@@ -243,8 +244,9 @@ export default function NewKotOrderScreen() {
   const filteredProducts = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return products.filter((p: Product) => {
-      // KOT menu is availability-based — never stock/qty gated
-      const matchesAvailability = showUnavailable ? p.isActive === false : p.isActive !== false;
+      // Soft-deleted stay off the menu; availability is isAvailable (legacy isActive fallback)
+      if (p.isActive === false) return false;
+      const matchesAvailability = showUnavailable ? !isProductAvailable(p) : isProductAvailable(p);
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
@@ -264,7 +266,7 @@ export default function NewKotOrderScreen() {
   const grandTotal = Math.max(0, subtotal + taxTotal - discountVal);
 
   const handleAddProduct = useCallback((product: Product) => {
-    if (product.isActive === false) return;
+    if (!isProductAvailable(product)) return;
     setSelectedItems((prev) => {
       const existing = prev.find((it) => it.productId === product.id);
       if (existing) {
@@ -288,21 +290,21 @@ export default function NewKotOrderScreen() {
 
   const handleToggleAvailability = useCallback(
     (product: Product) => {
-      const nextActive = product.isActive === false;
+      const nextAvailable = !isProductAvailable(product);
       Alert.alert(
-        nextActive ? 'Mark available?' : 'Mark not available?',
-        nextActive
+        nextAvailable ? 'Mark available?' : 'Mark not available?',
+        nextAvailable
           ? `"${product.name}" will show on the menu again.`
           : `"${product.name}" will be hidden from the live menu until you mark it available.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: nextActive ? 'Mark available' : 'Not available',
-            style: nextActive ? 'default' : 'destructive',
+            text: nextAvailable ? 'Mark available' : 'Not available',
+            style: nextAvailable ? 'default' : 'destructive',
             onPress: async () => {
               try {
-                await updateProduct({ id: product.id, payload: { isActive: nextActive } });
-                if (!nextActive) {
+                await updateProduct({ id: product.id, payload: { isAvailable: nextAvailable } });
+                if (!nextAvailable) {
                   setSelectedItems((prev) => prev.filter((it) => it.productId !== product.id));
                 }
               } catch (err: any) {
@@ -322,7 +324,7 @@ export default function NewKotOrderScreen() {
         product={item}
         inCartQty={cartQtyByProductId.get(item.id) || 0}
         theme={theme}
-        unavailable={item.isActive === false}
+        unavailable={!isProductAvailable(item)}
         onPress={handleAddProduct}
         onToggleAvailability={handleToggleAvailability}
       />

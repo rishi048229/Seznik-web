@@ -1196,7 +1196,7 @@ export const POSLitePage = () => {
             <Button
               onClick={() => setIsPaymentOpen(true)}
               disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
+              className="w-full h-11 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400 shadow-md shadow-blue-500/25"
             >
               <Printer size={18} className="mr-2" />
               {t('pos.completeAndPrint')}
@@ -1207,8 +1207,8 @@ export const POSLitePage = () => {
               size="sm"
               onClick={handlePreviewCurrentBill}
               disabled={items.length === 0}
-              leftIcon={<FileText size={15} className="text-indigo-600" />}
-              className="w-full h-9 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              leftIcon={<FileText size={15} className="text-blue-600 dark:text-blue-300" />}
+              className="w-full h-9 text-xs font-semibold border-blue-300 text-blue-700 dark:text-blue-200 dark:border-blue-500/60 hover:bg-blue-50 dark:hover:bg-blue-500/15"
             >
               Preview &amp; Edit Bill (Live Receipt)
             </Button>
@@ -1227,7 +1227,7 @@ export const POSLitePage = () => {
             onClick={handleCheckout}
             loading={isCreating}
             disabled={method === 'cash' && !isComplete}
-            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            className="w-full py-3.5 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400"
           >
             <Printer size={18} className="mr-2" />
             {t('pos.completeAndPrint')}

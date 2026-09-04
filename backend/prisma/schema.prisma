@@ -139,6 +139,8 @@ model Settings {
   // Merchant UPI VPA (e.g. shop@okhdfcbank). Required when a receipt QR is UPI.
   upiId              String?
   labelConfig        Json?
+  /// When false (restaurants/cafes), inventory quantity is not tracked — only Product.isAvailable.
+  trackStock         Boolean  @default(true)
   userId             String   @unique
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt          DateTime @default(now())
@@ -204,7 +206,10 @@ model Product {
   currentStock      Float     @default(0)
   lowStockThreshold Float     @default(0)
   unit              String    @default("piece")
+  /// Soft-delete / catalog membership. Soft-deleted products stay out of all catalogs.
   isActive          Boolean   @default(true)
+  /// Menu availability (restaurants/cafes). Independent of stock quantity and soft-delete.
+  isAvailable       Boolean   @default(true)
 
   brand       String?
   description String?   @db.Text
@@ -223,6 +228,7 @@ model Product {
 
   @@index([userId])
   @@index([userId, isActive])
+  @@index([userId, isAvailable])
   @@index([userId, createdAt(sort: Desc)])
 }
 
@@ -553,4 +559,22 @@ model KOTOrderItem {
   updatedAt   DateTime @updatedAt
 
   @@index([orderId])
+}
+
+/// Hourly aggregated API usage for admin analytics (feature × route × method × businessType).
+model ApiUsageBucket {
+  id           String   @id @default(uuid())
+  bucketStart  DateTime // floored to hour UTC
+  featureKey   String
+  routePrefix  String
+  method       String
+  businessType String // restaurant_cafe | online_store | retail_shop | unknown
+  callCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([bucketStart, featureKey, routePrefix, method, businessType])
+  @@index([bucketStart])
+  @@index([businessType, bucketStart])
+  @@index([featureKey, bucketStart])
 }

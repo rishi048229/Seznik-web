@@ -35,6 +35,7 @@ import kotOrderRoutes from './routes/kotOrderRoutes';
 import locationRoutes from './routes/locationRoutes';
 import publicReceiptRoutes from './routes/publicReceiptRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import { trackApiUsage } from './middlewares/apiUsageMiddleware';
 const app = express();
 
 // Trust reverse proxy (Nginx / Cloudflare / AWS ALB) headers
@@ -86,6 +87,10 @@ app.use(
 );
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ limit: '2mb', extended: true }));
+
+// Track authenticated + public API usage (hourly buckets) for admin analytics.
+// Mounted before routes so every response is observed; feature resolved from path.
+app.use(trackApiUsage);
 
 // 3. API Routes
 app.use('/api/auth', authRoutes);

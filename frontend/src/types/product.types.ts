@@ -18,6 +18,8 @@ export interface Product {
   lowStockThreshold: number
   unit: 'piece' | 'kg' | 'gram' | 'liter' | 'meter' | 'dozen' | 'box'
   isActive: boolean
+  /** Menu availability — independent of soft-delete (`isActive`) and stock quantity. */
+  isAvailable?: boolean
   // Optional details — never required, purely informational when set.
   // `| null` is allowed alongside `undefined` because clearing one of these
   // in the edit form sends an explicit null so the backend actually clears

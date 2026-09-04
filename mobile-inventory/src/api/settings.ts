@@ -16,6 +16,8 @@ export interface Settings {
   labelConfig?: Record<string, any> | null;
   // Multi-location inventory (opt-in — see src/hooks/useLocations.ts, src/app/stores/index.tsx).
   locationConfig?: { enabled: boolean } | null;
+  /** When false (restaurants/cafes), quantity stock is not tracked — use Product.isAvailable. */
+  trackStock?: boolean;
   userId: string;
   createdAt?: string;
   updatedAt?: string;

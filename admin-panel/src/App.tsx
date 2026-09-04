@@ -9,8 +9,9 @@ import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
 import { HealthView } from './components/HealthView';
 import { FeedbackSection } from './components/FeedbackSection';
+import { BusinessProfileAnalytics } from './components/BusinessProfileAnalytics';
 
-const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'feedback', 'health'];
+const VALID_TABS = ['overview', 'sections', 'analytics', 'users', 'traffic', 'redirects', 'feedback', 'health'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -90,6 +91,9 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
     setActiveTab(targetTab);
   };
 
+  const showTimeRange =
+    activeTab === 'overview' || activeTab === 'sections' || activeTab === 'analytics';
+
   return (
     <div className="admin-app-shell">
       <div style={{ flexShrink: 0 }}>
@@ -102,7 +106,7 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
           onSelectAutoRefreshInterval={setAutoRefreshInterval}
           timeRange={timeRange}
           onSelectTimeRange={setTimeRange}
-          showTimeRange={activeTab === 'overview' || activeTab === 'sections'}
+          showTimeRange={showTimeRange}
           userId={userId}
           onLogout={onLogout}
         />
@@ -157,6 +161,8 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
             hideTimeRangeSelect
             onViewAllSessions={() => {}}
           />
+        ) : activeTab === 'analytics' ? (
+          <BusinessProfileAnalytics timeRange={timeRange} />
         ) : activeTab === 'users' ? (
           <UsersSection initialSearchTerm={selectedUserForProfile} />
         ) : null}

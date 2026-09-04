@@ -1,6 +1,7 @@
 import { fetchApi } from './api'
 import type {
   CreateKOTOrderPayload,
+  EditKOTOrderPayload,
   KOTBillPayload,
   KOTBillResult,
   KOTOrder,
@@ -40,6 +41,13 @@ export const addItemsToOrder = async (
   return await fetchApi(`/kot-orders/${id}/items`, {
     method: 'POST',
     body: JSON.stringify({ items }),
+  })
+}
+
+export const editOrder = async (id: string, data: EditKOTOrderPayload): Promise<KOTOrder> => {
+  return await fetchApi(`/kot-orders/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
   })
 }
 

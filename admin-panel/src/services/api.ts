@@ -9,6 +9,7 @@ import type {
   AdminProduct,
   HealthCheckResult,
   FeedbackListResponse,
+  BusinessProfileSummary,
 } from '../types/admin';
 
 function isLocalDev(): boolean {
@@ -90,6 +91,9 @@ export async function fetchDashboardMetrics(timeRange: string = 'all'): Promise<
     totalWebInvoices: data.totalWebInvoices,
     totalSalesCount: data.totalSalesCount,
     totalRevenue: data.totalRevenue,
+    totalApiCalls: data.totalApiCalls ?? 0,
+    totalApiCallsPrev: data.totalApiCallsPrev ?? 0,
+    totalApiCallsTrend: data.totalApiCallsTrend ?? 0,
   };
 }
 
@@ -99,6 +103,19 @@ export async function fetchUserRecords(timeRange: string = 'all'): Promise<UserR
 
 export async function fetchSectionUsage(timeRange: string = 'all'): Promise<SectionUsage[]> {
   return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
+}
+
+export async function fetchBusinessProfiles(timeRange: string = 'all'): Promise<BusinessProfileSummary[]> {
+  return await fetchAdminEndpoint<BusinessProfileSummary[]>(`/profiles?timeRange=${encodeURIComponent(timeRange)}`);
+}
+
+export async function fetchProfileSectionUsage(
+  businessType: string,
+  timeRange: string = 'all'
+): Promise<SectionUsage[]> {
+  return await fetchAdminEndpoint<SectionUsage[]>(
+    `/profiles/${encodeURIComponent(businessType)}/sections?timeRange=${encodeURIComponent(timeRange)}`
+  );
 }
 
 const IST_TZ = 'Asia/Kolkata';

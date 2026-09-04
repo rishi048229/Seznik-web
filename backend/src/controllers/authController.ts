@@ -6,6 +6,7 @@ import { generateToken } from '../utils/jwt';
 import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
 import { isValidBusinessType } from '../constants/businessTypes';
+import { syncTrackStockForUser } from '../utils/stockTracking';
 import { isValidUpiVpa } from '../utils/upiVpa';
 import { buildReceiptConfigFromProfile } from '../utils/enrichSettingsProfile';
 
@@ -662,6 +663,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessPhone: phone,
         upiId,
         receiptConfig: receiptConfig as any,
+        trackStock: businessType !== 'restaurant_cafe',
         ...(businessLogoURL ? { businessLogoURL } : {}),
       },
       create: {
@@ -671,9 +673,17 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessPhone: phone,
         upiId,
         receiptConfig: receiptConfig as any,
+        trackStock: businessType !== 'restaurant_cafe',
         ...(businessLogoURL ? { businessLogoURL } : {}),
       },
     });
+
+    if (businessType === 'restaurant_cafe') {
+      await prisma.product.updateMany({
+        where: { userId, currentStock: { lt: 999999 } },
+        data: { currentStock: 999999, lowStockThreshold: 0 },
+      });
+    }
 
     const { password, ...userWithoutPassword } = user;
     res.json({
@@ -708,6 +718,8 @@ export const updateBusinessType = async (req: Request, res: Response) => {
       where: { id: userId },
       data: { businessType },
     });
+
+    await syncTrackStockForUser(userId, businessType);
 
     const { password, ...userWithoutPassword } = updated;
     res.json({

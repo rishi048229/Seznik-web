@@ -1,6 +1,14 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi, SettingsPayload } from '@/api/settings';
 import { resolveBusinessLogoUri } from '@/utils/businessLogoStorage';
+
+/** Latest Settings.trackStock for non-React callers (e.g. cart store). */
+let cachedTrackStockSetting: boolean | null | undefined;
+
+export function getCachedTrackStockSetting(): boolean | null | undefined {
+  return cachedTrackStockSetting;
+}
 
 /**
  * Real business Settings (name/address/phone/GSTIN etc.), used anywhere a receipt/invoice
@@ -13,7 +21,11 @@ export function useSettings() {
     queryKey: ['settings'],
     queryFn: async () => {
       const settings = await settingsApi.getSettings();
-      if (!settings) return null;
+      if (!settings) {
+        cachedTrackStockSetting = undefined;
+        return null;
+      }
+      cachedTrackStockSetting = settings.trackStock;
       if (settings.businessLogoURL) {
         const resolved = await resolveBusinessLogoUri(settings.businessLogoURL);
         return { ...settings, businessLogoURL: resolved };
@@ -23,6 +35,12 @@ export function useSettings() {
     staleTime: 1000 * 60 * 5,
   });
 
+  useEffect(() => {
+    if (settingsQuery.data) {
+      cachedTrackStockSetting = settingsQuery.data.trackStock;
+    }
+  }, [settingsQuery.data]);
+
   const updateMutation = useMutation({
     mutationFn: (payload: SettingsPayload) => {
       if (settingsQuery.data?.id) {
@@ -30,7 +48,10 @@ export function useSettings() {
       }
       return settingsApi.createSettings(payload);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data && typeof (data as { trackStock?: boolean }).trackStock === 'boolean') {
+        cachedTrackStockSetting = (data as { trackStock?: boolean }).trackStock;
+      }
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });

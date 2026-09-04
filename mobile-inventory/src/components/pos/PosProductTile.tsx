@@ -3,6 +3,7 @@ import { View, Text, Image, Pressable, TouchableOpacity, StyleSheet, Platform } 
 import { Plus, Minus, Trash2, Tag, AlertTriangle, Layers } from 'lucide-react-native';
 import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
+import { isProductAvailable } from '@/utils/businessFeatures';
 
 const CATEGORY_PALETTES = [
   { bg: 'rgba(59, 130, 246, 0.14)', text: '#3B82F6', border: 'rgba(59, 130, 246, 0.28)' }, // Blue
@@ -41,6 +42,8 @@ export interface PosProductTileProps {
   textPrimary: string;
   textSecondary: string;
   lowStockLabel?: string;
+  /** When false (restaurant/cafe), hide qty stock badges and gate on isAvailable. */
+  trackStock?: boolean;
   viewMode?: 'grid' | 'list';
   onAdd: (product: Product) => void;
   onDecrement: (productId: string) => void;
@@ -57,6 +60,7 @@ export const PosProductTile = memo(function PosProductTile({
   textPrimary,
   textSecondary,
   lowStockLabel = 'Low Stock',
+  trackStock = true,
   viewMode = 'grid',
   onAdd,
   onDecrement,
@@ -75,13 +79,94 @@ export const PosProductTile = memo(function PosProductTile({
 
   const stock = rawStock !== undefined ? Math.max(0, rawStock) : undefined;
   const threshold = product.lowStockThreshold ?? (product as any).reorderThreshold ?? 5;
-  const isOutOfStock = stock !== undefined && stock <= 0;
-  const isLowStock = !isOutOfStock && stock !== undefined && stock <= threshold;
+  const isUnavailable = !isProductAvailable(product);
+  const isOutOfStock = trackStock && stock !== undefined && stock <= 0;
+  const isLowStock = trackStock && !isOutOfStock && stock !== undefined && stock <= threshold;
+  const isDisabled = trackStock ? isOutOfStock : isUnavailable;
+
+  const stockMeta = () => {
+    if (!trackStock) {
+      if (isUnavailable) {
+        return (
+          <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+            <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Not available</Text>
+          </View>
+        );
+      }
+      return null;
+    }
+    if (isOutOfStock) {
+      return (
+        <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+          <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Out of Stock</Text>
+        </View>
+      );
+    }
+    if (isLowStock) {
+      return (
+        <View style={[styles.stockBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+          <Text style={[styles.stockBadgeText, { color: '#F59E0B' }]}>
+            {lowStockLabel}: {stock}
+          </Text>
+        </View>
+      );
+    }
+    if (stock !== undefined) {
+      return (
+        <Text style={[styles.stockCountText, { color: textSecondary }]}>
+          Stock: {stock}
+        </Text>
+      );
+    }
+    return null;
+  };
+
+  const gridStockMeta = () => {
+    if (!trackStock) {
+      if (isUnavailable) {
+        return (
+          <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+            <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Not available</Text>
+          </View>
+        );
+      }
+      return null;
+    }
+    if (isOutOfStock) {
+      return (
+        <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+          <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Out of Stock</Text>
+        </View>
+      );
+    }
+    if (isLowStock) {
+      return (
+        <View style={[styles.stockBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+          <Text style={[styles.stockBadgeText, { color: '#F59E0B' }]}>
+            {lowStockLabel}: {stock}
+          </Text>
+        </View>
+      );
+    }
+    if (stock !== undefined) {
+      return (
+        <Text style={[styles.stockCountText, { color: textSecondary }]}>
+          {stock} left
+        </Text>
+      );
+    }
+    return null;
+  };
+
+  const handleAddPress = () => {
+    if (isDisabled) return;
+    onAdd(product);
+  };
 
   if (viewMode === 'list') {
     return (
       <Pressable
-        onPress={() => onAdd(product)}
+        onPress={handleAddPress}
         onLongPress={onLongPress ? () => onLongPress(product) : undefined}
         delayLongPress={350}
         android_ripple={{ color: 'rgba(37, 99, 235, 0.16)' }}
@@ -94,7 +179,7 @@ export const PosProductTile = memo(function PosProductTile({
                 : 'rgba(37, 99, 235, 0.08)'
               : cardBg,
             borderColor: inCart ? BRAND_COLORS.blue600 : borderColor,
-            opacity: pressed ? 0.92 : isOutOfStock ? 0.7 : 1,
+            opacity: pressed ? 0.92 : isDisabled ? 0.7 : 1,
           },
         ]}
       >
@@ -121,21 +206,7 @@ export const PosProductTile = memo(function PosProductTile({
           </Text>
           <View style={styles.listMetaRow}>
             <Text style={[styles.codeTagText, { color: textSecondary }]}>#{codeNumber}</Text>
-            {isOutOfStock ? (
-              <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-                <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Out of Stock</Text>
-              </View>
-            ) : isLowStock ? (
-              <View style={[styles.stockBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-                <Text style={[styles.stockBadgeText, { color: '#F59E0B' }]}>
-                  {lowStockLabel}: {stock}
-                </Text>
-              </View>
-            ) : stock !== undefined ? (
-              <Text style={[styles.stockCountText, { color: textSecondary }]}>
-                Stock: {stock}
-              </Text>
-            ) : null}
+            {stockMeta()}
           </View>
         </View>
 
@@ -158,7 +229,7 @@ export const PosProductTile = memo(function PosProductTile({
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation?.();
-                  onAdd(product);
+                  handleAddPress();
                 }}
                 style={[styles.tileStepBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
@@ -170,9 +241,10 @@ export const PosProductTile = memo(function PosProductTile({
             <TouchableOpacity
               onPress={(e) => {
                 e.stopPropagation?.();
-                onAdd(product);
+                handleAddPress();
               }}
-              style={[styles.addBtnSmall, { backgroundColor: BRAND_COLORS.blue600 }]}
+              style={[styles.addBtnSmall, { backgroundColor: BRAND_COLORS.blue600, opacity: isDisabled ? 0.5 : 1 }]}
+              disabled={isDisabled}
             >
               <Plus size={13} color="#FFFFFF" />
               <Text style={styles.addBtnSmallText}>Add</Text>
@@ -185,7 +257,7 @@ export const PosProductTile = memo(function PosProductTile({
 
   return (
     <Pressable
-      onPress={() => onAdd(product)}
+      onPress={handleAddPress}
       onLongPress={onLongPress ? () => onLongPress(product) : undefined}
       delayLongPress={350}
       android_ripple={{ color: 'rgba(37, 99, 235, 0.18)' }}
@@ -199,7 +271,7 @@ export const PosProductTile = memo(function PosProductTile({
             : cardBg,
           borderColor: inCart ? BRAND_COLORS.blue600 : borderColor,
           borderWidth: inCart ? 1.5 : 1,
-          opacity: pressed ? 0.92 : isOutOfStock ? 0.72 : 1,
+          opacity: pressed ? 0.92 : isDisabled ? 0.72 : 1,
         },
       ]}
     >
@@ -215,21 +287,7 @@ export const PosProductTile = memo(function PosProductTile({
             </View>
           ) : null}
 
-          {isOutOfStock ? (
-            <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-              <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Out of Stock</Text>
-            </View>
-          ) : isLowStock ? (
-            <View style={[styles.stockBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-              <Text style={[styles.stockBadgeText, { color: '#F59E0B' }]}>
-                {lowStockLabel}: {stock}
-              </Text>
-            </View>
-          ) : stock !== undefined ? (
-            <Text style={[styles.stockCountText, { color: textSecondary }]}>
-              {stock} left
-            </Text>
-          ) : null}
+          {gridStockMeta()}
         </View>
       </View>
 
@@ -281,7 +339,7 @@ export const PosProductTile = memo(function PosProductTile({
             <TouchableOpacity
               onPress={(e) => {
                 e.stopPropagation?.();
-                onAdd(product);
+                handleAddPress();
               }}
               style={[styles.tileStepBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
@@ -290,7 +348,7 @@ export const PosProductTile = memo(function PosProductTile({
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={[styles.addCircle, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
+          <View style={[styles.addCircle, { backgroundColor: isDark ? '#334155' : '#E2E8F0', opacity: isDisabled ? 0.5 : 1 }]}>
             <Plus size={14} color={BRAND_COLORS.blue600} />
           </View>
         )}

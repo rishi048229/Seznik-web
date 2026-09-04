@@ -124,6 +124,33 @@ export interface CreateKOTOrderPayload {
   }>
 }
 
+export interface EditKOTOrderPayload {
+  status?: KOTOrderStatus
+  priority?: KOTPriority
+  notes?: string
+  itemsToAdd?: CreateKOTOrderPayload['items']
+  itemsToUpdate?: Array<{
+    id: string
+    quantity?: number
+    notes?: string
+    modifiers?: string[]
+    status?: string
+  }>
+  itemsToVoid?: Array<{
+    id: string
+    reason: string
+  }>
+}
+
+export interface KOTDeltaChange {
+  type: 'new' | 'void' | 'qty_change'
+  productName: string
+  quantity: number
+  oldQuantity?: number
+  notes?: string
+  reason?: string
+}
+
 export interface KOTBillPayload {
   paymentMethod: 'cash' | 'card' | 'upi' | 'credit'
   discount?: number

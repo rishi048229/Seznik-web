@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Receipt, UserCheck } from 'lucide-react';
+import { Users, Receipt, UserCheck, Activity } from 'lucide-react';
 import type { DashboardMetrics } from '../types/admin';
 
 interface KPICardsProps {
@@ -16,6 +16,11 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
   const webPct = metrics.webInvoicesPercent ?? 100;
   const windowLabel = metrics.timeWindowLabel || 'All Time';
   const isAllTime = (metrics.timeRange || 'all').toLowerCase() === 'all';
+  const apiTrend = metrics.totalApiCallsTrend ?? 0;
+  const apiTrendLabel =
+    isAllTime
+      ? 'All authenticated & public API requests'
+      : `${apiTrend >= 0 ? '+' : ''}${apiTrend}% vs prior period`;
 
   const cards = [
     {
@@ -46,6 +51,15 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
       icon: UserCheck,
       color: '#8B5CF6',
       targetTab: 'traffic',
+    },
+    {
+      id: 'total-api-calls',
+      title: `Total API Calls (${windowLabel})`,
+      value: metrics.totalApiCalls ?? 0,
+      subtext: apiTrendLabel,
+      icon: Activity,
+      color: '#F59E0B',
+      targetTab: 'analytics',
     },
   ];
 
@@ -98,7 +112,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
 
             <div style={{ marginBottom: '8px' }}>
               <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: '1', letterSpacing: '-0.02em' }}>
-                {card.value}
+                {Number(card.value).toLocaleString()}
               </div>
             </div>
 

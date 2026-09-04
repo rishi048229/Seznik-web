@@ -24,6 +24,8 @@ export interface Product {
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
+  /** Menu availability — independent of soft-delete (`isActive`) and stock quantity. */
+  isAvailable?: boolean;
   discountType?: 'flat' | 'percent';
   discountValue?: number;
   createdAt?: string;
@@ -47,6 +49,7 @@ export interface CreateProductPayload {
   unit: string;
   imageUrl?: string;
   isActive?: boolean;
+  isAvailable?: boolean;
   discountType?: 'flat' | 'percent';
   discountValue?: number;
 }

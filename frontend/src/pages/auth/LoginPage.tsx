@@ -362,7 +362,7 @@ export const LoginPage = () => {
               <button
                 onClick={pageTutorial.openTutorial}
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all shadow-sm shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 dark:bg-dark-elevated dark:text-indigo-300 dark:border-dark-border-strong dark:hover:bg-dark-hover transition-all shadow-sm shrink-0 cursor-pointer"
                 title="Watch Video Guide & Tutorial"
               >
                 <Video size={14} className="animate-pulse" />
@@ -412,16 +412,16 @@ export const LoginPage = () => {
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   readOnly={isRegistering && verifyStep === 'verified'}
-                  className={`flex-1 min-w-0 px-3.5 py-2.5 sm:py-2 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 ${
+                  className={`flex-1 min-w-0 px-3.5 py-2.5 sm:py-2 border rounded-xl text-[16px] sm:text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 ${
                     isRegistering && verifyStep === 'verified'
-                      ? 'border-emerald-300 bg-emerald-50/50'
+                      ? 'border-emerald-300 bg-emerald-50/50 dark:border-emerald-700 dark:bg-emerald-950/30'
                       : 'border-slate-300 dark:border-dark-border-strong dark:bg-dark-elevated'
                   }`}
                   placeholder="admin@example.com"
                 />
                 {isRegistering && (
                   verifyStep === 'verified' ? (
-                    <span className="flex items-center gap-1 text-emerald-600 text-xs font-semibold px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-xl shrink-0">
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-3 py-2 border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl shrink-0">
                       <CheckCircle2 size={14} /> Verified
                     </span>
                   ) : (
@@ -494,11 +494,11 @@ export const LoginPage = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 transition-all ${
+                  className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all ${
                     isRegistering && isRegPassValid
-                      ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
+                      ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15 dark:bg-emerald-950/20'
                       : isRegistering && isRegPassInvalid
-                      ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
+                      ? 'border-red-400 focus:ring-red-400 bg-red-50/15 dark:bg-red-950/20'
                       : 'border-slate-300 dark:border-dark-border-strong dark:bg-dark-elevated focus:ring-[#0a0a2e] dark:focus:ring-zinc-400'
                   }`}
                   placeholder="••••••••"
@@ -506,7 +506,7 @@ export const LoginPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 focus:outline-none transition-colors cursor-pointer"
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -526,11 +526,11 @@ export const LoginPage = () => {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm focus:outline-none focus:ring-2 transition-all ${
+                    className={`w-full px-3.5 py-2.5 sm:py-2 pr-10 border rounded-xl text-[16px] sm:text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all ${
                       isRegConfirmValid
-                        ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15'
+                        ? 'border-emerald-500 focus:ring-emerald-400 bg-emerald-50/15 dark:bg-emerald-950/20'
                         : isRegConfirmInvalid
-                        ? 'border-red-400 focus:ring-red-400 bg-red-50/15'
+                        ? 'border-red-400 focus:ring-red-400 bg-red-50/15 dark:bg-red-950/20'
                         : 'border-slate-300 dark:border-dark-border-strong dark:bg-dark-elevated focus:ring-[#0a0a2e] dark:focus:ring-zinc-400'
                     }`}
                     placeholder="••••••••"
@@ -538,7 +538,7 @@ export const LoginPage = () => {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 focus:outline-none transition-colors cursor-pointer"
                     tabIndex={-1}
                     aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                   >
@@ -566,15 +566,19 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={isSigningIn || loading || (isRegistering && (!isRegPassValid || !isRegConfirmValid))}
-              className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="mt-3 sm:mt-4 w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer dark:shadow-none"
               style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
             >
-              {isSigningIn || loading ? <Spinner size="sm" className="text-white" /> : (isRegistering ? 'Sign Up' : 'Sign In')}
+              {isSigningIn || loading ? (
+                <Spinner size="sm" className="text-white dark:text-zinc-900" />
+              ) : (
+                isRegistering ? 'Sign Up' : 'Sign In'
+              )}
             </button>
           </form>
 
           {/* Sign Up / Log In Link */}
-          <p className="text-center mt-8 text-sm text-slate-500">
+          <p className="text-center mt-8 text-sm text-slate-500 dark:text-gray-400">
             {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
             <button onClick={switchMode} className="text-[#0a0a2e] dark:text-indigo-300 font-semibold hover:underline">
               {isRegistering ? 'Log in' : 'Sign Up'}
@@ -582,12 +586,12 @@ export const LoginPage = () => {
           </p>
 
           {/* Footer */}
-          <div className="flex justify-center gap-5 mt-10 text-[10px] font-semibold uppercase tracking-widest text-slate-400 flex-wrap">
-            <a href="#" className="hover:text-slate-600">Security</a>
-            <a href="#" className="hover:text-slate-600">Privacy Policy</a>
-            <a href="#" className="hover:text-slate-600">Terms</a>
+          <div className="flex justify-center gap-5 mt-10 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-gray-500 flex-wrap">
+            <a href="#" className="hover:text-slate-600 dark:hover:text-gray-300">Security</a>
+            <a href="#" className="hover:text-slate-600 dark:hover:text-gray-300">Privacy Policy</a>
+            <a href="#" className="hover:text-slate-600 dark:hover:text-gray-300">Terms</a>
           </div>
-          <p className="text-center mt-2 text-[10px] text-slate-300">© 2026 Seznik POS. All rights reserved.</p>
+          <p className="text-center mt-2 text-[10px] text-slate-300 dark:text-gray-600">© 2026 Seznik POS. All rights reserved.</p>
         </div>
       </div>
 
@@ -600,14 +604,14 @@ export const LoginPage = () => {
       >
         <div className="space-y-4 py-2">
           {forgotError && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg">
               {forgotError}
             </div>
           )}
 
           {forgotStep === 'email' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-600 dark:text-gray-400">
                 Enter your registered email address and we'll send you a 6-digit verification code to reset your password.
               </p>
               <Input
@@ -619,7 +623,7 @@ export const LoginPage = () => {
                 autoFocus
               />
               <Button
-                className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
+                className="w-full bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                 onClick={handleSendForgotOtp}
                 loading={forgotLoading}
                 disabled={!forgotEmail.trim()}
@@ -631,8 +635,8 @@ export const LoginPage = () => {
 
           {forgotStep === 'otp' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">
-                Enter the 6-digit verification code sent to <strong className="text-slate-900">{forgotEmail}</strong>.
+              <p className="text-sm text-slate-600 dark:text-gray-400">
+                Enter the 6-digit verification code sent to <strong className="text-slate-900 dark:text-gray-100">{forgotEmail}</strong>.
               </p>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Verification Code</label>
@@ -642,13 +646,13 @@ export const LoginPage = () => {
                   maxLength={6}
                   value={forgotOtp}
                   onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 tracking-[0.4em] font-semibold text-center text-lg"
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-dark-border-strong rounded-lg dark:bg-dark-elevated dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 tracking-[0.4em] font-semibold text-center text-lg"
                   placeholder="••••••"
                   autoFocus
                 />
               </div>
 
-              {forgotMessage && <p className="text-xs text-slate-500">{forgotMessage}</p>}
+              {forgotMessage && <p className="text-xs text-slate-500 dark:text-gray-400">{forgotMessage}</p>}
 
               <div className="flex gap-2">
                 <Button
@@ -660,7 +664,7 @@ export const LoginPage = () => {
                   Back
                 </Button>
                 <Button
-                  className="w-2/3 bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
+                  className="w-2/3 bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                   onClick={handleVerifyForgotOtp}
                   loading={forgotLoading}
                   disabled={forgotOtp.length !== 6}
@@ -684,8 +688,8 @@ export const LoginPage = () => {
 
           {forgotStep === 'new_password' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">
-                Create a new password for <strong className="text-slate-900">{forgotEmail}</strong>.
+              <p className="text-sm text-slate-600 dark:text-gray-400">
+                Create a new password for <strong className="text-slate-900 dark:text-gray-100">{forgotEmail}</strong>.
               </p>
               <Input
                 label="New Password"
@@ -709,7 +713,7 @@ export const LoginPage = () => {
               />
               {forgotConfirmPassword && (
                 <p className={`text-xs font-semibold flex items-center gap-1 -mt-2 ${
-                  isForgotConfirmValid ? 'text-emerald-600' : 'text-red-500'
+                  isForgotConfirmValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
                 }`}>
                   {isForgotConfirmValid ? (
                     <>
@@ -723,7 +727,7 @@ export const LoginPage = () => {
                 </p>
               )}
               <Button
-                className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
+                className="w-full bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                 onClick={handleResetPassword}
                 loading={forgotLoading}
                 disabled={!isForgotPassValid || !isForgotConfirmValid}
@@ -735,17 +739,17 @@ export const LoginPage = () => {
 
           {forgotStep === 'success' && (
             <div className="text-center space-y-4 py-4">
-              <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-950/50 rounded-full flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 size={32} />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-slate-900">Password Updated!</h4>
-                <p className="text-sm text-slate-600 mt-1">
+                <h4 className="text-lg font-bold text-slate-900 dark:text-gray-100">Password Updated!</h4>
+                <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">
                   Your password has been reset successfully. You can now log in with your new password.
                 </p>
               </div>
               <Button
-                className="w-full bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
+                className="w-full bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1e1b6e] dark:hover:bg-white"
                 onClick={handleFinishForgot}
               >
                 Back to Login

@@ -53,7 +53,7 @@ export const MobileNav = () => {
       ]
     : [
         { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
-        { path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> },
+        { path: ROUTES.POS, label: 'Billing Counter', icon: <ShoppingCart size={20} /> },
         { path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> },
         { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
       ]
@@ -62,11 +62,11 @@ export const MobileNav = () => {
   const moreItems: NavItem[] = [
     ...(kotFirst
       ? [
-          { path: ROUTES.POS, label: 'Counter POS', icon: <ShoppingCart size={20} /> },
-          { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
+          { path: ROUTES.POS, label: 'Billing Counter', icon: <ShoppingCart size={20} /> },
+          { path: ROUTES.POS_LITE, label: 'Quick Bill', icon: <MoveLeft size={20} /> },
         ]
       : [
-          { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
+          { path: ROUTES.POS_LITE, label: 'Quick Bill', icon: <MoveLeft size={20} /> },
           ...(showKot
             ? [{ path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> }]
             : []),

@@ -12,6 +12,9 @@ import prisma from '../config/db';
 const BAN_CACHE_TTL_MS = 30_000;
 const banCache = new Map<string, { isBanned: boolean; banReason: string | null; expiresAt: number }>();
 
+const BUSINESS_TYPE_CACHE_TTL_MS = 60_000;
+const businessTypeCache = new Map<string, { businessType: string | null; expiresAt: number }>();
+
 async function checkBanned(userId: string): Promise<{ isBanned: boolean; banReason: string | null }> {
   const now = Date.now();
   const cached = banCache.get(userId);
@@ -33,6 +36,42 @@ async function checkBanned(userId: string): Promise<{ isBanned: boolean; banReas
 
   banCache.set(userId, { ...result, expiresAt: now + BAN_CACHE_TTL_MS });
   return result;
+}
+
+/** Resolves owner businessType for both User and ManagedUser JWT subjects. */
+async function resolveBusinessType(userId: string): Promise<string | null> {
+  const now = Date.now();
+  const cached = businessTypeCache.get(userId);
+  if (cached && cached.expiresAt > now) return cached.businessType;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { businessType: true },
+  });
+  let businessType: string | null = user?.businessType ?? null;
+
+  if (!user) {
+    const managed = await prisma.managedUser.findUnique({
+      where: { id: userId },
+      select: { adminId: true },
+    });
+    if (managed?.adminId) {
+      const admin = await prisma.user.findUnique({
+        where: { id: managed.adminId },
+        select: { businessType: true },
+      });
+      businessType = admin?.businessType ?? null;
+    }
+  }
+
+  if (businessTypeCache.size > 50_000) {
+    for (const [key, value] of businessTypeCache) {
+      if (value.expiresAt <= now) businessTypeCache.delete(key);
+    }
+  }
+
+  businessTypeCache.set(userId, { businessType, expiresAt: now + BUSINESS_TYPE_CACHE_TTL_MS });
+  return businessType;
 }
 
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
@@ -70,7 +109,11 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
   const applyDevUser = async (req: Request, res: Response): Promise<boolean> => {
     try {
       const devUser = await getDevUser();
-      (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
+      (req as any).user = {
+        id: devUser.id,
+        role: devUser.role || 'admin',
+        businessType: (devUser as any).businessType ?? null,
+      };
       return true;
     } catch (err) {
       console.error('[auth] dev-user lookup failed:', err instanceof Error ? err.message : err);
@@ -102,8 +145,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         return res.status(401).json({ error: 'Not authorized, token expired or invalid' });
       }
 
-      (req as any).user = decoded;
-
+      let businessType: string | null = null;
       if (decoded?.id) {
         const { isBanned, banReason } = await checkBanned(decoded.id);
         if (isBanned) {
@@ -112,7 +154,14 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
             isBanned: true,
           });
         }
+        try {
+          businessType = await resolveBusinessType(decoded.id);
+        } catch {
+          businessType = null;
+        }
       }
+
+      (req as any).user = { ...decoded, businessType };
 
       return next();
     } catch (error) {

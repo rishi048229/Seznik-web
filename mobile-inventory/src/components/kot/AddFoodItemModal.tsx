@@ -106,6 +106,8 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
         kitchenStation,
         prepTimeMinutes: parseInt(preparationTime, 10) || 10,
         isFoodItem: true,
+        isActive: true,
+        isAvailable: true,
       };
 
       const result = await createProduct(payload);

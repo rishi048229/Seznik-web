@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { userTracksStock } from '../utils/stockTracking';
 
 export const getSales = async (req: Request, res: Response) => {
   try {
@@ -102,57 +103,59 @@ export const createSale = async (req: Request, res: Response) => {
     });
 
     const stockUpdates: Promise<void>[] = [];
-    for (const item of items) {
-      const productId = item?.productId
-        ? String(item.productId)
-        : item?.id
-          ? String(item.id)
-          : '';
-      const qty = Number(item?.quantity) || 0;
-      if (!productId || qty <= 0 || productId.startsWith('manual-')) continue;
+    if (await userTracksStock(userId)) {
+      for (const item of items) {
+        const productId = item?.productId
+          ? String(item.productId)
+          : item?.id
+            ? String(item.id)
+            : '';
+        const qty = Number(item?.quantity) || 0;
+        if (!productId || qty <= 0 || productId.startsWith('manual-')) continue;
 
-      stockUpdates.push(
-        (async () => {
-          try {
-            const product = await prisma.product.findFirst({
-              where: { id: productId, userId },
-            });
-            if (!product) {
-              console.warn(`createSale: skipping stock for unknown product ${productId}`);
-              return;
-            }
+        stockUpdates.push(
+          (async () => {
+            try {
+              const product = await prisma.product.findFirst({
+                where: { id: productId, userId },
+              });
+              if (!product) {
+                console.warn(`createSale: skipping stock for unknown product ${productId}`);
+                return;
+              }
 
-            // Multi-location inventory: a whole sale is billed from one location
-            // (locationId), so its stock decrement hits that location's own pool
-            // instead of the flat Product.currentStock. Off entirely (unchanged
-            // legacy path) when the feature is off (no locationId).
-            if (locationId) {
-              await prisma.productLocationStock.upsert({
-                where: { productId_locationId: { productId: product.id, locationId } },
-                update: { stock: { decrement: qty } },
-                create: { productId: product.id, locationId, userId, stock: -qty },
+              // Multi-location inventory: a whole sale is billed from one location
+              // (locationId), so its stock decrement hits that location's own pool
+              // instead of the flat Product.currentStock. Off entirely (unchanged
+              // legacy path) when the feature is off (no locationId).
+              if (locationId) {
+                await prisma.productLocationStock.upsert({
+                  where: { productId_locationId: { productId: product.id, locationId } },
+                  update: { stock: { decrement: qty } },
+                  create: { productId: product.id, locationId, userId, stock: -qty },
+                });
+              } else {
+                await prisma.product.update({
+                  where: { id: product.id },
+                  data: { currentStock: { decrement: qty } },
+                });
+              }
+              await prisma.stockHistory.create({
+                data: {
+                  change: -qty,
+                  reason: 'sale',
+                  productId: product.id,
+                  locationId: locationId || null,
+                  userId,
+                  createdAt: saleDate,
+                },
               });
-            } else {
-              await prisma.product.update({
-                where: { id: product.id },
-                data: { currentStock: { decrement: qty } },
-              });
+            } catch (stockErr) {
+              console.warn(`createSale: stock update failed for ${productId}`, stockErr);
             }
-            await prisma.stockHistory.create({
-              data: {
-                change: -qty,
-                reason: 'sale',
-                productId: product.id,
-                locationId: locationId || null,
-                userId,
-                createdAt: saleDate,
-              },
-            });
-          } catch (stockErr) {
-            console.warn(`createSale: stock update failed for ${productId}`, stockErr);
-          }
-        })()
-      );
+          })()
+        );
+      }
     }
 
     if (stockUpdates.length > 0) {

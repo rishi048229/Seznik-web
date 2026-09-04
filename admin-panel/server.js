@@ -12,6 +12,8 @@ import {
   metricsSalesQuery,
   buildFeedbackQuery,
   mapFeedbackRows,
+  computeTotalApiCalls,
+  computeBusinessProfiles,
 } from './analyticsShared.js';
 import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
 
@@ -51,7 +53,10 @@ app.get('/api/admin/metrics', async (req, res) => {
 
     const salesRes = await pool.query(metricsSalesQuery(intervals));
     const productRes = await pool.query('SELECT COUNT(*)::int as count FROM "Product"');
-    const topFeatures = await computeRealTopFeatures(pool, timeRange);
+    const [topFeatures, apiCalls] = await Promise.all([
+      computeRealTopFeatures(pool, timeRange),
+      computeTotalApiCalls(pool, timeRange),
+    ]);
 
     res.json(
       buildMetricsResponse({
@@ -61,6 +66,7 @@ app.get('/api/admin/metrics', async (req, res) => {
         topFeatures,
         timeRange,
         intervals,
+        apiCalls,
       })
     );
   } catch (err) {
@@ -83,6 +89,7 @@ app.get('/api/admin/users', async (req, res) => {
         u.phone, 
         u."displayName", 
         u."businessName", 
+        u."businessType",
         u.plan, 
         u.role, 
         u."emailVerified", 
@@ -170,6 +177,35 @@ app.get('/api/admin/sections', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/admin/sections:', err);
     res.status(500).json({ error: 'Failed to fetch sections' });
+  }
+});
+
+// GET /api/admin/profiles — business-type overview cards
+app.get('/api/admin/profiles', async (req, res) => {
+  const timeRange = req.query.timeRange || 'all';
+  try {
+    const profiles = await computeBusinessProfiles(pool, timeRange);
+    res.json(profiles);
+  } catch (err) {
+    console.error('Error in /api/admin/profiles:', err);
+    res.status(500).json({ error: 'Failed to fetch business profiles' });
+  }
+});
+
+// GET /api/admin/profiles/:businessType/sections
+app.get('/api/admin/profiles/:businessType/sections', async (req, res) => {
+  const timeRange = req.query.timeRange || 'all';
+  const businessType = String(req.params.businessType || '').trim();
+  const allowed = ['restaurant_cafe', 'online_store', 'retail_shop', 'unknown'];
+  if (!allowed.includes(businessType)) {
+    return res.status(400).json({ error: 'Invalid business type' });
+  }
+  try {
+    const sections = await computeRealTopFeatures(pool, timeRange, businessType);
+    res.json(sections);
+  } catch (err) {
+    console.error('Error in /api/admin/profiles/:businessType/sections:', err);
+    res.status(500).json({ error: 'Failed to fetch profile sections' });
   }
 });
 

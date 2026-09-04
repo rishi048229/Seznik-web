@@ -239,5 +239,7 @@ export interface UserSettings {
   printerConfig?: PrinterConfig
   locationConfig?: LocationConfig
   kotConfig?: KotConfig
+  /** When false (restaurants/cafes), quantity stock is not tracked — use Product.isAvailable. */
+  trackStock?: boolean
   upiId?: string
 }

@@ -8,6 +8,9 @@ import {
   defaultSelectedPresetIds,
   resolveBillCharges,
 } from '@/constants/restaurantBilling';
+import { useAuthStore } from '@/store/useAuthStore';
+import { getCachedTrackStockSetting } from '@/hooks/useSettings';
+import { isProductAvailable, usesStockTracking } from '@/utils/businessFeatures';
 
 export interface CartItem {
   product: Product;
@@ -93,49 +96,84 @@ export const useCartStore = create<CartState>((set, get) => ({
   selectedChargePresetIds: [],
 
   addItem: (product: Product, quantity = 1) => {
-    // Check if product is out of stock (stock is 0 or negative)
-    const availableStock = extractAvailableStock(product);
-    if (availableStock !== undefined && availableStock <= 0) {
-      Alert.alert(
-        'Out of Stock 🚨',
-        `Cannot add "${product.name}" to cart because it is currently out of stock (0 ${product.unit || 'units'} left in inventory). Please restock before billing.`
-      );
+    const trackStock = usesStockTracking(
+      useAuthStore.getState().user?.businessType,
+      getCachedTrackStockSetting()
+    );
+
+    // Restaurant/cafe: availability is isAvailable (legacy isActive) — never block on quantity.
+    if (!trackStock) {
+      if (!isProductAvailable(product)) {
+        Alert.alert('Not available', `"${product.name}" is marked not available on the menu.`);
+        return;
+      }
+    } else {
+      // Check if product is out of stock (stock is 0 or negative)
+      const availableStock = extractAvailableStock(product);
+      if (availableStock !== undefined && availableStock <= 0) {
+        Alert.alert(
+          'Out of Stock 🚨',
+          `Cannot add "${product.name}" to cart because it is currently out of stock (0 ${product.unit || 'units'} left in inventory). Please restock before billing.`
+        );
+        return;
+      }
+
+      set((state) => {
+        const existingIndex = state.items.findIndex((i) => i.product.id === product.id);
+        if (existingIndex > -1) {
+          const currentQty = state.items[existingIndex].quantity;
+          const requestedQty = currentQty + quantity;
+          const finalQty = availableStock !== undefined ? Math.min(requestedQty, availableStock) : requestedQty;
+
+          if (availableStock !== undefined && requestedQty > availableStock) {
+            Alert.alert(
+              'Stock Limit Reached ⚠️',
+              `Cannot add more units of "${product.name}". Only ${availableStock} ${product.unit || 'units'} available in inventory.`
+            );
+          }
+
+          return {
+            items: state.items.map((item, idx) =>
+              idx === existingIndex ? { ...item, quantity: finalQty } : item
+            ),
+          };
+        }
+
+        const initialQty = availableStock !== undefined ? Math.min(quantity, availableStock) : quantity;
+        if (availableStock !== undefined && quantity > availableStock) {
+          Alert.alert(
+            'Stock Limit Reached ⚠️',
+            `Cannot add ${quantity} units of "${product.name}". Only ${availableStock} ${product.unit || 'units'} available in inventory.`
+          );
+        }
+
+        const hasProductDiscount = typeof product.discountValue === 'number' && product.discountValue > 0;
+        const newItem: CartItem = {
+          product,
+          quantity: initialQty,
+          discountType: product.discountType || 'percent',
+          discountValue: hasProductDiscount ? product.discountValue : 0,
+          discountApplied: hasProductDiscount,
+        };
+        return { items: [...state.items, newItem] };
+      });
       return;
     }
 
     set((state) => {
       const existingIndex = state.items.findIndex((i) => i.product.id === product.id);
       if (existingIndex > -1) {
-        const currentQty = state.items[existingIndex].quantity;
-        const requestedQty = currentQty + quantity;
-        const finalQty = availableStock !== undefined ? Math.min(requestedQty, availableStock) : requestedQty;
-
-        if (availableStock !== undefined && requestedQty > availableStock) {
-          Alert.alert(
-            'Stock Limit Reached ⚠️',
-            `Cannot add more units of "${product.name}". Only ${availableStock} ${product.unit || 'units'} available in inventory.`
-          );
-        }
-
         return {
           items: state.items.map((item, idx) =>
-            idx === existingIndex ? { ...item, quantity: finalQty } : item
+            idx === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
           ),
         };
-      }
-
-      const initialQty = availableStock !== undefined ? Math.min(quantity, availableStock) : quantity;
-      if (availableStock !== undefined && quantity > availableStock) {
-        Alert.alert(
-          'Stock Limit Reached ⚠️',
-          `Cannot add ${quantity} units of "${product.name}". Only ${availableStock} ${product.unit || 'units'} available in inventory.`
-        );
       }
 
       const hasProductDiscount = typeof product.discountValue === 'number' && product.discountValue > 0;
       const newItem: CartItem = {
         product,
-        quantity: initialQty,
+        quantity,
         discountType: product.discountType || 'percent',
         discountValue: hasProductDiscount ? product.discountValue : 0,
         discountApplied: hasProductDiscount,
@@ -154,7 +192,12 @@ export const useCartStore = create<CartState>((set, get) => ({
       return;
     }
     const item = get().items.find((i) => i.product.id === productId);
-    const availableStock = item ? extractAvailableStock(item.product) : undefined;
+    const trackStock = usesStockTracking(
+      useAuthStore.getState().user?.businessType,
+      getCachedTrackStockSetting()
+    );
+    const availableStock =
+      trackStock && item ? extractAvailableStock(item.product) : undefined;
 
     let finalQty = quantity;
     if (availableStock !== undefined && quantity > availableStock) {

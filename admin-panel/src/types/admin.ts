@@ -5,6 +5,7 @@ export interface UserRecord {
   phone: string | null;
   displayName: string | null;
   businessName: string | null;
+  businessType?: string | null;
   plan: 'free' | 'pro' | 'enterprise';
   role: string;
   emailVerified: boolean;
@@ -35,6 +36,8 @@ export interface SectionUsage {
   id: string;
   sectionName: string;
   path: string;
+  /** Backend API route prefix, e.g. /api/products */
+  apiRoute?: string;
   iconName: string;
   viewCount: number;
   uniqueUsers: number;
@@ -42,6 +45,20 @@ export interface SectionUsage {
   percentageShare: number;
   trend: 'up' | 'down' | 'neutral';
   trendPercent: number;
+}
+
+export interface BusinessProfileSummary {
+  businessType: string;
+  label: string;
+  userCount: number;
+  totalApiCalls: number;
+  totalApiCallsTrend: number;
+  topFeature: {
+    id: string;
+    sectionName: string;
+    apiRoute?: string;
+    viewCount: number;
+  } | null;
 }
 
 export interface DashboardMetrics {
@@ -72,6 +89,9 @@ export interface DashboardMetrics {
   freePlanCount?: number;
   proPlanCount?: number;
   enterprisePlanCount?: number;
+  totalApiCalls?: number;
+  totalApiCallsPrev?: number;
+  totalApiCallsTrend?: number;
   timeRange?: string;
   timeWindowLabel?: string;
 }

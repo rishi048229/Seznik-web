@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { userTracksStock } from '../utils/stockTracking';
 
 const PRODUCT_LIST_SELECT = {
   id: true,
@@ -21,6 +22,7 @@ const PRODUCT_LIST_SELECT = {
   lowStockThreshold: true,
   unit: true,
   isActive: true,
+  isAvailable: true,
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -43,6 +45,7 @@ const PRODUCT_CATALOG_SELECT = {
   lowStockThreshold: true,
   unit: true,
   isActive: true,
+  isAvailable: true,
 } as const;
 
 // Tried in order for every AI document/invoice call — keeping this in one place means a bad
@@ -255,7 +258,8 @@ export const getProductById = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
     const { imageUrl, sku, categoryId, ...rest } = req.body;
 
     // Map frontend `imageUrl` → Prisma column `imageURL`
@@ -280,6 +284,16 @@ export const createProduct = async (req: Request, res: Response) => {
     // Strip unknown fields that Prisma doesn't recognize
     delete rest.imageURL;
     delete rest.category;
+    delete rest.isFoodItem;
+
+    const tracksStock = await userTracksStock(userId);
+    if (!tracksStock) {
+      rest.currentStock = 999999;
+      rest.lowStockThreshold = 0;
+    }
+    if (rest.isAvailable === undefined) {
+      rest.isAvailable = true;
+    }
 
     const product = await prisma.product.create({
       data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
@@ -351,7 +365,8 @@ export const bulkSoftDeleteProducts = async (req: Request, res: Response) => {
 
 export const adjustStock = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const rawUserId = (req as any).user.id;
+    const userId = await getOwnerUserId(rawUserId);
     const { id } = req.params;
     // Accept BOTH `qty` (legacy) and `change` (frontend) — `change` takes priority
     const { qty, change, reason } = req.body;
@@ -359,6 +374,12 @@ export const adjustStock = async (req: Request, res: Response) => {
 
     if (amount === undefined || amount === null || isNaN(Number(amount))) {
       return res.status(400).json({ error: 'Stock adjustment quantity is required (send `change` or `qty`)' });
+    }
+
+    if (!(await userTracksStock(userId))) {
+      return res.status(400).json({
+        error: 'Stock quantity is not tracked for this business. Mark items available or not available instead.',
+      });
     }
 
     const product = await prisma.product.findFirst({

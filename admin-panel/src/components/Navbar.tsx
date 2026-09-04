@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   LogOut,
+  BarChart3,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -112,6 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', shortLabel: 'Overview', icon: Activity },
     { id: 'sections', label: 'Section Analytics', shortLabel: 'Sections', icon: LayoutGrid },
+    { id: 'analytics', label: 'Advanced Analytics', shortLabel: 'Profiles', icon: BarChart3 },
     { id: 'users', label: 'Registered Users', shortLabel: 'Users', icon: Users },
     { id: 'traffic', label: 'Traffic', shortLabel: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', shortLabel: 'Redirects', icon: ExternalLink },

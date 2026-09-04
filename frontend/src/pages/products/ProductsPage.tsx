@@ -35,7 +35,7 @@ import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { isKotFirstNav } from '@/utils/businessFeatures'
+import { isKotFirstNav, isProductAvailable, usesStockTracking } from '@/utils/businessFeatures'
 import { useSettings } from '@/hooks/useSettings'
 import { useLocations, useProductLocationStock, useUpsertProductLocationStock, useLocationStock } from '@/hooks/useLocations'
 import { LocationSelector } from '@/components/common/LocationSelector'
@@ -89,6 +89,7 @@ interface ProductFormState {
   lowStockThreshold: string
   unit: UnitType
   imageURL: string
+  isAvailable: boolean
   // Optional details — never required, purely informational when filled in.
   brand: string
   description: string
@@ -131,6 +132,7 @@ const defaultForm: ProductFormState = {
   lowStockThreshold: '10',
   unit: 'piece',
   imageURL: '',
+  isAvailable: true,
   brand: '',
   description: '',
   expiryDate: '',
@@ -142,6 +144,8 @@ export const ProductsPage = () => {
   const { t } = useLanguage()
   const { userProfile } = useAuth()
   const kotFirst = isKotFirstNav(userProfile?.businessType)
+  const { data: settings } = useSettings()
+  const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
   const { data: products, isLoading } = useProducts()
 
   const { data: categories } = useCategories()
@@ -169,7 +173,6 @@ export const ProductsPage = () => {
   const [showExportModal, setShowExportModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
-  const { data: settings } = useSettings()
   const locationFeatureEnabled = settings?.locationConfig?.enabled ?? false
   const { data: allLocations = [] } = useLocations()
   const activeLocations = allLocations.filter(l => l.isActive)
@@ -225,14 +228,14 @@ export const ProductsPage = () => {
     const q = search.trim().toLowerCase()
     if (!q) return []
     return (products ?? [])
-      .filter((p: Product) => p.isActive !== false && (
+      .filter((p: Product) => (trackStock ? p.isActive !== false : true) && (
         p.name.toLowerCase().includes(q) ||
         p.sku?.toLowerCase().includes(q) ||
         p.barcode?.toLowerCase().includes(q) ||
         (p.brand && p.brand.toLowerCase().includes(q))
       ))
       .slice(0, 6)
-  }, [products, search])
+  }, [products, search, trackStock])
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -289,6 +292,7 @@ export const ProductsPage = () => {
 
   // F3 keyboard shortcut to open barcode stock update modal
   useEffect(() => {
+    if (!trackStock) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F3') {
         e.preventDefault()
@@ -297,7 +301,7 @@ export const ProductsPage = () => {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [trackStock])
 
   // Category quick filter bar horizontal scroll logic
   const categoryScrollRef = useRef<HTMLDivElement>(null)
@@ -330,19 +334,30 @@ export const ProductsPage = () => {
   }
 
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
-  const filtered = activeProducts.filter(p => {
+  // Restaurants manage availability via isAvailable — include unavailable items so
+  // filtering and toggles work. Soft-deleted (isActive===false) stay in the list
+  // for legacy rows until migrated. Stock-tracked businesses keep active-only.
+  const catalogProducts = trackStock ? activeProducts : (products ?? [])
+  const filtered = catalogProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !categoryFilter || p.categoryId === categoryFilter
     const stockHere = getBrowseStock(p)
-    const matchesStock = !stockFilter ||
-      (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
-      (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
-      (stockFilter === 'out-of-stock' && stockHere <= 0)
+    const matchesStock = trackStock
+      ? (!stockFilter ||
+          (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
+          (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
+          (stockFilter === 'out-of-stock' && stockHere <= 0))
+      : (!stockFilter ||
+          (stockFilter === 'available' && isProductAvailable(p)) ||
+          (stockFilter === 'unavailable' && !isProductAvailable(p)))
     const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p)
     return matchesSearch && matchesCategory && matchesStock && matchesStoreScope
   })
+  const unavailableProducts = trackStock
+    ? []
+    : (products ?? []).filter(p => !isProductAvailable(p))
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -614,6 +629,7 @@ export const ProductsPage = () => {
       lowStockThreshold: String(row.lowStockThreshold),
       unit: row.unit,
       imageURL: row.imageURL ?? '',
+      isAvailable: row.isAvailable !== false && row.isActive !== false,
       brand: row.brand ?? '',
       description: row.description ?? '',
       expiryDate: row.expiryDate ? new Date(row.expiryDate).toISOString().slice(0, 10) : '',
@@ -645,11 +661,13 @@ export const ProductsPage = () => {
       sellingPrice: enteredPrice,
       taxRate,
       priceIncludesGst: form.priceIncludesGst,
-      currentStock: parseInt(form.currentStock) || 0,
-      lowStockThreshold: parseInt(form.lowStockThreshold) || 10,
+      currentStock: trackStock ? (parseInt(form.currentStock) || 0) : 999999,
+      lowStockThreshold: trackStock ? (parseInt(form.lowStockThreshold) || 10) : 0,
       unit: form.unit,
       imageURL: form.imageURL || '',
-      isActive: true,
+      ...(trackStock
+        ? { isActive: true }
+        : { isAvailable: form.isAvailable, isActive: true }),
       // Optional details — sent as null (not omitted) when cleared, so
       // editing a product to remove a brand/description/expiry actually
       // clears it server-side instead of leaving the old value in place.
@@ -825,23 +843,27 @@ export const ProductsPage = () => {
           >
             SEZ AI Bulk Upload
           </Button>
-          <Button
-            data-tour="scan-stock-btn"
-            variant="outline"
-            leftIcon={<Barcode size={16} />}
-            onClick={() => setShowBarcodeModal(true)}
-            className="shrink-0 whitespace-nowrap"
-          >
-            Scan to Update Stock
-          </Button>
-          <Button
-            variant="outline"
-            leftIcon={<Barcode size={16} />}
-            onClick={() => setShowManualBarcodeModal(true)}
-            className="shrink-0 whitespace-nowrap"
-          >
-            Manual Stock Update
-          </Button>
+          {trackStock && (
+            <>
+              <Button
+                data-tour="scan-stock-btn"
+                variant="outline"
+                leftIcon={<Barcode size={16} />}
+                onClick={() => setShowBarcodeModal(true)}
+                className="shrink-0 whitespace-nowrap"
+              >
+                Scan to Update Stock
+              </Button>
+              <Button
+                variant="outline"
+                leftIcon={<Barcode size={16} />}
+                onClick={() => setShowManualBarcodeModal(true)}
+                className="shrink-0 whitespace-nowrap"
+              >
+                Manual Stock Update
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800 font-bold shrink-0 whitespace-nowrap"
@@ -903,10 +925,20 @@ export const ProductsPage = () => {
               onChange={e => setStockFilter(e.target.value)}
               className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-xl appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-dark-border-strong"
             >
-              <option value="">All Statuses</option>
-              <option value="in-stock">{t('pos.inStock')}</option>
-              <option value="low-stock">{t('pos.lowStock')}</option>
-              <option value="out-of-stock">{t('pos.outOfStock')}</option>
+              {trackStock ? (
+                <>
+                  <option value="">All Statuses</option>
+                  <option value="in-stock">{t('pos.inStock')}</option>
+                  <option value="low-stock">{t('pos.lowStock')}</option>
+                  <option value="out-of-stock">{t('pos.outOfStock')}</option>
+                </>
+              ) : (
+                <>
+                  <option value="">All</option>
+                  <option value="available">Available</option>
+                  <option value="unavailable">Not available</option>
+                </>
+              )}
             </select>
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -960,8 +992,14 @@ export const ProductsPage = () => {
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-xs font-bold text-blue-600 dark:text-white">{formatINR(price)}</span>
-                        <span className={`block text-[10px] ${stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
-                          {stock <= 0 ? 'Out of Stock' : `${stock} in stock`}
+                        <span className={`block text-[10px] ${
+                          trackStock
+                            ? (stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400')
+                            : (!isProductAvailable(p) ? 'text-red-500 font-semibold' : 'text-emerald-600')
+                        }`}>
+                          {trackStock
+                            ? (stock <= 0 ? 'Out of Stock' : `${stock} in stock`)
+                            : (!isProductAvailable(p) ? 'Not available' : 'Available')}
                         </span>
                       </div>
                     </button>
@@ -1081,7 +1119,7 @@ export const ProductsPage = () => {
                         <th className="px-6 py-4">Product Detail</th>
                         <th className="px-6 py-4">SKU / Barcode</th>
                         <th className="px-6 py-4">{t('common.category')}</th>
-                        <th className="px-6 py-4">{t('products.stockLevel')}</th>
+                        <th className="px-6 py-4">{trackStock ? t('products.stockLevel') : 'Availability'}</th>
                         <th className="px-6 py-4">Price</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
@@ -1090,14 +1128,15 @@ export const ProductsPage = () => {
                       {paginated.map(product => {
                         const storeStock = getBrowseStock(product)
                         const storePrice = getBrowsePrice(product)
-                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3)) * 100, 100)
+                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3 || 1)) * 100, 100)
                         const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
                         const isOutOfStock = storeStock <= 0
+                        const available = isProductAvailable(product)
                         return (
                           <tr
                             key={product.id}
                             onClick={() => openDetail(product)}
-                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-dark-card/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-dark-card/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''} ${!trackStock && !available ? 'opacity-70' : ''}`}
                           >
                             <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1154,24 +1193,30 @@ export const ProductsPage = () => {
                               </Badge>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1">
-                                <span className={`text-sm font-semibold ${
-                                  isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
-                                }`}>
-                                  {storeStock} Units
-                                </span>
-                                {browseStoreId && (
-                                  <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
-                                )}
-                                <div className="w-24 h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
-                                    }`}
-                                    style={{ width: `${stockPercent}%` }}
-                                  />
+                              {trackStock ? (
+                                <div className="flex flex-col gap-1">
+                                  <span className={`text-sm font-semibold ${
+                                    isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
+                                  }`}>
+                                    {storeStock} Units
+                                  </span>
+                                  {browseStoreId && (
+                                    <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
+                                  )}
+                                  <div className="w-24 h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
+                                      }`}
+                                      style={{ width: `${stockPercent}%` }}
+                                    />
+                                  </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <Badge variant={available ? 'success' : 'danger'}>
+                                  {available ? 'Available' : 'Not available'}
+                                </Badge>
+                              )}
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
@@ -1271,12 +1316,18 @@ export const ProductsPage = () => {
                         </p>
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-dark-border">
-                        <Badge variant={
-                          getBrowseStock(product) <= 0 ? 'danger' :
-                          getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
-                        }>
-                          {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
-                        </Badge>
+                        {trackStock ? (
+                          <Badge variant={
+                            getBrowseStock(product) <= 0 ? 'danger' :
+                            getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
+                          }>
+                            {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
+                          </Badge>
+                        ) : (
+                          <Badge variant={isProductAvailable(product) ? 'success' : 'danger'}>
+                            {isProductAvailable(product) ? 'Available' : 'Not available'}
+                          </Badge>
+                        )}
                         <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(getBrowsePrice(product))}</span>
                       </div>
                     </Card>
@@ -1324,46 +1375,74 @@ export const ProductsPage = () => {
             </div>
           </Card>
 
-          {/* Stock Alerts */}
-          <Card className="p-6">
-            <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
-              <AlertTriangle size={18} className="text-red-500" />
-              {t('products.stockAlerts')}
-            </h4>
-            <div className="space-y-3">
-              {lowStockProducts.slice(0, 3).map(product => (
-                <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
-                    <p className="text-[10px] text-amber-600 font-medium">Low: {product.currentStock} left</p>
+          {/* Stock Alerts / Unavailable items */}
+          {trackStock ? (
+            <Card className="p-6">
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
+                <AlertTriangle size={18} className="text-red-500" />
+                {t('products.stockAlerts')}
+              </h4>
+              <div className="space-y-3">
+                {lowStockProducts.slice(0, 3).map(product => (
+                  <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                      <p className="text-[10px] text-amber-600 font-medium">Low: {product.currentStock} left</p>
+                    </div>
+                    <button
+                      onClick={() => openEdit(product)}
+                      className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                    >
+                      Restock
+                    </button>
                   </div>
-                  <button
-                    onClick={() => openEdit(product)}
-                    className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
-                  >
-                    Restock
-                  </button>
-                </div>
-              ))}
-              {outOfStockProducts.slice(0, 2).map(product => (
-                <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
-                    <p className="text-[10px] text-red-600 font-medium">Critical: Out of stock</p>
+                ))}
+                {outOfStockProducts.slice(0, 2).map(product => (
+                  <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                      <p className="text-[10px] text-red-600 font-medium">Critical: Out of stock</p>
+                    </div>
+                    <button
+                      onClick={() => openEdit(product)}
+                      className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                    >
+                      Restock
+                    </button>
                   </div>
-                  <button
-                    onClick={() => openEdit(product)}
-                    className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
-                  >
-                    Restock
-                  </button>
-                </div>
-              ))}
-              {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
-                <p className="text-xs text-gray-400 text-center py-4">All stock levels healthy</p>
-              )}
-            </div>
-          </Card>
+                ))}
+                {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">All stock levels healthy</p>
+                )}
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-6">
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
+                <AlertTriangle size={18} className="text-red-500" />
+                Not available
+              </h4>
+              <div className="space-y-3">
+                {unavailableProducts.slice(0, 5).map(product => (
+                  <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                      <p className="text-[10px] text-red-600 font-medium">Not available</p>
+                    </div>
+                    <button
+                      onClick={() => openEdit(product)}
+                      className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ))}
+                {unavailableProducts.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">All menu items available</p>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Expiring Soon */}
           {expiringProducts.length > 0 && (
@@ -1701,32 +1780,64 @@ export const ProductsPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {trackStock ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('products.currentStock')}
+                  <FieldInfo textKey="tip.product.currentStock" />
+                </label>
+                <Input
+                  type="number"
+                  value={form.currentStock}
+                  onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('products.lowStockThreshold')}
+                  <FieldInfo textKey="tip.product.lowStockThreshold" />
+                </label>
+                <Input
+                  type="number"
+                  value={form.lowStockThreshold}
+                  onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
+                  placeholder="10"
+                />
+              </div>
+            </div>
+          ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('products.currentStock')}
-                <FieldInfo textKey="tip.product.currentStock" />
+                Availability
               </label>
-              <Input
-                type="number"
-                value={form.currentStock}
-                onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
-                placeholder="0"
-              />
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, isAvailable: true }))}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    form.isAvailable
+                      ? 'bg-white dark:bg-dark-hover text-emerald-700 dark:text-emerald-300 shadow-sm'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Available
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, isAvailable: false }))}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    !form.isAvailable
+                      ? 'bg-white dark:bg-dark-hover text-red-600 dark:text-red-400 shadow-sm'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Not available
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('products.lowStockThreshold')}
-                <FieldInfo textKey="tip.product.lowStockThreshold" />
-              </label>
-              <Input
-                type="number"
-                value={form.lowStockThreshold}
-                onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
-                placeholder="10"
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1741,7 +1852,7 @@ export const ProductsPage = () => {
           </div>
 
           {/* Stock by Location — only shown when multi-location inventory is enabled */}
-          {locationFeatureEnabled && activeLocations.length > 0 && (
+          {trackStock && locationFeatureEnabled && activeLocations.length > 0 && (
             <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
                 {t('locations.stockAtLocation') || 'Stock by Location'}

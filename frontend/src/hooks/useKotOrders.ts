@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as kotOrderService from '@/services/kotOrderService'
-import type { CreateKOTOrderPayload, KOTBillPayload } from '@/types/kot.types'
+import type { CreateKOTOrderPayload, EditKOTOrderPayload, KOTBillPayload } from '@/types/kot.types'
 
 const invalidateKotAndTables = (qc: ReturnType<typeof useQueryClient>) => {
   qc.invalidateQueries({ queryKey: [QUERY_KEYS.KOT_ORDERS] })
@@ -66,6 +66,15 @@ export const useSendKotToKitchen = () => {
       waiterName?: string
       locationId?: string | null
     }) => kotOrderService.sendToKitchen(id, { waiterName, locationId }),
+    onSuccess: () => invalidateKotAndTables(qc),
+  })
+}
+
+export const useEditKotOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: EditKOTOrderPayload }) =>
+      kotOrderService.editOrder(id, data),
     onSuccess: () => invalidateKotAndTables(qc),
   })
 }

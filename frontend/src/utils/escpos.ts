@@ -8,7 +8,7 @@ export type EscPosAlign = 'left' | 'center' | 'right'
 // Printers on this command set generally only ship an 8-bit ASCII/CP437-ish
 // code page, so non-ASCII characters (₹, etc.) are swapped for safe equivalents
 // rather than risking mojibake on the receipt.
-function toPrinterSafeText(str: string): string {
+export function toPrinterSafeText(str: string): string {
   const withoutRupee = str.replace(/₹/g, 'Rs.')
   let result = ''
   for (const ch of withoutRupee) {

@@ -115,6 +115,7 @@ export default defineConfig(({ mode }) => {
                     u.phone, 
                     u."displayName", 
                     u."businessName", 
+                    u."businessType",
                     u.plan, 
                     u.role, 
                     u."emailVerified", 
@@ -251,7 +252,10 @@ export default defineConfig(({ mode }) => {
 
                 const salesRes = await pool.query(analytics.metricsSalesQuery(metricsIntervals));
                 const productRes = await pool.query('SELECT COUNT(*)::int as count FROM "Product"');
-                const topFeatures = await analytics.computeRealTopFeatures(pool, metricsTimeRange);
+                const [topFeatures, apiCalls] = await Promise.all([
+                  analytics.computeRealTopFeatures(pool, metricsTimeRange),
+                  analytics.computeTotalApiCalls(pool, metricsTimeRange),
+                ]);
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(
@@ -262,6 +266,7 @@ export default defineConfig(({ mode }) => {
                     topFeatures,
                     timeRange: metricsTimeRange,
                     intervals: metricsIntervals,
+                    apiCalls,
                   })
                 ));
                 return;
@@ -289,6 +294,53 @@ export default defineConfig(({ mode }) => {
                 res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ error: err.message || 'Failed to fetch sections from database' }));
+                return;
+              }
+            }
+
+            // 3b. GET /api/admin/profiles
+            if (pathname === '/api/admin/profiles') {
+              try {
+                const analyticsPath = resolve(process.cwd(), 'analyticsShared.js');
+                const mtime = statSync(analyticsPath).mtimeMs;
+                const analytics = await import(`${pathToFileURL(analyticsPath).href}?mtime=${mtime}`);
+                const profiles = await analytics.computeBusinessProfiles(pool, timeRange);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(profiles));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/profiles:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch business profiles' }));
+                return;
+              }
+            }
+
+            // 3c. GET /api/admin/profiles/:businessType/sections
+            const profileSectionsMatch = pathname.match(/^\/api\/admin\/profiles\/([^/]+)\/sections$/);
+            if (profileSectionsMatch) {
+              try {
+                const businessType = decodeURIComponent(profileSectionsMatch[1]);
+                const allowed = ['restaurant_cafe', 'online_store', 'retail_shop', 'unknown'];
+                if (!allowed.includes(businessType)) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: 'Invalid business type' }));
+                  return;
+                }
+                const analyticsPath = resolve(process.cwd(), 'analyticsShared.js');
+                const mtime = statSync(analyticsPath).mtimeMs;
+                const analytics = await import(`${pathToFileURL(analyticsPath).href}?mtime=${mtime}`);
+                const sections = await analytics.computeRealTopFeatures(pool, timeRange, businessType);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(sections));
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/profiles/:type/sections:', err.message);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message || 'Failed to fetch profile sections' }));
                 return;
               }
             }

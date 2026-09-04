@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { userTracksStock } from '../utils/stockTracking';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
@@ -541,7 +542,8 @@ export const generateBill = async (req: Request, res: Response) => {
     });
 
     const stockUpdates: Promise<void>[] = [];
-    for (const it of billableItems) {
+    const tracksStock = await userTracksStock(userId);
+    if (tracksStock) for (const it of billableItems) {
       if (!it.productId) continue;
       const productId = it.productId;
       const qty = it.quantity;

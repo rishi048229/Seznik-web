@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { userTracksStock } from '../utils/stockTracking';
 
 export const getPurchases = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const purchases = await prisma.purchase.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -16,7 +18,7 @@ export const getPurchases = async (req: Request, res: Response) => {
 
 export const getPurchaseById = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { id } = req.params;
     const purchase = await prisma.purchase.findFirst({
       where: { id: String(id), userId },
@@ -30,12 +32,13 @@ export const getPurchaseById = async (req: Request, res: Response) => {
 
 export const createPurchase = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const data = req.body;
-    
+    const tracksStock = await userTracksStock(userId);
+
     const count = await prisma.purchase.count({ where: { userId } });
     const invoiceNumber = `PUR-${String(count + 1).padStart(5, '0')}`;
-    
+
     const result = await prisma.$transaction(async (tx) => {
       const purchase = await tx.purchase.create({
         data: {
@@ -45,21 +48,31 @@ export const createPurchase = async (req: Request, res: Response) => {
         },
       });
 
-      // Update product stock (increase for purchase)
-      if (data.items && Array.isArray(data.items)) {
+      // Update product stock (increase for purchase) — skipped when business does not track stock
+      if (tracksStock && data.items && Array.isArray(data.items)) {
         for (const item of data.items) {
           if (item.productId) {
             await tx.product.update({
               where: { id: item.productId },
-              data: { currentStock: { increment: item.quantity }, costPrice: item.costPrice } // Update cost price to latest
+              data: { currentStock: { increment: item.quantity }, costPrice: item.costPrice },
             });
             await tx.stockHistory.create({
               data: {
                 change: item.quantity,
                 reason: 'purchase',
                 productId: item.productId,
-                userId
-              }
+                userId,
+              },
+            });
+          }
+        }
+      } else if (!tracksStock && data.items && Array.isArray(data.items)) {
+        // Still update cost price from purchase without touching quantity
+        for (const item of data.items) {
+          if (item.productId && item.costPrice != null) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { costPrice: item.costPrice },
             });
           }
         }
@@ -75,11 +88,9 @@ export const createPurchase = async (req: Request, res: Response) => {
 
 export const deletePurchase = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { id } = req.params;
-    await prisma.purchase.deleteMany({
-      where: { id: String(id), userId },
-    });
+    await prisma.purchase.deleteMany({ where: { id: String(id), userId } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete purchase' });

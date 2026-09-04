@@ -4,6 +4,31 @@ const ADDITIVE_COLUMNS = [
   `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "labelConfig" JSONB`,
   `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "locationConfig" JSONB`,
   `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "kotConfig" JSONB`,
+  `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "trackStock" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "isAvailable" BOOLEAN NOT NULL DEFAULT true`,
+] as const
+
+const ADDITIVE_TABLES = [
+  `
+  CREATE TABLE IF NOT EXISTS "ApiUsageBucket" (
+    "id" TEXT PRIMARY KEY,
+    "bucketStart" TIMESTAMP(3) NOT NULL,
+    "featureKey" TEXT NOT NULL,
+    "routePrefix" TEXT NOT NULL,
+    "method" TEXT NOT NULL,
+    "businessType" TEXT NOT NULL,
+    "callCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+  `,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ApiUsageBucket_bucket_feature_route_method_type_key"
+    ON "ApiUsageBucket" ("bucketStart", "featureKey", "routePrefix", "method", "businessType")`,
+  `CREATE INDEX IF NOT EXISTS "ApiUsageBucket_bucketStart_idx" ON "ApiUsageBucket" ("bucketStart")`,
+  `CREATE INDEX IF NOT EXISTS "ApiUsageBucket_businessType_bucketStart_idx"
+    ON "ApiUsageBucket" ("businessType", "bucketStart")`,
+  `CREATE INDEX IF NOT EXISTS "ApiUsageBucket_featureKey_bucketStart_idx"
+    ON "ApiUsageBucket" ("featureKey", "bucketStart")`,
 ] as const
 
 let ensured: Promise<void> | null = null
@@ -12,6 +37,24 @@ const runEnsure = async () => {
   for (const sql of ADDITIVE_COLUMNS) {
     await prisma.$executeRawUnsafe(sql)
   }
+
+  for (const sql of ADDITIVE_TABLES) {
+    await prisma.$executeRawUnsafe(sql)
+  }
+
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "Product_userId_isAvailable_idx" ON "Product" ("userId", "isAvailable")
+  `)
+
+  // Keep Settings.trackStock aligned with restaurant_cafe business profiles.
+  await prisma.$executeRawUnsafe(`
+    UPDATE "Settings" AS s
+    SET "trackStock" = false
+    FROM "User" AS u
+    WHERE s."userId" = u.id
+      AND u."businessType" = 'restaurant_cafe'
+      AND s."trackStock" = true
+  `)
 
   await prisma.$executeRawUnsafe(`
     UPDATE "Settings" AS s

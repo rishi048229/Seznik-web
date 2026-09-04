@@ -33,6 +33,8 @@ import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { isProductAvailable, usesStockTracking } from '@/utils/businessFeatures'
 import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
@@ -148,12 +150,14 @@ const CategoryTabsRow = ({
 
 export const POSPage = () => {
   const { t } = useLanguage()
+  const { userProfile } = useAuth()
   const pageTutorial = usePageTutorial('pos')
   const navigate = useNavigate()
   const { data: products, isLoading } = useProducts()
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
+  const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
   const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
@@ -274,9 +278,12 @@ export const POSPage = () => {
   })
 
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
+  // Restaurants can filter by availability (including inactive). Stock businesses
+  // keep the prior active-only catalog for billing.
+  const catalogProducts = trackStock ? activeProducts : (products ?? [])
   const priceMinNum = parseFloat(priceMin)
   const priceMaxNum = parseFloat(priceMax)
-  const filtered = activeProducts
+  const filtered = catalogProducts
     .filter(p => {
       const q = search.trim().toLowerCase()
       const matchesSearch = !q ||
@@ -288,10 +295,14 @@ export const POSPage = () => {
 
       const reserved = cartReserved[p.id] || 0
       const available = getEffectiveStock(p) - reserved
-      const matchesStock = stockFilter === 'all' ||
-        (stockFilter === 'out' && available <= 0) ||
-        (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
-        (stockFilter === 'in' && available > p.lowStockThreshold)
+      const matchesStock = trackStock
+        ? (stockFilter === 'all' ||
+            (stockFilter === 'out' && available <= 0) ||
+            (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
+            (stockFilter === 'in' && available > p.lowStockThreshold))
+        : (stockFilter === 'all' ||
+            (stockFilter === 'in' && isProductAvailable(p)) ||
+            (stockFilter === 'out' && !isProductAvailable(p)))
 
       const matchesPriceMin = isNaN(priceMinNum) || p.sellingPrice >= priceMinNum
       const matchesPriceMax = isNaN(priceMaxNum) || p.sellingPrice <= priceMaxNum
@@ -310,8 +321,8 @@ export const POSPage = () => {
         case 'name-desc': return b.name.localeCompare(a.name)
         case 'price-asc': return a.sellingPrice - b.sellingPrice
         case 'price-desc': return b.sellingPrice - a.sellingPrice
-        case 'stock-asc': return a.currentStock - b.currentStock
-        case 'stock-desc': return b.currentStock - a.currentStock
+        case 'stock-asc': return trackStock ? a.currentStock - b.currentStock : Number(isProductAvailable(b)) - Number(isProductAvailable(a))
+        case 'stock-desc': return trackStock ? b.currentStock - a.currentStock : Number(isProductAvailable(a)) - Number(isProductAvailable(b))
         default: return 0
       }
     })
@@ -334,6 +345,14 @@ export const POSPage = () => {
   }, [isPaymentOpen, method, finalTotal])
 
   const handleProductClick = (product: Product) => {
+    if (!trackStock) {
+      if (!isProductAvailable(product)) {
+        toast.error('Item is not available')
+        return
+      }
+      addItem(withEffectivePrice(product))
+      return
+    }
     const reserved = cartReserved[product.id] || 0
     const available = getEffectiveStock(product) - reserved
     if (available <= 0) {
@@ -371,6 +390,16 @@ export const POSPage = () => {
   const handleUpdateQty = (productId: string, newQty: number) => {
     const product = products?.find(p => p.id === productId)
     if (!product) return
+
+    if (!trackStock) {
+      if (newQty <= 0) {
+        removeItem(productId)
+      } else {
+        updateQty(productId, newQty)
+      }
+      return
+    }
+
     const reserved = cartReserved[productId] || 0
     const otherQty = reserved - (items.find(i => i.productId === productId)?.quantity || 0)
     const maxAllowed = getEffectiveStock(product) - otherQty
@@ -702,18 +731,25 @@ export const POSPage = () => {
                       )}
                     </div>
 
-                    {/* Stock Status */}
+                    {/* Stock Status / Availability */}
                     <div className="mb-4">
                       <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        {t('pos.stockStatus')}
+                        {trackStock ? t('pos.stockStatus') : 'Availability'}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
-                        {([
-                          { value: 'all', label: t('pos.allStock') },
-                          { value: 'in', label: t('pos.inStock') },
-                          { value: 'low', label: t('pos.lowStock') },
-                          { value: 'out', label: t('pos.outOfStock') },
-                        ] as const).map(opt => (
+                        {(trackStock
+                          ? ([
+                              { value: 'all', label: t('pos.allStock') },
+                              { value: 'in', label: t('pos.inStock') },
+                              { value: 'low', label: t('pos.lowStock') },
+                              { value: 'out', label: t('pos.outOfStock') },
+                            ] as const)
+                          : ([
+                              { value: 'all', label: 'All' },
+                              { value: 'in', label: 'Available' },
+                              { value: 'out', label: 'Not available' },
+                            ] as const)
+                        ).map(opt => (
                           <button
                             key={opt.value}
                             type="button"
@@ -768,8 +804,12 @@ export const POSPage = () => {
                         <option value="name-desc">{t('pos.sortNameDesc')}</option>
                         <option value="price-asc">{t('pos.sortPriceAsc')}</option>
                         <option value="price-desc">{t('pos.sortPriceDesc')}</option>
-                        <option value="stock-asc">{t('pos.sortStockAsc')}</option>
-                        <option value="stock-desc">{t('pos.sortStockDesc')}</option>
+                        {trackStock && (
+                          <>
+                            <option value="stock-asc">{t('pos.sortStockAsc')}</option>
+                            <option value="stock-desc">{t('pos.sortStockDesc')}</option>
+                          </>
+                        )}
                       </select>
                     </div>
                   </div>
@@ -799,8 +839,10 @@ export const POSPage = () => {
             {filtered.map(product => {
               const reserved = cartReserved[product.id] || 0
               const available = getEffectiveStock(product) - reserved
-              const isOutOfStock = available <= 0
-              const isLowStock = available > 0 && available <= product.lowStockThreshold
+              const isOutOfStock = trackStock
+                ? available <= 0
+                : !isProductAvailable(product)
+              const isLowStock = trackStock && available > 0 && available <= product.lowStockThreshold
 
               return (
                 <div
@@ -826,15 +868,27 @@ export const POSPage = () => {
 
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <span className="text-base font-bold text-blue-600">{formatINR(getEffectivePrice(product))}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
-                      isOutOfStock
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        : isLowStock
-                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                        : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-                    }`}>
-                      {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
-                    </span>
+                    {trackStock ? (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                        isOutOfStock
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : isLowStock
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                      }`}>
+                        {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
+                      </span>
+                    ) : (
+                      isOutOfStock ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          Not available
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          Available
+                        </span>
+                      )
+                    )}
                   </div>
 
                   <div className="mt-auto pt-3 flex items-center gap-2">
@@ -850,7 +904,7 @@ export const POSPage = () => {
                       type="button"
                       disabled={isOutOfStock}
                       onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) handleProductClick(product) }}
-                      className="flex-1 h-9 rounded-xl bg-[#0a0a2e] hover:bg-blue-600 text-white text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="flex-1 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold flex items-center justify-center gap-1 shadow-sm shadow-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:bg-blue-500 dark:hover:bg-blue-400"
                     >
                       <Plus size={16} />
                       Add
@@ -985,7 +1039,7 @@ export const POSPage = () => {
                       <button
                         onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
                         className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        disabled={item.quantity >= available}
+                        disabled={trackStock && item.quantity >= available}
                       >
                         <Plus size={14} />
                       </button>
@@ -1042,7 +1096,7 @@ export const POSPage = () => {
                 setIsPaymentOpen(true)
               }}
               disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
+              className="w-full h-11 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400 shadow-md shadow-blue-500/25"
             >
               <Printer size={18} className="mr-2" />
               {t('pos.completeAndPrint')}
@@ -1053,8 +1107,8 @@ export const POSPage = () => {
               size="sm"
               onClick={handlePreviewCurrentBill}
               disabled={items.length === 0}
-              leftIcon={<FileText size={15} className="text-indigo-600" />}
-              className="w-full h-10 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              leftIcon={<FileText size={15} className="text-blue-600 dark:text-blue-300" />}
+              className="w-full h-10 text-xs font-semibold border-blue-300 text-blue-700 dark:text-blue-200 dark:border-blue-500/60 hover:bg-blue-50 dark:hover:bg-blue-500/15"
             >
               Preview &amp; edit bill
             </Button>
@@ -1073,7 +1127,7 @@ export const POSPage = () => {
             onClick={handleCheckout}
             disabled={!isComplete || isCreating}
             loading={isCreating}
-            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            className="w-full py-3.5 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400"
           >
             <Printer size={18} className="mr-2" />
             {isComplete ? t('pos.completeAndPrint') : t('pos.insufficientAmount')}

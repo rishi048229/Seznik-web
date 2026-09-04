@@ -22,3 +22,35 @@ export function isKotFirstNav(businessType: BusinessType | null | undefined): bo
 export function getCatalogNavLabel(businessType: BusinessType | null | undefined): string {
   return isKotFirstNav(businessType) ? 'Menu' : 'Products';
 }
+
+/**
+ * Restaurants/cafes prepare food on demand — no stock quantity tracking.
+ * Prefer Settings.trackStock (DB) when present; otherwise derive from business type.
+ */
+export function usesStockTracking(
+  businessType: BusinessType | null | undefined,
+  trackStockSetting?: boolean | null
+): boolean {
+  if (typeof trackStockSetting === 'boolean') return trackStockSetting;
+  return !isKotFirstNav(businessType);
+}
+
+/** Product is sellable/orderable. Prefers isAvailable; falls back to isActive for legacy rows. */
+export function isProductAvailable(product: {
+  isAvailable?: boolean | null;
+  isActive?: boolean | null;
+}): boolean {
+  if (product.isAvailable === false) return false;
+  if (product.isActive === false) return false;
+  return true;
+}
+
+export function needsBusinessSetup(profile: {
+  accountType?: 'user' | 'managed' | string | null;
+  onboardingCompleted?: boolean;
+  businessType?: BusinessType | null;
+} | null | undefined): boolean {
+  if (!profile || profile.accountType === 'managed') return false;
+  if (profile.onboardingCompleted === false) return true;
+  return !profile.businessType;
+}
