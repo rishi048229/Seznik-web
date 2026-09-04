@@ -89,6 +89,12 @@ describe('label alignment and dual QR', () => {
     expect(y + size).toBeLessThanOrEqual(240)
   })
 
+  it('keeps the classic compact dual row: 28-dot bars beside an 8mm QR', () => {
+    const text = decode(generateLabelTspl(PRESET_RETAIL_DUAL_CODE, 'CODE128', sample, 50, 30))
+    expect(text).toMatch(/BARCODE \d+,\d+,"128",28,/)
+    expect(text).toMatch(/QRCODE \d+,\d+,L,3,A,0,/)
+  })
+
   it('prints both barcode and QR on ESC/POS dual labels', () => {
     const bytes = generateLabelEscPos(PRESET_RETAIL_DUAL_CODE, 'CODE128', sample)
     expect(bytes).toContain(0x6b) // GS k barcode

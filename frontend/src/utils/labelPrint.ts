@@ -26,10 +26,10 @@ export const defaultLabelTemplate: LabelElement[] = [
 
 export const PRESET_RETAIL_DUAL_CODE: LabelElement[] = [
   { id: 'el-1', type: 'businessName', align: 'center', bold: true, fontSize: 'medium' },
-  { id: 'el-2', type: 'productName', align: 'center', bold: true, fontSize: 'small' },
+  { id: 'el-2', type: 'productName', align: 'left', bold: true, fontSize: 'small' },
   { id: 'el-3', type: 'sideBySideBarcodeQr', align: 'center', bold: false },
-  { id: 'el-4', type: 'mrpHeader', align: 'center', bold: false, fontSize: 'small', prefix: 'MRP (Incl. of all taxes)' },
-  { id: 'el-5', type: 'price', align: 'center', bold: true, fontSize: 'medium', prefix: 'Rs. ' },
+  { id: 'el-4', type: 'mrpHeader', align: 'left', bold: false, fontSize: 'small', prefix: 'MRP (Incl. of all taxes)' },
+  { id: 'el-5', type: 'price', align: 'left', bold: true, fontSize: 'medium', prefix: 'Rs. ' },
 ]
 
 export const PRESET_CENTERED_STANDARD: LabelElement[] = [
@@ -261,6 +261,11 @@ const HRI_TEXT_HEIGHT_DOTS = 3 * DOTS_PER_MM // 3mm reserved for the barcode hum
 const BARCODE_EXTRA_DOTS = MIN_GAP_DOTS + HRI_TEXT_HEIGHT_DOTS // 32 dots (was a flat, too-tight "+22" before)
 const QR_MIN_SIZE_DOTS = 6 * DOTS_PER_MM // 6mm
 const QR_MAX_SIZE_DOTS = 20 * DOTS_PER_MM // 20mm
+/** Compact barcode+QR row — the original dual preset, not stretched to fill leftover. */
+const DUAL_ROW_HEIGHT_DOTS = 64
+const DUAL_BAR_HEIGHT_DOTS = 28
+const DUAL_QR_CELL = 3
+const DUAL_QR_SIZE_DOTS = 64
 
 const TEXT_LINE_HEIGHT_DOTS: Record<string, number> = { small: 16, medium: 24, large: 28, xlarge: 36 }
 const TEXT_CHAR_WIDTH_DOTS: Record<string, number> = { small: 8, medium: 12, large: 16, xlarge: 24 }
@@ -417,7 +422,7 @@ export function planLabelLayout(
     if (type === 'qrCode') return QR_MIN_SIZE_DOTS
     if (type === 'sideBySideBarcodeQr') {
       if (dualCodeFitsSideBySide(widthDots, safeData.barcodeValue)) {
-        return Math.max(BARCODE_MIN_HEIGHT_DOTS + BARCODE_EXTRA_DOTS, QR_MIN_SIZE_DOTS)
+        return DUAL_ROW_HEIGHT_DOTS
       }
       return BARCODE_MIN_HEIGHT_DOTS + BARCODE_EXTRA_DOTS + MIN_GAP_DOTS + QR_MIN_SIZE_DOTS
     }
@@ -474,13 +479,10 @@ export function planLabelLayout(
   if (barcodeEl) {
     const isQr = barcodeEl.type === 'qrCode' || (barcodeEl.type === 'barcode' && barcodeType === 'QR')
     if (barcodeEl.type === 'sideBySideBarcodeQr') {
-      const minH = dualStacked
-        ? BARCODE_MIN_HEIGHT_DOTS + BARCODE_EXTRA_DOTS + MIN_GAP_DOTS + QR_MIN_SIZE_DOTS
-        : Math.max(BARCODE_MIN_HEIGHT_DOTS + BARCODE_EXTRA_DOTS, QR_MIN_SIZE_DOTS)
-      const maxH = dualStacked
-        ? BARCODE_MAX_HEIGHT_DOTS + BARCODE_EXTRA_DOTS + MIN_GAP_DOTS + QR_MAX_SIZE_DOTS
-        : Math.max(BARCODE_MAX_HEIGHT_DOTS + BARCODE_EXTRA_DOTS, QR_MAX_SIZE_DOTS)
-      barcodeSlotHeight = clampDots(availableForBarcode, minH, maxH)
+      const compact = dualStacked
+        ? BARCODE_MIN_HEIGHT_DOTS + BARCODE_EXTRA_DOTS + MIN_GAP_DOTS + DUAL_QR_SIZE_DOTS
+        : DUAL_ROW_HEIGHT_DOTS
+      barcodeSlotHeight = Math.min(compact, Math.max(0, availableForBarcode))
     } else if (isQr) {
       barcodeSlotHeight = clampDots(availableForBarcode, QR_MIN_SIZE_DOTS, QR_MAX_SIZE_DOTS)
     } else {
@@ -554,34 +556,30 @@ function layoutDualGraphics(
   }
 
   if (!stacked) {
-    let moduleWidth = pickModule(Math.floor(maxPrintable * 0.7))
-    let barW = estimateTsplCode128Dots(barcodeStr, moduleWidth)
-    let cell = 3
-    let qrS = modules * cell
-    while (barW + gap + qrS > maxPrintable && cell > 2) {
-      cell--
-      qrS = modules * cell
+    const leftHalfDots = Math.floor(widthDots * 0.62)
+    const rightHalfDots = widthDots - leftHalfDots
+    const moduleWidth = estimateTsplCode128Dots(barcodeStr, 2) > leftHalfDots - 10 ? 1 : 2
+    const barW = estimateTsplCode128Dots(barcodeStr, moduleWidth)
+    const xBar = clampBarcodeX(Math.floor((leftHalfDots - barW) / 2) + offsetXDots + barcodeNudgeDots, barW)
+    let cell = DUAL_QR_CELL
+    let qrS = DUAL_QR_SIZE_DOTS
+    if (qrS + QUIET_ZONE_DOTS > rightHalfDots) {
+      cell = 2
+      qrS = qrSizeDots(barcodeStr, cell)
     }
-    if (barW + gap + qrS > maxPrintable && moduleWidth === 2) {
-      moduleWidth = 1
-      barW = estimateTsplCode128Dots(barcodeStr, 1)
-    }
-    const total = barW + gap + qrS
-    const start = clampBarcodeX(Math.round((widthDots - total) / 2) + offsetXDots + barcodeNudgeDots, barW)
-    const barH = Math.max(BARCODE_MIN_HEIGHT_DOTS, Math.min(slotH - extra, BARCODE_MAX_HEIGHT_DOTS))
-    const barcodeBlockH = barH + extra
+    const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrS) / 2) + offsetXDots)
     return {
       barcode: {
-        x: start,
-        y: slotY + Math.max(0, Math.floor((slotH - barcodeBlockH) / 2)),
+        x: xBar,
+        y: slotY,
         width: barW,
-        barHeight: barH,
+        barHeight: DUAL_BAR_HEIGHT_DOTS,
         moduleWidth,
         humanReadable,
       },
       qr: {
-        x: start + barW + gap,
-        y: slotY + Math.max(0, Math.floor((slotH - qrS) / 2)),
+        x: xQr,
+        y: slotY,
         size: qrS,
         cell,
       },
