@@ -9,6 +9,11 @@ import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '../types/cu
 import { ensureTemplateHasLogoBlock } from '../utils/receiptLogo';
 import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
 import {
+  DEFAULT_RECEIPT_FONT,
+  resolveReceiptFontId,
+  type ReceiptFontId,
+} from '@shared/receiptFonts';
+import {
   getStoredActiveTemplate,
   setStoredActiveTemplate,
   getStoredCustomReceiptTemplates,
@@ -50,6 +55,8 @@ interface PrinterState {
   paperWidth: '58mm' | '80mm';
   autoConnect: boolean;
   fontSize: 'small' | 'medium' | 'large';
+  /** Shared receipt font library id — synced with web via printerConfig.receiptFont. */
+  receiptFont: ReceiptFontId;
   pairedPrinters: PhoneBluetoothDevice[];
   printDensity: number;
   autoCut: boolean;
@@ -64,6 +71,8 @@ interface PrinterState {
   activeCustomTemplateId: string | null;
   /** Whether to print dynamic Digital Bill PDF QR code on bills */
   enableBillQrCode: boolean;
+  /** Paper-saving compact receipt layout — synced via receiptConfig.compactMode. */
+  compactMode: boolean;
   /** User-configured logo size on receipt: small, medium, large */
   receiptLogoSize: ReceiptSizeChip;
   /** User-configured QR code size on receipt: small, medium, large */
@@ -109,6 +118,7 @@ interface PrinterState {
   addPairedPrinter: (device: PrinterDevice) => Promise<void>;
   setPaperWidth: (width: '58mm' | '80mm') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
+  setReceiptFont: (font: ReceiptFontId) => void;
   setAutoConnect: (val: boolean) => void;
   setPrintDensity: (density: number) => void;
   setAutoCut: (val: boolean) => void;
@@ -128,6 +138,7 @@ interface PrinterState {
   duplicateCustomTemplate: (id: string) => Promise<CustomReceiptTemplate>;
   setActiveCustomTemplate: (id: string | null) => Promise<void>;
   setEnableBillQrCode: (val: boolean) => Promise<void>;
+  setCompactMode: (val: boolean) => Promise<void>;
   setReceiptLogoSize: (size: ReceiptSizeChip) => Promise<void>;
   setReceiptQrSize: (size: ReceiptSizeChip) => Promise<void>;
   setDefaultPrinter: (deviceId: string) => void;
@@ -140,6 +151,7 @@ interface PrinterState {
     autoCut: boolean;
     printCopies: number;
     fontSize: 'small' | 'medium' | 'large';
+    receiptFont?: ReceiptFontId;
     labelPaperMode: 'gap' | 'continuous';
     labelWidthMm: number;
     labelHeightMm: number;
@@ -166,6 +178,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   paperWidth: '58mm',
   autoConnect: true,
   fontSize: 'medium',
+  receiptFont: DEFAULT_RECEIPT_FONT,
   pairedPrinters: [],
   printDensity: 3,
   autoCut: true,
@@ -175,6 +188,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   customTemplates: [],
   activeCustomTemplateId: null,
   enableBillQrCode: true,
+  compactMode: false,
   receiptLogoSize: 'medium',
   receiptQrSize: 'medium',
   // Defaults to 'gap' (the pre-existing TSPL label-printer behavior) so nothing changes for stores
@@ -423,6 +437,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
   setPaperWidth: (paperWidth) => set({ paperWidth }),
   setFontSize: (fontSize) => set({ fontSize }),
+  setReceiptFont: (receiptFont) => set({ receiptFont: resolveReceiptFontId(receiptFont) }),
   setAutoConnect: (autoConnect) => {
     set({ autoConnect });
     setStoredAutoConnect(autoConnect).catch(() => {});
@@ -578,6 +593,15 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     }
   },
 
+  setCompactMode: async (enabled) => {
+    set({ compactMode: enabled });
+    try {
+      await settingsApi.updateReceiptConfig({ compactMode: enabled });
+    } catch (e) {
+      console.warn('[usePrinterStore] Could not sync compactMode:', e);
+    }
+  },
+
   setReceiptLogoSize: async (size) => {
     set({ receiptLogoSize: size });
     try {
@@ -605,6 +629,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       autoCut: config.autoCut,
       printCopies: config.printCopies,
       fontSize: config.fontSize,
+      receiptFont: config.receiptFont || get().receiptFont,
       receiptLogoSize: config.receiptLogoSize || get().receiptLogoSize,
       receiptQrSize: config.receiptQrSize || get().receiptQrSize,
       labelPaperMode: config.labelPaperMode,
@@ -620,6 +645,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       autoCut: config.autoCut,
       printCopies: config.printCopies,
       fontSize: config.fontSize,
+      receiptFont: config.receiptFont || get().receiptFont,
       labelPaperMode: config.labelPaperMode,
       labelWidthMm: config.labelWidthMm,
       labelHeightMm: config.labelHeightMm,
@@ -699,6 +725,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           autoCut: typeof localCalibration.autoCut === 'boolean' ? localCalibration.autoCut : get().autoCut,
           printCopies: typeof localCalibration.printCopies === 'number' ? localCalibration.printCopies : get().printCopies,
           fontSize: localCalibration.fontSize || get().fontSize,
+          receiptFont: resolveReceiptFontId(localCalibration.receiptFont || get().receiptFont),
           receiptLogoSize: localCalibration.receiptLogoSize || get().receiptLogoSize,
           receiptQrSize: localCalibration.receiptQrSize || get().receiptQrSize,
           labelPaperMode: localCalibration.labelPaperMode || get().labelPaperMode,
@@ -819,6 +846,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         autoCut: typeof printerConfig.autoCut === 'boolean' ? printerConfig.autoCut : get().autoCut,
         printCopies: typeof printerConfig.printCopies === 'number' ? printerConfig.printCopies : get().printCopies,
         fontSize: ['small', 'medium', 'large'].includes(printerConfig.fontSize) ? printerConfig.fontSize : get().fontSize,
+        receiptFont: resolveReceiptFontId(printerConfig.receiptFont ?? get().receiptFont),
         labelPaperMode: ['gap', 'continuous'].includes(printerConfig.labelPaperMode) ? printerConfig.labelPaperMode : get().labelPaperMode,
         labelWidthMm: typeof printerConfig.labelWidthMm === 'number' ? printerConfig.labelWidthMm : get().labelWidthMm,
         labelHeightMm: typeof printerConfig.labelHeightMm === 'number' ? printerConfig.labelHeightMm : get().labelHeightMm,
@@ -827,6 +855,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: effectiveCustomTemplates,
         activeCustomTemplateId: effectiveActiveCustomId,
         enableBillQrCode: effectiveEnableBillQr,
+        compactMode: typeof receiptConfig.compactMode === 'boolean' ? receiptConfig.compactMode : get().compactMode,
         receiptLogoSize: effectiveLogoSize,
         receiptQrSize: effectiveQrSize,
         labelTemplates: effectiveLabelTemplates,
@@ -841,6 +870,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         autoCut: typeof printerConfig.autoCut === 'boolean' ? printerConfig.autoCut : get().autoCut,
         printCopies: typeof printerConfig.printCopies === 'number' ? printerConfig.printCopies : get().printCopies,
         fontSize: ['small', 'medium', 'large'].includes(printerConfig.fontSize) ? printerConfig.fontSize : get().fontSize,
+        receiptFont: resolveReceiptFontId(printerConfig.receiptFont ?? get().receiptFont),
         receiptLogoSize: effectiveLogoSize,
         receiptQrSize: effectiveQrSize,
         labelPaperMode: ['gap', 'continuous'].includes(printerConfig.labelPaperMode) ? printerConfig.labelPaperMode : get().labelPaperMode,

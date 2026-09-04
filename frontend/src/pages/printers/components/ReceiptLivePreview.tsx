@@ -8,6 +8,8 @@ import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 import { CustomReceiptPreview } from '../receipt-builder/CustomReceiptPreview'
 import type { ReceiptPrintContext } from '@/utils/customReceiptEngine'
 import { receiptLogoHtmlMaxPxFromChip, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
+import { receiptFontCssFamily, resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
+import { getReceiptPreviewMaxWidth } from '../receipt-builder/receiptPreviewStyles'
 
 interface ReceiptLivePreviewProps {
   paperSize: '58mm' | '80mm'
@@ -17,6 +19,7 @@ interface ReceiptLivePreviewProps {
   cutPaper: boolean
   activeTemplate?: CustomReceiptTemplate | null
   isRestaurant?: boolean
+  receiptFont?: ReceiptFontId | null
 }
 
 export const ReceiptLivePreview = ({
@@ -27,8 +30,10 @@ export const ReceiptLivePreview = ({
   cutPaper,
   activeTemplate,
   isRestaurant = false,
+  receiptFont,
 }: ReceiptLivePreviewProps) => {
-  const cols = getCols(paperSize)
+  const effectiveFont = resolveReceiptFontId(receiptFont ?? settings?.printerConfig?.receiptFont)
+  const cols = getCols(paperSize, undefined, effectiveFont)
   const stageRef = useRef<HTMLDivElement>(null)
   const slipRef = useRef<HTMLDivElement>(null)
   const [metrics, setMetrics] = useState({ scale: 1, height: 0 })
@@ -115,9 +120,10 @@ export const ReceiptLivePreview = ({
         customerName: '',
         customerPhone: '',
         paperSize,
+        receiptFont: effectiveFont,
         isRestaurant: isRest,
       }),
-    [sampleSale, receiptConfig, previewContext, paperSize, isRest]
+    [sampleSale, receiptConfig, previewContext, paperSize, isRest, effectiveFont]
   )
 
   useLayoutEffect(() => {
@@ -157,11 +163,21 @@ export const ReceiptLivePreview = ({
               transformOrigin: 'top center',
             }}
           >
-            <div ref={slipRef} className="flex flex-col items-stretch" style={{ width: `calc(${cols}ch + 1.25rem)` }}>
+            <div
+              ref={slipRef}
+              className="flex flex-col items-stretch"
+              style={{
+                width: activeTemplate
+                  ? `${getReceiptPreviewMaxWidth(paperSize)}px`
+                  : `calc(${cols}ch + 1.25rem)`,
+              }}
+            >
               {activeTemplate ? (
-                <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden p-2">
-                  <CustomReceiptPreview template={activeTemplate} context={previewContext} />
-                </div>
+                <CustomReceiptPreview
+                  template={activeTemplate}
+                  context={previewContext}
+                  gstOpts={{ receiptFont: effectiveFont }}
+                />
               ) : (
                 <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">
                   {showLogo && logoSrc && (
@@ -186,7 +202,7 @@ export const ReceiptLivePreview = ({
                       fontSize: paperSize === '80mm' ? '12px' : '11px',
                       lineHeight: 1.35,
                       fontVariantNumeric: 'tabular-nums',
-                      fontFamily: '"Courier New", Courier, ui-monospace, monospace',
+                      fontFamily: receiptFontCssFamily(effectiveFont),
                     }}
                   >
                     {lines.join('\n')}

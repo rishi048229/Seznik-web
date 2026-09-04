@@ -657,6 +657,8 @@ export const POSLitePage = () => {
         sale: tempSale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',
+        printerConfig: settings?.printerConfig,
+        receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,

@@ -25,14 +25,24 @@ import {
   receiptStandardQrHtmlPx,
   receiptStandardQrHtmlPxFromChip,
 } from '@shared/receiptPrintGeometry'
+import {
+  receiptFontCssFamily,
+  receiptFontEscPosType,
+  resolveReceiptFontId,
+  type ReceiptFontId,
+} from '@shared/receiptFonts'
 
 function escapeHtmlAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 }
 
-function thermalReceiptContainerStyle(paperSize: '58mm' | '80mm', fontSize: string): string {
+function thermalReceiptContainerStyle(
+  paperSize: '58mm' | '80mm',
+  fontSize: string,
+  receiptFont?: ReceiptFontId | null
+): string {
   return [
-    "font-family:'Courier New',Courier,monospace",
+    `font-family:${receiptFontCssFamily(receiptFont)}`,
     `font-size:${fontSize}`,
     'font-weight:400',
     'line-height:1.3',
@@ -130,6 +140,10 @@ export function getReceiptPrintGstOptions(
 export interface GenerateReceiptHTMLParams {
   sale: Sale
   receiptConfig?: Partial<ReceiptConfig> | null
+  /** Used to resolve receiptFont when receiptFont is not passed explicitly. */
+  printerConfig?: { receiptFont?: ReceiptFontId | string | null } | null
+  /** Explicit typeface from the shared receipt font library. */
+  receiptFont?: ReceiptFontId | null
   businessName?: string
   businessAddress?: string
   businessPhone?: string
@@ -179,6 +193,8 @@ function numberToWords(amount: number): string {
 export const generateReceiptHTML = ({
   sale,
   receiptConfig,
+  printerConfig,
+  receiptFont,
   businessName,
   businessAddress,
   businessPhone,
@@ -195,6 +211,7 @@ export const generateReceiptHTML = ({
   waiterName,
   tokenNo,
 }: GenerateReceiptHTMLParams): string => {
+  const effectiveReceiptFont = resolveReceiptFontId(receiptFont ?? printerConfig?.receiptFont)
   const printGst = getReceiptPrintGstOptions(invoiceConfig, receiptConfig)
   const effectiveConfig = {
     ...receiptConfig,
@@ -551,11 +568,12 @@ export const generateReceiptHTML = ({
         isRestaurant,
         receiptLogoSize: effectiveConfig?.receiptLogoSize,
         receiptQrSize: effectiveConfig?.receiptQrSize,
+        receiptFont: effectiveReceiptFont,
       }
     )
 
     return `
-  <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS)}">
+  <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS, effectiveReceiptFont)}">
 ${bodyHtml}
   </div>`
   }
@@ -569,6 +587,7 @@ ${bodyHtml}
     businessGSTIN: effectiveConfig?.gstin,
     customerName,
     paperSize: paperSizeKey,
+    receiptFont: effectiveReceiptFont,
     gstStyle,
     itemWiseGst,
     isRestaurant,
@@ -585,10 +604,11 @@ ${bodyHtml}
   const billQrImg = enableBillQr
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(billPdfUrl)}`
     : ''
+  const lineFontFamily = receiptFontCssFamily(effectiveReceiptFont)
   return `
-  <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS)}">
+  <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS, effectiveReceiptFont)}">
 ${receiptLogoImgHtml(effectiveLogo, logoHtml.maxHeight, logoHtml.maxWidth)}
-${textLines.map((l) => `<div style="white-space:pre;overflow:hidden;width:100%;font-family:'Courier New',Courier,monospace;">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
+${textLines.map((l) => `<div style="white-space:pre;overflow:hidden;width:100%;font-family:${lineFontFamily};">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
 ${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
 ${billQrImg ? `<div style="text-align:center;margin-top:8px;padding:4px 0;display:block;"><div style="font-size:${tinyFS};font-weight:700;margin-bottom:4px;">Scan QR to View &amp; Download Bill PDF</div><img src="${billQrImg}" alt="Digital Bill QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
@@ -641,6 +661,9 @@ export const printReceipt = (
 <head>
   <meta charset="utf-8">
   <title>${title}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     @page {
       size: ${paperWidth} auto;
@@ -742,6 +765,9 @@ interface GenerateReceiptEscPosParams {
   sale: Sale
   receiptConfig?: Partial<ReceiptConfig> | null
   paperSize?: '58mm' | '80mm'
+  /** Used to resolve receiptFont when receiptFont is not passed explicitly. */
+  printerConfig?: { receiptFont?: ReceiptFontId | string | null } | null
+  receiptFont?: ReceiptFontId | null
   businessName?: string
   businessAddress?: string
   businessPhone?: string
@@ -761,6 +787,8 @@ export const generateReceiptEscPos = async ({
   sale,
   receiptConfig,
   paperSize = '58mm',
+  printerConfig,
+  receiptFont,
   businessName,
   businessAddress,
   businessPhone,
@@ -774,6 +802,7 @@ export const generateReceiptEscPos = async ({
   waiterName,
   tokenNo,
 }: GenerateReceiptEscPosParams): Promise<Uint8Array> => {
+  const effectiveReceiptFont = resolveReceiptFontId(receiptFont ?? printerConfig?.receiptFont)
   const printGst = getReceiptPrintGstOptions(invoiceConfig, receiptConfig)
   const effectiveConfig = {
     ...receiptConfig,
@@ -806,7 +835,7 @@ export const generateReceiptEscPos = async ({
   })
 
   const b = new EscPosBuilder()
-  b.init(effectivePaper)
+  b.init(effectivePaper, receiptFontEscPosType(effectiveReceiptFont))
 
   if (customTemplate) {
     await appendCustomTemplateToEscPos(b, customTemplate, context, effectivePaper, {
@@ -818,6 +847,7 @@ export const generateReceiptEscPos = async ({
       isRestaurant,
       receiptLogoSize: effectiveConfig?.receiptLogoSize,
       receiptQrSize: effectiveConfig?.receiptQrSize,
+      receiptFont: effectiveReceiptFont,
     })
     b.feed(2)
     b.cut()
@@ -833,6 +863,7 @@ export const generateReceiptEscPos = async ({
     businessGSTIN: printConfig?.gstin || effectiveConfig?.gstin || businessGSTIN,
     customerName,
     paperSize: effectivePaper,
+    receiptFont: effectiveReceiptFont,
     gstStyle: printGst.gstStyle,
     itemWiseGst: printGst.itemWiseGst,
     isRestaurant,

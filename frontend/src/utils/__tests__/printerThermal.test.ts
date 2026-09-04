@@ -16,6 +16,17 @@ describe('printerThermal', () => {
     expect(opts.autoCut).toBe(true)
     expect(opts.paperSize).toBe('58mm')
     expect(opts.fontSize).toBe('medium')
+    expect(opts.receiptFont).toBe('classic')
+  })
+
+  it('resolves receiptFont from printerConfig', () => {
+    const opts = resolveThermalPrintOptions({ receiptFont: 'serif' })
+    expect(opts.receiptFont).toBe('serif')
+  })
+
+  it('maps legacy compact receiptFont to classic', () => {
+    const opts = resolveThermalPrintOptions({ receiptFont: 'compact' })
+    expect(opts.receiptFont).toBe('classic')
   })
 
   it('clamps copies and mirrors paper keys', () => {

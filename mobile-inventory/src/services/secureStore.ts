@@ -257,6 +257,7 @@ export interface StoredPrinterCalibration {
   autoCut?: boolean;
   printCopies?: number;
   fontSize?: 'small' | 'medium' | 'large';
+  receiptFont?: 'classic' | 'modern' | 'clean' | 'business' | 'readable' | 'serif' | 'formal';
   receiptLogoSize?: 'small' | 'medium' | 'large';
   receiptQrSize?: 'small' | 'medium' | 'large';
   labelPaperMode?: 'gap' | 'continuous';

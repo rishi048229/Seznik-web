@@ -32,7 +32,7 @@ export function ReceiptTemplateHub({
           type="button"
           onClick={onCreate}
           disabled={isSaving}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-400 text-xs font-semibold transition-colors"
         >
           <Plus size={14} /> New
         </button>
@@ -45,7 +45,9 @@ export function ReceiptTemplateHub({
             <div
               key={t.id}
               className={`flex-shrink-0 min-w-[160px] rounded-xl border p-3 cursor-pointer transition-all ${
-                selected ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card'
+                selected
+                  ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/50 dark:border-blue-500/80 shadow-sm shadow-blue-500/10'
+                  : 'border-gray-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/50 hover:border-blue-400/40 dark:hover:border-blue-500/40'
               }`}
               onClick={() => onSelect(t.id)}
             >
@@ -58,12 +60,12 @@ export function ReceiptTemplateHub({
               </div>
               <div className="flex gap-1 mt-2">
                 {!active ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onActivate(t.id) }} className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Activate</button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onActivate(t.id) }} className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-semibold">Activate</button>
                 ) : (
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Active</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-semibold">Active</span>
                 )}
-                <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(t.id) }} className="p-1 text-gray-500 hover:bg-gray-100 rounded"><Copy size={12} /></button>
-                <button type="button" onClick={(e) => { e.stopPropagation(); if (confirm('Delete this template?')) onDelete(t.id) }} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12} /></button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(t.id) }} className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-elevated rounded"><Copy size={12} /></button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); if (confirm('Delete this template?')) onDelete(t.id) }} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded"><Trash2 size={12} /></button>
               </div>
             </div>
           )

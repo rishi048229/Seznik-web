@@ -514,6 +514,11 @@ const en = {
   // Printers page field tooltips
   'tip.printer.paperWidth': 'Physical width of your thermal paper roll. Most compact printers use 58mm; wider receipt printers use 80mm.',
   'tip.printer.printDestination': "Where the receipt is sent when you print — your connected Bluetooth printer, or your computer's normal print dialog.",
+  'tip.printer.autoPrintOnSale': 'Automatically send the receipt to the printer the moment a sale is completed, with no manual click needed.',
+  'tip.printer.connectionType': "Where the receipt is sent when you print — your connected Bluetooth printer, or your computer's normal print dialog.",
+  'tip.printer.fontSize': 'Overall text scale on thermal receipts. Large roughly doubles character height on Bluetooth printers.',
+  'tip.printer.receiptFont': 'Typeface used on receipt previews and HTML / system prints. Choose from mono, sans, and serif families. Synced with the mobile app. Bluetooth thermal printers still use their built-in Font A for raw ESC/POS text.',
+  'tip.printer.compactMode': 'Paper-saving layout. Puts invoice number and date on one line and trims spacing so short bills use less paper. Synced with the mobile app.',
   'tip.printer.receiptDetails': 'Business details printed at the top of every receipt — company name, GSTIN, address, phone, footer message, and terms. Shared with the main Settings page.',
   'tip.printer.showLogo': 'Print your store logo at the top of the receipt.',
   'tip.printer.showGSTIN': 'Print your GSTIN / tax registration number on the receipt.',
@@ -1418,6 +1423,7 @@ const hi: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'आपके थर्मल पेपर रोल की भौतिक चौड़ाई। ज़्यादातर कॉम्पैक्ट प्रिंटर 58mm उपयोग करते हैं; चौड़े रसीद प्रिंटर 80mm उपयोग करते हैं।',
   'tip.printer.printDestination': 'प्रिंट करते समय रसीद कहाँ भेजी जाती है — आपका जुड़ा हुआ ब्लूटूथ प्रिंटर, या आपके कंप्यूटर का सामान्य प्रिंट डायलॉग।',
+  'tip.printer.autoPrintOnSale': 'बिक्री पूरी होते ही बिना किसी मैनुअल क्लिक के रसीद को स्वतः प्रिंटर पर भेजें।',
   'tip.printer.receiptDetails': 'हर रसीद के ऊपर छपने वाले व्यवसाय विवरण — कंपनी का नाम, GSTIN, पता, फोन, फुटर संदेश और शर्तें। मुख्य सेटिंग्स पेज के साथ साझा किया गया।',
   'tip.printer.showLogo': 'रसीद के ऊपर अपना स्टोर लोगो प्रिंट करें।',
   'tip.printer.showGSTIN': 'रसीद पर अपना GSTIN / कर पंजीकरण नंबर प्रिंट करें।',
@@ -2293,6 +2299,7 @@ const mr: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'तुमच्या थर्मल पेपर रोलची भौतिक रुंदी. बहुतेक कॉम्पॅक्ट प्रिंटर 58mm वापरतात; रुंद पावती प्रिंटर 80mm वापरतात.',
   'tip.printer.printDestination': 'प्रिंट करताना पावती कुठे पाठवली जाते — तुमचा कनेक्ट केलेला ब्लूटूथ प्रिंटर, किंवा तुमच्या संगणकाचा नेहमीचा प्रिंट डायलॉग.',
+  'tip.printer.autoPrintOnSale': 'विक्री पूर्ण होताच कोणत्याही मॅन्युअल क्लिकशिवाय पावती आपोआप प्रिंटरला पाठवा.',
   'tip.printer.receiptDetails': 'प्रत्येक पावतीच्या वर छापले जाणारे व्यवसाय तपशील — कंपनीचे नाव, GSTIN, पत्ता, फोन, फूटर संदेश आणि अटी. मुख्य सेटिंग्ज पेजसोबत सामायिक केलेले.',
   'tip.printer.showLogo': 'पावतीच्या वर तुमचा स्टोअर लोगो छापा.',
   'tip.printer.showGSTIN': 'पावतीवर तुमचा GSTIN / कर नोंदणी क्रमांक छापा.',
@@ -3212,6 +3219,7 @@ const ta: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'உங்கள் தெர்மல் காகித ரோலின் இயற்பியல் அகலம். பெரும்பாலான சிறிய பிரிண்டர்கள் 58mm பயன்படுத்துகின்றன; அகன்ற ரசீது பிரிண்டர்கள் 80mm பயன்படுத்துகின்றன.',
   'tip.printer.printDestination': 'பிரிண்ட் செய்யும்போது ரசீது எங்கு அனுப்பப்படுகிறது — உங்கள் இணைக்கப்பட்ட Bluetooth பிரிண்டர், அல்லது உங்கள் கணினியின் வழக்கமான பிரிண்ட் டயலாக்.',
+  'tip.printer.autoPrintOnSale': 'விற்பனை முடிந்தவுடன் எந்த கைமுறை கிளிக் இல்லாமல் ரசீதை தானாக பிரிண்டருக்கு அனுப்பவும்.',
   'tip.printer.receiptDetails': 'ஒவ்வொரு ரசீதின் மேலும் அச்சிடப்படும் வணிக விவரங்கள் — நிறுவனப் பெயர், GSTIN, முகவரி, தொலைபேசி, footer செய்தி மற்றும் விதிமுறைகள். முதன்மை அமைப்புகள் பக்கத்துடன் பகிரப்பட்டது.',
   'tip.printer.showLogo': 'ரசீதின் மேல் உங்கள் கடையின் லோகோவை அச்சிடவும்.',
   'tip.printer.showGSTIN': 'ரசீதில் உங்கள் GSTIN / வரி பதிவு எண்ணை அச்சிடவும்.',
@@ -4131,6 +4139,7 @@ const te: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'మీ థర్మల్ పేపర్ రోల్ యొక్క భౌతిక వెడల్పు. చాలా కాంపాక్ట్ ప్రింటర్లు 58mm ఉపయోగిస్తాయి; వెడల్పైన రసీదు ప్రింటర్లు 80mm ఉపయోగిస్తాయి.',
   'tip.printer.printDestination': 'ప్రింట్ చేసేటప్పుడు రసీదు ఎక్కడికి పంపబడుతుంది — మీ కనెక్ట్ చేయబడిన బ్లూటూత్ ప్రింటర్, లేదా మీ కంప్యూటర్ యొక్క సాధారణ ప్రింట్ డైలాగ్.',
+  'tip.printer.autoPrintOnSale': 'అమ్మకం పూర్తయిన వెంటనే ఎలాంటి మాన్యువల్ క్లిక్ లేకుండా రసీదును స్వయంచాలకంగా ప్రింటర్‌కు పంపండి.',
   'tip.printer.receiptDetails': 'ప్రతి రసీదు పైభాగంలో ముద్రించే వ్యాపార వివరాలు — కంపెనీ పేరు, GSTIN, చిరునామా, ఫోన్, ఫుటర్ సందేశం మరియు నిబంధనలు. ప్రధాన సెట్టింగ్స్ పేజీతో భాగస్వామ్యం చేయబడింది.',
   'tip.printer.showLogo': 'రసీదు పైభాగంలో మీ స్టోర్ లోగోను ముద్రించండి.',
   'tip.printer.showGSTIN': 'రసీదుపై మీ GSTIN / పన్ను నమోదు సంఖ్యను ముద్రించండి.',
@@ -5046,6 +5055,7 @@ const gu: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'તમારા થર્મલ પેપર રોલની ભૌતિક પહોળાઈ. મોટાભાગના કોમ્પેક્ટ પ્રિન્ટર 58mm વાપરે છે; પહોળા રસીદ પ્રિન્ટર 80mm વાપરે છે.',
   'tip.printer.printDestination': 'પ્રિન્ટ કરતી વખતે રસીદ ક્યાં મોકલવામાં આવે છે — તમારું જોડાયેલ બ્લૂટૂથ પ્રિન્ટર, અથવા તમારા કમ્પ્યુટરનો સામાન્ય પ્રિન્ટ ડાયલોગ.',
+  'tip.printer.autoPrintOnSale': 'વેચાણ પૂર્ણ થતાં જ કોઈપણ મેન્યુઅલ ક્લિક વિના રસીદ આપમેળે પ્રિન્ટર પર મોકલો.',
   'tip.printer.receiptDetails': 'દરેક રસીદની ટોચ પર છપાતી વ્યવસાય વિગતો — કંપનીનું નામ, GSTIN, સરનામું, ફોન, ફૂટર સંદેશ અને શરતો. મુખ્ય સેટિંગ્સ પેજ સાથે શેર કરેલ.',
   'tip.printer.showLogo': 'રસીદની ટોચ પર તમારો સ્ટોર લોગો છાપો.',
   'tip.printer.showGSTIN': 'રસીદ પર તમારો GSTIN / કર નોંધણી નંબર છાપો.',
@@ -5961,6 +5971,7 @@ const bn: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'আপনার থার্মাল পেপার রোলের প্রকৃত প্রস্থ। বেশিরভাগ কম্প্যাক্ট প্রিন্টার 58mm ব্যবহার করে; চওড়া রসিদ প্রিন্টার 80mm ব্যবহার করে।',
   'tip.printer.printDestination': 'প্রিন্ট করার সময় রসিদ কোথায় পাঠানো হয় — আপনার সংযুক্ত ব্লুটুথ প্রিন্টার, অথবা আপনার কম্পিউটারের সাধারণ প্রিন্ট ডায়ালগ।',
+  'tip.printer.autoPrintOnSale': 'বিক্রয় সম্পন্ন হওয়া মাত্র কোনো ম্যানুয়াল ক্লিক ছাড়াই রসিদ স্বয়ংক্রিয়ভাবে প্রিন্টারে পাঠান।',
   'tip.printer.receiptDetails': 'প্রতিটি রসিদের উপরে মুদ্রিত ব্যবসায়িক বিবরণ — কোম্পানির নাম, GSTIN, ঠিকানা, ফোন, ফুটার বার্তা এবং শর্তাবলী। প্রধান সেটিংস পৃষ্ঠার সাথে শেয়ার করা।',
   'tip.printer.showLogo': 'রসিদের উপরে আপনার দোকানের লোগো প্রিন্ট করুন।',
   'tip.printer.showGSTIN': 'রসিদে আপনার GSTIN / কর নিবন্ধন নম্বর প্রিন্ট করুন।',
@@ -6876,6 +6887,7 @@ const ml: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'നിങ്ങളുടെ തെർമൽ പേപ്പർ റോളിന്റെ യഥാർത്ഥ വീതി. മിക്ക കോംപാക്റ്റ് പ്രിന്ററുകളും 58mm ഉപയോഗിക്കുന്നു; വീതിയേറിയ രസീത് പ്രിന്ററുകൾ 80mm ഉപയോഗിക്കുന്നു.',
   'tip.printer.printDestination': 'പ്രിന്റ് ചെയ്യുമ്പോൾ രസീത് എവിടേക്കാണ് അയക്കുന്നത് — നിങ്ങളുടെ കണക്റ്റ് ചെയ്ത ബ്ലൂടൂത്ത് പ്രിന്റർ, അല്ലെങ്കിൽ നിങ്ങളുടെ കമ്പ്യൂട്ടറിന്റെ സാധാരണ പ്രിന്റ് ഡയലോഗ്.',
+  'tip.printer.autoPrintOnSale': 'വിൽപ്പന പൂർത്തിയാകുന്ന ഉടൻ ഒരു മാനുവൽ ക്ലിക്ക് പോലും ഇല്ലാതെ രസീത് സ്വയമേവ പ്രിന്ററിലേക്ക് അയക്കുക.',
   'tip.printer.receiptDetails': 'ഓരോ രസീതിന്റെയും മുകളിൽ പ്രിന്റ് ചെയ്യുന്ന ബിസിനസ് വിവരങ്ങൾ — കമ്പനി പേര്, GSTIN, വിലാസം, ഫോൺ, ഫൂട്ടർ സന്ദേശം, നിബന്ധനകൾ. പ്രധാന സെറ്റിംഗ്സ് പേജുമായി പങ്കിടുന്നു.',
   'tip.printer.showLogo': 'രസീതിന്റെ മുകളിൽ നിങ്ങളുടെ സ്റ്റോർ ലോഗോ പ്രിന്റ് ചെയ്യുക.',
   'tip.printer.showGSTIN': 'രസീതിൽ നിങ്ങളുടെ GSTIN / നികുതി രജിസ്ട്രേഷൻ നമ്പർ പ്രിന്റ് ചെയ്യുക.',
@@ -7791,6 +7803,7 @@ const or: Partial<Record<TranslationKey, string>> = {
 
   'tip.printer.paperWidth': 'ଆପଣଙ୍କ ଥର୍ମାଲ୍ ପେପର୍ ରୋଲର ପ୍ରକୃତ ଓସାର। ଅଧିକାଂଶ କମ୍ପାକ୍ଟ ପ୍ରିଣ୍ଟର୍ 58mm ବ୍ୟବହାର କରନ୍ତି; ଓସାର ରସିଦ ପ୍ରିଣ୍ଟର୍ 80mm ବ୍ୟବହାର କରନ୍ତି।',
   'tip.printer.printDestination': 'ପ୍ରିଣ୍ଟ କରିବା ସମୟରେ ରସିଦ କେଉଁଠାକୁ ପଠାଯାଏ — ଆପଣଙ୍କ ସଂଯୁକ୍ତ ବ୍ଲୁଟୁଥ୍ ପ୍ରିଣ୍ଟର୍, କିମ୍ବା ଆପଣଙ୍କ କମ୍ପ୍ୟୁଟରର ସାଧାରଣ ପ୍ରିଣ୍ଟ ଡାଏଲଗ୍।',
+  'tip.printer.autoPrintOnSale': 'ବିକ୍ରୟ ସମ୍ପୂର୍ଣ୍ଣ ହେବା ମାତ୍ରେ କୌଣସି ମାନୁଆଲ୍ କ୍ଲିକ୍ ବିନା ରସିଦକୁ ସ୍ୱୟଂଚାଳିତ ଭାବରେ ପ୍ରିଣ୍ଟରକୁ ପଠାନ୍ତୁ।',
   'tip.printer.receiptDetails': 'ପ୍ରତ୍ୟେକ ରସିଦର ଉପରେ ମୁଦ୍ରିତ ହେଉଥିବା ବ୍ୟବସାୟ ବିବରଣୀ — କମ୍ପାନୀ ନାମ, GSTIN, ଠିକଣା, ଫୋନ୍, ଫୁଟର ବାର୍ତ୍ତା ଏବଂ ସର୍ତ୍ତାବଳୀ। ମୁଖ୍ୟ ସେଟିଂସ୍ ପୃଷ୍ଠା ସହିତ ସେୟାର୍ କରାଯାଇଛି।',
   'tip.printer.showLogo': 'ରସିଦର ଉପରେ ଆପଣଙ୍କ ଷ୍ଟୋର୍ ଲୋଗୋ ପ୍ରିଣ୍ଟ କରନ୍ତୁ।',
   'tip.printer.showGSTIN': 'ରସିଦରେ ଆପଣଙ୍କ GSTIN / କର ପଞ୍ଜୀକରଣ ନମ୍ବର ପ୍ରିଣ୍ଟ କରନ୍ତୁ।',

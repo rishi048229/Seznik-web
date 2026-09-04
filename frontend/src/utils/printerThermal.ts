@@ -1,4 +1,5 @@
 import type { PrinterConfig } from '@/types/settings.types'
+import { resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
 
 type PrinterConfigLoose = Partial<PrinterConfig> & Record<string, unknown>
 
@@ -20,6 +21,7 @@ export function resolveThermalPrintOptions(printerConfig?: PrinterConfigLoose | 
   autoCut: boolean
   topMargin: number
   fontSize: 'small' | 'medium' | 'large'
+  receiptFont: ReceiptFontId
 } {
   const cfg = printerConfig || {}
   const copies = Number(cfg.printCopies)
@@ -31,6 +33,7 @@ export function resolveThermalPrintOptions(printerConfig?: PrinterConfigLoose | 
     autoCut: cfg.autoCut !== false,
     topMargin: Number.isFinite(margin) ? Math.min(10, Math.max(0, Math.round(margin))) : 0,
     fontSize: font === 'small' || font === 'large' || font === 'medium' ? font : 'medium',
+    receiptFont: resolveReceiptFontId(cfg.receiptFont),
   }
 }
 

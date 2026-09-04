@@ -210,6 +210,8 @@ export interface CustomReceiptGstOpts {
   receiptLogoSize?: ReceiptSizeChip
   /** User-selected QR size chip from ReceiptConfig.receiptQrSize */
   receiptQrSize?: ReceiptSizeChip
+  /** Shared receipt font library id — CSS / RN typeface for preview + HTML prints. */
+  receiptFont?: import('@shared/receiptFonts').ReceiptFontId
 }
 
 /** Format thermal table amounts without ₹ or Indian grouping to preserve column width. */
@@ -521,7 +523,7 @@ export function compileCustomReceiptTextLines(
   paperSize: '58mm' | '80mm' = '58mm',
   opts?: CustomReceiptGstOpts
 ): string[] {
-  const width = getCols(paperSize)
+  const width = getCols(paperSize, undefined, opts?.receiptFont)
   const lines: string[] = []
   const globalItemWiseGst = opts?.itemWiseGst
   const wrapCompactNames = resolveCompactTableWrap(opts, template)
@@ -662,8 +664,9 @@ export function compileCustomReceiptHtml(
     gstStyle: opts?.gstStyle,
     showTaxBreakdown: opts?.showTaxBreakdown,
     isRestaurant: opts?.isRestaurant,
+    receiptFont: opts?.receiptFont,
   }
-  const cols = getCols(paperSize)
+  const cols = getCols(paperSize, undefined, opts?.receiptFont)
   const wrapCompactNames = resolveCompactTableWrap(opts, template)
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
   const hasEnabledImageBlock = enabledEntries.some((e) => e.type === 'image')
@@ -843,7 +846,7 @@ export async function appendCustomTemplateToEscPos(
   paperSize: '58mm' | '80mm' = '58mm',
   opts?: CustomReceiptGstOpts & { fallbackLogoUrl?: string; showLogo?: boolean }
 ): Promise<void> {
-  const width = getCols(paperSize)
+  const width = getCols(paperSize, undefined, opts?.receiptFont)
   const showLogo = opts?.showLogo ?? true
   const globalItemWiseGst = opts?.itemWiseGst
   const wrapCompactNames = resolveCompactTableWrap(opts, template)
@@ -854,6 +857,7 @@ export async function appendCustomTemplateToEscPos(
     isRestaurant: opts?.isRestaurant,
     receiptLogoSize: opts?.receiptLogoSize,
     receiptQrSize: opts?.receiptQrSize,
+    receiptFont: opts?.receiptFont,
   }
   const fallbackLogo = showLogo ? (data.storeLogoUrl || opts?.fallbackLogoUrl) : undefined
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)

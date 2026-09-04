@@ -5,6 +5,7 @@ import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { resolveStoreLogoUrl, resolveSettingsFooterMessage } from '@/utils/receiptLogo';
 import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
+import type { ReceiptFontId } from '@shared/receiptFonts';
 import type { UserProfile } from '@/types/auth';
 
 /** Local invoice number used on the receipt while the server assigns the real one in the background. */
@@ -20,6 +21,8 @@ export function buildReceiptPrintOptions(input: {
   topMargin: number;
   autoCut: boolean;
   fontSize: 'small' | 'medium' | 'large';
+  receiptFont?: ReceiptFontId;
+  compactMode?: boolean;
   printCopies: number;
   storeName?: string;
   storeAddress?: string;
@@ -43,6 +46,8 @@ export function buildReceiptPrintOptions(input: {
     topMargin: input.topMargin,
     autoCut: input.autoCut,
     fontSize: input.fontSize,
+    receiptFont: input.receiptFont,
+    compactMode: input.compactMode,
     copies: input.printCopies,
     storeName: input.storeName,
     storeAddress: input.storeAddress,
@@ -128,6 +133,8 @@ export function buildTestReceiptPrintOptions(input: {
   topMargin: number;
   autoCut: boolean;
   fontSize: 'small' | 'medium' | 'large';
+  receiptFont?: ReceiptFontId;
+  compactMode?: boolean;
   receiptLogoSize?: ReceiptSizeChip;
   receiptQrSize?: ReceiptSizeChip;
   settings: SettingsLike;
@@ -148,6 +155,8 @@ export function buildTestReceiptPrintOptions(input: {
     topMargin: input.topMargin,
     autoCut: input.autoCut,
     fontSize: input.fontSize,
+    receiptFont: input.receiptFont,
+    compactMode: input.compactMode,
     printCopies: input.copies ?? 1,
     storeName: input.settings?.businessName || undefined,
     storeAddress: input.settings?.businessAddress || undefined,

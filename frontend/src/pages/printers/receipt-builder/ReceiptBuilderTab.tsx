@@ -25,6 +25,7 @@ import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 import type { GstBillingFormState } from '@/hooks/useGstBillingSettings'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
 import type { CustomReceiptGstOpts } from '@/utils/customReceiptEngine'
+import { GstPrintDisplaySection } from '@/pages/printers/GstPrintDisplaySection'
 
 export interface ReceiptBuilderTabHandle {
   runTestPrint: () => Promise<void>
@@ -36,6 +37,8 @@ interface ReceiptBuilderTabProps {
   bleConnected?: boolean
   /** Local receipt fields from Printers page (may include unsaved logo). */
   receiptConfigOverride?: Partial<ReceiptConfig>
+  /** Unsaved font from Printers page — used for preview + test print before Save. */
+  receiptFont?: import('@shared/receiptFonts').ReceiptFontId | string | null
   previewGstOpts?: CustomReceiptGstOpts
   gstForm?: GstBillingFormState
   onGstStyleChange?: (style: GstBreakdownStyle) => void
@@ -50,6 +53,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     connectionType = 'system_driver',
     bleConnected = false,
     receiptConfigOverride,
+    receiptFont,
     previewGstOpts,
     gstForm,
     onGstStyleChange,
@@ -142,8 +146,12 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
   }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId, user, isRestaurant])
 
   const gstOpts = useMemo(
-    () => ({ ...previewGstOpts, isRestaurant }),
-    [previewGstOpts, isRestaurant]
+    () => ({
+      ...previewGstOpts,
+      isRestaurant,
+      receiptFont: receiptFont ?? previewGstOpts?.receiptFont ?? settings?.printerConfig?.receiptFont,
+    }),
+    [previewGstOpts, isRestaurant, receiptFont, settings?.printerConfig?.receiptFont]
   )
 
   const updateDraft = useCallback((updater: (tpl: CustomReceiptTemplate) => CustomReceiptTemplate) => {
@@ -209,6 +217,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
         connectionType,
         bleConnected,
         isRestaurant,
+        receiptFont: receiptFont ?? settings?.printerConfig?.receiptFont,
       })
       toast.success('Test print sent')
     } catch (e) {
@@ -227,6 +236,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     storeUpiId,
     t,
     isRestaurant,
+    receiptFont,
   ])
 
   useImperativeHandle(ref, () => ({ runTestPrint: handleTestPrint }), [handleTestPrint])
@@ -251,7 +261,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/30 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="text-indigo-600" size={20} />
+          <Sparkles className="text-indigo-600 dark:text-indigo-400" size={20} />
           <div>
             <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">{t('printers.receiptBuilder.title') || 'Custom Receipt Builder'}</h2>
             <p className="text-[11px] text-gray-600 dark:text-gray-400">{t('printers.receiptBuilder.subtitle')}</p>
@@ -302,9 +312,9 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
       />
 
       {isRestaurant ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/40 dark:border-indigo-800/70 px-3 py-2.5 text-xs text-indigo-950 dark:text-indigo-100">
           Restaurant & Cafe uses the <span className="font-bold">Restaurant Bill</span> template by default — compact{' '}
-          <span className="font-mono">ITEM | QTY | AMT</span> columns with bill, table, and waiter lines.
+          <span className="font-mono text-indigo-800 dark:text-indigo-200">ITEM | QTY | AMT</span> columns with bill, table, and waiter lines.
           {activeCustomTemplateId && customTemplates.find((t) => t.id === activeCustomTemplateId && isRestaurantReceiptTemplate(t))
             ? ' This template is active for checkout.'
             : ' Activate it from the list above to use at checkout.'}
@@ -330,7 +340,11 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
                     key={w}
                     type="button"
                     onClick={() => updateDraft((t) => ({ ...t, paperWidth: w }))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${working.paperWidth === w ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500' : 'border-gray-200 dark:border-dark-border-strong'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      working.paperWidth === w
+                        ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500 dark:text-white'
+                        : 'border-gray-200 dark:border-dark-border-strong text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-elevated hover:border-blue-400/60'
+                    }`}
                   >
                     {w}
                   </button>
@@ -350,7 +364,11 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
                   key={mode.id}
                   type="button"
                   onClick={() => setEditorMode(mode.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${editorMode === mode.id ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500' : 'border-gray-200 dark:border-dark-border-strong'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                    editorMode === mode.id
+                      ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500 dark:text-white'
+                      : 'border-gray-200 dark:border-dark-border-strong text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-elevated hover:border-blue-400/60'
+                  }`}
                 >
                   {mode.label}
                 </button>

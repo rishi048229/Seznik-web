@@ -63,7 +63,7 @@ function ReceiptLogoImage({
 export function CustomReceiptPreview({ template, context, gstOpts, className = '' }: CustomReceiptPreviewProps) {
   const paperWidth = template.paperWidth || '58mm'
   const paperMax = getReceiptPreviewMaxWidth(paperWidth)
-  const fontStyle = getReceiptPreviewFontStyle(paperWidth)
+  const fontStyle = getReceiptPreviewFontStyle(paperWidth, gstOpts?.receiptFont)
   const logoUrl = context.storeLogoUrl
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
   const hasEnabledImageBlock = enabledEntries.some((e) => e.type === 'image')

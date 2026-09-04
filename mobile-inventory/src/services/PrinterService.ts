@@ -29,6 +29,12 @@ import {
   type ReceiptQrSize,
   type ReceiptSizeChip,
 } from '@shared/receiptPrintGeometry';
+import {
+  receiptFontCols,
+  receiptFontCssFamily,
+  receiptFontEscPosType,
+  resolveReceiptFontId,
+} from '@shared/receiptFonts';
 import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/receiptLogo';
 import { rasterizeReceiptLogoForPrint, clearLogoRasterCache } from '../utils/receiptLogoRaster';
 import { isRestaurantBusiness } from '../constants/businessTypes';
@@ -212,6 +218,10 @@ export interface ReceiptPrintOptions {
   /** Feeds + cuts after printing, via the native printText `cut` option — no-op on printers without a cutter. */
   autoCut?: boolean;
   fontSize?: 'small' | 'medium' | 'large';
+  /** Shared receipt font library — maps to ESC/POS fonttype + HTML/CSS family. */
+  receiptFont?: import('@shared/receiptFonts').ReceiptFontId;
+  /** Paper-saving compact layout (invoice + date on one line). */
+  compactMode?: boolean;
   /** Number of times to print the same receipt (e.g. customer + merchant copy). */
   copies?: number;
   storeName?: string;
@@ -1546,7 +1556,7 @@ class ThermalPrinterServiceManager {
     }
     const showBreakdown = effectiveShowTaxBreakdown(template, options, data);
     const showItemGst = effectiveShowItemGst(options, showBreakdown);
-    const COLS = paperWidth === '58mm' ? 32 : 48;
+    const COLS = receiptFontCols(paperWidth, options?.receiptFont);
 
     const wrapProse = (text: string, width: number, center = false): string[] => {
       const trimmed = (text || '').trim();
@@ -1651,8 +1661,12 @@ class ThermalPrinterServiceManager {
     lines.push(divider('=', COLS));
 
     // ── 2. META DETAILS ──
-    lines.push(row('Bill No :', data.invoiceNumber, COLS));
-    lines.push(row('Date    :', data.date, COLS));
+    if (options.compactMode) {
+      lines.push(row(`Inv:#${data.invoiceNumber}`, data.date, COLS));
+    } else {
+      lines.push(row('Bill No :', data.invoiceNumber, COLS));
+      lines.push(row('Date    :', data.date, COLS));
+    }
     if (template.showCustomerLine && custName) {
       lines.push(row('Customer:', custName, COLS));
       if (custPhone) {
@@ -2195,6 +2209,7 @@ class ThermalPrinterServiceManager {
     const widthPx = paperWidth === '58mm' ? '280px' : '380px';
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
     const topMarginPx = (options.topMargin || 0) * 10;
+    const cssFont = receiptFontCssFamily(options.receiptFont);
     const billPdfUrl = buildBillPdfUrl(data);
     const showBreakdown =
       options.showTaxBreakdown !== undefined
@@ -2392,7 +2407,7 @@ class ThermalPrinterServiceManager {
               padding-right: 16px;
               padding-top: 10px;
               padding-bottom: 10px;
-              font-family: 'Courier New', Courier, monospace;
+              font-family: ${cssFont};
               font-size: ${fontSize};
               color: #000;
               background: #fff;
@@ -2621,6 +2636,7 @@ class ThermalPrinterServiceManager {
     const effectiveQrSize = options.receiptQrSize;
     const widthStyle = `max-width: ${widthPx};`;
     const fontSize = paperWidth === '58mm' ? '12px' : '14px';
+    const cssFont = receiptFontCssFamily(options.receiptFont);
 
     const text = this.formatReceiptText(data, paperWidth, options);
     const textLines = text.split('\n');
@@ -2644,7 +2660,7 @@ class ThermalPrinterServiceManager {
             @page { size: ${effectivePaperWidth} auto; margin: 2mm 1mm 8mm 1mm; }
             * { box-sizing: border-box; }
             body {
-              font-family: 'Courier New', Courier, monospace;
+              font-family: ${cssFont};
               font-size: ${fontSize};
               line-height: 1.25;
               margin: 0 auto;
@@ -2662,7 +2678,7 @@ class ThermalPrinterServiceManager {
           <div style="text-align: center; margin-bottom: 6px;">
             <img src="${data.storeLogoUrl}" style="max-height: ${logo.maxHeight}px; max-width: ${logo.maxWidth}px; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />
           </div>` : ''}
-          ${textLines.map((l) => `<div style="white-space: pre; overflow: hidden; width: 100%; font-family: 'Courier New', Courier, monospace;">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
+          ${textLines.map((l) => `<div style="white-space: pre; overflow: hidden; width: 100%; font-family: ${cssFont};">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
           ${upiImgUrl ? `
           <div style="text-align: center; margin-top: 10px; padding: 6px 0; border-top: 1px dashed #000; display: block;">
             <div style="font-size: 10px; font-weight: 900; margin-bottom: 4px; letter-spacing: 0.5px;">SCAN TO PAY VIA UPI</div>
@@ -4273,6 +4289,11 @@ class ThermalPrinterServiceManager {
       options.receiptQrSize || printerState.receiptQrSize || 'medium';
     const effectiveFontSize =
       options.fontSize || printerState.fontSize || 'medium';
+    const effectiveReceiptFont = resolveReceiptFontId(
+      options.receiptFont || printerState.receiptFont
+    );
+    const effectiveCompactMode =
+      options.compactMode !== undefined ? options.compactMode : !!printerState.compactMode;
     const effectiveTopMargin =
       options.topMargin !== undefined ? options.topMargin : printerState.topMargin || 0;
     const effectiveAutoCut =
@@ -4285,6 +4306,8 @@ class ThermalPrinterServiceManager {
       receiptLogoSize: effectiveLogoSize,
       receiptQrSize: effectiveQrSize,
       fontSize: effectiveFontSize,
+      receiptFont: effectiveReceiptFont,
+      compactMode: effectiveCompactMode,
       topMargin: effectiveTopMargin,
       autoCut: effectiveAutoCut,
       copies: effectiveCopies,
@@ -4327,7 +4350,12 @@ class ThermalPrinterServiceManager {
           // Height-only bump for "large" — doubling width blows past 32/48 cols and shoves
           // space-padded lines toward the right edge of 58mm paper.
           const scaleH = effectiveOptions.fontSize === 'large' ? 1 : 0;
-          const printOptions = { widthtimes: 0, heigthtimes: scaleH, cut: false };
+          const printOptions = {
+            widthtimes: 0,
+            heigthtimes: scaleH,
+            cut: false,
+            fonttype: receiptFontEscPosType(effectiveOptions.receiptFont),
+          };
 
           const logoPrepared = saleData.storeLogoUrl
             ? await this.prepareLogoForEscPos(
@@ -4363,11 +4391,7 @@ class ThermalPrinterServiceManager {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
                 }
-                await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', {
-                  widthtimes: 0,
-                  heigthtimes: 0,
-                  cut: false,
-                });
+                await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', printOptions);
                 await NativeEscposPrinter.printQRCode(upiString, this.receiptQrDots(effectivePaperWidth, effectiveQrSize), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
@@ -4468,13 +4492,15 @@ class ThermalPrinterServiceManager {
     await this.initPrinter(paperWidth);
 
     const paperSizeDots = paperWidth === '80mm' ? 80 : 58;
-    const widthCols = paperWidth === '58mm' ? 32 : 48;
+    const widthCols = receiptFontCols(paperWidth, options.receiptFont);
+    const escPosFontType = receiptFontEscPosType(options.receiptFont);
     const logoReadyTemplate = ensureTemplateHasLogoBlock(customTemplate, data.storeLogoUrl);
     const fontBump = options.fontSize === 'large' ? 1 : 0;
+    const baseTextOpts = { widthtimes: 0, heigthtimes: 0, cut: false, fonttype: escPosFontType };
 
     const topMargin = Math.max(0, options.topMargin || 0);
     if (topMargin > 0) {
-      await NativeEscposPrinter.printText('\n'.repeat(topMargin), { widthtimes: 0, heigthtimes: 0, cut: false });
+      await NativeEscposPrinter.printText('\n'.repeat(topMargin), baseTextOpts);
     }
 
     const padLine = (left: string, right: string) => {
@@ -4569,7 +4595,7 @@ class ThermalPrinterServiceManager {
               scaleH = 1;
             }
           }
-          await NativeEscposPrinter.printText(cleanText + '\n', { widthtimes: Math.min(1, scaleW + fontBump), heigthtimes: Math.min(1, scaleH + fontBump), cut: false });
+          await NativeEscposPrinter.printText(cleanText + '\n', { widthtimes: Math.min(1, scaleW + fontBump), heigthtimes: Math.min(1, scaleH + fontBump), cut: false, fonttype: escPosFontType });
           break;
         }
 
@@ -4578,7 +4604,7 @@ class ThermalPrinterServiceManager {
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
           }
-          await NativeEscposPrinter.printText(char.repeat(widthCols) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          await NativeEscposPrinter.printText(char.repeat(widthCols) + '\n', { ...baseTextOpts });
           break;
         }
 
@@ -4599,7 +4625,7 @@ class ThermalPrinterServiceManager {
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
           }
-          await NativeEscposPrinter.printText(padLine(left, right) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          await NativeEscposPrinter.printText(padLine(left, right) + '\n', { ...baseTextOpts });
           break;
         }
 
@@ -4609,36 +4635,36 @@ class ThermalPrinterServiceManager {
           }
           const itemCol = entry.columnHeaders?.item || 'Item';
           const totalCol = entry.columnHeaders?.total || 'Total';
-          await NativeEscposPrinter.printText(padLine(itemCol, totalCol) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
-          await NativeEscposPrinter.printText('-'.repeat(widthCols) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          await NativeEscposPrinter.printText(padLine(itemCol, totalCol) + '\n', { ...baseTextOpts });
+          await NativeEscposPrinter.printText('-'.repeat(widthCols) + '\n', { ...baseTextOpts });
 
           for (let idx = 0; idx < data.items.length; idx++) {
             const item = data.items[idx];
             const namePrefix = resolveShowItemNumbers(entry, isRestaurant) ? `${idx + 1}. ` : '';
             const rawName = String(item.productName || 'Item');
             if (namePrefix.length + rawName.length <= widthCols) {
-              await NativeEscposPrinter.printText(namePrefix + rawName + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              await NativeEscposPrinter.printText(namePrefix + rawName + '\n', { ...baseTextOpts });
             } else {
               const maxFirst = Math.max(1, widthCols - namePrefix.length);
-              await NativeEscposPrinter.printText(namePrefix + rawName.slice(0, maxFirst) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              await NativeEscposPrinter.printText(namePrefix + rawName.slice(0, maxFirst) + '\n', { ...baseTextOpts });
               const rem = rawName.slice(maxFirst);
-              if (rem) await NativeEscposPrinter.printText('   ' + rem.slice(0, Math.max(1, widthCols - 3)) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              if (rem) await NativeEscposPrinter.printText('   ' + rem.slice(0, Math.max(1, widthCols - 3)) + '\n', { ...baseTextOpts });
             }
 
             if ((showItemGst || entry.showTaxColumn) && item.gstRate) {
               const gstLabel = formatItemGstRate(item.gstRate);
-              if (gstLabel) await NativeEscposPrinter.printText(`   ${gstLabel} GST\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
+              if (gstLabel) await NativeEscposPrinter.printText(`   ${gstLabel} GST\n`, { ...baseTextOpts });
             }
 
             await NativeEscposPrinter.printText(
               padLine(`   ${item.quantity} ${item.unit || 'Pc'} x ${item.unitPrice.toFixed(2)}`, item.total.toFixed(2)) + '\n',
-              { widthtimes: 0, heigthtimes: 0, cut: false }
+              { ...baseTextOpts }
             );
 
             if (shouldShowItemDiscount(item.discount)) {
               await NativeEscposPrinter.printText(
                 `   Disc: -Rs.${item.discount!.toFixed(2)}\n`,
-                { widthtimes: 0, heigthtimes: 0, cut: false }
+                { ...baseTextOpts }
               );
             }
           }
@@ -4653,7 +4679,7 @@ class ThermalPrinterServiceManager {
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(alignCode(entry.align));
           }
-          await NativeEscposPrinter.printText(joined + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+          await NativeEscposPrinter.printText(joined + '\n', { ...baseTextOpts });
           break;
         }
 
@@ -4683,11 +4709,7 @@ class ThermalPrinterServiceManager {
                 entry.value?.includes('{{upi_qr}}') ||
                 Boolean(entry.upiId);
               if (isUpi) {
-                await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', {
-                  widthtimes: 0,
-                  heigthtimes: 0,
-                  cut: false,
-                });
+                await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', { ...baseTextOpts });
               }
               const qrDots = this.receiptQrDots(
                 paperWidth,
@@ -4695,17 +4717,17 @@ class ThermalPrinterServiceManager {
               );
               await NativeEscposPrinter.printQRCode(rawVal.trim(), qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
               if (entry.showText) {
-                await NativeEscposPrinter.printText(rawVal.trim() + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+                await NativeEscposPrinter.printText(rawVal.trim() + '\n', { ...baseTextOpts });
               } else {
-                await NativeEscposPrinter.printText('\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+                await NativeEscposPrinter.printText('\n', { ...baseTextOpts });
               }
             } catch (qrErr) {
               console.warn('Thermal print QR code failed:', qrErr);
             }
           } else {
-            await NativeEscposPrinter.printText(`* ${rawVal.trim()} *\n`, { widthtimes: 0, heigthtimes: 0, cut: false });
+            await NativeEscposPrinter.printText(`* ${rawVal.trim()} *\n`, { ...baseTextOpts });
             if (entry.showText) {
-              await NativeEscposPrinter.printText(rawVal.trim() + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+              await NativeEscposPrinter.printText(rawVal.trim() + '\n', { ...baseTextOpts });
             }
           }
           break;
@@ -4716,11 +4738,11 @@ class ThermalPrinterServiceManager {
             await NativeEscposPrinter.printerAlign(alignCode(entry.align));
           }
           if (entry.title) {
-            await NativeEscposPrinter.printText(this.sanitizeForThermalPrint(entry.title) + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            await NativeEscposPrinter.printText(this.sanitizeForThermalPrint(entry.title) + '\n', { ...baseTextOpts });
           }
           const content = this.sanitizeForThermalPrint(this.interpolateReceiptVariables(entry.content, data));
           for (const l of content.split('\n')) {
-            await NativeEscposPrinter.printText(l + '\n', { widthtimes: 0, heigthtimes: 0, cut: false });
+            await NativeEscposPrinter.printText(l + '\n', { ...baseTextOpts });
           }
           break;
         }

@@ -96,8 +96,8 @@ export function A4InvoiceTab({
                   onClick={() => setConfig(prev => applyA4TemplateDefaults(prev, item.id))}
                   className={`text-left rounded-xl border p-3 transition-colors ${
                     active
-                      ? 'border-slate-900 dark:border-white bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                      : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-bg/40 hover:border-slate-400'
+                      ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
+                      : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-blue-400/60'
                   }`}
                 >
                   <p className={`text-[10px] font-semibold uppercase tracking-wider ${active ? 'opacity-70' : 'text-slate-400'}`}>

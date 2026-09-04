@@ -382,7 +382,7 @@ export const FAQ_DATA: FaqEntry[] = [
       gu: 'રસીદ લેઆઉટ કેવી રીતે કસ્ટમાઈઝ કરવું?',
     },
     answer: {
-      en: 'Go to **Printers** page → **Receipt** tab. You can customize:\n• Company Name & Address\n• Phone Number & GSTIN\n• Logo (show/hide)\n• Footer Message\n• Terms & Conditions lines\n• Paper Width (58mm / 80mm)\n• Font Size (small/medium/large)\n• Show/hide barcode, customer details, etc.\n\nAll changes are saved to the database and persist across sessions.',
+      en: 'Go to **Printers** page → **Receipt** tab. You can customize:\n• Company Name & Address\n• Phone Number & GSTIN\n• Logo (show/hide)\n• Footer Message\n• Terms & Conditions lines\n• Paper Width (58mm / 80mm)\n• Font Size (small/medium/large)\n• Compact mode (shorter paper-saving layout)\n• Receipt Font (Classic Mono, Modern Mono, Clean Sans, Business Sans, Readable Sans, Book Serif, Formal Serif — synced with the mobile app)\n• Show/hide barcode, customer details, etc.\n\nAll changes are saved to the database and persist across sessions.',
       hi: '**प्रिंटर्स** पेज → **रसीद** टैब पर जाएं। आप कस्टमाइज़ कर सकते हैं:\n• कंपनी का नाम और पता\n• फोन नंबर और GSTIN\n• लोगो\n• फुटर मैसेज\n• नियम और शर्तें',
       mr: '**प्रिंटर्स** पेज → **पावती** टॅबवर जा. तुम्ही सानुकूलित करू शकता:\n• कंपनी नाव आणि पत्ता\n• फोन आणि GSTIN\n• लोगो',
       ta: '**அச்சுப்பொறிகள்** பக்கம் → **ரசீது** டேப்புக்கு செல்லவும்.',

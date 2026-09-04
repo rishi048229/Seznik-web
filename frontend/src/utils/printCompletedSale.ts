@@ -36,6 +36,8 @@ export const printCompletedSale = async (args: {
         sale,
         receiptConfig,
         paperSize,
+        printerConfig: settings?.printerConfig,
+        receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,

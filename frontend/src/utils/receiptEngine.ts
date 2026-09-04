@@ -2,6 +2,7 @@ import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
 import { formatItemGstRate } from '@shared/receiptPrintGeometry'
+import { receiptFontCharWidthDots, receiptFontCols, type ReceiptFontId } from '@shared/receiptFonts'
 import { gstSummaryFromCart } from '@/utils/gst'
 import { toPrinterSafeText } from './escpos'
 
@@ -35,6 +36,8 @@ export interface CompileReceiptParams {
   dateLabel?: string
   paperSize?: '58mm' | '80mm' | string
   widthDots?: number
+  /** Shared receipt font library id — paper column width for Font A bill fonts. */
+  receiptFont?: ReceiptFontId
   pricesIncludeGst?: boolean
   cashierName?: string
   isDuplicate?: boolean
@@ -49,12 +52,13 @@ export interface CompileReceiptParams {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Derives column width: 32 for 58mm (384 dots), 48 for 80mm (576 dots)
+ * Derives column width from paper size (Font A bill fonts: 32 @ 58mm / 48 @ 80mm).
  */
-export function getCols(paperSize?: string, widthDots?: number): number {
-  if (widthDots && widthDots > 0) return Math.floor(widthDots / 12)
-  if (paperSize === '80mm') return 48
-  return 32
+export function getCols(paperSize?: string, widthDots?: number, receiptFont?: ReceiptFontId): number {
+  if (widthDots && widthDots > 0) {
+    return Math.floor(widthDots / receiptFontCharWidthDots(receiptFont))
+  }
+  return receiptFontCols(paperSize === '80mm' ? '80mm' : '58mm', receiptFont)
 }
 
 /**
@@ -337,6 +341,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     dateLabel,
     paperSize = '58mm',
     widthDots,
+    receiptFont,
     pricesIncludeGst = true,
     cashierName,
     isDuplicate = false,
@@ -345,7 +350,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     isRestaurant,
   } = params
 
-  const COLS = getCols(paperSize, widthDots)
+  const COLS = getCols(paperSize, widthDots, receiptFont)
   const lines: string[] = []
 
   // Extract all user customization switches

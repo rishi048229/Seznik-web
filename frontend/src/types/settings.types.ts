@@ -134,6 +134,11 @@ export interface PrinterConfig {
   showCustomerDetails: boolean
   showBarcode: boolean
   fontSize: 'small' | 'medium' | 'large'
+  /**
+   * Receipt typeface from the shared font library (mono / sans / serif families).
+   * Synced web ↔ mobile via printerConfig; drives preview + HTML print CSS.
+   */
+  receiptFont?: 'classic' | 'modern' | 'clean' | 'business' | 'readable' | 'serif' | 'formal'
 
   // Barcode Label Sticker Format — the layout itself is a user-editable list
   // of elements (labelTemplate); these are the label-wide settings that apply

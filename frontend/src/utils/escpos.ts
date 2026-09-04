@@ -25,9 +25,10 @@ export class EscPosBuilder {
     return this
   }
 
-  init(paperSize: '58mm' | '80mm' = '58mm'): this {
+  init(paperSize: '58mm' | '80mm' = '58mm', fontType: 0 | 1 = 0): this {
     this.push(ESC, 0x40) // ESC @ — Reset printer to default state
-    this.push(ESC, 0x4d, 0x00) // ESC M 0 — Select Font A (12x24 dots: 48 cols on 80mm / 32 cols on 58mm)
+    // ESC M n — Font A (0, 12×24) or Font B (1, 9×17). Driven by PrinterConfig.receiptFont.
+    this.push(ESC, 0x4d, fontType === 1 ? 0x01 : 0x00)
     this.push(GS, 0x4c, 0x00, 0x00) // GS L 0 0 — Set left margin to 0 dots
     if (paperSize === '80mm') {
       this.push(GS, 0x57, 0x40, 0x02) // GS W 576 (0x0240) — Set hardware printable area width to 576 dots (80mm)
@@ -35,6 +36,11 @@ export class EscPosBuilder {
       this.push(GS, 0x57, 0x80, 0x01) // GS W 384 (0x0180) — Set hardware printable area width to 384 dots (58mm)
     }
     return this
+  }
+
+  /** ESC M n — switch character font mid-job (0 = Font A, 1 = Font B). */
+  setCharacterFont(fontType: 0 | 1): this {
+    return this.push(ESC, 0x4d, fontType === 1 ? 0x01 : 0x00)
   }
 
   align(align: EscPosAlign): this {

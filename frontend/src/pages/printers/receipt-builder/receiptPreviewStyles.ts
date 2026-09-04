@@ -1,13 +1,20 @@
-export const RECEIPT_PREVIEW_FONT_FAMILY =
-  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+import {
+  receiptFontCssFamily,
+  DEFAULT_RECEIPT_FONT,
+  type ReceiptFontId,
+} from '@shared/receiptFonts'
 
-export function getReceiptPreviewFontStyle(paperWidth: '58mm' | '80mm') {
+export const RECEIPT_PREVIEW_FONT_FAMILY = receiptFontCssFamily(DEFAULT_RECEIPT_FONT)
+
+export function getReceiptPreviewFontStyle(
+  paperWidth: '58mm' | '80mm',
+  receiptFont?: ReceiptFontId | null
+) {
   return {
-    fontFamily: RECEIPT_PREVIEW_FONT_FAMILY,
+    fontFamily: receiptFontCssFamily(receiptFont),
     fontSize: paperWidth === '80mm' ? '10.5px' : '10px',
     lineHeight: 1.35,
-    fontVariantNumeric: 'tabular-nums' as const,
-  }
+  } as const
 }
 
 export function getReceiptPreviewMaxWidth(paperWidth: '58mm' | '80mm') {

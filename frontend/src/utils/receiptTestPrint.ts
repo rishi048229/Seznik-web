@@ -83,6 +83,8 @@ interface RunReceiptTemplateTestPrintParams {
   connectionType: 'bluetooth' | 'system_driver'
   bleConnected: boolean
   isRestaurant?: boolean
+  /** Unsaved Printers-page selection — preferred over settings.printerConfig.receiptFont. */
+  receiptFont?: import('@shared/receiptFonts').ReceiptFontId | string | null
 }
 
 export async function runReceiptTemplateTestPrint({
@@ -104,6 +106,7 @@ export async function runReceiptTemplateTestPrint({
   connectionType,
   bleConnected,
   isRestaurant,
+  receiptFont,
 }: RunReceiptTemplateTestPrintParams): Promise<'ble' | 'browser'> {
   const mergedReceipt = resolveEffectiveReceiptConfig(settings, {
     ...receiptConfig,
@@ -123,6 +126,8 @@ export async function runReceiptTemplateTestPrint({
     ...(logoForPrint ? { logoURL: logoForPrint } : {}),
   }
   const effectivePaper = (template?.paperWidth || paperSize) as '58mm' | '80mm'
+  const printerConfig = settings?.printerConfig
+  const effectiveReceiptFont = receiptFont ?? printerConfig?.receiptFont
   const identity = {
     businessName: businessName || mergedReceipt.companyName || settings?.businessName,
     businessAddress: businessAddress || mergedReceipt.address || settings?.businessAddress,
@@ -139,6 +144,8 @@ export async function runReceiptTemplateTestPrint({
       sale,
       receiptConfig: effectiveConfig,
       paperSize: effectivePaper,
+      printerConfig,
+      receiptFont: effectiveReceiptFont,
       ...identity,
       customerName,
       templateOverride: template ?? undefined,
@@ -152,6 +159,8 @@ export async function runReceiptTemplateTestPrint({
   const receiptHTML = generateReceiptHTML({
     sale,
     receiptConfig: effectiveConfig,
+    printerConfig,
+    receiptFont: effectiveReceiptFont,
     ...identity,
     customerName: customerName || SAMPLE_RECEIPT_CONTEXT.customerName,
     width: effectivePaper === '80mm' ? '80mm' : '50mm',

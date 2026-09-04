@@ -66,6 +66,12 @@ import { useTranslation } from '@/store/useLanguageStore';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
 import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
+import {
+  DEFAULT_RECEIPT_FONT,
+  RECEIPT_FONT_LIBRARY,
+  receiptFontRnFamily,
+  type ReceiptFontId,
+} from '@shared/receiptFonts';
 
 // Stable sample product for label test-prints — module-level so it isn't rebuilt every render;
 // same values printTestLabel's own internal default uses.
@@ -124,6 +130,8 @@ export default function PrintersScreen() {
     setActiveCustomTemplate,
     enableBillQrCode,
     setEnableBillQrCode,
+    compactMode,
+    setCompactMode,
     setReceiptLogoSize,
     setReceiptQrSize,
   } = usePrinterStore();
@@ -191,6 +199,7 @@ export default function PrintersScreen() {
   const [printDensityVal, setPrintDensityVal] = useState(5);
   const [autoCutVal, setAutoCutVal] = useState(true);
   const [fontSizeVal, setFontSizeVal] = useState<'small' | 'medium' | 'large'>('medium');
+  const [receiptFontVal, setReceiptFontVal] = useState<ReceiptFontId>(DEFAULT_RECEIPT_FONT);
   const [receiptLogoSizeVal, setReceiptLogoSizeVal] = useState<ReceiptSizeChip>('medium');
   const [receiptQrSizeVal, setReceiptQrSizeVal] = useState<ReceiptSizeChip>('medium');
   const [printCopiesVal, setPrintCopiesVal] = useState(1);
@@ -225,6 +234,7 @@ export default function PrintersScreen() {
       setPrintDensityVal(s.printDensity);
       setAutoCutVal(s.autoCut);
       setFontSizeVal(s.fontSize);
+      setReceiptFontVal(s.receiptFont || DEFAULT_RECEIPT_FONT);
       setReceiptLogoSizeVal(s.receiptLogoSize);
       setReceiptQrSizeVal(s.receiptQrSize);
       setPrintCopiesVal(s.printCopies);
@@ -402,6 +412,7 @@ export default function PrintersScreen() {
         autoCut: autoCutVal,
         printCopies: printCopiesVal,
         fontSize: fontSizeVal,
+        receiptFont: receiptFontVal,
         receiptLogoSize: receiptLogoSizeVal,
         receiptQrSize: receiptQrSizeVal,
         labelPaperMode,
@@ -446,6 +457,8 @@ export default function PrintersScreen() {
     topMargin: topMarginVal,
     autoCut: autoCutVal,
     fontSize: fontSizeVal,
+    receiptFont: receiptFontVal,
+    compactMode,
     receiptLogoSize: receiptLogoSizeVal,
     receiptQrSize: receiptQrSizeVal,
     settings,
@@ -1328,6 +1341,72 @@ export default function PrintersScreen() {
                 </View>
               </View>
 
+              {/* Compact Mode — paper-saving sizing layout */}
+              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Compact</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                    Shorter receipts — packs invoice/date on one line to save paper
+                  </Text>
+                </View>
+                <Switch
+                  value={compactMode}
+                  onValueChange={(v) => {
+                    setCompactMode(v).catch(() => {});
+                  }}
+                  trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              {/* Receipt Font Library */}
+              <View style={[styles.stepperCardStacked, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt Font</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                    Synced with web. Mono, sans, and serif families for previews and HTML prints.
+                  </Text>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {RECEIPT_FONT_LIBRARY.map((font) => {
+                    const active = receiptFontVal === font.id;
+                    return (
+                      <TouchableOpacity
+                        key={font.id}
+                        onPress={() => setReceiptFontVal(font.id)}
+                        style={[
+                          styles.fontLibraryChip,
+                          {
+                            borderColor: active ? BRAND_COLORS.blue600 : theme.borderColor,
+                            backgroundColor: active ? 'rgba(37, 99, 235, 0.08)' : theme.bg,
+                          },
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: '800',
+                              color: theme.textPrimary,
+                              fontFamily: receiptFontRnFamily(font.id, Platform.OS),
+                              flex: 1,
+                            }}
+                          >
+                            {font.label}
+                          </Text>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: theme.textSecondary, textTransform: 'uppercase' }}>
+                            {font.family}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2, lineHeight: 15 }}>
+                          {font.description}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
               {/* Logo Size */}
               <View style={[styles.stepperCardStacked, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ marginBottom: 10 }}>
@@ -1782,6 +1861,12 @@ const styles = StyleSheet.create({
   widthChipActive: { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
   widthChipText: { fontSize: 11.5, fontWeight: '800', color: '#64748B', textAlign: 'center' },
   widthChipTextActive: { color: '#FFFFFF' },
+  fontLibraryChip: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   stepBtn: { width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: BRAND_COLORS.slate200, alignItems: 'center', justifyContent: 'center' },
   stepVal: { fontSize: 13, fontWeight: '800', marginHorizontal: 10 },
   dragRow: { borderRadius: 14, padding: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', marginBottom: 8 },

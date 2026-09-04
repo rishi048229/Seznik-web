@@ -307,11 +307,11 @@ export const RealisticReceiptModal = ({
           sale: payload.sale,
           receiptConfig: payload.receiptConfig,
           paperSize: receipt.paperSize,
+          printerConfig: settings?.printerConfig,
+          receiptFont: settings?.printerConfig?.receiptFont,
           businessName: receipt.businessName,
           businessAddress: receipt.businessAddress,
           customerName: receipt.customerName,
-          customerPhone: receipt.customerPhone,
-          dateLabel: receipt.date,
           businessLogoURL: receipt.logoURL,
           invoiceConfig: settings?.invoiceConfig,
         })

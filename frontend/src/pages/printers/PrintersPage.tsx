@@ -48,6 +48,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ReceiptLivePreview } from './components/ReceiptLivePreview'
 import { A4InvoiceTab } from './components/A4InvoiceTab'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { RECEIPT_FONT_LIBRARY } from '@shared/receiptFonts'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import { isRestaurantBusiness } from '@/constants/businessTypes'
 import {
@@ -85,6 +86,7 @@ const defaultPrinterConfig: PrinterConfig = {
   showCustomerDetails: true,
   showBarcode: true,
   fontSize: 'medium',
+  receiptFont: 'classic',
 
   labelWidth: 50,
   labelHeight: 30,
@@ -504,8 +506,9 @@ export const PrintersPage = () => {
       itemWiseGst: resolved.itemWiseGst,
       isRestaurant,
       receiptQrSize: receiptConfig.receiptQrSize,
+      receiptFont: config.receiptFont,
     }
-  }, [gstForm, receiptConfig.receiptQrSize, isRestaurant])
+  }, [gstForm, receiptConfig.receiptQrSize, isRestaurant, config.receiptFont])
 
   const handleTestPrint = async () => {
     if (activeTab === 'receiptBuilder') {
@@ -559,6 +562,7 @@ export const PrintersPage = () => {
             sale: testSale as any,
             receiptConfig: effectiveReceiptConfig,
             paperSize: config.paperSize,
+            receiptFont: config.receiptFont,
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
           })
@@ -575,6 +579,8 @@ export const PrintersPage = () => {
       const receiptHTML = generateReceiptHTML({
         sale: testSale as any,
         receiptConfig: effectiveReceiptConfig,
+        printerConfig: config,
+        receiptFont: config.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName: 'Sample Customer',
@@ -653,11 +659,11 @@ export const PrintersPage = () => {
   if (isLoading) return <SettingsPageSkeleton />
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="space-y-6 pb-16 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Page Header */}
       <div className="flex flex-col gap-1">
         <PageHeader
-          title="Printers & Invoicing"
+          title="Printers"
           subtitle="Configure thermal receipts, barcode labels, and A4 invoices"
           tutorialKey="printers"
           onWatchTutorial={pageTutorial.openTutorial}
@@ -676,7 +682,7 @@ export const PrintersPage = () => {
                 onClick={handleSaveClick}
                 loading={saving}
                 disabled={isError}
-                className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-white flex items-center gap-2 text-xs sm:text-sm shadow-sm"
+                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 text-white flex items-center gap-2 text-xs sm:text-sm shadow-sm"
               >
                 <Save size={16} />
                 Save
@@ -745,7 +751,7 @@ export const PrintersPage = () => {
               className={`mt-2 p-2 rounded-xl text-xs flex items-center gap-2 ${
                 linkPulse === 'connected'
                   ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200'
-                  : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'
+                  : 'bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300'
               }`}
             >
               <StatusDot on={linkPulse === 'connected'} />
@@ -784,13 +790,17 @@ export const PrintersPage = () => {
             onClick={() => setActiveTab(t.key)}
             className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors duration-150 ${
               activeTab === t.key
-                ? 'bg-white dark:bg-dark-bg text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-blue-600 dark:text-white dark:shadow-none'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-dark-elevated/60'
             }`}
           >
             <t.icon size={15} />
             <span>{t.label}</span>
-            <span className={`hidden sm:inline text-[11px] font-medium ${activeTab === t.key ? 'text-slate-400' : 'text-slate-400/80'}`}>
+            <span className={`hidden sm:inline text-[11px] font-medium ${
+              activeTab === t.key
+                ? 'text-slate-400 dark:text-blue-100/80'
+                : 'text-slate-400/80 dark:text-slate-500'
+            }`}>
               {t.hint}
             </span>
           </button>
@@ -833,33 +843,60 @@ export const PrintersPage = () => {
                           onClick={() => setConfig(prev => ({ ...prev, paperSize: size }))}
                           className={`flex-1 py-2 px-3 ${chipClass(config.paperSize === size)}`}
                         >
-                          {size === '58mm' ? '2" (58mm)' : '3" (80mm)'}
+                          {size}
                         </button>
                       ))}
                     </div>
+                    <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                      Use 58mm for 2-inch rolls, 80mm for 3-inch rolls.
+                    </p>
                   </div>
 
                   <div>
                     <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                      Print Destination
-                      <FieldInfo textKey="tip.printer.connectionType" />
+                      After checkout, print to
+                      <FieldInfo textKey="tip.printer.printDestination" />
                     </label>
-                    <div className="flex gap-2">
-                      {([
-                        { id: 'system_driver', label: 'System Driver' },
-                        { id: 'bluetooth', label: 'Bluetooth' },
-                      ] as const).map(t => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setConfig(prev => ({ ...prev, connectionType: t.id }))}
-                          className={`flex-1 py-2 px-3 ${chipClass(config.connectionType === t.id)}`}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
+                    <select
+                      value={config.connectionType}
+                      onChange={(e) => setConfig(prev => ({ ...prev, connectionType: e.target.value as 'bluetooth' | 'system_driver' }))}
+                      className={fieldClass}
+                    >
+                      <option value="bluetooth">Bluetooth printer</option>
+                      <option value="system_driver">Browser print dialog</option>
+                    </select>
+                    <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                      {bleState.status === 'connected'
+                        ? `Bluetooth is connected${bleState.deviceName ? ` (${bleState.deviceName})` : ''}.`
+                        : 'Bluetooth is off — connect above, or keep browser print as the fallback.'}
+                    </p>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Shorter receipts</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Hides extra lines so a small bill uses less paper.</p>
+                  </div>
+                  <Switch
+                    checked={receiptConfig.compactMode ?? false}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, compactMode: v }))}
+                    label="Compact"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-slate-100 dark:border-dark-border px-4 py-3 bg-slate-50/70 dark:bg-dark-elevated/40">
+                  <Switch
+                    checked={config.autoPrintOnSale}
+                    onChange={v => setConfig(prev => ({ ...prev, autoPrintOnSale: v }))}
+                    label="Print receipt automatically after checkout"
+                    info={<FieldInfo textKey="tip.printer.autoPrintOnSale" />}
+                  />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 pb-1 -mt-1">
+                    {config.autoPrintOnSale
+                      ? 'Bluetooth prints in the background when connected. You can still pick A4, thermal, or skip from the print panel.'
+                      : 'After checkout you will choose thermal, A4, Bluetooth, or skip.'}
+                  </p>
                 </div>
 
                 <div>
@@ -876,6 +913,45 @@ export const PrintersPage = () => {
                         className={`flex-1 py-2 px-3 capitalize ${chipClass(config.fontSize === size)}`}
                       >
                         {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                    Receipt Font
+                    <FieldInfo textKey="tip.printer.receiptFont" />
+                  </label>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2">
+                    Synced with the mobile app. Mono, sans, and serif families for previews and HTML prints.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {RECEIPT_FONT_LIBRARY.map(font => (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, receiptFont: font.id }))}
+                        className={`text-left py-2.5 px-3 rounded-xl border transition-colors ${
+                          (config.receiptFont || 'classic') === font.id
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500/30'
+                            : 'border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2 mb-0.5">
+                          <span
+                            className="block text-sm font-semibold text-gray-900 dark:text-gray-100"
+                            style={{ fontFamily: font.cssFamily }}
+                          >
+                            {font.label}
+                          </span>
+                          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-gray-400">
+                            {font.family}
+                          </span>
+                        </span>
+                        <span className="block text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                          {font.description}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1262,6 +1338,7 @@ export const PrintersPage = () => {
                   cutPaper={false}
                   activeTemplate={activeCustomTemplate}
                   isRestaurant={isRestaurant}
+                  receiptFont={config.receiptFont}
                 />
               </Section>
             </div>
@@ -1276,6 +1353,7 @@ export const PrintersPage = () => {
           connectionType={config.connectionType}
           bleConnected={bleState.status === 'connected'}
           receiptConfigOverride={receiptConfig}
+          receiptFont={config.receiptFont}
           previewGstOpts={previewGstOpts}
           gstForm={gstForm}
           onGstStyleChange={setGstStyle}
@@ -1309,12 +1387,12 @@ export const PrintersPage = () => {
                       onClick={() => setConfig(prev => ({ ...prev, labelTemplate: opt.preset }))}
                       className={`text-left py-2.5 px-3 rounded-xl text-xs transition-colors border ${
                         active
-                          ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                          ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
                           : 'border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-card/60 hover:bg-slate-100 text-slate-800 dark:text-slate-200'
                       }`}
                     >
                       <div className="font-semibold">{opt.title}</div>
-                      <div className={`text-[10px] mt-0.5 ${active ? 'text-slate-300 dark:text-slate-600' : 'text-slate-500'}`}>
+                      <div className={`text-[10px] mt-0.5 ${active ? 'text-blue-100' : 'text-slate-500'}`}>
                         {opt.hint}
                       </div>
                     </button>
