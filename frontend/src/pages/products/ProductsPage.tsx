@@ -53,7 +53,7 @@ import {
   RECEIPT_LABEL_GAP_MM,
   type LabelRotation,
   snapLabelPreset,
-  labelContentCssTransform,
+  labelContentBoxMm,
 } from '@/utils/labelSizes'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
@@ -614,7 +614,7 @@ export const ProductsPage = () => {
           body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; text-align: center; }
           .grid { display: flex; flex-direction: column; align-items: center; gap: ${RECEIPT_LABEL_GAP_MM}mm; }
           .sticker { width: ${widthMm}mm; height: ${heightMm}mm; border: 1px dashed #ccc; box-sizing: border-box; page-break-inside: avoid; overflow: hidden; position: relative; }
-          .sticker-content { width: 100%; height: 100%; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; transform-origin: center center; transform: ${labelContentCssTransform(labelRotation, widthMm, heightMm, `translate(${offX}mm, ${offY}mm)`)}; }
+          .sticker-content { width: ${labelContentBoxMm(labelRotation, widthMm, heightMm).width}mm; height: ${labelContentBoxMm(labelRotation, widthMm, heightMm).height}mm; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: stretch; position: absolute; left: 50%; top: 50%; transform-origin: center center; transform: translate(-50%, -50%) ${labelRotation ? `rotate(${labelRotation}deg)` : ''} translate(${offX}mm, ${offY}mm); }
         </style>
       </head>
       <body>
@@ -2080,15 +2080,14 @@ export const ProductsPage = () => {
                 }}
               >
                 <div
-                  className="absolute inset-0 p-3.5 flex flex-col justify-start items-stretch gap-1"
+                  className="absolute p-2.5 flex flex-col justify-center items-stretch gap-1"
                   style={{
+                    width: labelContentBoxMm(labelRotation, 260, Math.max(110, Math.round(260 * (labelHeight / labelWidth)))).width,
+                    height: labelContentBoxMm(labelRotation, 260, Math.max(110, Math.round(260 * (labelHeight / labelWidth)))).height,
+                    left: '50%',
+                    top: '50%',
                     transformOrigin: 'center center',
-                    transform: labelContentCssTransform(
-                      labelRotation,
-                      labelWidth,
-                      labelHeight,
-                      `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
-                    ),
+                    transform: `translate(-50%, -50%)${labelRotation ? ` rotate(${labelRotation}deg)` : ''} translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
                   }}
                 >
                 {activeLabelTemplate.map((el: LabelElement) => {
@@ -2101,8 +2100,9 @@ export const ProductsPage = () => {
                   }
 
                   if (el.type === 'sideBySideBarcodeQr') {
+                    const stacked = labelRotation === 90 || labelRotation === 270
                     return (
-                      <div key={el.id} className="flex items-center justify-between w-full my-1 gap-1">
+                      <div key={el.id} className={`flex items-center justify-center w-full my-1 gap-1 ${stacked ? 'flex-col' : ''}`}>
                         <div className="flex-1 flex flex-col items-center justify-center">
                           <canvas ref={canvasRef} className="my-0.5 max-w-full h-auto" />
                         </div>
@@ -2137,7 +2137,7 @@ export const ProductsPage = () => {
                   }
                   const text = resolveElementText(el, labelData)
                   if (!text) return null
-                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1 font-bold text-gray-900 dark:text-white' : ''
+                  const priceExtra = el.type === 'price' ? 'font-bold text-gray-900 dark:text-white' : ''
                   return (
                     <div
                       key={el.id}

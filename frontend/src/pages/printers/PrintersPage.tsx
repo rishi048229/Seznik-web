@@ -47,7 +47,7 @@ import {
   LABEL_SIZE_PRESETS,
   LABEL_ROTATIONS,
   snapLabelPreset,
-  labelContentCssTransform,
+  labelContentBoxMm,
   type LabelRotation,
 } from '@/utils/labelSizes'
 import {
@@ -1537,15 +1537,22 @@ export const PrintersPage = () => {
                   }}
                 >
                 <div
-                  className="absolute inset-0 p-3.5 flex flex-col justify-start gap-1"
+                  className="absolute p-2.5 flex flex-col justify-center gap-1"
                   style={{
-                    transformOrigin: 'center center',
-                    transform: labelContentCssTransform(
+                    width: labelContentBoxMm(
                       (config.labelRotation ?? 0) as LabelRotation,
-                      config.labelWidth,
-                      config.labelHeight,
-                      `translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
-                    ),
+                      Math.min(config.labelWidth * 4.5, 280),
+                      Math.min(config.labelHeight * 4.5, 220),
+                    ).width,
+                    height: labelContentBoxMm(
+                      (config.labelRotation ?? 0) as LabelRotation,
+                      Math.min(config.labelWidth * 4.5, 280),
+                      Math.min(config.labelHeight * 4.5, 220),
+                    ).height,
+                    left: '50%',
+                    top: '50%',
+                    transformOrigin: 'center center',
+                    transform: `translate(-50%, -50%)${(config.labelRotation ?? 0) ? ` rotate(${config.labelRotation}deg)` : ''} translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
                   }}
                 >
                   {labelTemplate.map(el => {
@@ -1586,11 +1593,10 @@ export const PrintersPage = () => {
                     }
 
                     const text = resolveElementText(el, labelData)
-                    const priceExtra = el.type === 'price' ? 'mt-auto pt-1' : ''
                     return (
                       <div
                         key={el.id}
-                        className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass} ${priceExtra}`}
+                        className={`${alignClass} truncate ${el.bold ? 'font-bold' : ''} ${fontClass}`}
                       >
                         {text}
                       </div>

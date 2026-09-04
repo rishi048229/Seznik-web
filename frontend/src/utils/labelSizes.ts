@@ -32,18 +32,26 @@ export const snapLabelPreset = (width: number, height: number): LabelSizePreset 
 }
 
 /**
- * Rotate content inside the original sticker box. 90° / 270° is scaled so the
- * artwork stays inside the same W × H instead of overflowing the sticker.
+ * Content box for 90° / 270° is the swapped sticker size. Rotating that box
+ * fills the original W × H without shrinking barcodes or clipping the QR.
  */
-export const labelContentCssTransform = (
+export const labelContentBoxMm = (
   rotation: LabelRotation,
   width: number,
   height: number,
+) => {
+  if (rotation === 90 || rotation === 270) return { width: height, height: width }
+  return { width, height }
+}
+
+/** Rotate the (already swapped) content box. Do not scale — reflow handles fit. */
+export const labelContentCssTransform = (
+  rotation: LabelRotation,
+  _width?: number,
+  _height?: number,
   extra = '',
 ) => {
   if (rotation === 0) return extra || 'none'
-  const swapped = rotation === 90 || rotation === 270
-  const scale = swapped ? Math.min(width / height, height / width) : 1
-  const rotateScale = `rotate(${rotation}deg)${scale === 1 ? '' : ` scale(${scale})`}`
-  return extra ? `${extra} ${rotateScale}` : rotateScale
+  const rotate = `rotate(${rotation}deg)`
+  return extra ? `${extra} ${rotate}` : rotate
 }
