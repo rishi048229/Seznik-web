@@ -89,10 +89,17 @@ describe('label alignment and dual QR', () => {
     expect(y + size).toBeLessThanOrEqual(240)
   })
 
-  it('keeps the classic compact dual row: 28-dot bars beside an 8mm QR', () => {
+  it('prints a full-height dual barcode beside the QR, not a squashed 28-dot strip', () => {
     const text = decode(generateLabelTspl(PRESET_RETAIL_DUAL_CODE, 'CODE128', sample, 50, 30))
-    expect(text).toMatch(/BARCODE \d+,\d+,"128",28,/)
+    expect(text).toMatch(/BARCODE \d+,\d+,"128",56,/)
     expect(text).toMatch(/QRCODE \d+,\d+,L,3,A,0,/)
+  })
+
+  it('keeps a full-height barcode on 90° dual labels', () => {
+    const text = decode(generateLabelTspl(PRESET_RETAIL_DUAL_CODE, 'CODE128', sample, 50, 30, 0, 0, 30, 0, 0, 90))
+    expect(text).toMatch(/BARCODE \d+,\d+,"128",56,/)
+    expect(text).toContain('QRCODE')
+    expect(text).toMatch(/TEXT \d+,\d+,"\d+",90,/)
   })
 
   it('prints both barcode and QR on ESC/POS dual labels', () => {
