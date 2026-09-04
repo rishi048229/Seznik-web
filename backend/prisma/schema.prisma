@@ -26,6 +26,7 @@ model User {
   isBanned  Boolean   @default(false)
   banReason String?
   bannedAt  DateTime?
+  seznikUser Boolean  @default(false)
 
   // Relations for managed users (if needed in backend, otherwise stored as JSON)
   // To keep it 1:1 with Firestore subcollections, we can create a separate ManagedUser model
@@ -559,6 +560,36 @@ model KOTOrderItem {
   updatedAt   DateTime @updatedAt
 
   @@index([orderId])
+}
+
+/// Admin-generated unique alphanumeric access codes (7 chars) for distribution / redemption.
+model AccessCode {
+  id        String   @id @default(uuid())
+  code      String   @unique @db.VarChar(7)
+  batchId   String
+  note      String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([batchId])
+  @@index([createdAt])
+}
+
+/// Customer-support portal agents managed from the admin Support Access page.
+model SupportAgent {
+  id           String    @id @default(uuid())
+  name         String
+  phone        String
+  email        String    @unique
+  username     String    @unique
+  passwordHash String
+  isDisabled   Boolean   @default(false)
+  createdBy    String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([isDisabled])
 }
 
 /// Hourly aggregated API usage for admin analytics (feature × route × method × businessType).

@@ -362,10 +362,88 @@ export function mapUserRows(rows) {
     isBanned: Boolean(u.isBanned),
     banReason: u.banReason || '',
     bannedAt: u.bannedAt || undefined,
+    seznikUser: Boolean(u.seznikUser),
     createdAt: u.createdAt,
     lastUpdatedAt: u.updatedAt || u.createdAt,
     lastLoginAt: u.updatedAt || u.createdAt,
   }));
+}
+
+/** Ensure User.seznikUser exists (admin can run before backend migration is applied). */
+export async function ensureSeznikUserColumn(pool) {
+  await pool.query(`
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "seznikUser" BOOLEAN NOT NULL DEFAULT false
+  `);
+}
+
+export async function computeSeznikUserCounts(pool) {
+  await ensureSeznikUserColumn(pool);
+  try {
+    const res = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE "seznikUser" = true)::int AS seznik_count,
+        COUNT(*) FILTER (WHERE "seznikUser" = false)::int AS non_seznik_count,
+        COUNT(*)::int AS total
+      FROM "User"
+    `);
+    const row = res.rows[0] || {};
+    return {
+      seznikUserCount: row.seznik_count || 0,
+      nonSeznikUserCount: row.non_seznik_count || 0,
+      totalUsers: row.total || 0,
+    };
+  } catch {
+    return { seznikUserCount: 0, nonSeznikUserCount: 0, totalUsers: 0 };
+  }
+}
+
+/**
+ * Summary cards for Section Analytics page.
+ * activeUserCount = distinct merchants with ≥1 sale in window (all-time = all distinct sale users).
+ */
+export async function computeSectionsSummary(pool, timeRange = 'all') {
+  const intervals = getTimeIntervals(timeRange);
+  const isAllTime = (timeRange || '').toLowerCase() === 'all';
+
+  const [apiCalls, topFeatures, salesRes, seznik] = await Promise.all([
+    computeTotalApiCalls(pool, timeRange),
+    computeRealTopFeatures(pool, timeRange),
+    pool.query(metricsSalesQuery(intervals)).catch(() => ({ rows: [{}] })),
+    computeSeznikUserCounts(pool),
+  ]);
+
+  const sales = salesRes.rows[0] || {};
+  const activeUserCount = isAllTime
+    ? sales.total_active_merchants || 0
+    : sales.active_invoicing_users_window || 0;
+
+  const totalApiCalls = apiCalls.totalApiCalls || 0;
+  const avgApiCallsPerUser =
+    activeUserCount > 0
+      ? Math.round((totalApiCalls / activeUserCount) * 10) / 10
+      : 0;
+
+  const top = topFeatures.find((f) => f.viewCount > 0) || topFeatures[0] || null;
+  const mostUsedApi = top
+    ? {
+        id: top.id,
+        sectionName: top.sectionName,
+        apiRoute: top.apiRoute || top.path,
+        viewCount: top.viewCount || 0,
+        percentageShare: top.percentageShare || 0,
+      }
+    : null;
+
+  return {
+    totalApiCalls,
+    totalApiCallsTrend: apiCalls.totalApiCallsTrend || 0,
+    activeUserCount,
+    avgApiCallsPerUser,
+    mostUsedApi,
+    seznikUserCount: seznik.seznikUserCount,
+    nonSeznikUserCount: seznik.nonSeznikUserCount,
+    timeRange,
+  };
 }
 
 export function buildMetricsResponse({

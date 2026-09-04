@@ -10,6 +10,14 @@ import type {
   HealthCheckResult,
   FeedbackListResponse,
   BusinessProfileSummary,
+  AccessCodeListResponse,
+  AccessCodeBatchListResponse,
+  AccessCodeGenerateResponse,
+  AccessCodeRecord,
+  SectionsSummary,
+  SupportAgentListResponse,
+  SupportAgentCreateResponse,
+  SupportAgentRecord,
 } from '../types/admin';
 
 function isLocalDev(): boolean {
@@ -66,6 +74,22 @@ async function postAdminEndpoint<T>(path: string, body?: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function deleteAdminEndpoint<T>(path: string): Promise<T> {
+  const url = `${getAdminApiBase()}${path}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    notifyUnauthorized(response.status);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error || `Request failed (HTTP ${response.status})`);
+  }
+
+  return (await response.json()) as T;
+}
+
 export async function fetchDashboardMetrics(timeRange: string = 'all'): Promise<DashboardMetrics> {
   const data = await fetchAdminEndpoint<any>(`/metrics?timeRange=${encodeURIComponent(timeRange)}`);
   return {
@@ -103,6 +127,10 @@ export async function fetchUserRecords(timeRange: string = 'all'): Promise<UserR
 
 export async function fetchSectionUsage(timeRange: string = 'all'): Promise<SectionUsage[]> {
   return await fetchAdminEndpoint<SectionUsage[]>(`/sections?timeRange=${encodeURIComponent(timeRange)}`);
+}
+
+export async function fetchSectionsSummary(timeRange: string = 'all'): Promise<SectionsSummary> {
+  return await fetchAdminEndpoint<SectionsSummary>(`/sections/summary?timeRange=${encodeURIComponent(timeRange)}`);
 }
 
 export async function fetchBusinessProfiles(timeRange: string = 'all'): Promise<BusinessProfileSummary[]> {
@@ -205,6 +233,10 @@ export async function unbanUser(userId: string | number): Promise<any> {
   return postAdminEndpoint(`/users/${encodeURIComponent(String(userId))}/unban`);
 }
 
+export async function setSeznikUser(userId: string | number, seznikUser: boolean): Promise<any> {
+  return postAdminEndpoint(`/users/${encodeURIComponent(String(userId))}/seznik`, { seznikUser });
+}
+
 function getBackendHealthUrl(): string {
   if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
     return '/api/pos-health';
@@ -265,4 +297,71 @@ export async function fetchFeedbackRecords(params: {
   if (params.search) searchParams.set('search', params.search);
   const qs = searchParams.toString();
   return fetchAdminEndpoint<FeedbackListResponse>(`/feedback${qs ? `?${qs}` : ''}`);
+}
+
+export async function generateAccessCodes(count: number, shipmentName: string): Promise<AccessCodeGenerateResponse> {
+  return postAdminEndpoint<AccessCodeGenerateResponse>('/access-codes/generate', {
+    count,
+    note: shipmentName.trim(),
+  });
+}
+
+export async function fetchAccessCodes(params: {
+  page?: number;
+  limit?: number;
+  batchId?: string;
+  search?: string;
+} = {}): Promise<AccessCodeListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.page) searchParams.set('page', String(params.page));
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  if (params.batchId) searchParams.set('batchId', params.batchId);
+  if (params.search) searchParams.set('search', params.search);
+  const qs = searchParams.toString();
+  return fetchAdminEndpoint<AccessCodeListResponse>(`/access-codes${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchAccessCodeBatches(params: {
+  page?: number;
+  limit?: number;
+} = {}): Promise<AccessCodeBatchListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.page) searchParams.set('page', String(params.page));
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  const qs = searchParams.toString();
+  return fetchAdminEndpoint<AccessCodeBatchListResponse>(`/access-codes/batches${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchAccessCodesByBatch(batchId: string): Promise<{
+  batchId: string;
+  count: number;
+  codes: AccessCodeRecord[];
+}> {
+  return fetchAdminEndpoint(`/access-codes/batch/${encodeURIComponent(batchId)}`);
+}
+
+export async function fetchSupportAgents(): Promise<SupportAgentListResponse> {
+  return fetchAdminEndpoint<SupportAgentListResponse>('/support-agents');
+}
+
+export async function createSupportAgent(payload: {
+  name: string;
+  phone: string;
+  email: string;
+  username: string;
+  password: string;
+}): Promise<SupportAgentCreateResponse> {
+  return postAdminEndpoint<SupportAgentCreateResponse>('/support-agents', payload);
+}
+
+export async function disableSupportAgent(id: string): Promise<{ success: boolean; agent: SupportAgentRecord }> {
+  return postAdminEndpoint(`/support-agents/${encodeURIComponent(id)}/disable`);
+}
+
+export async function enableSupportAgent(id: string): Promise<{ success: boolean; agent: SupportAgentRecord }> {
+  return postAdminEndpoint(`/support-agents/${encodeURIComponent(id)}/enable`);
+}
+
+export async function revokeSupportAgent(id: string): Promise<{ success: boolean; id: string }> {
+  return deleteAdminEndpoint(`/support-agents/${encodeURIComponent(id)}`);
 }

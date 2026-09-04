@@ -6,6 +6,8 @@ import type { BusinessProfileSummary, SectionUsage } from '../types/admin';
 
 interface BusinessProfileAnalyticsProps {
   timeRange?: string;
+  /** When true, omit the standalone page heading (used inside Sections tab). */
+  embedded?: boolean;
 }
 
 const PROFILE_COLORS: Record<string, string> = {
@@ -17,6 +19,7 @@ const PROFILE_COLORS: Record<string, string> = {
 
 export const BusinessProfileAnalytics: React.FC<BusinessProfileAnalyticsProps> = ({
   timeRange = 'all',
+  embedded = false,
 }) => {
   const [profiles, setProfiles] = useState<BusinessProfileSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,20 +131,33 @@ export const BusinessProfileAnalytics: React.FC<BusinessProfileAnalyticsProps> =
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div>
-        <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
-          Advanced Analytics by Business Profile
-        </h2>
-        <p style={{ margin: '6px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          API request volume grouped by registered business type. Click a profile to see per-feature usage.
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+            Advanced Analytics by Business Profile
+          </h2>
+          <p style={{ margin: '6px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            API request volume grouped by registered business type. Click a profile to see per-feature usage.
+          </p>
+        </div>
+      )}
+
+      {embedded && (
+        <div>
+          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+            Business Profiles
+          </h3>
+          <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Click a profile to drill into feature usage
+          </p>
+        </div>
+      )}
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '14px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '12px',
         }}
       >
         {profiles.map((profile) => {

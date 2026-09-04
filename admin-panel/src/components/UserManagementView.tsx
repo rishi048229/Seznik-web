@@ -23,7 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { UserRecord } from '../types/admin';
-import { banUser, unbanUser } from '../services/api';
+import { banUser, unbanUser, setSeznikUser } from '../services/api';
 import {
   getRegistrationSource,
   getRegistrationSourceLabel,
@@ -70,6 +70,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   // Local state for tracking real-time ban overrides
   const [bannedMap, setBannedMap] = useState<Record<string | number, { banned: boolean; reason: string }>>({});
+  const [seznikMap, setSeznikMap] = useState<Record<string | number, boolean>>({});
+  const [seznikBusyId, setSeznikBusyId] = useState<string | number | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -125,6 +127,25 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       setActionError(err?.message || 'Failed to unban user on database');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const isSeznikUser = (u: UserRecord) =>
+    seznikMap[u.id] !== undefined ? seznikMap[u.id] : Boolean(u.seznikUser);
+
+  const handleToggleSeznik = async (u: UserRecord) => {
+    const next = !isSeznikUser(u);
+    setSeznikBusyId(u.id);
+    setActionError(null);
+    try {
+      await setSeznikUser(u.id, next);
+      setSeznikMap((prev) => ({ ...prev, [u.id]: next }));
+      if (onRefreshUsers) onRefreshUsers();
+    } catch (err: any) {
+      console.error('Error updating Seznik flag:', err);
+      setActionError(err?.message || 'Failed to update Seznik flag');
+    } finally {
+      setSeznikBusyId(null);
     }
   };
 
@@ -371,13 +392,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <th>Role</th>
               <th>Joined Date</th>
               <th>Account Status</th>
+              <th>Seznik</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {displayedUsers.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                   No merchant users match your search criteria.
                 </td>
               </tr>
@@ -388,6 +410,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 const banReasonText = banInfo?.reason || u.banReason || 'Account suspended by admin';
                 const registrationSource = getRegistrationSource(u.id);
                 const sourceStyle = getRegistrationSourceStyle(registrationSource);
+                const seznik = isSeznikUser(u);
+                const seznikBusy = seznikBusyId === u.id;
 
                 return (
                   <tr key={u.id}>
@@ -464,6 +488,27 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           Unverified
                         </span>
                       )}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleSeznik(u)}
+                        disabled={seznikBusy}
+                        title={seznik ? 'Click to mark as Non-Seznik' : 'Click to mark as Seznik user'}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '4px 10px',
+                          borderRadius: '999px',
+                          border: seznik ? '1px solid rgba(37,99,235,0.4)' : '1px solid var(--border-color)',
+                          background: seznik ? 'rgba(37,99,235,0.12)' : 'var(--bg-main)',
+                          color: seznik ? '#2563EB' : 'var(--text-muted)',
+                          cursor: seznikBusy ? 'wait' : 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {seznikBusy ? '…' : seznik ? 'Seznik' : 'Non-Seznik'}
+                      </button>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
@@ -987,7 +1032,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
 
               {/* Status & Ban Reason */}
-              <div style={{ padding: '14px', borderRadius: '10px', background: isUserBanned ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)', border: `1px solid ${isUserBanned ? 'rgba(244,63,94,0.3)' : 'rgba(16,185,129,0.3)'}`, marginBottom: '20px' }}>
+              <div style={{ padding: '14px', borderRadius: '10px', background: isUserBanned ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)', border: `1px solid ${isUserBanned ? 'rgba(244,63,94,0.3)' : 'rgba(16,185,129,0.3)'}`, marginBottom: '12px' }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isUserBanned ? '#F87171' : '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {isUserBanned ? <ShieldAlert size={16} /> : <UserCheck size={16} />}
                   Account Status: {isUserBanned ? 'BANNED / SUSPENDED' : 'ACTIVE & VERIFIED'}
@@ -997,6 +1042,34 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     Reason: {banReasonText}
                   </p>
                 )}
+              </div>
+
+              <div style={{ padding: '14px', borderRadius: '10px', background: isSeznikUser(u) ? 'rgba(37,99,235,0.08)' : 'var(--bg-main)', border: `1px solid ${isSeznikUser(u) ? 'rgba(37,99,235,0.3)' : 'var(--border-color)'}`, marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isSeznikUser(u) ? '#2563EB' : 'var(--text-muted)' }}>
+                    Seznik User Flag
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    {isSeznikUser(u) ? 'This merchant is marked as a Seznik user' : 'Not marked as a Seznik user'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleSeznik(u)}
+                  disabled={seznikBusyId === u.id}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: isSeznikUser(u) ? '#64748B' : '#2563EB',
+                    color: '#fff',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: seznikBusyId === u.id ? 'wait' : 'pointer',
+                  }}
+                >
+                  {seznikBusyId === u.id ? 'Updating…' : isSeznikUser(u) ? 'Mark Non-Seznik' : 'Mark Seznik'}
+                </button>
               </div>
 
               {/* Profile Actions */}

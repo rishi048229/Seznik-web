@@ -16,6 +16,7 @@ export interface UserRecord {
   isBanned?: boolean;
   banReason?: string;
   bannedAt?: string;
+  seznikUser?: boolean;
 }
 
 export interface UserLoginLog {
@@ -59,6 +60,23 @@ export interface BusinessProfileSummary {
     apiRoute?: string;
     viewCount: number;
   } | null;
+}
+
+export interface SectionsSummary {
+  totalApiCalls: number;
+  totalApiCallsTrend: number;
+  activeUserCount: number;
+  avgApiCallsPerUser: number;
+  mostUsedApi: {
+    id: string;
+    sectionName: string;
+    apiRoute?: string;
+    viewCount: number;
+    percentageShare: number;
+  } | null;
+  seznikUserCount: number;
+  nonSeznikUserCount: number;
+  timeRange: string;
 }
 
 export interface DashboardMetrics {
@@ -191,5 +209,69 @@ export interface FeedbackListResponse {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+export interface AccessCodeRecord {
+  id: string;
+  code: string;
+  batchId: string;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface AccessCodeBatch {
+  batchId: string;
+  count: number;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface AccessCodeListResponse {
+  items: AccessCodeRecord[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AccessCodeBatchListResponse {
+  items: AccessCodeBatch[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AccessCodeGenerateResponse {
+  batchId: string;
+  count: number;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  codes: AccessCodeRecord[];
+}
+
+export interface SupportAgentRecord {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  username: string;
+  isDisabled: boolean;
+  createdBy: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupportAgentListResponse {
+  items: SupportAgentRecord[];
+}
+
+export interface SupportAgentCreateResponse {
+  agent: SupportAgentRecord;
+  password: string;
 }
 

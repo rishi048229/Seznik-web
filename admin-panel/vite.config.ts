@@ -9,6 +9,8 @@ import {
   mapUserRows,
   getUsersWhereClause,
   applyTableAlias,
+  computeSectionsSummary,
+  ensureSeznikUserColumn,
 } from './analyticsShared.js';
 import {
   credentialsMatch,
@@ -20,6 +22,27 @@ import {
   clearSessionCookieHeader,
 } from './lib/adminAuth.js';
 import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
+import {
+  generateAccessCodes,
+  listAccessCodes,
+  listAccessCodeBatches,
+  getAccessCodesByBatch,
+} from './lib/accessCodes.js';
+import {
+  listSupportAgents,
+  createSupportAgent,
+  setSupportAgentDisabled,
+  revokeSupportAgent,
+  authenticateSupportAgent,
+  getSupportAgentById,
+} from './lib/supportAgents.js';
+import {
+  createSupportSessionToken,
+  getSupportSession,
+  supportSessionCookieHeader,
+  clearSupportSessionCookieHeader,
+  isSecureRequest as isSupportSecureRequest,
+} from './lib/supportAuth.js';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -105,6 +128,7 @@ export default defineConfig(({ mode }) => {
             // 1. GET /api/admin/users
             if (pathname === '/api/admin/users') {
               try {
+                await ensureSeznikUserColumn(pool);
                 const usersTimeRange = parsedUrl.searchParams.get('timeRange') || 'all';
                 const whereClause = getUsersWhereClause(usersTimeRange);
                 const result = await pool.query(`
@@ -123,6 +147,7 @@ export default defineConfig(({ mode }) => {
                     COALESCE(u."isBanned", false) as "isBanned",
                     u."banReason",
                     u."bannedAt",
+                    COALESCE(u."seznikUser", false) as "seznikUser",
                     u."createdAt", 
                     u."updatedAt"
                   FROM "User" u
@@ -233,6 +258,37 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
+            // 1d. POST /api/admin/users/:id/seznik
+            const seznikMatch = pathname.match(/^\/api\/admin\/users\/(.+)\/seznik$/);
+            if (seznikMatch && req.method === 'POST') {
+              try {
+                const payload = await readBody();
+                const targetId = decodeURIComponent(seznikMatch[1]);
+                const seznikUser = Boolean(payload.seznikUser);
+                await ensureSeznikUserColumn(pool);
+                const updateRes = await pool.query(
+                  `UPDATE "User"
+                   SET "seznikUser" = $1
+                   WHERE id = $2 OR uid = $2
+                   RETURNING id, email, "displayName", "seznikUser"`,
+                  [seznikUser, targetId]
+                );
+                if (updateRes.rowCount === 0) {
+                  send(404, { error: 'User not found' });
+                  return;
+                }
+                send(200, {
+                  success: true,
+                  message: seznikUser ? 'Marked as Seznik user' : 'Marked as Non-Seznik user',
+                  user: updateRes.rows[0],
+                });
+              } catch (err: any) {
+                console.error('DB error on seznik flag:', err.message);
+                send(500, { error: err.message || 'Failed to update Seznik flag' });
+              }
+              return;
+            }
+
             // 2. GET /api/admin/metrics
             if (pathname === '/api/admin/metrics') {
               try {
@@ -294,6 +350,19 @@ export default defineConfig(({ mode }) => {
                 res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ error: err.message || 'Failed to fetch sections from database' }));
+                return;
+              }
+            }
+
+            // 3a. GET /api/admin/sections/summary
+            if (pathname === '/api/admin/sections/summary') {
+              try {
+                const summary = await computeSectionsSummary(pool, timeRange);
+                send(200, summary);
+                return;
+              } catch (err: any) {
+                console.error('DB error on /api/admin/sections/summary:', err.message);
+                send(500, { error: err.message || 'Failed to fetch sections summary' });
                 return;
               }
             }
@@ -554,6 +623,166 @@ export default defineConfig(({ mode }) => {
                 res.end(JSON.stringify({ error: err.message || 'Failed to fetch feedback from database' }));
                 return;
               }
+            }
+
+            // 10. Access codes — generate / list / batches
+            if (pathname === '/api/admin/access-codes/generate' && req.method === 'POST') {
+              try {
+                const payload = await readBody();
+                const session = getSessionUser(req);
+                const result = await generateAccessCodes(pool, {
+                  count: payload.count,
+                  note: payload.note,
+                  createdBy: session?.userId || getAdminUserId(),
+                });
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on generate access codes:', err.message);
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to generate codes' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/admin/access-codes/batches' && req.method === 'GET') {
+              try {
+                const result = await listAccessCodeBatches(pool, {
+                  page: parsedUrl.searchParams.get('page') || undefined,
+                  limit: parsedUrl.searchParams.get('limit') || undefined,
+                });
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on access-code batches:', err.message);
+                send(500, { error: err?.message || 'Failed to list batches' });
+              }
+              return;
+            }
+
+            const batchCodesMatch = pathname.match(/^\/api\/admin\/access-codes\/batch\/([^/]+)$/);
+            if (batchCodesMatch && req.method === 'GET') {
+              try {
+                const result = await getAccessCodesByBatch(pool, decodeURIComponent(batchCodesMatch[1]));
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on access-code batch:', err.message);
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to fetch batch' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/admin/access-codes' && req.method === 'GET') {
+              try {
+                const result = await listAccessCodes(pool, {
+                  page: parsedUrl.searchParams.get('page') || undefined,
+                  limit: parsedUrl.searchParams.get('limit') || undefined,
+                  batchId: parsedUrl.searchParams.get('batchId') || undefined,
+                  search: parsedUrl.searchParams.get('search') || undefined,
+                });
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on access-codes list:', err.message);
+                send(500, { error: err?.message || 'Failed to list codes' });
+              }
+              return;
+            }
+
+            // 11. Support agents CRUD
+            if (pathname === '/api/admin/support-agents' && req.method === 'GET') {
+              try {
+                const items = await listSupportAgents(pool);
+                send(200, { items });
+              } catch (err: any) {
+                send(500, { error: err?.message || 'Failed to list support agents' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/admin/support-agents' && req.method === 'POST') {
+              try {
+                const payload = await readBody();
+                const session = getSessionUser(req);
+                const result = await createSupportAgent(pool, payload, session?.userId || getAdminUserId());
+                send(200, result);
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to create support agent' });
+              }
+              return;
+            }
+
+            const supportDisableMatch = pathname.match(/^\/api\/admin\/support-agents\/([^/]+)\/disable$/);
+            if (supportDisableMatch && req.method === 'POST') {
+              try {
+                const agent = await setSupportAgentDisabled(pool, decodeURIComponent(supportDisableMatch[1]), true);
+                send(200, { success: true, agent });
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to disable' });
+              }
+              return;
+            }
+
+            const supportEnableMatch = pathname.match(/^\/api\/admin\/support-agents\/([^/]+)\/enable$/);
+            if (supportEnableMatch && req.method === 'POST') {
+              try {
+                const agent = await setSupportAgentDisabled(pool, decodeURIComponent(supportEnableMatch[1]), false);
+                send(200, { success: true, agent });
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to enable' });
+              }
+              return;
+            }
+
+            const supportRevokeMatch = pathname.match(/^\/api\/admin\/support-agents\/([^/]+)$/);
+            if (supportRevokeMatch && req.method === 'DELETE') {
+              try {
+                const result = await revokeSupportAgent(pool, decodeURIComponent(supportRevokeMatch[1]));
+                send(200, result);
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to revoke' });
+              }
+              return;
+            }
+
+            // 12. Support portal auth (public)
+            if (pathname === '/api/support/login' && req.method === 'POST') {
+              try {
+                const payload = await readBody();
+                const agent = await authenticateSupportAgent(pool, String(payload.username || ''), String(payload.password || ''));
+                const token = createSupportSessionToken(agent.id);
+                res.setHeader('Set-Cookie', supportSessionCookieHeader(token, isSupportSecureRequest(req)));
+                send(200, { success: true, agent });
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Login failed' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/support/logout' && req.method === 'POST') {
+              res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+              send(200, { success: true });
+              return;
+            }
+
+            if (pathname === '/api/support/me' && req.method === 'GET') {
+              try {
+                const session = getSupportSession(req);
+                if (!session) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                const agent = await getSupportAgentById(pool, session.agentId);
+                if (!agent) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                if (agent.isDisabled) {
+                  res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+                  send(403, { error: 'Access disabled. Contact an administrator.' });
+                  return;
+                }
+                send(200, { agent });
+              } catch (err: any) {
+                send(500, { error: err?.message || 'Failed to load session' });
+              }
+              return;
             }
 
             next();

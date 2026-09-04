@@ -11,6 +11,8 @@ import {
   mapFeedbackRows,
   computeTotalApiCalls,
   computeBusinessProfiles,
+  computeSectionsSummary,
+  ensureSeznikUserColumn,
 } from '../../analyticsShared.js';
 import { getPool, sendJson, readJsonBody } from '../../lib/adminDb.js';
 import {
@@ -22,6 +24,18 @@ import {
   sessionCookieHeader,
   clearSessionCookieHeader,
 } from '../../lib/adminAuth.js';
+import {
+  generateAccessCodes,
+  listAccessCodes,
+  listAccessCodeBatches,
+  getAccessCodesByBatch,
+} from '../../lib/accessCodes.js';
+import {
+  listSupportAgents,
+  createSupportAgent,
+  setSupportAgentDisabled,
+  revokeSupportAgent,
+} from '../../lib/supportAgents.js';
 
 function pathSegments(req) {
   const rawUrl = req.url || '';
@@ -119,6 +133,7 @@ export default async function handler(req, res) {
     if (method === 'GET' && route === 'users') {
       const timeRange = query.timeRange || 'all';
       const whereClause = getUsersWhereClause(timeRange);
+      await ensureSeznikUserColumn(pool);
       const result = await pool.query(`
         SELECT
           u.id,
@@ -135,6 +150,7 @@ export default async function handler(req, res) {
           COALESCE(u."isBanned", false) as "isBanned",
           u."banReason",
           u."bannedAt",
+          COALESCE(u."seznikUser", false) as "seznikUser",
           u."createdAt",
           u."updatedAt"
         FROM "User" u
@@ -184,6 +200,35 @@ export default async function handler(req, res) {
         message: 'User unbanned successfully',
         user: updateRes.rows[0],
       });
+    }
+
+    const seznikMatch = route.match(/^users\/(.+)\/seznik$/);
+    if (method === 'POST' && seznikMatch) {
+      const targetId = decodeURIComponent(seznikMatch[1]);
+      const payload = await readJsonBody(req);
+      const seznikUser = Boolean(payload.seznikUser);
+      await ensureSeznikUserColumn(pool);
+      const updateRes = await pool.query(
+        `UPDATE "User"
+         SET "seznikUser" = $1
+         WHERE id = $2 OR uid = $2
+         RETURNING id, email, "displayName", "seznikUser"`,
+        [seznikUser, targetId]
+      );
+      if (updateRes.rowCount === 0) {
+        return sendJson(res, 404, { error: 'User not found' });
+      }
+      return sendJson(res, 200, {
+        success: true,
+        message: seznikUser ? 'Marked as Seznik user' : 'Marked as Non-Seznik user',
+        user: updateRes.rows[0],
+      });
+    }
+
+    if (method === 'GET' && route === 'sections/summary') {
+      const timeRange = query.timeRange || 'all';
+      const summary = await computeSectionsSummary(pool, timeRange);
+      return sendJson(res, 200, summary);
     }
 
     if (method === 'GET' && route === 'sections') {
@@ -319,10 +364,78 @@ export default async function handler(req, res) {
       });
     }
 
+    if (method === 'POST' && route === 'access-codes/generate') {
+      const payload = await readJsonBody(req);
+      const session = getSessionUser(req);
+      const result = await generateAccessCodes(pool, {
+        count: payload.count,
+        note: payload.note,
+        createdBy: session?.userId || getAdminUserId(),
+      });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === 'access-codes/batches') {
+      const result = await listAccessCodeBatches(pool, {
+        page: query.page,
+        limit: query.limit,
+      });
+      return sendJson(res, 200, result);
+    }
+
+    const batchCodesMatch = route.match(/^access-codes\/batch\/([^/]+)$/);
+    if (method === 'GET' && batchCodesMatch) {
+      const result = await getAccessCodesByBatch(pool, decodeURIComponent(batchCodesMatch[1]));
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === 'access-codes') {
+      const result = await listAccessCodes(pool, {
+        page: query.page,
+        limit: query.limit,
+        batchId: query.batchId,
+        search: query.search,
+      });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === 'support-agents') {
+      const agents = await listSupportAgents(pool);
+      return sendJson(res, 200, { items: agents });
+    }
+
+    if (method === 'POST' && route === 'support-agents') {
+      const payload = await readJsonBody(req);
+      const session = getSessionUser(req);
+      const result = await createSupportAgent(pool, payload, session?.userId || getAdminUserId());
+      return sendJson(res, 200, result);
+    }
+
+    const supportDisableMatch = route.match(/^support-agents\/([^/]+)\/disable$/);
+    if (method === 'POST' && supportDisableMatch) {
+      const agent = await setSupportAgentDisabled(pool, decodeURIComponent(supportDisableMatch[1]), true);
+      return sendJson(res, 200, { success: true, agent });
+    }
+
+    const supportEnableMatch = route.match(/^support-agents\/([^/]+)\/enable$/);
+    if (method === 'POST' && supportEnableMatch) {
+      const agent = await setSupportAgentDisabled(pool, decodeURIComponent(supportEnableMatch[1]), false);
+      return sendJson(res, 200, { success: true, agent });
+    }
+
+    const supportRevokeMatch = route.match(/^support-agents\/([^/]+)$/);
+    if (method === 'DELETE' && supportRevokeMatch) {
+      const result = await revokeSupportAgent(pool, decodeURIComponent(supportRevokeMatch[1]));
+      return sendJson(res, 200, result);
+    }
+
     return sendJson(res, 404, { error: `Unknown admin route: ${method} /api/admin/${route}` });
   } catch (err) {
     console.error(`Admin API error on /${route}:`, err);
     const message = err instanceof Error ? err.message : 'Request failed';
+    if (err?.statusCode) {
+      return sendJson(res, err.statusCode, { error: message });
+    }
     if (message === 'DATABASE_URL is not set') {
       return sendJson(res, 500, { error: 'DATABASE_URL is not set on Vercel' });
     }

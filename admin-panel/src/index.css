@@ -345,6 +345,34 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   animation: spin-slow 2s linear infinite;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@media (max-width: 960px) {
+  .access-codes-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .sections-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .sections-mid-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .sections-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* ===== GLOBAL DARK MODE INPUT / SELECT / TEXTAREA FIX ===== */
 /* Override any remaining hardcoded inline background-colors on form elements */
 html.dark input,

@@ -9,17 +9,20 @@ import { RedirectsView } from './components/RedirectsView';
 import { TrafficView } from './components/TrafficView';
 import { HealthView } from './components/HealthView';
 import { FeedbackSection } from './components/FeedbackSection';
-import { BusinessProfileAnalytics } from './components/BusinessProfileAnalytics';
+import { AccessCodesView } from './components/AccessCodesView';
+import { SupportAccessView } from './components/SupportAccessView';
 
-const VALID_TABS = ['overview', 'sections', 'analytics', 'users', 'traffic', 'redirects', 'feedback', 'health'];
+const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'feedback', 'codes', 'support', 'health'];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
     const hash = window.location.hash.replace('#', '').trim();
+    if (hash === 'analytics') return 'sections';
     if (hash && VALID_TABS.includes(hash)) {
       return hash;
     }
     const savedTab = localStorage.getItem('admin_active_tab');
+    if (savedTab === 'analytics') return 'sections';
     if (savedTab && VALID_TABS.includes(savedTab)) {
       return savedTab;
     }
@@ -92,7 +95,7 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
   };
 
   const showTimeRange =
-    activeTab === 'overview' || activeTab === 'sections' || activeTab === 'analytics';
+    activeTab === 'overview' || activeTab === 'sections';
 
   return (
     <div className="admin-app-shell">
@@ -152,6 +155,10 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
           <RedirectsView />
         ) : activeTab === 'feedback' ? (
           <FeedbackSection />
+        ) : activeTab === 'codes' ? (
+          <AccessCodesView />
+        ) : activeTab === 'support' ? (
+          <SupportAccessView />
         ) : activeTab === 'sections' ? (
           <SectionUsageSection
             title="Section & Feature Traffic Breakdown"
@@ -161,8 +168,6 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
             hideTimeRangeSelect
             onViewAllSessions={() => {}}
           />
-        ) : activeTab === 'analytics' ? (
-          <BusinessProfileAnalytics timeRange={timeRange} />
         ) : activeTab === 'users' ? (
           <UsersSection initialSearchTerm={selectedUserForProfile} />
         ) : null}

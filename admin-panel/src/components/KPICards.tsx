@@ -59,7 +59,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, onSelectTab }) => {
       subtext: apiTrendLabel,
       icon: Activity,
       color: '#F59E0B',
-      targetTab: 'analytics',
+      targetTab: 'sections',
     },
   ];
 

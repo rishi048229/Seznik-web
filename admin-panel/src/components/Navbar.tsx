@@ -13,7 +13,8 @@ import {
   Menu,
   X,
   LogOut,
-  BarChart3,
+  KeyRound,
+  Headphones,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -113,11 +114,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const tabs = [
     { id: 'overview', label: 'Overview & Metrics', shortLabel: 'Overview', icon: Activity },
     { id: 'sections', label: 'Section Analytics', shortLabel: 'Sections', icon: LayoutGrid },
-    { id: 'analytics', label: 'Advanced Analytics', shortLabel: 'Profiles', icon: BarChart3 },
     { id: 'users', label: 'Registered Users', shortLabel: 'Users', icon: Users },
     { id: 'traffic', label: 'Traffic', shortLabel: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', shortLabel: 'Redirects', icon: ExternalLink },
     { id: 'feedback', label: 'Reviews & Suggestions', shortLabel: 'Reviews', icon: MessageSquare },
+    { id: 'codes', label: 'Access Codes', shortLabel: 'Codes', icon: KeyRound },
+    { id: 'support', label: 'Support Access', shortLabel: 'Support', icon: Headphones },
     { id: 'health', label: 'System Health', shortLabel: 'Health', icon: HeartPulse },
   ];
 
@@ -132,17 +134,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'contain', boxShadow: '0 2px 8px rgba(59,130,246,0.18)', flexShrink: 0 }}
           />
           <div style={{ minWidth: 0 }}>
-            <div className="admin-navbar-title-row">
-              <h1 className="admin-navbar-title">
-                Seznik Admin Panel
-              </h1>
-              <span className="badge badge-active navbar-hide-sm" style={{ fontSize: '0.7rem' }}>
-                <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span> LIVE TELEMETRY
-              </span>
-            </div>
-            <p className="admin-navbar-subtitle">
-              Usage Heatmap • Section Analytics • Merchant Insights
-            </p>
+            <h1 className="admin-navbar-title">
+              Seznik Admin Panel
+            </h1>
           </div>
         </div>
 

@@ -14,8 +14,31 @@ import {
   mapFeedbackRows,
   computeTotalApiCalls,
   computeBusinessProfiles,
+  computeSectionsSummary,
+  ensureSeznikUserColumn,
 } from './analyticsShared.js';
 import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
+import {
+  generateAccessCodes,
+  listAccessCodes,
+  listAccessCodeBatches,
+  getAccessCodesByBatch,
+} from './lib/accessCodes.js';
+import {
+  listSupportAgents,
+  createSupportAgent,
+  setSupportAgentDisabled,
+  revokeSupportAgent,
+  authenticateSupportAgent,
+  getSupportAgentById,
+} from './lib/supportAgents.js';
+import {
+  createSupportSessionToken,
+  getSupportSession,
+  supportSessionCookieHeader,
+  clearSupportSessionCookieHeader,
+  isSecureRequest as isSupportSecureRequest,
+} from './lib/supportAuth.js';
 
 if (typeof process.loadEnvFile === 'function') {
   try {
@@ -81,6 +104,7 @@ app.get('/api/admin/users', async (req, res) => {
   const whereClause = getUsersWhereClause(timeRange);
 
   try {
+    await ensureSeznikUserColumn(pool);
     const result = await pool.query(`
       SELECT 
         u.id, 
@@ -97,6 +121,7 @@ app.get('/api/admin/users', async (req, res) => {
         COALESCE(u."isBanned", false) as "isBanned",
         u."banReason",
         u."bannedAt",
+        COALESCE(u."seznikUser", false) as "seznikUser",
         u."createdAt", 
         u."updatedAt"
       FROM "User" u
@@ -168,6 +193,36 @@ app.post('/api/admin/users/:id/unban', async (req, res) => {
   }
 });
 
+// POST /api/admin/users/:id/seznik
+app.post('/api/admin/users/:id/seznik', async (req, res) => {
+  const targetId = req.params.id;
+  const seznikUser = Boolean(req.body?.seznikUser);
+
+  try {
+    await ensureSeznikUserColumn(pool);
+    const updateRes = await pool.query(
+      `UPDATE "User"
+       SET "seznikUser" = $1
+       WHERE id = $2 OR uid = $2
+       RETURNING id, email, "displayName", "seznikUser"`,
+      [seznikUser, targetId]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      message: seznikUser ? 'Marked as Seznik user' : 'Marked as Non-Seznik user',
+      user: updateRes.rows[0],
+    });
+  } catch (err) {
+    console.error('Error updating seznikUser:', err);
+    res.status(500).json({ error: 'Failed to update Seznik flag' });
+  }
+});
+
 // GET /api/admin/sections
 app.get('/api/admin/sections', async (req, res) => {
   const timeRange = req.query.timeRange || 'all';
@@ -177,6 +232,18 @@ app.get('/api/admin/sections', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/admin/sections:', err);
     res.status(500).json({ error: 'Failed to fetch sections' });
+  }
+});
+
+// GET /api/admin/sections/summary
+app.get('/api/admin/sections/summary', async (req, res) => {
+  const timeRange = req.query.timeRange || 'all';
+  try {
+    const summary = await computeSectionsSummary(pool, timeRange);
+    res.json(summary);
+  } catch (err) {
+    console.error('Error in /api/admin/sections/summary:', err);
+    res.status(500).json({ error: 'Failed to fetch sections summary' });
   }
 });
 
@@ -354,6 +421,152 @@ app.get('/api/admin/feedback', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/admin/feedback:', err);
     res.status(500).json({ error: 'Failed to fetch feedback' });
+  }
+});
+
+// POST /api/admin/access-codes/generate
+app.post('/api/admin/access-codes/generate', async (req, res) => {
+  try {
+    const result = await generateAccessCodes(pool, {
+      count: req.body?.count,
+      note: req.body?.note,
+      createdBy: 'admin',
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Error generating access codes:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to generate codes' });
+  }
+});
+
+// GET /api/admin/access-codes/batches
+app.get('/api/admin/access-codes/batches', async (req, res) => {
+  try {
+    const result = await listAccessCodeBatches(pool, {
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Error listing access code batches:', err);
+    res.status(500).json({ error: 'Failed to list batches' });
+  }
+});
+
+// GET /api/admin/access-codes/batch/:batchId
+app.get('/api/admin/access-codes/batch/:batchId', async (req, res) => {
+  try {
+    const result = await getAccessCodesByBatch(pool, req.params.batchId);
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching batch codes:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to fetch batch' });
+  }
+});
+
+// GET /api/admin/access-codes
+app.get('/api/admin/access-codes', async (req, res) => {
+  try {
+    const result = await listAccessCodes(pool, {
+      page: req.query.page,
+      limit: req.query.limit,
+      batchId: req.query.batchId,
+      search: req.query.search,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Error listing access codes:', err);
+    res.status(500).json({ error: 'Failed to list codes' });
+  }
+});
+
+// GET /api/admin/support-agents
+app.get('/api/admin/support-agents', async (req, res) => {
+  try {
+    const items = await listSupportAgents(pool);
+    res.json({ items });
+  } catch (err) {
+    console.error('Error listing support agents:', err);
+    res.status(500).json({ error: 'Failed to list support agents' });
+  }
+});
+
+// POST /api/admin/support-agents
+app.post('/api/admin/support-agents', async (req, res) => {
+  try {
+    const result = await createSupportAgent(pool, req.body || {}, 'admin');
+    res.json(result);
+  } catch (err) {
+    console.error('Error creating support agent:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to create support agent' });
+  }
+});
+
+// POST /api/admin/support-agents/:id/disable
+app.post('/api/admin/support-agents/:id/disable', async (req, res) => {
+  try {
+    const agent = await setSupportAgentDisabled(pool, req.params.id, true);
+    res.json({ success: true, agent });
+  } catch (err) {
+    console.error('Error disabling support agent:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to disable' });
+  }
+});
+
+// POST /api/admin/support-agents/:id/enable
+app.post('/api/admin/support-agents/:id/enable', async (req, res) => {
+  try {
+    const agent = await setSupportAgentDisabled(pool, req.params.id, false);
+    res.json({ success: true, agent });
+  } catch (err) {
+    console.error('Error enabling support agent:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to enable' });
+  }
+});
+
+// DELETE /api/admin/support-agents/:id
+app.delete('/api/admin/support-agents/:id', async (req, res) => {
+  try {
+    const result = await revokeSupportAgent(pool, req.params.id);
+    res.json(result);
+  } catch (err) {
+    console.error('Error revoking support agent:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to revoke' });
+  }
+});
+
+// POST /api/support/login
+app.post('/api/support/login', async (req, res) => {
+  try {
+    const agent = await authenticateSupportAgent(pool, req.body?.username, req.body?.password);
+    const token = createSupportSessionToken(agent.id);
+    res.setHeader('Set-Cookie', supportSessionCookieHeader(token, isSupportSecureRequest(req)));
+    res.json({ success: true, agent });
+  } catch (err) {
+    console.error('Error on support login:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Login failed' });
+  }
+});
+
+app.post('/api/support/logout', (req, res) => {
+  res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+  res.json({ success: true });
+});
+
+app.get('/api/support/me', async (req, res) => {
+  try {
+    const session = getSupportSession(req);
+    if (!session) return res.status(401).json({ error: 'Unauthorized' });
+    const agent = await getSupportAgentById(pool, session.agentId);
+    if (!agent) return res.status(401).json({ error: 'Unauthorized' });
+    if (agent.isDisabled) {
+      res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+      return res.status(403).json({ error: 'Access disabled. Contact an administrator.' });
+    }
+    res.json({ agent });
+  } catch (err) {
+    console.error('Error on support me:', err);
+    res.status(500).json({ error: 'Failed to load session' });
   }
 });
 
