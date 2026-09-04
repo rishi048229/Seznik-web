@@ -146,7 +146,7 @@ export const ProductsPage = () => {
   const kotFirst = isKotFirstNav(userProfile?.businessType)
   const { data: settings } = useSettings()
   const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
-  const { data: products, isLoading } = useProducts()
+  const { data: products, isLoading, isError: productsError, error: productsErrorDetail, refetch: refetchProducts } = useProducts()
 
   const { data: categories } = useCategories()
   const { data: suppliers } = useSuppliers()
@@ -1103,7 +1103,7 @@ export const ProductsPage = () => {
 
             {isLoading ? (
               <div className="p-4"><TableSkeleton rows={6} columns={7} /></div>
-            ) : viewMode === 'list' ? (
+            ) : productsError ? null : viewMode === 'list' ? (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
@@ -1336,7 +1336,24 @@ export const ProductsPage = () => {
               </div>
             )}
 
-            {!isLoading && filtered.length === 0 && (
+            {!isLoading && productsError && (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400 gap-3">
+                <Package size={48} className="mb-1 opacity-30" />
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                  Couldn’t load products
+                </p>
+                <p className="text-xs max-w-sm text-center">
+                  {productsErrorDetail instanceof Error
+                    ? productsErrorDetail.message
+                    : 'Something went wrong fetching your catalog.'}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => refetchProducts()}>
+                  Try again
+                </Button>
+              </div>
+            )}
+
+            {!isLoading && !productsError && filtered.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <Package size={48} className="mb-4 opacity-30" />
                 <p className="text-sm">{search ? 'No products match your search' : 'No products yet. Add your first product!'}</p>

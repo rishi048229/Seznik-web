@@ -358,6 +358,10 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     grid-template-columns: 1fr !important;
   }
 
+  .access-codes-top-row {
+    grid-template-columns: 1fr !important;
+  }
+
   .sections-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }

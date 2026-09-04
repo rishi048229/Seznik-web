@@ -7,6 +7,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Hash,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import {
   fetchAccessCodeBatches,
+  fetchAccessCodes,
   fetchAccessCodesByBatch,
   generateAccessCodes,
 } from '../services/api';
@@ -74,6 +76,7 @@ export const AccessCodesView: React.FC = () => {
 
   const [batches, setBatches] = useState<AccessCodeBatch[]>([]);
   const [batchTotal, setBatchTotal] = useState(0);
+  const [totalCodes, setTotalCodes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [exportBusyId, setExportBusyId] = useState<string | null>(null);
@@ -86,9 +89,13 @@ export const AccessCodesView: React.FC = () => {
     setLoading(true);
     setListError(null);
     try {
-      const res = await fetchAccessCodeBatches({ page: 1, limit: 100 });
-      setBatches(res.items);
-      setBatchTotal(res.total);
+      const [batchRes, codesRes] = await Promise.all([
+        fetchAccessCodeBatches({ page: 1, limit: 100 }),
+        fetchAccessCodes({ page: 1, limit: 1 }),
+      ]);
+      setBatches(batchRes.items);
+      setBatchTotal(batchRes.total);
+      setTotalCodes(codesRes.total);
     } catch (err: any) {
       setListError(err?.message || 'Failed to load generations');
     } finally {
@@ -185,6 +192,15 @@ export const AccessCodesView: React.FC = () => {
 
   return (
     <div className="admin-page-stack access-codes-page">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) auto',
+          gap: '12px',
+          alignItems: 'stretch',
+        }}
+        className="access-codes-top-row"
+      >
       {/* Generate */}
       <section
         style={{
@@ -193,6 +209,7 @@ export const AccessCodesView: React.FC = () => {
           borderRadius: '14px',
           padding: '18px 20px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          minWidth: 0,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
@@ -325,6 +342,47 @@ export const AccessCodesView: React.FC = () => {
           </div>
         )}
       </section>
+
+      <div
+        style={{
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '14px',
+          padding: '16px 18px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          minWidth: '160px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+            Total codes
+          </span>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: 'rgba(16, 185, 129, 0.12)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Hash size={14} color="#10B981" />
+          </div>
+        </div>
+        <div style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+          {totalCodes.toLocaleString()}
+        </div>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+          Generated all time
+        </span>
+      </div>
+      </div>
 
       {/* Generations history */}
       <section
