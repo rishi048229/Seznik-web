@@ -9,9 +9,6 @@ export const LABEL_SIZE_PRESETS = [
 export type LabelSizePresetId = (typeof LABEL_SIZE_PRESETS)[number]['id']
 export type LabelSizePreset = (typeof LABEL_SIZE_PRESETS)[number]
 
-export const LABEL_ROTATIONS = [0, 90, 180, 270] as const
-export type LabelRotation = (typeof LABEL_ROTATIONS)[number]
-
 /** Extra blank space between labels on continuous receipt paper (ESC/POS). */
 export const RECEIPT_LABEL_GAP_MM = 6
 
@@ -29,29 +26,4 @@ export const snapLabelPreset = (width: number, height: number): LabelSizePreset 
   return LABEL_SIZE_PRESETS.reduce((best, p) =>
     Math.abs(p.height - height) < Math.abs(best.height - height) ? p : best
   )
-}
-
-/**
- * Content box for 90° / 270° is the swapped sticker size. Rotating that box
- * fills the original W × H without shrinking barcodes or clipping the QR.
- */
-export const labelContentBoxMm = (
-  rotation: LabelRotation,
-  width: number,
-  height: number,
-) => {
-  if (rotation === 90 || rotation === 270) return { width: height, height: width }
-  return { width, height }
-}
-
-/** Rotate the (already swapped) content box. Do not scale — reflow handles fit. */
-export const labelContentCssTransform = (
-  rotation: LabelRotation,
-  _width?: number,
-  _height?: number,
-  extra = '',
-) => {
-  if (rotation === 0) return extra || 'none'
-  const rotate = `rotate(${rotation}deg)`
-  return extra ? `${extra} ${rotate}` : rotate
 }

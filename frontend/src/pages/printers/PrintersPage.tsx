@@ -45,10 +45,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import {
   LABEL_SIZE_PRESETS,
-  LABEL_ROTATIONS,
   snapLabelPreset,
-  labelContentBoxMm,
-  type LabelRotation,
 } from '@/utils/labelSizes'
 import {
   Printer,
@@ -68,7 +65,6 @@ import {
   AlignRight,
   Bold,
   Image as ImageIcon,
-  RotateCw,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
@@ -93,7 +89,6 @@ const defaultPrinterConfig: PrinterConfig = {
   labelOffsetX: 0,
   labelOffsetY: 0,
   labelDirection: 0,
-  labelRotation: 0,
   labelBarcodeOffsetX: 0,
   labelBarcodeType: 'CODE128',
   labelBarcodeHeight: 40,
@@ -248,9 +243,6 @@ export const PrintersPage = () => {
       const snapped = snapLabelPreset(merged.labelWidth || 50, merged.labelHeight || 30)
       merged.labelWidth = snapped.width
       merged.labelHeight = snapped.height
-      if (![0, 90, 180, 270].includes(merged.labelRotation ?? 0)) {
-        merged.labelRotation = 0
-      }
       setConfig(merged)
     }
 
@@ -516,13 +508,8 @@ export const PrintersPage = () => {
                 undefined,
                 config.labelDirection ?? 0,
                 config.labelBarcodeOffsetX ?? 4,
-                (config.labelRotation ?? 0) as LabelRotation
               )
-            : generateLabelEscPos(labelTemplate, config.labelBarcodeType, labelData, {
-                rotation: (config.labelRotation ?? 0) as LabelRotation,
-                labelWidth: config.labelWidth,
-                labelHeight: config.labelHeight,
-              })
+            : generateLabelEscPos(labelTemplate, config.labelBarcodeType, labelData)
           await printEscPos(bytes)
           toast.success(mode === 'tspl' ? 'Label sent to sticker printer.' : 'Label sent to receipt printer.')
           return
@@ -1324,33 +1311,6 @@ export const PrintersPage = () => {
                   })}
                 </div>
 
-                <div className="mb-4">
-                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                    <RotateCw size={13} className="mr-1.5" />
-                    Label invert
-                  </label>
-                  <p className="text-[11px] text-gray-500 mb-2">Rotate 90 / 180 / 270 while keeping the original sticker size.</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {LABEL_ROTATIONS.map(deg => {
-                      const active = (config.labelRotation ?? 0) === deg
-                      return (
-                        <button
-                          key={deg}
-                          type="button"
-                          onClick={() => setConfig(prev => ({ ...prev, labelRotation: deg }))}
-                          className={`py-2 rounded-xl border text-xs font-bold transition-colors ${
-                            active
-                              ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                              : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          {deg}°
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
               <div>
                 <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
                   Barcode on the label
@@ -1537,22 +1497,9 @@ export const PrintersPage = () => {
                   }}
                 >
                 <div
-                  className="absolute p-2.5 flex flex-col justify-center gap-1"
+                  className="absolute inset-0 p-3.5 flex flex-col justify-center gap-1"
                   style={{
-                    width: labelContentBoxMm(
-                      (config.labelRotation ?? 0) as LabelRotation,
-                      Math.min(config.labelWidth * 4.5, 280),
-                      Math.min(config.labelHeight * 4.5, 220),
-                    ).width,
-                    height: labelContentBoxMm(
-                      (config.labelRotation ?? 0) as LabelRotation,
-                      Math.min(config.labelWidth * 4.5, 280),
-                      Math.min(config.labelHeight * 4.5, 220),
-                    ).height,
-                    left: '50%',
-                    top: '50%',
-                    transformOrigin: 'center center',
-                    transform: `translate(-50%, -50%)${(config.labelRotation ?? 0) ? ` rotate(${config.labelRotation}deg)` : ''} translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
+                    transform: `translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
                   }}
                 >
                   {labelTemplate.map(el => {

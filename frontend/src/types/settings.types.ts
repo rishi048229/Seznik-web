@@ -120,8 +120,6 @@ export interface PrinterConfig {
   // 0 or 1 depends on which way the sticker is loaded in the printer, so this
   // is a user-facing toggle rather than a fixed value.
   labelDirection?: 0 | 1
-  /** Rotate the printed sticker 0/90/180/270 while keeping the original size. */
-  labelRotation?: 0 | 90 | 180 | 270
   // mm — extra rightward nudge applied only to centered barcodes, to correct
   // for printer firmware rendering CODE128 slightly off from the calculated
   // dead-center position. Independent of labelOffsetX (which shifts everything).

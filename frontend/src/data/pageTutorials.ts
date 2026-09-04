@@ -242,7 +242,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
     keyFeatures: [
       { title: 'Web Bluetooth Scanner', description: 'Scan, pair, and connect Bluetooth thermal receipt printers with one click.' },
       { title: 'Receipt Customizer', description: 'Customize business header, address, phone, GSTIN, receipt logo, and thank you notes.' },
-      { title: 'Label Printer Designer', description: 'Choose 50 mm sticker sizes (50×30, 25, 50, 75, 100), printer type (label vs receipt), invert rotation, and barcode layout.' },
+      { title: 'Label Printer Designer', description: 'Choose 50 mm sticker sizes (50×30, 25, 50, 75, 100), printer type (label vs receipt), and barcode layout.' },
       { title: 'Test Receipt Print', description: 'Send a test receipt or barcode label to verify printer alignment and quality.' },
     ],
     proTips: [
