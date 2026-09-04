@@ -40,14 +40,23 @@ import {
 } from '../../lib/supportAgents.js';
 
 function pathSegments(req) {
-  const rawUrl = req.url || '';
-  const pathname = new URL(rawUrl, 'http://localhost').pathname;
-  const trimmed = pathname.replace(/^\/api\/admin\/?/, '');
-  if (trimmed) return trimmed.split('/').filter(Boolean);
-
+  // Prefer Vercel catch-all query param — most reliable on serverless.
   const raw = req.query?.path;
-  if (Array.isArray(raw)) return raw.filter(Boolean);
-  if (typeof raw === 'string' && raw.length > 0) return raw.split('/').filter(Boolean);
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map(String).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.length > 0) {
+    return raw.split('/').filter(Boolean);
+  }
+
+  const rawUrl = req.url || '';
+  try {
+    const pathname = new URL(rawUrl, 'http://localhost').pathname;
+    const trimmed = pathname.replace(/^\/api\/admin\/?/, '').replace(/^\//, '');
+    if (trimmed) return trimmed.split('/').filter(Boolean);
+  } catch {
+    // ignore malformed URL
+  }
   return [];
 }
 
@@ -385,6 +394,11 @@ export default async function handler(req, res) {
       return sendJson(res, 200, result);
     }
 
+    if (method === 'GET' && route === 'access-codes/issuers') {
+      const result = await listAccessCodeIssuers(pool);
+      return sendJson(res, 200, result);
+    }
+
     const batchCodesMatch = route.match(/^access-codes\/batch\/([^/]+)$/);
     if (method === 'GET' && batchCodesMatch) {
       const result = await getAccessCodesByBatch(pool, decodeURIComponent(batchCodesMatch[1]));
@@ -400,11 +414,6 @@ export default async function handler(req, res) {
         createdBy: query.createdBy,
         customerOnly: query.customerOnly === '1' || query.customerOnly === 'true',
       });
-      return sendJson(res, 200, result);
-    }
-
-    if (method === 'GET' && route === 'access-codes/issuers') {
-      const result = await listAccessCodeIssuers(pool);
       return sendJson(res, 200, result);
     }
 

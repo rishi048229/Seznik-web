@@ -56,19 +56,34 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
     setLoading(true);
     setError(null);
     try {
-      const [issuerRes, codesRes] = await Promise.all([
-        fetchAccessCodeIssuers(),
-        fetchAccessCodes({
-          page: 1,
-          limit: 200,
-          customerOnly: true,
-          createdBy: selectedIssuer === 'all' ? undefined : selectedIssuer,
-          search: search.trim() || undefined,
-        }),
-      ]);
-      setIssuers(issuerRes.items);
+      const codesRes = await fetchAccessCodes({
+        page: 1,
+        limit: 200,
+        customerOnly: true,
+        createdBy: selectedIssuer === 'all' ? undefined : selectedIssuer,
+        search: search.trim() || undefined,
+      });
       setEntries(codesRes.items);
       setEntriesTotal(codesRes.total);
+
+      try {
+        const issuerRes = await fetchAccessCodeIssuers();
+        setIssuers(issuerRes.items);
+      } catch {
+        // Fallback if /access-codes/issuers is missing on an older deploy
+        const byUser = new Map<string, AccessCodeIssuerStat>();
+        for (const row of codesRes.items) {
+          const key = row.createdBy || 'unknown';
+          const prev = byUser.get(key);
+          if (!prev) {
+            byUser.set(key, { createdBy: key, count: 1, lastGeneratedAt: row.createdAt });
+          } else {
+            prev.count += 1;
+            if (row.createdAt > prev.lastGeneratedAt) prev.lastGeneratedAt = row.createdAt;
+          }
+        }
+        setIssuers([...byUser.values()].sort((a, b) => b.count - a.count));
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to load issuance ledger');
     } finally {

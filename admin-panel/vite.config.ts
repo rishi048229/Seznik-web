@@ -695,6 +695,17 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
+            if (pathname === '/api/admin/access-codes/issuers' && req.method === 'GET') {
+              try {
+                const result = await listAccessCodeIssuers(pool);
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on access-code issuers:', err.message);
+                send(500, { error: err?.message || 'Failed to list issuers' });
+              }
+              return;
+            }
+
             const batchCodesMatch = pathname.match(/^\/api\/admin\/access-codes\/batch\/([^/]+)$/);
             if (batchCodesMatch && req.method === 'GET') {
               try {
@@ -723,17 +734,6 @@ export default defineConfig(({ mode }) => {
               } catch (err: any) {
                 console.error('DB error on access-codes list:', err.message);
                 send(500, { error: err?.message || 'Failed to list codes' });
-              }
-              return;
-            }
-
-            if (pathname === '/api/admin/access-codes/issuers' && req.method === 'GET') {
-              try {
-                const result = await listAccessCodeIssuers(pool);
-                send(200, result);
-              } catch (err: any) {
-                console.error('DB error on access-code issuers:', err.message);
-                send(500, { error: err?.message || 'Failed to list issuers' });
               }
               return;
             }

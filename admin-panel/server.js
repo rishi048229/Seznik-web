@@ -456,6 +456,17 @@ app.get('/api/admin/access-codes/batches', async (req, res) => {
   }
 });
 
+// GET /api/admin/access-codes/issuers
+app.get('/api/admin/access-codes/issuers', async (req, res) => {
+  try {
+    const result = await listAccessCodeIssuers(pool);
+    res.json(result);
+  } catch (err) {
+    console.error('Error listing access code issuers:', err);
+    res.status(500).json({ error: 'Failed to list issuers' });
+  }
+});
+
 // GET /api/admin/access-codes/batch/:batchId
 app.get('/api/admin/access-codes/batch/:batchId', async (req, res) => {
   try {
@@ -482,17 +493,6 @@ app.get('/api/admin/access-codes', async (req, res) => {
   } catch (err) {
     console.error('Error listing access codes:', err);
     res.status(500).json({ error: 'Failed to list codes' });
-  }
-});
-
-// GET /api/admin/access-codes/issuers
-app.get('/api/admin/access-codes/issuers', async (req, res) => {
-  try {
-    const result = await listAccessCodeIssuers(pool);
-    res.json(result);
-  } catch (err) {
-    console.error('Error listing access code issuers:', err);
-    res.status(500).json({ error: 'Failed to list issuers' });
   }
 });
 
