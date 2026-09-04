@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import type { ReceiptFontId } from '@shared/receiptFonts';
 
 const TOKEN_KEY = 'seznik_auth_token';
 const USER_KEY = 'seznik_user_data';
@@ -257,7 +258,7 @@ export interface StoredPrinterCalibration {
   autoCut?: boolean;
   printCopies?: number;
   fontSize?: 'small' | 'medium' | 'large';
-  receiptFont?: 'classic' | 'modern' | 'clean' | 'business' | 'readable' | 'serif' | 'formal';
+  receiptFont?: ReceiptFontId;
   receiptLogoSize?: 'small' | 'medium' | 'large';
   receiptQrSize?: 'small' | 'medium' | 'large';
   labelPaperMode?: 'gap' | 'continuous';

@@ -25,10 +25,14 @@ export class EscPosBuilder {
     return this
   }
 
-  init(paperSize: '58mm' | '80mm' = '58mm', fontType: 0 | 1 = 0): this {
+  init(paperSize: '58mm' | '80mm' = '58mm', fontType: 0 | 1 = 0, charSpacing = 0): this {
+    this.bytes = []
     this.push(ESC, 0x40) // ESC @ — Reset printer to default state
-    // ESC M n — Font A (0, 12×24) or Font B (1, 9×17). Driven by PrinterConfig.receiptFont.
+    // ESC M n — Font A (0, 12×24) or Font B (1, 9×17).
     this.push(ESC, 0x4d, fontType === 1 ? 0x01 : 0x00)
+    if (charSpacing > 0) {
+      this.push(ESC, 0x20, Math.min(255, Math.max(0, charSpacing))) // ESC SP n — Inter-character spacing
+    }
     this.push(GS, 0x4c, 0x00, 0x00) // GS L 0 0 — Set left margin to 0 dots
     if (paperSize === '80mm') {
       this.push(GS, 0x57, 0x40, 0x02) // GS W 576 (0x0240) — Set hardware printable area width to 576 dots (80mm)
@@ -43,6 +47,11 @@ export class EscPosBuilder {
     return this.push(ESC, 0x4d, fontType === 1 ? 0x01 : 0x00)
   }
 
+  /** ESC SP n — set inter-character spacing in dots. */
+  charSpacing(dots: number): this {
+    return this.push(ESC, 0x20, Math.min(255, Math.max(0, dots)))
+  }
+
   align(align: EscPosAlign): this {
     const n = align === 'center' ? 1 : align === 'right' ? 2 : 0
     return this.push(ESC, 0x61, n)
@@ -52,8 +61,16 @@ export class EscPosBuilder {
     return this.push(ESC, 0x45, on ? 1 : 0)
   }
 
+  doubleHeight(on: boolean): this {
+    return this.push(GS, 0x21, on ? 0x01 : 0x00)
+  }
+
   doubleSize(on: boolean): this {
     return this.push(GS, 0x21, on ? 0x11 : 0x00)
+  }
+
+  reverse(on: boolean): this {
+    return this.push(GS, 0x42, on ? 1 : 0)
   }
 
   text(str: string): this {
@@ -144,6 +161,23 @@ export class EscPosBuilder {
   image(packed: Uint8Array, widthBytes: number, heightDots: number): this {
     this.push(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, heightDots & 0xff, (heightDots >> 8) & 0xff)
     for (const b of packed) this.bytes.push(b)
+    return this
+  }
+
+  /**
+   * Slices a large full-receipt monochrome bitmap into vertical bands (default 48 dot-lines).
+   * Emits `GS v 0` for each band to avoid overflowing the printer's serial FIFO buffer.
+   */
+  rasterReceiptBands(packed: Uint8Array, widthBytes: number, heightDots: number, bandHeight = 48): this {
+    let y = 0
+    while (y < heightDots) {
+      const bh = Math.min(bandHeight, heightDots - y)
+      const start = y * widthBytes
+      const end = (y + bh) * widthBytes
+      const slice = packed.subarray(start, end)
+      this.image(slice, widthBytes, bh)
+      y += bh
+    }
     return this
   }
 

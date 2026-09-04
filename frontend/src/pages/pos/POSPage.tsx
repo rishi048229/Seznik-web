@@ -593,7 +593,7 @@ export const POSPage = () => {
       settingsTaxName: 'GST',
     })
 
-    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow)
+    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow, settings?.printerConfig?.receiptFont)
   }
 
   const handlePrintBluetooth = async () => {

@@ -8,7 +8,13 @@ import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 import { CustomReceiptPreview } from '../receipt-builder/CustomReceiptPreview'
 import type { ReceiptPrintContext } from '@/utils/customReceiptEngine'
 import { receiptLogoHtmlMaxPxFromChip, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
-import { receiptFontCssFamily, resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
+import {
+  isReceiptFontMonospace,
+  receiptFontCssFamily,
+  receiptFontSizeScale,
+  resolveReceiptFontId,
+  type ReceiptFontId,
+} from '@shared/receiptFonts'
 import { getReceiptPreviewMaxWidth } from '../receipt-builder/receiptPreviewStyles'
 
 interface ReceiptLivePreviewProps {
@@ -34,6 +40,10 @@ export const ReceiptLivePreview = ({
 }: ReceiptLivePreviewProps) => {
   const effectiveFont = resolveReceiptFontId(receiptFont ?? settings?.printerConfig?.receiptFont)
   const cols = getCols(paperSize, undefined, effectiveFont)
+  const fontScale = receiptFontSizeScale(effectiveFont)
+  const baseSize = paperSize === '80mm' ? 11.5 : 10.5
+  const scaledFontSize = `${(baseSize * fontScale).toFixed(1)}px`
+  const isMono = isReceiptFontMonospace(effectiveFont)
   const stageRef = useRef<HTMLDivElement>(null)
   const slipRef = useRef<HTMLDivElement>(null)
   const [metrics, setMetrics] = useState({ scale: 1, height: 0 })
@@ -194,12 +204,13 @@ export const ReceiptLivePreview = ({
                     </div>
                   )}
                   <pre
-                    className="m-0 py-2 whitespace-pre text-gray-900 overflow-hidden"
+                    className="m-0 py-2 px-2 whitespace-pre text-gray-900 overflow-hidden"
                     style={{
-                      width: `${cols}ch`,
+                      width: isMono ? `${cols}ch` : '100%',
+                      maxWidth: `${getReceiptPreviewMaxWidth(paperSize)}px`,
                       marginLeft: 'auto',
                       marginRight: 'auto',
-                      fontSize: paperSize === '80mm' ? '12px' : '11px',
+                      fontSize: scaledFontSize,
                       lineHeight: 1.35,
                       fontVariantNumeric: 'tabular-nums',
                       fontFamily: receiptFontCssFamily(effectiveFont),

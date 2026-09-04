@@ -169,6 +169,6 @@ export async function runReceiptTemplateTestPrint({
     templateOverride: template ?? undefined,
     invoiceConfig: invoiceConfig ?? settings?.invoiceConfig,
   })
-  printReceipt(receiptHTML, effectivePaper === '80mm' ? '80mm' : '50mm', 'Test Receipt')
+  printReceipt(receiptHTML, effectivePaper === '80mm' ? '80mm' : '50mm', 'Test Receipt', undefined, effectiveReceiptFont)
   return 'browser'
 }

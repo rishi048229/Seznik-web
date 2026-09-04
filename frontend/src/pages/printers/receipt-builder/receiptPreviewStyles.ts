@@ -1,5 +1,6 @@
 import {
   receiptFontCssFamily,
+  receiptFontSizeScale,
   DEFAULT_RECEIPT_FONT,
   type ReceiptFontId,
 } from '@shared/receiptFonts'
@@ -10,9 +11,12 @@ export function getReceiptPreviewFontStyle(
   paperWidth: '58mm' | '80mm',
   receiptFont?: ReceiptFontId | null
 ) {
+  const scale = receiptFontSizeScale(receiptFont)
+  const baseSize = paperWidth === '80mm' ? 10.5 : 10
+  const normalizedFs = `${(baseSize * scale).toFixed(1)}px`
   return {
     fontFamily: receiptFontCssFamily(receiptFont),
-    fontSize: paperWidth === '80mm' ? '10.5px' : '10px',
+    fontSize: normalizedFs,
     lineHeight: 1.35,
   } as const
 }

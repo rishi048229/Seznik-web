@@ -329,13 +329,13 @@ export const RealisticReceiptModal = ({
     }
 
     const html = generateReceiptHTML({ ...payload, width })
-    printReceipt(html, width, payload.sale.invoiceNumber)
+    printReceipt(html, width, payload.sale.invoiceNumber, undefined, settings?.printerConfig?.receiptFont)
   }
 
   const handlePrintA4 = () => {
     const payload = printPayload()
     const html = generateReceiptHTML({ ...payload, width: '210mm' })
-    printReceipt(html, '210mm', payload.sale.invoiceNumber)
+    printReceipt(html, '210mm', payload.sale.invoiceNumber, undefined, settings?.printerConfig?.receiptFont)
   }
 
   const handleDownloadA4Pdf = () => {

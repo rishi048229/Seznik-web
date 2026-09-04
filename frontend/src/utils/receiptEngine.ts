@@ -407,7 +407,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const customTitle = receiptConfig?.headerTitle?.trim()
   const titleText = (customTitle !== undefined && customTitle !== null && customTitle !== '')
     ? customTitle
-    : (companyGst ? totals.docTitle : '')
+    : totals.docTitle
 
   if (titleText) {
     lines.push(centerText(titleText, COLS))

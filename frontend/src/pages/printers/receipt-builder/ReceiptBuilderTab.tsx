@@ -22,6 +22,7 @@ import { ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
 import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
 import { isRestaurantBusiness } from '@/constants/businessTypes'
 import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
+import { resolveReceiptFontId } from '@shared/receiptFonts'
 import type { GstBillingFormState } from '@/hooks/useGstBillingSettings'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
 import type { CustomReceiptGstOpts } from '@/utils/customReceiptEngine'
@@ -149,7 +150,9 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     () => ({
       ...previewGstOpts,
       isRestaurant,
-      receiptFont: receiptFont ?? previewGstOpts?.receiptFont ?? settings?.printerConfig?.receiptFont,
+      receiptFont: resolveReceiptFontId(
+        receiptFont ?? previewGstOpts?.receiptFont ?? settings?.printerConfig?.receiptFont
+      ),
     }),
     [previewGstOpts, isRestaurant, receiptFont, settings?.printerConfig?.receiptFont]
   )

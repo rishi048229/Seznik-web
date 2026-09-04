@@ -86,7 +86,7 @@ export const SaleDetailPage = () => {
 
     printReceipt(receiptHTML, paperWidth, sale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
-    })
+    }, settings?.printerConfig?.receiptFont)
   }
 
   const handleDownloadPdf = () => {

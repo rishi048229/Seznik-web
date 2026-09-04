@@ -48,7 +48,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ReceiptLivePreview } from './components/ReceiptLivePreview'
 import { A4InvoiceTab } from './components/A4InvoiceTab'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { RECEIPT_FONT_LIBRARY } from '@shared/receiptFonts'
+import { RECEIPT_FONT_LIBRARY, isReceiptFontId, resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import { isRestaurantBusiness } from '@/constants/businessTypes'
 import {
@@ -258,6 +258,12 @@ export const PrintersPage = () => {
       if (!Array.isArray(merged.labelTemplate) || merged.labelTemplate.length === 0) {
         merged.labelTemplate = defaultLabelTemplate
       }
+      try {
+        const savedLocalFont = typeof window !== 'undefined' ? localStorage.getItem('seznik_printer_receiptFont') : null
+        if (savedLocalFont && isReceiptFontId(savedLocalFont) && !settings.printerConfig?.receiptFont) {
+          merged.receiptFont = savedLocalFont
+        }
+      } catch {}
       setConfig(merged)
       hydratedConfigRef.current = JSON.stringify(withSyncedPaperKeys(merged))
     }
@@ -562,6 +568,7 @@ export const PrintersPage = () => {
             sale: testSale as any,
             receiptConfig: effectiveReceiptConfig,
             paperSize: config.paperSize,
+            printerConfig: config,
             receiptFont: config.receiptFont,
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
@@ -588,7 +595,7 @@ export const PrintersPage = () => {
         logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
         settingsTaxName: 'GST',
       })
-      printReceipt(receiptHTML, config.paperSize === '80mm' ? '80mm' : '50mm', 'Test Receipt')
+      printReceipt(receiptHTML, config.paperSize === '80mm' ? '80mm' : '50mm', 'Test Receipt', undefined, config.receiptFont)
       return
     }
 
@@ -924,16 +931,30 @@ export const PrintersPage = () => {
                     <FieldInfo textKey="tip.printer.receiptFont" />
                   </label>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2">
-                    Synced with the mobile app. Mono, sans, and serif families for previews and HTML prints.
+                    Previews, system print, and thermal Bluetooth receipts render sharp JetBrains Mono typography.
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {RECEIPT_FONT_LIBRARY.map(font => (
                       <button
                         key={font.id}
                         type="button"
-                        onClick={() => setConfig(prev => ({ ...prev, receiptFont: font.id }))}
+                        onClick={() => {
+                          const nextFont = font.id
+                          setConfig(prev => ({ ...prev, receiptFont: nextFont }))
+                          try {
+                            localStorage.setItem('seznik_printer_receiptFont', nextFont)
+                          } catch {}
+                          if (settings?.id) {
+                            updateSettingsMutation({
+                              settingsId: settings.id,
+                              data: {
+                                printerConfig: withSyncedPaperKeys({ ...config, receiptFont: nextFont }),
+                              },
+                            })
+                          }
+                        }}
                         className={`text-left py-2.5 px-3 rounded-xl border transition-colors ${
-                          (config.receiptFont || 'classic') === font.id
+                          resolveReceiptFontId(config.receiptFont) === font.id
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500/30'
                             : 'border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:border-gray-300'
                         }`}

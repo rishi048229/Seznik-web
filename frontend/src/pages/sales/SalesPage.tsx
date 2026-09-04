@@ -97,7 +97,7 @@ export const SalesPage = () => {
     printReceipt(receiptHTML, paperWidth, printSale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
       setPrintSaleId(null)
-    })
+    }, settings?.printerConfig?.receiptFont)
   }
 
   const handlePrintBluetooth = async () => {

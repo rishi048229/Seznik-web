@@ -15,6 +15,7 @@ import { resolveStoreLogoUrl, prefetchPrintableLogoSrc, isBrowserLoadableImageSr
 import { ensureTemplateHasLogoBlock } from './ensureReceiptTemplates'
 import { resolveReceiptPrintGst, type GstBreakdownStyle } from '@/constants/gstBilling'
 import { gstSummaryFromCart } from '@/utils/gst'
+import { renderReceiptToMonochromeRaster } from './receiptCanvasRasterizer'
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   receiptLogoHtmlMaxPx,
@@ -26,9 +27,12 @@ import {
   receiptStandardQrHtmlPxFromChip,
 } from '@shared/receiptPrintGeometry'
 import {
+  isReceiptFontMonospace,
   receiptFontCssFamily,
   receiptFontEscPosType,
+  receiptFontSizeScale,
   resolveReceiptFontId,
+  getReceiptFont,
   type ReceiptFontId,
 } from '@shared/receiptFonts'
 
@@ -41,11 +45,14 @@ function thermalReceiptContainerStyle(
   fontSize: string,
   receiptFont?: ReceiptFontId | null
 ): string {
+  const scale = receiptFontSizeScale(receiptFont)
+  const basePx = parseFloat(fontSize) || (paperSize === '80mm' ? 11 : 10)
+  const normalizedFs = `${(basePx * scale).toFixed(1)}px`
   return [
     `font-family:${receiptFontCssFamily(receiptFont)}`,
-    `font-size:${fontSize}`,
+    `font-size:${normalizedFs}`,
     'font-weight:400',
-    'line-height:1.3',
+    'line-height:1.35',
     'color:#000',
     'width:100%',
     `max-width:${paperSize === '80mm' ? '80mm' : '58mm'}`,
@@ -605,10 +612,26 @@ ${bodyHtml}
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(billPdfUrl)}`
     : ''
   const lineFontFamily = receiptFontCssFamily(effectiveReceiptFont)
+  const isMono = isReceiptFontMonospace(effectiveReceiptFont)
+
+  const renderedLinesHtml = textLines
+    .map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) {
+        return `<div style="height:4px;"></div>`
+      }
+      if (/^[-=.]+$/.test(trimmed)) {
+        const isDouble = trimmed.includes('=')
+        return `<div style="border-top:1px ${isDouble ? 'solid' : 'dashed'} #000;margin:4px 0;width:100%;"></div>`
+      }
+      return `<div style="white-space:pre;overflow:hidden;width:100%;font-family:${lineFontFamily};font-variant-numeric:tabular-nums;line-height:1.35;">${line.replace(/ /g, '&nbsp;')}</div>`
+    })
+    .join('')
+
   return `
   <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS, effectiveReceiptFont)}">
 ${receiptLogoImgHtml(effectiveLogo, logoHtml.maxHeight, logoHtml.maxWidth)}
-${textLines.map((l) => `<div style="white-space:pre;overflow:hidden;width:100%;font-family:${lineFontFamily};">${l.replace(/ /g, '&nbsp;')}</div>`).join('')}
+${renderedLinesHtml}
 ${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
 ${billQrImg ? `<div style="text-align:center;margin-top:8px;padding:4px 0;display:block;"><div style="font-size:${tinyFS};font-weight:700;margin-bottom:4px;">Scan QR to View &amp; Download Bill PDF</div><img src="${billQrImg}" alt="Digital Bill QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
   </div>`
@@ -651,19 +674,34 @@ export const printReceipt = (
   width: '50mm' | '80mm' | '210mm' = '50mm',
   title = 'Receipt',
   onDone?: () => void,
+  receiptFont?: ReceiptFontId | null,
 ) => {
   const isThermal = width === '50mm' || width === '80mm'
   const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '58mm' : 'A4'
   const pageMargin = width === '80mm' ? '2mm 2mm 10mm 2mm' : isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
+
+  // Only load Google Fonts when the selected font requires them
+  const effectiveFont = resolveReceiptFontId(receiptFont)
+  const needsIBMPlexMono = effectiveFont === 'modern'
+  const needsIBMPlexSans = effectiveFont === 'clean'
+  const needsGoogleFonts = needsIBMPlexMono || needsIBMPlexSans
+  const googleFontFamilies = [
+    ...(needsIBMPlexMono ? ['family=IBM+Plex+Mono:wght@400;500;600;700'] : []),
+    ...(needsIBMPlexSans ? ['family=IBM+Plex+Sans:wght@400;500;600;700'] : []),
+  ]
+  const googleFontsLink = needsGoogleFonts
+    ? `<link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?${googleFontFamilies.join('&')}&display=swap" rel="stylesheet" />`
+    : ''
+  const bodyFontFamily = receiptFontCssFamily(effectiveFont)
 
   const fullHTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>${title}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  ${googleFontsLink}
   <style>
     @page {
       size: ${paperWidth} auto;
@@ -680,6 +718,7 @@ export const printReceipt = (
       margin: 0;
       padding: ${isThermal ? '2px' : '0'};
       width: 100%;
+      font-family: ${bodyFontFamily};
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -720,38 +759,45 @@ export const printReceipt = (
       return
     }
 
-    const images = Array.from(doc.images || [])
-    if (images.length === 0) {
-      setTimeout(executePrint, 200)
-      return
-    }
-
-    let remaining = images.length
-    let printed = false
-    const checkDone = () => {
-      remaining--
-      if (remaining <= 0 && !printed) {
-        printed = true
-        setTimeout(executePrint, 250)
+    // Wait for web fonts (e.g. IBM Plex) to finish loading before printing
+    const fontsReady = doc.fonts?.ready ?? Promise.resolve()
+    fontsReady.then(() => {
+      const images = Array.from(doc.images || [])
+      if (images.length === 0) {
+        setTimeout(executePrint, 200)
+        return
       }
-    }
 
-    images.forEach(img => {
-      if (img.complete && img.naturalHeight !== 0) {
-        checkDone()
-      } else {
-        img.addEventListener('load', checkDone)
-        img.addEventListener('error', checkDone)
+      let remaining = images.length
+      let printed = false
+      const checkDone = () => {
+        remaining--
+        if (remaining <= 0 && !printed) {
+          printed = true
+          setTimeout(executePrint, 250)
+        }
       }
+
+      images.forEach(img => {
+        if (img.complete && img.naturalHeight !== 0) {
+          checkDone()
+        } else {
+          img.addEventListener('load', checkDone)
+          img.addEventListener('error', checkDone)
+        }
+      })
+
+      // Safeguard timeout in case image events don't fire
+      setTimeout(() => {
+        if (!printed) {
+          printed = true
+          executePrint()
+        }
+      }, 2500)
+    }).catch(() => {
+      // Font loading failed — print anyway with fallback fonts
+      setTimeout(executePrint, 300)
     })
-
-    // Safeguard timeout in case image events don't fire
-    setTimeout(() => {
-      if (!printed) {
-        printed = true
-        executePrint()
-      }
-    }, 1500)
   }
 
   iframe.srcdoc = fullHTML
@@ -766,7 +812,7 @@ interface GenerateReceiptEscPosParams {
   receiptConfig?: Partial<ReceiptConfig> | null
   paperSize?: '58mm' | '80mm'
   /** Used to resolve receiptFont when receiptFont is not passed explicitly. */
-  printerConfig?: { receiptFont?: ReceiptFontId | string | null } | null
+  printerConfig?: { receiptFont?: ReceiptFontId | string | null; fontSize?: string | null } | null
   receiptFont?: ReceiptFontId | null
   businessName?: string
   businessAddress?: string
@@ -820,6 +866,8 @@ export const generateReceiptEscPos = async ({
     ? ensureTemplateHasLogoBlock(customTemplateRaw, resolvedLogo)
     : null
   const effectivePaper = (customTemplate?.paperWidth || paperSize) as '58mm' | '80mm'
+
+
   const context = saleToReceiptContext(sale, {
     businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName,
     businessAddress: businessAddress || printConfig?.address || effectiveConfig?.address,
@@ -834,8 +882,42 @@ export const generateReceiptEscPos = async ({
     tokenNo,
   })
 
+  // Attempt high-definition JetBrains Mono canvas rasterization if running in browser
+  if (typeof document !== 'undefined') {
+    try {
+      const raster = await renderReceiptToMonochromeRaster(context, effectivePaper, {
+        showLogo,
+        businessLogoURL: resolvedLogo,
+        customTemplate,
+        isRestaurant,
+        tableNo,
+        waiterName,
+        tokenNo,
+        showTaxBreakdown: printGst.showTaxBreakdown,
+        itemWiseGst: printGst.itemWiseGst,
+        gstStyle: printGst.gstStyle,
+        receiptConfig: {
+          showPaymentQR: !!(printConfig?.showPaymentQR ?? effectiveConfig?.showPaymentQR),
+          paymentQrURL: printConfig?.paymentQrURL ?? effectiveConfig?.paymentQrURL,
+          upiId: printConfig?.upiId || effectiveConfig?.upiId,
+          enableBillQrCode: !!(printConfig?.enableBillQrCode ?? effectiveConfig?.enableBillQrCode),
+        },
+      })
+
+      const b = new EscPosBuilder()
+      b.init(effectivePaper, 0)
+      b.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 48)
+      b.feed(3)
+      b.cut()
+      return b.toBytes()
+    } catch (rasterErr) {
+      console.warn('JetBrains Mono thermal rasterization failed, falling back to text ESC/POS:', rasterErr)
+    }
+  }
+
+  const fontDef = getReceiptFont(effectiveReceiptFont)
   const b = new EscPosBuilder()
-  b.init(effectivePaper, receiptFontEscPosType(effectiveReceiptFont))
+  b.init(effectivePaper, fontDef.escPosFont)
 
   if (customTemplate) {
     await appendCustomTemplateToEscPos(b, customTemplate, context, effectivePaper, {
@@ -886,7 +968,17 @@ export const generateReceiptEscPos = async ({
   }
 
   textLines.forEach(line => {
-    b.line(line)
+    const trimmed = line.trim()
+    const isStoreName = Boolean((businessName && trimmed === businessName.trim()) || (printConfig?.companyName && trimmed === printConfig.companyName.trim()))
+    const isDocTitle = trimmed === 'TAX INVOICE' || trimmed === 'BILL OF SUPPLY' || trimmed === 'BILL'
+    const isGrandTotal = line.includes('GRAND TOTAL')
+    if (isStoreName || isDocTitle || isGrandTotal) {
+      b.bold(true)
+      b.line(line)
+      b.bold(false)
+    } else {
+      b.line(line)
+    }
   })
 
   if ((printConfig?.showPaymentQR || effectiveConfig?.showPaymentQR) && (isValidUpiVpa(printConfig?.upiId || effectiveConfig?.upiId) || printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL)) {

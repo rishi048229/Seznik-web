@@ -63,5 +63,5 @@ export const printCompletedSale = async (args: {
     logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
     settingsTaxName: 'GST',
   })
-  printReceipt(html, width, sale.invoiceNumber, onDone)
+  printReceipt(html, width, sale.invoiceNumber, onDone, settings?.printerConfig?.receiptFont)
 }

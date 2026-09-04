@@ -517,7 +517,7 @@ const en = {
   'tip.printer.autoPrintOnSale': 'Automatically send the receipt to the printer the moment a sale is completed, with no manual click needed.',
   'tip.printer.connectionType': "Where the receipt is sent when you print — your connected Bluetooth printer, or your computer's normal print dialog.",
   'tip.printer.fontSize': 'Overall text scale on thermal receipts. Large roughly doubles character height on Bluetooth printers.',
-  'tip.printer.receiptFont': 'Typeface used on receipt previews and HTML / system prints. Choose from mono, sans, and serif families. Synced with the mobile app. Bluetooth thermal printers still use their built-in Font A for raw ESC/POS text.',
+  'tip.printer.receiptFont': 'Typeface used on receipt previews and HTML / system prints. Choose from mono, sans, and serif families. Synced with the mobile app. Bluetooth thermal printers use their built-in high-speed text mode for crisp, reliable printing.',
   'tip.printer.compactMode': 'Paper-saving layout. Puts invoice number and date on one line and trims spacing so short bills use less paper. Synced with the mobile app.',
   'tip.printer.receiptDetails': 'Business details printed at the top of every receipt — company name, GSTIN, address, phone, footer message, and terms. Shared with the main Settings page.',
   'tip.printer.showLogo': 'Print your store logo at the top of the receipt.',
