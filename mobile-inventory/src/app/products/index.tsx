@@ -76,11 +76,15 @@ import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
 import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 import { useLocations, useLocationStock } from '@/hooks/useLocations';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
+import { useAuth } from '@/hooks/useAuth';
+import { isKotFirstNav } from '@/utils/businessFeatures';
 
 export default function ProductsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useLanguageStore();
+  const { user } = useAuth();
+  const kotFirst = isKotFirstNav(user?.businessType);
   const { contentReady } = useTabTransitionReady();
   const {
     products,
@@ -627,7 +631,11 @@ export default function ProductsScreen() {
           </View>
         </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>{t('productsPageTitle', 'Products & Inventory')}</Text>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>
+          {kotFirst
+            ? t('menuPageTitle', 'Menu')
+            : t('productsPageTitle', 'Products & Inventory')}
+        </Text>
 
         {/* Stat Cards Strip */}
         <View style={{ height: 68, marginVertical: 12 }}>

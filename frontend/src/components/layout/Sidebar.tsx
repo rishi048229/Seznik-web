@@ -28,6 +28,7 @@ import {
   BookOpen,
   Ticket,
   UtensilsCrossed,
+  LayoutGrid,
 } from 'lucide-react'
 import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
@@ -35,7 +36,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { prefetchPage } from '@/utils/prefetchPages'
 import type { TranslationKey } from '@/i18n/translations'
-import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { isNavFeatureVisible, isKotFirstNav } from '@/utils/businessFeatures'
 import { isRestaurantBusiness, type NavFeatureId } from '@/constants/businessTypes'
 
 type NavSectionId = 'pos' | 'inventory' | 'finance' | 'system'
@@ -66,17 +67,88 @@ interface NavItem {
   clip?: boolean
 }
 
-const getAllNavItems = (): NavItem[] => [
-  // Point of Sale
+const getAllNavItems = (kotFirst: boolean): NavItem[] => [
+  // Point of Sale / Kitchen
   { path: ROUTES.DASHBOARD, labelKey: 'nav.dashboard', icon: LayoutDashboard, section: 'pos', animClass: 'animate-nav-pop' },
   { path: ROUTES.PRINTERS, labelKey: 'nav.printers', icon: Printer, section: 'pos', animClass: 'animate-nav-pop' },
-  { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart, section: 'pos', animClass: 'animate-nav-drive', clip: true },
-  { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft, section: 'pos', animClass: 'animate-nav-drive-back', clip: true },
-  { path: ROUTES.TOKENS, labelKey: 'page.tokens', icon: Ticket, section: 'pos', animClass: 'animate-nav-pop', feature: 'tokens' },
-  { path: ROUTES.KOT, labelKey: 'nav.kot', icon: UtensilsCrossed, section: 'pos', animClass: 'animate-nav-pop', feature: 'kot' },
+  ...(kotFirst
+    ? [
+        {
+          path: ROUTES.KOT,
+          labelKey: 'nav.tables' as TranslationKey,
+          icon: LayoutGrid,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-pop',
+          feature: 'kot' as NavFeatureId,
+        },
+        {
+          path: ROUTES.TOKENS,
+          labelKey: 'page.tokens' as TranslationKey,
+          icon: Ticket,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-pop',
+          feature: 'tokens' as NavFeatureId,
+        },
+        {
+          path: ROUTES.POS,
+          labelKey: 'nav.counterPos' as TranslationKey,
+          icon: ShoppingCart,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-drive',
+          clip: true,
+        },
+        {
+          path: ROUTES.POS_LITE,
+          labelKey: 'nav.posLite' as TranslationKey,
+          icon: MoveLeft,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-drive-back',
+          clip: true,
+        },
+      ]
+    : [
+        {
+          path: ROUTES.POS,
+          labelKey: 'nav.pos' as TranslationKey,
+          icon: ShoppingCart,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-drive',
+          clip: true,
+        },
+        {
+          path: ROUTES.POS_LITE,
+          labelKey: 'nav.posLite' as TranslationKey,
+          icon: MoveLeft,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-drive-back',
+          clip: true,
+        },
+        {
+          path: ROUTES.TOKENS,
+          labelKey: 'page.tokens' as TranslationKey,
+          icon: Ticket,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-pop',
+          feature: 'tokens' as NavFeatureId,
+        },
+        {
+          path: ROUTES.KOT,
+          labelKey: 'nav.kot' as TranslationKey,
+          icon: UtensilsCrossed,
+          section: 'pos' as NavSectionId,
+          animClass: 'animate-nav-pop',
+          feature: 'kot' as NavFeatureId,
+        },
+      ]),
 
   // Inventory
-  { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package, section: 'inventory', animClass: 'animate-nav-bounce' },
+  {
+    path: ROUTES.PRODUCTS,
+    labelKey: (kotFirst ? 'nav.menu' : 'nav.products') as TranslationKey,
+    icon: Package,
+    section: 'inventory',
+    animClass: 'animate-nav-bounce',
+  },
   { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
   { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
   { path: ROUTES.LOCATIONS, labelKey: 'nav.locations', icon: Store, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
@@ -110,6 +182,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   const displayName = settings?.businessName || userProfile?.businessName || userProfile?.displayName || user?.displayName || 'User'
   const logoUrl = settings?.businessLogoURL || user?.photoURL
+  const kotFirst = isKotFirstNav(userProfile?.businessType)
 
   const [poppedPath, setPoppedPath] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true')
@@ -128,7 +201,13 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     onClose()
   }
 
-  const navItems = getAllNavItems().filter(item => {
+  const navSections = NAV_SECTIONS.map(section =>
+    section.id === 'pos' && kotFirst
+      ? { ...section, titleKey: 'nav.sectionKitchen' as TranslationKey, defaultTitle: 'Kitchen & Tables' }
+      : section
+  )
+
+  const navItems = getAllNavItems(kotFirst).filter(item => {
     if (item.feature && !isNavFeatureVisible(userProfile?.businessType, item.feature)) return false
     if (!item.permission) return true
     if (userProfile?.role === 'admin') return true
@@ -223,7 +302,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             collapsed ? 'px-2 lg:px-2' : 'px-3'
           )}
         >
-          {NAV_SECTIONS.map((section, sIdx) => {
+          {navSections.map((section, sIdx) => {
             const items = navItems.filter(item => item.section === section.id)
             if (items.length === 0) return null
 

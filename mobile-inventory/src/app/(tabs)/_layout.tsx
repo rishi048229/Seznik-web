@@ -1,21 +1,38 @@
 import React, { useState, useMemo } from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { useColorScheme, Text } from 'react-native';
-import { LayoutDashboard, ShoppingBag, Calculator, Package, Menu } from 'lucide-react-native';
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  Calculator,
+  Package,
+  Menu,
+  LayoutGrid,
+  Plus,
+  BookOpen,
+} from 'lucide-react-native';
 import { BRAND_COLORS } from '@/constants/theme';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
 import { GlobalPosCartBar } from '@/components/pos/GlobalPosCartBar';
 import { useTranslation } from '@/store/useLanguageStore';
 import { useAuth } from '@/hooks/useAuth';
-import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { getCatalogNavLabel, isKotFirstNav, isNavFeatureVisible } from '@/utils/businessFeatures';
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const showCalculatorTab = isNavFeatureVisible(user?.businessType, 'calculator');
+  const { user, hasPermission } = useAuth();
+  const router = useRouter();
+
+  const kotFirst = isKotFirstNav(user?.businessType);
+  const canAccessKot = hasPermission('canAccessKOT');
+  const restaurantPrimary = kotFirst && canAccessKot;
+  const catalogLabel = getCatalogNavLabel(user?.businessType);
+  const showCenterTab = restaurantPrimary
+    ? true
+    : isNavFeatureVisible(user?.businessType, 'calculator');
 
   const screenOptions = useMemo(
     () => ({
@@ -41,6 +58,13 @@ export default function TabsLayout() {
 
   const closeMoreMenu = () => setIsMoreOpen(false);
   const openMoreMenu = () => setIsMoreOpen(true);
+
+  const posTitle = restaurantPrimary
+    ? t('restaurantTables', 'Tables')
+    : t('pos', 'POS');
+  const centerTitle = restaurantPrimary
+    ? t('newBill', 'New Bill')
+    : t('calculator', 'Calculator');
 
   return (
     <>
@@ -68,9 +92,17 @@ export default function TabsLayout() {
         />
         <Tabs.Screen
           name="pos"
-          listeners={{ tabPress: closeMoreMenu }}
+          listeners={{
+            tabPress: (e) => {
+              closeMoreMenu();
+              if (restaurantPrimary) {
+                e.preventDefault();
+                router.push('/kot/tables' as any);
+              }
+            },
+          }}
           options={{
-            title: t('pos', 'POS'),
+            title: posTitle,
             tabBarLabel: ({ color, focused }) => (
               <Text
                 style={{
@@ -81,18 +113,31 @@ export default function TabsLayout() {
                 }}
                 numberOfLines={1}
               >
-                {t('pos', 'POS')}
+                {posTitle}
               </Text>
             ),
-            tabBarIcon: ({ color, size }) => <ShoppingBag size={size} color={color} />,
+            tabBarIcon: ({ color, size }) =>
+              restaurantPrimary ? (
+                <LayoutGrid size={size} color={color} />
+              ) : (
+                <ShoppingBag size={size} color={color} />
+              ),
           }}
         />
         <Tabs.Screen
           name="calculator"
-          listeners={{ tabPress: closeMoreMenu }}
+          listeners={{
+            tabPress: (e) => {
+              closeMoreMenu();
+              if (restaurantPrimary) {
+                e.preventDefault();
+                router.push('/kot/new' as any);
+              }
+            },
+          }}
           options={{
-            href: showCalculatorTab ? undefined : null,
-            title: t('calculator', 'Calculator'),
+            href: showCenterTab ? undefined : null,
+            title: centerTitle,
             tabBarLabel: ({ color, focused }) => (
               <Text
                 style={{
@@ -103,17 +148,22 @@ export default function TabsLayout() {
                 }}
                 numberOfLines={1}
               >
-                {t('calculator', 'Calculator')}
+                {centerTitle}
               </Text>
             ),
-            tabBarIcon: ({ color, size }) => <Calculator size={size} color={color} />,
+            tabBarIcon: ({ color, size }) =>
+              restaurantPrimary ? (
+                <Plus size={size} color={color} strokeWidth={2.5} />
+              ) : (
+                <Calculator size={size} color={color} />
+              ),
           }}
         />
         <Tabs.Screen
           name="products"
           listeners={{ tabPress: closeMoreMenu }}
           options={{
-            title: t('products', 'Products'),
+            title: catalogLabel,
             tabBarLabel: ({ color, focused }) => (
               <Text
                 style={{
@@ -124,10 +174,17 @@ export default function TabsLayout() {
                 }}
                 numberOfLines={1}
               >
-                {t('products', 'Products')}
+                {catalogLabel === 'Menu'
+                  ? t('menu', 'Menu')
+                  : t('products', 'Products')}
               </Text>
             ),
-            tabBarIcon: ({ color, size }) => <Package size={size} color={color} />,
+            tabBarIcon: ({ color, size }) =>
+              kotFirst ? (
+                <BookOpen size={size} color={color} />
+              ) : (
+                <Package size={size} color={color} />
+              ),
           }}
         />
         <Tabs.Screen

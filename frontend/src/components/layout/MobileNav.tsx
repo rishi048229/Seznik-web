@@ -1,24 +1,79 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, UtensilsCrossed } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  Home,
+  ShoppingCart,
+  Package,
+  Settings,
+  MoreHorizontal,
+  X,
+  FileText,
+  Users,
+  BarChart3,
+  Wallet,
+  CreditCard,
+  Truck,
+  TrendingUp,
+  Tag,
+  MoveLeft,
+  UtensilsCrossed,
+  LayoutGrid,
+  Plus,
+  BookOpen,
+  Ticket,
+} from 'lucide-react'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
 import { prefetchPage } from '@/utils/prefetchPages'
+import { isKotFirstNav, isNavFeatureVisible } from '@/utils/businessFeatures'
 
-const primaryItems = [
-  { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
-  { path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> },
-  { path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> },
-  { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
-]
+type NavItem = {
+  path: string
+  label: string
+  icon: React.ReactNode
+}
 
-const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) => {
+export const MobileNav = () => {
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const { permissions, userProfile } = useAuth()
+  const navigate = useNavigate()
+  const businessType = userProfile?.businessType
+  const kotFirst = isKotFirstNav(businessType)
+  const showKot = isNavFeatureVisible(businessType, 'kot')
+  const showTokens = isNavFeatureVisible(businessType, 'tokens')
+
+  const primaryItems: NavItem[] = kotFirst
+    ? [
+        { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
+        { path: ROUTES.KOT, label: 'Tables', icon: <LayoutGrid size={20} /> },
+        { path: ROUTES.PRODUCTS, label: 'Menu', icon: <BookOpen size={20} /> },
+        { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
+      ]
+    : [
+        { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
+        { path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> },
+        { path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> },
+        { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
+      ]
+
   const p = permissions ?? undefined
-  return [
-    { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
-    { path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> },
+  const moreItems: NavItem[] = [
+    ...(kotFirst
+      ? [
+          { path: ROUTES.POS, label: 'Counter POS', icon: <ShoppingCart size={20} /> },
+          { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
+        ]
+      : [
+          { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
+          ...(showKot
+            ? [{ path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> }]
+            : []),
+        ]),
+    ...(showTokens
+      ? [{ path: ROUTES.TOKENS, label: 'Quick Tokens', icon: <Ticket size={20} /> }]
+      : []),
     { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
     { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },
     ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),
@@ -28,18 +83,46 @@ const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) =>
     ...(canAccessReports(p) ? [{ path: ROUTES.REPORTS, label: 'Reports', icon: <BarChart3 size={20} /> }] : []),
     { path: ROUTES.SETTINGS, label: 'Settings', icon: <Settings size={20} /> },
   ]
-}
-
-export const MobileNav = () => {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const { permissions } = useAuth()
-  const moreItems = getMoreItems(permissions)
 
   return (
     <>
       <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 lg:hidden safe-bottom">
         <div className="flex justify-around items-center h-16">
-          {primaryItems.map(item => (
+          {primaryItems.slice(0, 2).map(item => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onMouseEnter={() => prefetchPage(item.path)}
+              onFocus={() => prefetchPage(item.path)}
+              className={({ isActive }) =>
+                clsx(
+                  'flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-[11px] font-medium transition-colors',
+                  isActive
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400'
+                )
+              }
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+
+          {kotFirst ? (
+            <button
+              type="button"
+              onClick={() => navigate(`${ROUTES.KOT}?new=1`)}
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-[11px] font-medium text-blue-600 dark:text-blue-400"
+              aria-label="New Bill"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-md -mt-3">
+                <Plus size={20} strokeWidth={2.5} />
+              </span>
+              <span>New Bill</span>
+            </button>
+          ) : null}
+
+          {primaryItems.slice(2).map(item => (
             <NavLink
               key={item.path}
               to={item.path}

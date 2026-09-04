@@ -37,7 +37,11 @@ const en = {
   'nav.printers': 'Printers',
   'nav.taxBilling': 'Tax & Billing',
   'nav.kot': 'KOT and tables',
+  'nav.tables': 'Tables',
+  'nav.menu': 'Menu',
+  'nav.counterPos': 'Counter POS',
   'nav.sectionMain': 'Point of Sale',
+  'nav.sectionKitchen': 'Kitchen & Tables',
   'nav.sectionInventory': 'Inventory',
   'nav.sectionFinance': 'Finance & Orders',
   'nav.sectionSystem': 'System & Reports',
@@ -59,6 +63,7 @@ const en = {
   'action.pay': 'Pay',
   'action.addUser': 'Add User',
   'action.newSale': 'New Sale',
+  'action.newBill': 'New Bill',
   'action.addExpense': 'Add Expense',
 
   // Dashboard
@@ -80,6 +85,8 @@ const en = {
   'dashboard.topCategories': 'Top Categories',
   'dashboard.expenseSummary': 'Expense Summary',
   'dashboard.openScanToBill': 'Open Scan To Bill',
+  'dashboard.openTables': 'Open Tables',
+  'dashboard.openNewBill': 'New Bill',
   'dashboard.viewItems': 'View Items',
   'dashboard.margin': 'Margin',
   'dashboard.thisMonth': 'This Month',
@@ -137,6 +144,7 @@ const en = {
 
   // Page titles (used by every page's header so switching language applies app-wide)
   'page.products': 'Products',
+  'page.menu': 'Menu',
   'page.categories': 'Product Categories',
   'page.customers': 'Customers',
   'page.suppliers': 'Suppliers',
@@ -967,7 +975,7 @@ const en = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
@@ -1910,7 +1918,7 @@ const hi: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -2829,7 +2837,7 @@ const mr: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -3748,7 +3756,7 @@ const ta: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -4663,7 +4671,7 @@ const te: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -5578,7 +5586,7 @@ const gu: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -6493,7 +6501,7 @@ const bn: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -7408,7 +7416,7 @@ const ml: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',
@@ -8323,7 +8331,7 @@ const or: Partial<Record<TranslationKey, string>> = {
   'onboarding.setupFailed': 'Could not save your business profile.',
   'sidebar.reviewSuggest': 'Review and suggest',
   'sidebar.reviewSuggestSub': 'Share feedback & ideas',
-  'sidebar.restaurantPos': 'RESTAURANT & CAFE POS',
+  'sidebar.restaurantPos': 'KITCHEN & TABLES',
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
 
   'onboarding.continue': 'Continue',

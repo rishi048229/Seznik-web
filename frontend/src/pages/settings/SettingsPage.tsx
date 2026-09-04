@@ -21,6 +21,8 @@ import type { KotConfig } from '@/types/settings.types'
 import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
+import { useAuth } from '@/contexts/AuthContext'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -55,6 +57,8 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
+  const { userProfile } = useAuth()
+  const showKotSettings = isNavFeatureVisible(userProfile?.businessType, 'kot')
 
   const current = settings ?? DEFAULT_SETTINGS
 
@@ -67,11 +71,19 @@ export const SettingsPage = () => {
     setKotForm(mergeKotConfig(settings?.kotConfig))
   }, [settings])
 
+  useEffect(() => {
+    if (!showKotSettings && activeTab === 'kot') {
+      setActiveTab('business')
+    }
+  }, [showKotSettings, activeTab])
+
   const settingsTabs = [
     { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: t('settings.descBusiness') },
     { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: t('settings.descPersonal') },
     { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: t('settings.descInvoice') },
-    { key: 'kot', label: 'Kitchen / KOT', icon: ChefHat, description: 'Cafe, restaurant, charges, and kitchen slips' },
+    ...(showKotSettings
+      ? [{ key: 'kot', label: 'Kitchen / KOT', icon: ChefHat, description: 'Cafe, restaurant, charges, and kitchen slips' }]
+      : []),
     { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: t('settings.descNotifications') },
     { key: 'permissions', label: t('settings.permissions'), icon: Users, description: t('settings.descPermissions') },
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },

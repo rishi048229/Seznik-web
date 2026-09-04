@@ -446,14 +446,6 @@ export default function DashboardScreen() {
                 {showKot ? (
                   <>
                     <FeatureGridTile
-                      label={t('kotOrders', 'KOT Orders')}
-                      badge="NEW"
-                      icon={ChefHat}
-                      color="#F97316"
-                      onPress={() => router.push('/kot' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
                       label={t('restaurantTables', 'Tables')}
                       icon={LayoutGrid}
                       color="#7C3AED"
@@ -461,10 +453,18 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label={t('dayBook', 'Day Book')}
-                      icon={BookOpen}
-                      color="#10B981"
-                      onPress={() => router.push('/credits' as any)}
+                      label={t('newBill', 'New Bill')}
+                      badge="NEW"
+                      icon={Plus}
+                      color="#F97316"
+                      onPress={() => router.push('/kot/new' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('kotOrders', 'KOT Orders')}
+                      icon={ChefHat}
+                      color="#EA580C"
+                      onPress={() => router.push('/kot' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
@@ -517,17 +517,33 @@ export default function DashboardScreen() {
                 {showMoreTools && (
                   <>
                     {showKot ? (
-                      <FeatureGridTile
-                        label={t('scanStock', 'Scan Stock')}
-                        icon={Barcode}
-                        color={BRAND_COLORS.sky500}
-                        onPress={() => {
-                          if (!permission?.granted) requestPermission();
-                          setScanMode('stock');
-                          setShowScanModal(true);
-                        }}
-                        theme={theme}
-                      />
+                      <>
+                        <FeatureGridTile
+                          label={t('dayBook', 'Day Book')}
+                          icon={BookOpen}
+                          color="#10B981"
+                          onPress={() => router.push('/credits' as any)}
+                          theme={theme}
+                        />
+                        <FeatureGridTile
+                          label={t('pos', 'Counter POS')}
+                          icon={ShoppingBag}
+                          color="#0EA5E9"
+                          onPress={() => router.push('/(tabs)/pos' as any)}
+                          theme={theme}
+                        />
+                        <FeatureGridTile
+                          label={t('scanStock', 'Scan Stock')}
+                          icon={Barcode}
+                          color={BRAND_COLORS.sky500}
+                          onPress={() => {
+                            if (!permission?.granted) requestPermission();
+                            setScanMode('stock');
+                            setShowScanModal(true);
+                          }}
+                          theme={theme}
+                        />
+                      </>
                     ) : null}
                     <FeatureGridTile
                       label={t('aiImport', 'AI Import')}
@@ -606,10 +622,19 @@ export default function DashboardScreen() {
                         theme={theme}
                       />
                     ) : null}
-                    {showCalculator ? (
+                    {showCalculator && !showKot ? (
                       <FeatureGridTile
                         label={t('calculator', 'Calculator')}
                         badge="NEW"
+                        icon={Calculator}
+                        color="#6366F1"
+                        onPress={() => router.push('/(tabs)/calculator' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {showCalculator && showKot ? (
+                      <FeatureGridTile
+                        label={t('calculator', 'Calculator')}
                         icon={Calculator}
                         color="#6366F1"
                         onPress={() => router.push('/(tabs)/calculator' as any)}

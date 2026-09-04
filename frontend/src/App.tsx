@@ -13,6 +13,7 @@ import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { prefetchCorePages } from '@/utils/prefetchPages'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
 import type { UserPermissions } from '@/types/auth.types'
 
 // Helper to lazy-load named exports as default components.
@@ -216,6 +217,21 @@ const PermissionRoute = ({ permission, children }: { permission: keyof UserPermi
   return <>{children}</>
 }
 
+// Business-type feature gate (e.g. KOT / tokens only for restaurant_cafe).
+const BusinessFeatureRoute = ({
+  feature,
+  children,
+}: {
+  feature: 'kot' | 'tokens'
+  children: React.ReactNode
+}) => {
+  const { userProfile } = useAuth()
+  if (!isNavFeatureVisible(userProfile?.businessType, feature)) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />
+  }
+  return <>{children}</>
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -247,7 +263,7 @@ function App() {
                 <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
                 <Route path={ROUTES.POS} element={<POSPage />} />
                 <Route path={ROUTES.POS_LITE} element={<POSLitePage />} />
-                <Route path={ROUTES.TOKENS} element={<QuickTokensPage />} />
+                <Route path={ROUTES.TOKENS} element={<BusinessFeatureRoute feature="tokens"><QuickTokensPage /></BusinessFeatureRoute>} />
                 <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
                 <Route path={ROUTES.CATEGORIES} element={<CategoriesPage />} />
                 <Route path={ROUTES.LOCATIONS} element={<LocationsPage />} />
@@ -266,8 +282,8 @@ function App() {
                 <Route path={ROUTES.REPORTS_TAX} element={<PermissionRoute permission="canAccessReports"><TaxReportPage /></PermissionRoute>} />
                 <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
                 <Route path={ROUTES.PRINTERS} element={<PrintersPage />} />
-                <Route path={ROUTES.KOT_KDS} element={<KDSPage />} />
-                <Route path={ROUTES.KOT} element={<KOTPage />} />
+                <Route path={ROUTES.KOT_KDS} element={<BusinessFeatureRoute feature="kot"><KDSPage /></BusinessFeatureRoute>} />
+                <Route path={ROUTES.KOT} element={<BusinessFeatureRoute feature="kot"><KOTPage /></BusinessFeatureRoute>} />
               </Route>
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>

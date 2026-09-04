@@ -70,8 +70,6 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
   const [taxRate, setTaxRate] = useState('5'); // Standard 5% restaurant GST in India
   const [kitchenStation, setKitchenStation] = useState('Main Kitchen');
   const [preparationTime, setPreparationTime] = useState('10');
-  const [isUnlimitedStock, setIsUnlimitedStock] = useState(true);
-  const [stockQty, setStockQty] = useState('100');
 
   const handleCreateFoodItem = async () => {
     const trimmedName = name.trim();
@@ -92,14 +90,13 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
         (c) => c.name.toLowerCase() === categoryName.toLowerCase()
       );
 
-      const parsedStock = isUnlimitedStock ? 9999 : parseInt(stockQty, 10) || 50;
-
       const payload: any = {
         name: trimmedName,
         sellingPrice,
         costPrice: parseFloat(costPrice) || 0,
-        currentStock: parsedStock,
-        lowStockThreshold: 10,
+        // In KOT restaurants, food items are prepared on demand without inventory stock limits
+        currentStock: 999999,
+        lowStockThreshold: 0,
         unit,
         taxRate: parseFloat(taxRate) || 0,
         priceIncludesGst: true,

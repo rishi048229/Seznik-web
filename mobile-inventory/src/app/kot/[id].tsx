@@ -84,7 +84,10 @@ export default function KotOrderDetailScreen() {
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 14);
 
   const { order, isLoading, isRefetching, isError, refetch } = useKotOrder(id);
-  const { updateStatus, editOrder, generateBill, isEditing, isGeneratingBill } = useKotOrders();
+  const { updateStatus, editOrder, generateBill, isEditing, isGeneratingBill } = useKotOrders(
+    undefined,
+    { enabled: false }
+  );
   const { products } = useProducts();
   const { paperWidth, connectionState, activeTemplateId, customTemplates, activeCustomTemplateId, enableBillQrCode, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
   const { settings } = useSettings();

@@ -23,6 +23,7 @@ import {
   MessageSquarePlus,
   ChefHat,
   LayoutGrid,
+  Calculator,
   X,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -32,7 +33,7 @@ import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 
 import { useTranslation } from '@/store/useLanguageStore';
 import { NavFeatureId } from '@/constants/businessTypes';
-import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { isKotFirstNav, isNavFeatureVisible } from '@/utils/businessFeatures';
 
 interface MoreMenuModalProps {
   visible: boolean;
@@ -44,6 +45,8 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const { user, hasPermission } = useAuth();
   const theme = useAppTheme();
   const { t } = useTranslation();
+
+  const kotFirst = isKotFirstNav(user?.businessType);
 
   const menuItems: Array<{
     id: string;
@@ -60,6 +63,26 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       color: '#0284C7',
       route: '/(tabs)/invoices',
     },
+    // When Tables / New Bill are primary tabs, demote POS + Calculator here
+    ...(kotFirst
+      ? [
+          {
+            id: 'pos',
+            title: t('pos', 'Counter POS'),
+            icon: ShoppingBag,
+            color: '#0EA5E9',
+            route: '/(tabs)/pos',
+          },
+          {
+            id: 'calculator',
+            title: t('calculator', 'Calculator'),
+            icon: Calculator,
+            color: '#6366F1',
+            route: '/(tabs)/calculator',
+            feature: 'calculator' as NavFeatureId,
+          },
+        ]
+      : []),
     {
       id: 'kot-orders',
       title: t('kotOrders', 'KOT Orders'),
@@ -68,14 +91,19 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       route: '/kot',
       feature: 'kot',
     },
-    {
-      id: 'kot-tables',
-      title: t('restaurantTables', 'Tables'),
-      icon: LayoutGrid,
-      color: '#7C3AED',
-      route: '/kot/tables',
-      feature: 'kot',
-    },
+    // Tables stay in More only when not already a primary tab
+    ...(!kotFirst
+      ? [
+          {
+            id: 'kot-tables',
+            title: t('restaurantTables', 'Tables'),
+            icon: LayoutGrid,
+            color: '#7C3AED',
+            route: '/kot/tables',
+            feature: 'kot' as NavFeatureId,
+          },
+        ]
+      : []),
     {
       id: 'quick-tokens',
       title: t('quickTokens', 'Quick Counter Tokens'),

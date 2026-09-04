@@ -11,7 +11,7 @@ export const useProducts = () => {
     queryKey: [QUERY_KEYS.PRODUCTS, user?.uid],
     queryFn: () => productService.getProducts(user!.uid),
     enabled: !!user,
-    staleTime: 0,
+    staleTime: 5 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   })

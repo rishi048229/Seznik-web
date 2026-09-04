@@ -10,15 +10,20 @@ function invalidateBillingSideEffects(queryClient: ReturnType<typeof useQueryCli
   queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] });
 }
 
-export function useKotOrders(statuses?: KOTOrderStatus[]) {
+export function useKotOrders(
+  statuses?: KOTOrderStatus[],
+  options?: { enabled?: boolean }
+) {
   const queryClient = useQueryClient();
 
   const statusParam = statuses?.join(',');
+  const fetchEnabled = options?.enabled !== false;
 
   const ordersQuery = useQuery({
     queryKey: ['kot-orders', statusParam || 'all'],
     queryFn: () => kotOrdersApi.getOrders({ status: statusParam }),
     staleTime: 1000 * 10, // 10s live updates
+    enabled: fetchEnabled,
   });
 
   const createOrderMutation = useMutation({

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, memo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   TextInput,
   StyleSheet,
   StatusBar,
@@ -44,12 +45,9 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
-import ThermalPrinterService from '@/services/PrinterService';
 import { useSettings } from '@/hooks/useSettings';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
-import { getTemplateById } from '@/constants/receiptTemplates';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
-import { printInvoiceReceipt } from '@/utils/invoiceActions';
 import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
 import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
@@ -64,16 +62,134 @@ interface SelectedItemLine {
   notes?: string;
 }
 
+const MenuFoodCard = memo(function MenuFoodCard({
+  product,
+  inCartQty,
+  theme,
+  unavailable,
+  onPress,
+  onToggleAvailability,
+}: {
+  product: Product;
+  inCartQty: number;
+  theme: ReturnType<typeof useAppTheme>;
+  unavailable: boolean;
+  onPress: (product: Product) => void;
+  onToggleAvailability: (product: Product) => void;
+}) {
+  const dietary = (product as any).dietaryType || 'veg';
+
+  return (
+    <TouchableOpacity
+      onPress={() => {
+        if (unavailable) return;
+        onPress(product);
+      }}
+      onLongPress={() => onToggleAvailability(product)}
+      delayLongPress={350}
+      activeOpacity={0.8}
+      style={[
+        styles.foodCard,
+        {
+          backgroundColor: theme.cardBg,
+          borderColor: unavailable
+            ? '#F87171'
+            : inCartQty > 0
+              ? BRAND_COLORS.blue600
+              : theme.borderColor,
+          borderWidth: inCartQty > 0 || unavailable ? 1.5 : 1,
+          opacity: unavailable ? 0.72 : 1,
+        },
+      ]}
+    >
+      <View style={styles.cardImageContainer}>
+        {product.imageUrl ? (
+          <Image source={{ uri: product.imageUrl }} style={styles.cardImage} resizeMode="cover" />
+        ) : (
+          <View
+            style={[
+              styles.cardPlaceholder,
+              { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' },
+            ]}
+          >
+            <Text style={[styles.cardPlaceholderText, { color: theme.textSecondary }]}>
+              {product.name.slice(0, 1).toUpperCase()}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.dietaryBadge}>
+          <View
+            style={[
+              styles.dietaryIconBox,
+              {
+                borderColor:
+                  dietary === 'veg' ? '#10B981' : dietary === 'egg' ? '#F59E0B' : '#EF4444',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.dietaryDot,
+                {
+                  backgroundColor:
+                    dietary === 'veg' ? '#10B981' : dietary === 'egg' ? '#F59E0B' : '#EF4444',
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+        {unavailable ? (
+          <View style={styles.unavailableBadge}>
+            <Text style={styles.unavailableBadgeText}>N/A</Text>
+          </View>
+        ) : inCartQty > 0 ? (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{inCartQty}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.cardBody}>
+        <Text style={[styles.dishName, { color: theme.textPrimary }]} numberOfLines={2}>
+          {product.name}
+        </Text>
+
+        <View style={styles.cardFooterRow}>
+          <Text style={[styles.dishPrice, { color: theme.textPrimary }]}>
+            ₹{(product.sellingPrice || 0).toFixed(2)}
+          </Text>
+          <TouchableOpacity
+            onPress={() => onToggleAvailability(product)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.availabilityBtn}
+          >
+            <Text
+              style={[
+                styles.availabilityBtnText,
+                { color: unavailable ? '#10B981' : '#EF4444' },
+              ]}
+            >
+              {unavailable ? 'Mark available' : 'Not available'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 export default function NewKotOrderScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 12);
 
-  const { products } = useProducts();
+  const { products, updateProduct } = useProducts({ includeLowStock: false });
   const { categories } = useCategories();
   const { tables } = useRestaurantTables();
-  const { createOrder, isCreating } = useKotOrders();
+  const { createOrder, isCreating } = useKotOrders(undefined, { enabled: false });
   const {
     connectionState,
     paperWidth,
@@ -106,7 +222,9 @@ export default function NewKotOrderScreen() {
   // Cart / Items
   const [selectedItems, setSelectedItems] = useState<SelectedItemLine[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearch = useDeferredValue(searchQuery);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showUnavailable, setShowUnavailable] = useState(false);
 
   // Modals
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
@@ -114,17 +232,30 @@ export default function NewKotOrderScreen() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
   const [discountAmount, setDiscountAmount] = useState('');
 
-  // Filter food products
-  const filteredProducts = products.filter((p: Product) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.barcode && p.barcode.includes(searchQuery));
-    const matchesCat =
-      selectedCategory === 'all' ||
-      p.categoryId === selectedCategory ||
-      (p.category && p.category.name.toLowerCase() === selectedCategory.toLowerCase());
-    return matchesSearch && matchesCat;
-  });
+  const cartQtyByProductId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of selectedItems) {
+      if (item.productId) map.set(item.productId, item.quantity);
+    }
+    return map;
+  }, [selectedItems]);
+
+  const filteredProducts = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return products.filter((p: Product) => {
+      // KOT menu is availability-based — never stock/qty gated
+      const matchesAvailability = showUnavailable ? p.isActive === false : p.isActive !== false;
+      const matchesSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q));
+      const matchesCat =
+        selectedCategory === 'all' ||
+        p.categoryId === selectedCategory ||
+        (p.category && p.category.name.toLowerCase() === selectedCategory.toLowerCase());
+      return matchesAvailability && matchesSearch && matchesCat;
+    });
+  }, [products, deferredSearch, selectedCategory, showUnavailable]);
 
   const totalItemsCount = selectedItems.reduce((sum, it) => sum + it.quantity, 0);
   const subtotal = selectedItems.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
@@ -132,7 +263,8 @@ export default function NewKotOrderScreen() {
   const discountVal = parseFloat(discountAmount) || 0;
   const grandTotal = Math.max(0, subtotal + taxTotal - discountVal);
 
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = useCallback((product: Product) => {
+    if (product.isActive === false) return;
     setSelectedItems((prev) => {
       const existing = prev.find((it) => it.productId === product.id);
       if (existing) {
@@ -152,7 +284,51 @@ export default function NewKotOrderScreen() {
         },
       ];
     });
-  };
+  }, []);
+
+  const handleToggleAvailability = useCallback(
+    (product: Product) => {
+      const nextActive = product.isActive === false;
+      Alert.alert(
+        nextActive ? 'Mark available?' : 'Mark not available?',
+        nextActive
+          ? `"${product.name}" will show on the menu again.`
+          : `"${product.name}" will be hidden from the live menu until you mark it available.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: nextActive ? 'Mark available' : 'Not available',
+            style: nextActive ? 'default' : 'destructive',
+            onPress: async () => {
+              try {
+                await updateProduct({ id: product.id, payload: { isActive: nextActive } });
+                if (!nextActive) {
+                  setSelectedItems((prev) => prev.filter((it) => it.productId !== product.id));
+                }
+              } catch (err: any) {
+                Alert.alert('Update failed', err?.message || 'Could not update menu item');
+              }
+            },
+          },
+        ]
+      );
+    },
+    [updateProduct]
+  );
+
+  const renderMenuItem = useCallback(
+    ({ item }: { item: Product }) => (
+      <MenuFoodCard
+        product={item}
+        inCartQty={cartQtyByProductId.get(item.id) || 0}
+        theme={theme}
+        unavailable={item.isActive === false}
+        onPress={handleAddProduct}
+        onToggleAvailability={handleToggleAvailability}
+      />
+    ),
+    [cartQtyByProductId, theme, handleAddProduct, handleToggleAvailability]
+  );
 
   const handleUpdateQty = (idx: number, delta: number) => {
     setSelectedItems((prev) =>
@@ -211,8 +387,9 @@ export default function NewKotOrderScreen() {
         })),
       });
 
-      // Fire KOT Print via Thermal Printer
+      // Fire KOT Print via Thermal Printer (lazy-load heavy printer module)
       try {
+        const { default: ThermalPrinterService } = await import('@/services/PrinterService');
         await ThermalPrinterService.printKotTicket(
           {
             storeName: settings?.businessName || 'SEZNIK KITCHEN',
@@ -288,9 +465,13 @@ export default function NewKotOrderScreen() {
         })),
       });
 
-      // Auto print customer receipt if connected
+      // Auto print customer receipt if connected (lazy-load receipt/print modules)
       if (connectionState === 'connected') {
         try {
+          const [{ getTemplateById }, { printInvoiceReceipt }] = await Promise.all([
+            import('@/constants/receiptTemplates'),
+            import('@/utils/invoiceActions'),
+          ]);
           const template = getTemplateById(activeTemplateId);
           const customTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
           const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
@@ -470,14 +651,17 @@ export default function NewKotOrderScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Category Pills */}
+            {/* Category Pills — KOT is availability-based, no stock filters */}
             <View style={styles.categoryPillsWrapper}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                 <TouchableOpacity
-                  onPress={() => setSelectedCategory('all')}
+                  onPress={() => {
+                    setShowUnavailable(false);
+                    setSelectedCategory('all');
+                  }}
                   style={[
                     styles.catPill,
-                    selectedCategory === 'all'
+                    !showUnavailable && selectedCategory === 'all'
                       ? { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.navyInk }
                       : { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
                   ]}
@@ -485,19 +669,49 @@ export default function NewKotOrderScreen() {
                   <Text
                     style={[
                       styles.catPillText,
-                      { color: selectedCategory === 'all' ? '#FFFFFF' : theme.textPrimary },
+                      {
+                        color:
+                          !showUnavailable && selectedCategory === 'all'
+                            ? '#FFFFFF'
+                            : theme.textPrimary,
+                      },
                     ]}
                   >
                     All
                   </Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowUnavailable(true);
+                    setSelectedCategory('all');
+                  }}
+                  style={[
+                    styles.catPill,
+                    showUnavailable
+                      ? { backgroundColor: '#DC2626', borderColor: '#DC2626' }
+                      : { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.catPillText,
+                      { color: showUnavailable ? '#FFFFFF' : theme.textPrimary },
+                    ]}
+                  >
+                    Not available
+                  </Text>
+                </TouchableOpacity>
+
                 {categories.map((cat) => {
-                  const active = selectedCategory === cat.id;
+                  const active = !showUnavailable && selectedCategory === cat.id;
                   return (
                     <TouchableOpacity
                       key={cat.id}
-                      onPress={() => setSelectedCategory(cat.id)}
+                      onPress={() => {
+                        setShowUnavailable(false);
+                        setSelectedCategory(cat.id);
+                      }}
                       style={[
                         styles.catPill,
                         active
@@ -520,118 +734,63 @@ export default function NewKotOrderScreen() {
             </View>
 
             {/* 2-Column Responsive Food Product Grid */}
-            <ScrollView
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
               style={{ flex: 1, paddingHorizontal: 14 }}
               contentContainerStyle={{ paddingBottom: 100 }}
-            >
-              <View style={styles.foodGrid}>
-                {filteredProducts.map((p) => {
-                  const cartLine = selectedItems.find((it) => it.productId === p.id);
-                  const inCartQty = cartLine?.quantity || 0;
-                  const stock = typeof p.currentStock === 'number' ? p.currentStock : 99;
-                  const isOut = stock <= 0;
-                  const dietary = (p as any).dietaryType || 'veg';
-
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      onPress={() => handleAddProduct(p)}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.foodCard,
-                        {
-                          backgroundColor: theme.cardBg,
-                          borderColor: inCartQty > 0 ? BRAND_COLORS.blue600 : theme.borderColor,
-                          borderWidth: inCartQty > 0 ? 1.5 : 1,
-                        },
-                      ]}
-                    >
-                      {/* Image / Letter Box */}
-                      <View style={styles.cardImageContainer}>
-                        {p.imageUrl ? (
-                          <Image source={{ uri: p.imageUrl }} style={styles.cardImage} resizeMode="cover" />
-                        ) : (
-                          <View style={[styles.cardPlaceholder, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' }]}>
-                            <Text style={[styles.cardPlaceholderText, { color: theme.textSecondary }]}>
-                              {p.name.slice(0, 1).toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* Veg / Non-Veg Indicator Badge */}
-                        <View style={styles.dietaryBadge}>
-                          <View
-                            style={[
-                              styles.dietaryIconBox,
-                              {
-                                borderColor:
-                                  dietary === 'veg' ? '#10B981' : dietary === 'egg' ? '#F59E0B' : '#EF4444',
-                              },
-                            ]}
-                          >
-                            <View
-                              style={[
-                                styles.dietaryDot,
-                                {
-                                  backgroundColor:
-                                    dietary === 'veg' ? '#10B981' : dietary === 'egg' ? '#F59E0B' : '#EF4444',
-                                },
-                              ]}
-                            />
-                          </View>
-                        </View>
-
-                        {/* Cart Badge */}
-                        {inCartQty > 0 && (
-                          <View style={styles.cartBadge}>
-                            <Text style={styles.cartBadgeText}>{inCartQty}</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      {/* Content */}
-                      <View style={styles.cardBody}>
-                        <Text style={[styles.dishName, { color: theme.textPrimary }]} numberOfLines={2}>
-                          {p.name}
-                        </Text>
-
-                        <View style={styles.cardFooterRow}>
-                          <Text style={[styles.dishPrice, { color: theme.textPrimary }]}>
-                            ₹{p.sellingPrice.toFixed(2)}
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.stockBadgeText,
-                              { color: isOut ? '#EF4444' : theme.textSecondary },
-                            ]}
-                          >
-                            {isOut ? 'Out' : `Stk ${stock}`}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
+              columnWrapperStyle={styles.foodGrid}
+              renderItem={renderMenuItem}
+              initialNumToRender={12}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={{ textAlign: 'center', color: theme.textSecondary, marginTop: 40 }}>
+                  No menu items match this search.
+                </Text>
+              }
+            />
 
             {/* Sticky Floating Ticket Bar if items exist */}
             {totalItemsCount > 0 && (
               <View style={[styles.floatingTicketBar, { backgroundColor: BRAND_COLORS.navyInk }]}>
-                <View>
+                <View style={styles.floatingTicketMeta}>
                   <Text style={styles.floatingTicketTitle}>
                     {totalItemsCount} Item{totalItemsCount > 1 ? 's' : ''} in Ticket
                   </Text>
                   <Text style={styles.floatingTicketPrice}>₹{grandTotal.toFixed(2)}</Text>
                 </View>
 
-                <TouchableOpacity
-                  onPress={() => setActiveTab('ticket')}
-                  style={styles.floatingTicketBtn}
-                >
-                  <Text style={styles.floatingTicketBtnText}>View Ticket ➔</Text>
-                </TouchableOpacity>
+                <View style={styles.floatingTicketActions}>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('ticket')}
+                    style={styles.floatingViewTicketBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.floatingViewTicketBtnText}>View Ticket</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSendToKitchen}
+                    disabled={isCreating}
+                    style={[
+                      styles.floatingTicketBtn,
+                      isCreating && { opacity: 0.7 },
+                    ]}
+                  >
+                    {isCreating ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Printer size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+                        <Text style={styles.floatingTicketBtnText}>Print Ticket</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -845,13 +1004,15 @@ export default function NewKotOrderScreen() {
         )}
 
         {/* Modal: Add Food Item on the fly */}
-        <AddFoodItemModal
-          visible={showAddFoodModal}
-          onClose={() => setShowAddFoodModal(false)}
-          onItemCreated={(newItem) => {
-            if (newItem) handleAddProduct(newItem);
-          }}
-        />
+        {showAddFoodModal ? (
+          <AddFoodItemModal
+            visible={showAddFoodModal}
+            onClose={() => setShowAddFoodModal(false)}
+            onItemCreated={(newItem) => {
+              if (newItem) handleAddProduct(newItem);
+            }}
+          />
+        ) : null}
 
         {/* Modal: Settle Bill & Payment */}
         <Modal
@@ -1018,16 +1179,14 @@ const styles = StyleSheet.create({
   },
   catPillText: { fontSize: 12, fontWeight: '800' },
   foodGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: 10,
+    marginBottom: 6,
   },
   foodCard: {
-    width: '48.5%',
+    flex: 1,
+    maxWidth: '50%',
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 6,
     elevation: 2,
   },
   cardImageContainer: {
@@ -1063,46 +1222,92 @@ const styles = StyleSheet.create({
   dietaryDot: { width: 6, height: 6, borderRadius: 3 },
   cartBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: BRAND_COLORS.blue600,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 5,
   },
   cartBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  cardBody: { padding: 10 },
+  unavailableBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(220, 38, 38, 0.92)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  unavailableBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
+  cardBody: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 },
   dishName: { fontSize: 13, fontWeight: '800', minHeight: 34 },
   cardFooterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 4,
+    gap: 6,
   },
   dishPrice: { fontSize: 13.5, fontWeight: '900' },
-  stockBadgeText: { fontSize: 10.5, fontWeight: '700' },
+  availabilityBtn: {
+    flexShrink: 1,
+    paddingVertical: 2,
+  },
+  availabilityBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
   floatingTicketBar: {
     position: 'absolute',
     bottom: 16,
     left: 16,
     right: 16,
     borderRadius: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
     elevation: 8,
+  },
+  floatingTicketMeta: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   floatingTicketTitle: { color: '#94A3B8', fontSize: 11, fontWeight: '700' },
   floatingTicketPrice: { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
-  floatingTicketBtn: {
-    backgroundColor: BRAND_COLORS.blue600,
-    paddingHorizontal: 14,
+  floatingTicketActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  floatingViewTicketBtn: {
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  floatingViewTicketBtnText: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  floatingTicketBtn: {
+    backgroundColor: BRAND_COLORS.blue600,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 108,
+    justifyContent: 'center',
   },
   floatingTicketBtnText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },
   ticketHeaderRow: {

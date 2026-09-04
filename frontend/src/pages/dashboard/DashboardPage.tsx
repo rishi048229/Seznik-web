@@ -24,9 +24,11 @@ import { useSales } from '@/hooks/useSales'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getBlePrinterState, getBluetoothUnsupportedReason } from '@/utils/blePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
 import type { TranslationKey } from '@/i18n/translations'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
+import { isKotFirstNav } from '@/utils/businessFeatures'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import {
@@ -146,6 +148,8 @@ export const DashboardPage = () => {
   const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly')
   const printer = useBlePrinter()
   const { t } = useLanguage()
+  const { userProfile } = useAuth()
+  const kotFirst = isKotFirstNav(userProfile?.businessType)
   const [isConnectingPrinter, setIsConnectingPrinter] = useState(false)
 
   const handleConnectPrinter = async () => {
@@ -220,8 +224,13 @@ export const DashboardPage = () => {
           title={t('page.dashboard')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
-              {t('dashboard.openScanToBill')}
+            <Button
+              data-tour="pos-shortcut"
+              size="sm"
+              onClick={() => navigate(kotFirst ? `${ROUTES.KOT}?new=1` : ROUTES.POS)}
+              leftIcon={<Compass size={16} />}
+            >
+              {kotFirst ? t('dashboard.openNewBill') : t('dashboard.openScanToBill')}
             </Button>
           }
         />

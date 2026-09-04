@@ -39,7 +39,7 @@ import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
 import { NavFeatureId } from '@/constants/businessTypes';
-import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { getCatalogNavLabel, isKotFirstNav, isNavFeatureVisible } from '@/utils/businessFeatures';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.82, 340);
@@ -57,23 +57,40 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const { user, logout, hasPermission } = useAuth();
   const { currentLanguage, setLanguage, t } = useTranslation();
   const businessType = user?.businessType;
+  const kotFirst = isKotFirstNav(businessType);
+  const catalogLabel =
+    getCatalogNavLabel(businessType) === 'Menu'
+      ? t('menu', 'Menu')
+      : t('products', 'Products & Barcodes');
 
   const isFeatureVisible = (feature?: NavFeatureId) => {
     if (!feature) return true;
     return isNavFeatureVisible(businessType, feature);
   };
 
-  const corePosItems = [
-    { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
-    { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
-    ...(isFeatureVisible('calculator')
-      ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
-      : []),
-    { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: IndianRupee, route: '/(tabs)/invoices' },
-    ...(isFeatureVisible('tokens')
-      ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
-      : []),
-  ];
+  const corePosItems = kotFirst
+    ? [
+        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
+        { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: IndianRupee, route: '/(tabs)/invoices' },
+        { id: 'pos', label: t('pos', 'Counter POS'), icon: ShoppingBag, route: '/(tabs)/pos' },
+        ...(isFeatureVisible('calculator')
+          ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
+          : []),
+        ...(isFeatureVisible('tokens')
+          ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
+          : []),
+      ]
+    : [
+        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
+        { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
+        ...(isFeatureVisible('calculator')
+          ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
+          : []),
+        { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: IndianRupee, route: '/(tabs)/invoices' },
+        ...(isFeatureVisible('tokens')
+          ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
+          : []),
+      ];
 
   const theme = isDark
     ? {
@@ -95,27 +112,38 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         activeText: BRAND_COLORS.blue600,
       };
 
-  const navGroups = [
-    {
-      title: t('corePosSales', 'CORE POS & SALES'),
-      items: corePosItems,
-    },
-    ...(isFeatureVisible('kot') && hasPermission('canAccessKOT')
+  const kotGroup =
+    isFeatureVisible('kot') && hasPermission('canAccessKOT')
       ? [
           {
             title: t('kotRestaurantOrders', 'KOT & RESTAURANT ORDERS'),
             items: [
-              { id: 'kot-orders', label: t('ordersBoard', 'Orders Board'), icon: ChefHat, route: '/kot' },
-              { id: 'kot-new', label: t('newKotOrder', 'New Order'), icon: PlusCircle, route: '/kot/new' },
               { id: 'kot-tables', label: t('restaurantTables', 'Tables'), icon: LayoutGrid, route: '/kot/tables' },
+              { id: 'kot-new', label: t('newBill', 'New Bill'), icon: PlusCircle, route: '/kot/new' },
+              { id: 'kot-orders', label: t('ordersBoard', 'Orders Board'), icon: ChefHat, route: '/kot' },
             ],
           },
         ]
-      : []),
+      : [];
+
+  const navGroups = [
+    ...(kotFirst ? kotGroup : []),
+    {
+      title: kotFirst
+        ? t('corePosSales', 'COUNTER & SALES')
+        : t('corePosSales', 'CORE POS & SALES'),
+      items: corePosItems,
+    },
+    ...(!kotFirst ? kotGroup : []),
     {
       title: t('inventoryCatalog', 'INVENTORY & CATALOG'),
       items: [
-        { id: 'products', label: t('products', 'Products & Barcodes'), icon: Package, route: '/products' },
+        {
+          id: 'products',
+          label: kotFirst ? catalogLabel : t('products', 'Products & Barcodes'),
+          icon: Package,
+          route: '/products',
+        },
         ...(isFeatureVisible('stores')
           ? [{ id: 'stores', label: t('stores', 'Stores & Locations'), icon: LayoutGrid, route: '/stores' }]
           : []),
@@ -175,10 +203,15 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                 </View>
                 <View>
                   <Text style={[styles.brandTitle, { color: theme.textPrimary }]}>
-                    {t('brandTitle', 'Seznik')} <Text style={{ color: BRAND_COLORS.blue600 }}>POS</Text>
+                    {t('brandTitle', 'Seznik')}{' '}
+                    <Text style={{ color: BRAND_COLORS.blue600 }}>
+                      {kotFirst ? t('kitchenTables', 'Kitchen') : 'POS'}
+                    </Text>
                   </Text>
                   <Text style={[styles.brandSub, { color: theme.textSecondary }]}>
-                    {t('brandSub', 'Mobile Companion')}
+                    {kotFirst
+                      ? t('brandSubRestaurant', 'Tables & settle bill')
+                      : t('brandSub', 'Mobile Companion')}
                   </Text>
                 </View>
               </View>

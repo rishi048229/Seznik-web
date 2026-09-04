@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useDeferredValue } from 'react'
 import { X, Printer, CreditCard, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { LocationSelector } from '@/components/common/LocationSelector'
 import { BleConnectButton } from '@/components/common/BleConnectButton'
-import { useProducts } from '@/hooks/useProducts'
+import { useProducts, useUpdateProduct } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useLocationStock } from '@/hooks/useLocations'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
@@ -56,6 +56,7 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
 
 export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
   const { data: products = [], isLoading: productsLoading } = useProducts()
+  const { mutateAsync: updateProduct } = useUpdateProduct()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
   const { mutate: updateSettings } = useUpdateSettings()
@@ -78,6 +79,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [pendingItems, setPendingItems] = useState<KOTDraftItem[]>([])
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [showUnavailable, setShowUnavailable] = useState(false)
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null)
   const [itemNotes, setItemNotes] = useState('')
   const [itemMods, setItemMods] = useState<string[]>([])
@@ -86,12 +88,17 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [mobileTab, setMobileTab] = useState<'menu' | 'ticket'>('menu')
 
   const { data: order, isLoading: orderLoading } = useKotOrder(orderId)
-  const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 8000 })
+  const { data: runningOrders = [] } = useKotOrders({
+    status: 'running',
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  })
   const { data: locationStockRows = [] } = useLocationStock(locationId)
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
   const { mutate: generateBill, isPending: isBilling } = useGenerateKotBill()
+  const deferredSearch = useDeferredValue(search)
 
   const persistKotConfig = (next: typeof kotCfg, ok?: string) => {
     const data = { kotConfig: next }
@@ -139,27 +146,34 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     return map
   }, [locationStockRows])
 
-  const stockFor = (product: Product) => {
-    if (!locationId) return product.currentStock
-    return locationStockMap.get(product.id)?.stock ?? 0
-  }
-
   const priceFor = (product: Product) => {
     if (!locationId) return product.sellingPrice
     return locationStockMap.get(product.id)?.priceOverride ?? product.sellingPrice
   }
 
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = deferredSearch.trim().toLowerCase()
     const childIds = categoryId ? getChildCategories(categories, categoryId).map((c) => c.id) : []
     return products.filter((p) => {
-      if (!p.isActive) return false
-      if (locationId && !locationStockMap.has(p.id)) return false
+      // Kitchen items: no stock gating — only available / not available
+      const matchesAvailability = showUnavailable ? p.isActive === false : p.isActive !== false
       const matchesCategory = !categoryId || p.categoryId === categoryId || childIds.includes(p.categoryId)
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.barcode ?? '').toLowerCase().includes(q)
-      return matchesCategory && matchesSearch
+      return matchesAvailability && matchesCategory && matchesSearch
     })
-  }, [products, search, categoryId, categories, locationId, locationStockMap])
+  }, [products, deferredSearch, categoryId, categories, showUnavailable])
+
+  const handleToggleAvailability = async (product: Product, nextActive: boolean) => {
+    try {
+      await updateProduct({ productId: product.id, data: { isActive: nextActive } })
+      toast.success(nextActive ? `"${product.name}" is available again` : `"${product.name}" marked not available`)
+      if (!nextActive) {
+        setPendingItems((prev) => prev.filter((it) => it.productId !== product.id))
+      }
+    } catch (err) {
+      toastError(err, 'Could not update menu item')
+    }
+  }
 
   const sentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt)
   const unprintedServerItems = (order?.items ?? []).filter((it) => !it.sentToKitchenAt)
@@ -531,8 +545,11 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               onSearchChange={setSearch}
               categoryId={categoryId}
               onCategoryChange={setCategoryId}
-              stockFor={stockFor}
+              showUnavailable={showUnavailable}
+              onShowUnavailableChange={setShowUnavailable}
+              onToggleAvailability={handleToggleAvailability}
               onPick={(p) => {
+                if (p.isActive === false) return
                 setPickedProduct(p)
                 setItemNotes('')
                 setItemMods([])
@@ -617,36 +634,38 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         onConfirm={confirmAddItem}
       />
 
-      <KOTBillModal
-        isOpen={billOpen}
-        onClose={() => setBillOpen(false)}
-        subtotal={totals.subtotal}
-        itemTax={totals.tax}
-        orderType={orderType}
-        onOrderTypeChange={setOrderType}
-        customerId={customerId}
-        onCustomerChange={setCustomerId}
-        loading={isBilling}
-        onSettle={(payload) => {
-          if (!orderId) return
-          generateBill(
-            { id: orderId, data: payload },
-            {
-              onSuccess: async (result) => {
-                toast.success('Bill settled — start the next one')
-                setBillOpen(false)
-                try {
-                  await printCustomerReceipt(result.sale)
-                } catch (err) {
-                  console.error(err)
-                }
-                startFreshBill()
-              },
-              onError: (err) => toastError(err, 'Could not settle the bill'),
-            }
-          )
-        }}
-      />
+      {billOpen ? (
+        <KOTBillModal
+          isOpen={billOpen}
+          onClose={() => setBillOpen(false)}
+          subtotal={totals.subtotal}
+          itemTax={totals.tax}
+          orderType={orderType}
+          onOrderTypeChange={setOrderType}
+          customerId={customerId}
+          onCustomerChange={setCustomerId}
+          loading={isBilling}
+          onSettle={(payload) => {
+            if (!orderId) return
+            generateBill(
+              { id: orderId, data: payload },
+              {
+                onSuccess: async (result) => {
+                  toast.success('Bill settled — start the next one')
+                  setBillOpen(false)
+                  try {
+                    await printCustomerReceipt(result.sale)
+                  } catch (err) {
+                    console.error(err)
+                  }
+                  startFreshBill()
+                },
+                onError: (err) => toastError(err, 'Could not settle the bill'),
+              }
+            )
+          }}
+        />
+      ) : null}
     </div>
   )
 }

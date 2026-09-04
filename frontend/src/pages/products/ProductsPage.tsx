@@ -34,6 +34,8 @@ import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { isKotFirstNav } from '@/utils/businessFeatures'
 import { useSettings } from '@/hooks/useSettings'
 import { useLocations, useProductLocationStock, useUpsertProductLocationStock, useLocationStock } from '@/hooks/useLocations'
 import { LocationSelector } from '@/components/common/LocationSelector'
@@ -138,6 +140,8 @@ const PAGE_SIZE = 8
 
 export const ProductsPage = () => {
   const { t } = useLanguage()
+  const { userProfile } = useAuth()
+  const kotFirst = isKotFirstNav(userProfile?.businessType)
   const { data: products, isLoading } = useProducts()
 
   const { data: categories } = useCategories()
@@ -735,7 +739,7 @@ export const ProductsPage = () => {
     <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
       <div data-tour="products-header">
         <PageHeader
-          title={t('page.products')}
+          title={kotFirst ? t('page.menu') : t('page.products')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
             <Button

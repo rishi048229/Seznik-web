@@ -26,7 +26,15 @@ export const BUSINESS_TYPE_OPTIONS: ReadonlyArray<{
   },
 ]
 
-export type NavFeatureId = 'kot' | 'tokens' | 'calculator' | 'purchases' | 'suppliers' | 'stores'
+export type NavFeatureId =
+  | 'kot'
+  | 'tokens'
+  | 'calculator'
+  | 'purchases'
+  | 'suppliers'
+  | 'stores'
+  | 'posPrimary'
+  | 'calculatorPrimary'
 
 export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, boolean>> = {
   restaurant_cafe: {
@@ -36,6 +44,8 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     purchases: true,
     suppliers: true,
     stores: true,
+    posPrimary: false,
+    calculatorPrimary: false,
   },
   online_store: {
     kot: false,
@@ -44,6 +54,8 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     purchases: true,
     suppliers: true,
     stores: true,
+    posPrimary: true,
+    calculatorPrimary: false,
   },
   retail_shop: {
     kot: false,
@@ -52,7 +64,29 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     purchases: true,
     suppliers: true,
     stores: true,
+    posPrimary: true,
+    calculatorPrimary: true,
   },
+}
+
+/** Primary chrome layout: restaurant centers Tables / New Bill / Menu instead of POS / Calculator / Products. */
+export type PrimaryNavMode = 'restaurant' | 'retail'
+
+export function getPrimaryNavMode(
+  type: BusinessType | null | undefined
+): PrimaryNavMode {
+  return type === 'restaurant_cafe' ? 'restaurant' : 'retail'
+}
+
+export function usesRestaurantPrimaryNav(
+  type: BusinessType | null | undefined
+): boolean {
+  return getPrimaryNavMode(type) === 'restaurant'
+}
+
+/** Alias used by businessFeatures helpers. */
+export function usesKotFirstNav(type: BusinessType | null | undefined): boolean {
+  return usesRestaurantPrimaryNav(type)
 }
 
 export const BUSINESS_TEMPLATES: Record<
@@ -61,12 +95,12 @@ export const BUSINESS_TEMPLATES: Record<
 > = {
   restaurant_cafe: {
     title: 'Restaurant & Cafe workspace',
-    subtitle: 'Kitchen tickets, table billing, and counter service — plus the shared store tools.',
+    subtitle: 'Tables, kitchen tickets, and settle-bill flow — plus shared store tools.',
     features: [
-      'Kitchen Order Tickets (KOT) on mobile',
-      'Table billing and floor management',
-      'Quick counter tokens',
-      'POS, inventory, and billing',
+      'Table floor and New Bill',
+      'Kitchen Order Tickets (KOT)',
+      'Menu and categories',
+      'Settle bill and counter tokens',
       'Multi-store / franchise locations',
     ],
   },

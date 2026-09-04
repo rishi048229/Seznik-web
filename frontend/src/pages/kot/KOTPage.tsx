@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { ChefHat, Check, Clock, CreditCard, LayoutGrid, MoreVertical, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
@@ -17,13 +17,21 @@ import { formatINR } from '@/utils/currency'
 import { FloorStatsBar } from './components/FloorStatsBar'
 import { TableCard } from './components/TableCard'
 import { TableManageModal } from './components/TableManageModal'
-import { KOTWorkspace } from './components/KOTWorkspace'
-import { KOTSettingsModal, type KOTSettingsTab } from './components/KOTSettingsModal'
-import { KotInsightsPanel } from './components/KotInsightsPanel'
 import { mergeKotConfig, orderTypeLabel, tableNounLabel, VENUE_PRESETS } from './kotConfig'
 import { venueIcon } from './components/VenueTypePicker'
 import { formatElapsed } from './kotUtils'
 import type { KOTOrder, KOTOrderType, RestaurantTable } from '@/types/kot.types'
+import type { KOTSettingsTab } from './components/KOTSettingsModal'
+
+const KOTWorkspace = lazy(() =>
+  import('./components/KOTWorkspace').then((m) => ({ default: m.KOTWorkspace }))
+)
+const KOTSettingsModal = lazy(() =>
+  import('./components/KOTSettingsModal').then((m) => ({ default: m.KOTSettingsModal }))
+)
+const KotInsightsPanel = lazy(() =>
+  import('./components/KotInsightsPanel').then((m) => ({ default: m.KotInsightsPanel }))
+)
 
 type WorkspaceTarget =
   | { kind: 'table'; table: RestaurantTable }
@@ -31,6 +39,7 @@ type WorkspaceTarget =
 
 export const KOTPage = () => {
   const { t } = useLanguage()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: settings } = useSettings()
   const { mutate: updateSettings } = useUpdateSettings()
   const { mutate: createSettings } = useCreateSettings()
@@ -39,12 +48,27 @@ export const KOTPage = () => {
   const VenueIcon = venueIcon(kotCfg.venueType)
   const floorLabel = tableNounLabel(kotCfg.tableNoun)
   const floorSingular = tableNounLabel(kotCfg.tableNoun, false).toLowerCase()
-  const { data: tables = [], isLoading } = useRestaurantTables({ refetchInterval: 10000 })
-  const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 10000 })
+  const { data: tables = [], isLoading } = useRestaurantTables({
+    refetchInterval: 10000,
+  })
+  const { data: runningOrders = [] } = useKotOrders({
+    status: 'running',
+    refetchInterval: 10000,
+    staleTime: 10_000,
+  })
   const [manageOpen, setManageOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<KOTSettingsTab>('business')
   const [workspace, setWorkspace] = useState<WorkspaceTarget | null>(null)
+
+  // Chrome "New Bill" lands on /kot?new=1 — open workspace immediately
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    setWorkspace({ kind: 'walkin', orderType: kotCfg.defaultOrderType })
+    const next = new URLSearchParams(searchParams)
+    next.delete('new')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams, kotCfg.defaultOrderType])
 
   const walkIns = useMemo(
     () => runningOrders.filter((order) => !order.tableId),
@@ -89,6 +113,9 @@ export const KOTPage = () => {
     workspace?.kind === 'table'
       ? tables.find((tb) => tb.id === workspace.table.id) ?? workspace.table
       : null
+
+  const showFloor = !workspace
+  const showInsights = showFloor
 
   return (
     <div className="pb-4">
@@ -153,17 +180,19 @@ export const KOTPage = () => {
         }
       />
 
-      <FloorStatsBar
-        total={stats.total}
-        occupied={stats.occupied}
-        vacant={stats.vacant}
-        revenue={stats.revenue}
-        tableLabel={floorLabel}
-        showFloor={kotCfg.showTables}
-        openCount={walkIns.length}
-      />
+      {showFloor && (
+        <FloorStatsBar
+          total={stats.total}
+          occupied={stats.occupied}
+          vacant={stats.vacant}
+          revenue={stats.revenue}
+          tableLabel={floorLabel}
+          showFloor={kotCfg.showTables}
+          openCount={walkIns.length}
+        />
+      )}
 
-      {walkIns.length > 0 && (
+      {walkIns.length > 0 && showFloor && (
         <section className="mb-5">
           <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
             {kotCfg.showTables ? 'Open takeaway / delivery bills' : 'Open bills'}
@@ -186,77 +215,108 @@ export const KOTPage = () => {
         </section>
       )}
 
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" />
-        </div>
-      ) : !kotCfg.showTables ? (
-        walkIns.length === 0 ? (
+      {showFloor &&
+        (isLoading ? (
+          <div className="flex justify-center py-16">
+            <Spinner size="lg" />
+          </div>
+        ) : !kotCfg.showTables ? (
+          walkIns.length === 0 ? (
+            <>
+              <EmptyState
+                icon={<CreditCard size={40} />}
+                title="Ready for the next bill"
+                description={`${venue.label} mode — tap New Bill for takeaway or delivery. No floor plan.`}
+                action={
+                  <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
+                    New Bill
+                  </Button>
+                }
+              />
+              {showInsights && (
+                <Suspense fallback={null}>
+                  <KotInsightsPanel />
+                </Suspense>
+              )}
+            </>
+          ) : (
+            showInsights && (
+              <Suspense fallback={null}>
+                <KotInsightsPanel />
+              </Suspense>
+            )
+          )
+        ) : tables.length === 0 ? (
           <>
             <EmptyState
-              icon={<CreditCard size={40} />}
-              title="Ready for the next bill"
-              description={`${venue.label} mode — tap New Bill for takeaway or delivery. No floor plan.`}
+              icon={<UtensilsCrossed size={40} />}
+              title={`No ${floorLabel.toLowerCase()} yet`}
+              description={`You can still take takeaway and delivery bills. Add ${floorLabel.toLowerCase()} when you need dine-in.`}
               action={
-                <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
-                  New Bill
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
+                    New Bill
+                  </Button>
+                  <Button variant="outline" onClick={() => setManageOpen(true)} leftIcon={<Plus size={16} />}>
+                    Add {floorLabel.toLowerCase()}
+                  </Button>
+                </div>
               }
             />
-            <KotInsightsPanel />
+            {showInsights && (
+              <div className="mt-5">
+                <Suspense fallback={null}>
+                  <KotInsightsPanel />
+                </Suspense>
+              </div>
+            )}
           </>
         ) : (
-          <KotInsightsPanel />
-        )
-      ) : tables.length === 0 ? (
-        <>
-          <EmptyState
-            icon={<UtensilsCrossed size={40} />}
-            title={`No ${floorLabel.toLowerCase()} yet`}
-            description={`You can still take takeaway and delivery bills. Add ${floorLabel.toLowerCase()} when you need dine-in.`}
-            action={
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={openNewBill} leftIcon={<CreditCard size={16} />}>
-                  New Bill
-                </Button>
-                <Button variant="outline" onClick={() => setManageOpen(true)} leftIcon={<Plus size={16} />}>
-                  Add {floorLabel.toLowerCase()}
-                </Button>
+          <>
+            <section className="mb-5">
+              <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{floorLabel}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
+                {tables.map((table) => (
+                  <TableCard key={table.id} table={table} onClick={() => setWorkspace({ kind: 'table', table })} />
+                ))}
               </div>
-            }
-          />
-          <div className="mt-5">
-            <KotInsightsPanel />
+            </section>
+            {showInsights && (
+              <Suspense fallback={null}>
+                <KotInsightsPanel />
+              </Suspense>
+            )}
+          </>
+        ))}
+
+      {manageOpen && (
+        <TableManageModal isOpen={manageOpen} onClose={() => setManageOpen(false)} tables={tables} itemLabel={floorSingular} />
+      )}
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <KOTSettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} initialTab={settingsTab} />
+        </Suspense>
+      )}
+
+      <Suspense
+        fallback={
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+            <Spinner size="lg" />
           </div>
-        </>
-      ) : (
-        <>
-          <section className="mb-5">
-            <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{floorLabel}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
-              {tables.map((table) => (
-                <TableCard key={table.id} table={table} onClick={() => setWorkspace({ kind: 'table', table })} />
-              ))}
-            </div>
-          </section>
-          <KotInsightsPanel />
-        </>
-      )}
-
-      <TableManageModal isOpen={manageOpen} onClose={() => setManageOpen(false)} tables={tables} itemLabel={floorSingular} />
-      <KOTSettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} initialTab={settingsTab} />
-
-      {workspace?.kind === 'table' && activeTable && (
-        <KOTWorkspace table={activeTable} onClose={() => setWorkspace(null)} />
-      )}
-      {workspace?.kind === 'walkin' && (
-        <KOTWorkspace
-          table={null}
-          existingOrderId={workspace.orderId}
-          initialOrderType={workspace.orderType}
-          onClose={() => setWorkspace(null)}
-        />
-      )}
+        }
+      >
+        {workspace?.kind === 'table' && activeTable && (
+          <KOTWorkspace table={activeTable} onClose={() => setWorkspace(null)} />
+        )}
+        {workspace?.kind === 'walkin' && (
+          <KOTWorkspace
+            table={null}
+            existingOrderId={workspace.orderId}
+            initialOrderType={workspace.orderType}
+            onClose={() => setWorkspace(null)}
+          />
+        )}
+      </Suspense>
     </div>
   )
 }
@@ -277,12 +337,13 @@ const WalkInCard = ({ order, onClick }: { order: KOTOrder; onClick: () => void }
       </span>
     </div>
     <p className="pl-1 text-base font-bold text-gray-900 dark:text-gray-100">{formatINR(order.grandTotal)}</p>
-    <p className="pl-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
-      #{order.orderNumber} · {order.items?.length ?? 0} item{(order.items?.length ?? 0) === 1 ? '' : 's'}
-    </p>
-    <p className="pl-1 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 mt-2">
-      <Clock size={12} />
-      {formatElapsed(order.createdAt)}
-    </p>
+    <div className="pl-1 mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+      <span className="inline-flex items-center gap-1">
+        <Clock size={12} /> {formatElapsed(order.createdAt)}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <Check size={12} /> #{order.orderNumber}
+      </span>
+    </div>
   </button>
 )

@@ -5,10 +5,11 @@ import { writeCatalogCache } from '@/services/catalogCache';
 import { productsQueryKey } from '@/services/prefetchAppData';
 import { CreateProductPayload, Product, StockAdjustmentPayload } from '@/types/product';
 
-export function useProducts() {
+export function useProducts(options?: { includeLowStock?: boolean }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
+  const includeLowStock = options?.includeLowStock !== false;
 
   const productsQuery = useQuery({
     queryKey: productsQueryKey(userId || ''),
@@ -26,7 +27,7 @@ export function useProducts() {
   const lowStockQuery = useQuery({
     queryKey: ['products', 'low-stock', userId],
     queryFn: () => productsApi.getLowStockProducts(),
-    enabled: !!userId,
+    enabled: !!userId && includeLowStock,
     staleTime: 1000 * 60 * 5,
   });
 

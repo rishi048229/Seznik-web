@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ROUTES } from '@/constants/routes'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { isKotFirstNav } from '@/utils/businessFeatures'
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -20,6 +21,16 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
   const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
+  const kotFirst = isKotFirstNav(userProfile?.businessType)
+
+  const openPrimaryAction = () => {
+    if (kotFirst) {
+      void import('@/pages/kot/components/KOTWorkspace')
+      navigate(`${ROUTES.KOT}?new=1`)
+      return
+    }
+    navigate(ROUTES.POS)
+  }
 
   const handleGoBack = () => {
     // If we're on a detail page or nested page, go back, otherwise go to dashboard
@@ -67,15 +78,20 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           <HelpCircle size={18} className="text-gray-500" />
         </Button>
         <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-dark-elevated mx-1" />
-        {/* New Sale — icon-only on mobile, icon+text on desktop */}
+        {/* New Bill (restaurant) or New Sale (retail) */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate(ROUTES.POS)}
+          onClick={openPrimaryAction}
+          onMouseEnter={() => {
+            if (kotFirst) void import('@/pages/kot/components/KOTWorkspace')
+          }}
           className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:shadow-none p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
         >
           <Plus size={16} className="sm:mr-1" />
-          <span className="hidden sm:inline">{t('action.newSale')}</span>
+          <span className="hidden sm:inline">
+            {kotFirst ? t('action.newBill') : t('action.newSale')}
+          </span>
         </Button>
         <button
           type="button"

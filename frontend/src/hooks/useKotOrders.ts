@@ -9,13 +9,18 @@ const invalidateKotAndTables = (qc: ReturnType<typeof useQueryClient>) => {
   qc.invalidateQueries({ queryKey: [QUERY_KEYS.RESTAURANT_TABLES] })
 }
 
-export const useKotOrders = (params?: { status?: string; refetchInterval?: number }) => {
+export const useKotOrders = (params?: {
+  status?: string
+  refetchInterval?: number
+  enabled?: boolean
+  staleTime?: number
+}) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.KOT_ORDERS, user?.uid, params?.status ?? 'all'],
     queryFn: () => kotOrderService.getOrders({ status: params?.status }),
-    enabled: !!user,
-    staleTime: 0,
+    enabled: !!user && params?.enabled !== false,
+    staleTime: params?.staleTime ?? 10_000,
     refetchOnWindowFocus: false,
     refetchInterval: params?.refetchInterval,
   })
