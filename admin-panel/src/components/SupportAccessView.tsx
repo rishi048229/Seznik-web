@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
+  FileBarChart2,
   Headphones,
   KeyRound,
   Loader2,
@@ -100,7 +101,7 @@ function formatCredsBlock(creds: CreatedCreds) {
   ].join('\n');
 }
 
-export const SupportAccessView: React.FC = () => {
+export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ onViewReports }) => {
   const [agents, setAgents] = useState<SupportAgentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -250,11 +251,17 @@ export const SupportAccessView: React.FC = () => {
           <div>
             <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Support Access</h2>
             <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Create credentials for customer support staff who will use the support portal
+              Create credentials for customer support staff · portal at{' '}
+              <a href="/support" style={{ color: 'var(--accent-blue)' }}>/support</a>
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {onViewReports ? (
+            <button type="button" style={actionBtnStyle} onClick={onViewReports}>
+              <FileBarChart2 size={13} /> View reports
+            </button>
+          ) : null}
           <button type="button" style={actionBtnStyle} onClick={() => void loadAgents()}>
             <RefreshCw size={13} /> Refresh
           </button>

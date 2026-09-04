@@ -11,8 +11,20 @@ import { HealthView } from './components/HealthView';
 import { FeedbackSection } from './components/FeedbackSection';
 import { AccessCodesView } from './components/AccessCodesView';
 import { SupportAccessView } from './components/SupportAccessView';
+import { SupportCodeIssuanceLedger } from './components/SupportCodeIssuanceLedger';
 
-const VALID_TABS = ['overview', 'sections', 'users', 'traffic', 'redirects', 'feedback', 'codes', 'support', 'health'];
+const VALID_TABS = [
+  'overview',
+  'sections',
+  'users',
+  'traffic',
+  'redirects',
+  'feedback',
+  'codes',
+  'support',
+  'support-reports',
+  'health',
+];
 
 const getInitialTab = (): string => {
   if (typeof window !== 'undefined') {
@@ -101,7 +113,7 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
     <div className="admin-app-shell">
       <div style={{ flexShrink: 0 }}>
         <Navbar
-          activeTab={activeTab}
+          activeTab={activeTab === 'support-reports' ? 'support' : activeTab}
           onSelectTab={setActiveTab}
           onRefresh={handleGlobalRefresh}
           lastRefreshedAt={lastRefreshedAt}
@@ -158,7 +170,9 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
         ) : activeTab === 'codes' ? (
           <AccessCodesView />
         ) : activeTab === 'support' ? (
-          <SupportAccessView />
+          <SupportAccessView onViewReports={() => setActiveTab('support-reports')} />
+        ) : activeTab === 'support-reports' ? (
+          <SupportCodeIssuanceLedger onBack={() => setActiveTab('support')} />
         ) : activeTab === 'sections' ? (
           <SectionUsageSection
             title="Section & Feature Traffic Breakdown"

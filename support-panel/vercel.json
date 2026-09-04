@@ -1,0 +1,16 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/support/[...path].js": {
+      "includeFiles": "{certs/rds-global-bundle.pem,lib/**}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

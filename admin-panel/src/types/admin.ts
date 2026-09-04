@@ -218,6 +218,11 @@ export interface AccessCodeRecord {
   note: string | null;
   createdBy: string | null;
   createdAt: string;
+  customerName: string | null;
+  customerId: string | null;
+  invoiceNumber: string | null;
+  phone: string | null;
+  printer: string | null;
 }
 
 export interface AccessCodeBatch {
@@ -251,6 +256,17 @@ export interface AccessCodeGenerateResponse {
   createdBy: string | null;
   createdAt: string;
   codes: AccessCodeRecord[];
+}
+
+export interface AccessCodeIssuerStat {
+  createdBy: string;
+  count: number;
+  lastGeneratedAt: string;
+}
+
+export interface AccessCodeIssuerListResponse {
+  items: AccessCodeIssuerStat[];
+  totalCodes: number;
 }
 
 export interface SupportAgentRecord {

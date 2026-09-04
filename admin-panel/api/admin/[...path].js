@@ -29,6 +29,7 @@ import {
   listAccessCodes,
   listAccessCodeBatches,
   getAccessCodesByBatch,
+  listAccessCodeIssuers,
 } from '../../lib/accessCodes.js';
 import {
   listSupportAgents,
@@ -395,7 +396,14 @@ export default async function handler(req, res) {
         limit: query.limit,
         batchId: query.batchId,
         search: query.search,
+        createdBy: query.createdBy,
+        customerOnly: query.customerOnly === '1' || query.customerOnly === 'true',
       });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === 'access-codes/issuers') {
+      const result = await listAccessCodeIssuers(pool);
       return sendJson(res, 200, result);
     }
 

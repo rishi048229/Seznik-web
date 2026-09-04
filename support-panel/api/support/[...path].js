@@ -1,19 +1,19 @@
-import { getPool, sendJson, readJsonBody } from '../lib/adminDb.js';
+import { getPool, sendJson, readJsonBody } from '../../lib/supportDb.js';
 import {
   authenticateSupportAgent,
   getSupportAgentById,
-} from '../lib/supportAgents.js';
+} from '../../lib/supportAgents.js';
 import {
   createSupportSessionToken,
   getSupportSession,
   supportSessionCookieHeader,
   clearSupportSessionCookieHeader,
   isSecureRequest,
-} from '../lib/supportAuth.js';
+} from '../../lib/supportAuth.js';
 import {
   issueCustomerAccessCode,
   listAccessCodes,
-} from '../lib/accessCodes.js';
+} from '../../lib/accessCodes.js';
 
 function pathSegments(req) {
   const rawUrl = req.url || '';

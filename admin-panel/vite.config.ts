@@ -27,6 +27,8 @@ import {
   listAccessCodes,
   listAccessCodeBatches,
   getAccessCodesByBatch,
+  issueCustomerAccessCode,
+  listAccessCodeIssuers,
 } from './lib/accessCodes.js';
 import {
   listSupportAgents,
@@ -676,11 +678,26 @@ export default defineConfig(({ mode }) => {
                   limit: parsedUrl.searchParams.get('limit') || undefined,
                   batchId: parsedUrl.searchParams.get('batchId') || undefined,
                   search: parsedUrl.searchParams.get('search') || undefined,
+                  createdBy: parsedUrl.searchParams.get('createdBy') || undefined,
+                  customerOnly:
+                    parsedUrl.searchParams.get('customerOnly') === '1' ||
+                    parsedUrl.searchParams.get('customerOnly') === 'true',
                 });
                 send(200, result);
               } catch (err: any) {
                 console.error('DB error on access-codes list:', err.message);
                 send(500, { error: err?.message || 'Failed to list codes' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/admin/access-codes/issuers' && req.method === 'GET') {
+              try {
+                const result = await listAccessCodeIssuers(pool);
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on access-code issuers:', err.message);
+                send(500, { error: err?.message || 'Failed to list issuers' });
               }
               return;
             }
@@ -781,6 +798,66 @@ export default defineConfig(({ mode }) => {
                 send(200, { agent });
               } catch (err: any) {
                 send(500, { error: err?.message || 'Failed to load session' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/support/access-codes/issue' && req.method === 'POST') {
+              try {
+                const session = getSupportSession(req);
+                if (!session) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                const agent = await getSupportAgentById(pool, session.agentId);
+                if (!agent) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                if (agent.isDisabled) {
+                  res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+                  send(403, { error: 'Access disabled. Contact an administrator.' });
+                  return;
+                }
+                const payload = await readBody();
+                const record = await issueCustomerAccessCode(pool, {
+                  ...payload,
+                  createdBy: agent.username,
+                });
+                send(200, { success: true, record });
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to issue code' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/support/access-codes' && req.method === 'GET') {
+              try {
+                const session = getSupportSession(req);
+                if (!session) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                const agent = await getSupportAgentById(pool, session.agentId);
+                if (!agent) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                if (agent.isDisabled) {
+                  res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+                  send(403, { error: 'Access disabled. Contact an administrator.' });
+                  return;
+                }
+                const result = await listAccessCodes(pool, {
+                  page: parsedUrl.searchParams.get('page') || undefined,
+                  limit: parsedUrl.searchParams.get('limit') || undefined,
+                  search: parsedUrl.searchParams.get('search') || undefined,
+                  createdBy: agent.username,
+                  customerOnly: true,
+                });
+                send(200, result);
+              } catch (err: any) {
+                send(500, { error: err?.message || 'Failed to list codes' });
               }
               return;
             }

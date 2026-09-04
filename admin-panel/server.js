@@ -23,6 +23,8 @@ import {
   listAccessCodes,
   listAccessCodeBatches,
   getAccessCodesByBatch,
+  issueCustomerAccessCode,
+  listAccessCodeIssuers,
 } from './lib/accessCodes.js';
 import {
   listSupportAgents,
@@ -472,11 +474,24 @@ app.get('/api/admin/access-codes', async (req, res) => {
       limit: req.query.limit,
       batchId: req.query.batchId,
       search: req.query.search,
+      createdBy: req.query.createdBy,
+      customerOnly: req.query.customerOnly === '1' || req.query.customerOnly === 'true',
     });
     res.json(result);
   } catch (err) {
     console.error('Error listing access codes:', err);
     res.status(500).json({ error: 'Failed to list codes' });
+  }
+});
+
+// GET /api/admin/access-codes/issuers
+app.get('/api/admin/access-codes/issuers', async (req, res) => {
+  try {
+    const result = await listAccessCodeIssuers(pool);
+    res.json(result);
+  } catch (err) {
+    console.error('Error listing access code issuers:', err);
+    res.status(500).json({ error: 'Failed to list issuers' });
   }
 });
 
@@ -567,6 +582,53 @@ app.get('/api/support/me', async (req, res) => {
   } catch (err) {
     console.error('Error on support me:', err);
     res.status(500).json({ error: 'Failed to load session' });
+  }
+});
+
+// POST /api/support/access-codes/issue
+app.post('/api/support/access-codes/issue', async (req, res) => {
+  try {
+    const session = getSupportSession(req);
+    if (!session) return res.status(401).json({ error: 'Unauthorized' });
+    const agent = await getSupportAgentById(pool, session.agentId);
+    if (!agent) return res.status(401).json({ error: 'Unauthorized' });
+    if (agent.isDisabled) {
+      res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+      return res.status(403).json({ error: 'Access disabled. Contact an administrator.' });
+    }
+    const record = await issueCustomerAccessCode(pool, {
+      ...req.body,
+      createdBy: agent.username,
+    });
+    res.json({ success: true, record });
+  } catch (err) {
+    console.error('Error issuing customer access code:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to issue code' });
+  }
+});
+
+// GET /api/support/access-codes
+app.get('/api/support/access-codes', async (req, res) => {
+  try {
+    const session = getSupportSession(req);
+    if (!session) return res.status(401).json({ error: 'Unauthorized' });
+    const agent = await getSupportAgentById(pool, session.agentId);
+    if (!agent) return res.status(401).json({ error: 'Unauthorized' });
+    if (agent.isDisabled) {
+      res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+      return res.status(403).json({ error: 'Access disabled. Contact an administrator.' });
+    }
+    const result = await listAccessCodes(pool, {
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+      createdBy: agent.username,
+      customerOnly: true,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Error listing support access codes:', err);
+    res.status(500).json({ error: 'Failed to list codes' });
   }
 });
 
