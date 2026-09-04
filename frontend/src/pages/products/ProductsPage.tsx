@@ -35,8 +35,6 @@ import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useSettings } from '@/hooks/useSettings'
-import { useLocations, useProductLocationStock, useUpsertProductLocationStock, useLocationStock } from '@/hooks/useLocations'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
   generateLabelEscPos,
@@ -245,31 +243,9 @@ export const ProductsPage = () => {
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const { data: settings } = useSettings()
-  const locationFeatureEnabled = settings?.locationConfig?.enabled ?? false
-  const { data: allLocations = [] } = useLocations()
-  const activeLocations = allLocations.filter(l => l.isActive)
-  const { data: productLocationStock = [] } = useProductLocationStock(locationFeatureEnabled ? editId : null)
-  const { mutate: upsertLocationStock } = useUpsertProductLocationStock()
 
-  // Store switcher — lets the owner browse/manage this catalog scoped to one
-  // store at a time (same shared selection as POS/Scan-to-Bill, via
-  // LocationSelector's localStorage key, so picking a store anywhere in the
-  // app stays consistent). Products can carry different stock/price per
-  // store, or be entirely absent from one — "browseStoreId" is null when the
-  // feature is off or no store is picked, which falls back to every
-  // product's flat currentStock/sellingPrice exactly as before.
-  const [browseStoreId, setBrowseStoreId] = useState<string | null>(null)
-  const [showOnlyThisStore, setShowOnlyThisStore] = useState(false)
-  const { data: browseStoreStock = [] } = useLocationStock(browseStoreId)
-  const browseStoreStockMap = new Map(browseStoreStock.map(r => [r.productId, r]))
-  const browseStoreName = allLocations.find(l => l.id === browseStoreId)?.name ?? ''
-
-  const getBrowseStock = (product: { id: string; currentStock: number }): number =>
-    browseStoreId ? (browseStoreStockMap.get(product.id)?.stock ?? 0) : product.currentStock
-  const getBrowsePrice = (product: { id: string; sellingPrice: number }): number =>
-    browseStoreId ? (browseStoreStockMap.get(product.id)?.priceOverride ?? product.sellingPrice) : product.sellingPrice
-  const isCarriedAtBrowseStore = (product: { id: string }): boolean =>
-    !browseStoreId || browseStoreStockMap.has(product.id)
+  const getBrowseStock = (product: { currentStock: number }): number => product.currentStock
+  const getBrowsePrice = (product: { sellingPrice: number }): number => product.sellingPrice
   const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
@@ -416,8 +392,7 @@ export const ProductsPage = () => {
       (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
       (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
       (stockFilter === 'out-of-stock' && stockHere <= 0)
-    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p)
-    return matchesSearch && matchesCategory && matchesStock && matchesStoreScope
+    return matchesSearch && matchesCategory && matchesStock
   })
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
@@ -1052,26 +1027,6 @@ export const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Store switcher — browse/manage this catalog scoped to one store at a
-          time. Only rendered when multi-store inventory is enabled and at
-          least one active store exists. */}
-      {locationFeatureEnabled && activeLocations.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <LocationSelector onChange={setBrowseStoreId} />
-          {browseStoreId && (
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showOnlyThisStore}
-                onChange={e => setShowOnlyThisStore(e.target.checked)}
-                className="rounded"
-              />
-              Only show products carried at {browseStoreName}
-            </label>
-          )}
-        </div>
-      )}
-
       {/* Category Quick Filter Pills (Fully Horizontal Scrollable on Mobile, Tablet & Desktop) */}
       <div className="relative mb-4 group min-w-0">
         {canScrollLeft && (
@@ -1239,9 +1194,6 @@ export const ProductsPage = () => {
                                 }`}>
                                   {storeStock} Units
                                 </span>
-                                {browseStoreId && (
-                                  <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
-                                )}
                                 <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
@@ -1254,9 +1206,6 @@ export const ProductsPage = () => {
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
-                              {browseStoreId && storePrice !== product.sellingPrice && (
-                                <p className="text-[10px] text-gray-400 line-through">{formatINR(product.sellingPrice)}</p>
-                              )}
                             </td>
                             <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
@@ -1819,55 +1768,6 @@ export const ProductsPage = () => {
             />
           </div>
 
-          {/* Stock by Location — only shown when multi-location inventory is enabled */}
-          {locationFeatureEnabled && activeLocations.length > 0 && (
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
-                {t('locations.stockAtLocation') || 'Stock by Location'}
-              </p>
-              {!editId ? (
-                <p className="text-xs text-gray-400 italic">
-                  Save this product first, then come back to set its stock per location.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {activeLocations.map(loc => {
-                    const row = productLocationStock.find(r => r.locationId === loc.id)
-                    return (
-                      <div key={loc.id} className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 w-28 truncate shrink-0">
-                          {loc.name}
-                        </span>
-                        <input
-                          type="number"
-                          defaultValue={row?.stock ?? 0}
-                          onBlur={e => upsertLocationStock({
-                            productId: editId,
-                            locationId: loc.id,
-                            data: { stock: Number(e.target.value) || 0 },
-                          })}
-                          placeholder="Stock"
-                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
-                        />
-                        <input
-                          type="number"
-                          defaultValue={row?.priceOverride ?? ''}
-                          onBlur={e => upsertLocationStock({
-                            productId: editId,
-                            locationId: loc.id,
-                            data: { priceOverride: e.target.value === '' ? null : Number(e.target.value) },
-                          })}
-                          placeholder={`Price (default ${form.sellingPrice || '0'})`}
-                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Additional Details — entirely optional, never validated as required */}
           <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
@@ -2290,8 +2190,6 @@ export const ProductsPage = () => {
         product={detailProduct}
         categoryName={detailProduct ? getCategoryName(detailProduct.categoryId) : undefined}
         supplierName={detailProduct ? (suppliers?.find(s => s.id === detailProduct.supplierId)?.name || 'None') : undefined}
-        selectedStoreId={browseStoreId}
-        selectedStoreName={browseStoreName}
         onEdit={openEdit}
         onDelete={(p) => {
           if (confirm(`Delete product "${p.name}"?`)) {
@@ -2335,10 +2233,9 @@ export const ProductsPage = () => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         title="Export Products & Inventory"
-        subtitle={browseStoreName ? `Store: ${browseStoreName}` : 'All Stores / Global Catalog'}
+        subtitle="Product catalog"
         totalCount={selectedIds.size > 0 ? selectedIds.size : activeProducts.length}
         itemLabel={selectedIds.size > 0 ? 'selected products' : 'products'}
-        storeName={browseStoreName || undefined}
         businessName={settings?.businessName || 'SEZNIK ENTERPRISES'}
         businessGSTIN={settings?.businessGSTIN}
         businessPhone={settings?.businessPhone}
@@ -2353,16 +2250,15 @@ export const ProductsPage = () => {
             businessPhone: settings?.businessPhone || '',
             businessGSTIN: settings?.businessGSTIN || '',
             businessLogoURL: settings?.businessLogoURL || '',
-            storeName: browseStoreName || undefined,
           }
 
           if (format === 'excel') {
-            exportProductsToExcel(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            exportProductsToExcel(targetProducts, categories, meta)
           } else if (format === 'pdf') {
-            const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            const html = buildProductsHtmlReport(targetProducts, categories, meta)
             triggerPrintReport(html, 'Products-Inventory-Report')
           } else if (format === 'image') {
-            exportProductsToImage(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            exportProductsToImage(targetProducts, categories, meta)
           }
         }}
       />

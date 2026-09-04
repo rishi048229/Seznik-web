@@ -8,8 +8,6 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
-import { useLocationStock } from '@/hooks/useLocations'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
@@ -232,24 +230,8 @@ export const POSPage = () => {
     return acc
   }, {})
 
-  // Multi-location inventory: when a location is selected, stock/price
-  // resolve through that location's own ProductLocationStock row instead of
-  // the product's flat totals. A product with no stock row at the selected
-  // location is 0 available there — it does NOT fall back to the flat
-  // total, since that's the entire point of per-location stock.
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
-  const locationStockMap = new Map(locationStockRows.map(r => [r.productId, r]))
-
-  const getEffectiveStock = (product: Product): number => {
-    if (!selectedLocationId) return product.currentStock
-    return locationStockMap.get(product.id)?.stock ?? 0
-  }
-  const getEffectivePrice = (product: Product): number => {
-    if (!selectedLocationId) return product.sellingPrice
-    const override = locationStockMap.get(product.id)?.priceOverride
-    return override ?? product.sellingPrice
-  }
+  const getEffectiveStock = (product: Product): number => product.currentStock
+  const getEffectivePrice = (product: Product): number => product.sellingPrice
   /** The exact object to hand to addItem/cart logic so the cart line carries the location's price. */
   const withEffectivePrice = (product: Product): Product => {
     const price = getEffectivePrice(product)
@@ -296,13 +278,7 @@ export const POSPage = () => {
       const matchesPriceMin = isNaN(priceMinNum) || p.sellingPrice >= priceMinNum
       const matchesPriceMax = isNaN(priceMaxNum) || p.sellingPrice <= priceMaxNum
 
-      // Once a store is picked, only show what that store actually carries
-      // (has a stock row for) — a bare price/stock swap wasn't enough; the
-      // grid itself needs to reflect "this store's catalog," not every
-      // product in the whole business.
-      const matchesStoreScope = !selectedLocationId || locationStockMap.has(p.id)
-
-      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax && matchesStoreScope
+      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -337,7 +313,7 @@ export const POSPage = () => {
     const reserved = cartReserved[product.id] || 0
     const available = getEffectiveStock(product) - reserved
     if (available <= 0) {
-      toast.error(selectedLocationId ? `${t('pos.errOutOfStock')} at this location` : t('pos.errOutOfStock'))
+      toast.error(t('pos.errOutOfStock'))
     } else {
       addItem(withEffectivePrice(product))
     }
@@ -421,12 +397,6 @@ export const POSPage = () => {
     // Only set customerId if a customer is selected (Firestore rejects undefined)
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
-    }
-    // Multi-location inventory: stamps which location's stock this whole
-    // sale decrements. Absent entirely when no location is selected, so the
-    // backend takes its legacy flat-stock path unchanged.
-    if (selectedLocationId) {
-      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
     createSale(saleData, {
@@ -778,9 +748,7 @@ export const POSPage = () => {
             </div>
           </form>
 
-          {/* Billing location (only shown when multi-location inventory is enabled) */}
           <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <LocationSelector onChange={setSelectedLocationId} />
             <BleConnectButton />
           </div>
 

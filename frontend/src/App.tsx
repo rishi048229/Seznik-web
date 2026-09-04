@@ -60,7 +60,6 @@ const POSLitePage = lazyPage(() => import('@/pages/pos/POSLitePage'), 'POSLitePa
 const QuickTokensPage = lazyPage(() => import('@/pages/tokens/QuickTokensPage'), 'QuickTokensPage')
 const ProductsPage = lazyPage(() => import('@/pages/products/ProductsPage'), 'ProductsPage')
 const CategoriesPage = lazyPage(() => import('@/pages/categories/CategoriesPage'), 'CategoriesPage')
-const LocationsPage = lazyPage(() => import('@/pages/locations/LocationsPage'), 'LocationsPage')
 const CustomersPage = lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage')
 const CustomerDetailPage = lazyPage(() => import('@/pages/customers/CustomerDetailPage'), 'CustomerDetailPage')
 const SuppliersPage = lazyPage(() => import('@/pages/suppliers/SuppliersPage'), 'SuppliersPage')
@@ -250,7 +249,7 @@ function App() {
                 <Route path={ROUTES.TOKENS} element={<QuickTokensPage />} />
                 <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
                 <Route path={ROUTES.CATEGORIES} element={<CategoriesPage />} />
-                <Route path={ROUTES.LOCATIONS} element={<LocationsPage />} />
+                <Route path={ROUTES.LOCATIONS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
                 <Route path={ROUTES.CUSTOMERS} element={<CustomersPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path={ROUTES.SUPPLIERS} element={<PermissionRoute permission="canAccessSuppliers"><SuppliersPage /></PermissionRoute>} />

@@ -4,8 +4,6 @@ import { useCreateSale } from '@/hooks/useSales'
 
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
-import { useLocationStock } from '@/hooks/useLocations'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
@@ -161,15 +159,7 @@ export const POSLitePage = () => {
   const [productTaxRate, setProductTaxRate] = useState('0')
   const [showNameSuggestions, setShowNameSuggestions] = useState(false)
 
-  // Multi-location inventory: resolve this location's price override, if any
-  // (see LocationSelector/POSPage for the full explanation of the model).
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
-  const getEffectivePrice = (product: { id: string; sellingPrice: number }): number => {
-    if (!selectedLocationId) return product.sellingPrice
-    const override = locationStockRows.find(r => r.productId === product.id)?.priceOverride
-    return override ?? product.sellingPrice
-  }
+  const getEffectivePrice = (product: { sellingPrice: number }): number => product.sellingPrice
 
   const nameSuggestions = useMemo(() => {
     const q = productName.trim().toLowerCase()
@@ -501,9 +491,6 @@ export const POSLitePage = () => {
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
     }
-    if (selectedLocationId) {
-      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
-    }
 
     createSale(saleData, {
       onSuccess: (result) => {
@@ -771,7 +758,6 @@ export const POSLitePage = () => {
           </div>
 
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <LocationSelector onChange={setSelectedLocationId} />
             <BleConnectButton />
           </div>
 

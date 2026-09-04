@@ -1,25 +1,18 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
-import { Building2, ChefHat, Receipt, Store, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Building2, ChefHat, Receipt } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/Switch'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
-import {
-  useLocations,
-  useCreateLocation,
-  useUpdateLocation,
-  useDeleteLocation,
-  useToggleLocationActive,
-} from '@/hooks/useLocations'
 import { DEFAULT_KOT_CONFIG, mergeKotConfig } from '../kotConfig'
 import { KotSettingsFields } from './KotSettingsFields'
 import type { KotConfig, ReceiptConfig } from '@/types/settings.types'
 
-export type KOTSettingsTab = 'business' | 'bill' | 'kot' | 'stores'
+export type KOTSettingsTab = 'business' | 'bill' | 'kot'
 
 interface KOTSettingsModalProps {
   isOpen: boolean
@@ -31,19 +24,12 @@ const TABS: Array<{ id: KOTSettingsTab; label: string; icon: typeof Building2 }>
   { id: 'business', label: 'Business', icon: Building2 },
   { id: 'bill', label: 'Customer bill', icon: Receipt },
   { id: 'kot', label: 'Kitchen', icon: ChefHat },
-  { id: 'stores', label: 'Franchises', icon: Store },
 ]
 
 export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: KOTSettingsModalProps) => {
   const { data: settings } = useSettings()
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
-  const { data: locations = [] } = useLocations()
-  const { mutate: createLocation, isPending: isCreatingStore } = useCreateLocation()
-  const { mutate: updateLocation } = useUpdateLocation()
-  const { mutate: deleteLocation } = useDeleteLocation()
-  const { mutate: toggleActive } = useToggleLocationActive()
-
   const [tab, setTab] = useState<KOTSettingsTab>(initialTab)
   const [businessName, setBusinessName] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
@@ -64,8 +50,6 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
   })
   const [kot, setKot] = useState<Required<KotConfig>>(DEFAULT_KOT_CONFIG)
   const [invoicePrefix, setInvoicePrefix] = useState('INV')
-  const [storeName, setStoreName] = useState('')
-  const [editStoreId, setEditStoreId] = useState<string | null>(null)
 
   const saving = isUpdating || isCreating
 
@@ -96,8 +80,6 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
       showTaxBreakdown: settings?.receiptConfig?.showTaxBreakdown ?? true,
     })
     setKot(mergeKotConfig(settings?.kotConfig))
-    setStoreName('')
-    setEditStoreId(null)
   }, [isOpen, initialTab, settings])
 
   const persist = (data: Record<string, unknown>, label: string) => {
@@ -148,40 +130,6 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
     persist({ kotConfig: kot }, 'KOT settings')
   }
 
-  const franchisesEnabled = settings?.locationConfig?.enabled ?? false
-
-  const saveStore = () => {
-    const name = storeName.trim()
-    if (!name) {
-      toast.error('Enter a franchise / store name')
-      return
-    }
-    if (editStoreId) {
-      updateLocation(
-        { locationId: editStoreId, name },
-        {
-          onSuccess: () => {
-            toast.success('Franchise updated')
-            setEditStoreId(null)
-            setStoreName('')
-          },
-          onError: () => toast.error('Failed to update franchise'),
-        }
-      )
-      return
-    }
-    createLocation(
-      { name, sortOrder: locations.length, seedFromCurrentStock: true },
-      {
-        onSuccess: () => {
-          toast.success('Franchise added')
-          setStoreName('')
-        },
-        onError: () => toast.error('Failed to add franchise'),
-      }
-    )
-  }
-
   return (
     <Modal
       isOpen={isOpen}
@@ -189,19 +137,17 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
       title="Restaurant settings"
       size="xl"
       footer={
-        tab === 'stores' ? undefined : (
-          <Button
-            onClick={() => {
-              if (tab === 'business') saveBusiness()
-              else if (tab === 'bill') saveBill()
-              else saveKot()
-            }}
-            loading={saving}
-            className="w-full sm:w-auto"
-          >
-            Save {TABS.find((t) => t.id === tab)?.label.toLowerCase()}
-          </Button>
-        )
+        <Button
+          onClick={() => {
+            if (tab === 'business') saveBusiness()
+            else if (tab === 'bill') saveBill()
+            else saveKot()
+          }}
+          loading={saving}
+          className="w-full sm:w-auto"
+        >
+          Save {TABS.find((t) => t.id === tab)?.label.toLowerCase()}
+        </Button>
       }
     >
       <div className="space-y-4">
@@ -289,76 +235,6 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
 
         {tab === 'kot' && (
           <KotSettingsFields value={kot} onChange={setKot} />
-        )}
-
-        {tab === 'stores' && (
-          <div className="space-y-4">
-            <Switch
-              label="Enable multiple franchises / stores"
-              description="Turn this on to stock and bill from more than one outlet."
-              checked={franchisesEnabled}
-              onChange={(checked) => persist({ locationConfig: { enabled: checked } }, 'Franchise setting')}
-            />
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Input
-                placeholder="Franchise or store name"
-                value={storeName}
-                onChange={(e) => setStoreName(e.target.value)}
-              />
-              <Button onClick={saveStore} loading={isCreatingStore} leftIcon={editStoreId ? <Pencil size={14} /> : <Plus size={14} />}>
-                {editStoreId ? 'Update' : 'Add'}
-              </Button>
-            </div>
-            {locations.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-6">No franchises yet. Add your first outlet above.</p>
-            ) : (
-              <ul className="space-y-2">
-                {locations.map((loc) => (
-                  <li
-                    key={loc.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{loc.name}</p>
-                      <p className="text-[11px] text-gray-500">{loc.isActive ? 'Active' : 'Inactive'}</p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        className="p-2 text-gray-500 hover:text-gray-800"
-                        onClick={() => toggleActive({ locationId: loc.id, isActive: !loc.isActive })}
-                      >
-                        {loc.isActive ? 'Off' : 'On'}
-                      </button>
-                      <button
-                        type="button"
-                        className="p-2 text-gray-500 hover:text-blue-600"
-                        onClick={() => {
-                          setEditStoreId(loc.id)
-                          setStoreName(loc.name)
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-2 text-gray-500 hover:text-red-600"
-                        onClick={() => {
-                          if (!confirm(`Delete "${loc.name}"? Stock records for this outlet will be removed.`)) return
-                          deleteLocation(loc.id, {
-                            onSuccess: () => toast.success('Franchise deleted'),
-                            onError: () => toast.error('Failed to delete franchise'),
-                          })
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         )}
       </div>
     </Modal>

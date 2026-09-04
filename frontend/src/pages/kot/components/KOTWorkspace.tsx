@@ -4,11 +4,9 @@ import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
-import { useLocationStock } from '@/hooks/useLocations'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
@@ -67,7 +65,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [orderType, setOrderType] = useState<KOTOrderType>(
     initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
-  const [locationId, setLocationId] = useState<string | null>(null)
   const [waiterName, setWaiterName] = useState(() => {
     try {
       return localStorage.getItem(LAST_WAITER_KEY) || ''
@@ -87,7 +84,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
   const { data: order, isLoading: orderLoading } = useKotOrder(orderId)
   const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 8000 })
-  const { data: locationStockRows = [] } = useLocationStock(locationId)
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
@@ -131,35 +127,19 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }, [orderId, kotCfg.allowedOrderTypes, kotCfg.defaultOrderType, orderType])
 
-  const locationStockMap = useMemo(() => {
-    const map = new Map<string, { stock: number; priceOverride?: number | null }>()
-    for (const row of locationStockRows) {
-      map.set(row.productId, { stock: row.stock, priceOverride: row.priceOverride })
-    }
-    return map
-  }, [locationStockRows])
-
-  const stockFor = (product: Product) => {
-    if (!locationId) return product.currentStock
-    return locationStockMap.get(product.id)?.stock ?? 0
-  }
-
-  const priceFor = (product: Product) => {
-    if (!locationId) return product.sellingPrice
-    return locationStockMap.get(product.id)?.priceOverride ?? product.sellingPrice
-  }
+  const stockFor = (product: Product) => product.currentStock
+  const priceFor = (product: Product) => product.sellingPrice
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase()
     const childIds = categoryId ? getChildCategories(categories, categoryId).map((c) => c.id) : []
     return products.filter((p) => {
       if (!p.isActive) return false
-      if (locationId && !locationStockMap.has(p.id)) return false
       const matchesCategory = !categoryId || p.categoryId === categoryId || childIds.includes(p.categoryId)
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.barcode ?? '').toLowerCase().includes(q)
       return matchesCategory && matchesSearch
     })
-  }, [products, search, categoryId, categories, locationId, locationStockMap])
+  }, [products, search, categoryId, categories])
 
   const sentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt)
   const unprintedServerItems = (order?.items ?? []).filter((it) => !it.sentToKitchenAt)
@@ -243,7 +223,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     tableId: table?.id,
     partyLabel: table?.name || orderTypeLabel(orderType),
     waiterName: waiterName.trim() || undefined,
-    locationId: locationId || undefined,
     status: 'open' as const,
     items: toPayloadItems(items),
   })
@@ -348,7 +327,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       const result = await sendKitchen({
         id,
         waiterName: waiterName.trim() || undefined,
-        locationId: locationId || undefined,
       })
       const toPrint = result.newlySentItems?.length ? result.newlySentItems : result.items.filter((it) => !it.sentToKitchenAt)
       await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName)
@@ -451,7 +429,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h1>
         </div>
         <div className="flex-1 flex justify-end min-w-0 overflow-x-auto no-scrollbar items-center gap-2">
-          <LocationSelector onChange={setLocationId} />
           <BleConnectButton />
         </div>
         <button

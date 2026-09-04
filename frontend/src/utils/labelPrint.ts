@@ -116,7 +116,7 @@ export function generateLabelEscPos(
       const builder = new EscPosBuilder()
       builder.init('58mm')
       builder.align('center')
-      builder.image(packed.packed, packed.widthBytes, packed.heightDots)
+      builder.image(invertPackedForPrinter(packed.packed), packed.widthBytes, packed.heightDots)
       builder.feedDots(receiptLabelGapDots())
       return builder.toBytes()
     }
@@ -579,6 +579,13 @@ export function generateGapCalibrationBytes(): Uint8Array {
   return encoder.encode('GAPDETECT\r\nAUTO GAP\r\n')
 }
 
+/** GS v 0 / TSPL BITMAP on these printers treat 1 as white. Flip so text stays black. */
+function invertPackedForPrinter(packed: Uint8Array): Uint8Array {
+  const out = new Uint8Array(packed.length)
+  for (let i = 0; i < packed.length; i++) out[i] = packed[i] ^ 0xff
+  return out
+}
+
 function packCanvas1bpp(canvas: HTMLCanvasElement): { packed: Uint8Array; widthBytes: number; heightDots: number } {
   const ctx = canvas.getContext('2d')
   const width = canvas.width
@@ -717,8 +724,9 @@ function encodeTsplBitmap(
   const h = encoder.encode(header)
   const f = encoder.encode(footer)
   const out = new Uint8Array(h.length + packed.packed.length + f.length)
+  const bitmap = invertPackedForPrinter(packed.packed)
   out.set(h, 0)
-  out.set(packed.packed, h.length)
-  out.set(f, h.length + packed.packed.length)
+  out.set(bitmap, h.length)
+  out.set(f, h.length + bitmap.length)
   return out
 }

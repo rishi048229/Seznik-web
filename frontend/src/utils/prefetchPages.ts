@@ -7,7 +7,6 @@ const PAGE_IMPORTS: Record<string, () => Promise<unknown>> = {
   [ROUTES.TOKENS]: () => import('@/pages/tokens/QuickTokensPage'),
   [ROUTES.PRODUCTS]: () => import('@/pages/products/ProductsPage'),
   [ROUTES.CATEGORIES]: () => import('@/pages/categories/CategoriesPage'),
-  [ROUTES.LOCATIONS]: () => import('@/pages/locations/LocationsPage'),
   [ROUTES.CUSTOMERS]: () => import('@/pages/customers/CustomersPage'),
   [ROUTES.SUPPLIERS]: () => import('@/pages/suppliers/SuppliersPage'),
   [ROUTES.SALES]: () => import('@/pages/sales/SalesPage'),
