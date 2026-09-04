@@ -58,7 +58,11 @@ function requireField(value, label, max) {
   return trimmed;
 }
 
+let accessCodeSchemaReady = false;
+
 export async function ensureAccessCodeTable(pool) {
+  if (accessCodeSchemaReady) return;
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS "AccessCode" (
       id TEXT PRIMARY KEY,
@@ -88,6 +92,8 @@ export async function ensureAccessCodeTable(pool) {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS "AccessCode_createdBy_idx" ON "AccessCode" ("createdBy")
   `);
+
+  accessCodeSchemaReady = true;
 }
 
 function mapCodeRow(row) {
@@ -221,14 +227,10 @@ export async function issueCustomerAccessCode(pool, payload = {}) {
   const batchId = crypto.randomUUID();
   const noteValue = `Invoice ${invoiceNumber}`;
 
-  const existingRes = await pool.query(`SELECT code FROM "AccessCode"`);
-  const existingSet = new Set(existingRes.rows.map((r) => r.code));
-
+  // Avoid loading every existing code — rely on UNIQUE + ON CONFLICT retries.
   let inserted = null;
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const [code] = generateUniqueCandidates(1, existingSet);
-    existingSet.add(code);
-
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const code = randomCode();
     const insertRes = await pool.query(
       `INSERT INTO "AccessCode" (
          id, code, "batchId", note, "createdBy", "createdAt",

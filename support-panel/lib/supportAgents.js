@@ -1,7 +1,5 @@
 import crypto from 'crypto';
-import { promisify } from 'util';
 
-const scryptAsync = promisify(crypto.scrypt);
 const MIN_PASSWORD_LENGTH = 10;
 
 export async function ensureSupportAgentTable(pool) {
@@ -44,8 +42,9 @@ export function mapSupportAgentRow(row) {
 
 export async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const derived = await scryptAsync(String(password), salt, 64);
-  return `scrypt$${salt}$${Buffer.from(derived).toString('hex')}`;
+  // Use sync scrypt with explicit params so hash/verify stay identical across runtimes.
+  const derived = crypto.scryptSync(String(password), salt, 64, { N: 16384, r: 8, p: 1 });
+  return `scrypt$${salt}$${derived.toString('hex')}`;
 }
 
 export async function verifyPassword(password, storedHash) {
@@ -53,15 +52,20 @@ export async function verifyPassword(password, storedHash) {
   const parts = storedHash.split('$');
   if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
   const [, salt, hashHex] = parts;
-  const derived = await scryptAsync(String(password), salt, 64);
-  const left = Buffer.from(derived);
-  const right = Buffer.from(hashHex, 'hex');
-  if (left.length !== right.length) return false;
-  return crypto.timingSafeEqual(left, right);
+  if (!salt || !hashHex || hashHex.length % 2 !== 0) return false;
+  try {
+    const derived = crypto.scryptSync(String(password), salt, 64, { N: 16384, r: 8, p: 1 });
+    const right = Buffer.from(hashHex, 'hex');
+    if (derived.length !== right.length) return false;
+    return crypto.timingSafeEqual(derived, right);
+  } catch {
+    return false;
+  }
 }
 
 export function generateSupportPassword(length = 14) {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  // Letters + digits only — avoids copy/paste issues with !@#$% in chat/email.
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   const bytes = crypto.randomBytes(length);
   let out = '';
   for (let i = 0; i < length; i++) {
@@ -193,7 +197,7 @@ export async function authenticateSupportAgent(pool, username, password) {
   const res = await pool.query(
     `SELECT id, name, phone, email, username, "passwordHash", "isDisabled", "createdBy", "lastLoginAt", "createdAt", "updatedAt"
      FROM "SupportAgent"
-     WHERE lower(username) = $1
+     WHERE lower(username) = $1 OR lower(email) = $1
      LIMIT 1`,
     [user]
   );
@@ -215,6 +219,38 @@ export async function authenticateSupportAgent(pool, username, password) {
   );
 
   return mapSupportAgentRow({ ...row, lastLoginAt: new Date(), isDisabled: false });
+}
+
+export async function resetSupportAgentPassword(pool, id, password) {
+  await ensureSupportAgentTable(pool);
+  const nextPassword =
+    typeof password === 'string' && password.trim().length >= MIN_PASSWORD_LENGTH
+      ? password
+      : generateSupportPassword();
+
+  if (nextPassword.length < MIN_PASSWORD_LENGTH) {
+    const err = new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const passwordHash = await hashPassword(nextPassword);
+  const res = await pool.query(
+    `UPDATE "SupportAgent"
+     SET "passwordHash" = $1, "updatedAt" = CURRENT_TIMESTAMP
+     WHERE id = $2
+     RETURNING id, name, phone, email, username, "isDisabled", "createdBy", "lastLoginAt", "createdAt", "updatedAt"`,
+    [passwordHash, String(id)]
+  );
+  if (!res.rowCount) {
+    const err = new Error('Support agent not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return {
+    agent: mapSupportAgentRow(res.rows[0]),
+    password: nextPassword,
+  };
 }
 
 export async function getSupportAgentById(pool, id) {

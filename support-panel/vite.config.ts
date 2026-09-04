@@ -33,9 +33,20 @@ export default defineConfig(({ mode }) => {
     ? new pg.Pool({
         connectionString: pgConnectionString(dbUrl),
         ssl: pgSslConfig(dbUrl),
-        connectionTimeoutMillis: 10000,
+        max: 1,
+        idleTimeoutMillis: 5000,
+        connectionTimeoutMillis: 30000,
+        allowExitOnIdle: true,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
       })
     : null;
+
+  if (pool) {
+    pool.on('error', (err) => {
+      console.error('Support DB pool error:', err?.message || err);
+    });
+  }
 
   return {
     server: {
@@ -131,10 +142,29 @@ export default defineConfig(({ mode }) => {
                 const agent = await requireAgent();
                 if (!agent) return;
                 const payload = await readBody();
-                const record = await issueCustomerAccessCode(pool, {
-                  ...payload,
-                  createdBy: agent.username,
-                });
+                const record = await (async () => {
+                  let lastErr: unknown;
+                  for (let attempt = 0; attempt <= 2; attempt++) {
+                    try {
+                      return await issueCustomerAccessCode(pool, {
+                        ...payload,
+                        createdBy: agent.username,
+                      });
+                    } catch (err) {
+                      lastErr = err;
+                      const message = String((err as Error)?.message || err || '').toLowerCase();
+                      const transient =
+                        message.includes('connection terminated') ||
+                        message.includes('connection timeout') ||
+                        message.includes('econnreset') ||
+                        message.includes('econnrefused');
+                      if (!transient || attempt === 2) throw err;
+                      console.warn(`Support DB transient error (attempt ${attempt + 1}/3):`, (err as Error)?.message || err);
+                      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+                    }
+                  }
+                  throw lastErr;
+                })();
                 send(200, { success: true, record });
                 return;
               }

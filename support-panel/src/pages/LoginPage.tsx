@@ -56,7 +56,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
         <div className="support-login-fields">
           <label className="support-login-field" htmlFor="support-username">
-            Username
+            Username or email
           </label>
           <div className="support-login-input-wrap">
             <UserRound size={16} className="support-login-input-icon" aria-hidden />
@@ -66,7 +66,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="support.agent"
+              placeholder="support.agent or name@company.com"
               required
             />
           </div>
