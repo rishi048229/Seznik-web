@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding } from '@/services/authService'
-import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
 import { getAuthToken } from '@/services/api'
+import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
+import { queryClient } from '@/lib/queryClient'
 
 interface AuthContextType {
   user: UserProfile | null
@@ -66,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   const handleLogin = async (email: string, pass: string) => {
+    queryClient.clear()
     const data = await loginUser(email, pass)
     setUser(data.user)
     localStorage.removeItem('hasSelectedWorkspace')
@@ -74,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
   
   const handleRegister = async (email: string, pass: string, fName: string, lName: string, phone: string) => {
+    queryClient.clear()
     const data = await registerUser(email, pass, fName, lName, phone)
     setUser(data.user)
     localStorage.removeItem('hasSelectedWorkspace')
@@ -82,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const handleSignOut = async () => {
+    queryClient.clear()
     setHasSelectedWorkspace(false)
     localStorage.removeItem('hasSelectedWorkspace')
     await signOutUser()

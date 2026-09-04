@@ -27,7 +27,7 @@ import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { AutoTranslatedText } from '@/components/common/AutoTranslatedText'
-import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Wand2, X, Bluetooth, Keyboard, Upload } from 'lucide-react'
+import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Wand2, X, Bluetooth, Keyboard, Upload, RotateCw } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { buildCategoryOptions } from '@/utils/categoryTree'
@@ -49,27 +49,20 @@ import {
   type LabelData
 } from '@/utils/labelPrint'
 import type { LabelElement } from '@/types/settings.types'
+import {
+  LABEL_SIZE_PRESETS,
+  LABEL_ROTATIONS,
+  RECEIPT_LABEL_GAP_MM,
+  type LabelRotation,
+  snapLabelPreset,
+  labelContentCssTransform,
+} from '@/utils/labelSizes'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
 import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
 import { isExpiringSoon, isExpired, daysUntilExpiry, formatExpiryMessage } from '@/utils/expiry'
 
-export interface LabelSizePreset {
-  id: string
-  label: string
-  width: number
-  height: number
-  description: string
-}
-
-export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
-  { id: '50x30', label: '50 × 30 mm', width: 50, height: 30, description: 'Standard' },
-  { id: '50x25', label: '50 × 25 mm', width: 50, height: 25, description: 'Compact' },
-  { id: '40x30', label: '40 × 30 mm', width: 40, height: 30, description: 'Small' },
-  { id: '40x20', label: '40 × 20 mm', width: 40, height: 20, description: 'Mini' },
-  { id: '60x40', label: '60 × 40 mm', width: 60, height: 40, description: 'Large' },
-  { id: 'custom', label: 'Custom', width: 50, height: 30, description: 'Manual' },
-]
+export { LABEL_SIZE_PRESETS } from '@/utils/labelSizes'
 
 type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
 
@@ -286,6 +279,7 @@ export const ProductsPage = () => {
   const [selectedLabelSizeId, setSelectedLabelSizeId] = useState<string>('50x30')
   const [labelWidth, setLabelWidth] = useState<number>(50)
   const [labelHeight, setLabelHeight] = useState<number>(30)
+  const [labelRotation, setLabelRotation] = useState<LabelRotation>(0)
   const [selectedLayoutPresetId, setSelectedLayoutPresetId] = useState<string>('standard')
   const [detailProduct, setDetailProduct] = useState<Product | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -491,14 +485,11 @@ export const ProductsPage = () => {
 
     const savedW = settings?.printerConfig?.labelWidth || 50
     const savedH = settings?.printerConfig?.labelHeight || 30
-    const matched = LABEL_SIZE_PRESETS.find(p => p.id !== 'custom' && p.width === savedW && p.height === savedH)
-    if (matched) {
-      setSelectedLabelSizeId(matched.id)
-    } else {
-      setSelectedLabelSizeId('custom')
-    }
-    setLabelWidth(savedW)
-    setLabelHeight(savedH)
+    const matched = snapLabelPreset(savedW, savedH)
+    setSelectedLabelSizeId(matched.id)
+    setLabelWidth(matched.width)
+    setLabelHeight(matched.height)
+    setLabelRotation(settings?.printerConfig?.labelRotation ?? 0)
     setSelectedLayoutPresetId(settings?.printerConfig?.labelTemplate ? 'custom_settings' : 'standard')
     setIsLabelModalOpen(true)
   }
@@ -506,7 +497,7 @@ export const ProductsPage = () => {
   const handleSelectSizePreset = (presetId: string) => {
     setSelectedLabelSizeId(presetId)
     const preset = LABEL_SIZE_PRESETS.find(p => p.id === presetId)
-    if (preset && preset.id !== 'custom') {
+    if (preset) {
       setLabelWidth(preset.width)
       setLabelHeight(preset.height)
     }
@@ -547,9 +538,14 @@ export const ProductsPage = () => {
             settings?.printerConfig?.labelOffsetY || 0,
             undefined,
             settings?.printerConfig?.labelDirection ?? 0,
-            settings?.printerConfig?.labelBarcodeOffsetX ?? 0
+            settings?.printerConfig?.labelBarcodeOffsetX ?? 0,
+            labelRotation
           )
-        : generateLabelEscPos(template, labelFormat, data)
+        : generateLabelEscPos(template, labelFormat, data, {
+            rotation: labelRotation,
+            labelWidth,
+            labelHeight,
+          })
 
       for (let i = 0; i < labelQty; i++) {
         await sendBleData(singleBytes)
@@ -641,9 +637,9 @@ export const ProductsPage = () => {
         <style>
           @page { size: auto; margin: 0; }
           body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; text-align: center; }
-          .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+          .grid { display: flex; flex-direction: column; align-items: center; gap: ${RECEIPT_LABEL_GAP_MM}mm; }
           .sticker { width: ${widthMm}mm; height: ${heightMm}mm; border: 1px dashed #ccc; box-sizing: border-box; page-break-inside: avoid; overflow: hidden; position: relative; }
-          .sticker-content { width: 100%; height: 100%; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; transform: translate(${offX}mm, ${offY}mm); }
+          .sticker-content { width: 100%; height: 100%; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; transform-origin: center center; transform: ${labelContentCssTransform(labelRotation, widthMm, heightMm, `translate(${offX}mm, ${offY}mm)`)}; }
         </style>
       </head>
       <body>
@@ -2060,7 +2056,7 @@ export const ProductsPage = () => {
                   {labelWidth}mm × {labelHeight}mm
                 </span>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {LABEL_SIZE_PRESETS.map(p => {
                   const isSelected = selectedLabelSizeId === p.id
                   return (
@@ -2080,38 +2076,33 @@ export const ProductsPage = () => {
                   )
                 })}
               </div>
+            </div>
 
-              {/* Custom Size Inputs (Shown when Custom is selected) */}
-              {selectedLabelSizeId === 'custom' && (
-                <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50 mt-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                      Width (mm)
-                    </label>
-                    <Input
-                      type="number"
-                      min="20"
-                      max="110"
-                      value={String(labelWidth)}
-                      onChange={e => setLabelWidth(Math.max(10, parseInt(e.target.value) || 50))}
-                      placeholder="50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                      Height (mm)
-                    </label>
-                    <Input
-                      type="number"
-                      min="15"
-                      max="150"
-                      value={String(labelHeight)}
-                      onChange={e => setLabelHeight(Math.max(10, parseInt(e.target.value) || 30))}
-                      placeholder="30"
-                    />
-                  </div>
-                </div>
-              )}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <RotateCw size={13} className="text-blue-500" />
+                Label invert
+              </label>
+              <p className="text-[11px] text-gray-500">Rotate the print while keeping the original {labelWidth}×{labelHeight} mm sticker.</p>
+              <div className="grid grid-cols-4 gap-2">
+                {LABEL_ROTATIONS.map(deg => {
+                  const isSelected = labelRotation === deg
+                  return (
+                    <button
+                      key={deg}
+                      type="button"
+                      onClick={() => setLabelRotation(deg)}
+                      className={`p-2 rounded-xl border text-center text-xs font-bold transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                      }`}
+                    >
+                      {deg}°
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Label Layout Template Preset Selection */}
@@ -2181,14 +2172,25 @@ export const ProductsPage = () => {
 
             {/* Live Canvas Sticker Preview */}
             <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({labelWidth}mm × {labelHeight}mm)</span>
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({labelWidth}mm × {labelHeight}mm{labelRotation ? ` · ${labelRotation}°` : ''})</span>
               <div
-                className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
+                className="w-[260px] rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md relative overflow-hidden"
                 style={{
-                  minHeight: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
-                  transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
+                  height: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
                 }}
               >
+                <div
+                  className="absolute inset-0 p-3.5 flex flex-col justify-start items-stretch gap-1"
+                  style={{
+                    transformOrigin: 'center center',
+                    transform: labelContentCssTransform(
+                      labelRotation,
+                      labelWidth,
+                      labelHeight,
+                      `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
+                    ),
+                  }}
+                >
                 {activeLabelTemplate.map((el: LabelElement) => {
                   const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
                   const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
@@ -2245,6 +2247,7 @@ export const ProductsPage = () => {
                     </div>
                   )
                 })}
+                </div>
               </div>
             </div>
 

@@ -1,17 +1,37 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import type { CartItem, Product } from '@/types/product.types'
 import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
+import { useAuth } from '@/contexts/AuthContext'
+import { adoptLegacyJson, writeAccountJson } from '@/utils/accountStorage'
+import { useProducts } from '@/hooks/useProducts'
+
+const CART_STORAGE_KEY = 'pos_cart'
 
 export const useCart = () => {
-  const [items, setItems] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('pos_cart')
-    return saved ? JSON.parse(saved) : []
-  })
+  const { user } = useAuth()
+  const userId = user?.id || user?.uid
+  const { data: products, isFetched } = useProducts()
+  const ownedIds = useMemo(() => new Set((products ?? []).map(p => p.id)), [products])
+  const hydratedFor = useRef<string | null>(null)
+
+  const [items, setItems] = useState<CartItem[]>([])
 
   useEffect(() => {
-    localStorage.setItem('pos_cart', JSON.stringify(items))
-  }, [items])
+    if (!userId) {
+      hydratedFor.current = null
+      setItems([])
+      return
+    }
+    if (!isFetched) return
+    setItems(adoptLegacyJson<CartItem>(CART_STORAGE_KEY, userId, ownedIds, []))
+    hydratedFor.current = userId
+  }, [userId, isFetched, ownedIds])
+
+  useEffect(() => {
+    if (!userId || hydratedFor.current !== userId) return
+    writeAccountJson(CART_STORAGE_KEY, userId, items)
+  }, [items, userId])
 
   const addItem = useCallback((product: Product) => {
     if (isExpiringSoon(product.expiryDate)) {

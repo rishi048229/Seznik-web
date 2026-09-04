@@ -44,6 +44,13 @@ import { A4InvoiceTab } from './components/A4InvoiceTab'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import {
+  LABEL_SIZE_PRESETS,
+  LABEL_ROTATIONS,
+  snapLabelPreset,
+  labelContentCssTransform,
+  type LabelRotation,
+} from '@/utils/labelSizes'
+import {
   Printer,
   QrCode,
   FileText,
@@ -61,6 +68,7 @@ import {
   AlignRight,
   Bold,
   Image as ImageIcon,
+  RotateCw,
 } from 'lucide-react'
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
@@ -85,6 +93,7 @@ const defaultPrinterConfig: PrinterConfig = {
   labelOffsetX: 0,
   labelOffsetY: 0,
   labelDirection: 0,
+  labelRotation: 0,
   labelBarcodeOffsetX: 0,
   labelBarcodeType: 'CODE128',
   labelBarcodeHeight: 40,
@@ -134,15 +143,6 @@ const defaultReceiptConfig: ReceiptConfig = {
   showTerms: true,
   showBarcode: true,
 }
-
-const LABEL_SIZES = [
-  { w: 40, h: 30, label: '40×30' },
-  { w: 50, h: 30, label: '50×30' },
-  { w: 50, h: 40, label: '50×40' },
-  { w: 60, h: 40, label: '60×40' },
-  { w: 80, h: 40, label: '80×40' },
-  { w: 100, h: 50, label: '100×50' },
-] as const
 
 const LABEL_ELEMENT_META: Record<LabelElementType, { label: string; icon: string }> = {
   businessName: { label: 'Business Name', icon: '🏬' },
@@ -244,6 +244,12 @@ export const PrintersPage = () => {
       }
       if (!Array.isArray(merged.labelTemplate) || merged.labelTemplate.length === 0) {
         merged.labelTemplate = defaultLabelTemplate
+      }
+      const snapped = snapLabelPreset(merged.labelWidth || 50, merged.labelHeight || 30)
+      merged.labelWidth = snapped.width
+      merged.labelHeight = snapped.height
+      if (![0, 90, 180, 270].includes(merged.labelRotation ?? 0)) {
+        merged.labelRotation = 0
       }
       setConfig(merged)
     }
@@ -509,9 +515,14 @@ export const PrintersPage = () => {
                 config.labelOffsetY ?? 0,
                 undefined,
                 config.labelDirection ?? 0,
-                config.labelBarcodeOffsetX ?? 4
+                config.labelBarcodeOffsetX ?? 4,
+                (config.labelRotation ?? 0) as LabelRotation
               )
-            : generateLabelEscPos(labelTemplate, config.labelBarcodeType, labelData)
+            : generateLabelEscPos(labelTemplate, config.labelBarcodeType, labelData, {
+                rotation: (config.labelRotation ?? 0) as LabelRotation,
+                labelWidth: config.labelWidth,
+                labelHeight: config.labelHeight,
+              })
           await printEscPos(bytes)
           toast.success(mode === 'tspl' ? 'Label sent to sticker printer.' : 'Label sent to receipt printer.')
           return
@@ -1291,16 +1302,16 @@ export const PrintersPage = () => {
               <Section
                 eyebrow="Size"
                 title="Sticker size and barcode"
-                description="Choose the size printed on your label roll. You can still type a custom size."
+                description="50 mm wide labels: 50×30, 25, 50, 75, and 100 mm tall."
               >
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-                  {LABEL_SIZES.map(size => {
-                    const active = config.labelWidth === size.w && config.labelHeight === size.h
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
+                  {LABEL_SIZE_PRESETS.map(size => {
+                    const active = config.labelWidth === size.width && config.labelHeight === size.height
                     return (
                       <button
-                        key={size.label}
+                        key={size.id}
                         type="button"
-                        onClick={() => setConfig(prev => ({ ...prev, labelWidth: size.w, labelHeight: size.h }))}
+                        onClick={() => setConfig(prev => ({ ...prev, labelWidth: size.width, labelHeight: size.height }))}
                         className={`py-2 px-2 rounded-xl border text-xs font-bold transition-colors ${
                           active
                             ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
@@ -1312,28 +1323,31 @@ export const PrintersPage = () => {
                     )
                   })}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Width (mm)</label>
-                    <input
-                      type="number"
-                      min={20}
-                      max={120}
-                      value={config.labelWidth}
-                      onChange={(e) => setConfig(prev => ({ ...prev, labelWidth: Number(e.target.value) || 50 }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">Height (mm)</label>
-                    <input
-                      type="number"
-                      min={15}
-                      max={80}
-                      value={config.labelHeight}
-                      onChange={(e) => setConfig(prev => ({ ...prev, labelHeight: Number(e.target.value) || 30 }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-xs font-semibold"
-                    />
+
+                <div className="mb-4">
+                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                    <RotateCw size={13} className="mr-1.5" />
+                    Label invert
+                  </label>
+                  <p className="text-[11px] text-gray-500 mb-2">Rotate 90 / 180 / 270 while keeping the original sticker size.</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {LABEL_ROTATIONS.map(deg => {
+                      const active = (config.labelRotation ?? 0) === deg
+                      return (
+                        <button
+                          key={deg}
+                          type="button"
+                          onClick={() => setConfig(prev => ({ ...prev, labelRotation: deg }))}
+                          className={`py-2 rounded-xl border text-xs font-bold transition-colors ${
+                            active
+                              ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
+                              : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {deg}°
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -1516,11 +1530,22 @@ export const PrintersPage = () => {
               >
               <div className="p-6 sm:p-8 bg-slate-900 rounded-2xl flex items-center justify-center w-full min-h-[240px] max-w-full overflow-hidden relative">
                 <div
-                  className="bg-white text-gray-900 p-3.5 rounded-lg shadow-xl flex flex-col justify-start gap-1 border border-gray-300 transition-all duration-300 relative overflow-hidden"
+                  className="bg-white text-gray-900 rounded-lg shadow-xl border border-gray-300 transition-all duration-300 relative overflow-hidden"
                   style={{
                     width: `${Math.min(config.labelWidth * 4.5, 280)}px`,
-                    minHeight: `${Math.min(config.labelHeight * 4.5, 180)}px`,
-                    transform: `translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
+                    height: `${Math.min(config.labelHeight * 4.5, 220)}px`,
+                  }}
+                >
+                <div
+                  className="absolute inset-0 p-3.5 flex flex-col justify-start gap-1"
+                  style={{
+                    transformOrigin: 'center center',
+                    transform: labelContentCssTransform(
+                      (config.labelRotation ?? 0) as LabelRotation,
+                      config.labelWidth,
+                      config.labelHeight,
+                      `translate(${config.labelOffsetX ?? 0}px, ${config.labelOffsetY ?? 0}px)`,
+                    ),
                   }}
                 >
                   {labelTemplate.map(el => {
@@ -1571,6 +1596,7 @@ export const PrintersPage = () => {
                       </div>
                     )
                   })}
+                </div>
                 </div>
               </div>
               {!selectedProduct && (

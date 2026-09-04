@@ -81,6 +81,12 @@ export class EscPosBuilder {
     return this.push(ESC, 0x64, lines)
   }
 
+  /** ESC J n — print and feed n dots (0–255). More precise than line feeds. */
+  feedDots(dots: number): this {
+    const n = Math.max(0, Math.min(255, Math.round(dots)))
+    return this.push(ESC, 0x4a, n)
+  }
+
   cut(): this {
     return this.push(GS, 0x56, 0x01)
   }

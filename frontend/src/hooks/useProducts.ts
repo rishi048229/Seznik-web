@@ -8,7 +8,7 @@ import type { BarcodeStockEntry } from '@/types/barcode.types'
 export const useProducts = () => {
   const { user } = useAuth()
   return useQuery({
-    queryKey: [QUERY_KEYS.PRODUCTS, user?.uid],
+    queryKey: [QUERY_KEYS.PRODUCTS, user?.id || user?.uid],
     queryFn: () => productService.getProducts(user!.uid),
     enabled: !!user,
     staleTime: 0,

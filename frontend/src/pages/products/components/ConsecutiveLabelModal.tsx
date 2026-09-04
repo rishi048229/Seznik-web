@@ -293,6 +293,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
     const offX = settings?.printerConfig?.labelOffsetX || 0
     const offY = settings?.printerConfig?.labelOffsetY || 0
     const dir = settings?.printerConfig?.labelDirection || 0
+    const rotation = settings?.printerConfig?.labelRotation ?? 0
 
     try {
       toast.loading(`Printing ${flatLabelsList.length} consecutive sticker labels...`, { id: 'ble-print' })
@@ -310,9 +311,13 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
 
         let bytes: Uint8Array
         if (mode === 'escpos') {
-          bytes = generateLabelEscPos(template, labelFormat, labelData)
+          bytes = generateLabelEscPos(template, labelFormat, labelData, {
+            rotation,
+            labelWidth: w,
+            labelHeight: h,
+          })
         } else {
-          bytes = generateLabelTspl(template, labelFormat, labelData, w, h, offX, offY, 38, dir)
+          bytes = generateLabelTspl(template, labelFormat, labelData, w, h, offX, offY, 38, dir, 0, rotation)
         }
 
         await sendBleData(bytes)

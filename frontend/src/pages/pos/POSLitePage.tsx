@@ -30,6 +30,8 @@ import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
+import { useAuth } from '@/contexts/AuthContext'
+import { adoptLegacyJson, writeAccountJson } from '@/utils/accountStorage'
 import type { Sale } from '@/types/sale.types'
 import type { Product } from '@/types/product.types'
 
@@ -55,6 +57,7 @@ interface RecentQuickItem {
 const GST_PRESETS = [0, 5, 12, 18, 28] as const
 const RECENT_STORAGE_KEY = 'pos_lite_recent_items'
 const LAST_BILL_STORAGE_KEY = 'pos_lite_last_bill'
+const LITE_CART_STORAGE_KEY = 'pos_lite_cart'
 const MAX_RECENT = 16
 
 const chipClass = (active: boolean) =>
@@ -64,23 +67,16 @@ const chipClass = (active: boolean) =>
       : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
   }`
 
-const readStored = <T,>(key: string, fallback: T): T => {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
 export const POSLitePage = () => {
   const { t } = useLanguage()
+  const { user } = useAuth()
+  const userId = user?.id || user?.uid
   const pageTutorial = usePageTutorial('pos-lite')
   const navigate = useNavigate()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
-  const { data: products } = useProducts()
+  const { data: products, isFetched: productsFetched } = useProducts()
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -88,28 +84,45 @@ export const POSLitePage = () => {
   const [scanInput, setScanInput] = useState('')
   const [catalogQuery, setCatalogQuery] = useState('')
   const [linkedProductId, setLinkedProductId] = useState<string | null>(null)
-  const [recentItems, setRecentItems] = useState<RecentQuickItem[]>(() => readStored(RECENT_STORAGE_KEY, []))
-  const [lastBill, setLastBill] = useState<CartItem[]>(() => readStored(LAST_BILL_STORAGE_KEY, []))
+  const ownedProductIds = useMemo(() => new Set((products ?? []).map(p => p.id)), [products])
+  const [recentItems, setRecentItems] = useState<RecentQuickItem[]>([])
+  const [lastBill, setLastBill] = useState<CartItem[]>([])
 
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
 
-  // Persist Quick Bill cart state in localStorage so navigating away preserves cart items
-  const [items, setItems] = useState<CartItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('pos_lite_cart')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  // Persist Quick Bill cart state per account so another shop on this browser cannot see it
+  const [items, setItems] = useState<CartItem[]>([])
+  const liteHydratedFor = useRef<string | null>(null)
 
   useEffect(() => {
-    try {
-      localStorage.setItem('pos_lite_cart', JSON.stringify(items))
-    } catch (e) {
-      console.error('Failed to persist POS Lite cart', e)
+    if (!userId) {
+      liteHydratedFor.current = null
+      setItems([])
+      setRecentItems([])
+      setLastBill([])
+      return
     }
-  }, [items])
+    if (!productsFetched) return
+    setItems(adoptLegacyJson<CartItem>(LITE_CART_STORAGE_KEY, userId, ownedProductIds, []))
+    setRecentItems(adoptLegacyJson<RecentQuickItem>(RECENT_STORAGE_KEY, userId, ownedProductIds, []))
+    setLastBill(adoptLegacyJson<CartItem>(LAST_BILL_STORAGE_KEY, userId, ownedProductIds, []))
+    liteHydratedFor.current = userId
+  }, [userId, productsFetched, ownedProductIds])
+
+  useEffect(() => {
+    if (!userId || liteHydratedFor.current !== userId) return
+    writeAccountJson(LITE_CART_STORAGE_KEY, userId, items)
+  }, [items, userId])
+
+  useEffect(() => {
+    if (!userId || liteHydratedFor.current !== userId) return
+    writeAccountJson(RECENT_STORAGE_KEY, userId, recentItems)
+  }, [recentItems, userId])
+
+  useEffect(() => {
+    if (!userId || liteHydratedFor.current !== userId) return
+    writeAccountJson(LAST_BILL_STORAGE_KEY, userId, lastBill)
+  }, [lastBill, userId])
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
@@ -199,7 +212,7 @@ export const POSLitePage = () => {
         ...prev.filter(r => (r.productId || `${r.productName.toLowerCase()}|${r.sellingPrice}|${r.taxRate}`) !== key),
       ].slice(0, MAX_RECENT)
       try {
-        localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next))
+        writeAccountJson(RECENT_STORAGE_KEY, userId, next)
       } catch {
         /* ignore quota */
       }
@@ -411,7 +424,8 @@ export const POSLitePage = () => {
 
   const clearCart = () => {
     setItems([])
-    localStorage.removeItem('pos_lite_cart')
+    writeAccountJson(LITE_CART_STORAGE_KEY, userId, [])
+    localStorage.removeItem(LITE_CART_STORAGE_KEY)
     setOrderDiscount(0)
     setSelectedCustomer('')
   }
@@ -507,7 +521,7 @@ export const POSLitePage = () => {
         }
         setLastSaleData(snapshot)
         try {
-          localStorage.setItem(LAST_BILL_STORAGE_KEY, JSON.stringify(items))
+          writeAccountJson(LAST_BILL_STORAGE_KEY, userId, items)
         } catch {
           /* ignore quota */
         }
