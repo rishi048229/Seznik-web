@@ -371,6 +371,12 @@ export async function enableSupportAgent(id: string): Promise<{ success: boolean
   return postAdminEndpoint(`/support-agents/${encodeURIComponent(id)}/enable`);
 }
 
+export async function resetSupportAgentPassword(
+  id: string
+): Promise<{ success: boolean; agent: SupportAgentRecord; password: string }> {
+  return postAdminEndpoint(`/support-agents/${encodeURIComponent(id)}/reset-password`);
+}
+
 export async function revokeSupportAgent(id: string): Promise<{ success: boolean; id: string }> {
   return deleteAdminEndpoint(`/support-agents/${encodeURIComponent(id)}`);
 }

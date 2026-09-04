@@ -41,6 +41,12 @@ export function setSupportAgentDisabled(
 
 export function revokeSupportAgent(pool: unknown, id: string): Promise<{ success: boolean; id: string }>;
 
+export function resetSupportAgentPassword(
+  pool: unknown,
+  id: string,
+  password?: string
+): Promise<{ agent: ReturnType<typeof mapSupportAgentRow>; password: string }>;
+
 export function authenticateSupportAgent(
   pool: unknown,
   username: string,

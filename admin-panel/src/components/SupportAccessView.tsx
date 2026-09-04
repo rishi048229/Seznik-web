@@ -19,6 +19,7 @@ import {
   disableSupportAgent,
   enableSupportAgent,
   fetchSupportAgents,
+  resetSupportAgentPassword,
   revokeSupportAgent,
 } from '../services/api';
 import type { SupportAgentRecord } from '../types/admin';
@@ -67,7 +68,7 @@ function formatWhen(iso: string) {
 }
 
 function generateClientPassword(length = 14) {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   const values = new Uint8Array(length);
   crypto.getRandomValues(values);
   let out = '';
@@ -200,9 +201,35 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
     setError(null);
     try {
       await revokeSupportAgent(agent.id);
+      if (createdCreds?.username === agent.username) setCreatedCreds(null);
       await loadAgents();
     } catch (err: any) {
       setError(err?.message || 'Failed to revoke access');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleResetPassword = async (agent: SupportAgentRecord) => {
+    const ok = window.confirm(
+      `Reset password for ${agent.name} (@${agent.username})?\n\nA new password will be shown once — copy it before closing.`
+    );
+    if (!ok) return;
+    setBusyId(agent.id);
+    setError(null);
+    try {
+      const result = await resetSupportAgentPassword(agent.id);
+      setCreatedCreds({
+        name: result.agent.name,
+        phone: result.agent.phone,
+        email: result.agent.email,
+        username: result.agent.username,
+        password: result.password,
+      });
+      setCopiedKey(null);
+      await loadAgents();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to reset password');
     } finally {
       setBusyId(null);
     }
@@ -300,6 +327,7 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
                 <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>Credentials created</div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   Copy and share these details now — the password won’t be shown again.
+                  Sign in on the Support Portal with the username (or email) and password.
                 </div>
               </div>
             </div>
@@ -440,6 +468,14 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
                             type="button"
                             style={actionBtnStyle}
                             disabled={busy}
+                            onClick={() => void handleResetPassword(agent)}
+                          >
+                            <KeyRound size={12} /> Reset password
+                          </button>
+                          <button
+                            type="button"
+                            style={actionBtnStyle}
+                            disabled={busy}
                             onClick={() => void handleToggleDisabled(agent)}
                           >
                             {agent.isDisabled ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
@@ -538,7 +574,8 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
                     style={controlStyle}
                     value={form.password}
                     onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    autoComplete="new-password"
+                    autoComplete="off"
+                    spellCheck={false}
                   />
                   <button
                     type="button"

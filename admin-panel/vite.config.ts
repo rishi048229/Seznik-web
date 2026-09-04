@@ -35,6 +35,7 @@ import {
   createSupportAgent,
   setSupportAgentDisabled,
   revokeSupportAgent,
+  resetSupportAgentPassword,
   authenticateSupportAgent,
   getSupportAgentById,
 } from './lib/supportAgents.js';
@@ -60,8 +61,43 @@ export default defineConfig(({ mode }) => {
   const pool = new pg.Pool({
     connectionString: pgConnectionString(dbUrl),
     ssl: pgSslConfig(dbUrl),
-    connectionTimeoutMillis: 10000,
+    max: 1,
+    idleTimeoutMillis: 5000,
+    connectionTimeoutMillis: 30000,
+    allowExitOnIdle: true,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   });
+  pool.on('error', (err) => {
+    console.error('Admin DB pool error:', err?.message || err);
+  });
+
+  const isTransientDbError = (err: unknown) => {
+    const message = String((err as Error)?.message || err || '').toLowerCase();
+    return (
+      message.includes('connection terminated') ||
+      message.includes('connection timeout') ||
+      message.includes('timeout expired') ||
+      message.includes('econnreset') ||
+      message.includes('econnrefused') ||
+      message.includes('not queryable')
+    );
+  };
+
+  const withDbRetry = async <T,>(fn: () => Promise<T>, retries = 2): Promise<T> => {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        if (!isTransientDbError(err) || attempt === retries) throw err;
+        console.warn(`Admin DB transient error (attempt ${attempt + 1}/${retries + 1}):`, (err as Error)?.message || err);
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      }
+    }
+    throw lastErr;
+  };
 
   return {
     plugins: [
@@ -747,6 +783,22 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
+            const supportResetMatch = pathname.match(/^\/api\/admin\/support-agents\/([^/]+)\/reset-password$/);
+            if (supportResetMatch && req.method === 'POST') {
+              try {
+                const payload = await readBody();
+                const result = await resetSupportAgentPassword(
+                  pool,
+                  decodeURIComponent(supportResetMatch[1]),
+                  typeof payload.password === 'string' ? payload.password : undefined
+                );
+                send(200, { success: true, ...result });
+              } catch (err: any) {
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to reset password' });
+              }
+              return;
+            }
+
             const supportRevokeMatch = pathname.match(/^\/api\/admin\/support-agents\/([^/]+)$/);
             if (supportRevokeMatch && req.method === 'DELETE') {
               try {
@@ -820,10 +872,12 @@ export default defineConfig(({ mode }) => {
                   return;
                 }
                 const payload = await readBody();
-                const record = await issueCustomerAccessCode(pool, {
-                  ...payload,
-                  createdBy: agent.username,
-                });
+                const record = await withDbRetry(() =>
+                  issueCustomerAccessCode(pool, {
+                    ...payload,
+                    createdBy: agent.username,
+                  })
+                );
                 send(200, { success: true, record });
               } catch (err: any) {
                 send(err?.statusCode || 500, { error: err?.message || 'Failed to issue code' });

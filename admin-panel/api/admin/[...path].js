@@ -36,6 +36,7 @@ import {
   createSupportAgent,
   setSupportAgentDisabled,
   revokeSupportAgent,
+  resetSupportAgentPassword,
 } from '../../lib/supportAgents.js';
 
 function pathSegments(req) {
@@ -429,6 +430,17 @@ export default async function handler(req, res) {
     if (method === 'POST' && supportEnableMatch) {
       const agent = await setSupportAgentDisabled(pool, decodeURIComponent(supportEnableMatch[1]), false);
       return sendJson(res, 200, { success: true, agent });
+    }
+
+    const supportResetMatch = route.match(/^support-agents\/([^/]+)\/reset-password$/);
+    if (method === 'POST' && supportResetMatch) {
+      const payload = await readJsonBody(req);
+      const result = await resetSupportAgentPassword(
+        pool,
+        decodeURIComponent(supportResetMatch[1]),
+        payload?.password
+      );
+      return sendJson(res, 200, { success: true, ...result });
     }
 
     const supportRevokeMatch = route.match(/^support-agents\/([^/]+)$/);

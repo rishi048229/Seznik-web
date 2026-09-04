@@ -1,4 +1,4 @@
-import { getPool, sendJson, readJsonBody } from '../lib/adminDb.js';
+import { getPool, withDbRetry, sendJson, readJsonBody } from '../lib/adminDb.js';
 import {
   authenticateSupportAgent,
   getSupportAgentById,
@@ -79,23 +79,27 @@ export default async function handler(req, res) {
       const ctx = await requireActiveAgent(req, res, secure);
       if (!ctx) return;
       const payload = await readJsonBody(req);
-      const record = await issueCustomerAccessCode(ctx.pool, {
-        ...payload,
-        createdBy: ctx.agent.username,
-      });
+      const record = await withDbRetry((pool) =>
+        issueCustomerAccessCode(pool, {
+          ...payload,
+          createdBy: ctx.agent.username,
+        })
+      );
       return sendJson(res, 200, { success: true, record });
     }
 
     if (method === 'GET' && route === 'access-codes') {
       const ctx = await requireActiveAgent(req, res, secure);
       if (!ctx) return;
-      const result = await listAccessCodes(ctx.pool, {
-        page: query.page,
-        limit: query.limit,
-        search: query.search,
-        createdBy: ctx.agent.username,
-        customerOnly: true,
-      });
+      const result = await withDbRetry((pool) =>
+        listAccessCodes(pool, {
+          page: query.page,
+          limit: query.limit,
+          search: query.search,
+          createdBy: ctx.agent.username,
+          customerOnly: true,
+        })
+      );
       return sendJson(res, 200, result);
     }
 

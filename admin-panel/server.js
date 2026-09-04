@@ -31,6 +31,7 @@ import {
   createSupportAgent,
   setSupportAgentDisabled,
   revokeSupportAgent,
+  resetSupportAgentPassword,
   authenticateSupportAgent,
   getSupportAgentById,
 } from './lib/supportAgents.js';
@@ -536,6 +537,17 @@ app.post('/api/admin/support-agents/:id/enable', async (req, res) => {
   } catch (err) {
     console.error('Error enabling support agent:', err);
     res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to enable' });
+  }
+});
+
+// POST /api/admin/support-agents/:id/reset-password
+app.post('/api/admin/support-agents/:id/reset-password', async (req, res) => {
+  try {
+    const result = await resetSupportAgentPassword(pool, req.params.id, req.body?.password);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error resetting support agent password:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to reset password' });
   }
 });
 
