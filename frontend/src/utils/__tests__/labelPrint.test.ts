@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateLabelEscPos, defaultLabelTemplate } from '../labelPrint'
+import { generateLabelEscPos, generateLabelTspl, defaultLabelTemplate } from '../labelPrint'
 import { LABEL_SIZE_PRESETS, labelContentCssTransform, snapLabelPreset } from '../labelSizes'
 
 const sample = {
@@ -39,5 +39,20 @@ describe('receipt-paper label gap', () => {
     const escJ = bytes.findIndex((_, i) => bytes[i] === 0x1b && bytes[i + 1] === 0x4a)
     expect(escJ).toBeGreaterThan(0)
     expect(bytes[escJ + 2]).toBeGreaterThanOrEqual(24)
+  })
+
+  it('rotates 90° with native TSPL TEXT, not a BITMAP negative', () => {
+    const bytes = generateLabelTspl(defaultLabelTemplate, 'CODE128', sample, 50, 30, 0, 0, 30, 0, 0, 90)
+    const text = new TextDecoder('latin1').decode(bytes)
+    expect(text).toContain('TEXT')
+    expect(text).toMatch(/TEXT \d+,\d+,"\d+",90,/)
+    expect(text).not.toContain('BITMAP')
+  })
+
+  it('rotates 180° ESC/POS with ESC { not a raster image', () => {
+    const bytes = generateLabelEscPos(defaultLabelTemplate, 'CODE128', sample, { rotation: 180 })
+    expect(bytes).toContain(0x7b)
+    const gsV0 = bytes.findIndex((_, i) => bytes[i] === 0x1d && bytes[i + 1] === 0x76 && bytes[i + 2] === 0x30)
+    expect(gsV0).toBe(-1)
   })
 })

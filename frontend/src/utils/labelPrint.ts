@@ -2,8 +2,6 @@ import { EscPosBuilder } from './escpos'
 import type { LabelElement } from '@/types/settings.types'
 import type { LabelRotation } from './labelSizes'
 import { receiptLabelGapDots } from './labelSizes'
-import { drawBarcodeToCanvas } from './barcodeGenerator'
-import QRCode from 'qrcode'
 
 export interface LabelData {
   businessName: string
@@ -110,20 +108,19 @@ export function generateLabelEscPos(
   const labelWidth = options?.labelWidth ?? 50
   const labelHeight = options?.labelHeight ?? 30
 
-  if (rotation !== 0 && typeof document !== 'undefined') {
-    const packed = rasterizeLabelCanvas(template, barcodeType, data, labelWidth, labelHeight, rotation)
-    if (packed) {
-      const builder = new EscPosBuilder()
-      builder.init('58mm')
-      builder.align('center')
-      builder.image(invertPackedForPrinter(packed.packed), packed.widthBytes, packed.heightDots)
-      builder.feedDots(receiptLabelGapDots())
-      return builder.toBytes()
-    }
-  }
-
   const builder = new EscPosBuilder()
   builder.init('58mm')
+
+  const pageRotate = rotation === 90 || rotation === 270
+  if (pageRotate) {
+    builder.beginPageMode(
+      Math.max(200, Math.round(labelWidth * 8)),
+      Math.max(80, Math.round(labelHeight * 8)),
+      rotation,
+    )
+  } else if (rotation === 180) {
+    builder.upsideDown(true)
+  }
 
   const safeData: LabelData = {
     businessName: cleanTextForPrinter(data.businessName),
@@ -162,6 +159,12 @@ export function generateLabelEscPos(
     builder.line(text)
     builder.bold(false)
     builder.doubleSize(false)
+  }
+
+  if (pageRotate) {
+    builder.printPageMode()
+  } else if (rotation === 180) {
+    builder.upsideDown(false)
   }
 
   // Continuous receipt paper has no sticker gap sensor — feed a blank strip
@@ -249,6 +252,32 @@ function isBarcodeLike(type: LabelElement['type']): boolean {
 // price, and the barcode/QR itself are never dropped, per the requirement to
 // "keep barcode + price + product name" when everything does not fit.
 const DROPPABLE_PRIORITY: LabelElement['type'][] = ['mrpHeader', 'businessName', 'divider', 'category', 'sku', 'sequenceNo', 'custom']
+
+function rotateOnLabel(
+  x: number,
+  y: number,
+  pageW: number,
+  pageH: number,
+  rotation: LabelRotation,
+): { x: number; y: number } {
+  if (rotation === 0) return { x: Math.round(x), y: Math.round(y) }
+  if (rotation === 180) return { x: Math.round(pageW - x), y: Math.round(pageH - y) }
+  const scale = Math.min(pageW / pageH, pageH / pageW)
+  const mappedW = pageH * scale
+  const mappedH = pageW * scale
+  const ox = (pageW - mappedW) / 2
+  const oy = (pageH - mappedH) / 2
+  if (rotation === 90) {
+    return {
+      x: Math.round(ox + (pageH - y) * scale),
+      y: Math.round(oy + x * scale),
+    }
+  }
+  return {
+    x: Math.round(ox + y * scale),
+    y: Math.round(oy + (pageW - x) * scale),
+  }
+}
 
 function clampDots(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -436,19 +465,12 @@ export function generateLabelTspl(
   void barcodeHeight // superseded by the plan's proportional barcode sizing (see planLabelLayout); kept for call-site compatibility
 
   const pageDirection: 0 | 1 = ((direction ? 1 : 0) ^ (rotation === 180 ? 1 : 0)) as 0 | 1
-  const bitmapRotation: LabelRotation = rotation === 180 ? 0 : rotation
-
-  if ((bitmapRotation === 90 || bitmapRotation === 270) && typeof document !== 'undefined') {
-    const packed = rasterizeLabelCanvas(template, barcodeType, data, labelWidth, labelHeight, bitmapRotation)
-    if (packed) {
-      return encodeTsplBitmap(packed, labelWidth, labelHeight, pageDirection)
-    }
-  }
+  const elementRot: LabelRotation = rotation === 180 ? 0 : rotation
 
   const plan = planLabelLayout(template, barcodeType, data, labelWidth, labelHeight)
   const { widthDots, heightDots, blocks } = plan
   const blockById = new Map(blocks.map(b => [b.id, b]))
-  void heightDots
+  const at = (x: number, y: number) => rotateOnLabel(x, y, widthDots, heightDots, elementRot)
 
   const safeData: LabelData = {
     businessName: cleanTextForPrinter(data.businessName),
@@ -484,7 +506,8 @@ export function generateLabelTspl(
     if (el.type === 'divider') {
       const startX = Math.max(5, 15 + offsetXDots)
       const lineLen = Math.max(20, widthDots - 30)
-      tspl += `BAR ${startX},${y},${lineLen},2\r\n`
+      const p = at(startX, y)
+      tspl += `BAR ${p.x},${p.y},${lineLen},2\r\n`
       continue
     }
 
@@ -499,9 +522,11 @@ export function generateLabelTspl(
 
       const qrSizeDots = 64 // ~8mm QR size
       const xQr = Math.max(leftHalfDots, leftHalfDots + Math.floor((rightHalfDots - qrSizeDots) / 2) + offsetXDots)
+      const barPt = at(xBar, y)
+      const qrPt = at(xQr, y)
 
-      tspl += `BARCODE ${xBar},${y},"128",28,2,0,${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
-      tspl += `QRCODE ${xQr},${y},L,3,A,0,"${barcodeStr}"\r\n`
+      tspl += `BARCODE ${barPt.x},${barPt.y},"128",28,2,${elementRot},${moduleWidth},${moduleWidth * 2},"${barcodeStr}"\r\n`
+      tspl += `QRCODE ${qrPt.x},${qrPt.y},L,3,A,${elementRot},"${barcodeStr}"\r\n`
       continue
     }
 
@@ -515,7 +540,8 @@ export function generateLabelTspl(
           ? Math.max(QUIET_ZONE_DOTS, widthDots - qrSizeDots - QUIET_ZONE_DOTS + offsetXDots)
           : Math.max(QUIET_ZONE_DOTS, Math.round((widthDots - qrSizeDots) / 2) + offsetXDots)
         const cell = Math.max(2, Math.min(6, Math.round(qrSizeDots / 24)))
-        tspl += `QRCODE ${x},${y},L,${cell},A,0,"${barcodeStr}"\r\n`
+        const p = at(x, y)
+        tspl += `QRCODE ${p.x},${p.y},L,${cell},A,${elementRot},"${barcodeStr}"\r\n`
       } else {
         const barcodeExtra = plan.hriSuppressed ? 0 : BARCODE_EXTRA_DOTS
         const barHeight = Math.max(BARCODE_MIN_HEIGHT_DOTS, block.height - barcodeExtra)
@@ -532,16 +558,9 @@ export function generateLabelTspl(
           : Math.round((widthDots - barcodeWidthDots) / 2) + offsetXDots
         const x = clampBarcodeX(rawX + barcodeNudgeDots, barcodeWidthDots)
 
-        // TSPL BARCODE x, y, "128" (auto subset switching, so Code C's
-        // digit-pair compression actually applies and matches the width this
-        // module estimates — "128M" needs manual "!nnn" control codes we
-        // don't send, so it silently skipped that compression on real
-        // hardware and printed noticeably wider than expected), height,
-        // human_readable (2 = centered below, 0 = suppressed on labels too
-        // short to fit the digit row without overlapping the element below
-        // it), rotation, narrow, wide, "data"
         const humanReadable = plan.hriSuppressed ? 0 : 2
-        tspl += `BARCODE ${x},${y},"128",${Math.round(barHeight)},${humanReadable},0,${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
+        const p = at(x, y)
+        tspl += `BARCODE ${p.x},${p.y},"128",${Math.round(barHeight)},${humanReadable},${elementRot},${moduleWidth},${wideRatio},"${barcodeStr}"\r\n`
       }
       continue
     }
@@ -563,7 +582,8 @@ export function generateLabelTspl(
       : Math.max(5, Math.round((widthDots - textWidthDots) / 2) + offsetXDots)
 
     const safeText = text.replace(/"/g, '').replace(/[\r\n]+/g, ' ')
-    tspl += `TEXT ${x},${y},${font},0,${mulX},${mulY},"${safeText}"\r\n`
+    const p = at(x, y)
+    tspl += `TEXT ${p.x},${p.y},${font},${elementRot},${mulX},${mulY},"${safeText}"\r\n`
   }
 
   tspl += `PRINT 1,1\r\n`
@@ -577,156 +597,4 @@ export function generateLabelTspl(
 export function generateGapCalibrationBytes(): Uint8Array {
   const encoder = new TextEncoder()
   return encoder.encode('GAPDETECT\r\nAUTO GAP\r\n')
-}
-
-/** GS v 0 / TSPL BITMAP on these printers treat 1 as white. Flip so text stays black. */
-function invertPackedForPrinter(packed: Uint8Array): Uint8Array {
-  const out = new Uint8Array(packed.length)
-  for (let i = 0; i < packed.length; i++) out[i] = packed[i] ^ 0xff
-  return out
-}
-
-function packCanvas1bpp(canvas: HTMLCanvasElement): { packed: Uint8Array; widthBytes: number; heightDots: number } {
-  const ctx = canvas.getContext('2d')
-  const width = canvas.width
-  const height = canvas.height
-  const widthBytes = Math.ceil(width / 8)
-  const packed = new Uint8Array(widthBytes * height)
-  if (!ctx || width <= 0 || height <= 0) return { packed, widthBytes, heightDots: height }
-  const img = ctx.getImageData(0, 0, width, height).data
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4
-      const lum = 0.299 * img[i] + 0.587 * img[i + 1] + 0.114 * img[i + 2]
-      if (img[i + 3] > 30 && lum < 160) {
-        packed[y * widthBytes + (x >> 3)] |= 0x80 >> (x & 7)
-      }
-    }
-  }
-  return { packed, widthBytes, heightDots: height }
-}
-
-function fitRotatedCanvas(src: HTMLCanvasElement, rotation: LabelRotation): HTMLCanvasElement {
-  const out = document.createElement('canvas')
-  out.width = src.width
-  out.height = src.height
-  const ctx = out.getContext('2d')
-  if (!ctx) return src
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, out.width, out.height)
-  ctx.translate(out.width / 2, out.height / 2)
-  ctx.rotate((rotation * Math.PI) / 180)
-  const swapped = rotation === 90 || rotation === 270
-  const drawnW = swapped ? src.height : src.width
-  const drawnH = swapped ? src.width : src.height
-  const scale = Math.min(out.width / drawnW, out.height / drawnH)
-  ctx.scale(scale, scale)
-  ctx.drawImage(src, -src.width / 2, -src.height / 2)
-  return out
-}
-
-function drawQrModules(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, text: string) {
-  const qr = QRCode.create(text || '0', { errorCorrectionLevel: 'M' })
-  const n = qr.modules.size
-  const cell = size / n
-  ctx.fillStyle = '#000000'
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (qr.modules.get(r, c)) ctx.fillRect(x + c * cell, y + r * cell, cell + 0.5, cell + 0.5)
-    }
-  }
-}
-
-function rasterizeLabelCanvas(
-  template: LabelElement[],
-  barcodeType: 'CODE128' | 'EAN13' | 'QR',
-  data: LabelData,
-  labelWidth: number,
-  labelHeight: number,
-  rotation: LabelRotation
-): { packed: Uint8Array; widthBytes: number; heightDots: number } | null {
-  const plan = planLabelLayout(template, barcodeType, data, labelWidth, labelHeight)
-  const canvas = document.createElement('canvas')
-  canvas.width = plan.widthDots
-  canvas.height = plan.heightDots
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  ctx.fillStyle = '#000000'
-  ctx.textBaseline = 'middle'
-
-  const safeData: LabelData = {
-    businessName: cleanTextForPrinter(data.businessName),
-    productName: cleanTextForPrinter(data.productName),
-    price: cleanTextForPrinter(data.price),
-    barcodeValue: cleanTextForPrinter(data.barcodeValue || '0000000000'),
-    sku: cleanTextForPrinter(data.sku || ''),
-    category: cleanTextForPrinter(data.category || ''),
-  }
-  const blockById = new Map(plan.blocks.map(b => [b.id, b]))
-
-  for (const el of template) {
-    const block = blockById.get(el.id)
-    if (!block) continue
-    const align = el.align || 'center'
-    ctx.textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center'
-    const x =
-      align === 'left' ? 8 : align === 'right' ? plan.widthDots - 8 : Math.round(plan.widthDots / 2)
-
-    if (el.type === 'divider') {
-      ctx.fillRect(8, block.y + Math.floor(block.height / 2), plan.widthDots - 16, 2)
-      continue
-    }
-
-    if (isBarcodeLike(el.type)) {
-      const isQr = el.type === 'qrCode' || barcodeType === 'QR'
-      if (isQr || el.type === 'sideBySideBarcodeQr') {
-        const size = Math.min(block.height, Math.floor(plan.widthDots * 0.4))
-        drawQrModules(ctx, Math.round((plan.widthDots - size) / 2), block.y, size, safeData.barcodeValue)
-        if (el.type !== 'sideBySideBarcodeQr') continue
-      }
-      if (!isQr || el.type === 'sideBySideBarcodeQr') {
-        const bc = document.createElement('canvas')
-        drawBarcodeToCanvas(bc, safeData.barcodeValue, {
-          height: Math.max(16, block.height - 8),
-        })
-        const maxW = plan.widthDots - 16
-        const scale = Math.min(1, maxW / Math.max(1, bc.width))
-        const dw = bc.width * scale
-        const dh = bc.height * scale
-        ctx.drawImage(bc, Math.round((plan.widthDots - dw) / 2), block.y, dw, Math.min(dh, block.height))
-      }
-      continue
-    }
-
-    const text = resolveElementText(el, safeData)
-    if (!text) continue
-    const sizeKey = el.fontSize || (el.large ? 'large' : 'medium')
-    const px = sizeKey === 'small' ? 14 : sizeKey === 'large' ? 20 : sizeKey === 'xlarge' ? 24 : 16
-    ctx.font = `${el.bold ? 'bold ' : ''}${px}px sans-serif`
-    ctx.fillText(text, x, block.y + block.height / 2, plan.widthDots - 16)
-  }
-
-  const fitted = rotation === 0 ? canvas : fitRotatedCanvas(canvas, rotation)
-  return packCanvas1bpp(fitted)
-}
-
-function encodeTsplBitmap(
-  packed: { packed: Uint8Array; widthBytes: number; heightDots: number },
-  labelWidth: number,
-  labelHeight: number,
-  direction: 0 | 1
-): Uint8Array {
-  const header = `SIZE ${labelWidth} mm, ${labelHeight} mm\r\nGAP 3 mm, 0 mm\r\nDIRECTION ${direction}\r\nCLS\r\nBITMAP 0,0,${packed.widthBytes},${packed.heightDots},0,`
-  const footer = `\r\nPRINT 1,1\r\n`
-  const encoder = new TextEncoder()
-  const h = encoder.encode(header)
-  const f = encoder.encode(footer)
-  const out = new Uint8Array(h.length + packed.packed.length + f.length)
-  const bitmap = invertPackedForPrinter(packed.packed)
-  out.set(h, 0)
-  out.set(bitmap, h.length)
-  out.set(f, h.length + bitmap.length)
-  return out
 }

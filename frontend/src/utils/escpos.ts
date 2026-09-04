@@ -87,6 +87,29 @@ export class EscPosBuilder {
     return this.push(ESC, 0x4a, n)
   }
 
+  /** ESC { n — print upside-down (180°) using native glyphs, not a bitmap. */
+  upsideDown(on: boolean): this {
+    return this.push(ESC, 0x7b, on ? 1 : 0)
+  }
+
+  /**
+   * ESC L + ESC W + ESC T — page-mode print area so 90/270 rotation stays
+   * black-on-white text instead of a 1bpp raster the sticker printer inverts.
+   */
+  beginPageMode(widthDots: number, heightDots: number, rotation: 90 | 180 | 270): this {
+    const w = Math.max(1, Math.min(65535, Math.round(widthDots)))
+    const h = Math.max(1, Math.min(65535, Math.round(heightDots)))
+    const dir = rotation === 90 ? 1 : rotation === 180 ? 2 : 3
+    this.push(ESC, 0x4c)
+    this.push(ESC, 0x57, 0x00, 0x00, 0x00, 0x00, w & 0xff, (w >> 8) & 0xff, h & 0xff, (h >> 8) & 0xff)
+    return this.push(ESC, 0x54, dir)
+  }
+
+  printPageMode(): this {
+    this.push(0x0c)
+    return this.push(ESC, 0x53)
+  }
+
   cut(): this {
     return this.push(GS, 0x56, 0x01)
   }
