@@ -37,6 +37,13 @@ const en = {
   'nav.printers': 'Printers',
   'nav.taxBilling': 'Tax & Billing',
   'nav.kot': 'KOT and tables',
+  'nav.sectionMain': 'Point of Sale',
+  'nav.sectionInventory': 'Inventory',
+  'nav.sectionFinance': 'Finance & Orders',
+  'nav.sectionSystem': 'System & Reports',
+  'sidebar.collapse': 'Collapse sidebar',
+  'sidebar.expand': 'Expand sidebar',
+  'sidebar.close': 'Close sidebar',
 
   // Common actions
   'action.save': 'Save',
