@@ -28,19 +28,21 @@ export function useLabelPrinterStatus(pollWhileVisible = true): LabelPrinterStat
   const [joshName, setJoshName] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    if (!ThermalPrinterService.isJoshLabelPrinterAvailable()) {
-      setJoshConnected(false);
-      return;
-    }
-    ThermalPrinterService.joshIsConnected()
-      .then(async (connected) => {
-        setJoshConnected(connected);
-        if (!connected) {
+    // Asks both non-ESC/POS vendors, not just Josh: a connected YX printer would
+    // otherwise report "not connected" while happily printing — the exact bug this
+    // hook was written to fix for Josh in the first place.
+    ThermalPrinterService.getConnectedLabelPrinterKind()
+      .then(async (kind) => {
+        setJoshConnected(kind !== null);
+        if (kind === null) {
           setJoshName(null);
           return;
         }
         try {
-          const info = await ThermalPrinterService.joshGetPrinterInfo();
+          const info =
+            kind === 'yx'
+              ? await ThermalPrinterService.yxGetPrinterInfo()
+              : await ThermalPrinterService.joshGetPrinterInfo();
           setJoshName(info?.name || null);
         } catch {
           setJoshName(null);

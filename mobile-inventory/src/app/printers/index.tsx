@@ -60,6 +60,7 @@ import {
 } from '@/constants/receiptTemplates';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 import { JoshPrinterCard } from '@/components/printers/JoshPrinterCard';
+import { YxPrinterCard } from '@/components/printers/YxPrinterCard';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -1131,6 +1132,7 @@ export default function PrintersScreen() {
                     JOSH DUAL-MODE SMART PRINTER (RECEIPTS & LABELS)
                   </Text>
                   <JoshPrinterCard />
+                  <YxPrinterCard />
                 </View>
               )}
 
@@ -1528,6 +1530,7 @@ export default function PrintersScreen() {
                       JOSH DUAL-MODE SMART PRINTER (STICKER LABELS & RECEIPTS)
                     </Text>
                     <JoshPrinterCard />
+                    <YxPrinterCard />
                   </View>
 
                   {labelPaperMode === 'gap' ? (

@@ -9,6 +9,7 @@ import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
 import { playPrinterConnectFeedback } from '../utils/printerConnectFeedback';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement, JoshLabelSpec } from '../../modules/josh-label-printer';
+import YxLabelPrinter, { isYxPrinterSupported } from '../../modules/yx-label-printer';
 import { getStoredJoshPrinter, setStoredJoshPrinter } from './secureStore';
 import {
   enrichCustomReceiptEntries,
@@ -3135,6 +3136,105 @@ class ThermalPrinterServiceManager {
     return isJoshPrinterSupported();
   }
 
+  // ---------------------------------------------------------------------------------
+  // YX label printers (modules/yx-label-printer) — the second non-ESC/POS vendor.
+  //
+  // Deliberately funnelled through the same label pipeline as Josh rather than given a
+  // parallel one: both consume the identical element spec, so everything upstream
+  // (Label Studio, the products barcode dialog, POS) builds one label and stays unaware
+  // of which vendor is on the other end. Only the final hand-off differs.
+  // ---------------------------------------------------------------------------------
+
+  /** True only on a native build where the YX SDK actually linked. */
+  public isYxLabelPrinterAvailable(): boolean {
+    return isYxPrinterSupported();
+  }
+
+  public async yxIsConnected(): Promise<boolean> {
+    if (!YxLabelPrinter) return false;
+    try {
+      return await YxLabelPrinter.isConnected();
+    } catch {
+      return false;
+    }
+  }
+
+  public async yxStartDiscovery(): Promise<boolean> {
+    if (!YxLabelPrinter) return false;
+    return YxLabelPrinter.startDiscovery();
+  }
+
+  public async yxStopDiscovery(): Promise<boolean> {
+    if (!YxLabelPrinter) return false;
+    return YxLabelPrinter.stopDiscovery();
+  }
+
+  public async yxGetPairedPrinters(): Promise<{ address: string; name: string }[]> {
+    if (!YxLabelPrinter) return [];
+    try {
+      return await YxLabelPrinter.getPairedPrinters();
+    } catch {
+      return [];
+    }
+  }
+
+  public async yxConnect(address: string): Promise<boolean> {
+    if (!YxLabelPrinter) return false;
+    return YxLabelPrinter.connect(address);
+  }
+
+  public async yxDisconnect(): Promise<boolean> {
+    if (!YxLabelPrinter) return false;
+    return YxLabelPrinter.disconnect();
+  }
+
+  public async yxGetPrinterInfo(): Promise<{ name: string; address: string } | null> {
+    if (!YxLabelPrinter) return null;
+    try {
+      return await YxLabelPrinter.getPrinterInfo();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Which non-ESC/POS label printer is live right now, if any.
+   *
+   * Josh wins a tie only because it is checked first; in practice a shop has one label
+   * printer paired, and asking both is what lets every caller stay vendor-agnostic.
+   */
+  public async getConnectedLabelPrinterKind(): Promise<'josh' | 'yx' | null> {
+    if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) return 'josh';
+    if (this.isYxLabelPrinterAvailable() && (await this.yxIsConnected())) return 'yx';
+    return null;
+  }
+
+  /**
+   * Sends an already-built label spec to whichever label printer is connected.
+   *
+   * This is the single hand-off point where the two vendors diverge: LPAPI turns the
+   * elements into draw commands, the YX SDK rasterizes them to a bitmap natively. Both
+   * accept the same spec object, so nothing upstream has to branch.
+   */
+  private async printSpecOnLabelPrinter(spec: JoshLabelSpec): Promise<boolean> {
+    const kind = await this.getConnectedLabelPrinterKind();
+    if (kind === 'yx' && YxLabelPrinter) {
+      return await YxLabelPrinter.printLabel(spec);
+    }
+    if (!JoshLabelPrinter) return false;
+    return await JoshLabelPrinter.printLabel(spec);
+  }
+
+  /**
+   * Reconnect-or-confirm for either vendor. Josh keeps its saved-printer reconnect;
+   * YX is treated as connected-or-not, since it has no stored-reconnect flow yet.
+   */
+  public async labelPrinterEnsureConnected(): Promise<boolean> {
+    if (await this.joshEnsureConnected()) return true;
+    if (this.isYxLabelPrinterAvailable() && (await this.yxIsConnected())) return true;
+    return false;
+  }
+
   /**
    * The no-saved-template layout (name / price / code) drawn on the label printer.
    * Proportional to the label so it holds up across every stock size rather than
@@ -3149,7 +3249,7 @@ class ThermalPrinterServiceManager {
     gapMm: number,
     copies: number = 1
   ): Promise<boolean> {
-    if (!JoshLabelPrinter) return false;
+    if (!JoshLabelPrinter && !YxLabelPrinter) return false;
 
     const headMm = await this.getJoshHeadWidthMm();
     const calWidthMm = this.safeMm(widthMmRaw, 50);
@@ -3218,7 +3318,7 @@ class ThermalPrinterServiceManager {
       });
     }
 
-    return JoshLabelPrinter.printLabel({
+    return this.printSpecOnLabelPrinter({
       widthMm,
       heightMm,
       rotation: 0,
@@ -3564,7 +3664,7 @@ class ThermalPrinterServiceManager {
     const copies = Math.max(1, options.copies || 1);
 
     try {
-      return await JoshLabelPrinter.printLabel({
+      return await this.printSpecOnLabelPrinter({
         widthMm: printableWidth,
         heightMm: totalHeightMm,
         gapType: 0, // Continuous roll!
@@ -3772,7 +3872,7 @@ class ThermalPrinterServiceManager {
     const totalHeightMm = Math.max(35, Math.ceil(y));
 
     try {
-      return await JoshLabelPrinter.printLabel({
+      return await this.printSpecOnLabelPrinter({
         widthMm: printableWidth,
         heightMm: totalHeightMm,
         gapType: 0,
@@ -3869,7 +3969,7 @@ class ThermalPrinterServiceManager {
     const totalHeightMm = Math.max(30, Math.ceil(y));
 
     try {
-      return await JoshLabelPrinter.printLabel({
+      return await this.printSpecOnLabelPrinter({
         widthMm: printableWidth,
         heightMm: totalHeightMm,
         gapType: 0,
@@ -3942,10 +4042,10 @@ class ThermalPrinterServiceManager {
     copies: number = 1,
     labelGapMm: number = 2
   ): Promise<boolean> {
-    if (!JoshLabelPrinter) return false;
+    if (!JoshLabelPrinter && !YxLabelPrinter) return false;
 
-    if (!(await this.joshEnsureConnected())) {
-      console.warn('[PrinterService] Josh label printer not reachable for this job');
+    if (!(await this.labelPrinterEnsureConnected())) {
+      console.warn('[PrinterService] no label printer reachable for this job');
       return false;
     }
 
@@ -3982,7 +4082,7 @@ class ThermalPrinterServiceManager {
       );
     }
 
-    return await JoshLabelPrinter.printLabel({
+    return await this.printSpecOnLabelPrinter({
       widthMm,
       heightMm,
       rotation: 0,
@@ -4166,7 +4266,7 @@ class ThermalPrinterServiceManager {
   }
 
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
-    if (await this.joshIsConnected()) {
+    if ((await this.getConnectedLabelPrinterKind()) !== null) {
       const ok = await this.printLabelViaJosh(product, template, copies, labelGapMm);
       if (ok) return true;
     }
@@ -4549,7 +4649,7 @@ class ThermalPrinterServiceManager {
     // destination. This is the no-saved-template path (products page with no
     // default label design), which would otherwise emit TSPL the label printer
     // never receives.
-    if (await this.joshIsConnected()) {
+    if ((await this.getConnectedLabelPrinterKind()) !== null) {
       const ok = await this.printAutoLabelViaJosh(
         product,
         rawCode,
@@ -4660,7 +4760,7 @@ class ThermalPrinterServiceManager {
     // A linked label printer beats the receipt roll even in 'continuous' mode.
     // This path has no template and no label calibration handy, so the stock
     // 50x30mm auto-layout applies (same default as the calibration screen).
-    if (await this.joshEnsureConnected()) {
+    if (await this.labelPrinterEnsureConnected()) {
       return await this.printAutoLabelViaJosh(
         product,
         rawCode,
@@ -4770,7 +4870,7 @@ class ThermalPrinterServiceManager {
     // Studio and the products page print to the receipt roll while the label
     // printer the user just connected sits idle. Covers printLabelSequence's
     // continuous branch too, since it lands here.
-    if (await this.joshEnsureConnected()) {
+    if (await this.labelPrinterEnsureConnected()) {
       return this.printLabelViaJosh(product, template, copies);
     }
 
@@ -5762,7 +5862,7 @@ class ThermalPrinterServiceManager {
     // The test button must exercise the printer that real labels will use — with a
     // linked label printer, a TSPL test would "pass" on the receipt printer while
     // telling the user nothing about the device their labels actually go to.
-    if (await this.joshIsConnected()) {
+    if ((await this.getConnectedLabelPrinterKind()) !== null) {
       const ok = await this.printAutoLabelViaJosh(
         item,
         item.barcode || '8901234567890',

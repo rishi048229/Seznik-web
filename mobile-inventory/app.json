@@ -83,7 +83,10 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "extraMavenRepos": [
+              "https://gitee.com/it_space/bluetooth-sdk/raw/master"
+            ]
           }
         }
       ]
