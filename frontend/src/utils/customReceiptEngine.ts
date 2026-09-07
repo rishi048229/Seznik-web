@@ -757,6 +757,8 @@ export function compileCustomReceiptHtml(
             note: data.invoiceNumber,
           })
         }
+      } else if (entry.qrType === 'custom') {
+        rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
       } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
         const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
         rawVal = typeof window !== 'undefined'
@@ -993,6 +995,8 @@ export async function appendCustomTemplateToEscPos(
               note: data.invoiceNumber,
             })
           }
+        } else if (entry.qrType === 'custom') {
+          rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
         } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
           const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
           rawVal = typeof window !== 'undefined'

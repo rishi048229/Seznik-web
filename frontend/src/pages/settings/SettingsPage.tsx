@@ -11,14 +11,13 @@ import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSe
 import { useLanguage } from '@/contexts/LanguageContext'
 
 import { LANGUAGES } from '@/i18n/translations'
-import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
 import { KotSettingsFields } from '@/pages/kot/components/KotSettingsFields'
 import { mergeKotConfig } from '@/pages/kot/kotConfig'
 import type { KotConfig } from '@/types/settings.types'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { useAuth } from '@/contexts/AuthContext'
@@ -160,7 +159,10 @@ export const SettingsPage = () => {
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
-          receiptConfig:   curReceipt,
+          receiptConfig:   {
+            ...curReceipt,
+            logoURL: businessLogo || curReceipt.logoURL || '',
+          },
         })
         break
       case 'personal':

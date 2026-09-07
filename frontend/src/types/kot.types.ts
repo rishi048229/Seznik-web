@@ -128,6 +128,10 @@ export interface EditKOTOrderPayload {
   status?: KOTOrderStatus
   priority?: KOTPriority
   notes?: string
+  tableId?: string | null
+  partyLabel?: string | null
+  orderType?: KOTOrderType
+  waiterName?: string | null
   itemsToAdd?: CreateKOTOrderPayload['items']
   itemsToUpdate?: Array<{
     id: string

@@ -157,20 +157,25 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     [previewGstOpts, isRestaurant, receiptFont, settings?.printerConfig?.receiptFont]
   )
 
-  const updateDraft = useCallback((updater: (tpl: CustomReceiptTemplate) => CustomReceiptTemplate) => {
-    if (!selectedTemplate) return
+  const working = useMemo(() => {
     const base = draft || selectedTemplate
-    setDraft(updater({ ...base, updatedAt: new Date().toISOString() }))
+    if (!base) return null
+    return ensureTemplateHasLogoBlock(base, storeLogoUrl)
+  }, [draft, selectedTemplate, storeLogoUrl])
+
+  const updateDraft = useCallback((updater: (tpl: CustomReceiptTemplate) => CustomReceiptTemplate) => {
+    if (!working) return
+    setDraft(updater({ ...working, updatedAt: new Date().toISOString() }))
     setDirty(true)
-  }, [draft, selectedTemplate])
+  }, [working])
 
   const upiBlocked = Boolean(
-    selectedTemplate && templateRequiresUpiId(draft || selectedTemplate) && !isValidUpiVpa(storeUpiId)
+    working && templateRequiresUpiId(working) && !isValidUpiVpa(storeUpiId)
   )
 
   const handleSave = async () => {
-    if (!selectedTemplate) return
-    const toSave = { ...(draft || selectedTemplate), updatedAt: new Date().toISOString() }
+    if (!working) return
+    const toSave = { ...working, updatedAt: new Date().toISOString() }
     if (templateRequiresUpiId(toSave) && !isValidUpiVpa(storeUpiId)) {
       toast.error(t('printers.receiptBuilder.upiRequired'))
       setEditorMode('simple')
@@ -180,8 +185,10 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
       const list = customTemplates.some((tpl) => tpl.id === toSave.id)
         ? customTemplates.map((tpl) => (tpl.id === toSave.id ? toSave : tpl))
         : [...customTemplates, toSave]
+      const logoToPersist = toSave.entries.find((e) => e.type === 'image')?.imageURL || storeLogoUrl || ''
       await saveReceiptPatch({
         customTemplates: list,
+        ...(logoToPersist ? { logoURL: logoToPersist } : {}),
         ...(isValidUpiVpa(storeUpiId) ? { upiId: storeUpiId.trim() } : {}),
       })
       setDraft(null)
@@ -193,8 +200,8 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
   }
 
   const handleTestPrint = useCallback(async () => {
-    if (!selectedTemplate) return
-    const tpl = draft || selectedTemplate
+    if (!working) return
+    const tpl = working
     if (templateRequiresUpiId(tpl) && !isValidUpiVpa(storeUpiId)) {
       toast.error(t('printers.receiptBuilder.upiRequired'))
       setEditorMode('simple')
@@ -227,8 +234,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
       toast.error(e instanceof Error ? e.message : 'Test print failed')
     }
   }, [
-    selectedTemplate,
-    draft,
+    working,
     effectiveReceiptConfig,
     customTemplates,
     previewContext,
@@ -244,11 +250,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
 
   useImperativeHandle(ref, () => ({ runTestPrint: handleTestPrint }), [handleTestPrint])
 
-  const previewTemplate = useMemo(() => {
-    const working = draft || selectedTemplate
-    if (!working) return null
-    return ensureTemplateHasLogoBlock(working, storeLogoUrl)
-  }, [draft, selectedTemplate, storeLogoUrl])
+  const previewTemplate = working
 
   if (isLoading || !selectedTemplate || !previewTemplate) {
     return (
@@ -257,8 +259,6 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
       </div>
     )
   }
-
-  const working = draft || selectedTemplate
 
   return (
     <div className="space-y-4">

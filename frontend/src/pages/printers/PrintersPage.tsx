@@ -27,7 +27,8 @@ import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffect
 import { sampleSaleForTemplate } from '@/utils/a4InvoiceTemplates'
 import { ReceiptBuilderTab, type ReceiptBuilderTabHandle } from '@/pages/printers/receipt-builder/ReceiptBuilderTab'
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
-import { resolveActiveFromTemplates } from '@/utils/ensureReceiptTemplates'
+import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
+import { applyQrSection } from '@/pages/printers/receipt-builder/receiptSimpleSections'
 import { withSyncedPaperKeys } from '@/utils/printerThermal'
 import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
 import { resolveReceiptPrintGstFromForm } from '@/constants/gstBilling'
@@ -196,6 +197,36 @@ export const PrintersPage = () => {
     [customTemplates, activeCustomTemplateId, user?.businessType, userProfile?.businessType]
   )
 
+  const effectivePreviewTemplate = useMemo(() => {
+    if (!activeCustomTemplate) return null
+    let tpl = ensureTemplateHasLogoBlock(
+      activeCustomTemplate,
+      receiptConfig.logoURL || settings?.businessLogoURL
+    )
+    if (!receiptConfig.showPaymentQR) {
+      tpl = applyQrSection(tpl, { purpose: 'none' })
+    } else {
+      const purpose = receiptConfig.qrType || (receiptConfig.upiId ? 'upi' : 'digital_bill')
+      tpl = applyQrSection(tpl, { purpose })
+      if (purpose === 'upi' && receiptConfig.upiId) {
+        tpl = {
+          ...tpl,
+          entries: tpl.entries.map((e) =>
+            e.type === 'barcode' ? { ...e, upiId: receiptConfig.upiId, qrType: 'upi' } : e
+          ),
+        }
+      } else if (purpose === 'custom' && receiptConfig.customQrUrl) {
+        tpl = {
+          ...tpl,
+          entries: tpl.entries.map((e) =>
+            e.type === 'barcode' ? { ...e, value: receiptConfig.customQrUrl, qrType: 'custom' } : e
+          ),
+        }
+      }
+    }
+    return tpl
+  }, [activeCustomTemplate, receiptConfig, settings?.businessLogoURL])
+
   // Real product data to preview/print the label
   const [previewProductId, setPreviewProductId] = useState<string>('')
   const selectedProduct = useMemo(
@@ -285,8 +316,18 @@ export const PrintersPage = () => {
       return
     }
 
+    const updatedTemplates = customTemplates.map((t) => {
+      if (t.id === activeCustomTemplate?.id && effectivePreviewTemplate) {
+        return effectivePreviewTemplate
+      }
+      return t
+    })
+
     const printerPayload = {
-      receiptConfig,
+      receiptConfig: {
+        ...receiptConfig,
+        customTemplates: updatedTemplates,
+      },
       printerConfig: withSyncedPaperKeys(config),
       businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
     }
@@ -1217,6 +1258,7 @@ export const PrintersPage = () => {
                 </div>
 
                 {/* Payment QR Code (UPI / QR Pay) Section + Dev's QR Size Selector */}
+                {/* QR Code on Bills Section with 3 Options */}
                 <div className="p-4 bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-xl space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -1224,49 +1266,143 @@ export const PrintersPage = () => {
                         <QrCode size={16} />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Payment QR Code (UPI / QR Pay)</span>
-                        <p className="text-[11px] text-gray-500">Print UPI QR code image on bills for direct customer payments</p>
+                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">QR Code on Bills</span>
+                        <p className="text-[11px] text-gray-500">Print a scannable QR code on receipts (UPI pay, digital bill, or custom link)</p>
                       </div>
                     </div>
                     <Switch
-                      label="Enable Payment QR Code on Bills"
+                      label="Enable QR Code on Bills"
                       checked={receiptConfig.showPaymentQR ?? false}
                       onChange={v => {
-                        setReceiptConfig(prev => ({ ...prev, showPaymentQR: v }))
+                        setReceiptConfig(prev => ({
+                          ...prev,
+                          showPaymentQR: v,
+                          qrType: v ? (prev.qrType || 'upi') : prev.qrType,
+                        }))
                         setConfig(prev => ({ ...prev, invoiceShowPaymentQR: v }))
                       }}
                     />
                   </div>
                   {receiptConfig.showPaymentQR && (
-                    <div className="pt-3 border-t border-gray-100 dark:border-dark-border space-y-3">
+                    <div className="pt-3 border-t border-gray-100 dark:border-dark-border space-y-4">
+                      {/* 3 Selectable QR Options — Exactly one is active */}
                       <div>
-                        <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1 block">
-                          UPI ID for live QR (recommended)
+                        <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-2">
+                          Select QR Code Type (One must be selected)
                         </label>
-                        <input
-                          type="text"
-                          value={receiptConfig.upiId || ''}
-                          onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs"
-                          placeholder="yourname@okhdfcbank"
-                        />
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          Generates a real QR encoding the exact bill amount, live at checkout and on every printed
-                          receipt — this is your actual UPI ID, not a phone number.
-                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {([
+                            {
+                              id: 'upi' as const,
+                              title: 'UPI Payment QR',
+                              icon: '💳',
+                              desc: 'Live dynamic UPI QR for customer checkout payments',
+                            },
+                            {
+                              id: 'digital_bill' as const,
+                              title: 'Digital Bill PDF',
+                              icon: '📄',
+                              desc: 'Scan to view & download invoice / receipt PDF',
+                            },
+                            {
+                              id: 'custom' as const,
+                              title: 'Custom Link / Web',
+                              icon: '🔗',
+                              desc: 'Store website, Google review, menu, or link',
+                            },
+                          ]).map(opt => {
+                            const isSelected = (receiptConfig.qrType || 'upi') === opt.id
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => {
+                                  setReceiptConfig(prev => ({
+                                    ...prev,
+                                    showPaymentQR: true,
+                                    qrType: opt.id,
+                                  }))
+                                }}
+                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                  isSelected
+                                    ? 'border-emerald-600 bg-emerald-50/80 dark:bg-emerald-950/40 dark:border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                                    : 'border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-base">{opt.icon}</span>
+                                    <span className={`text-xs font-bold ${isSelected ? 'text-emerald-900 dark:text-emerald-200' : 'text-gray-900 dark:text-gray-100'}`}>
+                                      {opt.title}
+                                    </span>
+                                  </div>
+                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300 dark:border-dark-border'}`}>
+                                    {isSelected ? <div className="w-1.5 h-1.5 bg-white rounded-full" /> : null}
+                                  </div>
+                                </div>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">{opt.desc}</p>
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
-                      <ImageUpload
-                        label="Or upload a static Payment QR Code image (PNG / JPG)"
-                        value={receiptConfig.paymentQrURL || ''}
-                        onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
-                        previewSize="md"
-                        accept="image/png,image/jpeg,image/jpg,image/webp"
-                      />
-                      <p className="text-[11px] text-gray-400">
-                        Used only as a fallback when no UPI ID is set above.
-                      </p>
 
-                      {/* QR Code Size Selector from Dev */}
+                      {/* Option-Specific Configuration Inputs */}
+                      {(receiptConfig.qrType || 'upi') === 'upi' && (
+                        <div className="space-y-3 bg-gray-50 dark:bg-dark-elevated/60 p-3 rounded-xl border border-gray-100 dark:border-dark-border">
+                          <div>
+                            <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1 block">
+                              UPI ID for Live Payment QR (Recommended)
+                            </label>
+                            <input
+                              type="text"
+                              value={receiptConfig.upiId || ''}
+                              onChange={(e) => setReceiptConfig(prev => ({ ...prev, upiId: e.target.value.trim() }))}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-medium"
+                              placeholder="yourname@okhdfcbank"
+                            />
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              Encodes the exact bill amount dynamically on printed thermal receipts and in checkout.
+                            </p>
+                          </div>
+                          <ImageUpload
+                            label="Or upload a static Payment QR Code image (Fallback)"
+                            value={receiptConfig.paymentQrURL || ''}
+                            onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url }))}
+                            previewSize="md"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                          />
+                        </div>
+                      )}
+
+                      {(receiptConfig.qrType || 'upi') === 'digital_bill' && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200">
+                          <p className="font-semibold mb-0.5">📄 Digital Bill / Invoice PDF URL</p>
+                          <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                            Automatically generates a QR code linking to each invoice&apos;s digital receipt page where customers can view, download, or share their PDF bill.
+                          </p>
+                        </div>
+                      )}
+
+                      {(receiptConfig.qrType || 'upi') === 'custom' && (
+                        <div className="space-y-2 bg-gray-50 dark:bg-dark-elevated/60 p-3 rounded-xl border border-gray-100 dark:border-dark-border">
+                          <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block">
+                            Custom Link / Website URL
+                          </label>
+                          <input
+                            type="text"
+                            value={receiptConfig.customQrUrl || ''}
+                            onChange={(e) => setReceiptConfig(prev => ({ ...prev, customQrUrl: e.target.value.trim() }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs font-medium"
+                            placeholder="https://g.page/r/your-google-review-link or https://yourstore.com"
+                          />
+                          <p className="text-[11px] text-gray-400">
+                            Customers can scan this QR code on their printed bill to visit your website, leave a Google review, or view your menu.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* QR Code Size Selector */}
                       <div className="pt-2 border-t border-gray-100 dark:border-dark-border/80">
                         <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 block mb-1.5">
                           QR Code Size on Receipt
@@ -1277,7 +1413,7 @@ export const PrintersPage = () => {
                               key={chip}
                               type="button"
                               onClick={() => setReceiptConfig(prev => ({ ...prev, receiptQrSize: chip }))}
-                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                                 (receiptConfig.receiptQrSize ?? 'medium') === chip
                                   ? 'bg-emerald-600 text-white border-emerald-600'
                                   : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-300 dark:border-dark-border-strong hover:border-emerald-400'
@@ -1314,7 +1450,7 @@ export const PrintersPage = () => {
                   settings={settings}
                   showLogo={!!config.showLogo}
                   cutPaper={false}
-                  activeTemplate={activeCustomTemplate}
+                  activeTemplate={effectivePreviewTemplate}
                   isRestaurant={isRestaurant}
                   receiptFont={config.receiptFont}
                 />

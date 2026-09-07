@@ -477,6 +477,8 @@ export const POSLitePage = () => {
     if (isPaymentOpen) {
       if (method === 'credit') {
         setAmountPaid('0')
+      } else if (method === 'cash') {
+        // Do not prefill cash amount
       } else if (!amountPaid || amountPaid === '0') {
         setAmountPaid(finalTotal.toFixed(2))
       }
@@ -1305,7 +1307,16 @@ export const POSLitePage = () => {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setMethod(id)}
+                  onClick={() => {
+                    setMethod(id)
+                    if (id === 'cash') {
+                      setAmountPaid('')
+                    } else if (id === 'credit') {
+                      setAmountPaid('0')
+                    } else {
+                      setAmountPaid(finalTotal.toFixed(2))
+                    }
+                  }}
                   className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all duration-150 cursor-pointer ${
                     method === id
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 dark:bg-blue-600 dark:text-white'
@@ -1343,17 +1354,33 @@ export const POSLitePage = () => {
             />
 
             {method === 'cash' && (
-              <div className="flex gap-2 mt-2">
-                {[100, 500, 1000, 2000].map(amt => (
+              <div className="space-y-2 mt-2.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                  <span>Common Notes</span>
                   <button
-                    key={amt}
                     type="button"
-                    onClick={() => setAmountPaid(String(amt))}
-                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
+                    onClick={() => setAmountPaid(finalTotal.toFixed(2))}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer"
                   >
-                    {formatINR(amt)}
+                    Exact: {formatINR(finalTotal)}
                   </button>
-                ))}
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                  {[10, 20, 50, 100, 200, 500].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setAmountPaid(String(amt))}
+                      className={`py-2 px-1 text-xs font-bold border rounded-lg transition-all cursor-pointer ${
+                        Number(amountPaid) === amt
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/60 dark:text-blue-300 shadow-sm'
+                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-200 hover:border-blue-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60'
+                      }`}
+                    >
+                      ₹{amt}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

@@ -12,6 +12,10 @@ import { useCategories } from '@/hooks/useCategories'
 import { useLocationStock } from '@/hooks/useLocations'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { useAuth } from '@/hooks/useAuth'
+import { useUserProfile } from '@/hooks/useUserProfile'
+import { isRestaurantBusiness } from '@/constants/businessTypes'
+import { useRestaurantTables } from '@/hooks/useRestaurantTables'
 import {
   useAddKotItems,
   useCreateKotOrder,
@@ -86,6 +90,11 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
   }))
 
 export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
+  const { user } = useAuth()
+  const { data: userProfile } = useUserProfile()
+  const isRestaurant = isRestaurantBusiness(user?.businessType ?? userProfile?.businessType)
+  const { data: restaurantTables = [] } = useRestaurantTables()
+
   const { data: products = [], isLoading: productsLoading } = useProducts()
   const { mutateAsync: updateProduct } = useUpdateProduct()
   const { data: categories = [] } = useCategories()
@@ -99,6 +108,11 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [orderType, setOrderType] = useState<KOTOrderType>(
     initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
+  const [tableNumber, setTableNumber] = useState<string>(() => {
+    if (table?.name) return table.name
+    return ''
+  })
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(table?.id ?? null)
   const [locationId, setLocationId] = useState<string | null>(null)
   const [waiterName, setWaiterName] = useState(() => {
     try {
@@ -159,7 +173,17 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     if (order?.orderType === 'dine_in' || order?.orderType === 'takeaway' || order?.orderType === 'delivery') {
       setOrderType(order.orderType)
     }
-  }, [order?.id, order?.waiterName, order?.customerId, order?.orderType])
+    if (order?.table?.name) {
+      setTableNumber(order.table.name)
+      setSelectedTableId(order.tableId || order.table.id || null)
+    } else if (order?.partyLabel) {
+      setTableNumber(order.partyLabel)
+      setSelectedTableId(order.tableId || null)
+    } else if (table?.name) {
+      setTableNumber(table.name)
+      setSelectedTableId(table.id)
+    }
+  }, [order?.id, order?.waiterName, order?.customerId, order?.orderType, order?.table?.name, order?.partyLabel, order?.tableId, table?.id, table?.name])
 
   useEffect(() => {
     if (!order) {
@@ -310,7 +334,51 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   }, [order?.items, pendingItems, voidedItems, itemQuantities])
 
   const busy = isCreating || isAdding || isSending || isEditing || isUpdatingStatus
-  const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
+  const displayName = useMemo(() => {
+    if (orderType === 'dine_in' && isRestaurant && tableNumber.trim()) {
+      return tableNumber.trim()
+    }
+    return ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
+  }, [orderType, isRestaurant, tableNumber, order?.table?.name, order?.partyLabel, table?.name])
+
+  const handleTableNumberChange = (val: string) => {
+    setTableNumber(val)
+    const match = restaurantTables.find(
+      (t) => t.name.trim().toLowerCase() === val.trim().toLowerCase()
+    )
+    const matchedTableId = match ? match.id : null
+    setSelectedTableId(matchedTableId)
+    if (orderId) {
+      editOrder({
+        id: orderId,
+        partyLabel: val.trim() || undefined,
+        tableId: matchedTableId,
+      }).catch(() => {})
+    }
+  }
+
+  const handleSelectTable = (tbl: RestaurantTable | null) => {
+    if (!tbl) {
+      setSelectedTableId(null)
+      setTableNumber('')
+      if (orderId) {
+        editOrder({ id: orderId, partyLabel: undefined, tableId: null }).catch(() => {})
+      }
+      return
+    }
+    setSelectedTableId(tbl.id)
+    setTableNumber(tbl.name)
+    if (orderId) {
+      editOrder({ id: orderId, partyLabel: tbl.name, tableId: tbl.id }).catch(() => {})
+    }
+  }
+
+  const handleOrderTypeChange = (nextType: KOTOrderType) => {
+    setOrderType(nextType)
+    if (orderId) {
+      editOrder({ id: orderId, orderType: nextType }).catch(() => {})
+    }
+  }
 
   const openTickets = useMemo(() => {
     const list = [...runningOrders]
@@ -330,6 +398,13 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     setItemNotesDraft({})
     setVoidedItems({})
     setVoidingItemId(null)
+    if (!table) {
+      setTableNumber('')
+      setSelectedTableId(null)
+    } else {
+      setTableNumber(table.name)
+      setSelectedTableId(table.id)
+    }
     if (!kotCfg.allowedOrderTypes.includes(orderType)) {
       setOrderType(kotCfg.defaultOrderType)
     }
@@ -379,8 +454,10 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
   const startOrderPayload = (items: KOTDraftItem[]) => ({
     orderType,
-    tableId: table?.id,
-    partyLabel: table?.name || orderTypeLabel(orderType),
+    tableId: (orderType === 'dine_in' && isRestaurant) ? (selectedTableId || table?.id || undefined) : undefined,
+    partyLabel: (orderType === 'dine_in' && isRestaurant && tableNumber.trim())
+      ? tableNumber.trim()
+      : (table?.name || orderTypeLabel(orderType)),
     waiterName: waiterName.trim() || undefined,
     locationId: locationId || undefined,
     status: 'open' as const,
@@ -832,7 +909,13 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
                 tableName={displayName}
                 orderNumber={order?.orderNumber}
                 orderType={orderType}
-                onOrderTypeChange={setOrderType}
+                onOrderTypeChange={handleOrderTypeChange}
+                showTableField={isRestaurant}
+                tableNumber={tableNumber}
+                onTableNumberChange={handleTableNumberChange}
+                availableTables={restaurantTables}
+                selectedTableId={selectedTableId}
+                onSelectTable={handleSelectTable}
                 waiterName={waiterName}
                 onWaiterChange={setWaiterName}
                 showWaiter={kotCfg.showWaiterField}
@@ -926,7 +1009,10 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           subtotal={totals.subtotal}
           itemTax={totals.tax}
           orderType={orderType}
-          onOrderTypeChange={setOrderType}
+          onOrderTypeChange={handleOrderTypeChange}
+          isRestaurant={isRestaurant}
+          tableNumber={tableNumber}
+          onTableNumberChange={handleTableNumberChange}
           customerId={customerId}
           onCustomerChange={setCustomerId}
           loading={isBilling}

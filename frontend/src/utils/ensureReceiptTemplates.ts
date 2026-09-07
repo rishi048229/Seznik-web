@@ -6,7 +6,6 @@ import type { ReceiptConfig } from '@/types/settings.types'
 import { isValidUpiVpa } from './upiQr'
 import { resolveStoreLogoUrl, isBrowserLoadableImageSrc } from './receiptLogo'
 import {
-  RESTAURANT_RECEIPT_TEMPLATE_NAME,
   createRestaurantReceiptTemplate,
   isRestaurantReceiptTemplate,
 } from './restaurantReceiptTemplate'
@@ -43,35 +42,24 @@ export function ensureTemplateHasLogoBlock(
     }
   }
 
-  if (!logoURL) return template
+  if (!logoURL || !isBrowserLoadableImageSrc(logoURL)) return template
 
+  const targetLogoUrl = logoURL.trim()
   let changed = false
   const entries = template.entries.map((e) => {
     if (e.type !== 'image') return e
-    const loadableEntryUrl = isBrowserLoadableImageSrc(e.imageURL)
-    const loadableUri = isBrowserLoadableImageSrc(e.imageUri)
-    const loadableBase64 = isBrowserLoadableImageSrc(e.imageBase64)
-    const hasLoadableImage = loadableEntryUrl || loadableUri || loadableBase64
-
-    // Empty or device-only image blocks should always pick up the store logo.
-    if (!hasLoadableImage) {
-      changed = true
-      return {
-        ...e,
-        enabled: e.enabled !== false ? true : e.enabled,
-        imageURL: logoURL,
-        imageUri: undefined,
-        imageBase64: undefined,
-      }
+    if (e.imageURL === targetLogoUrl && !e.imageUri && !e.imageBase64 && (e.enabled !== false || e.enabled === true)) {
+      return e
     }
 
-    // Keep blocks that already point at a different custom cloud/data image
-    if (loadableEntryUrl && e.imageURL !== logoURL) return e
-    if (loadableEntryUrl && e.imageURL === logoURL) return e
-    if (loadableBase64 && !loadableEntryUrl) return e
-
     changed = true
-    return { ...e, enabled: e.enabled !== false ? true : e.enabled, imageURL: logoURL, imageUri: undefined, imageBase64: undefined }
+    return {
+      ...e,
+      enabled: e.enabled !== false ? true : e.enabled,
+      imageURL: targetLogoUrl,
+      imageUri: undefined,
+      imageBase64: undefined,
+    }
   })
 
   return changed ? { ...template, entries } : template

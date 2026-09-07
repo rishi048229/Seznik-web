@@ -186,7 +186,7 @@ export const ReceiptLivePreview = ({
                 <CustomReceiptPreview
                   template={activeTemplate}
                   context={previewContext}
-                  gstOpts={{ receiptFont: effectiveFont }}
+                  gstOpts={{ receiptFont: effectiveFont, receiptQrSize: receiptConfig.receiptQrSize }}
                 />
               ) : (
                 <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">

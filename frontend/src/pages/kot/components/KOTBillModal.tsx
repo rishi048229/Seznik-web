@@ -24,6 +24,9 @@ interface KOTBillModalProps {
   itemTax: number
   orderType: KOTOrderType
   onOrderTypeChange: (type: KOTOrderType) => void
+  isRestaurant?: boolean
+  tableNumber?: string
+  onTableNumberChange?: (value: string) => void
   customerId: string
   onCustomerChange: (id: string) => void
   loading: boolean
@@ -37,6 +40,9 @@ export const KOTBillModal = ({
   itemTax,
   orderType,
   onOrderTypeChange,
+  isRestaurant = false,
+  tableNumber = '',
+  onTableNumberChange,
   customerId,
   onCustomerChange,
   loading,
@@ -150,6 +156,19 @@ export const KOTBillModal = ({
               </button>
             ))}
           </div>
+          {isRestaurant && orderType === 'dine_in' && (
+            <div className="mt-2.5">
+              <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                Table Number / Name
+              </label>
+              <Input
+                placeholder="e.g. Table 4, T-12, Outdoor 2"
+                value={tableNumber}
+                onChange={(e) => onTableNumberChange?.(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          )}
         </div>
 
         <div className="text-center py-4 bg-gray-50 dark:bg-dark-elevated/50 rounded-xl">
@@ -298,17 +317,33 @@ export const KOTBillModal = ({
               className="text-lg py-3 font-semibold"
             />
             {method === 'cash' && (
-              <div className="flex gap-2 mt-2">
-                {[100, 500, 1000, 2000].map((amt) => (
+              <div className="space-y-2 mt-2.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                  <span>Common Notes</span>
                   <button
-                    key={amt}
                     type="button"
-                    onClick={() => setAmountPaid(String(amt))}
-                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-elevated dark:border-dark-border-strong dark:text-gray-300"
+                    onClick={() => setAmountPaid(net.toFixed(2))}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer"
                   >
-                    {formatINR(amt)}
+                    Exact: {formatINR(net)}
                   </button>
-                ))}
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                  {[10, 20, 50, 100, 200, 500].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setAmountPaid(String(amt))}
+                      className={`py-2 px-1 text-xs font-bold border rounded-lg transition-all cursor-pointer ${
+                        Number(amountPaid) === amt
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/60 dark:text-blue-300 shadow-sm'
+                          : 'border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-200 hover:border-blue-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60'
+                      }`}
+                    >
+                      ₹{amt}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

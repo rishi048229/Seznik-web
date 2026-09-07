@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { formatINR } from '@/utils/currency'
 import { formatSentTime } from '../kotUtils'
 import { visibleOrderTypes } from '../kotConfig'
-import type { KOTDeltaChange, KOTDraftItem, KOTOrderItem, KOTOrderType } from '@/types/kot.types'
+import type { KOTDeltaChange, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
 import type { KotConfig } from '@/types/settings.types'
 
 interface OrderTicketPanelProps {
@@ -12,6 +12,12 @@ interface OrderTicketPanelProps {
   orderNumber?: number
   orderType: KOTOrderType
   onOrderTypeChange: (type: KOTOrderType) => void
+  showTableField?: boolean
+  tableNumber?: string
+  onTableNumberChange?: (value: string) => void
+  availableTables?: RestaurantTable[]
+  selectedTableId?: string | null
+  onSelectTable?: (table: RestaurantTable | null) => void
   waiterName: string
   onWaiterChange: (value: string) => void
   showWaiter?: boolean
@@ -44,6 +50,12 @@ export const OrderTicketPanel = ({
   orderNumber,
   orderType,
   onOrderTypeChange,
+  showTableField = false,
+  tableNumber = '',
+  onTableNumberChange,
+  availableTables = [],
+  selectedTableId = null,
+  onSelectTable,
   waiterName,
   onWaiterChange,
   showWaiter = true,
@@ -99,6 +111,61 @@ export const OrderTicketPanel = ({
             </button>
           ))}
         </div>
+
+        {/* Table Number Field for Dine-In in Restaurant/Cafe */}
+        {showTableField && orderType === 'dine_in' && (
+          <div className="space-y-1.5 pt-0.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <span>🪑</span>
+                <span>Table Number</span>
+              </label>
+              {selectedTableId && (
+                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">
+                  Linked Table
+                </span>
+              )}
+            </div>
+
+            {availableTables.length > 0 && (
+              <div className="flex gap-1 overflow-x-auto no-scrollbar pb-0.5">
+                {availableTables.map((t) => {
+                  const isSelected =
+                    selectedTableId === t.id ||
+                    (tableNumber && tableNumber.trim().toLowerCase() === t.name.trim().toLowerCase())
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        if (onSelectTable) {
+                          onSelectTable(t)
+                        } else if (onTableNumberChange) {
+                          onTableNumberChange(t.name)
+                        }
+                      }}
+                      className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${
+                        isSelected
+                          ? 'bg-[#0a0a2e] text-white border-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 shadow-xs'
+                          : 'bg-gray-100 dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-gray-400'
+                      }`}
+                    >
+                      {t.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <Input
+              placeholder="e.g. Table 4, T-12, Outdoor 2"
+              value={tableNumber}
+              onChange={(e) => onTableNumberChange?.(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+        )}
+
         {showWaiter && (
           <div className="space-y-1.5">
             {waiterNames.length > 0 && (

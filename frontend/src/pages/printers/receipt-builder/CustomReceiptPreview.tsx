@@ -41,8 +41,8 @@ function ReceiptLogoImage({
   fallbackSrc?: string
   widthPercent: number
 }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null)
-  const activeSrc = src && failedSrc !== src ? src : fallbackSrc && failedSrc !== fallbackSrc ? fallbackSrc : undefined
+  const [failedSrcs, setFailedSrcs] = useState<Set<string>>(new Set())
+  const activeSrc = (src && !failedSrcs.has(src)) ? src : (fallbackSrc && !failedSrcs.has(fallbackSrc)) ? fallbackSrc : undefined
   const w = `${Math.min(widthPercent, 100)}%`
 
   if (!activeSrc) {
@@ -51,11 +51,16 @@ function ReceiptLogoImage({
 
   return (
     <img
+      key={activeSrc}
       src={activeSrc}
       alt="Logo"
       className="object-contain max-h-16 min-h-8"
       style={{ width: w, maxWidth: '100%' }}
-      onError={() => setFailedSrc(activeSrc)}
+      onError={() => {
+        if (activeSrc) {
+          setFailedSrcs((prev) => new Set(prev).add(activeSrc))
+        }
+      }}
     />
   )
 }
@@ -123,6 +128,8 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
             )
           }
           rawVal = buildUpiPayLink({ upiId: upi, payeeName: context.storeName, amount: context.grandTotal, note: context.invoiceNumber })
+        } else if (entry.qrType === 'custom') {
+          rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
         } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
           const targetId = encodeURIComponent(context.saleId || context.invoiceNumber || 'INV-2026-0042')
           rawVal = typeof window !== 'undefined'

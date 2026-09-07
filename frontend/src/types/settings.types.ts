@@ -53,8 +53,11 @@ export interface ReceiptConfig {
   showTerms?: boolean
   showBarcode?: boolean
   showPaymentQR?: boolean
+  /** Selected QR option: UPI payment QR, digital bill / invoice PDF QR, or custom link */
+  qrType?: 'upi' | 'digital_bill' | 'custom'
   paymentQrURL?: string
   upiId?: string
+  customQrUrl?: string
   /** Custom receipt builder — synced web + mobile */
   customTemplates?: import('./customReceipt').CustomReceiptTemplate[]
   activeCustomTemplateId?: string | null

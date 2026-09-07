@@ -228,6 +228,10 @@ export const editOrder = async (req: Request, res: Response) => {
       status,
       priority,
       notes,
+      tableId,
+      partyLabel,
+      orderType,
+      waiterName,
       itemsToAdd = [],
       itemsToUpdate = [],
       itemsToVoid = [],
@@ -301,6 +305,10 @@ export const editOrder = async (req: Request, res: Response) => {
       if (status !== undefined) dataToUpdate.status = status;
       if (priority !== undefined) dataToUpdate.priority = priority;
       if (notes !== undefined) dataToUpdate.notes = notes;
+      if (tableId !== undefined) dataToUpdate.tableId = tableId || null;
+      if (partyLabel !== undefined) dataToUpdate.partyLabel = partyLabel ? partyLabel.trim() : null;
+      if (orderType !== undefined) dataToUpdate.orderType = orderType;
+      if (waiterName !== undefined) dataToUpdate.waiterName = waiterName ? waiterName.trim() : null;
 
       if (Object.keys(dataToUpdate).length > 0) {
         await tx.kOTOrder.updateMany({
