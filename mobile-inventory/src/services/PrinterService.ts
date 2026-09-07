@@ -80,6 +80,18 @@ const RECEIPT_BOTTOM_FEED = 120;
 /** Default terms line shown under the footer on standard retail slips (preview + print). */
 const RECEIPT_DEFAULT_TERMS = 'Goods once sold cannot be returned.';
 
+export interface QuickThermalPrintOptions {
+  paperWidth?: '58mm' | '80mm';
+  copies?: number;
+  storeLogoUrl?: string;
+  upiId?: string;
+  qrCode?: string;
+  barcode?: string;
+  autoCut?: boolean;
+  fontSize?: 'small' | 'medium' | 'large';
+  receiptFont?: string;
+}
+
 export interface PrintSaleData {
   storeName?: string;
   storeAddress?: string;
@@ -5922,6 +5934,207 @@ class ThermalPrinterServiceManager {
       barcode: '8901234567890',
     };
     return this.printLabelOnReceiptPaper(sampleProduct, format, paperWidth);
+  }
+
+  /**
+   * Generates thermal HTML for freeform text (Quick Thermal Print) for Web and print preview.
+   */
+  public generateFreeformThermalHtml(
+    text: string,
+    options: QuickThermalPrintOptions = {}
+  ): string {
+    const effectivePaperWidth = options.paperWidth || '58mm';
+    const widthPx = effectivePaperWidth === '80mm' ? '380px' : '280px';
+    const fontSize = effectivePaperWidth === '58mm' ? '12px' : '14px';
+    const cssFont = receiptFontCssFamily(options.receiptFont ? resolveReceiptFontId(options.receiptFont) : undefined);
+    const logoSize = options.paperWidth === '80mm' ? 140 : 100;
+    const qrDimension = effectivePaperWidth === '80mm' ? 140 : 110;
+
+    const lines = (text || '').split('\n');
+    const upiImgUrl = options.upiId
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(buildUpiPayString(options.upiId, 'Merchant', 0))}`
+      : '';
+    const customQrUrl = options.qrCode
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(options.qrCode)}`
+      : '';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @page { size: ${effectivePaperWidth} auto; margin: 2mm 1mm 6mm 1mm; }
+            * { box-sizing: border-box; }
+            body {
+              font-family: ${cssFont};
+              font-size: ${fontSize};
+              line-height: 1.3;
+              margin: 0 auto;
+              padding: 6px;
+              width: 100%;
+              max-width: ${widthPx};
+              color: #000;
+              background: #fff;
+            }
+          </style>
+        </head>
+        <body>
+          ${options.storeLogoUrl ? `
+          <div style="text-align: center; margin-bottom: 8px;">
+            <img src="${options.storeLogoUrl}" style="max-height: ${logoSize}px; max-width: ${widthPx}; width: auto; height: auto; object-fit: contain; margin: 0 auto; display: block;" />
+          </div>` : ''}
+          ${lines.map((l) => `<div style="white-space: pre-wrap; word-break: break-word; width: 100%; font-family: ${cssFont};">${l.replace(/ /g, '&nbsp;') || '&nbsp;'}</div>`).join('')}
+          ${upiImgUrl ? `
+          <div style="text-align: center; margin-top: 10px; padding: 6px 0; border-top: 1px dashed #000; display: block;">
+            <div style="font-size: 10px; font-weight: 800; margin-bottom: 4px;">SCAN TO PAY VIA UPI</div>
+            <img src="${upiImgUrl}" alt="UPI QR" style="width: ${qrDimension}px; height: ${qrDimension}px; object-fit: contain; margin: 0 auto; display: block;" />
+            <div style="font-size: 9px; margin-top: 2px;">${options.upiId}</div>
+          </div>` : ''}
+          ${customQrUrl ? `
+          <div style="text-align: center; margin-top: 10px; padding: 6px 0; border-top: 1px dashed #000; display: block;">
+            <img src="${customQrUrl}" alt="QR Code" style="width: ${qrDimension}px; height: ${qrDimension}px; object-fit: contain; margin: 0 auto; display: block;" />
+            <div style="font-size: 9px; margin-top: 2px;">${options.qrCode}</div>
+          </div>` : ''}
+          ${options.barcode ? `
+          <div style="text-align: center; margin-top: 8px; padding: 4px 0; border-top: 1px dashed #000;">
+            <div style="font-size: 10px; font-weight: 700; letter-spacing: 2px; font-family: monospace;">||||||||||||||||||||||||||||||</div>
+            <div style="font-size: 10px; font-weight: 600;">${options.barcode}</div>
+          </div>` : ''}
+        </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Universal Quick Thermal Print (Freeform Text & Custom Blocks) for Mobile & Web.
+   */
+  public async printFreeformThermal(
+    text: string,
+    options: QuickThermalPrintOptions = {}
+  ): Promise<boolean> {
+    const { usePrinterStore } = require('../store/usePrinterStore');
+    const printerState = usePrinterStore.getState();
+    const effectivePaperWidth = options.paperWidth || printerState.paperWidth || '58mm';
+    const effectiveCopies = Math.max(1, options.copies || printerState.printCopies || 1);
+    const effectiveAutoCut = options.autoCut !== undefined ? options.autoCut : printerState.autoCut;
+    const effectiveFont = resolveReceiptFontId(options.receiptFont || printerState.receiptFont);
+    const effectiveFontSize = options.fontSize || printerState.fontSize || 'medium';
+
+    try {
+      if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        await this.ensureConnected();
+        await this.initPrinter(effectivePaperWidth);
+
+        const cleanText = this.sanitizeForThermalPrint(text);
+        const scaleH = effectiveFontSize === 'large' ? 1 : 0;
+        const printOptions = {
+          widthtimes: 0,
+          heigthtimes: scaleH,
+          cut: false,
+          fonttype: receiptFontEscPosType(effectiveFont),
+        };
+
+        const logoPrepared = options.storeLogoUrl
+          ? await this.prepareLogoForEscPos(
+              options.storeLogoUrl,
+              effectivePaperWidth,
+              RECEIPT_LOGO_STANDARD_WIDTH_PERCENT,
+              'medium'
+            )
+          : null;
+        const paperSizeDots = effectivePaperWidth === '80mm' ? 80 : 58;
+
+        for (let i = 0; i < effectiveCopies; i++) {
+          if (logoPrepared && typeof NativeEscposPrinter.printPic === 'function') {
+            await this.printEscPosBitmap(logoPrepared.base64, {
+              width: logoPrepared.widthDots,
+              center: true,
+              autoCut: false,
+              paperSize: paperSizeDots,
+            });
+            if (typeof NativeEscposPrinter.printerAlign === 'function') {
+              await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+            }
+          }
+
+          if (cleanText) {
+            await NativeEscposPrinter.printText(cleanText + '\n', printOptions);
+          }
+
+          if (options.upiId && typeof NativeEscposPrinter.printQRCode === 'function') {
+            try {
+              const upiPayload = buildUpiPayString(options.upiId, 'Merchant', 0);
+              if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
+              }
+              await NativeEscposPrinter.printText('SCAN TO PAY VIA UPI\n', printOptions);
+              await NativeEscposPrinter.printQRCode(upiPayload, this.receiptQrDots(effectivePaperWidth, 'medium'), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+              await NativeEscposPrinter.printText(`${options.upiId}\n\n`, printOptions);
+              if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+              }
+            } catch (qrErr) {
+              console.warn('Quick print UPI QR error:', qrErr);
+            }
+          }
+
+          if (options.qrCode && typeof NativeEscposPrinter.printQRCode === 'function') {
+            try {
+              if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
+              }
+              await NativeEscposPrinter.printQRCode(options.qrCode, this.receiptQrDots(effectivePaperWidth, 'medium'), NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
+              await NativeEscposPrinter.printText(`${options.qrCode}\n\n`, printOptions);
+              if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+              }
+            } catch (qrErr) {
+              console.warn('Quick print custom QR error:', qrErr);
+            }
+          }
+
+          if (options.barcode && typeof NativeEscposPrinter.printBarCode === 'function') {
+            try {
+              if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
+              }
+              await NativeEscposPrinter.printBarCode(options.barcode, NativeEscposPrinter.BARCODETYPE?.CODE128 ?? 73, 60, 2, 0, 2);
+              await NativeEscposPrinter.printText(`${options.barcode}\n\n`, printOptions);
+              if (typeof NativeEscposPrinter.printerAlign === 'function') {
+                await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
+              }
+            } catch (bcErr) {
+              console.warn('Quick print barcode error:', bcErr);
+            }
+          }
+
+          if (typeof NativeEscposPrinter.printAndFeed === 'function') {
+            await NativeEscposPrinter.printAndFeed(RECEIPT_BOTTOM_FEED);
+          }
+          if (effectiveAutoCut && typeof NativeEscposPrinter.cutOnePoint === 'function') {
+            await NativeEscposPrinter.cutOnePoint();
+          }
+        }
+        return true;
+      }
+
+      // Web or system print fallback
+      const html = this.generateFreeformThermalHtml(text, {
+        ...options,
+        paperWidth: effectivePaperWidth,
+        receiptFont: effectiveFont,
+        fontSize: effectiveFontSize,
+      });
+
+      for (let i = 0; i < effectiveCopies; i++) {
+        await Print.printAsync({ html });
+      }
+      return true;
+    } catch (error: any) {
+      console.error('Quick thermal print error:', error);
+      throw error;
+    }
   }
 }
 

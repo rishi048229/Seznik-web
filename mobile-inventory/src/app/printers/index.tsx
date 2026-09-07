@@ -1054,8 +1054,53 @@ export default function PrintersScreen() {
               )}
             </>
           ) : (
-            <>
-              {/* AI A4 BILL TO THERMAL RECEIPT CONVERTER */}
+              {/* TEXT TO THERMAL PRINT CARD */}
+              <TouchableOpacity
+                onPress={() => router.push('/printers/quick-print' as any)}
+                activeOpacity={0.88}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: '#10B981',
+                    borderWidth: 1.5,
+                    padding: 16,
+                    marginBottom: 12,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                    }}
+                  >
+                    <FileText size={22} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary }}>
+                        Text to Thermal Print
+                      </Text>
+                      <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981' }}>Quick Print</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                      Type or paste any custom text, delivery notes or select modular receipt blocks
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color="#10B981" />
+                </View>
+              </TouchableOpacity>
+
+              {/* AI A4 BILL TO RECEIPT CONVERTER CARD */}
               <TouchableOpacity
                 onPress={() => setShowAiBillModal(true)}
                 activeOpacity={0.88}

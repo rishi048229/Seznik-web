@@ -33,6 +33,7 @@ import {
   PlusCircle,
   LayoutGrid,
   Zap,
+  FileText,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -156,6 +157,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
         { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
+        { id: 'quick-print', label: t('quickPrint', 'Text to Thermal Print'), icon: FileText, route: '/printers/quick-print' },
         { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, onPress: () => setShowBillConverter(true) },
       ],
     },
