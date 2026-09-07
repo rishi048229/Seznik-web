@@ -433,6 +433,7 @@ export const redeemAccessCode = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const shopName = String(user.businessName || req.body.businessName || user.displayName || accessCode.customerName || '').trim();
     const updatedUser = await prisma.$transaction(async (tx) => {
       await tx.accessCode.update({
         where: { id: accessCode.id },
@@ -441,7 +442,7 @@ export const redeemAccessCode = async (req: Request, res: Response) => {
           usedAt: new Date(),
           usedByUserId: userId,
           customerId: userId,
-          customerName: user.displayName,
+          customerName: shopName || 'Store Owner',
           phone: user.phone,
           customerEmail: user.email,
         },
@@ -541,6 +542,7 @@ export const register = async (req: Request, res: Response) => {
       });
 
       if (verifiedCodeRecord) {
+        const shopName = String(req.body.businessName || displayName || createdUser.displayName || verifiedCodeRecord.customerName || '').trim();
         await tx.accessCode.update({
           where: { id: verifiedCodeRecord.id },
           data: {
@@ -548,7 +550,7 @@ export const register = async (req: Request, res: Response) => {
             usedAt: new Date(),
             usedByUserId: createdUser.id,
             customerId: createdUser.id,
-            customerName: displayName || createdUser.displayName,
+            customerName: shopName || 'Store Owner',
             phone: phone,
             customerEmail: email,
           },
@@ -834,6 +836,15 @@ export const completeOnboarding = async (req: Request, res: Response) => {
       where: { id: userId },
       data: { businessName, businessType, phone, onboardingCompleted: true },
     });
+
+    if (businessName && businessName.trim()) {
+      await prisma.accessCode.updateMany({
+        where: { usedByUserId: userId },
+        data: { customerName: businessName.trim() },
+      }).catch((err) => {
+        console.warn('Could not sync businessName to accessCode:', err);
+      });
+    }
 
     const currentSettings = await prisma.settings.findUnique({ where: { userId } });
     const existingReceipt =

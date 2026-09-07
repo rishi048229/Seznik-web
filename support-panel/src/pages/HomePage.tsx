@@ -222,11 +222,11 @@ export const HomePage: React.FC<HomePageProps> = ({ agent, onLogout }) => {
 
             <form className="support-access-form" onSubmit={handleSaveDetails}>
               <label className="support-field">
-                Customer name
+                Shop / Business name
                 <input
                   value={form.customerName}
                   onChange={(e) => updateField('customerName', e.target.value)}
-                  placeholder="Customer full name"
+                  placeholder="e.g. Sharma Kirana Store"
                   maxLength={160}
                   required
                   disabled={detailsSaved}
@@ -377,24 +377,25 @@ export const HomePage: React.FC<HomePageProps> = ({ agent, onLogout }) => {
             <table className="support-table">
               <thead>
                 <tr>
-                  <th>Customer name</th>
+                  <th>Shop name</th>
                   <th>Phone</th>
                   <th>Invoice</th>
                   <th>Printer</th>
                   <th>Code</th>
+                  <th>Status</th>
                   <th>Date generated on</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="support-table-empty">
+                    <td colSpan={7} className="support-table-empty">
                       <Loader2 size={16} className="spin" /> Loading…
                     </td>
                   </tr>
                 ) : entries.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="support-table-empty">
+                    <td colSpan={7} className="support-table-empty">
                       No codes issued yet. Click Add Access to create one.
                     </td>
                   </tr>
@@ -406,6 +407,47 @@ export const HomePage: React.FC<HomePageProps> = ({ agent, onLogout }) => {
                       <td>{row.invoiceNumber || '—'}</td>
                       <td>{row.printer || '—'}</td>
                       <td className="support-code-cell">{row.code}</td>
+                      <td>
+                        {row.isUsed ? (
+                          <span
+                            title={`Redeemed by ${row.customerEmail || row.usedByUserId || 'User'}${row.usedAt ? ` on ${formatWhen(row.usedAt)}` : ''}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              color: '#059669',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            ✓ Redeemed
+                          </span>
+                        ) : (
+                          <span
+                            title="Available / Not yet redeemed"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              background: 'rgba(59, 130, 246, 0.1)',
+                              color: '#2563eb',
+                              border: '1px solid rgba(59, 130, 246, 0.25)',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Available
+                          </span>
+                        )}
+                      </td>
                       <td className="support-date-cell">{formatWhen(row.createdAt)}</td>
                     </tr>
                   ))
