@@ -1,8 +1,6 @@
 import React from 'react';
 import { 
   LayoutGrid, 
-  TrendingUp, 
-  TrendingDown, 
   ArrowRight, 
   Package, 
   ShoppingBag, 
@@ -19,7 +17,6 @@ import {
   ShieldCheck, 
   Printer, 
   ChevronDown, 
-  X,
   Calculator,
   MessageSquare,
   Tags,
@@ -80,7 +77,6 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
   onViewAllSessions,
   headerExtra,
 }) => {
-  const [showTrendTooltip, setShowTrendTooltip] = React.useState(false);
   const topModule = sections[0] || null;
   const totalOperations = sections.reduce((acc, s) => acc + (s.viewCount || 0), 0);
 
@@ -232,55 +228,16 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
           />
         ) : (
           <div style={{ width: '100%', overflowX: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-            <table className="custom-table" style={{ width: '100%', minWidth: '720px', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
+            <table className="custom-table" style={{ width: '100%', minWidth: '600px', tableLayout: 'auto', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
               <thead>
                 <tr>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '40%', fontSize: '0.74rem' }}>Feature / API Route</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '18%', fontSize: '0.74rem' }}>API Calls</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '18%', fontSize: '0.74rem' }}>Traffic Share</th>
-                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '24%', fontSize: '0.74rem' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <span>Trend</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowTrendTooltip(true);
-                        }}
-                        onMouseEnter={() => setShowTrendTooltip(true)}
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          border: '1.5px solid var(--accent-blue)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          fontFamily: 'serif',
-                          fontStyle: 'italic',
-                          color: 'var(--accent-blue)',
-                          background: 'rgba(59, 130, 246, 0.15)',
-                          cursor: 'pointer',
-                          padding: 0,
-                          transition: 'all 0.15s ease',
-                          boxShadow: '0 0 6px rgba(59, 130, 246, 0.3)',
-                        }}
-                        title="Click or hover to view how Trend % is calculated"
-                      >
-                        i
-                      </button>
-                    </div>
-                  </th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '52%', fontSize: '0.74rem' }}>Feature / API Route</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '24%', fontSize: '0.74rem' }}>API Calls</th>
+                  <th style={{ padding: '6px 14px', textAlign: 'left', width: '24%', fontSize: '0.74rem' }}>Traffic Share</th>
                 </tr>
               </thead>
               <tbody>
                 {sections.map((sec, idx) => {
-                  const isPositive = sec.trend !== 'down';
-                  const TrendIcon = isPositive ? TrendingUp : TrendingDown;
-                  const trendColor = isPositive ? '#10B981' : '#EF4444';
-
                   return (
                     <tr 
                       key={sec.id || idx}
@@ -354,17 +311,10 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
                         </div>
                       </td>
 
-                      <td style={{ padding: '8px 14px' }}>
+                      <td style={{ padding: '8px 14px', borderRadius: '0 6px 6px 0' }}>
                         <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                           {sec.percentageShare}%
                         </span>
-                      </td>
-
-                      <td style={{ padding: '8px 14px', borderRadius: '0 6px 6px 0' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontWeight: 600, fontSize: '0.76rem', color: trendColor, background: isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '2px 7px', borderRadius: '4px' }}>
-                          <TrendIcon size={12} color={trendColor} />
-                          <span>{isPositive ? '+' : ''}{sec.trendPercent}%</span>
-                        </div>
                       </td>
                     </tr>
                   );
@@ -374,156 +324,6 @@ export const SectionUsageChart: React.FC<SectionUsageChartProps> = ({
           </div>
         )}
       </div>
-
-      {/* TREND CALCULATION EXPLANATION BOX OVERLAY */}
-      {showTrendTooltip && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-          onClick={() => setShowTrendTooltip(false)}
-        >
-          <div
-            className="glass-card admin-modal-card"
-            style={{
-              maxWidth: '480px',
-              width: '100%',
-              padding: '24px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '16px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-              position: 'relative',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Overlay Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: 'rgba(59, 130, 246, 0.15)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--accent-blue)',
-                  }}
-                >
-                  <Calculator size={20} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                    How Trend % is Calculated
-                  </h3>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Period-over-Period (PoP) Growth Formula
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowTrendTooltip(false)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Close"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Formula Block */}
-            <div
-              style={{
-                background: 'var(--bg-main)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                padding: '12px 16px',
-                marginBottom: '16px',
-              }}
-            >
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
-                Mathematical Formula:
-              </div>
-              <div style={{ fontFamily: 'monospace', fontSize: '0.88rem', fontWeight: 700, color: '#10B981' }}>
-                Trend % = ((C − P) / P) × 100
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                <strong>C</strong> = Current Period Count • <strong>P</strong> = Previous Period Count
-              </div>
-            </div>
-
-            {/* Timeframe Comparison Grid */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
-                Comparison Windows:
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
-                  <span><strong>24h Filter:</strong></span>
-                  <span>Last 24 Hours vs. Preceding 24 Hours</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
-                  <span><strong>7d Filter:</strong></span>
-                  <span>Last 7 Days vs. Preceding 7 Days</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
-                  <span><strong>30d Filter:</strong></span>
-                  <span>Last 30 Days vs. Preceding 30 Days</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Example Walkthrough */}
-            <div style={{ padding: '10px 12px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', marginBottom: '18px', fontSize: '0.75rem', color: 'var(--text-main)' }}>
-              <strong style={{ color: 'var(--accent-blue)' }}>Example:</strong> If a module had <strong>115 records</strong> in the current window and <strong>100 records</strong> in the previous window:
-              <div style={{ fontFamily: 'monospace', marginTop: '4px', fontWeight: 600, color: '#10B981' }}>
-                ((115 − 100) / 100) × 100 = +15.0% Growth
-              </div>
-            </div>
-
-            {/* Close Button */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowTrendTooltip(false)}
-                style={{
-                  padding: '8px 18px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: 'var(--accent-blue)',
-                  color: '#FFFFFF',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                }}
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
