@@ -65,7 +65,7 @@ export function TextToThermalPrintTab({
     { id: 'customer_info', label: 'Customer Details', description: 'Customer name and phone number', icon: User, enabled: false },
     { id: 'items_table', label: 'Itemized Items Table', description: 'Clean formatted item, qty and rate lines', icon: ShoppingBag, enabled: true },
     { id: 'totals_summary', label: 'Totals & Tax Summary', description: 'Subtotal, discount, tax and grand total', icon: CreditCard, enabled: true },
-    { id: 'upi_qr', label: 'UPI "Scan to Pay" QR', description: 'Scannable payment QR code with store UPI ID', icon: QrCode, enabled: true },
+    { id: 'upi_qr', label: 'UPI "Scan to Pay" QR', description: 'Scannable payment QR code with store UPI ID', icon: QrCode, enabled: false },
     { id: 'digital_bill_qr', label: 'Digital Bill Link QR', description: 'Instant online bill download link QR', icon: QrCode, enabled: false },
     { id: 'barcode', label: 'Custom Barcode (Code128)', description: 'Scannable 1D barcode with custom code', icon: Tag, enabled: false },
     { id: 'footer_terms', label: 'Footer & Terms', description: 'Thank you message & return policy', icon: Sparkles, enabled: true },
