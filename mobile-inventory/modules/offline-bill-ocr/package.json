@@ -1,0 +1,7 @@
+{
+  "name": "offline-bill-ocr",
+  "version": "1.0.0",
+  "description": "On-device offline OCR and PDF renderer module for A4 utility bill and receipt parsing",
+  "main": "index.ts",
+  "private": true
+}

@@ -559,3 +559,35 @@ export async function setStoredNotificationPreferences(json: string): Promise<vo
     console.error('Error saving notification preferences:', error);
   }
 }
+
+// Josh Dual-Mode Printer Tip Storage (shows at most 2 times to prevent irritating the user)
+const JOSH_DUAL_MODE_TIP_KEY = 'seznik_josh_dual_mode_tip_count';
+
+export async function getStoredJoshDualModeTipCount(): Promise<number> {
+  try {
+    if (Platform.OS === 'web') {
+      const val = typeof window !== 'undefined' ? window.localStorage.getItem(JOSH_DUAL_MODE_TIP_KEY) : null;
+      return val ? parseInt(val, 10) || 0 : 0;
+    }
+    const val = await SecureStore.getItemAsync(JOSH_DUAL_MODE_TIP_KEY);
+    return val ? parseInt(val, 10) || 0 : 0;
+  } catch (error) {
+    console.error('Error reading Josh dual-mode tip count:', error);
+    return 0;
+  }
+}
+
+export async function setStoredJoshDualModeTipCount(count: number): Promise<void> {
+  try {
+    const val = String(count);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(JOSH_DUAL_MODE_TIP_KEY, val);
+      }
+      return;
+    }
+    await SecureStore.setItemAsync(JOSH_DUAL_MODE_TIP_KEY, val);
+  } catch (error) {
+    console.error('Error saving Josh dual-mode tip count:', error);
+  }
+}

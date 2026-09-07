@@ -73,8 +73,6 @@ import { prepareProductImageForUpload } from '@/utils/productImageStorage';
 import { GST_SLAB_OPTIONS, GST_CUSTOM_OPTION, getGstSlabLabel, isStandardGstSlab } from '@/constants/gstSlabs';
 import { calculateProductGstBreakdown } from '@/utils/gst';
 import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
-import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
-import { useLocations, useLocationStock } from '@/hooks/useLocations';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
@@ -108,12 +106,6 @@ export default function ProductsScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-
-  // Multi-store inventory — see getBrowseStock/getBrowsePrice below.
-  const [browseStoreId, setBrowseStoreId] = useState<string | null>(null);
-  const [showOnlyThisStore, setShowOnlyThisStore] = useState(false);
-  const { locations } = useLocations();
-  const { locationStock: browseStoreStock } = useLocationStock(browseStoreId);
 
   // Barcode & QR Label Printing Modal State
   const [barcodePrintProduct, setBarcodePrintProduct] = useState<Product | null>(null);
@@ -196,27 +188,13 @@ export default function ProductsScreen() {
   const totalStockValue = products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * p.currentStock, 0);
   const unavailableCount = products.filter((p) => !isProductAvailable(p)).length;
 
-  // Multi-store inventory: browse/manage this catalog scoped to one store at a time (the same
-  // shared selection as POS, via StoreSwitcher). A product with no stock row at the selected
-  // store shows 0 here — it never falls back to the flat currentStock.
-  const storeStockMap = new Map(browseStoreStock.map((r) => [r.productId, r]));
-  const browseStoreName = locations.find((l) => l.id === browseStoreId)?.name ?? '';
-  const getBrowseStock = (p: Product): number =>
-    browseStoreId ? (storeStockMap.get(p.id)?.stock ?? 0) : p.currentStock;
-  const getBrowsePrice = (p: Product): number =>
-    browseStoreId ? (storeStockMap.get(p.id)?.priceOverride ?? p.sellingPrice) : p.sellingPrice;
-  const isPriceOverridden = (p: Product): boolean =>
-    !!browseStoreId && storeStockMap.get(p.id)?.priceOverride != null;
-  const isCarriedAtBrowseStore = (p: Product): boolean => !browseStoreId || storeStockMap.has(p.id);
-
   const filteredProducts = useMemo(() => products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.barcode && p.barcode.includes(searchQuery));
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
-    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || storeStockMap.has(p.id);
-    return matchesSearch && matchesCategory && matchesStoreScope;
-  }), [products, searchQuery, selectedCategoryId, browseStoreId, showOnlyThisStore, storeStockMap]);
+    return matchesSearch && matchesCategory;
+  }), [products, searchQuery, selectedCategoryId]);
 
   const enrichProductDetails = async (p: Product): Promise<Product> => {
     if (p.imageUrl) return p;
@@ -769,24 +747,6 @@ export default function ProductsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Store switcher — only renders when multi-store inventory is on and a store exists */}
-        <StoreSwitcher onChange={setBrowseStoreId} />
-        {browseStoreId ? (
-          <TouchableOpacity onPress={() => setShowOnlyThisStore((v) => !v)} style={styles.storeFilterRow}>
-            <View
-              style={[
-                styles.storeFilterCheckbox,
-                showOnlyThisStore && { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
-              ]}
-            >
-              {showOnlyThisStore ? <Check size={10} color="#FFFFFF" /> : null}
-            </View>
-            <Text style={[styles.storeFilterLabel, { color: theme.textSecondary }]}>
-              Only show products carried at {browseStoreName}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-
         {/* Product Cards List */}
         {isInitialLoading ? (
           <ScreenLoadingState
@@ -822,11 +782,7 @@ export default function ProductsScreen() {
             removeClippedSubviews={Platform.OS === 'android'}
             contentContainerStyle={{ paddingBottom: 60 }}
             renderItem={({ item }) => {
-              const storeStock = getBrowseStock(item);
-              const storePrice = getBrowsePrice(item);
-              const priceOverridden = isPriceOverridden(item);
-              const notCarriedHere = !isCarriedAtBrowseStore(item);
-              const isLowStock = storeStock <= item.lowStockThreshold;
+              const isLowStock = item.currentStock <= item.lowStockThreshold;
               const available = isProductAvailable(item);
 
               return (
@@ -854,22 +810,13 @@ export default function ProductsScreen() {
                   <View style={{ flex: 1, marginHorizontal: 10 }}>
                     <Text style={[styles.productName, { color: theme.textPrimary }]}>{item.name}</Text>
                     <Text style={[styles.productMeta, { color: theme.textSecondary }]}>
-                      Selling:{' '}
-                      {priceOverridden ? (
-                        <>
-                          <Text style={{ textDecorationLine: 'line-through' }}>₹{item.sellingPrice.toFixed(2)}</Text>{' '}
-                          <Text style={{ fontWeight: '800', color: BRAND_COLORS.blue600 }}>₹{storePrice.toFixed(2)}</Text>
-                        </>
-                      ) : (
-                        <>₹{storePrice.toFixed(2)}</>
-                      )}{' '}
-                      | Cost: ₹{(item.costPrice || 0).toFixed(2)}
+                      Selling: ₹{item.sellingPrice.toFixed(2)} | Cost: ₹{(item.costPrice || 0).toFixed(2)}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
                       {trackStock ? (
                         <View style={[styles.stockPill, { backgroundColor: isLowStock ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
                           <Text style={[styles.stockPillText, { color: isLowStock ? '#EF4444' : '#10B981' }]}>
-                            Stock: {storeStock} {item.unit || 'pcs'}
+                            Stock: {item.currentStock} {item.unit || 'pcs'}
                           </Text>
                         </View>
                       ) : (
@@ -888,11 +835,6 @@ export default function ProductsScreen() {
                           </Text>
                         </View>
                       )}
-                      {trackStock && notCarriedHere ? (
-                        <View style={[styles.stockPill, { backgroundColor: 'rgba(100, 116, 139, 0.15)' }]}>
-                          <Text style={[styles.stockPillText, { color: '#64748B' }]}>Not sold here</Text>
-                        </View>
-                      ) : null}
                       {item.discountValue && item.discountValue > 0 ? (
                         <View style={[styles.stockPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)', flexDirection: 'row', alignItems: 'center' }]}>
                           <Tag size={10} color="#10B981" />

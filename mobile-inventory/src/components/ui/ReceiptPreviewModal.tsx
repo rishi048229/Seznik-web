@@ -105,14 +105,33 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const printLockRef = useRef(false);
   const wasVisibleRef = useRef(false);
   const pinnedSaleDataRef = useRef<PrintSaleData | null>(null);
+  const storeProfileRef = useRef(storeProfile);
+  storeProfileRef.current = storeProfile;
+  const [joshConnected, setJoshConnected] = useState(false);
 
   // Local Editable Copy
   const [editableSale, setEditableSale] = useState<PrintSaleData | null>(null);
 
   useEffect(() => {
-    if (saleData) {
+    let mounted = true;
+    const syncJosh = async () => {
+      try {
+        const connected = await ThermalPrinterService.joshIsConnected();
+        if (mounted) setJoshConnected(connected);
+      } catch {}
+    };
+    if (visible) {
+      syncJosh();
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && saleData) {
       pinnedSaleDataRef.current = saleData;
-      const initial = applyStoreProfileToPrintData(saleData, storeProfile);
+      const initial = applyStoreProfileToPrintData(saleData, storeProfileRef.current);
       setEditableSale(JSON.parse(JSON.stringify(initial)));
     }
     if (!visible) {
@@ -120,8 +139,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       autoPrintStartedRef.current = false;
       printLockRef.current = false;
       setActiveTab('preview');
+      setEditableSale(null);
     }
-  }, [saleData, visible, storeProfile]);
+  }, [visible, saleData?.invoiceNumber]);
 
   // Reset print UI only when the modal actually opens — not when the saved sale
   // later swaps the provisional invoice number, which used to retrigger auto-print.
@@ -292,7 +312,11 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     if (!editableSale) return;
     if (printLockRef.current || isPrinting) return;
 
-    if (!activeDevice || connectionState !== 'connected') {
+    // Check both standard ESC/POS active device and Josh dual-mode printer
+    const isJoshReady = await ThermalPrinterService.joshEnsureConnected();
+    const isStandardReady = activeDevice && connectionState === 'connected';
+
+    if (!isStandardReady && !isJoshReady) {
       setShowConnectModal(true);
       return;
     }
@@ -471,31 +495,41 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
               </View>
 
               {/* Printer Status Pill */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => !hasPrinted && setShowConnectModal(true)}
-                style={[
-                  styles.printerStatusPill,
-                  {
-                    backgroundColor:
-                      activeDevice && connectionState === 'connected'
-                        ? 'rgba(16, 185, 129, 0.12)'
-                        : 'rgba(245, 158, 11, 0.12)',
-                  },
-                ]}
-              >
-                <Bluetooth size={13} color={activeDevice && connectionState === 'connected' ? '#10B981' : '#F59E0B'} />
-                <Text
-                  style={[
-                    styles.printerStatusText,
-                    { color: activeDevice && connectionState === 'connected' ? '#10B981' : '#B45309' },
-                  ]}
-                >
-                  {activeDevice && connectionState === 'connected'
-                    ? `Bluetooth: ${activeDevice.name} (${paperWidth})`
-                    : `No Printer Connected • Tap to Connect`}
-                </Text>
-              </TouchableOpacity>
+              {(() => {
+                const isReady = (activeDevice && connectionState === 'connected') || joshConnected;
+                const displayName = (activeDevice && connectionState === 'connected')
+                  ? activeDevice.name
+                  : joshConnected
+                  ? 'Josh Printer (Dual Mode)'
+                  : null;
+
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => !hasPrinted && setShowConnectModal(true)}
+                    style={[
+                      styles.printerStatusPill,
+                      {
+                        backgroundColor: isReady
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : 'rgba(245, 158, 11, 0.12)',
+                      },
+                    ]}
+                  >
+                    <Bluetooth size={13} color={isReady ? '#10B981' : '#F59E0B'} />
+                    <Text
+                      style={[
+                        styles.printerStatusText,
+                        { color: isReady ? '#10B981' : '#B45309' },
+                      ]}
+                    >
+                      {isReady
+                        ? `Printer Ready: ${displayName} (${paperWidth})`
+                        : `No Printer Connected • Tap to Connect`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })()}
 
               {/* TAB 1: PHOTOREALISTIC RECEIPT TICKET PREVIEW */}
               {activeTab === 'preview' ? (

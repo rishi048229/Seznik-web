@@ -80,8 +80,6 @@ import { useLanguageStore } from '@/store/useLanguageStore';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
 import { PosProductGrid } from '@/components/pos/PosProductGrid';
-import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
-import { useLocationStock } from '@/hooks/useLocations';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { CartItem } from '@/store/useCartStore';
 import { useNavigation, router } from 'expo-router';
@@ -230,38 +228,7 @@ function PosScreen() {
   // Kept as a local alias — this screen references bare `isDark` in several inline styles below.
   const isDark = theme.isDark;
 
-  // Multi-store inventory: when a store is selected, stock/price resolve through that store's
-  // own ProductLocationStock row instead of the product's flat totals. A product with no stock
-  // row at the selected store is simply not sold there — it does NOT fall back to the flat
-  // total, since that's the entire point of per-store stock.
-  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-  const { locationStock } = useLocationStock(selectedStoreId);
-  const storeStockMap = useMemo(
-    () => new Map(locationStock.map((r) => [r.productId, r])),
-    [locationStock]
-  );
-
-  /**
-   * Products as this store actually sells them: only what the store carries, with its own
-   * stock and (where overridden) its own price baked in. Everything downstream — the grid,
-   * the cart, receipt lines, totals — then works off ordinary Product objects and needs no
-   * store awareness of its own.
-   */
-  const storeScopedProducts = useMemo(() => {
-    if (!selectedStoreId) return products;
-    return products.reduce<typeof products>((acc, p) => {
-      const row = storeStockMap.get(p.id);
-      if (!row) return acc; // not carried here
-      acc.push({
-        ...p,
-        currentStock: row.stock,
-        sellingPrice: row.priceOverride ?? p.sellingPrice,
-      });
-      return acc;
-    }, []);
-  }, [products, selectedStoreId, storeStockMap]);
-
-  const filteredProducts = useMemo(() => storeScopedProducts.filter((p) => {
+  const filteredProducts = useMemo(() => products.filter((p) => {
     if (!p.isActive) return false;
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
     const q = searchQuery.trim().toLowerCase();
@@ -271,12 +238,12 @@ function PosScreen() {
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
         (p.sku && p.sku.toLowerCase().includes(q));
     return matchesCategory && matchesQuery;
-  }), [storeScopedProducts, selectedCategoryId, searchQuery]);
+  }), [products, selectedCategoryId, searchQuery]);
 
   const categoryProductCounts = useMemo(() => {
     const byCategory = new Map<string, number>();
     let activeTotal = 0;
-    for (const p of storeScopedProducts) {
+    for (const p of products) {
       if (!p.isActive) continue;
       activeTotal++;
       if (p.categoryId) {
@@ -284,7 +251,7 @@ function PosScreen() {
       }
     }
     return { byCategory, activeTotal };
-  }, [storeScopedProducts]);
+  }, [products]);
 
   const cartItems = useCartStore((s) => (s.checkoutModalOpen ? s.items : EMPTY_CART));
   const getCartItems = useCallback(() => useCartStore.getState().items, []);
@@ -364,11 +331,9 @@ function PosScreen() {
 
     const raw = String(data || '').trim();
 
-    // Scan resolves against this store's catalog when one is selected, so a scanned item the
-    // store doesn't carry is rejected rather than silently added at the flat price.
-    let matched = matchProductByCode(storeScopedProducts, raw);
+    let matched = matchProductByCode(products, raw);
 
-    if (!matched && !selectedStoreId) {
+    if (!matched) {
       try {
         const remote = await getByBarcode(raw);
         if (remote) {
@@ -569,9 +534,6 @@ function PosScreen() {
       changeReturned: saleData.changeReturned ?? 0,
       customerId: validCustomerId,
       isQuickBill: false,
-      // Multi-store inventory: stamps which store's stock this whole sale decrements. Omitted
-      // entirely when no store is selected, so the backend takes its flat-stock path unchanged.
-      ...(selectedStoreId ? { locationId: selectedStoreId } : {}),
     };
 
     // Pay Now opens the preview and auto-prints the thermal slip. Saving still waits
@@ -788,9 +750,6 @@ function PosScreen() {
 
       {/* Full-width Product Grid */}
       <View style={styles.productGridContainer}>
-          {/* Billing store — renders only when multi-store inventory is on and a store exists */}
-          <StoreSwitcher onChange={setSelectedStoreId} />
-
           {loadingProducts ? (
             <ScreenLoadingState
               message={t('loadingProducts', 'Loading products...')}

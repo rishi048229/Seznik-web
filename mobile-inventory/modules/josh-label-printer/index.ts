@@ -10,11 +10,14 @@ export type JoshLabelElement =
       y: number;
       width?: number;
       height?: number;
+      rotation?: number;
       /** Cap height in mm — LPAPI sizes text by height, not by point size. */
       fontHeight?: number;
       bold?: boolean;
       /** 0 = left, 1 = centre, 2 = right. */
       align?: 0 | 1 | 2;
+      fontFamily?: string;
+      monospace?: boolean;
     }
   | {
       type: 'barcode';
@@ -23,13 +26,14 @@ export type JoshLabelElement =
       y: number;
       width?: number;
       height?: number;
+      rotation?: number;
       /** Height of the human-readable digits under the bars, in mm. 0 hides them. */
       textHeight?: number;
       /** LPAPI BarcodeType ordinal; 0 (AUTO) lets the SDK choose. */
       barcodeType?: number;
       align?: 0 | 1 | 2;
     }
-  | { type: 'qrcode'; value: string; x: number; y: number; size?: number; align?: 0 | 1 | 2 }
+  | { type: 'qrcode'; value: string; x: number; y: number; size?: number; align?: 0 | 1 | 2; rotation?: number }
   | {
       type: 'image';
       /** Local file path, file:// URI, or base64 data URI. */
@@ -38,12 +42,13 @@ export type JoshLabelElement =
       y: number;
       width?: number;
       height?: number;
+      rotation?: number;
       /** Invert colors (black becomes white, white becomes black). */
       invert?: boolean;
       /** 0-255 grey cutoff. Omit to let the SDK decide. */
       threshold?: number;
     }
-  | { type: 'line'; x: number; y: number; x2: number; y2: number; thickness?: number }
+  | { type: 'line'; x: number; y: number; x2: number; y2: number; thickness?: number; rotation?: number }
   | {
       type: 'rectangle';
       x: number;
@@ -54,6 +59,7 @@ export type JoshLabelElement =
       filled?: boolean;
       /** Corner radius in mm — > 0 draws a rounded rectangle. */
       cornerRadius?: number;
+      rotation?: number;
     }
   | {
       type: 'ellipse';
@@ -63,6 +69,7 @@ export type JoshLabelElement =
       height: number;
       thickness?: number;
       filled?: boolean;
+      rotation?: number;
     };
 
 export interface JoshLabelSpec {
@@ -78,6 +85,17 @@ export interface JoshLabelSpec {
   darkness?: number;
   speed?: number;
   elements: JoshLabelElement[];
+}
+
+export interface JoshLabelBatchSpec {
+  widthMm: number;
+  heightMm: number;
+  rotation?: number;
+  gapMm?: number;
+  gapType?: number;
+  darkness?: number;
+  speed?: number;
+  labels: JoshLabelSpec[];
 }
 
 export interface JoshPrinterDevice {
@@ -118,6 +136,7 @@ declare class JoshLabelPrinterNativeModule extends NativeModule<JoshLabelPrinter
     widthMm?: number;
   } | null>;
   printLabel(spec: JoshLabelSpec): Promise<boolean>;
+  printLabelBatch(batch: JoshLabelBatchSpec): Promise<boolean>;
 }
 
 /**

@@ -127,22 +127,7 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
       route: '/suppliers',
       feature: 'suppliers',
     },
-    {
-      id: 'purchases',
-      title: t('purchases', 'Stock Purchases'),
-      icon: ShoppingBag,
-      color: '#D97706',
-      route: '/purchases',
-      feature: 'purchases',
-    },
-    {
-      id: 'stores',
-      title: t('stores', 'Stores & Locations'),
-      icon: ShoppingBag,
-      color: '#2563EB',
-      route: '/stores',
-      feature: 'stores',
-    },
+
     {
       id: 'expenses',
       title: t('expenses', 'Expense Tracker'),

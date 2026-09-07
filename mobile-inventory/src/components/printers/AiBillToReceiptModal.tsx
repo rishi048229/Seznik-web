@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -25,12 +26,14 @@ import {
   ChevronDown,
   Edit3,
   Layers,
+  Share2,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useProducts } from '@/hooks/useProducts';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
@@ -46,10 +49,12 @@ interface Props {
 export function AiBillToReceiptModal({ visible, onClose }: Props) {
   const theme = useAppTheme();
   const { aiConvertInvoice } = useProducts();
+  const { storeName: defaultStoreName, storeAddress: defaultStoreAddress, storePhone: defaultStorePhone, storeGstin: defaultStoreGstin } = useStoreProfile();
   const { activeTemplateId, paperWidth } = usePrinterStore();
 
   const [step, setStep] = useState<'select' | 'analyzing' | 'review'>('select');
   const [selectedTemplateId, setSelectedTemplateId] = useState(activeTemplateId || 'standard');
+  const [selectedPaperWidth, setSelectedPaperWidth] = useState<'58mm' | '80mm'>(paperWidth || '58mm');
   const [saleData, setSaleData] = useState<PrintSaleData | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('Analyzing A4 bill with Gemini AI...');
   const [isPrinting, setIsPrinting] = useState(false);
@@ -241,13 +246,14 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
     const grandTotal = Number(saleData.grandTotal) || subtotal + (Number(saleData.totalTax) || 0) - (Number(saleData.totalDiscount) || 0);
 
     return {
-      storeName: saleData.storeName || 'Store',
-      storeAddress: saleData.storeAddress || undefined,
-      storePhone: saleData.storePhone || undefined,
-      storeGstin: saleData.storeGstin || undefined,
+      storeName: saleData.storeName || defaultStoreName || 'Store',
+      storeAddress: saleData.storeAddress || defaultStoreAddress,
+      storePhone: saleData.storePhone || defaultStorePhone,
+      storeGstin: saleData.storeGstin || defaultStoreGstin,
       invoiceNumber: saleData.invoiceNumber || `INV-${Math.floor(1000 + Math.random() * 9000)}`,
       date: saleData.date || new Date().toLocaleDateString('en-GB'),
       customerName: saleData.customerName || undefined,
+      customerPhone: saleData.customerPhone || undefined,
       items: itemsList,
       subtotal,
       totalDiscount: Number(saleData.totalDiscount) || 0,
@@ -264,16 +270,16 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
     if (!dataToPrint) return;
     setIsPrinting(true);
     try {
-      const ok = await ThermalPrinterService.printReceipt(dataToPrint, paperWidth, {
+      const ok = await ThermalPrinterService.printReceipt(dataToPrint, selectedPaperWidth, {
         template: activeTemplate,
       });
 
       if (ok) {
-        Alert.alert('Receipt Printed!', 'Successfully sent receipt to your connected thermal printer.');
+        Alert.alert('Receipt Printed!', `Successfully sent receipt to your connected ${selectedPaperWidth} thermal printer.`);
       } else {
         Alert.alert(
           'Printer Not Connected',
-          'Could not reach Bluetooth thermal printer. Please make sure your printer is powered on & connected in Printers section.',
+          'Could not reach Bluetooth printer. Please make sure your printer is powered on & connected in Printers section.',
           [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -288,6 +294,18 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
     } finally {
       setIsPrinting(false);
     }
+  };
+
+  const handleShare = async () => {
+    const data = getCleanSaleData();
+    if (!data) return;
+    const itemsText = data.items
+      .map((i) => `• ${i.productName} x${i.quantity} = ₹${(i.total || 0).toFixed(2)}`)
+      .join('\n');
+    const msg = `*${(data.storeName || 'SEZNIK BILL').toUpperCase()}*\nBill No: ${data.invoiceNumber}\nDate: ${data.date}\n${data.customerName ? `Customer: ${data.customerName}\n` : ''}--------------------------------\n${itemsText}\n--------------------------------\nSubtotal: ₹${data.subtotal.toFixed(2)}\nTax/GST: ₹${data.totalTax.toFixed(2)}\n*GRAND TOTAL: ₹${data.grandTotal.toFixed(2)}*\nPayment: ${data.paymentMethod}\nThank you!`;
+    try {
+      await Share.share({ message: msg });
+    } catch (e) {}
   };
 
   const handlePrintSystem = async () => {
@@ -397,9 +415,40 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
         {/* STEP 3: REVIEW & PRINT RECEIPT */}
         {step === 'review' && saleData && (
           <View style={{ flex: 1 }}>
-            {/* Template Selector Bar */}
+            {/* Paper Width & Template Selector Bar */}
             <View style={[styles.templateSelectorBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
-              <Text style={[styles.templateBarLabel, { color: theme.textSecondary }]}>Receipt Style:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 10, paddingRight: 10, borderRightWidth: 1, borderRightColor: theme.borderColor }}>
+                <TouchableOpacity
+                  onPress={() => setSelectedPaperWidth('58mm')}
+                  style={[
+                    styles.widthChip,
+                    {
+                      backgroundColor: selectedPaperWidth === '58mm' ? BRAND_COLORS.blue600 : theme.bg,
+                      borderColor: selectedPaperWidth === '58mm' ? BRAND_COLORS.blue600 : theme.borderColor,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.widthChipText, { color: selectedPaperWidth === '58mm' ? '#FFFFFF' : theme.textPrimary }]}>
+                    2" (58mm)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSelectedPaperWidth('80mm')}
+                  style={[
+                    styles.widthChip,
+                    {
+                      backgroundColor: selectedPaperWidth === '80mm' ? BRAND_COLORS.blue600 : theme.bg,
+                      borderColor: selectedPaperWidth === '80mm' ? BRAND_COLORS.blue600 : theme.borderColor,
+                      marginLeft: 4,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.widthChipText, { color: selectedPaperWidth === '80mm' ? '#FFFFFF' : theme.textPrimary }]}>
+                    3" (80mm)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
                 {RECEIPT_TEMPLATES.map((t) => {
                   const selected = t.id === selectedTemplateId;
@@ -429,12 +478,14 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
               <View style={styles.previewContainer}>
                 <ReceiptTemplateMockup
                   template={activeTemplate}
-                  storeName={saleData.storeName || 'Store Name'}
-                  storeAddress={saleData.storeAddress}
-                  storePhone={saleData.storePhone}
+                  storeName={saleData.storeName || defaultStoreName || 'Store Name'}
+                  storeAddress={saleData.storeAddress || defaultStoreAddress}
+                  storePhone={saleData.storePhone || defaultStorePhone}
+                  storeGstin={saleData.storeGstin || defaultStoreGstin}
                   invoiceNumber={saleData.invoiceNumber || 'INV-001'}
                   date={saleData.date || new Date().toLocaleDateString('en-GB')}
                   customerName={saleData.customerName}
+                  customerPhone={saleData.customerPhone}
                   items={(saleData.items || []).map((i) => ({
                     productName: i.productName,
                     quantity: Number(i.quantity) || 1,
@@ -443,6 +494,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
                     unit: i.unit,
                   }))}
                   subtotal={saleData.subtotal || 0}
+                  totalDiscount={saleData.totalDiscount || 0}
                   totalTax={saleData.totalTax || 0}
                   grandTotal={saleData.grandTotal || 0}
                 />
@@ -462,18 +514,54 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
 
               {showEditFields && (
                 <View style={[styles.editCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <Text style={[styles.editGroupTitle, { color: theme.textPrimary }]}>Store & Invoice Details</Text>
+                  <Text style={[styles.editGroupTitle, { color: theme.textPrimary }]}>Store & Header Details</Text>
                   
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Store / Company Name</Text>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Store / Issuer Name</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                     value={saleData.storeName || ''}
+                    placeholder="e.g. My Retail Shop or Utility Board"
+                    placeholderTextColor={theme.textSecondary}
                     onChangeText={(txt) => handleUpdateField('storeName', txt)}
                   />
 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Invoice Number</Text>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Store Phone</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                        value={saleData.storePhone || ''}
+                        placeholder="e.g. 9876543210"
+                        placeholderTextColor={theme.textSecondary}
+                        onChangeText={(txt) => handleUpdateField('storePhone', txt)}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Store GSTIN / Reg No</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                        value={saleData.storeGstin || ''}
+                        placeholder="GSTIN"
+                        placeholderTextColor={theme.textSecondary}
+                        onChangeText={(txt) => handleUpdateField('storeGstin', txt)}
+                      />
+                    </View>
+                  </View>
+
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Store Address</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                    value={saleData.storeAddress || ''}
+                    placeholder="Store Address"
+                    placeholderTextColor={theme.textSecondary}
+                    onChangeText={(txt) => handleUpdateField('storeAddress', txt)}
+                  />
+
+                  <Text style={[styles.editGroupTitle, { color: theme.textPrimary, marginTop: 12 }]}>Invoice & Customer Details</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Invoice / Bill No</Text>
                       <TextInput
                         style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                         value={saleData.invoiceNumber || ''}
@@ -491,12 +579,28 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
                     </View>
                   </View>
 
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Customer Name</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
-                    value={saleData.customerName || ''}
-                    onChangeText={(txt) => handleUpdateField('customerName', txt)}
-                  />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Customer / Consumer Name</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                        value={saleData.customerName || ''}
+                        placeholder="Customer Name"
+                        placeholderTextColor={theme.textSecondary}
+                        onChangeText={(txt) => handleUpdateField('customerName', txt)}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Customer Phone</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                        value={saleData.customerPhone || ''}
+                        placeholder="Phone Number"
+                        placeholderTextColor={theme.textSecondary}
+                        onChangeText={(txt) => handleUpdateField('customerPhone', txt)}
+                      />
+                    </View>
+                  </View>
 
                   <Text style={[styles.editGroupTitle, { color: theme.textPrimary, marginTop: 14 }]}>Line Items</Text>
                   {(saleData.items || []).map((item, idx) => (
@@ -543,15 +647,49 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
                     <Plus size={14} color={BRAND_COLORS.blue600} />
                     <Text style={[styles.addItemText, { color: BRAND_COLORS.blue600 }]}>Add Extra Item</Text>
                   </TouchableOpacity>
+
+                  <Text style={[styles.editGroupTitle, { color: theme.textPrimary, marginTop: 14 }]}>Totals & Taxes</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Total Tax / GST (₹)</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                        value={String(saleData.totalTax || 0)}
+                        onChangeText={(txt) => handleUpdateField('totalTax', parseFloat(txt) || 0)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Total Discount (₹)</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary }]}
+                        value={String(saleData.totalDiscount || 0)}
+                        onChangeText={(txt) => handleUpdateField('totalDiscount', parseFloat(txt) || 0)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Grand Total (₹)</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, fontWeight: '900', fontSize: 15 }]}
+                    value={String(saleData.grandTotal || 0)}
+                    onChangeText={(txt) => handleUpdateField('grandTotal', parseFloat(txt) || 0)}
+                    keyboardType="numeric"
+                  />
                 </View>
               )}
             </ScrollView>
 
             {/* Bottom Actions Footer */}
             <View style={[styles.footer, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+              <TouchableOpacity onPress={handleShare} disabled={isPrinting} style={styles.shareBtn}>
+                <Share2 size={16} color={BRAND_COLORS.blue600} />
+                <Text style={[styles.shareBtnText, { color: BRAND_COLORS.blue600 }]}>Share</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity onPress={handlePrintSystem} disabled={isPrinting} style={styles.systemPrintBtn}>
                 <FileText size={16} color={theme.textPrimary} />
-                <Text style={[styles.systemPrintText, { color: theme.textPrimary }]}>System Print</Text>
+                <Text style={[styles.systemPrintText, { color: theme.textPrimary }]}>A4 PDF</Text>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={handlePrintThermal} disabled={isPrinting} style={styles.printBtn}>
@@ -560,7 +698,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
                 ) : (
                   <PrinterIcon size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                 )}
-                <Text style={styles.printText}>Print Thermal Receipt</Text>
+                <Text style={styles.printText}>Print Receipt ({selectedPaperWidth})</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -676,9 +814,34 @@ const styles = StyleSheet.create({
   totalDisplay: { fontSize: 12, fontWeight: '900', marginTop: 6 },
   addItemBtn: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   addItemText: { fontSize: 12, fontWeight: '800', marginLeft: 4 },
-  footer: { padding: 14, borderTopWidth: 1, flexDirection: 'row', gap: 10 },
+  widthChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  widthChipText: { fontSize: 11, fontWeight: '800' },
+  shareBtn: {
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.blue600,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareBtnText: { fontSize: 13, fontWeight: '800', marginLeft: 4 },
   systemPrintBtn: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   systemPrintText: { fontSize: 13, fontWeight: '800', marginLeft: 6 },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    gap: 10,
+  },
   printBtn: { flex: 1, backgroundColor: BRAND_COLORS.blue600, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   printText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
 });

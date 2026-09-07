@@ -19,6 +19,10 @@ interface BaseLabelElement {
   yMm: number;
   widthMm: number;
   heightMm: number;
+  /** Rotation angle in degrees (0, 90, 180, 270 or arbitrary 0-360) */
+  rotation?: number;
+  /** Fix/Lock element in place so it cannot be dragged or resized */
+  locked?: boolean;
 }
 
 export interface LabelTextElement extends BaseLabelElement {

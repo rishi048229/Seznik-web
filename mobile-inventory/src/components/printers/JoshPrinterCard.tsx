@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, PermissionsAndroid, Vibration } from 'react-native';
-import { Tag, Bluetooth, PowerOff, RefreshCw, CheckCircle2 } from 'lucide-react-native';
+import { Tag, Bluetooth, PowerOff, RefreshCw, CheckCircle2, Sparkles } from 'lucide-react-native';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
 import ThermalPrinterService from '@/services/PrinterService';
 import { getStoredJoshPrinter } from '@/services/secureStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useJoshDualModeTip } from '@/hooks/useJoshDualModeTip';
+import { JoshDualModeModal } from '@/components/printers/JoshDualModeModal';
 
 /**
  * Connect/disconnect UI for DothanTech ("Josh") LPAPI label printers.
@@ -17,11 +19,13 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 export function JoshPrinterCard() {
   const theme = useAppTheme();
   const supported = isJoshPrinterSupported();
+  const { shouldShowTip, markTipShown, dismissPermanently } = useJoshDualModeTip();
 
   const [devices, setDevices] = useState<JoshPrinterDevice[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [connectingAddress, setConnectingAddress] = useState<string | null>(null);
   const [connected, setConnected] = useState<{ address: string; name: string } | null>(null);
+  const [showTipModal, setShowTipModal] = useState(false);
 
   const refreshConnection = useCallback(async () => {
     if (!JoshLabelPrinter) return;
@@ -133,7 +137,11 @@ export function JoshPrinterCard() {
       const success = await ThermalPrinterService.joshConnect(device.address, device.name);
       if (success) {
         await refreshConnection();
-        Alert.alert('Label Printer Linked', `${device.name} is ready. Label prints will now use it.`);
+        if (shouldShowTip) {
+          setShowTipModal(true);
+        } else {
+          Alert.alert('Dual-Mode Printer Linked', `${device.name} is ready for bills and labels.`);
+        }
       } else {
         Alert.alert('Could Not Connect', `${device.name} did not accept the connection. Make sure it is switched on and in range.`);
       }
@@ -179,6 +187,24 @@ export function JoshPrinterCard() {
     }
   };
 
+  const [isTestReceiptPrinting, setIsTestReceiptPrinting] = useState(false);
+
+  const handleTestReceiptPrint = async () => {
+    setIsTestReceiptPrinting(true);
+    try {
+      const ok = await ThermalPrinterService.printTestReceipt();
+      if (ok) {
+        Alert.alert('Test Receipt Sent!', 'Printed sample receipt via Josh Printer.');
+      } else {
+        Alert.alert('Print Error', 'Could not send test receipt.');
+      }
+    } catch (e: any) {
+      Alert.alert('Print Error', e?.message || 'Failed to print test receipt.');
+    } finally {
+      setIsTestReceiptPrinting(false);
+    }
+  };
+
   // On iOS, or on a JS-only client that has not been rebuilt with the SDK, there is
   // nothing actionable to show — the ESC/POS label path stays in charge.
   if (!supported) return null;
@@ -190,19 +216,24 @@ export function JoshPrinterCard() {
           <Tag size={17} color={connected ? '#10B981' : '#64748B'} />
         </View>
         <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
-          <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>
-            Label Printer (Josh)
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>
+              Josh Smart Printer
+            </Text>
+            <View style={styles.dualBadge}>
+              <Sparkles size={11} color="#6366F1" />
+              <Text style={styles.dualBadgeText}>Dual-Mode</Text>
+            </View>
+          </View>
           <Text style={[styles.sub, { color: theme.textSecondary }]} numberOfLines={1}>
-            {connected ? `${connected.name} — ready` : 'Not connected'}
+            {connected ? `${connected.name} — ready (Receipts & Labels)` : 'Not connected (2-in-1 Printer)'}
           </Text>
         </View>
         {connected ? <CheckCircle2 size={18} color="#10B981" /> : null}
       </View>
 
       <Text style={[styles.blurb, { color: theme.textSecondary }]}>
-        A dedicated sticker/label printer. While it is connected, labels from Label Studio and the
-        products page print here instead of on the receipt roll.
+        Dual-mode printer capable of printing both continuous POS receipts and die-cut sticker barcode labels. Remember to swap your paper roll when changing modes.
       </Text>
 
       <View style={styles.actionRow}>
@@ -226,27 +257,35 @@ export function JoshPrinterCard() {
         {connected ? (
           <>
             <TouchableOpacity
+              onPress={handleTestReceiptPrint}
+              disabled={isTestReceiptPrinting}
+              style={[styles.secondaryBtn, { borderColor: '#2563EB' }]}
+            >
+              {isTestReceiptPrinting ? (
+                <ActivityIndicator size="small" color="#2563EB" />
+              ) : (
+                <Text style={[styles.secondaryBtnText, { color: '#2563EB' }]} numberOfLines={1}>
+                  Bill
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={handleTestPrint}
               disabled={isTestPrinting}
-              style={[styles.secondaryBtn, { borderColor: '#10B981', marginRight: 8 }]}
+              style={[styles.secondaryBtn, { borderColor: '#10B981' }]}
             >
               {isTestPrinting ? (
                 <ActivityIndicator size="small" color="#10B981" />
               ) : (
-                <>
-                  <Tag size={14} color="#10B981" style={{ marginRight: 6 }} />
-                  <Text style={[styles.secondaryBtnText, { color: '#10B981' }]} numberOfLines={1}>
-                    Test Label
-                  </Text>
-                </>
+                <Text style={[styles.secondaryBtnText, { color: '#10B981' }]} numberOfLines={1}>
+                  Label
+                </Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleDisconnect} style={[styles.secondaryBtn, { borderColor: '#EF4444' }]}>
-              <PowerOff size={14} color="#EF4444" style={{ marginRight: 6 }} />
-              <Text style={[styles.secondaryBtnText, { color: '#EF4444' }]} numberOfLines={1}>
-                Disconnect
-              </Text>
+              <PowerOff size={14} color="#EF4444" />
             </TouchableOpacity>
           </>
         ) : (
@@ -293,6 +332,18 @@ export function JoshPrinterCard() {
           })}
         </View>
       ) : null}
+
+      <JoshDualModeModal
+        visible={showTipModal}
+        onDismiss={() => {
+          setShowTipModal(false);
+          markTipShown();
+        }}
+        onDontShowAgain={() => {
+          setShowTipModal(false);
+          dismissPermanently();
+        }}
+      />
     </View>
   );
 }
@@ -322,4 +373,19 @@ const styles = StyleSheet.create({
   deviceRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 8 },
   deviceName: { fontSize: 12.5, fontWeight: '800' },
   deviceAddr: { fontSize: 10.5, marginTop: 2 },
+  dualBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  dualBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6366F1',
+    letterSpacing: 0.2,
+  },
 });

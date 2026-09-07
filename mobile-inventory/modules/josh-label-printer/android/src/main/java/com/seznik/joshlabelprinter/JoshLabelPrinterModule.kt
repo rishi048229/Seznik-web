@@ -398,6 +398,8 @@ class JoshLabelPrinterModule : Module() {
         }
         val copies = finiteInt(spec["copies"], 1).coerceAtLeast(1)
         val headMm = printableWidthMm().takeIf { it > 1.0 } ?: 48.0
+        val printWmm = minOf(widthMm, headMm)
+        val printHmm = heightMm
 
         val jobParam = Bundle()
         val gapType = finiteInt(spec["gapType"], 2) // 2 = die-cut label gap
@@ -405,26 +407,33 @@ class JoshLabelPrinterModule : Module() {
         jobParam.putInt(IDzPrinter.PrintParamName.GAP_TYPE, gapType)
         jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH, gapMm)
         jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH_01MM, gapMm * 10)
-        finiteOrNull(spec["darkness"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DENSITY, it.toInt()) }
-        finiteOrNull(spec["speed"])?.let { jobParam.putInt(IDzPrinter.PrintParamName.PRINT_SPEED, it.toInt()) }
+
+        // Set speed: 5 is maximum speed in LPAPI (1=slowest, 3=normal, 5=fastest) to eliminate sluggish feed
+        val speed = finiteInt(spec["speed"], 5).coerceIn(1, 5)
+        jobParam.putInt(IDzPrinter.PrintParamName.PRINT_SPEED, speed)
+        instance.setPrintSpeed(speed)
+
+        // Set balanced darkness (7) so heating pulse is fast and doesn't induce head cooldown delays
+        val density = finiteInt(spec["darkness"], 7).coerceIn(1, 20)
+        jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DENSITY, density)
+        instance.setPrintDarkness(density)
+
         jobParam.putInt(IDzPrinter.PrintParamName.IMAGE_THRESHOLD, 192)
-        if (copies > 1) {
-          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
-        }
 
         instance.setPrintPageGapType(gapType)
         instance.setPrintPageGapLength(gapMm)
 
-        // Drop any half-finished job
-        runCatching { instance.abortJob() }
-
-        // Build composite label bitmap
+        // Build composite label bitmap once
         val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
 
         val pending = PendingPrint()
         pendingPrint = pending
 
+        if (copies > 1) {
+          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
+        }
         val committed = instance.printBitmap(labelBitmap, jobParam)
+
         if (!committed) {
           pendingPrint = null
           labelBitmap.recycle()
@@ -449,6 +458,94 @@ class JoshLabelPrinterModule : Module() {
       } catch (e: Throwable) {
         pendingPrint = null
         promise.reject(CodedException("ERR_JOSH_PRINT", e.message ?: "Printing failed", e))
+      }
+    }
+
+    /**
+     * Batch print multiple distinct labels within ONE continuous print job.
+     * Eliminates pauses between different labels.
+     */
+    AsyncFunction("printLabelBatch") { batchSpec: Map<String, Any?>, promise: Promise ->
+      try {
+        val instance = requireApi()
+        if (!instance.isPrinterOpened) {
+          throw CodedException("ERR_JOSH_NOT_CONNECTED", "No label printer is connected.", null)
+        }
+        val rawLabels = batchSpec["labels"] as? List<Map<String, Any?>> ?: emptyList()
+        if (rawLabels.isEmpty()) {
+          promise.resolve(true)
+          return@AsyncFunction
+        }
+        val first = rawLabels.first()
+        val widthMm = finite(batchSpec["widthMm"] ?: first["widthMm"], 50.0)
+        val heightMm = finite(batchSpec["heightMm"] ?: first["heightMm"], 30.0)
+        val headMm = printableWidthMm().takeIf { it > 1.0 } ?: 48.0
+        val printWmm = minOf(widthMm, headMm)
+        val printHmm = heightMm
+
+        val jobParam = Bundle()
+        val gapType = finiteInt(batchSpec["gapType"] ?: first["gapType"], 2)
+        val gapMm = finiteInt(batchSpec["gapMm"] ?: first["gapMm"], 3)
+        jobParam.putInt(IDzPrinter.PrintParamName.GAP_TYPE, gapType)
+        jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH, gapMm)
+        jobParam.putInt(IDzPrinter.PrintParamName.GAP_LENGTH_01MM, gapMm * 10)
+        val speed = finiteInt(batchSpec["speed"], 5).coerceIn(1, 5)
+        jobParam.putInt(IDzPrinter.PrintParamName.PRINT_SPEED, speed)
+        instance.setPrintSpeed(speed)
+        val density = finiteInt(batchSpec["darkness"], 7).coerceIn(1, 20)
+        jobParam.putInt(IDzPrinter.PrintParamName.PRINT_DENSITY, density)
+        instance.setPrintDarkness(density)
+        jobParam.putInt(IDzPrinter.PrintParamName.IMAGE_THRESHOLD, 192)
+
+        instance.setPrintPageGapType(gapType)
+        instance.setPrintPageGapLength(gapMm)
+
+        val pending = PendingPrint()
+        pendingPrint = pending
+
+        var jobStarted = instance.startJob(printWmm, printHmm, 0)
+        if (!jobStarted) {
+          runCatching { instance.abortJob() }
+          jobStarted = instance.startJob(printWmm, printHmm, 0)
+        }
+        if (!jobStarted) {
+          throw CodedException("ERR_JOSH_START", "Failed to start batch print job.", null)
+        }
+
+        val bitmapsToRecycle = mutableListOf<Bitmap>()
+        try {
+          for ((index, labelSpec) in rawLabels.withIndex()) {
+            val bmp = buildLabelBitmap(labelSpec, widthMm, heightMm, headMm)
+            bitmapsToRecycle.add(bmp)
+            if (index > 0) instance.startPage()
+            instance.drawBitmap(bmp, 0.0, 0.0, printWmm, printHmm)
+            if (index > 0) instance.endPage()
+          }
+          val committed = instance.commitJobWithParam(jobParam)
+          if (!committed) {
+            pendingPrint = null
+            throw CodedException("ERR_JOSH_COMMIT", "Printer rejected batch job.", null)
+          }
+          val reported = pending.latch.await(60, TimeUnit.SECONDS)
+          pendingPrint = null
+          if (!reported) {
+            throw CodedException("ERR_JOSH_TIMEOUT", "Printer timeout during batch print.", null)
+          }
+          if (!pending.success) {
+            throw CodedException("ERR_JOSH_PRINT_FAILED", pending.failReason ?: "Batch print failed.", null)
+          }
+          promise.resolve(true)
+        } finally {
+          for (b in bitmapsToRecycle) {
+            b.recycle()
+          }
+        }
+      } catch (e: CodedException) {
+        pendingPrint = null
+        promise.reject(e)
+      } catch (e: Throwable) {
+        pendingPrint = null
+        promise.reject(CodedException("ERR_JOSH_BATCH", e.message ?: "Batch print error", e))
       }
     }
 
@@ -509,6 +606,15 @@ class JoshLabelPrinterModule : Module() {
     val wPx = (finite(el["width"], 0.0) * fit * dotsPerMm).toFloat()
     val hPx = (finite(el["height"], 0.0) * fit * dotsPerMm).toFloat()
 
+    val rot = finite(el["rotation"], 0.0).toFloat()
+    val hasRot = rot % 360f != 0f
+    if (hasRot) {
+      val cx = if (wPx > 0) xPx + wPx / 2f else xPx
+      val cy = if (hPx > 0) yPx + hPx / 2f else yPx
+      canvas.save()
+      canvas.rotate(rot, cx, cy)
+    }
+
     when ((el["type"] as? String) ?: "") {
       "text" -> {
         val value = el["value"] as? String ?: return
@@ -517,11 +623,14 @@ class JoshLabelPrinterModule : Module() {
         val fontSizePx = (fontHeightMm * dotsPerMm).toFloat().coerceAtLeast(14f)
         val bold = (el["bold"] as? Boolean) == true
         val align = finiteInt(el["align"], 0)
+        val fontFamily = el["fontFamily"] as? String
+        val isMono = fontFamily == "monospace" || (el["monospace"] as? Boolean) == true
+        val baseTypeface = if (isMono) Typeface.MONOSPACE else Typeface.DEFAULT
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
           color = Color.BLACK
           textSize = fontSizePx
-          typeface = if (bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.DEFAULT
+          typeface = if (bold) Typeface.create(baseTypeface, Typeface.BOLD) else baseTypeface
           textAlign = when (align) {
             1 -> Paint.Align.CENTER
             2 -> Paint.Align.RIGHT
@@ -530,8 +639,8 @@ class JoshLabelPrinterModule : Module() {
         }
 
         val drawX = when (align) {
-          1 -> if (wPx > 0) xPx + wPx / 2f else xPx + (fontSizePx * value.length * 0.3f)
-          2 -> if (wPx > 0) xPx + wPx else xPx + (fontSizePx * value.length * 0.6f)
+          1 -> if (wPx > 0) xPx + wPx / 2f else canvasWidthPx / 2f
+          2 -> if (wPx > 0) xPx + wPx else (canvasWidthPx.toFloat() - xPx.coerceAtLeast(0f))
           else -> xPx
         }
 
@@ -625,6 +734,10 @@ class JoshLabelPrinterModule : Module() {
         }
         canvas.drawOval(RectF(xPx, yPx, xPx + wPx, yPx + hPx), paint)
       }
+    }
+
+    if (hasRot) {
+      canvas.restore()
     }
   }
 

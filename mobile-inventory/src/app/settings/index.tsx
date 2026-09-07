@@ -276,7 +276,6 @@ export default function SettingsScreen() {
                 { id: 'permissions', icon: Users, label: t('staffAccounts', 'Staff & permissions'), color: '#F59E0B', link: '/staff' },
                 { id: 'language', icon: Globe, label: t('appLanguage', 'Language'), color: '#10B981' },
                 { id: 'printers', icon: Printer, label: t('thermalPrinter', 'Printers'), color: BRAND_COLORS.sky500, link: '/printers' },
-                { id: 'stores', icon: Store, label: t('stores', 'Stores'), color: '#2563EB', link: '/stores' },
                 { id: 'support', icon: LifeBuoy, label: 'Help & Support', color: '#EF4444' },
               ].map((item) => (
                 <FeatureGridTile

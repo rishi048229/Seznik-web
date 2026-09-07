@@ -8,7 +8,7 @@ import { Product } from '../types/product';
 import { flattenImageOntoWhite } from '../utils/imageBackgroundRemoval';
 import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '../utils/labelSequence';
 import { playPrinterConnectFeedback } from '../utils/printerConnectFeedback';
-import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement } from '../../modules/josh-label-printer';
+import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement, JoshLabelSpec } from '../../modules/josh-label-printer';
 import { getStoredJoshPrinter, setStoredJoshPrinter } from './secureStore';
 import {
   enrichCustomReceiptEntries,
@@ -115,6 +115,13 @@ export interface PrintSaleData {
   tableNo?: string;
   waiterName?: string;
   tokenNo?: string;
+  /** Utility / Electricity / Service bill specific fields */
+  consumerNo?: string;
+  dueDate?: string;
+  billingPeriod?: string;
+  providerName?: string;
+  unitsConsumed?: string;
+  amountAfterDueDate?: number;
 }
 
 export function numberToIndianWords(amount: number): string {
@@ -611,13 +618,19 @@ class ThermalPrinterServiceManager {
     return this.activeDevice || this.lastConnectedDevice;
   }
 
-  private notifyStatusChange(state: 'connected' | 'disconnected' | 'connecting' | 'scanning') {
-    if (this.connectionState === state) return;
+  public notifyStatusChange(state: 'connected' | 'disconnected' | 'connecting' | 'scanning', force = false) {
+    if (!force && this.connectionState === state) return;
     this.connectionState = state;
     if (state === 'connected') {
       this.warningText = '';
     }
-    this.statusListeners.forEach((cb) => cb(state));
+    this.statusListeners.forEach((cb) => {
+      try {
+        cb(state);
+      } catch (e) {
+        console.error('Status listener error:', e);
+      }
+    });
   }
 
   /** Maps raw native Bluetooth module codes (e.g. NOT_STARTED) to actionable copy. */
@@ -1666,6 +1679,21 @@ class ThermalPrinterServiceManager {
     } else {
       lines.push(row('Bill No :', data.invoiceNumber, COLS));
       lines.push(row('Date    :', data.date, COLS));
+    }
+    if (data.providerName) {
+      lines.push(row('Provider:', data.providerName.slice(0, COLS - 11), COLS));
+    }
+    if (data.consumerNo) {
+      lines.push(row('Consumer ID:', data.consumerNo, COLS));
+    }
+    if (data.dueDate) {
+      lines.push(row('Due Date   :', data.dueDate, COLS));
+    }
+    if (data.billingPeriod) {
+      lines.push(row('Bill Period:', data.billingPeriod, COLS));
+    }
+    if (data.unitsConsumed) {
+      lines.push(row('Units      :', data.unitsConsumed, COLS));
     }
     if (template.showCustomerLine && custName) {
       lines.push(row('Customer:', custName, COLS));
@@ -3118,7 +3146,8 @@ class ThermalPrinterServiceManager {
     format: 'qr' | 'code128' | 'ean13',
     widthMmRaw: number,
     heightMmRaw: number,
-    gapMm: number
+    gapMm: number,
+    copies: number = 1
   ): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
 
@@ -3193,10 +3222,12 @@ class ThermalPrinterServiceManager {
       widthMm,
       heightMm,
       rotation: 0,
-      copies: 1,
+      copies: Math.max(1, copies),
       gapMm: this.safeMm(gapMm, 3),
       // Die-cut gap stock — this path is only reached in 'gap' label mode.
       gapType: 2,
+      speed: 5,
+      darkness: 7,
       elements,
     });
   }
@@ -3230,8 +3261,19 @@ class ThermalPrinterServiceManager {
     } catch {}
     const ok = await JoshLabelPrinter.connect(address);
     if (ok) {
-      setStoredJoshPrinter({ address, name: name || address }).catch(() => {});
+      const printerName = name || 'JOSH Printer';
+      setStoredJoshPrinter({ address, name: printerName }).catch(() => {});
       this.joshReconnectFailedAt = 0;
+      this.activeDevice = {
+        id: address,
+        name: printerName,
+        macAddress: address,
+        type: 'dual',
+        connected: true,
+      };
+      this.warningText = '';
+      this.connectionState = 'connected';
+      this.notifyStatusChange('connected', true);
       playPrinterConnectFeedback();
     }
     return ok;
@@ -3242,7 +3284,18 @@ class ThermalPrinterServiceManager {
     // A user-initiated disconnect means "stop using the label printer" — forget it,
     // otherwise the next label print would silently re-link the device they just removed.
     setStoredJoshPrinter(null).catch(() => {});
-    return JoshLabelPrinter.disconnect();
+    const ok = await JoshLabelPrinter.disconnect();
+    if (
+      this.activeDevice?.type === 'dual' ||
+      this.activeDevice?.name?.toUpperCase().includes('JOSH') ||
+      this.activeDevice?.name?.toUpperCase().startsWith('LD') ||
+      this.activeDevice?.name?.toUpperCase().startsWith('LP')
+    ) {
+      this.activeDevice = null;
+      this.connectionState = 'disconnected';
+      this.notifyStatusChange('disconnected', true);
+    }
+    return ok;
   }
 
   /** Name/address of the connected label printer, for showing which one is live. */
@@ -3283,8 +3336,549 @@ class ThermalPrinterServiceManager {
    * Checks if a Josh printer was linked. Non-blocking: logs if unreachable,
    * never throws an exception so standard ESC/POS and TSPL printers can proceed.
    */
-  private async assertNoLinkedJoshPrinter(): Promise<void> {
-    // Non-blocking: allow standard ESC/POS / TSPL printers to handle labels freely
+  /**
+   * Prints a formatted thermal sale receipt on a connected Josh (LPAPI) printer
+   * using continuous roll mode (gapType: 0).
+   */
+  /**
+   * Prints a formatted thermal sale receipt on a connected Josh (LPAPI) printer
+   * using continuous roll mode (gapType: 0), faithfully matching the standard
+   * ESC/POS receipt printing template and layout.
+   */
+  public async printReceiptViaJosh(
+    data: PrintSaleData,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: ReceiptPrintOptions = {}
+  ): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+
+    const headWidth = (await this.getJoshHeadWidthMm()) || (paperWidth === '80mm' ? 72 : 48);
+    const printableWidth = Math.min(headWidth, paperWidth === '80mm' ? 72 : 48);
+    const elements: JoshLabelElement[] = [];
+    let y = 4; // top margin in mm
+
+    // 1. Store Logo (if configured)
+    const logoUrl = data.storeLogoUrl || options.storeLogoUrl;
+    if (logoUrl) {
+      const logoW = Math.min(printableWidth * 0.55, 28);
+      const logoH = logoW * 0.65;
+      elements.push({
+        type: 'image',
+        uri: logoUrl,
+        x: (printableWidth - logoW) / 2,
+        y,
+        width: logoW,
+        height: logoH,
+      });
+      y += logoH + 2;
+    }
+
+    // 2. Generate the exact ESC/POS receipt text from the active template/config
+    const receiptText = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
+    const lines = receiptText.split(/\r?\n/);
+
+    const colsTarget = paperWidth === '80mm' ? 48 : 32;
+    const dividerDouble = '='.repeat(colsTarget);
+    const dividerSingle = '-'.repeat(colsTarget);
+
+    // Parse and render lines into Josh elements with crisp monospace alignment
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) {
+        y += 2.0;
+        continue;
+      }
+
+      // Check for divider lines (clean text dashes/equals, no thick black bars)
+      if (/^[=-]{8,}$/.test(trimmed)) {
+        const isDouble = trimmed.startsWith('=');
+        elements.push({
+          type: 'text',
+          value: isDouble ? dividerDouble : dividerSingle,
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: 2.2,
+          bold: false,
+          align: 1, // Center
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+        y += 3.2;
+        continue;
+      }
+
+      // Check for two-column rows (e.g. "ITEM          AMOUNT", "Bill No :   INV-123", "Sub Total    400.00")
+      const colMatch = rawLine.match(/^(\s*\S(?:.*?\S)?)\s{2,}(\S.*)$/);
+      if (colMatch) {
+        const leftPart = colMatch[1];
+        const rightPart = colMatch[2].trim();
+        const isGrandTotal = /GRAND TOTAL/i.test(leftPart);
+        const isTableHeader = /ITEM/i.test(leftPart) && /AMOUNT|QTY/i.test(rightPart);
+        const isBold = isGrandTotal || isTableHeader;
+        const fontH = isGrandTotal ? 3.4 : 2.7;
+
+        const indentMm = leftPart.startsWith('   ') ? 3.0 : leftPart.startsWith(' ') ? 2.0 : 1.0;
+
+        // Left column
+        elements.push({
+          type: 'text',
+          value: leftPart.trim(),
+          x: indentMm,
+          y,
+          width: printableWidth * 0.65,
+          fontHeight: fontH,
+          bold: isBold,
+          align: 0, // Left
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+
+        // Right column (ends precisely at printableWidth - 1mm)
+        elements.push({
+          type: 'text',
+          value: rightPart,
+          x: 1.0,
+          y,
+          width: printableWidth - 2.0,
+          fontHeight: fontH,
+          bold: isBold,
+          align: 2, // Right
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+
+        y += fontH + (isGrandTotal ? 1.8 : 1.1);
+        continue;
+      }
+
+      // Check if line is centered (store header, title, amount in words, footer)
+      const leadingSpaces = rawLine.length - rawLine.trimStart().length;
+      const isCentered = leadingSpaces >= 3 || rawLine.startsWith('   ') || trimmed === data.storeName || /BILL OF SUPPLY|TAX INVOICE/i.test(trimmed);
+      const isMainHeader = trimmed.toUpperCase() === (data.storeName || options.storeName || '').trim().toUpperCase();
+      const isDocTitle = /BILL OF SUPPLY|TAX INVOICE/i.test(trimmed);
+      const isBold = isMainHeader || isDocTitle;
+      const fontH = isMainHeader ? 3.6 : isDocTitle ? 3.1 : 2.7;
+
+      if (isCentered) {
+        elements.push({
+          type: 'text',
+          value: trimmed,
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: fontH,
+          bold: isBold,
+          align: 1, // Center
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+      } else {
+        const indentMm = rawLine.startsWith('   ') ? 3.0 : rawLine.startsWith(' ') ? 2.0 : 1.0;
+        elements.push({
+          type: 'text',
+          value: trimmed,
+          x: indentMm,
+          y,
+          width: printableWidth - indentMm,
+          fontHeight: fontH,
+          bold: isBold,
+          align: 0, // Left
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+      }
+
+      y += fontH + (isMainHeader ? 1.6 : 1.1);
+    }
+
+    // 3. Dynamic UPI QR Code (if available and enabled)
+    const upiPayload = this.upiPayPayload(data);
+    if (upiPayload && options.includeBillQr !== false) {
+      y += 1.5;
+      const qrSize = Math.min(24, Math.round(printableWidth * 0.52));
+      const qrX = Math.max(1, (printableWidth - qrSize) / 2);
+      elements.push({
+        type: 'qrcode',
+        value: upiPayload,
+        x: qrX,
+        y,
+        size: qrSize,
+        align: 1,
+      });
+      y += qrSize + 2.0;
+      elements.push({
+        type: 'text',
+        value: 'SCAN TO PAY VIA UPI',
+        x: 0,
+        y,
+        width: printableWidth,
+        fontHeight: 2.6,
+        bold: true,
+        align: 1,
+        fontFamily: 'monospace',
+        monospace: true,
+      });
+      y += 4.2;
+    }
+
+    // 4. Digital Bill PDF QR Code (if enabled)
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+      const billPdfUrl = buildBillPdfUrl(data);
+      if (shouldPrintBillQr && billPdfUrl) {
+        y += 1.5;
+        const qrSize = Math.min(20, Math.round(printableWidth * 0.45));
+        const qrX = Math.max(1, (printableWidth - qrSize) / 2);
+        elements.push({
+          type: 'qrcode',
+          value: billPdfUrl,
+          x: qrX,
+          y,
+          size: qrSize,
+          align: 1,
+        });
+        y += qrSize + 2.0;
+        elements.push({
+          type: 'text',
+          value: 'Digital Bill Receipt',
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: 2.4,
+          bold: false,
+          align: 1,
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+        y += 4.0;
+      }
+    } catch (qrErr) {
+      console.warn('Digital Bill QR generation error (non-fatal):', qrErr);
+    }
+
+    // 5. Generous bottom feed padding for clean tearing above the cutter bar
+    y += 12;
+    const totalHeightMm = Math.max(45, Math.ceil(y));
+    const copies = Math.max(1, options.copies || 1);
+
+    try {
+      return await JoshLabelPrinter.printLabel({
+        widthMm: printableWidth,
+        heightMm: totalHeightMm,
+        gapType: 0, // Continuous roll!
+        copies,
+        speed: 5,
+        darkness: 7,
+        elements,
+      });
+    } catch (err) {
+      console.error('Josh receipt print error:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Prints a Kitchen Order Ticket (KOT) on a connected Josh (LPAPI) printer
+   * using continuous roll mode (gapType: 0).
+   */
+  public async printKotViaJosh(
+    data: PrintKotData,
+    paperWidth: '58mm' | '80mm' = '58mm'
+  ): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+
+    const headWidth = (await this.getJoshHeadWidthMm()) || (paperWidth === '80mm' ? 72 : 48);
+    const printableWidth = Math.min(headWidth, paperWidth === '80mm' ? 72 : 48);
+    const elements: JoshLabelElement[] = [];
+    let y = 4;
+
+    elements.push({
+      type: 'text',
+      value: 'KITCHEN ORDER TICKET',
+      x: 0,
+      y,
+      width: printableWidth,
+      fontHeight: 4.0,
+      bold: true,
+      align: 1,
+    });
+    y += 6;
+
+    if (data.storeName) {
+      elements.push({
+        type: 'text',
+        value: data.storeName,
+        x: 0,
+        y,
+        width: printableWidth,
+        fontHeight: 2.8,
+        bold: false,
+        align: 1,
+      });
+      y += 4.5;
+    }
+
+    const kotDivider = '-'.repeat(paperWidth === '80mm' ? 48 : 32);
+
+    elements.push({
+      type: 'text',
+      value: kotDivider,
+      x: 0,
+      y,
+      width: printableWidth,
+      fontHeight: 2.2,
+      align: 1,
+      fontFamily: 'monospace',
+      monospace: true,
+    });
+    y += 3.2;
+
+    const orderNo = String(data.orderNumber || (data as any).tokenNumber || '1');
+    const typeStr = (data.orderType || 'takeaway').toUpperCase();
+    elements.push({ type: 'text', value: `Order #${orderNo} (${typeStr})`, x: 1, y, fontHeight: 3.2, bold: true, align: 0 });
+    y += 4.5;
+
+    if (data.tableName) {
+      elements.push({ type: 'text', value: `Table: ${data.tableName}`, x: 1, y, fontHeight: 3.0, bold: true, align: 0 });
+      y += 4.0;
+    }
+
+    const timeStr = data.time || ((data as any).createdAt ? new Date((data as any).createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString());
+    elements.push({ type: 'text', value: `Time: ${timeStr}`, x: 1, y, fontHeight: 2.8, bold: false, align: 0 });
+    if (data.waiterName) {
+      elements.push({
+        type: 'text',
+        value: `Server: ${data.waiterName}`,
+        x: 1,
+        y,
+        width: printableWidth - 2,
+        fontHeight: 2.8,
+        bold: false,
+        align: 2,
+      });
+    }
+    y += 4.5;
+
+    elements.push({
+      type: 'text',
+      value: kotDivider,
+      x: 0,
+      y,
+      width: printableWidth,
+      fontHeight: 2.2,
+      align: 1,
+      fontFamily: 'monospace',
+      monospace: true,
+    });
+    y += 3.2;
+
+    elements.push({ type: 'text', value: 'ITEM', x: 1, y, fontHeight: 3.0, bold: true, align: 0 });
+    elements.push({
+      type: 'text',
+      value: 'QTY',
+      x: 1,
+      y,
+      width: printableWidth - 2,
+      fontHeight: 3.0,
+      bold: true,
+      align: 2,
+    });
+    y += 4.5;
+    elements.push({
+      type: 'text',
+      value: kotDivider,
+      x: 0,
+      y,
+      width: printableWidth,
+      fontHeight: 2.2,
+      align: 1,
+      fontFamily: 'monospace',
+      monospace: true,
+    });
+    y += 3.2;
+
+    for (const item of (data.items || [])) {
+      const name = (item.productName || (item as any).name || 'Item').trim();
+      const qty = item.quantity ?? 1;
+
+      elements.push({
+        type: 'text',
+        value: name,
+        x: 1,
+        y,
+        width: printableWidth * 0.75,
+        fontHeight: 3.4,
+        bold: true,
+        align: 0,
+      });
+      elements.push({
+        type: 'text',
+        value: `x ${qty}`,
+        x: 1,
+        y,
+        width: printableWidth - 2,
+        fontHeight: 3.6,
+        bold: true,
+        align: 2,
+      });
+      y += 5.0;
+
+      if (item.notes) {
+        elements.push({
+          type: 'text',
+          value: `* Note: ${item.notes}`,
+          x: 4,
+          y,
+          width: printableWidth - 5,
+          fontHeight: 2.7,
+          bold: false,
+          align: 0,
+        });
+        y += 4.0;
+      }
+    }
+
+    const kotNote = data.notes || (data as any).orderNotes;
+    if (kotNote) {
+      y += 1;
+      elements.push({
+        type: 'text',
+        value: kotDivider,
+        x: 0,
+        y,
+        width: printableWidth,
+        fontHeight: 2.2,
+        align: 1,
+        fontFamily: 'monospace',
+        monospace: true,
+      });
+      y += 3.2;
+      elements.push({
+        type: 'text',
+        value: `Note: ${kotNote}`,
+        x: 1,
+        y,
+        width: printableWidth - 2,
+        fontHeight: 2.8,
+        bold: false,
+        align: 0,
+      });
+      y += 5.0;
+    }
+
+    y += 10;
+    const totalHeightMm = Math.max(35, Math.ceil(y));
+
+    try {
+      return await JoshLabelPrinter.printLabel({
+        widthMm: printableWidth,
+        heightMm: totalHeightMm,
+        gapType: 0,
+        speed: 5,
+        darkness: 7,
+        elements,
+      });
+    } catch (err) {
+      console.error('Josh KOT print error:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Prints a KOT Delta Ticket (modifications/voids) on a connected Josh (LPAPI) printer.
+   */
+  public async printKotDeltaViaJosh(
+    data: PrintKotDeltaData,
+    paperWidth: '58mm' | '80mm' = '58mm'
+  ): Promise<boolean> {
+    if (!JoshLabelPrinter) return false;
+
+    const headWidth = (await this.getJoshHeadWidthMm()) || (paperWidth === '80mm' ? 72 : 48);
+    const printableWidth = Math.min(headWidth, paperWidth === '80mm' ? 72 : 48);
+    const elements: JoshLabelElement[] = [];
+    let y = 4;
+
+    elements.push({
+      type: 'text',
+      value: 'KOT UPDATE / DELTA',
+      x: 0,
+      y,
+      width: printableWidth,
+      fontHeight: 4.0,
+      bold: true,
+      align: 1,
+    });
+    y += 6;
+
+    const orderNo = String(data.orderNumber || (data as any).tokenNumber || '1');
+    elements.push({ type: 'text', value: `Order #${orderNo}`, x: 1, y, fontHeight: 3.2, bold: true, align: 0 });
+    y += 4.5;
+    if (data.tableName) {
+      elements.push({ type: 'text', value: `Table: ${data.tableName}`, x: 1, y, fontHeight: 3.0, bold: true, align: 0 });
+      y += 4.0;
+    }
+
+    elements.push({ type: 'line', x: 1, y, x2: printableWidth - 1, y2: y, thickness: 1 });
+    y += 3.0;
+
+    const changes = data.changes || (data as any).items || [];
+    for (const item of changes) {
+      const name = (item.productName || (item as any).name || 'Item').trim();
+      let statusPrefix = '+ NEW: ';
+      if (item.type === 'void' || (item as any).status === 'voided') statusPrefix = '- VOID: ';
+      else if (item.type === 'qty_change' || (item as any).status === 'modified') statusPrefix = '~ MOD: ';
+
+      elements.push({
+        type: 'text',
+        value: `${statusPrefix}${name}`,
+        x: 1,
+        y,
+        width: printableWidth * 0.75,
+        fontHeight: 3.2,
+        bold: true,
+        align: 0,
+      });
+      elements.push({
+        type: 'text',
+        value: `x ${item.quantity}`,
+        x: printableWidth - 1,
+        y,
+        fontHeight: 3.4,
+        bold: true,
+        align: 2,
+      });
+      y += 4.8;
+      const r = item.reason || (item as any).reason;
+      if (r) {
+        elements.push({
+          type: 'text',
+          value: `Reason: ${r}`,
+          x: 4,
+          y,
+          fontHeight: 2.7,
+          bold: false,
+          align: 0,
+        });
+        y += 4.0;
+      }
+    }
+
+    y += 10;
+    const totalHeightMm = Math.max(30, Math.ceil(y));
+
+    try {
+      return await JoshLabelPrinter.printLabel({
+        widthMm: printableWidth,
+        heightMm: totalHeightMm,
+        gapType: 0,
+        elements,
+      });
+    } catch (err) {
+      console.error('Josh KOT delta print error:', err);
+      return false;
+    }
   }
 
   /** Dedupes concurrent silent reconnects (e.g. a sequence print firing per label). */
@@ -3295,7 +3889,24 @@ class ThermalPrinterServiceManager {
 
   public async joshEnsureConnected(): Promise<boolean> {
     if (!this.isJoshLabelPrinterAvailable()) return false;
-    if (await this.joshIsConnected()) return true;
+    if (await this.joshIsConnected()) {
+      if (!this.activeDevice || this.connectionState !== 'connected') {
+        const info = await this.joshGetPrinterInfo();
+        const saved = await getStoredJoshPrinter();
+        const printerName = info?.name || saved?.name || 'JOSH Printer';
+        const address = info?.address || saved?.address || 'josh_printer';
+        this.activeDevice = {
+          id: address,
+          name: printerName,
+          macAddress: address,
+          type: 'dual',
+          connected: true,
+        };
+        this.connectionState = 'connected';
+        this.notifyStatusChange('connected', true);
+      }
+      return true;
+    }
 
     if (this.joshReconnectInFlight) return this.joshReconnectInFlight;
 
@@ -3347,25 +3958,59 @@ class ThermalPrinterServiceManager {
       throw new Error('This label template has an invalid size. Open it in Label Studio and re-save it.');
     }
 
-    // Fit to the physical print head: the LD0801 reports a 48mm head while the stock
-    // template preset is 50mm wide. Scaling uniformly HERE (before drawing) keeps
-    // barcodes and text rendered crisp at their final printed size, instead of letting
-    // the SDK downscale a finished bitmap (which blurs bars enough to break scanning).
     const headMm = await this.getJoshHeadWidthMm();
     const fit = headMm > 0 && rawWidthMm > headMm ? headMm / rawWidthMm : 1;
     const widthMm = rawWidthMm * fit;
     const heightMm = rawHeightMm * fit;
 
+    const elements = await this.buildJoshElementsForTemplate(product, template, fit);
+
+    if (elements.length === 0) {
+      console.warn(
+        `Label template "${template.name}" has no printable elements; printing the standard auto-layout instead.`
+      );
+      const rawCode = product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
+      const digits = rawCode.replace(/\D/g, '');
+      return await this.printAutoLabelViaJosh(
+        product,
+        rawCode,
+        digits.length === 12 || digits.length === 13 ? 'ean13' : 'code128',
+        rawWidthMm,
+        rawHeightMm,
+        this.safeMm(labelGapMm, 2),
+        Math.max(1, copies)
+      );
+    }
+
+    return await JoshLabelPrinter.printLabel({
+      widthMm,
+      heightMm,
+      rotation: 0,
+      copies: Math.max(1, copies),
+      gapMm: this.safeMm(labelGapMm, 3),
+      gapType: 2,
+      speed: 5,
+      darkness: 7,
+      elements,
+    });
+  }
+
+  public async buildJoshElementsForTemplate(
+    product: Product,
+    template: LabelTemplate,
+    fit: number = 1
+  ): Promise<JoshLabelElement[]> {
+    const alignToCode = (align?: 'left' | 'center' | 'right'): 0 | 1 | 2 =>
+      align === 'center' ? 1 : align === 'right' ? 2 : 0;
+
     const elements: JoshLabelElement[] = [];
 
     for (const el of template.elements) {
-      // Geometry shared by every element type — sanitized once so a template that
-      // lost a value in a backend round-trip degrades to a skipped element, not a
-      // NaN handed to the SDK (which prints a blank label while reporting success).
       const x = this.safeMm(el.xMm, 0) * fit;
       const y = this.safeMm(el.yMm, 0) * fit;
       const w = this.safeMm(el.widthMm, 0) * fit;
       const h = this.safeMm(el.heightMm, 0) * fit;
+      const rot = el.rotation || 0;
 
       if (el.type === 'text') {
         const value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
@@ -3377,6 +4022,7 @@ class ThermalPrinterServiceManager {
           y,
           width: w,
           height: h,
+          rotation: rot,
           fontHeight: this.safeMm(el.fontSizePt, 3) * fit,
           bold: !!el.bold,
           align: alignToCode(el.align),
@@ -3394,14 +4040,12 @@ class ThermalPrinterServiceManager {
 
         elements.push({
           type: 'barcode',
-          // EAN-13 only accepts digits; CODE128 takes printable ASCII.
           value: isEan13 ? digits : raw.replace(/[^\x20-\x7E]/g, ''),
           x,
           y,
           width: w,
           height: h,
-          // Reserve roughly a fifth of the box for the human-readable digits, which
-          // is what the on-screen designer renders too.
+          rotation: rot,
           textHeight: Math.max(0, Math.min(3, h * 0.2)),
           barcodeType,
         });
@@ -3413,7 +4057,7 @@ class ThermalPrinterServiceManager {
           value: content,
           x,
           y,
-          // QR codes are square: the smaller side governs so it never overflows the box.
+          rotation: rot,
           size: Math.min(w, h),
         });
       } else if (el.type === 'rect' || el.type === 'curveRect') {
@@ -3424,6 +4068,7 @@ class ThermalPrinterServiceManager {
           y,
           width: w,
           height: h,
+          rotation: rot,
           thickness: Math.max(0.1, this.safeMm(el.strokeWidth, 0.3)),
           filled: !!el.fill && el.fill !== 'transparent',
           cornerRadius: el.type === 'curveRect' ? Math.max(0.5, this.safeMm(el.cornerRadiusMm, 1.5)) : 0,
@@ -3436,31 +4081,30 @@ class ThermalPrinterServiceManager {
           y,
           width: w,
           height: h,
+          rotation: rot,
           thickness: Math.max(0.1, this.safeMm(el.strokeWidth, 0.3)),
           filled: !!el.fill && el.fill !== 'transparent',
         });
       } else if (el.type === 'line') {
-        // The designer stores a line as its bounding box; the longer side is the
-        // line's direction, the shorter one its visual weight.
         const thickness = Math.max(0.1, this.safeMm(el.strokeWidth, Math.min(w, h) || 0.3));
         if (w >= h) {
-          elements.push({ type: 'line', x, y: y + h / 2, x2: x + w, y2: y + h / 2, thickness });
+          elements.push({ type: 'line', x, y: y + h / 2, x2: x + w, y2: y + h / 2, thickness, rotation: rot });
         } else {
-          elements.push({ type: 'line', x: x + w / 2, y, x2: x + w / 2, y2: y + h, thickness });
+          elements.push({ type: 'line', x: x + w / 2, y, x2: x + w / 2, y2: y + h, thickness, rotation: rot });
         }
       } else if (el.type === 'table') {
         if (w <= 0 || h <= 0) continue;
         const rows = Math.max(1, this.safeInt(el.rows, 1));
         const cols = Math.max(1, this.safeInt(el.cols, 1));
         const thickness = 0.2;
-        elements.push({ type: 'rectangle', x, y, width: w, height: h, thickness });
+        elements.push({ type: 'rectangle', x, y, width: w, height: h, thickness, rotation: rot });
         for (let r = 1; r < rows; r++) {
           const yy = y + (h / rows) * r;
-          elements.push({ type: 'line', x, y: yy, x2: x + w, y2: yy, thickness });
+          elements.push({ type: 'line', x, y: yy, x2: x + w, y2: yy, thickness, rotation: rot });
         }
         for (let c = 1; c < cols; c++) {
           const xx = x + (w / cols) * c;
-          elements.push({ type: 'line', x: xx, y, x2: xx, y2: y + h, thickness });
+          elements.push({ type: 'line', x: xx, y, x2: xx, y2: y + h, thickness, rotation: rot });
         }
       } else if (el.type === 'image') {
         if (!el.uri || w <= 0 || h <= 0) continue;
@@ -3476,44 +4120,12 @@ class ThermalPrinterServiceManager {
           y,
           width: w,
           height: h,
+          rotation: rot,
           invert: !!el.invert,
         });
       }
     }
-
-    if (elements.length === 0) {
-      console.warn(
-        `Label template "${template.name}" has no printable elements; printing the standard auto-layout instead.`
-      );
-      const rawCode = product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
-      const digits = rawCode.replace(/\D/g, '');
-      let allOk = true;
-      for (let i = 0; i < Math.max(1, copies); i++) {
-        allOk =
-          (await this.printAutoLabelViaJosh(
-            product,
-            rawCode,
-            digits.length === 12 || digits.length === 13 ? 'ean13' : 'code128',
-            rawWidthMm,
-            rawHeightMm,
-            this.safeMm(labelGapMm, 2)
-          )) && allOk;
-      }
-      return allOk;
-    }
-
-    for (let c = 0; c < Math.max(1, copies); c++) {
-      await JoshLabelPrinter.printLabel({
-        widthMm,
-        heightMm,
-        rotation: 0,
-        copies: 1,
-        gapMm: this.safeMm(labelGapMm, 3),
-        gapType: 2,
-        elements,
-      });
-    }
-    return true;
+    return elements;
   }
 
   /**
@@ -3752,10 +4364,63 @@ class ThermalPrinterServiceManager {
 
     const count = Math.min(MAX_SEQUENCE_COUNT, Math.max(1, Math.floor(opts.count) || 1));
 
+    // High-Speed Continuous Batch Streaming for Josh Dual-Mode Printer:
+    // Submits all sequence labels as ONE multi-page print job, streaming continuously with 0 pauses!
+    if ((await this.joshIsConnected()) && JoshLabelPrinter?.printLabelBatch) {
+      try {
+        const rawWidthMm = this.safeMm(template.widthMm, 50);
+        const rawHeightMm = this.safeMm(template.heightMm, 30);
+        const headMm = (await this.getJoshHeadWidthMm()) || 48;
+        const fit = headMm > 0 && rawWidthMm > headMm ? headMm / rawWidthMm : 1;
+        const widthMm = rawWidthMm * fit;
+        const heightMm = rawHeightMm * fit;
+
+        const batchLabels: JoshLabelSpec[] = [];
+        for (let i = 0; i < count; i++) {
+          const value = formatSequenceValue(parsed, i);
+          const iterTemplate: LabelTemplate = {
+            ...template,
+            elements: template.elements.map((el) =>
+              el.type === 'text' && el.binding === 'sequence'
+                ? ({ ...el, binding: 'custom', customText: value } as LabelTextElement)
+                : el
+            ),
+          };
+          const elements = await this.buildJoshElementsForTemplate(product, iterTemplate, fit);
+          batchLabels.push({
+            widthMm,
+            heightMm,
+            rotation: 0,
+            copies: 1,
+            gapMm: this.safeMm(opts.labelGapMm ?? 3, 3),
+            gapType: opts.mode === 'continuous' ? 0 : 2,
+            speed: 5,
+            darkness: 7,
+            elements,
+          });
+        }
+
+        const ok = await JoshLabelPrinter.printLabelBatch({
+          widthMm,
+          heightMm,
+          speed: 5,
+          darkness: 7,
+          gapMm: this.safeMm(opts.labelGapMm ?? 3, 3),
+          gapType: opts.mode === 'continuous' ? 0 : 2,
+          labels: batchLabels,
+        });
+
+        if (ok) {
+          onProgress?.(count, count);
+          return { ok: true, printedCount: count };
+        }
+      } catch (batchErr) {
+        console.warn('[PrinterService] Josh batch sequence print fallback to standard loop:', batchErr);
+      }
+    }
+
     for (let i = 0; i < count; i++) {
       const value = formatSequenceValue(parsed, i);
-      // Same mechanic as the template only ever having its content overridden for one print, never
-      // mutated in saved state — just driven by the parser instead of a manually-picked element id.
       const iterTemplate: LabelTemplate = {
         ...template,
         elements: template.elements.map((el) =>
@@ -3874,16 +4539,26 @@ class ThermalPrinterServiceManager {
     density?: number,
     labelWidthMm: number = 50,
     labelHeightMm: number = 30,
-    labelGapMm: number = 2
+    labelGapMm: number = 2,
+    copies: number = 1
   ): Promise<boolean> {
     const rawCode = product.barcode || product.sku || `PROD-${product.id?.slice(-6) || '1234'}`;
+    const safeCopies = Math.max(1, copies);
 
     // Same routing rule as printLabelFromTemplate: a linked label printer is the
     // destination. This is the no-saved-template path (products page with no
     // default label design), which would otherwise emit TSPL the label printer
     // never receives.
     if (await this.joshIsConnected()) {
-      const ok = await this.printAutoLabelViaJosh(product, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
+      const ok = await this.printAutoLabelViaJosh(
+        product,
+        rawCode,
+        format,
+        labelWidthMm,
+        labelHeightMm,
+        labelGapMm,
+        safeCopies
+      );
       if (ok) return true;
     }
 
@@ -3894,22 +4569,24 @@ class ThermalPrinterServiceManager {
         try {
           const fields = this.buildTsplLabelFields(product, format, labelWidthMm, labelHeightMm);
 
-          await NativeTscPrinter.printLabel({
-            width: fields.labelWidthMm,
-            height: fields.labelHeightMm,
-            gap: labelGapMm,
-            direction: NativeTscPrinter.DIRECTION?.FORWARD ?? 0,
-            reference: [0, 0],
-            tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
-            sound: 0,
-            // TSC DENSITY is a real native heat-intensity knob (0-15) — unlike ESC/POS receipts,
-            // which have no density command in this SDK. Omitted entirely when not provided,
-            // so the printer just uses its own default.
-            density: density != null ? NativeTscPrinter.DENSITY?.[`DNESITY${Math.min(15, Math.max(0, Math.round(density)))}`] : undefined,
-            text: fields.text,
-            qrcode: fields.qrcode,
-            barcode: fields.barcode,
-          });
+          for (let i = 0; i < safeCopies; i++) {
+            await NativeTscPrinter.printLabel({
+              width: fields.labelWidthMm,
+              height: fields.labelHeightMm,
+              gap: labelGapMm,
+              direction: NativeTscPrinter.DIRECTION?.FORWARD ?? 0,
+              reference: [0, 0],
+              tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
+              sound: 0,
+              // TSC DENSITY is a real native heat-intensity knob (0-15) — unlike ESC/POS receipts,
+              // which have no density command in this SDK. Omitted entirely when not provided,
+              // so the printer just uses its own default.
+              density: density != null ? NativeTscPrinter.DENSITY?.[`DNESITY${Math.min(15, Math.max(0, Math.round(density)))}`] : undefined,
+              text: fields.text,
+              qrcode: fields.qrcode,
+              barcode: fields.barcode,
+            });
+          }
           return true;
         } catch (tscErr: any) {
           console.warn('TSC direct print failed, falling back to System Print:', tscErr);
@@ -3984,11 +4661,15 @@ class ThermalPrinterServiceManager {
     // This path has no template and no label calibration handy, so the stock
     // 50x30mm auto-layout applies (same default as the calibration screen).
     if (await this.joshEnsureConnected()) {
-      let allOk = true;
-      for (let i = 0; i < Math.max(1, copies); i++) {
-        allOk = (await this.printAutoLabelViaJosh(product, rawCode, format, 50, 30, 2)) && allOk;
-      }
-      return allOk;
+      return await this.printAutoLabelViaJosh(
+        product,
+        rawCode,
+        format,
+        50,
+        30,
+        2,
+        Math.max(1, copies)
+      );
     }
 
     if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;
@@ -4326,6 +5007,20 @@ class ThermalPrinterServiceManager {
     };
 
     try {
+      // 1. Direct Josh Printer support (LPAPI / continuous roll)
+      if (await this.joshEnsureConnected()) {
+        try {
+          const ok = await this.printReceiptViaJosh(saleData, effectivePaperWidth, {
+            ...effectiveOptions,
+            copies,
+          });
+          if (!ok) throw new Error('Josh printer rejected receipt data');
+          return true;
+        } catch (joshErr: any) {
+          console.warn('Josh receipt print failed, falling back to ESC/POS:', joshErr);
+        }
+      }
+
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         // Outside the inner try so a connection problem surfaces with its own actionable wording
         // instead of being re-wrapped as a generic "Thermal printer error".
@@ -4767,6 +5462,16 @@ class ThermalPrinterServiceManager {
    */
   public async printKotTicket(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm', options: { autoCut?: boolean } = {}): Promise<boolean> {
     try {
+      // 1. Direct Josh Printer support for KOT
+      if (await this.joshEnsureConnected()) {
+        try {
+          const ok = await this.printKotViaJosh(data, paperWidth);
+          if (ok) return true;
+        } catch (joshErr: any) {
+          console.warn('Josh KOT print failed, falling back:', joshErr);
+        }
+      }
+
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
           // Reset printer state before KOT print
@@ -4812,6 +5517,16 @@ class ThermalPrinterServiceManager {
     options: { autoCut?: boolean } = {}
   ): Promise<boolean> {
     try {
+      // 1. Direct Josh Printer support for KOT Delta
+      if (await this.joshEnsureConnected()) {
+        try {
+          const ok = await this.printKotDeltaViaJosh(data, paperWidth);
+          if (ok) return true;
+        } catch (joshErr: any) {
+          console.warn('Josh KOT delta print failed, falling back:', joshErr);
+        }
+      }
+
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
           await this.initPrinter(paperWidth);

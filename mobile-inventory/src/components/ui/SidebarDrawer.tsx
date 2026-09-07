@@ -32,6 +32,7 @@ import {
   ChefHat,
   PlusCircle,
   LayoutGrid,
+  Zap,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -40,6 +41,7 @@ import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
 import { NavFeatureId } from '@/constants/businessTypes';
 import { getCatalogNavLabel, isKotFirstNav, isNavFeatureVisible } from '@/utils/businessFeatures';
+import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.82, 340);
@@ -62,6 +64,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
     getCatalogNavLabel(businessType) === 'Menu'
       ? t('menu', 'Menu')
       : t('products', 'Products & Barcodes');
+  const [showBillConverter, setShowBillConverter] = useState(false);
 
   const isFeatureVisible = (feature?: NavFeatureId) => {
     if (!feature) return true;
@@ -153,16 +156,14 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
         { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
+        { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, onPress: () => setShowBillConverter(true) },
       ],
     },
     {
-      title: t('suppliersPurchases', 'SUPPLIERS & PURCHASES'),
+      title: t('suppliers', 'SUPPLIERS & VENDORS'),
       items: [
         ...(isFeatureVisible('suppliers')
           ? [{ id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' }]
-          : []),
-        ...(isFeatureVisible('purchases')
-          ? [{ id: 'purchases', label: t('purchases', 'Stock Purchases'), icon: ShoppingBag, route: '/purchases' }]
           : []),
       ],
     },
@@ -244,7 +245,9 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                       <TouchableOpacity
                         key={item.id}
                         onPress={() => {
-                          if ('route' in item && item.route) {
+                          if ('onPress' in item && typeof (item as any).onPress === 'function') {
+                            (item as any).onPress();
+                          } else if ('route' in item && item.route) {
                             handleNavigate(item.route);
                           }
                         }}
@@ -343,6 +346,11 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
               </TouchableOpacity>
             </View>
           </SafeAreaView>
+
+          <AiBillToReceiptModal
+            visible={showBillConverter}
+            onClose={() => setShowBillConverter(false)}
+          />
         </View>
 
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />

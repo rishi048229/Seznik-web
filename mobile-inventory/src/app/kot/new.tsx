@@ -51,7 +51,6 @@ import { isProductAvailable } from '@/utils/businessFeatures';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
-import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
 
 interface SelectedItemLine {
   productId?: string;
@@ -218,7 +217,6 @@ export default function NewKotOrderScreen() {
   const [contactNumber, setContactNumber] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [priority] = useState<KOTPriority>('normal');
-  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
 
   // Cart / Items
   const [selectedItems, setSelectedItems] = useState<SelectedItemLine[]>([]);
@@ -562,7 +560,6 @@ export default function NewKotOrderScreen() {
               <Text style={[styles.topTitle, { color: theme.textPrimary }]}>
                 {partyLabel || '1 no'}
               </Text>
-              <StoreSwitcher onChange={(id) => setSelectedStoreId(id)} />
             </View>
           </View>
 

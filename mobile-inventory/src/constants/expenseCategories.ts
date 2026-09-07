@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Home, Users, Truck, Coffee, Wrench, Megaphone, MoreHorizontal } from 'lucide-react-native';
+import { Home, Users, Truck, Coffee, Wrench, Megaphone, MoreHorizontal, Package, Boxes, Building2, ShoppingBag } from 'lucide-react-native';
 
 export interface ExpenseCategoryDef {
   id: string;
@@ -8,12 +8,15 @@ export interface ExpenseCategoryDef {
   label: string;
   icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   color: string;
+  isPurchase?: boolean;
 }
 
-/** Single source of truth for expense categories — used by the picker chips, the breakdown
- * bars, and category icons throughout the Expense Tracker, replacing the old hardcoded array
- * that didn't match the (now-removed) unused ExpenseCategory type. */
+/** Single source of truth for expense and purchase categories */
 export const EXPENSE_CATEGORIES: ExpenseCategoryDef[] = [
+  { id: 'stock_purchase', label: 'Stock & Inventory Purchase', icon: ShoppingBag, color: '#10B981', isPurchase: true },
+  { id: 'raw_materials', label: 'Raw Materials & Supplies', icon: Boxes, color: '#06B6D4', isPurchase: true },
+  { id: 'supplier_payment', label: 'Supplier / Vendor Payment', icon: Building2, color: '#6366F1', isPurchase: true },
+  { id: 'packaging', label: 'Packaging & Bags', icon: Package, color: '#D97706', isPurchase: true },
   { id: 'rent', label: 'Rent & Utilities', icon: Home, color: '#2563EB' },
   { id: 'salaries', label: 'Salaries & Staff', icon: Users, color: '#F59E0B' },
   { id: 'transport', label: 'Transport & Freight', icon: Truck, color: '#14B8A6' },

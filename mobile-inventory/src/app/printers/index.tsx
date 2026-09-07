@@ -1056,7 +1056,7 @@ export default function PrintersScreen() {
             </>
           ) : (
             <>
-              {/* AI A4 BILL TO RECEIPT CONVERTER CARD */}
+              {/* AI A4 BILL TO THERMAL RECEIPT CONVERTER */}
               <TouchableOpacity
                 onPress={() => setShowAiBillModal(true)}
                 activeOpacity={0.88}
@@ -1067,8 +1067,8 @@ export default function PrintersScreen() {
                     <Sparkles size={22} color="#FFFFFF" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#FFFFFF' }}>AI Bill to Receipt Converter</Text>
-                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Upload PDF / photo of any company invoice & print on thermal printer</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#FFFFFF' }}>A4 Bill to Thermal Receipt (AI)</Text>
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Upload or snap any invoice, bill, or receipt • Instant accurate extraction with AI • 1-tap print</Text>
                   </View>
                   <ChevronRight size={20} color="#FFFFFF" />
                 </View>
@@ -1124,16 +1124,19 @@ export default function PrintersScreen() {
                 </View>
               </TouchableOpacity>
 
-              {/* Dedicated LPAPI / Josh Label Printer connector */}
+              {/* Dedicated LPAPI / Josh Dual-Mode Printer connector */}
               {ThermalPrinterService.isJoshSupported() && (
-                <View style={{ marginBottom: 4 }}>
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                    JOSH DUAL-MODE SMART PRINTER (RECEIPTS & LABELS)
+                  </Text>
                   <JoshPrinterCard />
                 </View>
               )}
 
               {/* Section: PAIRED & DISCOVERED BLUETOOTH PRINTERS */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>PAIRED & NEARBY PRINTERS ({scannedDevices.length})</Text>
+                <Text style={styles.sectionHeader}>STANDARD THERMAL RECEIPT PRINTERS (ESC/POS) ({scannedDevices.length})</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity onPress={() => setShowDeviceModal(true)}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
@@ -1521,6 +1524,9 @@ export default function PrintersScreen() {
                   {/* Dedicated LPAPI label printer — only renders on builds that
                       include the vendored SDK, and takes over label jobs while linked. */}
                   <View style={{ marginTop: 16 }}>
+                    <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                      JOSH DUAL-MODE SMART PRINTER (STICKER LABELS & RECEIPTS)
+                    </Text>
                     <JoshPrinterCard />
                   </View>
 

@@ -35,6 +35,8 @@ import {
   FolderOpen,
   Check,
   Star,
+  Printer,
+  AlertTriangle,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -49,6 +51,7 @@ import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
 import ThermalPrinterService from '@/services/PrinterService';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
+import { Zap } from 'lucide-react-native';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal';
 import {
@@ -63,6 +66,9 @@ import {
 } from '@/types/labelTemplate';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
+import { useLabelPrinterStatus } from '@/hooks/useLabelPrinterStatus';
+import { useJoshDualModeTip } from '@/hooks/useJoshDualModeTip';
+import { JoshDualModeModal } from '@/components/printers/JoshDualModeModal';
 
 const newId = () => `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -176,6 +182,7 @@ export default function LabelStudioScreen() {
     labelPaperMode,
     paperWidth,
   } = usePrinterStore();
+  const labelPrinter = useLabelPrinterStatus();
 
   // Opening Label Studio from the Printers screen carries no id param. Previously
   // that always started a brand-new blank template, so the saved/default design was
@@ -191,6 +198,7 @@ export default function LabelStudioScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSettingDefault, setIsSettingDefault] = useState(false);
   const [isTestPrinting, setIsTestPrinting] = useState(false);
+  const [printCopies, setPrintCopies] = useState(1);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [showSavedTemplatesModal, setShowSavedTemplatesModal] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
@@ -198,7 +206,15 @@ export default function LabelStudioScreen() {
   const hasSequenceElement = template.elements.some((e) => e.type === 'text' && e.binding === 'sequence');
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
   const [isSeqPrinting, setIsSeqPrinting] = useState(false);
-  const [, setSeqProgress] = useState(0);
+  const [seqProgress, setSeqProgress] = useState(0);
+  const { shouldShowTip, markTipShown, dismissPermanently } = useJoshDualModeTip();
+  const [showTipModal, setShowTipModal] = useState(false);
+
+  React.useEffect(() => {
+    if (labelPrinter.isConnected && labelPrinter.kind === 'label' && shouldShowTip) {
+      setShowTipModal(true);
+    }
+  }, [labelPrinter.isConnected, labelPrinter.kind, shouldShowTip]);
 
   const maxAvailableCanvasWidth = windowWidth - 32;
   const pxPerMm = useMemo(() => {
@@ -223,6 +239,30 @@ export default function LabelStudioScreen() {
       ...prev,
       elements: prev.elements.map((e) => (e.id === id ? { ...e, ...box } : e)),
     }));
+  };
+
+  const deleteElement = (id: string) => {
+    setTemplate((prev) => ({
+      ...prev,
+      elements: prev.elements.filter((e) => e.id !== id),
+    }));
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  const duplicateElement = (id: string) => {
+    const el = template.elements.find((e) => e.id === id);
+    if (!el) return;
+    const duplicated: LabelElement = {
+      ...el,
+      id: newId(),
+      xMm: Math.min(template.widthMm - el.widthMm, el.xMm + 2),
+      yMm: Math.min(template.heightMm - el.heightMm, el.yMm + 2),
+    };
+    setTemplate((prev) => ({
+      ...prev,
+      elements: [...prev.elements, duplicated],
+    }));
+    setSelectedId(duplicated.id);
   };
 
   const updateElementProps = (id: string, changes: Partial<LabelElement>) => {
@@ -331,19 +371,42 @@ export default function LabelStudioScreen() {
       barcode: '8901234567890',
     };
 
-    setIsTestPrinting(true);
-    try {
-      const ok =
-        labelPaperMode === 'continuous'
-          ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, template, paperWidth)
-          : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template, 1, labelGapMm);
-      if (ok) Alert.alert('Test Print Sent!', `Printed test label for "${targetProduct.name}".`);
-      else Alert.alert('Print Failed', 'Could not send label to printer. Make sure printer is connected.');
-    } catch (e: any) {
-      Alert.alert('Print Failed', e?.message || 'Could not print this template.');
-    } finally {
-      setIsTestPrinting(false);
+    const doPrint = async () => {
+      setIsTestPrinting(true);
+      const copies = Math.max(1, printCopies);
+      const isJosh = await ThermalPrinterService.joshIsConnected();
+      try {
+        const ok =
+          labelPaperMode === 'continuous' && !isJosh
+            ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, template, paperWidth, copies)
+            : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template, copies, labelGapMm);
+        if (ok) Alert.alert('Print Sent!', `Printed ${copies} label${copies > 1 ? 's' : ''} for "${targetProduct.name}".`);
+        else Alert.alert('Print Failed', 'Could not send label to printer. Make sure printer is connected.');
+      } catch (e: any) {
+        Alert.alert('Print Failed', e?.message || 'Could not print this template.');
+      } finally {
+        setIsTestPrinting(false);
+      }
+    };
+
+    if (labelPrinter.isConnected && labelPrinter.kind === 'thermal' && labelPaperMode === 'gap') {
+      Alert.alert(
+        'Receipt Printer Connected',
+        `Your connected printer (${labelPrinter.name || 'Receipt Printer'}) is designed for continuous receipt paper rolls, not adhesive sticker labels.\n\nThe label will print on receipt paper. For adhesive sticker labels, connect a Josh Dual-Mode printer.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Print on Receipt Paper',
+            onPress: () => {
+              void doPrint();
+            },
+          },
+        ]
+      );
+      return;
     }
+
+    await doPrint();
   };
 
   const handleOpenSequencePrompt = () => {
@@ -478,7 +541,7 @@ export default function LabelStudioScreen() {
               onPress={() => setShowAiBillModal(true)}
               style={[styles.aiBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
             >
-              <Sparkles size={14} color="#FFFFFF" />
+              <Zap size={14} color="#FFFFFF" />
               <Text style={styles.aiBtnText}>AI</Text>
             </TouchableOpacity>
 
@@ -513,6 +576,49 @@ export default function LabelStudioScreen() {
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Receipt-only Printer Warning Banner (when Veer or other ESC/POS printer is connected in gap sticker mode) */}
+          {labelPrinter.isConnected && labelPrinter.kind === 'thermal' && labelPaperMode === 'gap' && (
+            <View
+              style={[
+                styles.warningBanner,
+                {
+                  backgroundColor: theme.isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7',
+                  borderColor: theme.isDark ? 'rgba(245, 158, 11, 0.28)' : '#FDE68A',
+                },
+              ]}
+            >
+              <AlertTriangle size={16} color="#D97706" style={{ marginTop: 2, marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.warningBannerTitle, { color: theme.isDark ? '#FDE68A' : '#92400E' }]}>
+                  Receipt Printer Connected ({labelPrinter.name})
+                </Text>
+                <Text style={[styles.warningBannerText, { color: theme.isDark ? '#FCD34D' : '#B45309' }]}>
+                  Your printer is a continuous receipt printer, not an adhesive sticker printer. Labels will print on continuous receipt paper. To print on sticker rolls, connect a Josh Dual-Mode printer or switch Paper Mode to Continuous.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Josh Dual-Mode Connected Callout */}
+          {labelPrinter.isConnected && labelPrinter.kind === 'label' && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowTipModal(true)}
+              style={[
+                styles.dualModeCallout,
+                {
+                  backgroundColor: theme.isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF',
+                  borderColor: theme.isDark ? 'rgba(99, 102, 241, 0.25)' : '#C7D2FE',
+                },
+              ]}
+            >
+              <Sparkles size={14} color="#6366F1" style={{ marginRight: 6 }} />
+              <Text style={[styles.dualModeCalloutText, { color: theme.isDark ? '#C7D2FE' : '#3730A3' }]}>
+                Josh Dual-Mode Smart Printer connected ({labelPrinter.name}) • Tap for mode tips
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Main Unified Scrolling Content */}
           <ScrollView
@@ -554,12 +660,16 @@ export default function LabelStudioScreen() {
                         yMm={el.yMm}
                         widthMm={el.widthMm}
                         heightMm={el.heightMm}
+                        rotation={el.rotation || 0}
+                        locked={el.locked || false}
                         pxPerMm={pxPerMm}
                         boundsWidthMm={template.widthMm}
                         boundsHeightMm={template.heightMm}
                         selected={selectedId === el.id}
                         onSelect={() => setSelectedId(el.id)}
                         onChange={(box) => updateElement(el.id, box)}
+                        onDuplicate={() => duplicateElement(el.id)}
+                        onDelete={() => deleteElement(el.id)}
                       >
                         {renderElementContent(el)}
                       </DraggableElement>
@@ -1067,6 +1177,154 @@ export default function LabelStudioScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* PRINT QUANTITY CARD */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.sectionCardTitle, { color: theme.textPrimary, marginBottom: 0 }]}>
+                  Print Quantity
+                </Text>
+                <View style={styles.lsQtyBadge}>
+                  <Text style={styles.lsQtyBadgeText}>{printCopies} {printCopies === 1 ? 'Copy' : 'Copies'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.lsQtyRow}>
+                <TouchableOpacity
+                  onPress={() => setPrintCopies((c) => Math.max(1, c - 1))}
+                  disabled={printCopies <= 1}
+                  style={[
+                    styles.lsQtyStepperBtn,
+                    {
+                      borderColor: theme.borderColor,
+                      backgroundColor: printCopies <= 1 ? theme.bg : BRAND_COLORS.blue600,
+                    },
+                  ]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Minus size={18} color={printCopies <= 1 ? theme.textSecondary : '#FFFFFF'} />
+                </TouchableOpacity>
+
+                <View style={[styles.lsQtyValueBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.lsQtyValueText, { color: theme.textPrimary }]}>{printCopies}</Text>
+                  <Text style={[styles.lsQtyUnitText, { color: theme.textSecondary }]}>labels</Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setPrintCopies((c) => Math.min(100, c + 1))}
+                  disabled={printCopies >= 100}
+                  style={[
+                    styles.lsQtyStepperBtn,
+                    { borderColor: theme.borderColor, backgroundColor: BRAND_COLORS.blue600 },
+                  ]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Plus size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick Preset Chips */}
+              <View style={styles.lsQtyChipsRow}>
+                {[1, 2, 5, 10, 25, 50].map((count) => {
+                  const isSelected = printCopies === count;
+                  return (
+                    <TouchableOpacity
+                      key={count}
+                      onPress={() => setPrintCopies(count)}
+                      style={[
+                        styles.lsQtyChip,
+                        {
+                          borderColor: isSelected ? BRAND_COLORS.blue600 : theme.borderColor,
+                          backgroundColor: isSelected ? BRAND_COLORS.blue600 : theme.bg,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.lsQtyChipText,
+                          {
+                            color: isSelected ? '#FFFFFF' : theme.textSecondary,
+                            fontWeight: isSelected ? '800' : '600',
+                          },
+                        ]}
+                      >
+                        {count}x
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* CONNECTED PRINTER GUIDANCE & STATUS BANNER */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                padding: 11,
+                borderRadius: 12,
+                borderWidth: 1,
+                marginTop: 10,
+                marginBottom: 8,
+                backgroundColor: labelPrinter.isConnected
+                  ? labelPrinter.kind === 'thermal'
+                    ? theme.isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7'
+                    : theme.isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF'
+                  : theme.isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEE2E2',
+                borderColor: labelPrinter.isConnected
+                  ? labelPrinter.kind === 'thermal'
+                    ? theme.isDark ? 'rgba(245, 158, 11, 0.28)' : '#FDE68A'
+                    : theme.isDark ? 'rgba(99, 102, 241, 0.25)' : '#C7D2FE'
+                  : theme.isDark ? 'rgba(239, 68, 68, 0.25)' : '#FECACA',
+              }}
+            >
+              {labelPrinter.isConnected ? (
+                labelPrinter.kind === 'thermal' ? (
+                  <AlertTriangle size={16} color="#D97706" style={{ marginTop: 2, marginRight: 8 }} />
+                ) : (
+                  <Sparkles size={16} color="#6366F1" style={{ marginTop: 2, marginRight: 8 }} />
+                )
+              ) : (
+                <Printer size={16} color="#EF4444" style={{ marginTop: 2, marginRight: 8 }} />
+              )}
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '800',
+                    color: labelPrinter.isConnected
+                      ? labelPrinter.kind === 'thermal'
+                        ? theme.isDark ? '#FDE68A' : '#92400E'
+                        : theme.isDark ? '#A5B4FC' : '#4F46E5'
+                      : theme.isDark ? '#FCA5A5' : '#991B1B',
+                    marginBottom: 2,
+                  }}
+                >
+                  {labelPrinter.isConnected
+                    ? labelPrinter.kind === 'thermal'
+                      ? `Receipt Printer Connected (${labelPrinter.name})`
+                      : `Josh Dual-Mode Smart Printer (${labelPrinter.name})`
+                    : 'No Printer Connected'}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    lineHeight: 15,
+                    color: labelPrinter.isConnected
+                      ? labelPrinter.kind === 'thermal'
+                        ? theme.isDark ? '#FCD34D' : '#B45309'
+                        : theme.isDark ? '#C7D2FE' : '#4338CA'
+                      : theme.isDark ? '#FECACA' : '#B91C1C',
+                  }}
+                >
+                  {labelPrinter.isConnected
+                    ? labelPrinter.kind === 'thermal'
+                      ? 'This printer uses continuous receipt roll, not adhesive sticker labels. The label will print on receipt paper. For adhesive stickers, connect a Josh Dual-Mode printer.'
+                      : 'Connected in Dual-Mode. Prints on adhesive sticker label stock.'
+                    : 'Connect a thermal receipt printer or Josh Dual-Mode printer to print labels.'}
+                </Text>
+              </View>
+            </View>
+
             {/* PRINTING & SEQUENCE ACTIONS */}
             <View style={{ gap: 8, marginTop: 4 }}>
               <TouchableOpacity
@@ -1079,7 +1337,7 @@ export default function LabelStudioScreen() {
                 ) : (
                   <BarcodeIcon size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                 )}
-                <Text style={styles.actionPrintBtnText}>Test Print Label 🖨️</Text>
+                <Text style={styles.actionPrintBtnText}>Print {printCopies} Label{printCopies > 1 ? 's' : ''} 🖨️</Text>
               </TouchableOpacity>
 
               {hasSequenceElement && (
@@ -1264,6 +1522,7 @@ export default function LabelStudioScreen() {
         onCancel={() => setShowSequencePrompt(false)}
         onSubmit={handleSubmitSequence}
         isPrinting={isSeqPrinting}
+        progress={seqProgress}
       />
 
       {/* LOGO BG MODAL */}
@@ -1280,6 +1539,18 @@ export default function LabelStudioScreen() {
           }}
         />
       ) : null}
+
+      <JoshDualModeModal
+        visible={showTipModal}
+        onDismiss={() => {
+          setShowTipModal(false);
+          markTipShown();
+        }}
+        onDontShowAgain={() => {
+          setShowTipModal(false);
+          dismissPermanently();
+        }}
+      />
     </ScreenBackground>
   );
 }
@@ -1370,4 +1641,46 @@ const styles = StyleSheet.create({
   newTemplateModalBtnText: { color: '#FFF', fontSize: 13, fontWeight: '900' },
   unsupportedBox: { padding: 4, backgroundColor: '#FEE2E2', borderRadius: 4 },
   unsupportedText: { fontSize: 8, color: '#DC2626', fontWeight: 'bold' },
+  lsQtyBadge: { backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  lsQtyBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
+  lsQtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginVertical: 4 },
+  lsQtyStepperBtn: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  lsQtyValueBox: { minWidth: 80, height: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4, paddingHorizontal: 12 },
+  lsQtyValueText: { fontSize: 18, fontWeight: '900' },
+  lsQtyUnitText: { fontSize: 11, fontWeight: '600', marginTop: 3 },
+  lsQtyChipsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, gap: 6 },
+  lsQtyChip: { flex: 1, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  lsQtyChipText: { fontSize: 11 },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginHorizontal: 12,
+    marginBottom: 8,
+  },
+  warningBannerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  warningBannerText: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  dualModeCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginHorizontal: 12,
+    marginBottom: 8,
+  },
+  dualModeCalloutText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
 });

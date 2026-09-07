@@ -93,9 +93,12 @@ export function useStoreProfile() {
     ]
   );
 
-  return {
-    ...profile,
-    settings,
-    isLoading,
-  };
+  return useMemo(
+    () => ({
+      ...profile,
+      settings,
+      isLoading,
+    }),
+    [profile, settings, isLoading]
+  );
 }

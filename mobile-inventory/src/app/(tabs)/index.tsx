@@ -503,11 +503,10 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label={t('stores', 'Stores')}
-                      badge="NEW"
-                      icon={Store}
-                      color="#2563EB"
-                      onPress={() => router.push('/stores' as any)}
+                      label={t('expenses', 'Expenses')}
+                      icon={Wallet}
+                      color="#EC4899"
+                      onPress={() => router.push('/expenses' as any)}
                       theme={theme}
                     />
                   </>
@@ -582,35 +581,11 @@ export default function DashboardScreen() {
                       onPress={() => router.push('/suppliers' as any)}
                       theme={theme}
                     />
-                    {showKot ? (
-                      <FeatureGridTile
-                        label={t('stores', 'Stores')}
-                        badge="NEW"
-                        icon={Store}
-                        color="#2563EB"
-                        onPress={() => router.push('/stores' as any)}
-                        theme={theme}
-                      />
-                    ) : null}
                     <FeatureGridTile
                       label={t('thermalPrinter', 'Thermal Printer')}
                       icon={Printer}
                       color={BRAND_COLORS.blue600}
                       onPress={() => setShowDirectPrinterModal(true)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('expenses', 'Expenses')}
-                      icon={Wallet}
-                      color="#EC4899"
-                      onPress={() => router.push('/expenses' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('purchases', 'Purchases')}
-                      icon={ShoppingBag}
-                      color="#14B8A6"
-                      onPress={() => router.push('/purchases' as any)}
                       theme={theme}
                     />
                     {showTokens ? (
