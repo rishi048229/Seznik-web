@@ -17,15 +17,12 @@ import {
   Tag,
   Plus,
   Eye,
+  EyeOff,
   Check,
   X,
-  Share2,
   Bluetooth,
   HelpCircle,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
 import { toast } from 'react-hot-toast'
 import {
   subscribeBlePrinter,
@@ -36,7 +33,7 @@ import {
 } from '@/utils/blePrinter'
 import { EscPosBuilder } from '@/utils/escpos'
 
-interface TextToThermalPrintTabProps {
+interface TextToThermalPrintSectionProps {
   config: PrinterConfig
   setConfig: Dispatch<SetStateAction<PrinterConfig>>
   receiptConfig: ReceiptConfig
@@ -57,10 +54,10 @@ export function TextToThermalPrintTab({
   setConfig,
   receiptConfig,
   settings,
-}: TextToThermalPrintTabProps) {
-  const [paperSize, setPaperSize] = useState<'58mm' | '80mm'>(config.paperSize || config.paperWidth || '58mm')
-  const [copies, setCopies] = useState<number>(1)
+}: TextToThermalPrintSectionProps) {
+  const paperSize = config.paperSize || config.paperWidth || '58mm'
   const [showBlocksModal, setShowBlocksModal] = useState<boolean>(false)
+  const [showPreview, setShowPreview] = useState<boolean>(false)
   const [connectingBle, setConnectingBle] = useState<boolean>(false)
   const [bleState, setBleState] = useState<BlePrinterState>({
     status: isBluetoothSupported() ? 'disconnected' : 'unsupported',
@@ -129,32 +126,32 @@ export function TextToThermalPrintTab({
         '================================',
         'Handover with recipient signature:',
         '\n\n',
-        'Signature: _____________________',
+        'Signature: ____________________',
         'Thank you for shopping with us!',
       ].join('\n'),
     },
     {
-      id: 'token',
-      title: 'Kitchen Ticket',
-      icon: '🎫',
+      id: 'kitchen',
+      title: 'Kitchen Ticket (KOT)',
+      icon: '👨‍🍳',
       text: [
-        '================================',
-        '        KITCHEN ORDER TICKET    ',
-        '================================',
-        `Date: ${new Date().toLocaleDateString('en-GB')}  Time: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-        'Token No: #T-042  Table: T-4',
-        'Waiter: Anand K.',
+        '********************************',
+        '          KITCHEN ORDER         ',
+        '********************************',
+        'Table: T-04        Type: DINE-IN',
+        'Server: Rahul      KOT #: KOT-089',
+        `Time: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         '--------------------------------',
-        'ITEMS ORDERED:',
-        '2x Paneer Butter Masala (Spicy)',
-        '4x Butter Garlic Naan',
-        '1x Jeera Rice (Large Bowl)',
-        '2x Fresh Lime Soda (Sweet)',
+        'QTY   ITEM DESCRIPTION',
         '--------------------------------',
-        'SPECIAL INSTRUCTION:',
-        '• Less oil in paneer curry',
-        '• Serve drinks first immediately',
-        '================================',
+        '2x    Paneer Butter Masala',
+        '      [Spicy, Less Oil]',
+        '4x    Butter Tandoori Roti',
+        '1x    Jeera Rice (Full)',
+        '2x    Sweet Fresh Lime Soda',
+        '--------------------------------',
+        'Rush order - Table waiting',
+        '********************************',
       ].join('\n'),
     },
     {
@@ -226,24 +223,44 @@ export function TextToThermalPrintTab({
   const [text, setText] = useState<string>(presets[1].text)
   const maxCols = paperSize === '80mm' ? 48 : 32
 
-  const insertText = (snippet: string) => {
+  const insertSnippet = (snippet: string) => {
     setText((prev) => (prev ? `${prev}\n${snippet}` : snippet))
   }
 
   const insertDivider = (type: 'dash' | 'double' | 'star' | 'dot') => {
     const char = type === 'dash' ? '-' : type === 'double' ? '=' : type === 'star' ? '*' : '.'
-    insertText(char.repeat(maxCols))
+    insertSnippet(char.repeat(maxCols))
   }
 
   const insertTag = (tag: string) => {
     let val = ''
     const now = new Date()
-    if (tag === 'date') val = now.toLocaleDateString('en-GB')
-    if (tag === 'time') val = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (tag === 'date') val = `Date: ${now.toLocaleDateString('en-GB')}`
+    if (tag === 'time') val = `Time: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     if (tag === 'store') val = storeName
-    if (tag === 'phone') val = storePhone
     if (tag === 'inv') val = 'INV-' + Math.floor(10000 + Math.random() * 90000)
-    insertText(val)
+    insertSnippet(val)
+  }
+
+  const centerText = (str: string, width: number) => {
+    if (str.length >= width) return str.slice(0, width)
+    const pad = Math.max(0, Math.floor((width - str.length) / 2))
+    return ' '.repeat(pad) + str
+  }
+
+  const padTwo = (left: string, right: string, width: number) => {
+    const space = Math.max(1, width - left.length - right.length)
+    return left + ' '.repeat(space) + right
+  }
+
+  const padColumns = (col1: string, col2: string, col3: string, width: number) => {
+    const c1W = Math.floor(width * 0.45)
+    const c2W = Math.floor(width * 0.28)
+    const c3W = width - c1W - c2W
+    const p1 = col1.padEnd(c1W).slice(0, c1W)
+    const p2 = col2.padEnd(c2W).slice(0, c2W)
+    const p3 = col3.padStart(c3W).slice(0, c3W)
+    return p1 + p2 + p3
   }
 
   const buildReceiptBlocksText = () => {
@@ -466,294 +483,173 @@ export function TextToThermalPrintTab({
   }
 
   return (
-    <div className="space-y-6 w-full min-w-0">
-      <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
-        {/* LEFT COLUMN: EDITOR & CONTROLS */}
-        <div className="w-full lg:w-7/12 space-y-4 min-w-0">
-          {/* Header Controls Banner */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-dark-card border border-slate-200 dark:border-dark-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-slate-900 dark:text-white">Text to Thermal Print</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-                  Instant Print
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Enter freeform text, announcements, courier slips or insert structured receipt blocks.
-              </p>
-            </div>
+    <div className="space-y-3.5 w-full">
+      {/* PRESET CHIPS ROW */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 mr-1">Presets:</span>
+        {presets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setText(p.text)}
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-dark-elevated text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 border border-slate-200/80 dark:border-dark-border-strong whitespace-nowrap transition-colors flex items-center gap-1"
+          >
+            <span>{p.icon}</span>
+            <span>{p.title}</span>
+          </button>
+        ))}
+      </div>
 
-            {/* Paper Size Selector */}
-            <div className="flex items-center gap-2 bg-slate-200/70 dark:bg-dark-elevated p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  setPaperSize('58mm')
-                  setConfig((c) => ({ ...c, paperSize: '58mm', paperWidth: '58mm' }))
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  paperSize === '58mm'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                58mm (2")
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPaperSize('80mm')
-                  setConfig((c) => ({ ...c, paperSize: '80mm', paperWidth: '80mm' }))
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  paperSize === '80mm'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                80mm (3")
-              </button>
-            </div>
-          </div>
+      {/* QUICK TOOLS & BLOCKS ROW */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-dark-elevated/40 border border-slate-200/80 dark:border-dark-border">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowBlocksModal(true)}
+            className="px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+          >
+            <Layers size={13} />
+            <span>+ Choose Blocks</span>
+          </button>
 
-          {/* Quick Presets */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              <Sparkles size={13} className="text-blue-600" />
-              <span>Quick Preset Slips</span>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {presets.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setText(p.text)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border text-xs font-medium text-slate-800 dark:text-slate-200 hover:border-blue-500 hover:shadow-sm transition-all whitespace-nowrap"
-                >
-                  <span>{p.icon}</span>
-                  <span>{p.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Block Selector Banner */}
-          <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                <Layers size={20} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-blue-950 dark:text-blue-100">Select Receipt Blocks</p>
-                <p className="text-xs text-blue-800/80 dark:text-blue-300 mt-0.5">
-                  Insert Header, Items Table, Totals & Tax, or UPI QR from your store
-                </p>
-              </div>
-            </div>
-            <Button type="button" size="sm" onClick={() => setShowBlocksModal(true)} className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
-              <Plus size={14} className="mr-1" />
-              Choose Blocks
-            </Button>
-          </div>
-
-          {/* Formatting Toolbar */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border space-y-3">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-              <span className="uppercase tracking-wider">Formatting Helpers</span>
-              <span>Width: {maxCols} chars/line</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => insertDivider('dash')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-dark-elevated text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              >
-                --- Dashes
-              </button>
-              <button
-                type="button"
-                onClick={() => insertDivider('double')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-dark-elevated text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              >
-                === Double
-              </button>
-              <button
-                type="button"
-                onClick={() => insertDivider('star')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-dark-elevated text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              >
-                *** Stars
-              </button>
-              <button
-                type="button"
-                onClick={() => insertDivider('dot')}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-dark-elevated text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              >
-                ... Dots
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-dark-border/60">
-              <button
-                type="button"
-                onClick={() => insertTag('date')}
-                className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100"
-              >
-                + Today's Date
-              </button>
-              <button
-                type="button"
-                onClick={() => insertTag('time')}
-                className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100"
-              >
-                + Time
-              </button>
-              <button
-                type="button"
-                onClick={() => insertTag('store')}
-                className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100"
-              >
-                + Store Name
-              </button>
-              <button
-                type="button"
-                onClick={() => insertTag('inv')}
-                className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100"
-              >
-                + Invoice #
-              </button>
-            </div>
-          </div>
-
-          {/* Multi-line Editor */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-900 dark:text-white">Thermal Receipt Text</label>
-              <button
-                type="button"
-                onClick={() => setText('')}
-                className="text-xs text-rose-600 dark:text-rose-400 font-semibold hover:underline flex items-center gap-1"
-              >
-                <Trash2 size={12} />
-                <span>Clear</span>
-              </button>
-            </div>
-
-            <textarea
-              rows={14}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Type or paste custom thermal receipt text..."
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated text-slate-900 dark:text-white font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => insertDivider('dash')}
+            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+          >
+            --- Dashes
+          </button>
+          <button
+            type="button"
+            onClick={() => insertDivider('double')}
+            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+          >
+            === Double
+          </button>
+          <button
+            type="button"
+            onClick={() => insertTag('date')}
+            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+          >
+            + Date
+          </button>
+          <button
+            type="button"
+            onClick={() => insertTag('time')}
+            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+          >
+            + Time
+          </button>
         </div>
 
-        {/* RIGHT COLUMN: LIVE THERMAL PREVIEW */}
-        <div className="w-full lg:w-5/12 space-y-4 min-w-0 lg:sticky lg:top-6">
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-dark-card border border-slate-200 dark:border-dark-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Eye size={16} className="text-blue-600" />
-              <span className="text-xs font-bold text-slate-900 dark:text-white">
-                Live Simulation ({paperSize})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="p-1.5 rounded-lg bg-white dark:bg-dark-elevated border border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                title="Copy Text"
-              >
-                <Copy size={14} />
-              </button>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copy Text"
+            className="p-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-dark-elevated"
+          >
+            <Copy size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setText('')}
+            title="Clear"
+            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPreview((v) => !v)}
+            className={`px-2 py-1 rounded-md text-[11px] font-bold border flex items-center gap-1 transition-all ${
+              showPreview
+                ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300'
+                : 'bg-white dark:bg-dark-elevated border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            {showPreview ? <EyeOff size={13} /> : <Eye size={13} />}
+            <span>{showPreview ? 'Hide Slip' : 'Preview Slip'}</span>
+          </button>
+        </div>
+      </div>
 
-          {/* Authentic White Paper Roll */}
-          <div className="w-full flex justify-center py-4 bg-slate-200/50 dark:bg-dark-elevated/40 rounded-2xl border border-slate-200 dark:border-dark-border">
-            <div
-              style={{ maxWidth: paperSize === '80mm' ? '380px' : '290px' }}
-              className="w-full bg-white text-black p-4 rounded shadow-md border-t-4 border-slate-300 relative font-mono text-xs leading-tight select-none"
-            >
-              {blockOptions.find((b) => b.id === 'logo' && b.enabled) && (
-                <div className="text-center mb-3">
-                  <div className="font-extrabold text-sm tracking-wide text-slate-900">
-                    {storeName.toUpperCase()}
+      {/* COMPACT TEXTAREA */}
+      <div className="relative">
+        <textarea
+          rows={6}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type or paste custom thermal receipt text..."
+          className="w-full p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated text-slate-900 dark:text-white font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[110px]"
+        />
+        <div className="absolute bottom-2 right-2 text-[10px] font-mono text-slate-400 bg-white/80 dark:bg-dark-card/80 px-1.5 py-0.5 rounded pointer-events-none">
+          {paperSize} · {maxCols} cols
+        </div>
+      </div>
+
+      {/* LIVE PREVIEW ROLL (OPTIONAL TOGGLE) */}
+      {showPreview && (
+        <div className="w-full flex justify-center py-3 bg-slate-200/60 dark:bg-dark-elevated/40 rounded-xl border border-slate-200 dark:border-dark-border">
+          <div
+            style={{ maxWidth: paperSize === '80mm' ? '360px' : '280px' }}
+            className="w-full bg-white text-black p-3.5 rounded shadow-sm border-t-2 border-slate-300 relative font-mono text-xs leading-tight select-none"
+          >
+            <div className="whitespace-pre-wrap break-words font-mono text-[11px] leading-tight">
+              {text || 'Empty Document\nType text or choose receipt blocks to preview output.'}
+            </div>
+
+            {blockOptions.find((b) => b.id === 'upi_qr' && b.enabled) && (
+              <div className="mt-3 pt-2 border-t border-dashed border-black text-center space-y-1">
+                <div className="text-[9px] font-extrabold">SCAN TO PAY VIA UPI</div>
+                <div className="flex justify-center py-1">
+                  <div className="w-16 h-16 bg-slate-100 border border-slate-300 flex items-center justify-center">
+                    <QrCode size={40} className="text-black" />
                   </div>
                 </div>
-              )}
-
-              <div className="whitespace-pre-wrap break-words font-mono text-[11px] leading-tight">
-                {text || 'Empty Document\nType text or choose receipt blocks to preview output.'}
+                <div className="text-[9px] text-slate-600">{storeUpi}</div>
               </div>
-
-              {blockOptions.find((b) => b.id === 'upi_qr' && b.enabled) && (
-                <div className="mt-3 pt-2 border-t border-dashed border-black text-center space-y-1">
-                  <div className="text-[9px] font-extrabold">SCAN TO PAY VIA UPI</div>
-                  <div className="flex justify-center py-1">
-                    <div className="w-20 h-20 bg-slate-100 border border-slate-300 flex items-center justify-center">
-                      <QrCode size={52} className="text-black" />
-                    </div>
-                  </div>
-                  <div className="text-[9px] text-slate-600">{storeUpi}</div>
-                </div>
-              )}
-
-              {/* Bottom Serrated Edge */}
-              <div className="absolute -bottom-2 left-0 right-0 h-2 bg-slate-300/40 rounded-b" />
-            </div>
-          </div>
-
-          {/* Print CTAs */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border space-y-3">
-            {isBluetoothSupported() && (
-              <button
-                type="button"
-                onClick={handlePrintBle}
-                disabled={connectingBle}
-                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-              >
-                <Bluetooth size={18} className="text-white shrink-0" />
-                <span className="text-white text-sm font-bold">
-                  {connectingBle
-                    ? 'Connecting to Bluetooth Printer...'
-                    : bleState.status === 'connected'
-                    ? `Print via Bluetooth (${bleState.deviceName || 'Connected'})`
-                    : 'Print via Bluetooth (Direct ESC/POS)'}
-                </span>
-              </button>
             )}
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-            >
-              <Printer size={18} className="text-white shrink-0" />
-              <span className="text-white text-sm font-bold">Print via System Driver ({paperSize})</span>
-            </button>
-
-            {/* Quick Helper for Browser Print Dialog */}
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs flex items-start gap-2.5">
-              <HelpCircle size={17} className="text-amber-500 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-bold text-amber-900 dark:text-amber-300">Why does the browser print dialog open?</p>
-                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/90">
-                  When using <strong className="font-bold text-amber-950 dark:text-white">System Driver</strong>, your browser opens its print window. Select your thermal printer (e.g. POS-58 / POS-80) under <strong className="font-bold text-amber-950 dark:text-white">Destination</strong> instead of <em className="italic">"Save as PDF"</em>.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
+      )}
+
+      {/* DUAL PRINT BUTTONS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+        {isBluetoothSupported() && (
+          <button
+            type="button"
+            onClick={handlePrintBle}
+            disabled={connectingBle}
+            className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all text-xs cursor-pointer"
+          >
+            <Bluetooth size={16} className="text-white shrink-0" />
+            <span className="truncate">
+              {connectingBle
+                ? 'Connecting...'
+                : bleState.status === 'connected'
+                ? `Print Bluetooth (${bleState.deviceName || 'Ready'})`
+                : 'Print via Bluetooth (ESC/POS)'}
+            </span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={handlePrint}
+          className={`w-full ${
+            isBluetoothSupported() ? 'bg-emerald-600 hover:bg-emerald-500' : 'sm:col-span-2 bg-emerald-600 hover:bg-emerald-500'
+          } active:scale-[0.99] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all text-xs cursor-pointer`}
+        >
+          <Printer size={16} className="text-white shrink-0" />
+          <span>Print via System Driver ({paperSize})</span>
+        </button>
       </div>
 
       {/* RECEIPT BLOCKS MODAL */}
       {showBlocksModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-dark-border p-5 space-y-4 max-h-[85vh] flex flex-col">
+          <div className="w-full max-w-md bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-dark-border p-5 space-y-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-dark-border pb-3">
               <div className="flex items-center gap-2">
                 <Layers size={18} className="text-blue-600" />
@@ -768,102 +664,64 @@ export function TextToThermalPrintTab({
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Toggle the receipt blocks you want to format and insert into your thermal print:
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Pick modular blocks to insert formatted store info, totals, tables or QR codes into your thermal text.
             </p>
 
-            <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-              {blockOptions.map((b) => {
-                const IconComp = b.icon
-                return (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => {
-                      setBlockOptions((prev) =>
-                        prev.map((item) => (item.id === b.id ? { ...item, enabled: !item.enabled } : item))
-                      )
-                    }}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                      b.enabled
-                        ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-500 dark:border-blue-700'
-                        : 'bg-slate-50 dark:bg-dark-elevated/50 border-slate-200 dark:border-dark-border'
+            <div className="space-y-2 overflow-y-auto pr-1 flex-1">
+              {blockOptions.map((b) => (
+                <div
+                  key={b.id}
+                  onClick={() => {
+                    setBlockOptions((prev) =>
+                      prev.map((item) => (item.id === b.id ? { ...item, enabled: !item.enabled } : item))
+                    )
+                  }}
+                  className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                    b.enabled
+                      ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800'
+                      : 'bg-slate-50 dark:bg-dark-elevated border-slate-200 dark:border-dark-border opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-lg ${b.enabled ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                      <b.icon size={15} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">{b.label}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">{b.description}</div>
+                    </div>
+                  </div>
+                  <div
+                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                      b.enabled ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white dark:bg-dark-card'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                          b.enabled ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-dark-border text-slate-500'
-                        }`}
-                      >
-                        <IconComp size={16} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">{b.label}</p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">{b.description}</p>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`w-5 h-5 rounded border flex items-center justify-center ${
-                        b.enabled ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-dark-border'
-                      }`}
-                    >
-                      {b.enabled && <Check size={12} />}
-                    </div>
-                  </button>
-                )
-              })}
+                    {b.enabled && <Check size={12} />}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="flex items-center gap-3 pt-3 border-t border-slate-100 dark:border-dark-border">
-              <Button
+            <div className="pt-3 border-t border-slate-100 dark:border-dark-border flex items-center gap-2">
+              <button
                 type="button"
-                variant="outline"
                 onClick={() => handleApplyBlocks('append')}
-                className="flex-1"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs"
               >
-                Append to Text
-              </Button>
-              <Button
+                + Append to Text
+              </button>
+              <button
                 type="button"
                 onClick={() => handleApplyBlocks('replace')}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                className="flex-1 bg-slate-100 dark:bg-dark-elevated hover:bg-slate-200 text-slate-800 dark:text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-200 dark:border-dark-border"
               >
-                Replace & Insert
-              </Button>
+                Replace All Text
+              </button>
             </div>
           </div>
         </div>
       )}
     </div>
   )
-}
-
-function centerText(text: string, width: number): string {
-  const clean = text.trim()
-  if (clean.length >= width) return clean.slice(0, width)
-  const totalPad = width - clean.length
-  const leftPad = Math.floor(totalPad / 2)
-  const rightPad = totalPad - leftPad
-  return ' '.repeat(leftPad) + clean + ' '.repeat(rightPad)
-}
-
-function padTwo(left: string, right: string, width: number): string {
-  const l = left.trim()
-  const r = right.trim()
-  const space = width - l.length - r.length
-  if (space <= 0) return `${l} ${r}`.slice(0, width)
-  return l + ' '.repeat(space) + r
-}
-
-function padColumns(col1: string, col2: string, col3: string, width: number): string {
-  const c1Width = Math.floor(width * 0.44)
-  const c2Width = Math.floor(width * 0.32)
-  const c3Width = width - c1Width - c2Width
-
-  const c1 = col1.slice(0, c1Width).padEnd(c1Width, ' ')
-  const c2 = col2.slice(0, c2Width).padStart(c2Width, ' ')
-  const c3 = col3.slice(0, c3Width).padStart(c3Width, ' ')
-  return c1 + c2 + c3
 }

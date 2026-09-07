@@ -167,7 +167,7 @@ export const PrintersPage = () => {
 
   const [config, setConfig] = useState<PrinterConfig>(defaultPrinterConfig)
   const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig>(defaultReceiptConfig)
-  const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice' | 'quickPrint'>('receipt')
+  const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice'>('receipt')
   const [isUnchangedSaveConfirmOpen, setIsUnchangedSaveConfirmOpen] = useState(false)
 
   const configRef = useRef(config)
@@ -788,7 +788,6 @@ export const PrintersPage = () => {
       <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-dark-card/80 rounded-2xl border border-slate-200/80 dark:border-dark-border/80 overflow-x-auto">
         {([
           { key: 'receipt', label: 'Receipts', hint: 'Thermal bills', icon: FileText },
-          { key: 'quickPrint', label: 'Text to Thermal', hint: 'Quick print & blocks', icon: Printer },
           { key: 'receiptBuilder', label: 'Receipt Builder', hint: 'Custom layout', icon: Sparkles },
           { key: 'label', label: 'Labels', hint: 'Barcode stickers', icon: Tag },
           { key: 'invoice', label: 'A4 invoice', hint: 'Full-page bill', icon: Layers },
@@ -816,28 +815,25 @@ export const PrintersPage = () => {
         ))}
       </div>
 
-      {/* Tab 1: Thermal Receipt Settings & Live Preview (with Main's Toggle Sections & Dev's Sizing) */}
+      {/* Tab 1: Thermal Receipt Settings & Live Preview */}
       {activeTab === 'receipt' && (
         <div className="space-y-4 w-full min-w-0">
           <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
             <div className="w-full lg:w-7/12 space-y-4 min-w-0">
-              {/* Text to Thermal Print Launch Banner */}
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Printer size={20} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-emerald-950 dark:text-emerald-100">Text to Thermal Print (Quick Print)</p>
-                    <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300 mt-0.5 leading-relaxed">
-                      Type custom text, delivery slips, notices, or select modular receipt blocks to print immediately.
-                    </p>
-                  </div>
-                </div>
-                <Button type="button" size="sm" onClick={() => setActiveTab('quickPrint')} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                  Open Quick Print
-                </Button>
-              </div>
+              {/* Quick Print Section */}
+              <Section
+                eyebrow="Quick Print"
+                title="Text to Thermal Print"
+                description="Type custom notes, slips, memos, or insert modular receipt blocks to print immediately."
+              >
+                <TextToThermalPrintTab
+                  config={config}
+                  setConfig={setConfig}
+                  receiptConfig={receiptConfig}
+                  setReceiptConfig={setReceiptConfig}
+                  settings={settings}
+                />
+              </Section>
 
               <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
@@ -1334,16 +1330,6 @@ export const PrintersPage = () => {
         </div>
       )}
 
-      {/* Tab 2: Text to Thermal Print (Quick Print & Blocks) */}
-      {activeTab === 'quickPrint' && (
-        <TextToThermalPrintTab
-          config={config}
-          setConfig={setConfig}
-          receiptConfig={receiptConfig}
-          setReceiptConfig={setReceiptConfig}
-          settings={settings}
-        />
-      )}
 
       {/* Tab 3: Receipt Builder from Dev */}
       {activeTab === 'receiptBuilder' && (
