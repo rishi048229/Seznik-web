@@ -58,6 +58,7 @@ import {
   ChevronUp,
   LayoutGrid,
   MessageSquarePlus,
+  FileText,
   ChefHat,
   Store,
   WifiOff,
@@ -588,6 +589,28 @@ export default function DashboardScreen() {
                       onPress={() => setShowDirectPrinterModal(true)}
                       theme={theme}
                     />
+                    <FeatureGridTile
+                      label={t('quickPrint', 'Quick Print')}
+                      badge="NEW"
+                      icon={FileText}
+                      color="#10B981"
+                      onPress={() => router.push('/printers/quick-print' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('expenses', 'Expenses')}
+                      icon={Wallet}
+                      color="#EC4899"
+                      onPress={() => router.push('/expenses' as any)}
+                      theme={theme}
+                    />
+                    <FeatureGridTile
+                      label={t('purchases', 'Purchases')}
+                      icon={ShoppingBag}
+                      color="#14B8A6"
+                      onPress={() => router.push('/purchases' as any)}
+                      theme={theme}
+                    />
                     {showTokens ? (
                       <FeatureGridTile
                         label={t('quickTokens', 'Quick Tokens')}
@@ -648,7 +671,7 @@ export default function DashboardScreen() {
               >
                 <LayoutGrid size={14} color={BRAND_COLORS.sky500} style={{ marginRight: 6 }} />
                 <Text style={[styles.showMoreBtnText, { color: theme.textPrimary }]}>
-                  {showMoreTools ? t('showLessOptions', 'Show Less Options') : t('showMoreOptions', 'Show More Options (14)')}
+                  {showMoreTools ? t('showLessOptions', 'Show Less Options') : t('showMoreOptions', 'Show More Options')}
                 </Text>
                 {showMoreTools ? (
                   <ChevronUp size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
