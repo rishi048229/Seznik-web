@@ -20,6 +20,7 @@ const PAGE_IMPORTS: Record<string, () => Promise<unknown>> = {
   [ROUTES.REPORTS_PL]: () => import('@/pages/reports/ProfitLossPage'),
   [ROUTES.REPORTS_TAX]: () => import('@/pages/reports/TaxReportPage'),
   [ROUTES.SETTINGS]: () => import('@/pages/settings/SettingsPage'),
+  [ROUTES.PROFILE]: () => import('@/pages/profile/ProfilePage'),
   [ROUTES.PRINTERS]: () => import('@/pages/printers/PrintersPage'),
   [ROUTES.KOT]: () => import('@/pages/kot/KOTPage'),
   [ROUTES.KOT_KDS]: () => import('@/pages/kot/KDSPage'),

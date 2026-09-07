@@ -76,6 +76,7 @@ const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
 const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
+const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage'), 'ProfilePage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 const KOTPage = lazyPage(() => import('@/pages/kot/KOTPage'), 'KOTPage')
 const KDSPage = lazyPage(() => import('@/pages/kot/KDSPage'), 'KDSPage')
@@ -281,6 +282,7 @@ function App() {
                 <Route path={ROUTES.REPORTS_PL} element={<PermissionRoute permission="canAccessReports"><ProfitLossPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_TAX} element={<PermissionRoute permission="canAccessReports"><TaxReportPage /></PermissionRoute>} />
                 <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
+                <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
                 <Route path={ROUTES.PRINTERS} element={<PrintersPage />} />
                 <Route path={ROUTES.KOT_KDS} element={<BusinessFeatureRoute feature="kot"><KDSPage /></BusinessFeatureRoute>} />
                 <Route path={ROUTES.KOT} element={<BusinessFeatureRoute feature="kot"><KOTPage /></BusinessFeatureRoute>} />

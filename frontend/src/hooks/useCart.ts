@@ -1,17 +1,43 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/contexts/AuthContext'
 import type { CartItem, Product } from '@/types/product.types'
 import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
 
 export const useCart = () => {
+  const { user } = useAuth()
+  const userId = user?.id || user?.uid || 'guest'
+  const storageKey = `pos_cart_${userId}`
+
   const [items, setItems] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('pos_cart')
-    return saved ? JSON.parse(saved) : []
+    // Remove legacy un-scoped key to avoid showing foreign/stale items across sessions
+    try {
+      localStorage.removeItem('pos_cart')
+      const saved = localStorage.getItem(storageKey)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
   })
 
+  // Whenever the active user changes (login, register, logout, switch account), sync to that user's cart
   useEffect(() => {
-    localStorage.setItem('pos_cart', JSON.stringify(items))
-  }, [items])
+    try {
+      localStorage.removeItem('pos_cart')
+      const saved = localStorage.getItem(storageKey)
+      setItems(saved ? JSON.parse(saved) : [])
+    } catch {
+      setItems([])
+    }
+  }, [storageKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(items))
+    } catch (e) {
+      console.error('Failed to persist POS cart', e)
+    }
+  }, [storageKey, items])
 
   const addItem = useCallback((product: Product) => {
     if (isExpiringSoon(product.expiryDate)) {

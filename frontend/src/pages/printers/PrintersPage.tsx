@@ -48,7 +48,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ReceiptLivePreview } from './components/ReceiptLivePreview'
 import { A4InvoiceTab } from './components/A4InvoiceTab'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { RECEIPT_FONT_LIBRARY, isReceiptFontId, resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
+import { isReceiptFontId, resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import { isRestaurantBusiness } from '@/constants/businessTypes'
 import {
@@ -920,59 +920,6 @@ export const PrintersPage = () => {
                         className={`flex-1 py-2 px-3 capitalize ${chipClass(config.fontSize === size)}`}
                       >
                         {size}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                    Receipt Font
-                    <FieldInfo textKey="tip.printer.receiptFont" />
-                  </label>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2">
-                    Previews, system print, and thermal Bluetooth receipts render sharp JetBrains Mono typography.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {RECEIPT_FONT_LIBRARY.map(font => (
-                      <button
-                        key={font.id}
-                        type="button"
-                        onClick={() => {
-                          const nextFont = font.id
-                          setConfig(prev => ({ ...prev, receiptFont: nextFont }))
-                          try {
-                            localStorage.setItem('seznik_printer_receiptFont', nextFont)
-                          } catch {}
-                          if (settings?.id) {
-                            updateSettingsMutation({
-                              settingsId: settings.id,
-                              data: {
-                                printerConfig: withSyncedPaperKeys({ ...config, receiptFont: nextFont }),
-                              },
-                            })
-                          }
-                        }}
-                        className={`text-left py-2.5 px-3 rounded-xl border transition-colors ${
-                          resolveReceiptFontId(config.receiptFont) === font.id
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500/30'
-                            : 'border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:border-gray-300'
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-2 mb-0.5">
-                          <span
-                            className="block text-sm font-semibold text-gray-900 dark:text-gray-100"
-                            style={{ fontFamily: font.cssFamily }}
-                          >
-                            {font.label}
-                          </span>
-                          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-gray-400">
-                            {font.family}
-                          </span>
-                        </span>
-                        <span className="block text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
-                          {font.description}
-                        </span>
                       </button>
                     ))}
                   </div>

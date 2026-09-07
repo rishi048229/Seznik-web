@@ -45,9 +45,22 @@ export function useAuth() {
     mutationFn: (email: string) => authApi.sendEmailOtp(email),
   });
 
+  const verifyAccessCodeMutation = useMutation({
+    mutationFn: (code: string) => authApi.verifyAccessCode(code),
+  });
+
   const verifyEmailOtpMutation = useMutation({
     mutationFn: ({ email, otp }: { email: string; otp: string }) =>
       authApi.verifyEmailOtp(email, otp),
+  });
+
+  const sendPhoneOtpMutation = useMutation({
+    mutationFn: (phone: string) => authApi.sendPhoneOtp(phone),
+  });
+
+  const verifyPhoneOtpMutation = useMutation({
+    mutationFn: ({ phone, otp }: { phone: string; otp: string }) =>
+      authApi.verifyPhoneOtp(phone, otp),
   });
 
   const sendForgotPasswordOtpMutation = useMutation({
@@ -103,6 +116,12 @@ export function useAuth() {
     register: registerMutation.mutateAsync,
     isRegistering: registerMutation.isPending,
     sendEmailOtp: sendEmailOtpMutation.mutateAsync,
+    sendPhoneOtp: sendPhoneOtpMutation.mutateAsync,
+    isSendingPhoneOtp: sendPhoneOtpMutation.isPending,
+    verifyPhoneOtp: verifyPhoneOtpMutation.mutateAsync,
+    isVerifyingPhoneOtp: verifyPhoneOtpMutation.isPending,
+    verifyAccessCode: verifyAccessCodeMutation.mutateAsync,
+    isVerifyingAccessCode: verifyAccessCodeMutation.isPending,
     verifyEmailOtp: verifyEmailOtpMutation.mutateAsync,
     sendForgotPasswordOtp: sendForgotPasswordOtpMutation.mutateAsync,
     verifyForgotPasswordOtp: verifyForgotPasswordOtpMutation.mutateAsync,

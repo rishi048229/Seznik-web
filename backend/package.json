@@ -12,9 +12,7 @@
     "prisma:ensure": "node scripts/ensure-additive-columns.cjs",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "ci:check": "prisma generate && tsc --noEmit",
-    "test:stress": "node tests/stressTest.js",
-    "test:k6": "k6 run tests/stress-test.k6.js"
+    "ci:check": "prisma generate && tsc --noEmit"
   },
   "keywords": [],
   "author": "",

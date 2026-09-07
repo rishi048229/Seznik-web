@@ -28,6 +28,7 @@ import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import type { Sale } from '@/types/sale.types'
@@ -75,6 +76,7 @@ const readStored = <T,>(key: string, fallback: T): T => {
 
 export const POSLitePage = () => {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const pageTutorial = usePageTutorial('pos-lite')
   const navigate = useNavigate()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
@@ -82,34 +84,61 @@ export const POSLitePage = () => {
   const { data: settings } = useSettings()
   const { data: products } = useProducts()
 
+  const userId = user?.id || user?.uid || 'guest'
+  const liteCartStorageKey = `pos_lite_cart_${userId}`
+  const recentStorageKey = `pos_lite_recent_items_${userId}`
+  const lastBillStorageKey = `pos_lite_last_bill_${userId}`
+
   const scanInputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const [isScanMode, setIsScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
   const [catalogQuery, setCatalogQuery] = useState('')
   const [linkedProductId, setLinkedProductId] = useState<string | null>(null)
-  const [recentItems, setRecentItems] = useState<RecentQuickItem[]>(() => readStored(RECENT_STORAGE_KEY, []))
-  const [lastBill, setLastBill] = useState<CartItem[]>(() => readStored(LAST_BILL_STORAGE_KEY, []))
+  const [recentItems, setRecentItems] = useState<RecentQuickItem[]>(() => {
+    localStorage.removeItem(RECENT_STORAGE_KEY)
+    return readStored(recentStorageKey, [])
+  })
+  const [lastBill, setLastBill] = useState<CartItem[]>(() => {
+    localStorage.removeItem(LAST_BILL_STORAGE_KEY)
+    return readStored(lastBillStorageKey, [])
+  })
 
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
 
-  // Persist Quick Bill cart state in localStorage so navigating away preserves cart items
+  // Persist Quick Bill cart state in localStorage scoped by user
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('pos_lite_cart')
+      localStorage.removeItem('pos_lite_cart')
+      const saved = localStorage.getItem(liteCartStorageKey)
       return saved ? JSON.parse(saved) : []
     } catch {
       return []
     }
   })
 
+  // Whenever user changes, reload user-specific cart and recents
   useEffect(() => {
     try {
-      localStorage.setItem('pos_lite_cart', JSON.stringify(items))
+      localStorage.removeItem('pos_lite_cart')
+      localStorage.removeItem(RECENT_STORAGE_KEY)
+      localStorage.removeItem(LAST_BILL_STORAGE_KEY)
+      const saved = localStorage.getItem(liteCartStorageKey)
+      setItems(saved ? JSON.parse(saved) : [])
+      setRecentItems(readStored(recentStorageKey, []))
+      setLastBill(readStored(lastBillStorageKey, []))
+    } catch {
+      setItems([])
+    }
+  }, [liteCartStorageKey, recentStorageKey, lastBillStorageKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(liteCartStorageKey, JSON.stringify(items))
     } catch (e) {
       console.error('Failed to persist POS Lite cart', e)
     }
-  }, [items])
+  }, [liteCartStorageKey, items])
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
@@ -199,7 +228,7 @@ export const POSLitePage = () => {
         ...prev.filter(r => (r.productId || `${r.productName.toLowerCase()}|${r.sellingPrice}|${r.taxRate}`) !== key),
       ].slice(0, MAX_RECENT)
       try {
-        localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next))
+        localStorage.setItem(recentStorageKey, JSON.stringify(next))
       } catch {
         /* ignore quota */
       }
@@ -411,6 +440,7 @@ export const POSLitePage = () => {
 
   const clearCart = () => {
     setItems([])
+    localStorage.removeItem(liteCartStorageKey)
     localStorage.removeItem('pos_lite_cart')
     setOrderDiscount(0)
     setSelectedCustomer('')
@@ -507,7 +537,7 @@ export const POSLitePage = () => {
         }
         setLastSaleData(snapshot)
         try {
-          localStorage.setItem(LAST_BILL_STORAGE_KEY, JSON.stringify(items))
+          localStorage.setItem(lastBillStorageKey, JSON.stringify(items))
         } catch {
           /* ignore quota */
         }

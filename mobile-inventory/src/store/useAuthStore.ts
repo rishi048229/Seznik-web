@@ -72,6 +72,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuth: async (token: string, user: UserProfile) => {
     await setAuthToken(token);
     await setStoredUser(user);
+    try {
+      const { useCartStore } = await import('@/store/useCartStore');
+      useCartStore.getState().clearCart();
+    } catch {
+      // ignore
+    }
     set({
       token,
       user,
@@ -87,6 +93,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     await setAuthToken(DEV_BYPASS_TOKEN);
     await setStoredUser(DEV_BYPASS_USER);
+    try {
+      const { useCartStore } = await import('@/store/useCartStore');
+      useCartStore.getState().clearCart();
+    } catch {
+      // ignore
+    }
     set({
       token: DEV_BYPASS_TOKEN,
       user: DEV_BYPASS_USER,
@@ -126,6 +138,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { clearCatalogCache } = await import('@/services/catalogCache');
       await clearCatalogCache();
+    } catch {
+      // ignore
+    }
+    try {
+      const { useCartStore } = await import('@/store/useCartStore');
+      useCartStore.getState().clearCart();
     } catch {
       // ignore
     }

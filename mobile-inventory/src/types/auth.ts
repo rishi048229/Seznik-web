@@ -20,6 +20,7 @@ export interface UserProfile {
   phone?: string | null;
   role: 'admin' | 'agent' | string;
   onboardingCompleted?: boolean;
+  seznikUser?: boolean;
   accountType?: 'user' | 'managed';
   permissions?: UserPermissions | null;
 }
@@ -75,4 +76,6 @@ export interface RegisterPayload {
   phone: string;
   displayName?: string;
   registrationSource?: 'web' | 'mobile';
+  hasSeznikPrinter?: boolean;
+  accessCode?: string;
 }

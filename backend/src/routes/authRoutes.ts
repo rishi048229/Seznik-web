@@ -1,6 +1,8 @@
 import express from 'express';
 import {
   register,
+  verifyAccessCode,
+  redeemAccessCode,
   login,
   socialLogin,
   getProfile,
@@ -13,6 +15,8 @@ import {
   updateManagedUserPassword,
   sendEmailOtp,
   verifyEmailOtp,
+  sendPhoneOtp,
+  verifyPhoneOtp,
   sendForgotPasswordOtp,
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
@@ -24,9 +28,12 @@ import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
 
-// Pre-signup email verification (public)
+// Pre-signup email & phone verification & access code check (public)
 router.post('/send-otp', sendEmailOtp);
 router.post('/verify-otp', verifyEmailOtp);
+router.post('/send-phone-otp', sendPhoneOtp);
+router.post('/verify-phone-otp', verifyPhoneOtp);
+router.post('/verify-access-code', verifyAccessCode);
 
 // Forgot password flow (public)
 router.post('/forgot-password/send-otp', sendForgotPasswordOtp);
@@ -42,6 +49,7 @@ router.post('/qr-login/session', protect, generateQrLogin);
 router.get('/qr-login/session/:sessionId', protect, getQrLoginStatus);
 router.post('/qr-login', consumeQrLogin);
 router.get('/profile', protect, getProfile);
+router.post('/redeem-access-code', protect, redeemAccessCode);
 router.post('/setRole', protect, setRole);
 router.post('/onboard', protect, completeOnboarding);
 router.patch('/business-type', protect, updateBusinessType);

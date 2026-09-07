@@ -564,21 +564,28 @@ model KOTOrderItem {
 
 /// Admin-generated unique alphanumeric access codes (7 chars) for distribution / redemption.
 model AccessCode {
-  id             String   @id @default(uuid())
-  code           String   @unique @db.VarChar(7)
+  id             String    @id @default(uuid())
+  code           String    @unique @db.VarChar(7)
   batchId        String
   note           String?
   createdBy      String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
   customerName   String?
   customerId     String?
   invoiceNumber  String?
   phone          String?
   printer        String?
+  isUsed         Boolean   @default(false)
+  usedAt         DateTime?
+  usedByUserId   String?
+  customerEmail  String?
 
   @@index([batchId])
   @@index([createdAt])
   @@index([createdBy])
+  @@index([isUsed])
+  @@index([usedByUserId])
+  @@index([invoiceNumber])
 }
 
 /// Customer-support portal agents managed from the admin Support Access page.

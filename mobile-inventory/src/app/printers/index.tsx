@@ -69,8 +69,6 @@ import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import type { ReceiptSizeChip } from '@shared/receiptPrintGeometry';
 import {
   DEFAULT_RECEIPT_FONT,
-  RECEIPT_FONT_LIBRARY,
-  receiptFontRnFamily,
   type ReceiptFontId,
 } from '@shared/receiptFonts';
 
@@ -1361,54 +1359,6 @@ export default function PrintersScreen() {
                   trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
                   thumbColor="#FFFFFF"
                 />
-              </View>
-
-              {/* Receipt Font Library */}
-              <View style={[styles.stepperCardStacked, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <View style={{ marginBottom: 10 }}>
-                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt Font</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
-                    Synced with web. Mono, sans, and serif families for previews and HTML prints.
-                  </Text>
-                </View>
-                <View style={{ gap: 8 }}>
-                  {RECEIPT_FONT_LIBRARY.map((font) => {
-                    const active = receiptFontVal === font.id;
-                    return (
-                      <TouchableOpacity
-                        key={font.id}
-                        onPress={() => setReceiptFontVal(font.id)}
-                        style={[
-                          styles.fontLibraryChip,
-                          {
-                            borderColor: active ? BRAND_COLORS.blue600 : theme.borderColor,
-                            backgroundColor: active ? 'rgba(37, 99, 235, 0.08)' : theme.bg,
-                          },
-                        ]}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <Text
-                            style={{
-                              fontSize: 15,
-                              fontWeight: '800',
-                              color: theme.textPrimary,
-                              fontFamily: receiptFontRnFamily(font.id, Platform.OS),
-                              flex: 1,
-                            }}
-                          >
-                            {font.label}
-                          </Text>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: theme.textSecondary, textTransform: 'uppercase' }}>
-                            {font.family}
-                          </Text>
-                        </View>
-                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2, lineHeight: 15 }}>
-                          {font.description}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
               </View>
 
               {/* Logo Size */}

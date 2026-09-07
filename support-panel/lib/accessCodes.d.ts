@@ -14,6 +14,10 @@ export type AccessCodeRow = {
   invoiceNumber: string | null;
   phone: string | null;
   printer: string | null;
+  isUsed: boolean;
+  usedAt: string | null;
+  usedByUserId: string | null;
+  customerEmail: string | null;
 };
 
 export function generateAccessCodes(

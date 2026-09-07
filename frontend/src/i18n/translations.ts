@@ -1005,6 +1005,7 @@ const en = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'Switch Workstation',
   'kds.readyToServe': 'Ready to serve',
   'login.welcomeBack': 'Welcome Back',
   'login.createAccount': 'Create Your Account',
@@ -1012,6 +1013,24 @@ const en = {
   'login.registerSubtitle': 'Fill in your details below to set up your business',
   'login.bannerTitle': 'Precision in every transaction.',
   'login.bannerDesc': 'A premium retail POS designed to turn complex inventory into a seamless digital editorial for your business.',
+  'login.hardwareVerificationQuestion': 'Are you a Seznik Printer user?',
+  'login.hardwareVerificationPrompt': 'Verify your printer for plug-and-play setup and active hardware warranty care',
+  'login.yesSeznikUser': 'Yes, I am a Seznik Printer User',
+  'login.noSeznikUser': 'No, I use a standard / other printer',
+  'login.vipTier': 'Seznik Hardware Tier',
+  'login.standardTier': 'Universal Setup',
+  'login.accessCodeLabel': '7-Character Access Code',
+  'login.accessCodePlaceholder': 'e.g. K9X2P4A',
+  'login.accessCodeFlyerHint': 'Enter the 7-character access code printed on the welcome flyer inside your Seznik printer package.',
+  'login.accessCodeSupportHint': 'Don’t have your flyer code? Contact Support now and our team will generate your VIP code instantly!',
+  'login.vipBenefit1': 'Priority support & rapid ticket turnaround',
+  'login.vipBenefit2': 'Dedicated printer hardware care & direct diagnostics',
+  'login.vipBenefit3': 'Active hardware warranty coverage & calibration',
+  'login.stdBenefit1': 'All feature access — full POS billing, inventory & tax tools',
+  'login.stdBenefit2': 'Universal compatibility with any standard thermal or USB printer',
+  'login.stepDetails': 'Step 1: Account Details',
+  'login.stepHardware': 'Step 2: Hardware Setup',
+  'login.continueToHardware': 'Continue to Hardware Setup',
 } as const
 
 // ── Hindi ───────────────────────────────────────────────────────────────────
@@ -1950,6 +1969,7 @@ const hi: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'वर्कस्टेशन बदलें',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -2870,6 +2890,7 @@ const mr: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'वर्कस्टेशन बदला',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -3790,6 +3811,7 @@ const ta: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'பணிநிலையத்தை மாற்றவும்',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -4706,6 +4728,7 @@ const te: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'వర్క్‌స్టేషన్‌ను మార్చండి',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -5622,6 +5645,7 @@ const gu: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'વર્કસ્ટેશન બદલો',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -6538,6 +6562,7 @@ const bn: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'ওয়ার্কস্টেশন পরিবর্তন করুন',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -7454,6 +7479,7 @@ const ml: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'വർക്ക്സ്റ്റേഷൻ മാറ്റുക',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',
@@ -8370,6 +8396,7 @@ const or: Partial<Record<TranslationKey, string>> = {
   'access.agentAccess': 'Agent Access',
   'access.loginAsAgent': 'Login as Agent',
   'access.logout': 'Logout',
+  'access.switchWorkstation': 'ୱାର୍କଷ୍ଟେସନ୍ ପରିବର୍ତ୍ତନ କରନ୍ତୁ',
   'kds.readyToServe': 'Ready to serve',
 
   'login.welcomeBack': 'Welcome Back',

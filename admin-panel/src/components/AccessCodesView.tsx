@@ -616,30 +616,43 @@ export const AccessCodesView: React.FC = () => {
                                 <div
                                   style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))',
                                     gap: '8px',
-                                    maxHeight: '220px',
+                                    maxHeight: '260px',
                                     overflowY: 'auto',
                                   }}
                                 >
-                                  {expandedCodes.map((code) => (
-                                    <div
-                                      key={code.id}
-                                      style={{
-                                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                                        letterSpacing: '0.06em',
-                                        fontWeight: 700,
-                                        fontSize: '0.82rem',
-                                        padding: '8px 10px',
-                                        borderRadius: '8px',
-                                        border: '1px solid var(--border-color)',
-                                        background: 'var(--bg-main)',
-                                        textAlign: 'center',
-                                      }}
-                                    >
-                                      {code.code}
-                                    </div>
-                                  ))}
+                                  {expandedCodes.map((code) => {
+                                    const isRedeemed = Boolean(code.isUsed || code.customerName || code.usedByUserId);
+                                    return (
+                                      <div
+                                        key={code.id}
+                                        title={isRedeemed ? `Redeemed by ${code.customerName || code.phone || 'User'}` : 'Unused / Available'}
+                                        style={{
+                                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                          letterSpacing: '0.06em',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          padding: '8px 10px',
+                                          borderRadius: '8px',
+                                          border: `1px solid ${isRedeemed ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)'}`,
+                                          background: isRedeemed ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-main)',
+                                          color: isRedeemed ? '#059669' : 'var(--text-main)',
+                                          textAlign: 'center',
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 2,
+                                        }}
+                                      >
+                                        <span>{code.code}</span>
+                                        <span style={{ fontSize: '0.62rem', fontWeight: 600, opacity: 0.85 }}>
+                                          {isRedeemed ? '✓ Redeemed' : 'Available'}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>

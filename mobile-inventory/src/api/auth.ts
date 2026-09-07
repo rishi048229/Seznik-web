@@ -51,10 +51,31 @@ export const authApi = {
     });
   },
 
+  verifyAccessCode: async (code: string) => {
+    return fetchApi<{ valid: boolean; message?: string; error?: string; code?: string }>('/auth/verify-access-code', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
   verifyEmailOtp: async (email: string, otp: string) => {
     return fetchApi<{ message: string }>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify({ email, otp }),
+    });
+  },
+
+  sendPhoneOtp: async (phone: string) => {
+    return fetchApi<{ message?: string; devOtp?: string }>('/auth/send-phone-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+  },
+
+  verifyPhoneOtp: async (phone: string, otp: string) => {
+    return fetchApi<{ success: boolean; message?: string }>('/auth/verify-phone-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
     });
   },
 

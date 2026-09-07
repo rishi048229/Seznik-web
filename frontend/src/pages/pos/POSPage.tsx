@@ -236,6 +236,21 @@ export const POSPage = () => {
     return acc
   }, {})
 
+  // Auto-clean orphan items: if store products have loaded and cart contains items not in this store's catalog (e.g. from previous tests/sessions), prune them
+  useEffect(() => {
+    if (!isLoading && products !== undefined && items.length > 0) {
+      if (products.length === 0) {
+        clearCart()
+      } else {
+        const validProductIds = new Set(products.map(p => p.id))
+        const orphanItems = items.filter(i => !validProductIds.has(i.productId))
+        if (orphanItems.length > 0) {
+          orphanItems.forEach(i => removeItem(i.productId))
+        }
+      }
+    }
+  }, [isLoading, products, items, clearCart, removeItem])
+
   // Multi-location inventory: when a location is selected, stock/price
   // resolve through that location's own ProductLocationStock row instead of
   // the product's flat totals. A product with no stock row at the selected
@@ -950,19 +965,30 @@ export const POSPage = () => {
               <Badge variant="info">{t('pos.orderPrefix')}{String(Date.now()).slice(-4)}</Badge>
             </div>
             {items.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAmountPaid(finalTotal.toString())
-                  setIsPaymentOpen(true)
-                }}
-                disabled={isCreating}
-                title={t('pos.completeAndPrint')}
-                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
-              >
-                <Printer size={15} />
-                <span>{t('pos.print')}</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  title="Clear Cart"
+                  className="px-2 py-1 text-xs font-semibold text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                  <span>Clear</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAmountPaid(finalTotal.toString())
+                    setIsPaymentOpen(true)
+                  }}
+                  disabled={isCreating}
+                  title={t('pos.completeAndPrint')}
+                  className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+                >
+                  <Printer size={15} />
+                  <span>{t('pos.print')}</span>
+                </button>
+              </div>
             )}
           </div>
 

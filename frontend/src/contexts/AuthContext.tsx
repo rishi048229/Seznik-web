@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding, updateBusinessType } from '@/services/authService'
+import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding, updateBusinessType, redeemAccessCode as redeemAccessCodeApi } from '@/services/authService'
 import type { UserProfile, UserRole, UserPermissions, CompleteOnboardingPayload, BusinessType } from '@/types/auth.types'
 import { getAuthToken } from '@/services/api'
 
@@ -10,7 +10,16 @@ interface AuthContextType {
   loading: boolean
   hasSelectedWorkspace: boolean
   loginWithEmail: (email: string, pass: string) => Promise<void>
-  registerWithEmail: (email: string, pass: string, fName: string, lName: string, phone: string) => Promise<void>
+  registerWithEmail: (
+    email: string,
+    pass: string,
+    fName: string,
+    lName: string,
+    phone: string,
+    hasSeznikPrinter?: boolean,
+    accessCode?: string
+  ) => Promise<void>
+  redeemAccessCode: (code: string) => Promise<void>
   signOut: () => Promise<void>
   setUserRole: (role: UserRole, name: string, password: string, agentUid?: string) => Promise<void>
   completeOnboarding: (payload: CompleteOnboardingPayload) => Promise<void>
@@ -66,25 +75,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initAuth()
   }, [])
 
+  const clearTransientStorage = () => {
+    try {
+      localStorage.removeItem('hasSelectedWorkspace')
+      localStorage.removeItem('pos_cart')
+      localStorage.removeItem('pos_lite_cart')
+      localStorage.removeItem('pos_lite_recent_items')
+      localStorage.removeItem('pos_lite_last_bill')
+      localStorage.removeItem('pos_cart_guest')
+      localStorage.removeItem('pos_lite_cart_guest')
+      localStorage.removeItem('pos_selected_location_id')
+    } catch {
+      // ignore
+    }
+  }
+
   const handleLogin = async (email: string, pass: string) => {
+    clearTransientStorage()
     const data = await loginUser(email, pass)
     setUser(data.user)
-    localStorage.removeItem('hasSelectedWorkspace')
     setHasSelectedWorkspace(false)
     setUserProfile(data.user ? { ...data.user, role: null } : null)
   }
   
-  const handleRegister = async (email: string, pass: string, fName: string, lName: string, phone: string) => {
-    const data = await registerUser(email, pass, fName, lName, phone)
+  const handleRegister = async (
+    email: string,
+    pass: string,
+    fName: string,
+    lName: string,
+    phone: string,
+    hasSeznikPrinter?: boolean,
+    accessCode?: string
+  ) => {
+    clearTransientStorage()
+    const data = await registerUser(email, pass, fName, lName, phone, hasSeznikPrinter, accessCode)
     setUser(data.user)
-    localStorage.removeItem('hasSelectedWorkspace')
     setHasSelectedWorkspace(false)
     setUserProfile(data.user ? { ...data.user, role: null } : null)
   }
 
+  const handleRedeemAccessCode = async (code: string) => {
+    if (!user) throw new Error('No user logged in')
+    const res = await redeemAccessCodeApi(code)
+    if (res?.user) {
+      const updatedProfile = await getUserProfile()
+      const next = updatedProfile ?? { ...user, ...res.user, seznikUser: true }
+      setUser(next)
+      setUserProfile(prev => prev ? { ...prev, ...res.user, seznikUser: true } : next)
+    }
+  }
+
   const handleSignOut = async () => {
+    clearTransientStorage()
     setHasSelectedWorkspace(false)
-    localStorage.removeItem('hasSelectedWorkspace')
     await signOutUser()
     setUser(null)
     setUserProfile(null)
@@ -146,6 +189,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         hasSelectedWorkspace,
         loginWithEmail: handleLogin,
         registerWithEmail: handleRegister,
+        redeemAccessCode: handleRedeemAccessCode,
         signOut: handleSignOut,
         setUserRole: handleSetUserRole,
         completeOnboarding: handleCompleteOnboarding,

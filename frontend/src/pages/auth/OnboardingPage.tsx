@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, QrCode } from 'lucide-react'
+import { Check, QrCode, ArrowLeft, ArrowRight } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -57,8 +57,9 @@ export const OnboardingPage = () => {
       setError(t('onboarding.shopNameRequired'))
       return false
     }
-    if (!phone.trim()) {
-      setError(t('onboarding.phoneRequired'))
+    const cleanPhone = phone.replace(/\D/g, '')
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setError('Please enter a valid 10-digit phone number')
       return false
     }
     if (!businessAddress.trim()) {
@@ -111,7 +112,7 @@ export const OnboardingPage = () => {
       await completeOnboarding({
         businessName: businessName.trim(),
         businessType: selectedBusinessType,
-        phone: phone.trim(),
+        phone: phone.replace(/\D/g, '').slice(0, 10),
         businessAddress: businessAddress.trim(),
         upiId: upiId.trim(),
         ...(logoUrl.trim() ? { businessLogoURL: logoUrl.trim() } : {}),
@@ -127,23 +128,26 @@ export const OnboardingPage = () => {
   const stepLabel = (n: number, label: string, active: boolean) => (
     <div className="flex items-center gap-2 min-w-0">
       <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-          active ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900' : 'bg-slate-200 dark:bg-dark-elevated text-slate-500 dark:text-gray-400'
+        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+          active
+            ? 'bg-[#0a0a2e] text-white dark:bg-blue-600 dark:text-white shadow-sm ring-2 ring-blue-500/20'
+            : 'bg-slate-200 dark:bg-dark-elevated text-slate-500 dark:text-gray-400'
         }`}
       >
         {n}
       </div>
-      <span className={`text-sm font-medium truncate ${active ? 'text-slate-900 dark:text-gray-100 font-semibold' : 'text-slate-400 dark:text-gray-500'}`}>
+      <span className={`text-xs sm:text-sm font-medium truncate ${active ? 'text-slate-900 dark:text-white font-semibold' : 'text-slate-400 dark:text-gray-400'}`}>
         {label}
       </span>
     </div>
   )
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] dark:bg-dark-bg p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl dark:border dark:border-dark-border">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-[#f1f5f9] dark:bg-dark-bg p-4 sm:p-8">
+      <div className="flex flex-col sm:flex-row w-full max-w-4xl min-h-[640px] sm:min-h-[720px] rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-card transition-all">
+        {/* Left Banner */}
         <section
-          className="sm:w-[42%] px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
+          className="sm:w-[38%] px-8 py-10 sm:p-12 flex flex-col justify-between gap-8"
           style={{ background: BANNER_GRADIENT, color: '#fff' }}
         >
           <div>
@@ -151,18 +155,18 @@ export const OnboardingPage = () => {
               <img
                 src="/seznik_white_logo.png"
                 alt="Seznik"
-                className="w-32 sm:w-40 h-auto object-contain"
+                className="w-32 sm:w-44 h-auto object-contain"
               />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold leading-tight tracking-tight mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold leading-snug tracking-tight mb-4 text-white">
               {t('onboarding.bannerTitle')}
             </h1>
-            <p className="text-sm sm:text-base leading-relaxed opacity-75 max-w-xs">
+            <p className="text-xs sm:text-sm leading-relaxed text-white/85 max-w-xs">
               {t('onboarding.bannerDesc')}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {[
               {
                 icon: (
@@ -183,8 +187,8 @@ export const OnboardingPage = () => {
             ].map(badge => (
               <div
                 key={badge.label}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide"
-                style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-wide text-white"
+                style={{ background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)' }}
               >
                 {badge.icon}
                 {badge.label}
@@ -193,241 +197,264 @@ export const OnboardingPage = () => {
           </div>
         </section>
 
-        <section className="sm:w-[58%] px-8 py-10 sm:px-12 sm:py-14 bg-white dark:bg-dark-card flex flex-col justify-center max-h-[90vh] overflow-y-auto">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
-            {t('onboarding.stepOf')
-              .replace('{step}', String(step))
-              .replace('{total}', String(lastStep))}
-          </p>
-          <nav className="flex items-center gap-2 sm:gap-3 mb-8 flex-wrap">
-            {pickTypeOnly ? (
-              <>
-                {stepLabel(1, t('onboarding.stepBusinessType'), step === 1)}
-                <div className="w-8 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
-                {stepLabel(2, t('onboarding.stepWorkspace'), step === 2)}
-              </>
-            ) : (
-              <>
-                {stepLabel(1, t('onboarding.stepShopDetails'), step === 1)}
-                <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
-                {stepLabel(2, t('onboarding.stepPayment'), step === 2)}
-                <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
-                {stepLabel(3, t('onboarding.stepWorkspace'), step === 3)}
-              </>
-            )}
-          </nav>
-
-          <header className="mb-6">
-            <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-2">
-              {step === 1
-                ? pickTypeOnly
-                  ? t('onboarding.pickTypeTitle')
-                  : t('onboarding.shopDetailsTitle')
-                : showPaymentStep
-                  ? t('onboarding.paymentTitle')
-                  : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
-            </h2>
-            <p className="text-sm text-slate-500">
-              {step === 1
-                ? pickTypeOnly
-                  ? t('onboarding.pickTypeDesc')
-                  : t('onboarding.shopDetailsDesc')
-                : showPaymentStep
-                  ? t('onboarding.paymentDesc')
-                  : t('onboarding.confirmDescAlt')}
+        {/* Right Form Content */}
+        <section className="sm:w-[62%] px-8 py-9 sm:px-12 sm:py-12 bg-white dark:bg-dark-card flex flex-col justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-gray-400 mb-3">
+              {t('onboarding.stepOf')
+                .replace('{step}', String(step))
+                .replace('{total}', String(lastStep))}
             </p>
-          </header>
 
-          <form onSubmit={handleNext} className="flex flex-col gap-5">
-            {step === 1 && !pickTypeOnly ? (
-              <>
-                <Field label={t('onboarding.shopName') + ' *'}>
-                  <input
-                    type="text"
-                    value={businessName}
-                    onChange={e => setBusinessName(e.target.value)}
-                    placeholder="e.g. Seznik Cafe"
-                    autoFocus
-                    className={fieldClass}
-                  />
-                </Field>
-                <Field label={t('onboarding.shopLogo')}>
-                  <p className="text-xs text-slate-500 -mt-1 mb-2">
-                    {t('onboarding.logoOptional')}
-                  </p>
-                  <ImageUpload
-                    value={logoUrl}
-                    onChange={setLogoUrl}
-                    previewSize="md"
-                    accept="image/png,image/jpeg,image/jpg"
-                    maxSizeMB={5}
-                    enableBackgroundCleanup
-                  />
-                </Field>
-                <Field label={t('onboarding.phone') + ' *'}>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="e.g. 9876543210"
-                    className={fieldClass}
-                  />
-                </Field>
-                <Field label={t('onboarding.address') + ' *'}>
-                  <textarea
-                    value={businessAddress}
-                    onChange={e => setBusinessAddress(e.target.value)}
-                    placeholder="Street, area, city"
-                    rows={3}
-                    className={`${fieldClass} resize-none`}
-                  />
-                </Field>
-              </>
-            ) : null}
+            <nav className="flex items-center gap-2 sm:gap-3 mb-7 flex-wrap">
+              {pickTypeOnly ? (
+                <>
+                  <button type="button" onClick={() => setStep(1)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(1, t('onboarding.stepBusinessType'), step === 1)}
+                  </button>
+                  <div className="w-8 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
+                  <button type="button" onClick={() => step > 1 && setStep(2)} disabled={step < 2} className="focus:outline-none disabled:cursor-default">
+                    {stepLabel(2, t('onboarding.stepWorkspace'), step === 2)}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => setStep(1)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(1, t('onboarding.stepShopDetails'), step === 1)}
+                  </button>
+                  <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
+                  <button type="button" onClick={() => (step > 2 || validateShopDetails()) && setStep(2)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(2, t('onboarding.stepPayment'), step === 2)}
+                  </button>
+                  <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
+                  <button type="button" onClick={() => (step === 3 || (validateShopDetails() && isValidUpiVpa(upiId))) && setStep(3)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(3, t('onboarding.stepWorkspace'), step === 3)}
+                  </button>
+                </>
+              )}
+            </nav>
 
-            {step === 1 ? (
-              <>
-                <Field label={pickTypeOnly ? undefined : t('onboarding.businessType') + ' *'}>
-                  <div className="space-y-2">
-                    {BUSINESS_TYPE_OPTIONS.map(option => {
-                      const selected = selectedBusinessType === option.id
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => setSelectedBusinessType(option.id)}
-                          className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-3 ${
-                            selected
-                              ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 ring-1 ring-[#0a0a2e] dark:ring-zinc-500'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="text-2xl">{option.emoji}</span>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-sm font-semibold text-slate-900">
-                              {option.label}
-                            </span>
-                            <span className="block text-xs text-slate-500 mt-0.5">
-                              {option.description}
-                            </span>
-                          </span>
-                          {selected ? <Check size={16} className="text-[#0a0a2e] dark:text-indigo-300 shrink-0" /> : null}
-                        </button>
-                      )
-                    })}
+            <header className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2">
+                {step === 1
+                  ? pickTypeOnly
+                    ? t('onboarding.pickTypeTitle')
+                    : t('onboarding.shopDetailsTitle')
+                  : showPaymentStep
+                    ? t('onboarding.paymentTitle')
+                    : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 leading-relaxed">
+                {step === 1
+                  ? pickTypeOnly
+                    ? t('onboarding.pickTypeDesc')
+                    : t('onboarding.shopDetailsDesc')
+                  : showPaymentStep
+                    ? t('onboarding.paymentDesc')
+                    : t('onboarding.confirmDescAlt')}
+              </p>
+            </header>
+
+            <form onSubmit={handleNext} className="flex flex-col gap-4 sm:gap-5">
+              {/* Step 1: Shop Information */}
+              {step === 1 && !pickTypeOnly ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label={t('onboarding.shopName') + ' *'}>
+                      <input
+                        type="text"
+                        value={businessName}
+                        onChange={e => setBusinessName(e.target.value)}
+                        placeholder="e.g. Seznik Cafe"
+                        autoFocus
+                        className={fieldClass}
+                      />
+                    </Field>
+                    <Field label={t('onboarding.phone') + ' *'}>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        value={phone}
+                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        placeholder="e.g. 9876543210"
+                        className={fieldClass}
+                      />
+                    </Field>
                   </div>
-                </Field>
-                <Field label={t('onboarding.appLanguage')}>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {LANGUAGES.map(lang => {
-                      const selected = selectedLanguage === lang.code
-                      return (
-                        <button
-                          key={lang.code}
-                          type="button"
-                          onClick={() => {
-                            setSelectedLanguage(lang.code)
-                            setLanguage(lang.code)
-                          }}
-                          className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all flex items-center justify-between gap-2 ${
-                            selected
-                              ? 'border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 ring-1 ring-[#0a0a2e] dark:ring-zinc-500'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="text-sm font-medium text-slate-900 truncate">
-                            {lang.label}
-                          </span>
-                          {selected ? <Check size={14} className="text-[#0a0a2e] dark:text-indigo-300 shrink-0" /> : null}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </Field>
-              </>
-            ) : null}
 
-            {showPaymentStep ? (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                      <QrCode size={18} />
+                  <Field label={t('onboarding.address') + ' *'}>
+                    <input
+                      type="text"
+                      value={businessAddress}
+                      onChange={e => setBusinessAddress(e.target.value)}
+                      placeholder="Street, area, city"
+                      className={fieldClass}
+                    />
+                  </Field>
+
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-gray-200">
+                        {t('onboarding.shopLogo')}
+                      </label>
+                      <span className="text-xs text-slate-400 dark:text-gray-400 font-normal">
+                        {t('onboarding.logoOptional')}
+                      </span>
                     </div>
-                    <p className="text-sm text-emerald-950 leading-relaxed">{t('onboarding.upiHint')}</p>
+                    <div className="p-5 sm:p-6 rounded-2xl border border-dashed border-slate-300 dark:border-dark-border bg-slate-50/50 dark:bg-dark-elevated/40">
+                      <ImageUpload
+                        value={logoUrl}
+                        onChange={setLogoUrl}
+                        previewSize="md"
+                        accept="image/png,image/jpeg,image/jpg"
+                        maxSizeMB={5}
+                        enableBackgroundCleanup
+                      />
+                    </div>
                   </div>
+                </>
+              ) : null}
+
+              {/* Step 2: UPI Payment Details */}
+              {showPaymentStep ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 p-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <QrCode size={18} />
+                      </div>
+                      <p className="text-xs sm:text-sm text-emerald-950 dark:text-emerald-200 leading-relaxed">{t('onboarding.upiHint')}</p>
+                    </div>
+                  </div>
+
+                  <Field label={t('onboarding.upiId') + ' *'}>
+                    <input
+                      type="text"
+                      value={upiId}
+                      onChange={e => setUpiId(e.target.value)}
+                      placeholder={t('onboarding.upiPlaceholder')}
+                      autoComplete="off"
+                      inputMode="email"
+                      spellCheck={false}
+                      autoFocus
+                      className={fieldClass}
+                    />
+                  </Field>
+
+                  {upiPreview ? (
+                    <div className="flex flex-col items-center gap-2.5 rounded-2xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated p-5">
+                      <div className="bg-white p-3 rounded-2xl shadow-sm">
+                        <QRCodeSVG value={upiPreview} size={140} />
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 text-center">{t('onboarding.upiPreviewNote')}</p>
+                    </div>
+                  ) : null}
                 </div>
-                <Field label={t('onboarding.upiId') + ' *'}>
-                  <input
-                    type="text"
-                    value={upiId}
-                    onChange={e => setUpiId(e.target.value)}
-                    placeholder={t('onboarding.upiPlaceholder')}
-                    autoComplete="off"
-                    inputMode="email"
-                    spellCheck={false}
-                    autoFocus
-                    className={fieldClass}
-                  />
-                </Field>
-                {upiPreview ? (
-                  <div className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <QRCodeSVG value={upiPreview} size={148} />
-                    <p className="text-[11px] text-slate-500 text-center">{t('onboarding.upiPreviewNote')}</p>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+              ) : null}
 
-            {showWorkspaceStep ? (
-              <div className="rounded-xl border border-[#0a0a2e] dark:border-zinc-500 bg-[#0a0a2e]/5 dark:bg-white/10 p-5">
-                <p className="text-base font-semibold text-slate-900">{template.title}</p>
-                <p className="text-sm text-slate-500 mt-1 mb-4">{template.subtitle}</p>
-                <ul className="space-y-2">
-                  {template.features.map(feature => (
-                    <li key={feature} className="flex items-start gap-2 text-sm text-slate-800">
-                      <Check size={14} className="mt-0.5 text-[#0a0a2e] dark:text-indigo-300 shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+              {/* Step 3 (or Step 1 for pickTypeOnly): Workspace Type & Language */}
+              {(showWorkspaceStep || (pickTypeOnly && step === 1)) ? (
+                <div className="space-y-5">
+                  <Field label={t('onboarding.businessType') + ' *'}>
+                    <div className="space-y-3">
+                      {BUSINESS_TYPE_OPTIONS.map(option => {
+                        const selected = selectedBusinessType === option.id
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSelectedBusinessType(option.id)}
+                            className={`w-full text-left p-4 sm:p-4.5 rounded-2xl border transition-all flex items-center gap-4 ${
+                              selected
+                                ? 'border-blue-600 dark:border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 ring-1 ring-blue-600 dark:ring-blue-500 shadow-sm'
+                                : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-slate-300 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-dark-card'
+                            }`}
+                          >
+                            <span className="text-3xl shrink-0">{option.emoji}</span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                                {option.label}
+                              </span>
+                              <span className="block text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                                {option.description}
+                              </span>
+                            </span>
+                            {selected ? <Check size={20} className="text-blue-600 dark:text-blue-400 shrink-0 font-bold" /> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Field>
 
-            {error ? <p className="text-red-500 text-sm font-medium">{error}</p> : null}
+                  <Field label={t('onboarding.appLanguage')}>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                      {LANGUAGES.map(lang => {
+                        const selected = selectedLanguage === lang.code
+                        return (
+                          <button
+                            key={lang.code}
+                            type="button"
+                            onClick={() => {
+                              setSelectedLanguage(lang.code)
+                              setLanguage(lang.code)
+                            }}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center justify-between gap-1.5 ${
+                              selected
+                                ? 'border-blue-600 dark:border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 ring-1 ring-blue-600 dark:ring-blue-500 text-blue-950 dark:text-white font-semibold shadow-sm'
+                                : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-slate-300 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-dark-card text-slate-800 dark:text-gray-200'
+                            }`}
+                          >
+                            <span className="text-xs sm:text-sm font-medium truncate">
+                              {lang.label}
+                            </span>
+                            {selected ? <Check size={14} className="text-blue-600 dark:text-blue-400 shrink-0 font-bold" /> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Field>
+                </div>
+              ) : null}
 
-            <div className="pt-1 flex flex-col gap-3">
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-lg bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 text-sm sm:text-base font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{ boxShadow: '0 10px 25px -5px rgba(10,10,46,0.3)' }}
-              >
-                {isSaving ? (
-                  <Spinner size="sm" className="text-white" />
-                ) : (
-                  <>
-                    {step === lastStep ? t('onboarding.useSetup') : t('onboarding.continue')}
-                    <span aria-hidden="true">→</span>
-                  </>
-                )}
-              </button>
-              {step > 1 ? (
+              {error ? <p className="text-red-500 text-xs font-medium">{error}</p> : null}
+
+              {/* Bottom Navigation Buttons */}
+              <div className="pt-5 flex items-center justify-between gap-3 border-t border-slate-100 dark:border-dark-border/60 mt-3">
                 <button
                   type="button"
                   onClick={() => {
                     setError('')
-                    setStep(prev => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))
+                    if (step > 1) {
+                      setStep(prev => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))
+                    } else {
+                      navigate(ROUTES.LOGIN)
+                    }
                   }}
-                  className="text-center text-xs text-slate-400 uppercase tracking-widest font-medium hover:text-slate-600 transition-colors"
+                  className="flex items-center justify-center gap-2 py-3 px-6 rounded-2xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-elevated hover:bg-slate-100 dark:hover:bg-dark-border text-xs sm:text-sm font-semibold text-slate-700 dark:text-gray-200 transition-all active:scale-[0.98] shadow-sm"
                 >
-                  {t('onboarding.back')}
+                  <ArrowLeft size={16} />
+                  <span>Back</span>
                 </button>
-              ) : null}
-            </div>
-          </form>
 
-          <p className="text-center mt-8 text-[10px] text-slate-300">© 2026 Seznik POS. All rights reserved.</p>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex items-center justify-center gap-2 py-3 px-8 rounded-2xl bg-[#0a0a2e] hover:bg-[#1a1555] text-white dark:bg-blue-600 dark:hover:bg-blue-500 text-xs sm:text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 ml-auto"
+                >
+                  {isSaving ? (
+                    <Spinner size="sm" className="text-white" />
+                  ) : (
+                    <>
+                      <span>{step === lastStep ? t('onboarding.useSetup') : 'Next'}</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <p className="text-center mt-6 text-[11px] text-slate-400 dark:text-gray-500">© 2026 Seznik POS. All rights reserved.</p>
         </section>
       </div>
     </div>
@@ -435,13 +462,13 @@ export const OnboardingPage = () => {
 }
 
 const fieldClass =
-  'w-full px-4 py-2.5 border border-slate-300 dark:border-dark-border-strong rounded-lg text-slate-900 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-zinc-400 bg-white dark:bg-dark-elevated'
+  'w-full px-4 py-2.5 border border-slate-300 dark:border-dark-border rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0a0a2e] dark:focus:ring-blue-500 bg-white dark:bg-dark-elevated transition-colors text-xs sm:text-sm'
 
 function Field({ label, children }: { label?: string; children: ReactNode }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {label ? (
-        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">{label}</label>
+        <label className="block text-xs font-semibold text-slate-700 dark:text-gray-200">{label}</label>
       ) : null}
       {children}
     </div>

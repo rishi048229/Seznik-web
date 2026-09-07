@@ -16,14 +16,49 @@ export const loginUser = async (email: string, pass: string): Promise<AuthRespon
   return data
 }
 
-export const registerUser = async (email: string, pass: string, firstName: string, lastName: string, phone: string): Promise<AuthResponse> => {
+export const registerUser = async (
+  email: string,
+  pass: string,
+  firstName: string,
+  lastName: string,
+  phone: string,
+  hasSeznikPrinter?: boolean,
+  accessCode?: string
+): Promise<AuthResponse> => {
   const displayName = `${firstName} ${lastName}`.trim();
   const data = await fetchApi('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password: pass, displayName, phone, registrationSource: 'web' }),
+    body: JSON.stringify({
+      email,
+      password: pass,
+      displayName,
+      phone,
+      registrationSource: 'web',
+      hasSeznikPrinter: Boolean(hasSeznikPrinter),
+      accessCode: hasSeznikPrinter && accessCode ? accessCode.trim().toUpperCase() : undefined,
+    }),
   })
   setAuthToken(data.token)
   return data
+}
+
+// Access Code verification and redemption
+export const verifyAccessCode = async (
+  code: string
+): Promise<{ valid: boolean; message?: string; error?: string; code?: string }> => {
+  return fetchApi('/auth/verify-access-code', {
+    method: 'POST',
+    body: JSON.stringify({ code: code.trim().toUpperCase() }),
+  })
+}
+
+export const redeemAccessCode = async (
+  code: string
+): Promise<{ success: boolean; message: string; user: UserProfile }> => {
+  return fetchApi('/auth/redeem-access-code', {
+    method: 'POST',
+    body: JSON.stringify({ code: code.trim().toUpperCase() }),
+  })
 }
 
 // Pre-signup email verification
@@ -38,6 +73,21 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<void> 
   await fetchApi('/auth/verify-otp', {
     method: 'POST',
     body: JSON.stringify({ email, otp }),
+  })
+}
+
+// Pre-signup phone verification (default 000000)
+export const sendPhoneOtp = async (phone: string): Promise<{ devOtp?: string; message?: string }> => {
+  return fetchApi('/auth/send-phone-otp', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  })
+}
+
+export const verifyPhoneOtp = async (phone: string, otp: string): Promise<{ success: boolean; message?: string }> => {
+  return fetchApi('/auth/verify-phone-otp', {
+    method: 'POST',
+    body: JSON.stringify({ phone, otp }),
   })
 }
 

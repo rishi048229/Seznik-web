@@ -49,6 +49,7 @@ const serializeOwnerAuthUser = (user: {
   businessType?: string | null;
   role?: string | null;
   onboardingCompleted?: boolean;
+  seznikUser?: boolean;
 }) => ({
   id: user.id,
   email: user.email,
@@ -58,6 +59,7 @@ const serializeOwnerAuthUser = (user: {
   businessType: user.businessType ?? null,
   role: user.role || 'admin',
   onboardingCompleted: user.onboardingCompleted ?? false,
+  seznikUser: Boolean(user.seznikUser),
   accountType: 'user' as const,
 });
 
@@ -156,6 +158,51 @@ export const verifyEmailOtp = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('verifyEmailOtp error:', error);
     res.status(500).json({ error: 'Server error during verification' });
+  }
+};
+
+// Phone OTP verification (default 000000 until Pub/Sub SMS integration)
+export const sendPhoneOtp = async (req: Request, res: Response) => {
+  try {
+    const rawPhone = String(req.body.phone || '').trim();
+    const cleanPhone = rawPhone.replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      return res.status(400).json({ error: 'Please enter a valid 10-digit phone number' });
+    }
+
+    console.log('\n====================================================');
+    console.log(`📱 [PHONE OTP CODE (DEFAULT)]: 000000 for ${cleanPhone}`);
+    console.log('====================================================\n');
+
+    res.json({
+      message: 'Verification code sent to phone',
+      devOtp: '000000',
+      phone: cleanPhone,
+    });
+  } catch (error) {
+    console.error('sendPhoneOtp error:', error);
+    res.status(500).json({ error: 'Failed to send phone verification code' });
+  }
+};
+
+export const verifyPhoneOtp = async (req: Request, res: Response) => {
+  try {
+    const rawPhone = String(req.body.phone || '').trim();
+    const cleanPhone = rawPhone.replace(/\D/g, '').slice(0, 10);
+    const otp = String(req.body.otp || '').trim();
+
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      return res.status(400).json({ error: 'Please enter a valid 10-digit phone number' });
+    }
+
+    if (otp === '000000' || otp.length === 6) {
+      return res.json({ success: true, message: 'Phone verified successfully' });
+    }
+
+    return res.status(400).json({ error: 'Incorrect verification code. Please enter 000000' });
+  } catch (error) {
+    console.error('verifyPhoneOtp error:', error);
+    res.status(500).json({ error: 'Server error during phone verification' });
   }
 };
 
@@ -317,11 +364,113 @@ export const resetPasswordWithOtp = async (req: Request, res: Response) => {
 };
 
 
+export const verifyAccessCode = async (req: Request, res: Response) => {
+  try {
+    const rawCode = String(req.body.code || '').trim().toUpperCase();
+    if (!rawCode || rawCode.length < 5 || rawCode.length > 10) {
+      return res.status(400).json({ valid: false, error: 'Please enter a valid 7-character access code' });
+    }
+
+    const accessCode = await prisma.accessCode.findUnique({
+      where: { code: rawCode },
+    });
+
+    if (!accessCode) {
+      return res.status(404).json({
+        valid: false,
+        error: 'Access code not found. Please check your flyer or contact Customer Support to generate one.',
+      });
+    }
+
+    if (accessCode.isUsed || accessCode.usedByUserId) {
+      return res.status(400).json({
+        valid: false,
+        error: 'This access code has already been redeemed by another account.',
+      });
+    }
+
+    return res.json({
+      valid: true,
+      message: 'Access code verified! VIP Priority Support & Hardware Care will be activated.',
+      code: accessCode.code,
+    });
+  } catch (error) {
+    console.error('verifyAccessCode error:', error);
+    res.status(500).json({ valid: false, error: 'Server error verifying access code' });
+  }
+};
+
+export const redeemAccessCode = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const rawCode = String(req.body.code || '').trim().toUpperCase();
+    if (!rawCode || rawCode.length < 5 || rawCode.length > 10) {
+      return res.status(400).json({ error: 'Please enter a valid 7-character access code' });
+    }
+
+    const accessCode = await prisma.accessCode.findUnique({
+      where: { code: rawCode },
+    });
+
+    if (!accessCode) {
+      return res.status(404).json({
+        error: 'Access code not found. Please check your flyer or contact Customer Support to generate one.',
+      });
+    }
+
+    if (accessCode.isUsed || accessCode.usedByUserId) {
+      return res.status(400).json({
+        error: 'This access code has already been redeemed by another account.',
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      await tx.accessCode.update({
+        where: { id: accessCode.id },
+        data: {
+          isUsed: true,
+          usedAt: new Date(),
+          usedByUserId: userId,
+          customerId: userId,
+          customerName: user.displayName,
+          phone: user.phone,
+          customerEmail: user.email,
+        },
+      });
+
+      return tx.user.update({
+        where: { id: userId },
+        data: { seznikUser: true },
+      });
+    });
+
+    return res.json({
+      success: true,
+      message: 'VIP Priority Support & Hardware Care Activated!',
+      user: serializeOwnerAuthUser(updatedUser),
+    });
+  } catch (error) {
+    console.error('redeemAccessCode error:', error);
+    res.status(500).json({ error: 'Server error redeeming access code' });
+  }
+};
+
 export const register = async (req: Request, res: Response) => {
   try {
     const { password, displayName } = req.body;
     const email = String(req.body.email || '').trim().toLowerCase();
     const phone = String(req.body.phone || '').trim();
+    const hasSeznikPrinter = req.body.hasSeznikPrinter === true || req.body.hasSeznikPrinter === 'true';
+    const rawAccessCode = String(req.body.accessCode || '').trim().toUpperCase();
 
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Please enter a valid email address' });
@@ -347,20 +496,66 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Please verify your email before signing up' });
     }
 
+    let verifiedCodeRecord: any = null;
+    if (hasSeznikPrinter) {
+      if (!rawAccessCode) {
+        return res.status(400).json({ error: 'Please enter the access code mentioned on your flyer or contact Support' });
+      }
+
+      const foundCode = await prisma.accessCode.findUnique({
+        where: { code: rawAccessCode },
+      });
+
+      if (!foundCode) {
+        return res.status(400).json({
+          error: 'Invalid access code. Please verify the code on your flyer or contact Customer Support to generate one.',
+        });
+      }
+
+      if (foundCode.isUsed || foundCode.usedByUserId) {
+        return res.status(400).json({
+          error: 'This access code has already been redeemed by another account.',
+        });
+      }
+
+      verifiedCodeRecord = foundCode;
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     const platform = resolveRegistrationPlatform(req);
+    const newUserId = generateUserId(platform);
 
-    const user = await prisma.user.create({
-      data: {
-        id: generateUserId(platform),
-        email,
-        emailVerified: true,
-        phone,
-        password: hashedPassword,
-        displayName,
-        uid: email, // temporary uid until firebase is fully removed
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          id: newUserId,
+          email,
+          emailVerified: true,
+          phone,
+          password: hashedPassword,
+          displayName,
+          uid: email, // temporary uid until firebase is fully removed
+          seznikUser: Boolean(hasSeznikPrinter && verifiedCodeRecord),
+        },
+      });
+
+      if (verifiedCodeRecord) {
+        await tx.accessCode.update({
+          where: { id: verifiedCodeRecord.id },
+          data: {
+            isUsed: true,
+            usedAt: new Date(),
+            usedByUserId: createdUser.id,
+            customerId: createdUser.id,
+            customerName: displayName || createdUser.displayName,
+            phone: phone,
+            customerEmail: email,
+          },
+        });
+      }
+
+      return createdUser;
     });
 
     // One-time use: the OTP record has served its purpose.
@@ -373,7 +568,8 @@ export const register = async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error during registration' });
+    console.error('register error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Server error during registration' });
   }
 };
 

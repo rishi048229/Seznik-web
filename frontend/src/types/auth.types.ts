@@ -58,6 +58,7 @@ export interface UserProfile {
   createdAt: Date | string
 
   onboardingCompleted?: boolean
+  seznikUser?: boolean
   accountType?: 'user' | 'managed'
   role?: UserRole | null
   permissions?: UserPermissions
