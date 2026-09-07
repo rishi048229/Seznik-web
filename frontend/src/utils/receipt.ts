@@ -15,7 +15,6 @@ import { resolveStoreLogoUrl, prefetchPrintableLogoSrc, isBrowserLoadableImageSr
 import { ensureTemplateHasLogoBlock } from './ensureReceiptTemplates'
 import { resolveReceiptPrintGst, type GstBreakdownStyle } from '@/constants/gstBilling'
 import { gstSummaryFromCart } from '@/utils/gst'
-import { renderReceiptToMonochromeRaster } from './receiptCanvasRasterizer'
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   receiptLogoHtmlMaxPx,
@@ -881,39 +880,6 @@ export const generateReceiptEscPos = async ({
     waiterName,
     tokenNo,
   })
-
-  // Attempt high-definition JetBrains Mono canvas rasterization if running in browser
-  if (typeof document !== 'undefined') {
-    try {
-      const raster = await renderReceiptToMonochromeRaster(context, effectivePaper, {
-        showLogo,
-        businessLogoURL: resolvedLogo,
-        customTemplate,
-        isRestaurant,
-        tableNo,
-        waiterName,
-        tokenNo,
-        showTaxBreakdown: printGst.showTaxBreakdown,
-        itemWiseGst: printGst.itemWiseGst,
-        gstStyle: printGst.gstStyle,
-        receiptConfig: {
-          showPaymentQR: !!(printConfig?.showPaymentQR ?? effectiveConfig?.showPaymentQR),
-          paymentQrURL: printConfig?.paymentQrURL ?? effectiveConfig?.paymentQrURL,
-          upiId: printConfig?.upiId || effectiveConfig?.upiId,
-          enableBillQrCode: !!(printConfig?.enableBillQrCode ?? effectiveConfig?.enableBillQrCode),
-        },
-      })
-
-      const b = new EscPosBuilder()
-      b.init(effectivePaper, 0)
-      b.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 48)
-      b.feed(3)
-      b.cut()
-      return b.toBytes()
-    } catch (rasterErr) {
-      console.warn('JetBrains Mono thermal rasterization failed, falling back to text ESC/POS:', rasterErr)
-    }
-  }
 
   const fontDef = getReceiptFont(effectiveReceiptFont)
   const b = new EscPosBuilder()

@@ -46,11 +46,11 @@ export const DEFAULT_RECEIPT_FONT: ReceiptFontId = 'classic'
 const ALL_FONT_DEFINITIONS: Record<ReceiptFontId, ReceiptFontDefinition> = {
   jetbrains_mono: {
     id: 'jetbrains_mono',
-    label: 'JetBrains Mono',
+    label: 'Classic Mono',
     family: 'mono',
-    description: 'Developer monospace — ultra-sharp receipt typography',
-    cssFamily: "'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace",
-    rnFamily: 'JetBrainsMono_500Medium',
+    description: 'Standard monospace typography',
+    cssFamily: "ui-monospace, Menlo, Consolas, 'Courier New', monospace",
+    rnFamily: 'Courier',
     rnFamilyAndroid: 'monospace',
     escPosFont: 0,
     sizeScale: 1.0,
@@ -60,7 +60,7 @@ const ALL_FONT_DEFINITIONS: Record<ReceiptFontId, ReceiptFontDefinition> = {
     label: 'Classic Mono',
     family: 'mono',
     description: 'Courier — traditional monospace receipt look',
-    cssFamily: "'JetBrains Mono', 'Courier New', Courier, monospace",
+    cssFamily: "'Courier New', Courier, ui-monospace, Menlo, Consolas, monospace",
     rnFamily: 'Courier',
     rnFamilyAndroid: 'monospace',
     escPosFont: 0,
@@ -71,7 +71,7 @@ const ALL_FONT_DEFINITIONS: Record<ReceiptFontId, ReceiptFontDefinition> = {
     label: 'Modern Mono',
     family: 'mono',
     description: 'IBM Plex Mono — clean technical receipts',
-    cssFamily: "'JetBrains Mono', 'IBM Plex Mono', monospace",
+    cssFamily: "'IBM Plex Mono', 'Courier New', monospace",
     rnFamily: 'IBMPlexMono_500Medium',
     escPosFont: 0,
     sizeScale: 0.95,
@@ -132,9 +132,9 @@ const ALL_FONT_DEFINITIONS: Record<ReceiptFontId, ReceiptFontDefinition> = {
   },
 }
 
-/** The curated font library shown in the web interface — currently focused on JetBrains Mono. */
+/** The curated font library shown in the web interface. */
 export const RECEIPT_FONT_LIBRARY: readonly ReceiptFontDefinition[] = [
-  ALL_FONT_DEFINITIONS.jetbrains_mono,
+  ALL_FONT_DEFINITIONS.classic,
 ] as const
 
 const FONT_BY_ID: Record<ReceiptFontId, ReceiptFontDefinition> = ALL_FONT_DEFINITIONS
@@ -168,7 +168,7 @@ export function resolveReceiptFontId(value: unknown): ReceiptFontId {
 }
 
 export function getReceiptFont(id?: ReceiptFontId | null): ReceiptFontDefinition {
-  return FONT_BY_ID[resolveReceiptFontId(id)] || ALL_FONT_DEFINITIONS.jetbrains_mono
+  return FONT_BY_ID[resolveReceiptFontId(id)] || ALL_FONT_DEFINITIONS.classic
 }
 
 /** Character cell width in printer dots (Font A = 12 dots, Font B = 9 dots). */
