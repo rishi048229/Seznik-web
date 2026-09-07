@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { PrinterConfig, ReceiptConfig, UserSettings } from '@/types/settings.types'
 import {
@@ -20,9 +20,21 @@ import {
   Check,
   X,
   Share2,
+  Bluetooth,
+  HelpCircle,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'react-hot-toast'
+import {
+  subscribeBlePrinter,
+  requestAndConnectPrinter,
+  printEscPos,
+  isBluetoothSupported,
+  type BlePrinterState,
+} from '@/utils/blePrinter'
+import { EscPosBuilder } from '@/utils/escpos'
 
 interface TextToThermalPrintTabProps {
   config: PrinterConfig
@@ -49,6 +61,17 @@ export function TextToThermalPrintTab({
   const [paperSize, setPaperSize] = useState<'58mm' | '80mm'>(config.paperSize || config.paperWidth || '58mm')
   const [copies, setCopies] = useState<number>(1)
   const [showBlocksModal, setShowBlocksModal] = useState<boolean>(false)
+  const [connectingBle, setConnectingBle] = useState<boolean>(false)
+  const [bleState, setBleState] = useState<BlePrinterState>({
+    status: isBluetoothSupported() ? 'disconnected' : 'unsupported',
+    deviceName: null,
+    profileName: null,
+  })
+
+  useEffect(() => {
+    const unsub = subscribeBlePrinter((s) => setBleState(s))
+    return () => unsub()
+  }, [])
 
   const storeName = settings?.businessName || receiptConfig?.companyName || 'SEZNIK STORE'
   const storePhone = settings?.businessPhone || receiptConfig?.phone || '+91 98765 00000'
@@ -310,11 +333,59 @@ export function TextToThermalPrintTab({
     setShowBlocksModal(false)
   }
 
+  const handlePrintBle = async () => {
+    if (!text.trim()) {
+      toast.error('Please enter text to print')
+      return
+    }
+
+    try {
+      if (bleState.status !== 'connected') {
+        setConnectingBle(true)
+        toast('Opening Bluetooth device scanner...', { icon: '🔍' })
+        await requestAndConnectPrinter()
+      }
+
+      const effectivePaper = paperSize === '80mm' ? '80mm' : '58mm'
+      const b = new EscPosBuilder()
+      b.init(effectivePaper)
+
+      const logoEnabled = blockOptions.find((b) => b.id === 'logo' && b.enabled)
+      if (logoEnabled && storeName) {
+        b.align('center').bold(true).line(storeName.toUpperCase()).bold(false).feed(1)
+      }
+
+      const lines = text.split('\n')
+      lines.forEach((l) => b.line(l))
+
+      const upiQrEnabled = blockOptions.find((b) => b.id === 'upi_qr' && b.enabled)
+      if (upiQrEnabled && storeUpi) {
+        b.feed(1).align('center').bold(true).line('SCAN TO PAY VIA UPI').bold(false)
+        b.qr(`upi://pay?pa=${encodeURIComponent(storeUpi)}&pn=${encodeURIComponent(storeName)}&am=0.00&cu=INR`, 6)
+        b.line(storeUpi)
+      }
+
+      b.feed(3).cut()
+      await printEscPos(b.toBytes())
+      toast.success('Sent directly to Bluetooth thermal printer!')
+    } catch (err: any) {
+      console.error('BLE Print error:', err)
+      toast.error(err?.message || 'Failed to print via Bluetooth')
+    } finally {
+      setConnectingBle(false)
+    }
+  }
+
   const handlePrint = () => {
     if (!text.trim()) {
       toast.error('Please enter text to print')
       return
     }
+
+    toast('Print dialog opened: Select your thermal printer under Destination (instead of Save as PDF)', {
+      icon: '🖨️',
+      duration: 5000,
+    })
 
     const widthPx = paperSize === '80mm' ? '380px' : '280px'
     const fontSize = paperSize === '58mm' ? '12px' : '14px'
@@ -636,16 +707,50 @@ export function TextToThermalPrintTab({
             </div>
           </div>
 
-          {/* Print CTA */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border flex items-center gap-3">
+          {/* Print CTAs */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border space-y-3">
+            {isBluetoothSupported() && (
+              <button
+                type="button"
+                onClick={handlePrintBle}
+                disabled={connectingBle}
+                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all"
+              >
+                <Bluetooth size={18} />
+                <span>
+                  {connectingBle
+                    ? 'Connecting to Bluetooth Printer...'
+                    : bleState.status === 'connected'
+                    ? `Print via Bluetooth (${bleState.deviceName || 'Connected'})`
+                    : 'Print via Bluetooth (Direct ESC/POS)'}
+                </span>
+              </button>
+            )}
+
             <Button
               type="button"
               onClick={handlePrint}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"
+              className={`w-full ${
+                isBluetoothSupported()
+                  ? 'bg-slate-800 hover:bg-slate-900 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              } font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all`}
             >
               <Printer size={18} />
-              <span>Print to Thermal ({paperSize})</span>
+              <span>Print via System Driver ({paperSize})</span>
             </Button>
+
+            {/* Quick Helper for Browser Print Dialog */}
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200/90 flex items-start gap-2.5">
+              <HelpCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold">Why did the browser print / PDF popup open?</p>
+                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300/80">
+                  When using <strong>System Driver</strong>, web browsers (Chrome/Edge) open their print dialog. In the dialog, set <strong>Destination</strong> to your thermal printer (e.g. POS-58 / POS-80) instead of <em>"Save as PDF"</em>.
+                  {isBluetoothSupported() && ' Or use the blue Bluetooth button above to print directly without any popup!'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
