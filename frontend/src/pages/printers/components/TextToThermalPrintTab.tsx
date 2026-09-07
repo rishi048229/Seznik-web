@@ -17,7 +17,6 @@ import {
   Tag,
   Plus,
   Eye,
-  EyeOff,
   Check,
   X,
   Bluetooth,
@@ -33,7 +32,7 @@ import {
 } from '@/utils/blePrinter'
 import { EscPosBuilder } from '@/utils/escpos'
 
-interface TextToThermalPrintSectionProps {
+interface TextToThermalPrintTabProps {
   config: PrinterConfig
   setConfig: Dispatch<SetStateAction<PrinterConfig>>
   receiptConfig: ReceiptConfig
@@ -54,10 +53,9 @@ export function TextToThermalPrintTab({
   setConfig,
   receiptConfig,
   settings,
-}: TextToThermalPrintSectionProps) {
-  const paperSize = config.paperSize || config.paperWidth || '58mm'
+}: TextToThermalPrintTabProps) {
+  const [paperSize, setPaperSize] = useState<'58mm' | '80mm'>(config.paperSize || config.paperWidth || '58mm')
   const [showBlocksModal, setShowBlocksModal] = useState<boolean>(false)
-  const [showPreview, setShowPreview] = useState<boolean>(false)
   const [connectingBle, setConnectingBle] = useState<boolean>(false)
   const [bleState, setBleState] = useState<BlePrinterState>({
     status: isBluetoothSupported() ? 'disconnected' : 'unsupported',
@@ -483,173 +481,211 @@ export function TextToThermalPrintTab({
   }
 
   return (
-    <div className="space-y-3.5 w-full">
-      {/* PRESET CHIPS ROW */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 mr-1">Presets:</span>
-        {presets.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setText(p.text)}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-dark-elevated text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 border border-slate-200/80 dark:border-dark-border-strong whitespace-nowrap transition-colors flex items-center gap-1"
-          >
-            <span>{p.icon}</span>
-            <span>{p.title}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* QUICK TOOLS & BLOCKS ROW */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-dark-elevated/40 border border-slate-200/80 dark:border-dark-border">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowBlocksModal(true)}
-            className="px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-          >
-            <Layers size={13} />
-            <span>+ Choose Blocks</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => insertDivider('dash')}
-            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
-          >
-            --- Dashes
-          </button>
-          <button
-            type="button"
-            onClick={() => insertDivider('double')}
-            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
-          >
-            === Double
-          </button>
-          <button
-            type="button"
-            onClick={() => insertTag('date')}
-            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
-          >
-            + Date
-          </button>
-          <button
-            type="button"
-            onClick={() => insertTag('time')}
-            className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
-          >
-            + Time
-          </button>
+    <div className="space-y-4 p-1">
+      {/* TOP CONTROLS: PRESETS & PAPER SIZE */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-dark-border">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 mr-1">Presets:</span>
+          {presets.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setText(p.text)}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-dark-elevated text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 border border-slate-200/80 dark:border-dark-border-strong whitespace-nowrap transition-colors flex items-center gap-1"
+            >
+              <span>{p.icon}</span>
+              <span>{p.title}</span>
+            </button>
+          ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopy}
-            title="Copy Text"
-            className="p-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-dark-elevated"
-          >
-            <Copy size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setText('')}
-            title="Clear"
-            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-          >
-            <Trash2 size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowPreview((v) => !v)}
-            className={`px-2 py-1 rounded-md text-[11px] font-bold border flex items-center gap-1 transition-all ${
-              showPreview
-                ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300'
-                : 'bg-white dark:bg-dark-elevated border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            {showPreview ? <EyeOff size={13} /> : <Eye size={13} />}
-            <span>{showPreview ? 'Hide Slip' : 'Preview Slip'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* COMPACT TEXTAREA */}
-      <div className="relative">
-        <textarea
-          rows={6}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Type or paste custom thermal receipt text..."
-          className="w-full p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated text-slate-900 dark:text-white font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[110px]"
-        />
-        <div className="absolute bottom-2 right-2 text-[10px] font-mono text-slate-400 bg-white/80 dark:bg-dark-card/80 px-1.5 py-0.5 rounded pointer-events-none">
-          {paperSize} · {maxCols} cols
-        </div>
-      </div>
-
-      {/* LIVE PREVIEW ROLL (OPTIONAL TOGGLE) */}
-      {showPreview && (
-        <div className="w-full flex justify-center py-3 bg-slate-200/60 dark:bg-dark-elevated/40 rounded-xl border border-slate-200 dark:border-dark-border">
-          <div
-            style={{ maxWidth: paperSize === '80mm' ? '360px' : '280px' }}
-            className="w-full bg-white text-black p-3.5 rounded shadow-sm border-t-2 border-slate-300 relative font-mono text-xs leading-tight select-none"
-          >
-            <div className="whitespace-pre-wrap break-words font-mono text-[11px] leading-tight">
-              {text || 'Empty Document\nType text or choose receipt blocks to preview output.'}
-            </div>
-
-            {blockOptions.find((b) => b.id === 'upi_qr' && b.enabled) && (
-              <div className="mt-3 pt-2 border-t border-dashed border-black text-center space-y-1">
-                <div className="text-[9px] font-extrabold">SCAN TO PAY VIA UPI</div>
-                <div className="flex justify-center py-1">
-                  <div className="w-16 h-16 bg-slate-100 border border-slate-300 flex items-center justify-center">
-                    <QrCode size={40} className="text-black" />
-                  </div>
-                </div>
-                <div className="text-[9px] text-slate-600">{storeUpi}</div>
-              </div>
-            )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Roll:</span>
+          <div className="flex bg-slate-100 dark:bg-dark-elevated p-0.5 rounded-lg border border-slate-200/80 dark:border-dark-border">
+            {(['58mm', '80mm'] as const).map((sz) => (
+              <button
+                key={sz}
+                type="button"
+                onClick={() => setPaperSize(sz)}
+                className={`px-2 py-0.5 rounded-md text-xs font-bold transition-all ${
+                  paperSize === sz
+                    ? 'bg-white dark:bg-blue-600 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                {sz}
+              </button>
+            ))}
           </div>
         </div>
-      )}
-
-      {/* DUAL PRINT BUTTONS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-        {isBluetoothSupported() && (
-          <button
-            type="button"
-            onClick={handlePrintBle}
-            disabled={connectingBle}
-            className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all text-xs cursor-pointer"
-          >
-            <Bluetooth size={16} className="text-white shrink-0" />
-            <span className="truncate">
-              {connectingBle
-                ? 'Connecting...'
-                : bleState.status === 'connected'
-                ? `Print Bluetooth (${bleState.deviceName || 'Ready'})`
-                : 'Print via Bluetooth (ESC/POS)'}
-            </span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={handlePrint}
-          className={`w-full ${
-            isBluetoothSupported() ? 'bg-emerald-600 hover:bg-emerald-500' : 'sm:col-span-2 bg-emerald-600 hover:bg-emerald-500'
-          } active:scale-[0.99] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all text-xs cursor-pointer`}
-        >
-          <Printer size={16} className="text-white shrink-0" />
-          <span>Print via System Driver ({paperSize})</span>
-        </button>
       </div>
 
-      {/* RECEIPT BLOCKS MODAL */}
+      {/* 2-COLUMN MODAL CONTENT: EDITOR (LEFT) & LIVE SIMULATION (RIGHT) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT COLUMN: TOOLS & EDITOR */}
+        <div className="lg:col-span-7 space-y-3">
+          {/* TOOLBAR */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-dark-elevated/40 border border-slate-200/80 dark:border-dark-border">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowBlocksModal(true)}
+                className="px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <Layers size={13} />
+                <span>+ Choose Blocks</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => insertDivider('dash')}
+                className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+              >
+                ---
+              </button>
+              <button
+                type="button"
+                onClick={() => insertDivider('double')}
+                className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+              >
+                ===
+              </button>
+              <button
+                type="button"
+                onClick={() => insertTag('date')}
+                className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+              >
+                + Date
+              </button>
+              <button
+                type="button"
+                onClick={() => insertTag('time')}
+                className="px-2 py-1 rounded-md bg-white dark:bg-dark-elevated text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-dark-border hover:bg-slate-100"
+              >
+                + Time
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleCopy}
+                title="Copy Text"
+                className="p-1.5 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-dark-elevated"
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setText('')}
+                title="Clear"
+                className="p-1.5 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* TEXTAREA */}
+          <div className="relative">
+            <textarea
+              rows={11}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type or paste custom thermal receipt text..."
+              className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated text-slate-900 dark:text-white font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[220px]"
+            />
+            <div className="absolute bottom-2.5 right-2.5 text-[10px] font-mono text-slate-400 bg-white/80 dark:bg-dark-card/80 px-1.5 py-0.5 rounded pointer-events-none">
+              {paperSize} · {maxCols} cols
+            </div>
+          </div>
+
+          {/* DUAL ACTION BUTTONS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            {isBluetoothSupported() && (
+              <button
+                type="button"
+                onClick={handlePrintBle}
+                disabled={connectingBle}
+                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold py-3 px-3.5 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all text-xs cursor-pointer"
+              >
+                <Bluetooth size={16} className="text-white shrink-0" />
+                <span className="truncate">
+                  {connectingBle
+                    ? 'Connecting...'
+                    : bleState.status === 'connected'
+                    ? `Print Bluetooth (${bleState.deviceName || 'Ready'})`
+                    : 'Print via Bluetooth (Direct ESC/POS)'}
+                </span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className={`w-full ${
+                isBluetoothSupported() ? 'bg-emerald-600 hover:bg-emerald-500' : 'sm:col-span-2 bg-emerald-600 hover:bg-emerald-500'
+              } active:scale-[0.99] text-white font-bold py-3 px-3.5 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all text-xs cursor-pointer`}
+            >
+              <Printer size={16} className="text-white shrink-0" />
+              <span>Print via System Driver ({paperSize})</span>
+            </button>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs flex items-start gap-2">
+            <HelpCircle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] leading-relaxed text-amber-900 dark:text-amber-200/90">
+              When using <strong>System Driver</strong>, select your thermal printer in the browser print dialog under <strong>Destination</strong> (instead of <em>"Save as PDF"</em>).
+            </p>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: LIVE SIMULATION ROLL */}
+        <div className="lg:col-span-5 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
+            <Eye size={14} className="text-blue-600" />
+            <span>Thermal Roll Simulation ({paperSize})</span>
+          </div>
+
+          <div className="w-full flex justify-center py-4 bg-slate-200/70 dark:bg-dark-elevated/50 rounded-xl border border-slate-200 dark:border-dark-border max-h-[380px] overflow-y-auto">
+            <div
+              style={{ maxWidth: paperSize === '80mm' ? '320px' : '260px' }}
+              className="w-full bg-white text-black p-3.5 rounded shadow-sm border-t-4 border-slate-300 relative font-mono text-xs leading-tight select-none"
+            >
+              {blockOptions.find((b) => b.id === 'logo' && b.enabled) && (
+                <div className="text-center mb-2.5">
+                  <div className="font-extrabold text-xs tracking-wide text-slate-900">
+                    {storeName.toUpperCase()}
+                  </div>
+                </div>
+              )}
+
+              <div className="whitespace-pre-wrap break-words font-mono text-[11px] leading-tight">
+                {text || 'Empty Document\nType text or choose receipt blocks to preview output.'}
+              </div>
+
+              {blockOptions.find((b) => b.id === 'upi_qr' && b.enabled) && (
+                <div className="mt-3 pt-2 border-t border-dashed border-black text-center space-y-1">
+                  <div className="text-[9px] font-extrabold">SCAN TO PAY VIA UPI</div>
+                  <div className="flex justify-center py-1">
+                    <div className="w-16 h-16 bg-slate-100 border border-slate-300 flex items-center justify-center">
+                      <QrCode size={42} className="text-black" />
+                    </div>
+                  </div>
+                  <div className="text-[9px] text-slate-600">{storeUpi}</div>
+                </div>
+              )}
+
+              <div className="absolute -bottom-1.5 left-0 right-0 h-1.5 bg-slate-300/40 rounded-b" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL: CHOOSE RECEIPT BLOCKS */}
       {showBlocksModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-dark-border p-5 space-y-4 max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-dark-card rounded-2xl border border-slate-200 dark:border-dark-border p-5 space-y-4 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-dark-border pb-3">
               <div className="flex items-center gap-2">
                 <Layers size={18} className="text-blue-600" />
@@ -668,7 +704,7 @@ export function TextToThermalPrintTab({
               Pick modular blocks to insert formatted store info, totals, tables or QR codes into your thermal text.
             </p>
 
-            <div className="space-y-2 overflow-y-auto pr-1 flex-1">
+            <div className="space-y-2 overflow-y-auto pr-1 flex-1 max-h-[340px]">
               {blockOptions.map((b) => (
                 <div
                   key={b.id}

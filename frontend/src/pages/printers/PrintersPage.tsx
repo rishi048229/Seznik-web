@@ -169,6 +169,7 @@ export const PrintersPage = () => {
   const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig>(defaultReceiptConfig)
   const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice'>('receipt')
   const [isUnchangedSaveConfirmOpen, setIsUnchangedSaveConfirmOpen] = useState(false)
+  const [showQuickPrintModal, setShowQuickPrintModal] = useState(false)
 
   const configRef = useRef(config)
   const receiptConfigRef = useRef(receiptConfig)
@@ -678,6 +679,14 @@ export const PrintersPage = () => {
           action={
             <div className="flex items-center gap-2">
               <Button
+                type="button"
+                onClick={() => setShowQuickPrintModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-sm cursor-pointer"
+              >
+                <Printer size={16} />
+                <span>Quick Text Print</span>
+              </Button>
+              <Button
                 data-tour="printer-test-btn"
                 variant="outline"
                 onClick={handleTestPrint}
@@ -820,21 +829,6 @@ export const PrintersPage = () => {
         <div className="space-y-4 w-full min-w-0">
           <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
             <div className="w-full lg:w-7/12 space-y-4 min-w-0">
-              {/* Quick Print Section */}
-              <Section
-                eyebrow="Quick Print"
-                title="Text to Thermal Print"
-                description="Type custom notes, slips, memos, or insert modular receipt blocks to print immediately."
-              >
-                <TextToThermalPrintTab
-                  config={config}
-                  setConfig={setConfig}
-                  receiptConfig={receiptConfig}
-                  setReceiptConfig={setReceiptConfig}
-                  settings={settings}
-                />
-              </Section>
-
               <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-bold text-indigo-950 dark:text-indigo-100">Advanced layout in Receipt Builder</p>
@@ -1771,6 +1765,22 @@ export const PrintersPage = () => {
         <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
           You haven't changed any printer or receipt settings since they were loaded. Do you still want to re-save them to the database?
         </p>
+      </Modal>
+
+      {/* Quick Text to Thermal Print Modal */}
+      <Modal
+        isOpen={showQuickPrintModal}
+        onClose={() => setShowQuickPrintModal(false)}
+        title="Quick Text to Thermal Print"
+        size="xl"
+      >
+        <TextToThermalPrintTab
+          config={config}
+          setConfig={setConfig}
+          receiptConfig={receiptConfig}
+          setReceiptConfig={setReceiptConfig}
+          settings={settings}
+        />
       </Modal>
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
