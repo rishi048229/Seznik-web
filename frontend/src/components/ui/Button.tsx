@@ -38,7 +38,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg disabled:opacity-50 disabled:cursor-not-allowed',
           {
             // Light: brand blue→sky. Dark: soft off-white fill + dark text (calmer on pure black).
-            'bg-gradient-to-r from-blue-600 to-sky-400 text-white hover:from-blue-700 hover:to-sky-500 focus:ring-blue-500 shadow-sm shadow-blue-500/20 dark:from-zinc-100 dark:to-zinc-100 dark:!text-zinc-900 dark:hover:from-white dark:hover:to-white dark:focus:ring-zinc-400 dark:shadow-none':
+            'bg-gradient-to-r from-blue-600 to-sky-400 text-white hover:from-blue-700 hover:to-sky-500 focus:ring-blue-500 shadow-sm shadow-blue-500/20 dark:from-zinc-100 dark:to-zinc-100 dark:text-zinc-900 dark:hover:from-white dark:hover:to-white dark:focus:ring-zinc-400 dark:shadow-none':
               variant === 'primary',
             'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 dark:bg-dark-elevated dark:text-gray-100 dark:hover:bg-dark-hover dark:border dark:border-dark-border-strong dark:hover:border-white/20 dark:focus:ring-zinc-500/40':
               variant === 'secondary',

@@ -689,10 +689,10 @@ export const PrintersPage = () => {
                 onClick={handleSaveClick}
                 loading={saving}
                 disabled={isError}
-                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 text-white flex items-center gap-2 text-xs sm:text-sm shadow-sm"
+                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white dark:text-white flex items-center gap-2 text-xs sm:text-sm font-semibold shadow-sm"
               >
-                <Save size={16} />
-                Save
+                <Save size={16} className="text-white dark:text-white" />
+                <span className="text-white dark:text-white">Save</span>
               </Button>
             </div>
           }
