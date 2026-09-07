@@ -681,10 +681,10 @@ export const PrintersPage = () => {
               <Button
                 type="button"
                 onClick={() => setShowQuickPrintModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-sm cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white dark:text-white flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-sm cursor-pointer"
               >
-                <Printer size={16} />
-                <span>Quick Text Print</span>
+                <Printer size={16} className="text-white dark:text-white" />
+                <span className="text-white dark:text-white">Quick Text Print</span>
               </Button>
               <Button
                 data-tour="printer-test-btn"
