@@ -714,10 +714,10 @@ export function TextToThermalPrintTab({
                 type="button"
                 onClick={handlePrintBle}
                 disabled={connectingBle}
-                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all"
+                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
               >
-                <Bluetooth size={18} />
-                <span>
+                <Bluetooth size={18} className="text-white shrink-0" />
+                <span className="text-white text-sm font-bold">
                   {connectingBle
                     ? 'Connecting to Bluetooth Printer...'
                     : bleState.status === 'connected'
@@ -727,27 +727,22 @@ export function TextToThermalPrintTab({
               </button>
             )}
 
-            <Button
+            <button
               type="button"
               onClick={handlePrint}
-              className={`w-full ${
-                isBluetoothSupported()
-                  ? 'bg-slate-800 hover:bg-slate-900 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              } font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all`}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
             >
-              <Printer size={18} />
-              <span>Print via System Driver ({paperSize})</span>
-            </Button>
+              <Printer size={18} className="text-white shrink-0" />
+              <span className="text-white text-sm font-bold">Print via System Driver ({paperSize})</span>
+            </button>
 
             {/* Quick Helper for Browser Print Dialog */}
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200/90 flex items-start gap-2.5">
-              <HelpCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs flex items-start gap-2.5">
+              <HelpCircle size={17} className="text-amber-500 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-semibold">Why did the browser print / PDF popup open?</p>
-                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300/80">
-                  When using <strong>System Driver</strong>, web browsers (Chrome/Edge) open their print dialog. In the dialog, set <strong>Destination</strong> to your thermal printer (e.g. POS-58 / POS-80) instead of <em>"Save as PDF"</em>.
-                  {isBluetoothSupported() && ' Or use the blue Bluetooth button above to print directly without any popup!'}
+                <p className="font-bold text-amber-900 dark:text-amber-300">Why does the browser print dialog open?</p>
+                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/90">
+                  When using <strong className="font-bold text-amber-950 dark:text-white">System Driver</strong>, your browser opens its print window. Select your thermal printer (e.g. POS-58 / POS-80) under <strong className="font-bold text-amber-950 dark:text-white">Destination</strong> instead of <em className="italic">"Save as PDF"</em>.
                 </p>
               </div>
             </div>
