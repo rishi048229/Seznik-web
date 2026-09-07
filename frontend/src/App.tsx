@@ -13,6 +13,7 @@ import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { prefetchCorePages } from '@/utils/prefetchPages'
+import { installNumberInputWheelGuard } from '@/utils/disableNumberInputWheel'
 import type { UserPermissions } from '@/types/auth.types'
 
 // Helper to lazy-load named exports as default components.
@@ -215,9 +216,15 @@ const PermissionRoute = ({ permission, children }: { permission: keyof UserPermi
   return <>{children}</>
 }
 
+function NumberInputWheelGuard() {
+  useEffect(() => installNumberInputWheelGuard(), [])
+  return null
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <NumberInputWheelGuard />
       <ThemeProvider>
         <LanguageProvider>
         <AuthProvider>

@@ -16,7 +16,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, success, showPasswordToggle = true, className, type = 'text', id, ...props }, ref) => {
+  ({ label, error, success, showPasswordToggle = true, className, type = 'text', id, onWheel, ...props }, ref) => {
     const [showPassword, setShowPassword] = useState(false)
     const isPasswordType = type === 'password'
     const actualType = isPasswordType && showPassword ? 'text' : type
@@ -45,6 +45,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               className
             )}
             {...props}
+            onWheel={(e) => {
+              if (actualType === 'number') {
+                e.preventDefault()
+                e.currentTarget.blur()
+              }
+              onWheel?.(e)
+            }}
           />
           {isPasswordType && showPasswordToggle && (
             <button

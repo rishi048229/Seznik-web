@@ -43,7 +43,7 @@ export const printCompletedSale = async (args: {
       onDone?.()
       return
     } catch {
-      if (skipBrowserFallback || preferBle) return
+      if (skipBrowserFallback) return
     }
   }
 

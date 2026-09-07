@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect, Fragment } from 'react'
-import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
-import { useNavigate } from 'react-router-dom'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useCart } from '@/hooks/useCart'
@@ -14,7 +12,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
@@ -25,9 +23,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { shouldPrintThermalOverBle } from '@/utils/printTarget'
-import { ROUTES } from '@/constants/routes'
+import { printCompletedSale } from '@/utils/printCompletedSale'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -147,7 +143,6 @@ const CategoryTabsRow = ({
 export const POSPage = () => {
   const { t } = useLanguage()
   const pageTutorial = usePageTutorial('pos')
-  const navigate = useNavigate()
   const { data: products, isLoading } = useProducts()
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
@@ -159,11 +154,9 @@ export const POSPage = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
   const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
-  const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
@@ -212,17 +205,6 @@ export const POSPage = () => {
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [amountPaid, setAmountPaid] = useState('')
   const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
-  const [completedSaleId, setCompletedSaleId] = useState<string>('')
-  const [completedInvoiceNumber, setCompletedInvoiceNumber] = useState<string>('')
-  const [lastSaleData, setLastSaleData] = useState<{
-    items: typeof items
-    totals: typeof totals
-    orderDiscountAmount: number
-    finalTotal: number
-    method: typeof method
-    amountPaidNum: number
-    selectedCustomer: string
-  } | null>(null)
 
   // Build a map of product stock reserved in cart
   const cartReserved = items.reduce<Record<string, number>>((acc, item) => {
@@ -252,7 +234,7 @@ export const POSPage = () => {
   useBarcodeScanner({
     mode: 'pos',
     onScan: handleBarcodeScan,
-    enabled: !isPaymentOpen && !isPrintModalOpen && !isRealisticReceiptOpen,
+    enabled: !isPaymentOpen && !isRealisticReceiptOpen,
   })
 
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
@@ -367,22 +349,31 @@ export const POSPage = () => {
   const change = Math.max(0, amountPaidNum - finalTotal)
   const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
 
+  const openPayment = () => {
+    setAmountPaid(method === 'credit' ? '0' : finalTotal.toString())
+    setIsPaymentOpen(true)
+  }
+
   const handleCheckout = () => {
+    if (!isComplete || isCreating) return
+
+    const saleItems = items.map(item => {
+      const itemTaxRate = item.taxRate || 0
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: itemTaxRate,
+        priceIncludesGst: item.priceIncludesGst ?? false,
+        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * itemTaxRate / 100),
+        total: item.sellingPrice * item.quantity - item.discount,
+      }
+    })
+
     const saleData: Parameters<typeof createSale>[0] = {
-      items: items.map(item => {
-        const itemTaxRate = item.taxRate || 0
-        return {
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          sellingPrice: item.sellingPrice,
-          discount: item.discount,
-          taxRate: itemTaxRate,
-          priceIncludesGst: item.priceIncludesGst ?? false,
-          taxAmount: ((item.sellingPrice * item.quantity - item.discount) * itemTaxRate / 100),
-          total: item.sellingPrice * item.quantity - item.discount,
-        }
-      }),
+      items: saleItems,
       subtotal: totals.subtotal,
       totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
@@ -394,36 +385,50 @@ export const POSPage = () => {
       createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
     }
 
-    // Only set customerId if a customer is selected (Firestore rejects undefined)
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
     }
 
+    const draftSale: Sale = {
+      id: `draft-${Date.now()}`,
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      items: saleItems,
+      subtotal: saleData.subtotal,
+      totalDiscount: saleData.totalDiscount,
+      totalTax: saleData.totalTax,
+      grandTotal: saleData.grandTotal,
+      paymentMethod: method,
+      amountPaid: amountPaidNum,
+      changeReturned: change,
+      isQuickBill: false,
+      createdAt: saleData.createdAt || new Date().toISOString(),
+      customerId: selectedCustomer || undefined,
+    }
+
+    const customerName = selectedCustomer
+      ? customers?.find(c => c.id === selectedCustomer)?.name
+      : undefined
+
+    setIsPaymentOpen(false)
+
+    void printCompletedSale({
+      sale: draftSale,
+      settings,
+      customerName,
+      ble: blePrinter,
+    }).catch((error) => {
+      toastError(error, t('pos.errFailedPrintBluetooth'))
+    })
+
     createSale(saleData, {
-      onSuccess: (result) => {
+      onSuccess: () => {
         trackUserAction('pos_checkout_completed', { grandTotal: finalTotal, itemCount: items.length, paymentMethod: method })
-        const saleId = result.id
-        const invoiceNumber = result.invoiceNumber
-        const snapshot = {
-          items: [...items],
-          totals: { ...totals, tax: taxAmount },
-          orderDiscountAmount,
-          finalTotal,
-          method,
-          amountPaidNum,
-          selectedCustomer,
-        }
-        setLastSaleData(snapshot)
-        setCompletedSaleId(saleId)
-        setCompletedInvoiceNumber(invoiceNumber)
         clearCart()
         setOrderDiscount(0)
         setSelectedCustomer('')
-        setIsPaymentOpen(false)
         setMethod('cash')
         setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
-        setIsPrintModalOpen(true)
       },
       onError: (error) => {
         console.error('Sale creation failed:', error)
@@ -463,109 +468,6 @@ export const POSPage = () => {
     }
     setCurrentSaleForReceipt(tempSale)
     setIsRealisticReceiptOpen(true)
-  }
-
-  // Build sale object from lastSaleData (cart items are already cleared)
-  const buildTempSale = (): Sale | null => {
-    if (!lastSaleData) return null
-    return {
-      id: completedSaleId,
-      invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
-      items: lastSaleData.items.map(item => ({
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity,
-        sellingPrice: item.sellingPrice,
-        discount: item.discount,
-        taxRate: item.taxRate,
-        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
-        total: item.sellingPrice * item.quantity - item.discount,
-      })),
-      subtotal: lastSaleData.totals.subtotal,
-      totalDiscount: lastSaleData.orderDiscountAmount + lastSaleData.items.reduce((s, i) => s + i.discount, 0),
-      totalTax: lastSaleData.totals.tax,
-      grandTotal: lastSaleData.finalTotal,
-      paymentMethod: lastSaleData.method,
-      amountPaid: lastSaleData.amountPaidNum,
-      changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
-      isQuickBill: false,
-      createdAt: new Date().toISOString(),
-
-    }
-  }
-
-  const finishPrintFlow = () => {
-    setIsPrintModalOpen(false)
-    setCompletedSaleId('')
-    setCompletedInvoiceNumber('')
-    setMethod('cash')
-    setAmountPaid('')
-    navigate(ROUTES.SALES)
-  }
-
-  const [isPrintingAnimating, setIsPrintingAnimating] = useState(false)
-
-  // Accept format directly to avoid React state race condition
-  const handlePrint = (format: 'a4' | 'thermal') => {
-    const tempSale = buildTempSale()
-    if (!tempSale || !lastSaleData) return
-
-    setIsPrintingAnimating(true)
-
-    const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = lastSaleData.selectedCustomer
-      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-      : ''
-
-    const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
-      ? (paperSize === '80mm' ? '80mm' : '50mm')
-      : '210mm'
-
-    const receiptHTML = generateReceiptHTML({
-      sale: tempSale,
-      receiptConfig,
-      printerConfig: settings?.printerConfig,
-      businessName: settings?.businessName,
-      businessAddress: settings?.businessAddress,
-      customerName,
-      width: paperWidth,
-      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
-      settingsTaxName: 'GST',
-    })
-
-    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow)
-  }
-
-  const handlePrintBluetooth = async () => {
-    const tempSale = buildTempSale()
-    if (!tempSale || !lastSaleData) return
-
-    setIsPrintingAnimating(true)
-    setIsBlePrinting(true)
-    try {
-      if (blePrinter.status !== 'connected') {
-        await blePrinter.connect()
-      }
-      const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerName = lastSaleData.selectedCustomer
-        ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-        : ''
-      const bytes = await generateReceiptEscPos({
-        sale: tempSale,
-        receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || '58mm',
-        businessName: settings?.businessName,
-        businessAddress: settings?.businessAddress,
-        customerName,
-      })
-      await blePrinter.print(bytes)
-      finishPrintFlow()
-    } catch (error) {
-      toastError(error, t('pos.errFailedPrintBluetooth'))
-    } finally {
-      setIsBlePrinting(false)
-    }
   }
 
   if (isLoading) {
@@ -1002,29 +904,23 @@ export const POSPage = () => {
             </div>
           )}
 
-          {/* Payment & Preview Action Buttons */}
-          <div data-tour="pos-checkout-btn" className="space-y-2">
-            <Button
-              onClick={() => {
-                setAmountPaid(finalTotal.toString())
-                setIsPaymentOpen(true)
-              }}
-              disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
-            >
-              <Printer size={18} className="mr-2" />
-              {t('pos.completeAndPrint')}
-            </Button>
-
+          <div data-tour="pos-checkout-btn" className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
-              size="sm"
               onClick={handlePreviewCurrentBill}
               disabled={items.length === 0}
-              leftIcon={<FileText size={15} className="text-indigo-600" />}
-              className="w-full h-10 text-xs font-semibold border-indigo-200 text-indigo-700 dark:text-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              className="h-11 text-sm font-semibold"
             >
-              Preview &amp; edit bill
+              <Pencil size={16} className="mr-1.5" />
+              {t('action.edit')}
+            </Button>
+            <Button
+              onClick={openPayment}
+              disabled={items.length === 0 || isCreating}
+              className="h-11 text-sm font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
+            >
+              <Printer size={16} className="mr-1.5" />
+              {t('pos.print')}
             </Button>
           </div>
         </div>
@@ -1170,63 +1066,6 @@ export const POSPage = () => {
         </div>
       </Modal>
 
-      <Modal
-        isOpen={isPrintModalOpen}
-        onClose={finishPrintFlow}
-        title={t('pos.completeAndPrint')}
-        size="md"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Sale saved. Choose how to print this bill.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              type="button"
-              onClick={() => handlePrint('a4')}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <FileText size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
-                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (shouldPrintThermalOverBle(settings, blePrinter)) {
-                  void handlePrintBluetooth()
-                } else {
-                  handlePrint('thermal')
-                }
-              }}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
-                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
-              </div>
-            </button>
-          </div>
-          {blePrinter.isSupported && (
-            <Button
-              variant="outline"
-              className="w-full"
-              loading={isBlePrinting}
-              leftIcon={<Bluetooth size={16} />}
-              onClick={handlePrintBluetooth}
-            >
-              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
-            </Button>
-          )}
-          <Button variant="ghost" className="w-full" onClick={finishPrintFlow}>
-            {t('action.cancel')}
-          </Button>
-        </div>
-      </Modal>
-
       {/* Live receipt preview — before payment only */}
       <RealisticReceiptModal
         isOpen={isRealisticReceiptOpen}
@@ -1236,7 +1075,7 @@ export const POSPage = () => {
         initialCustomerName={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : ''}
         initialCustomerPhone={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.phone : ''}
         blePrinter={blePrinter}
-        onDone={finishPrintFlow}
+        onDone={() => setIsRealisticReceiptOpen(false)}
       />
 
       {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}
@@ -1255,16 +1094,6 @@ export const POSPage = () => {
           }
         }}
       />
-
-      <PrinterAnimationModal
-        isOpen={isPrintingAnimating}
-        onClose={() => setIsPrintingAnimating(false)}
-        invoiceNumber="INV-RECENT"
-        grandTotal={lastSaleData?.finalTotal || lastSaleData?.totals?.grandTotal}
-        businessName={settings?.businessName}
-        itemCount={lastSaleData?.items?.length}
-      />
-
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal

@@ -30,12 +30,12 @@ export const useCreateSale = () => {
   return useMutation({
     mutationFn: (data: Parameters<typeof saleService.createSale>[1]) =>
       saleService.createSale(user!.uid, data),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.refetchQueries({ queryKey: [QUERY_KEYS.SALES] }),
-        qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] }),
-        qc.refetchQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
-        qc.refetchQueries({ queryKey: [QUERY_KEYS.CREDITS] }),
+    onSuccess: () => {
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] }),
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] }),
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.CREDITS] }),
       ])
     },
     onError: (error) => {
