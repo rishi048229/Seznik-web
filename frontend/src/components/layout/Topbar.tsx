@@ -86,10 +86,10 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           onMouseEnter={() => {
             if (kotFirst) void import('@/pages/kot/components/KOTWorkspace')
           }}
-          className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:shadow-none p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20"
+          className="bg-[#0a0a2e] text-white hover:bg-[#1a1555] hover:text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:hover:text-zinc-900 dark:shadow-none p-2 sm:px-4 sm:py-2 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/20 transition-colors"
         >
-          <Plus size={16} className="sm:mr-1" />
-          <span className="hidden sm:inline">
+          <Plus size={16} className="sm:mr-1 shrink-0 text-white dark:text-zinc-900" />
+          <span className="hidden sm:inline text-white dark:text-zinc-900">
             {kotFirst ? t('action.newBill') : t('action.newSale')}
           </span>
         </Button>
