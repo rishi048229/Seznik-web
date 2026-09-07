@@ -49,10 +49,10 @@ const MenuCard = memo(function MenuCard({
   const dietary = dietaryFromDescription(product.description)
   return (
     <div
-      className={`text-left rounded-xl border bg-white dark:bg-dark-card p-2.5 transition-all duration-150 [content-visibility:auto] [contain-intrinsic-size:0_160px] group ${
+      className={`text-left rounded-xl border bg-white dark:bg-dark-card p-2.5 transition-all duration-150 [content-visibility:auto] [contain-intrinsic-size:0_160px] flex flex-col justify-between group ${
         unavailable
-          ? 'border-red-300 dark:border-red-800 opacity-75'
-          : 'border-gray-200 dark:border-dark-border hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm'
+          ? 'border-red-300 dark:border-red-800/60 bg-red-50/10 dark:bg-red-950/10 opacity-80'
+          : 'border-gray-200 dark:border-dark-border hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md'
       }`}
     >
       <button
@@ -61,7 +61,7 @@ const MenuCard = memo(function MenuCard({
           if (!unavailable) onPick(product)
         }}
         disabled={unavailable}
-        className="w-full text-left disabled:cursor-not-allowed active:scale-[0.98]"
+        className="w-full text-left disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer"
       >
         <div className="aspect-[4/3] rounded-lg bg-gray-100 dark:bg-dark-elevated overflow-hidden mb-2 relative">
           {product.imageURL ? (
@@ -78,8 +78,8 @@ const MenuCard = memo(function MenuCard({
             </div>
           )}
           {unavailable && (
-            <span className="absolute top-1.5 right-1.5 rounded-md bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5">
-              N/A
+            <span className="absolute top-1.5 right-1.5 rounded-md bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 shadow-sm">
+              Out of Stock
             </span>
           )}
           {dietary && !unavailable && (
@@ -97,27 +97,44 @@ const MenuCard = memo(function MenuCard({
           )}
         </div>
         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">{product.name}</p>
-        <div className="flex items-center justify-between mt-1.5 gap-2">
-          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+        <div className="flex items-center justify-between mt-2 gap-2">
+          <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
             {formatINR(product.sellingPrice)}
           </span>
+          {!unavailable && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white transition-colors">
+              <Plus size={13} /> Add
+            </span>
+          )}
         </div>
       </button>
+
       {onToggleAvailability && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleAvailability(product, unavailable)
-          }}
-          className={`mt-2 w-full text-[11px] font-bold py-1.5 rounded-lg border transition-colors ${
-            unavailable
-              ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-              : 'border-red-200 text-red-600 dark:border-red-800 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30'
-          }`}
-        >
-          {unavailable ? 'Mark available' : 'Not available'}
-        </button>
+        <div className="mt-2 pt-1.5 border-t border-gray-100 dark:border-dark-border/60">
+          {unavailable ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleAvailability(product, true)
+              }}
+              className="w-full text-[11px] font-bold py-1.5 px-2 rounded-lg border border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              Mark Available
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleAvailability(product, false)
+              }}
+              className="w-full text-[10px] font-medium py-1 px-1.5 text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors text-center cursor-pointer"
+            >
+              Mark Out of Stock (86)
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -201,13 +218,13 @@ export const MenuPicker = ({
               setUnavailableMode(true)
               onCategoryChange('')
             }}
-            className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${
+            className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
               unavailableMode
                 ? 'bg-red-600 text-white border-red-600'
-                : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border'
+                : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-gray-300'
             }`}
           >
-            Not available
+            Out of Stock
           </button>
           {topCats.map((cat) => (
             <button
@@ -234,7 +251,7 @@ export const MenuPicker = ({
           <div className="text-center py-10 space-y-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {unavailableMode
-                ? 'No unavailable menu items.'
+                ? 'No out of stock items.'
                 : 'No menu items match this search.'}
             </p>
             {onAddFoodItem && !unavailableMode && (

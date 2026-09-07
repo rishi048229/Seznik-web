@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import type { CartItem, Product } from '@/types/product.types'
 import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
 
+import { roundCurrency } from '@/utils/currency'
+
 export const useCart = () => {
   const { user } = useAuth()
   const userId = user?.id || user?.uid || 'guest'
@@ -25,6 +27,7 @@ export const useCart = () => {
     try {
       localStorage.removeItem('pos_cart')
       const saved = localStorage.getItem(storageKey)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setItems(saved ? JSON.parse(saved) : [])
     } catch {
       setItems([])
@@ -108,7 +111,7 @@ export const useCart = () => {
   }, [])
 
   const totals = useMemo(() => {
-    const subtotal = items.reduce((s, i) => {
+    const rawSubtotal = items.reduce((s, i) => {
       const lineTotal = (i.sellingPrice * i.quantity) - i.discount
       if (i.priceIncludesGst && i.taxRate > 0) {
         return s + (lineTotal / (1 + i.taxRate / 100))
@@ -116,7 +119,7 @@ export const useCart = () => {
       return s + lineTotal
     }, 0)
 
-    const tax = items.reduce((s, i) => {
+    const rawTax = items.reduce((s, i) => {
       const lineTotal = (i.sellingPrice * i.quantity) - i.discount
       if (i.priceIncludesGst && i.taxRate > 0) {
         const baseAmt = lineTotal / (1 + i.taxRate / 100)
@@ -125,10 +128,14 @@ export const useCart = () => {
       return s + (lineTotal * (i.taxRate || 0) / 100)
     }, 0)
 
+    const subtotal = roundCurrency(rawSubtotal)
+    const tax = roundCurrency(rawTax)
+    const grandTotal = roundCurrency(subtotal + tax)
+
     return {
       subtotal,
       tax,
-      grandTotal: subtotal + tax,
+      grandTotal,
       itemCount: items.reduce((s, i) => s + i.quantity, 0),
     }
   }, [items])

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
-import { formatINR } from '@/utils/currency'
+import { formatINR, roundCurrency } from '@/utils/currency'
 import { Wallet, CreditCard, Smartphone, UserPlus, AlertTriangle, Printer } from 'lucide-react'
 import type { KOTBillPayload, KOTOrderType } from '@/types/kot.types'
 import type { KotRoomType } from '@/types/settings.types'
@@ -57,13 +57,13 @@ export const KOTBillModal = ({
 
   const discountNum = parseFloat(discount) || 0
   const taxRateNum = parseFloat(taxPercent)
-  const taxAmount = overrideTax && !Number.isNaN(taxRateNum) ? (subtotal * taxRateNum) / 100 : itemTax
+  const taxAmount = roundCurrency(overrideTax && !Number.isNaN(taxRateNum) ? (subtotal * taxRateNum) / 100 : itemTax)
   const serviceNum = kot.showServiceCharge ? Math.max(0, parseFloat(serviceCharge) || 0) : 0
   const roomNum = kot.showRoomCharges && roomType !== 'none' ? Math.max(0, parseFloat(roomAmount) || 0) : 0
-  const net = Math.max(0, subtotal + taxAmount + serviceNum + roomNum - discountNum)
+  const net = roundCurrency(Math.max(0, subtotal + taxAmount + serviceNum + roomNum - discountNum))
   const amountPaidNum = parseFloat(amountPaid) || 0
-  const unpaidAmount = Math.max(0, net - amountPaidNum)
-  const change = Math.max(0, amountPaidNum - net)
+  const unpaidAmount = roundCurrency(Math.max(0, net - amountPaidNum))
+  const change = roundCurrency(Math.max(0, amountPaidNum - net))
   const isComplete = unpaidAmount <= 0.01 || Boolean(customerId)
 
   useEffect(() => {
@@ -88,7 +88,6 @@ export const KOTBillModal = ({
     if (method === 'upi' || method === 'card') {
       setAmountPaid(net > 0 ? String(Number(net.toFixed(2))) : '')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, method, net])
 
   const breakdown = useMemo(
@@ -270,14 +269,14 @@ export const KOTBillModal = ({
                     setAmountPaid('')
                   }
                 }}
-                className={`group flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-xl transition-colors duration-150 ${
+                className={`group flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-xl transition-all duration-150 cursor-pointer ${
                   method === id
-                    ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 dark:bg-blue-600 dark:text-white'
                     : 'bg-gray-100 dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-elevated hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
                 <Icon size={18} strokeWidth={method === id ? 2.2 : 1.75} />
-                <span className="text-[11px] sm:text-xs font-medium">{label}</span>
+                <span className="text-[11px] sm:text-xs font-semibold">{label}</span>
               </button>
             ))}
           </div>

@@ -24,9 +24,8 @@ import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
-import { formatINR } from '@/utils/currency'
+import { formatINR, roundCurrency } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
@@ -168,7 +167,6 @@ export const POSPage = () => {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
   const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
-  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
@@ -342,19 +340,21 @@ export const POSPage = () => {
       }
     })
 
-  const orderDiscountAmount = orderDiscountType === 'flat'
-    ? orderDiscount
-    : totals.subtotal * (orderDiscount / 100)
+  const orderDiscountAmount = roundCurrency(
+    orderDiscountType === 'flat'
+      ? orderDiscount
+      : totals.subtotal * (orderDiscount / 100)
+  )
 
   const taxAmount = totals.tax
-  const finalTotal = totals.subtotal + taxAmount - orderDiscountAmount
+  const finalTotal = roundCurrency(Math.max(0, totals.subtotal + taxAmount - orderDiscountAmount))
 
   useEffect(() => {
     if (isPaymentOpen) {
       if (method === 'credit') {
         setAmountPaid('0')
       } else if (!amountPaid || amountPaid === '0') {
-        setAmountPaid(finalTotal.toString())
+        setAmountPaid(finalTotal.toFixed(2))
       }
     }
   }, [isPaymentOpen, method, finalTotal])
@@ -1198,14 +1198,14 @@ export const POSPage = () => {
                   key={id}
                   type="button"
                   onClick={() => setMethod(id)}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all cursor-pointer ${
                     method === id
-                      ? 'border-[#0a0a2e] bg-[#0a0a2e]/5'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                      ? 'border-blue-600 bg-blue-50/80 text-blue-700 dark:border-blue-500 dark:bg-blue-950/50 dark:text-blue-300 shadow-sm'
+                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-elevated text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
-                  <Icon size={24} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
-                  <span className={`text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>
+                  <Icon size={24} className={method === id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-400'} />
+                  <span className={`text-xs font-bold ${method === id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400'}`}>
                     {label}
                   </span>
                 </button>

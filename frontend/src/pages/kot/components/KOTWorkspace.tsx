@@ -24,6 +24,7 @@ import {
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
 import { isProductAvailable } from '@/utils/businessFeatures'
+import { roundCurrency } from '@/utils/currency'
 import { resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { printKotDeltaSlipSmart, printKotSlipSmart } from '@/utils/kotPrint'
 import { generateRestaurantBillEscPos, printRestaurantBill } from '@/utils/restaurantBill'
@@ -301,9 +302,11 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       ...billableExisting,
       ...pendingItems.map((it) => ({ qty: it.quantity, price: it.unitPrice, tax: it.taxRate })),
     ]
-    const subtotal = all.reduce((s, it) => s + it.price * it.qty, 0)
-    const tax = all.reduce((s, it) => s + (it.price * it.qty * (it.tax || 0)) / 100, 0)
-    return { subtotal, tax, grandTotal: subtotal + tax }
+    const rawSubtotal = all.reduce((s, it) => s + it.price * it.qty, 0)
+    const rawTax = all.reduce((s, it) => s + (it.price * it.qty * (it.tax || 0)) / 100, 0)
+    const subtotal = roundCurrency(rawSubtotal)
+    const tax = roundCurrency(rawTax)
+    return { subtotal, tax, grandTotal: roundCurrency(subtotal + tax) }
   }, [order?.items, pendingItems, voidedItems, itemQuantities])
 
   const busy = isCreating || isAdding || isSending || isEditing || isUpdatingStatus

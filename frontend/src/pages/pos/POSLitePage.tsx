@@ -22,7 +22,7 @@ import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
-import { formatINR } from '@/utils/currency'
+import { formatINR, roundCurrency } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
@@ -146,7 +146,6 @@ export const POSLitePage = () => {
   const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
   const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
-  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const blePrinter = useBlePrinter()
   const [orderDiscount, setOrderDiscount] = useState(0)
@@ -446,7 +445,7 @@ export const POSLitePage = () => {
     setSelectedCustomer('')
   }
 
-  const subtotal = items.reduce((sum, item) => {
+  const rawSubtotal = items.reduce((sum, item) => {
     const lineTotal = item.sellingPrice * item.quantity - item.discount
     if (item.priceIncludesGst && item.taxRate > 0) {
       return sum + (lineTotal / (1 + item.taxRate / 100))
@@ -454,7 +453,7 @@ export const POSLitePage = () => {
     return sum + lineTotal
   }, 0)
 
-  const taxAmount = items.reduce((sum, item) => {
+  const rawTax = items.reduce((sum, item) => {
     const lineTotal = item.sellingPrice * item.quantity - item.discount
     if (item.priceIncludesGst && item.taxRate > 0) {
       const baseAmt = lineTotal / (1 + item.taxRate / 100)
@@ -463,18 +462,23 @@ export const POSLitePage = () => {
     return sum + (lineTotal * (item.taxRate || 0) / 100)
   }, 0)
 
-  const orderDiscountAmount = orderDiscountType === 'flat'
-    ? orderDiscount
-    : subtotal * (orderDiscount / 100)
+  const subtotal = roundCurrency(rawSubtotal)
+  const taxAmount = roundCurrency(rawTax)
 
-  const finalTotal = subtotal + taxAmount - orderDiscountAmount
+  const orderDiscountAmount = roundCurrency(
+    orderDiscountType === 'flat'
+      ? orderDiscount
+      : subtotal * (orderDiscount / 100)
+  )
+
+  const finalTotal = roundCurrency(Math.max(0, subtotal + taxAmount - orderDiscountAmount))
 
   useEffect(() => {
     if (isPaymentOpen) {
       if (method === 'credit') {
         setAmountPaid('0')
       } else if (!amountPaid || amountPaid === '0') {
-        setAmountPaid(finalTotal.toString())
+        setAmountPaid(finalTotal.toFixed(2))
       }
     }
   }, [isPaymentOpen, method, finalTotal])
@@ -1302,14 +1306,14 @@ export const POSLitePage = () => {
                   key={id}
                   type="button"
                   onClick={() => setMethod(id)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors duration-150 ${
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all duration-150 cursor-pointer ${
                     method === id
-                      ? 'bg-[#0a0a2e] text-white'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 dark:bg-blue-600 dark:text-white'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
                   }`}
                 >
                   <Icon size={20} strokeWidth={method === id ? 2.2 : 1.75} />
-                  <span className="text-xs font-medium">{label}</span>
+                  <span className="text-xs font-semibold">{label}</span>
                 </button>
               ))}
             </div>
