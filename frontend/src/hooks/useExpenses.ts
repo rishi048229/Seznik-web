@@ -3,13 +3,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as expenseService from '@/services/expenseService'
 
-export const useExpenses = () => {
+export const useExpenses = (opts?: { refetchInterval?: number | false }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.EXPENSES, user?.uid],
     queryFn: () => expenseService.getExpenses(user!.uid),
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: opts?.refetchInterval ? 0 : 5 * 60 * 1000,
+    refetchOnWindowFocus: Boolean(opts?.refetchInterval),
+    refetchInterval: opts?.refetchInterval,
   })
 }
 

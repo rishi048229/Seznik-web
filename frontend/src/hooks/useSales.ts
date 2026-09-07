@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as saleService from '@/services/saleService'
 
-export const useSales = () => {
+export const useSales = (opts?: { refetchInterval?: number | false }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.SALES, user?.uid],
@@ -11,7 +11,8 @@ export const useSales = () => {
     enabled: !!user,
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: Boolean(opts?.refetchInterval),
+    refetchInterval: opts?.refetchInterval,
   })
 }
 
@@ -36,6 +37,7 @@ export const useCreateSale = () => {
         qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] }),
         qc.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
         qc.invalidateQueries({ queryKey: [QUERY_KEYS.CREDITS] }),
+        qc.invalidateQueries({ queryKey: ['credit-transactions'] }),
       ])
     },
     onError: (error) => {
