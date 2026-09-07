@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { Shield, Store, ArrowRight, Lock, BadgeCheck, History, AlertCircle } from 'lucide-react'
+import { Shield, Store, ArrowRight, Lock, BadgeCheck, History } from 'lucide-react'
 import type { UserRole, UserProfile } from '@/types/auth.types'
 import { getAllUsers } from '@/services/authService'
 import toast from 'react-hot-toast'
@@ -42,7 +42,7 @@ export const AccessSelectionPage = () => {
       }
 
       try {
-        const uid = user.uid || (user as any).id || ''
+        const uid = user.uid || (user as UserProfile & { id?: string }).id || ''
         const list = await getAllUsers(uid)
         if (isMounted) {
           const agentList = (list || []).filter(u => u.role === 'agent')
@@ -177,42 +177,49 @@ export const AccessSelectionPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Admin Card */}
             <div
-              className="group relative bg-white dark:bg-dark-card rounded-xl p-6 shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] transition-all duration-500 border border-transparent dark:border-dark-border hover:border-[#006591]/20 flex flex-col items-start overflow-hidden cursor-pointer"
+              className="group relative bg-white dark:bg-dark-card rounded-2xl p-6 sm:p-7 shadow-[0_10px_30px_rgba(7,2,53,0.05)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.12)] dark:shadow-none dark:hover:shadow-[0_10px_30px_rgba(0,0,0,0.4)] transition-all duration-300 border border-slate-200/80 dark:border-dark-border hover:border-blue-500/30 dark:hover:border-blue-500/40 flex flex-col items-start overflow-hidden cursor-pointer"
               onClick={() => handleRoleSelect('admin')}
             >
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+              <div className="absolute top-0 right-0 p-8 opacity-5 dark:opacity-10 group-hover:opacity-15 transition-opacity pointer-events-none text-indigo-900 dark:text-indigo-400">
                 <Shield size={120} />
               </div>
-              <div className="w-14 h-14 bg-[#1e1b4b]/5 dark:bg-indigo-500/15 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
+              <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-500/15 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
                 <Shield className="text-[#070235] dark:text-indigo-300" size={32} />
               </div>
               <h2 className="text-[#070235] dark:text-gray-100 font-bold text-xl mb-2">{t('access.adminAccess')}</h2>
-              <p className="text-[#47464f] dark:text-gray-400 text-sm leading-relaxed mb-6">
+              <p className="text-slate-600 dark:text-gray-400 text-sm leading-relaxed mb-6">
                 {t('access.adminAccessDesc')}
               </p>
-              <button className="mt-auto w-full py-3 px-5 bg-[#070235] text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-[#1e1b4b] dark:hover:bg-white transition-all active:scale-[0.98]">
-                <span>{t('access.loginAsAdmin')}</span>
-                <ArrowRight size={16} />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRoleSelect('admin')
+                }}
+                className="mt-auto w-full py-3.5 px-5 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 dark:from-blue-600 dark:to-indigo-600 dark:hover:from-blue-500 dark:hover:to-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-blue-900/20 dark:shadow-lg dark:shadow-blue-600/30 transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <span className="text-white font-semibold text-sm sm:text-base">{t('access.loginAsAdmin')}</span>
+                <ArrowRight size={18} className="text-white" />
               </button>
             </div>
 
             {/* Agent Card */}
             <div
-              className={`group relative rounded-xl p-6 transition-all duration-500 border flex flex-col items-start overflow-hidden ${
+              className={`group relative rounded-2xl p-6 sm:p-7 transition-all duration-300 border flex flex-col items-start overflow-hidden ${
                 hasAgents
-                  ? 'bg-white dark:bg-dark-card shadow-[0_20px_40px_rgba(7,2,53,0.04)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.08)] border-transparent dark:border-dark-border hover:border-[#006591]/20 cursor-pointer'
-                  : 'bg-slate-100/90 dark:bg-dark-card/50 border-slate-300 dark:border-dark-border cursor-not-allowed opacity-85'
+                  ? 'bg-white dark:bg-dark-card shadow-[0_10px_30px_rgba(7,2,53,0.05)] hover:shadow-[0_20px_40px_rgba(7,2,53,0.12)] dark:shadow-none dark:hover:shadow-[0_10px_30px_rgba(0,0,0,0.4)] border-slate-200/80 dark:border-dark-border hover:border-sky-500/30 dark:hover:border-sky-500/40 cursor-pointer'
+                  : 'bg-slate-50 dark:bg-dark-card/50 border-slate-200 dark:border-dark-border cursor-not-allowed opacity-90'
               }`}
               onClick={() => handleRoleSelect('agent')}
             >
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+              <div className="absolute top-0 right-0 p-8 opacity-5 dark:opacity-10 group-hover:opacity-15 transition-opacity pointer-events-none text-sky-900 dark:text-sky-400">
                 <Store size={120} />
               </div>
               <div className="flex items-center justify-between w-full mb-5">
-                <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-500 ${
-                  hasAgents ? 'bg-[#006591]/5 dark:bg-sky-500/15 group-hover:scale-110' : 'bg-gray-200/80 dark:bg-dark-elevated'
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-300 ${
+                  hasAgents ? 'bg-sky-50 dark:bg-sky-500/15 group-hover:scale-110' : 'bg-slate-200/80 dark:bg-dark-elevated'
                 }`}>
-                  <Store className={hasAgents ? 'text-[#006591] dark:text-sky-300' : 'text-gray-400 dark:text-gray-500'} size={32} />
+                  <Store className={hasAgents ? 'text-sky-700 dark:text-sky-300' : 'text-slate-400 dark:text-gray-500'} size={32} />
                 </div>
                 {!hasAgents && !isLoadingAgents && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50">
@@ -227,24 +234,33 @@ export const AccessSelectionPage = () => {
                   </span>
                 )}
               </div>
-              <h2 className={`font-bold text-xl mb-2 ${hasAgents ? 'text-[#070235] dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'}`}>
+              <h2 className={`font-bold text-xl mb-2 ${hasAgents ? 'text-[#070235] dark:text-gray-100' : 'text-slate-700 dark:text-gray-300'}`}>
                 Agent Access
               </h2>
-              <p className="text-[#47464f] dark:text-gray-400 text-sm leading-relaxed mb-6">
+              <p className="text-slate-600 dark:text-gray-400 text-sm leading-relaxed mb-6">
                 {hasAgents
                   ? 'Front-of-house sales, terminal access, and stock check. Optimized for rapid transaction flow and inventory tracking.'
                   : 'Agent workstation is currently disabled because no agent accounts have been created yet. Create an agent account under Admin Settings → Permissions & Accounts.'}
               </p>
               <button
+                type="button"
                 disabled={!hasAgents}
-                className={`mt-auto w-full py-3 px-5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
+                onClick={(e) => {
+                  if (hasAgents) {
+                    e.stopPropagation()
+                    handleRoleSelect('agent')
+                  }
+                }}
+                className={`mt-auto w-full py-3.5 px-5 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
                   hasAgents
-                    ? 'bg-[#006591] text-white group-hover:bg-[#00557a] active:scale-[0.98]'
-                    : 'bg-gray-200 dark:bg-dark-elevated text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    ? 'bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-md shadow-sky-600/20 cursor-pointer active:scale-[0.98]'
+                    : 'bg-slate-200 dark:bg-dark-elevated text-slate-500 dark:text-gray-400 border border-slate-300/50 dark:border-dark-border-strong cursor-not-allowed'
                 }`}
               >
-                <span>{hasAgents ? 'Login as Agent' : 'Agent Access Disabled'}</span>
-                {hasAgents ? <ArrowRight size={16} /> : <Lock size={16} />}
+                <span className={`text-sm sm:text-base ${hasAgents ? 'text-white font-semibold' : 'font-medium'}`}>
+                  {hasAgents ? 'Login as Agent' : 'Agent Access Disabled'}
+                </span>
+                {hasAgents ? <ArrowRight size={18} className="text-white" /> : <Lock size={16} />}
               </button>
             </div>
           </div>
