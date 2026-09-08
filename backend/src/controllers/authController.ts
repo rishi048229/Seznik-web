@@ -120,8 +120,7 @@ export const sendEmailOtp = async (req: Request, res: Response) => {
       console.error('SMTP Email Sending Failed:', emailErr);
       const isDev = process.env.NODE_ENV !== 'production';
       return res.json({
-        message: isDev ? `OTP generated! (Dev code: ${otp})` : 'Verification code sent! (Check email or server logs)',
-        ...(isDev ? { devOtp: otp } : {}),
+        message: isDev ? 'Verification code generated! (Check terminal logs for code)' : 'Verification code sent! (Check email or server logs)',
       });
     }
   } catch (error) {
@@ -249,8 +248,7 @@ export const sendForgotPasswordOtp = async (req: Request, res: Response) => {
       const isDev = process.env.NODE_ENV !== 'production';
       if (isDev) {
         return res.json({
-          message: `OTP generated! (Dev mode: Check terminal for code: ${otp})`,
-          devOtp: otp,
+          message: 'Password reset code generated! (Check terminal logs for code)',
         });
       }
       return res.status(500).json({

@@ -132,12 +132,10 @@ export default function RegisterScreen() {
 
     setIsSendingOtp(true);
     try {
-      const res = await sendEmailOtp(cleanEmail);
+      await sendEmailOtp(cleanEmail);
       setResendCooldown(60);
+      setOtp('');
       setStep(2);
-      if (res?.devOtp) {
-        setOtp(res.devOtp);
-      }
     } catch (err: any) {
       setErrorMessage(err?.message || 'Failed to send verification code. Please try again.');
     } finally {

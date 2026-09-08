@@ -62,7 +62,6 @@ export default function ForgotPasswordScreen() {
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [showLangModal, setShowLangModal] = useState(false);
 
@@ -86,12 +85,9 @@ export default function ForgotPasswordScreen() {
     setErrorMsg(null);
     setLoading(true);
     try {
-      const res = await sendForgotPasswordOtp(cleanEmail);
+      await sendForgotPasswordOtp(cleanEmail);
       setResendCooldown(60);
-      if (res?.devOtp) {
-        setDevOtpHint(res.devOtp);
-        setOtp(res.devOtp);
-      }
+      setOtp('');
       setStep(2);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to send verification code. Please check email address.');
@@ -246,13 +242,6 @@ export default function ForgotPasswordScreen() {
             {errorMsg ? (
               <View style={[styles.errorBox, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)' }]}>
                 <Text style={styles.errorText}>{errorMsg}</Text>
-              </View>
-            ) : null}
-
-            {/* Developer OTP Helper Box */}
-            {devOtpHint ? (
-              <View style={[styles.devBox, { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
-                <Text style={styles.devText}>🔑 Dev Code: {devOtpHint}</Text>
               </View>
             ) : null}
 
