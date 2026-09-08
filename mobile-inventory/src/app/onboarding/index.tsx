@@ -246,7 +246,7 @@ export default function OnboardingScreen() {
               {/* Step 1: Language Selection */}
               {showLanguageStep ? (
                 <View style={styles.stepBox}>
-                  <View style={styles.iconCircle}>
+                  <View style={[styles.iconCircle, { backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk }]}>
                     <Globe size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
@@ -269,7 +269,7 @@ export default function OnboardingScreen() {
               {/* Step 2: Store Information */}
               {showShopStep ? (
                 <View style={styles.stepBox}>
-                  <View style={styles.iconCircle}>
+                  <View style={[styles.iconCircle, { backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk }]}>
                     <Store size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
@@ -360,7 +360,7 @@ export default function OnboardingScreen() {
               {/* Step 3: UPI Payment Details */}
               {showPaymentStep ? (
                 <View style={styles.stepBox}>
-                  <View style={styles.iconCircle}>
+                  <View style={[styles.iconCircle, { backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk }]}>
                     <QrCode size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
@@ -420,7 +420,7 @@ export default function OnboardingScreen() {
               {/* Step 4 (or Step 2 for pickTypeOnly): Workspace Type & Confirmation */}
               {showWorkspaceStep ? (
                 <View style={styles.stepBox}>
-                  <View style={styles.iconCircle}>
+                  <View style={[styles.iconCircle, { backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk }]}>
                     <Layers size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
@@ -472,8 +472,16 @@ export default function OnboardingScreen() {
 
             <TouchableOpacity
               onPress={handleNext}
-              style={[styles.nextBtn, isSaving && styles.nextBtnDisabled]}
+              style={[
+                styles.nextBtn,
+                {
+                  backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
+                  shadowColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
+                },
+                isSaving && styles.nextBtnDisabled,
+              ]}
               disabled={isSaving}
+              activeOpacity={0.85}
             >
               {isSaving ? (
                 <ActivityIndicator color="#FFFFFF" />
@@ -647,6 +655,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     marginBottom: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   nextBtnDisabled: { opacity: 0.7 },
   nextBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
