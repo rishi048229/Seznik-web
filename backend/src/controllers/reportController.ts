@@ -432,15 +432,18 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
 export const getTopProducts = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
-    const limit = Number(req.query.limit) || 5;
+    const limit = Number(req.query.limit) || 100;
+    const { start, end } = req.query;
 
-    // Preserves the exact existing quirk: `item.productId || item.productName` grouping (POS
-    // Lite always sends an empty productId, which must still fall through to name-based
-    // grouping rather than merge every such item together).
-    const rows = await prisma.$queryRaw<Array<{ id: string; name: string; unitsSold: number; revenue: number }>>(Prisma.sql`
+    const whereDateClause = (start || end)
+      ? Prisma.sql`AND s."createdAt" >= ${parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS))} AND s."createdAt" <= ${parseRangeEnd(end, new Date())}`
+      : Prisma.empty;
+
+    const rows = await prisma.$queryRaw<Array<{ id: string; name: string; categoryName: string | null; unitsSold: number; revenue: number }>>(Prisma.sql`
       SELECT
         COALESCE(NULLIF(item->>'productId', ''), item->>'productName') AS id,
         MAX(item->>'productName') AS name,
+        MAX(c.name) AS "categoryName",
         SUM(COALESCE((item->>'quantity')::float, 0)) AS "unitsSold",
         SUM(COALESCE(
           (item->>'total')::float,
@@ -448,13 +451,22 @@ export const getTopProducts = async (req: Request, res: Response) => {
         )) AS revenue
       FROM "Sale" s
       CROSS JOIN LATERAL jsonb_array_elements(${SAFE_ITEMS_ARRAY}) AS item
-      WHERE s."userId" = ${userId}
+      LEFT JOIN "Product" p ON p.id = NULLIF(item->>'productId', '')
+      LEFT JOIN "Category" c ON c.id = p."categoryId"
+      WHERE s."userId" = ${userId} ${whereDateClause}
       GROUP BY COALESCE(NULLIF(item->>'productId', ''), item->>'productName')
       ORDER BY revenue DESC
       LIMIT ${limit}
     `);
 
-    res.json(rows.map((r) => ({ id: r.id, name: r.name, unitsSold: Number(r.unitsSold), revenue: Number(r.revenue) })));
+    res.json(rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      categoryName: r.categoryName || 'General',
+      unitsSold: Number(r.unitsSold),
+      revenue: Number(r.revenue),
+      averagePrice: Number(r.unitsSold) > 0 ? Math.round((Number(r.revenue) / Number(r.unitsSold)) * 100) / 100 : 0,
+    })));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch top products' });
@@ -533,7 +545,7 @@ export const getDaybook = async (req: Request, res: Response) => {
     const dayStart = startOfDay(targetDate);
     const dayEnd = endOfDay(targetDate);
 
-    const [sales, expenses, creditTxns, lowStockCount] = await Promise.all([
+    const [sales, expenses, purchases, creditTxns, lowStockCount] = await Promise.all([
       prisma.sale.findMany({
         where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
         orderBy: { createdAt: 'desc' },
@@ -541,6 +553,10 @@ export const getDaybook = async (req: Request, res: Response) => {
       prisma.expense.findMany({
         where: { userId, expenseDate: { gte: dayStart, lte: dayEnd } },
         orderBy: { expenseDate: 'desc' },
+      }),
+      prisma.purchase.aggregate({
+        where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
+        _sum: { totalTax: true },
       }),
       prisma.creditTransaction.findMany({
         where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
@@ -556,13 +572,23 @@ export const getDaybook = async (req: Request, res: Response) => {
       }),
     ]);
 
-    // 1. Sales breakdown
+    // 1. Sales breakdown & GST per product
     const modeMap = new Map<string, number>();
     let totalTax = 0;
     let nonCreditSales = 0;
     let creditSales = 0;
 
     const productSalesMap = new Map<string, { name: string; unitsSold: number; revenue: number }>();
+    const productGstMap = new Map<string, {
+      name: string;
+      quantity: number;
+      taxRate: number;
+      taxableAmount: number;
+      cgst: number;
+      sgst: number;
+      totalGst: number;
+      totalAmount: number;
+    }>();
 
     sales.forEach((s: any) => {
       totalTax += s.totalTax || 0;
@@ -579,11 +605,42 @@ export const getDaybook = async (req: Request, res: Response) => {
       items.forEach((item: any) => {
         const name = item.productName || item.name || 'Product';
         const qty = Number(item.quantity) || 1;
-        const total = Number(item.total) || Number(item.price || item.sellingPrice || 0) * qty;
+        const lineTotal = Number(item.total) || Number(item.price || item.sellingPrice || 0) * qty;
+        const taxRate = Number(item.taxRate || item.gstRate || 0);
+
+        let itemTax = 0;
+        let taxable = lineTotal;
+        if (taxRate > 0) {
+          if (item.priceIncludesGst) {
+            taxable = lineTotal / (1 + taxRate / 100);
+            itemTax = lineTotal - taxable;
+          } else {
+            itemTax = (taxable * taxRate) / 100;
+          }
+        }
+
         const existing = productSalesMap.get(name) || { name, unitsSold: 0, revenue: 0 };
         existing.unitsSold += qty;
-        existing.revenue += total;
+        existing.revenue += lineTotal;
         productSalesMap.set(name, existing);
+
+        const existingGst = productGstMap.get(name) || {
+          name,
+          quantity: 0,
+          taxRate,
+          taxableAmount: 0,
+          cgst: 0,
+          sgst: 0,
+          totalGst: 0,
+          totalAmount: 0,
+        };
+        existingGst.quantity += qty;
+        existingGst.taxableAmount += taxable;
+        existingGst.cgst += itemTax / 2;
+        existingGst.sgst += itemTax / 2;
+        existingGst.totalGst += itemTax;
+        existingGst.totalAmount += lineTotal;
+        productGstMap.set(name, existingGst);
       });
     });
 
@@ -611,6 +668,20 @@ export const getDaybook = async (req: Request, res: Response) => {
     }));
 
     const topSellingItemToday = Array.from(productSalesMap.values()).sort((a, b) => b.revenue - a.revenue)[0] || null;
+
+    const gstPaid = purchases._sum.totalTax || 0;
+    const productGstBreakdown = Array.from(productGstMap.values())
+      .map((p) => ({
+        name: p.name,
+        quantity: p.quantity,
+        taxRate: p.taxRate,
+        taxableAmount: Math.round(p.taxableAmount * 100) / 100,
+        cgst: Math.round(p.cgst * 100) / 100,
+        sgst: Math.round(p.sgst * 100) / 100,
+        totalGst: Math.round(p.totalGst * 100) / 100,
+        totalAmount: Math.round(p.totalAmount * 100) / 100,
+      }))
+      .sort((a, b) => b.totalGst - a.totalGst);
 
     // 3. Transactions feed
     const transactions: Array<{
@@ -661,6 +732,14 @@ export const getDaybook = async (req: Request, res: Response) => {
       creditGiven,
       creditCollectedToday,
       paymentModeBreakdown,
+      gstSummary: {
+        collected: Math.round(totalTax * 100) / 100,
+        paid: Math.round(gstPaid * 100) / 100,
+        net: Math.round((totalTax - gstPaid) * 100) / 100,
+        cgstCollected: Math.round((totalTax / 2) * 100) / 100,
+        sgstCollected: Math.round((totalTax / 2) * 100) / 100,
+        products: productGstBreakdown,
+      },
       gstCollectedToday: {
         total: totalTax,
         cgst: totalTax / 2,

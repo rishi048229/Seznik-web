@@ -32,6 +32,9 @@ import {
   X,
   ChevronRight,
   Receipt,
+  ChevronDown,
+  ChevronUp,
+  Percent,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -122,6 +125,7 @@ export default function CreditsDaybookScreen() {
   const [countedCashInput, setCountedCashInput] = useState('');
   const [batchSendIndex, setBatchSendIndex] = useState<number | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [showGstDetails, setShowGstDetails] = useState(false);
 
   const moneyIn = daybook?.moneyIn || 0;
   const moneyOut = daybook?.moneyOut || 0;
@@ -129,6 +133,7 @@ export default function CreditsDaybookScreen() {
   const creditGiven = daybook?.creditGiven || 0;
   const creditCollectedToday = daybook?.creditCollectedToday || 0;
   const gst = daybook?.gstCollectedToday;
+  const gstSummary = daybook?.gstSummary;
 
   const customersWithAgeing = useMemo(() => {
     const filtered = customers.filter((c) => {
@@ -341,6 +346,162 @@ export default function CreditsDaybookScreen() {
                 ))
               )}
             </ScrollView>
+
+            <Text style={styles.sectionHeader}>GST SUMMARY & TAX BREAKDOWN</Text>
+            <View style={[styles.gstCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <View style={styles.gstHeaderRow}>
+                <View style={styles.gstHeaderLeft}>
+                  <View style={[styles.gstIconCircle, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                    <Percent size={18} color={BRAND_COLORS.blue600} />
+                  </View>
+                  <View style={{ marginLeft: 10 }}>
+                    <Text style={[styles.gstTitle, { color: theme.textPrimary }]}>Goods & Services Tax</Text>
+                    <Text style={[styles.gstSub, { color: theme.textSecondary }]}>Collected from users vs paid on purchases</Text>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.netGstBadge,
+                    {
+                      backgroundColor:
+                        (gstSummary?.net || 0) > 0
+                          ? 'rgba(239, 68, 68, 0.12)'
+                          : (gstSummary?.net || 0) < 0
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : 'rgba(100, 116, 139, 0.12)',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.netGstBadgeText,
+                      {
+                        color:
+                          (gstSummary?.net || 0) > 0
+                            ? '#EF4444'
+                            : (gstSummary?.net || 0) < 0
+                            ? '#10B981'
+                            : theme.textSecondary,
+                      },
+                    ]}
+                  >
+                    {(gstSummary?.net || 0) > 0
+                      ? 'Net Payable'
+                      : (gstSummary?.net || 0) < 0
+                      ? 'Tax Credit'
+                      : 'Settled'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* 3 Metrics Row: Collected, Paid, Net */}
+              <View style={styles.gstMetricsRow}>
+                <View style={styles.gstMetricCol}>
+                  <Text style={[styles.gstMetricLabel, { color: theme.textSecondary }]}>Collected (Output)</Text>
+                  <Text style={[styles.gstMetricVal, { color: '#10B981' }]}>
+                    ₹{(gstSummary?.collected ?? gst?.total ?? 0).toFixed(2)}
+                  </Text>
+                  <Text style={[styles.gstMetricSub, { color: theme.textSecondary }]}>
+                    C: ₹{(gstSummary?.cgstCollected ?? gst?.cgst ?? 0).toFixed(1)} | S: ₹{(gstSummary?.sgstCollected ?? gst?.sgst ?? 0).toFixed(1)}
+                  </Text>
+                </View>
+
+                <View style={[styles.gstMetricDivider, { backgroundColor: theme.borderColor }]} />
+
+                <View style={styles.gstMetricCol}>
+                  <Text style={[styles.gstMetricLabel, { color: theme.textSecondary }]}>Paid (Purchases)</Text>
+                  <Text style={[styles.gstMetricVal, { color: '#F59E0B' }]}>
+                    ₹{(gstSummary?.paid || 0).toFixed(2)}
+                  </Text>
+                  <Text style={[styles.gstMetricSub, { color: theme.textSecondary }]}>Input Tax</Text>
+                </View>
+
+                <View style={[styles.gstMetricDivider, { backgroundColor: theme.borderColor }]} />
+
+                <View style={styles.gstMetricCol}>
+                  <Text style={[styles.gstMetricLabel, { color: theme.textSecondary }]}>Total Net GST</Text>
+                  <Text
+                    style={[
+                      styles.gstMetricVal,
+                      { color: (gstSummary?.net || 0) > 0 ? '#EF4444' : BRAND_COLORS.blue600 },
+                    ]}
+                  >
+                    ₹{(gstSummary?.net ?? (gst?.total || 0)).toFixed(2)}
+                  </Text>
+                  <Text style={[styles.gstMetricSub, { color: theme.textSecondary }]}>
+                    {(gstSummary?.net || 0) > 0 ? 'To Pay' : 'Credit'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Details Accordion Toggle */}
+              <TouchableOpacity
+                onPress={() => setShowGstDetails(!showGstDetails)}
+                style={[styles.gstDetailsToggle, { borderTopColor: theme.borderColor }]}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Receipt size={15} color={BRAND_COLORS.blue600} />
+                  <Text style={[styles.gstDetailsToggleText, { color: BRAND_COLORS.blue600 }]}>
+                    {showGstDetails ? 'Hide Product Details' : 'View Product Details'}
+                  </Text>
+                  {gstSummary?.products && gstSummary.products.length > 0 && (
+                    <View style={styles.gstCountBadge}>
+                      <Text style={styles.gstCountBadgeText}>{gstSummary.products.length}</Text>
+                    </View>
+                  )}
+                </View>
+                {showGstDetails ? (
+                  <ChevronUp size={18} color={BRAND_COLORS.blue600} />
+                ) : (
+                  <ChevronDown size={18} color={BRAND_COLORS.blue600} />
+                )}
+              </TouchableOpacity>
+
+              {/* Product GST Details Accordion Content */}
+              {showGstDetails && (
+                <View style={[styles.gstAccordionContent, { borderTopColor: theme.borderColor }]}>
+                  {!gstSummary?.products || gstSummary.products.length === 0 ? (
+                    <Text style={[styles.gstEmptyText, { color: theme.textSecondary }]}>
+                      No itemized product GST recorded for today.
+                    </Text>
+                  ) : (
+                    gstSummary.products.map((item, idx) => (
+                      <View
+                        key={`${item.name}-${idx}`}
+                        style={[
+                          styles.gstProductRow,
+                          idx < (gstSummary?.products?.length || 0) - 1 && {
+                            borderBottomWidth: 1,
+                            borderBottomColor: theme.borderColor,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={[styles.gstProdName, { color: theme.textPrimary }]} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={[styles.gstProdMeta, { color: theme.textSecondary }]}>
+                            Qty: {item.quantity} · Rate: {item.taxRate}% · Taxable: ₹{item.taxableAmount.toFixed(2)}
+                          </Text>
+                          <Text style={[styles.gstProdTaxes, { color: theme.textSecondary }]}>
+                            CGST: ₹{item.cgst.toFixed(2)} · SGST: ₹{item.sgst.toFixed(2)}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={[styles.gstProdTotal, { color: BRAND_COLORS.blue600 }]}>
+                            ₹{item.totalGst.toFixed(2)}
+                          </Text>
+                          <Text style={[styles.gstProdSub, { color: theme.textSecondary }]}>
+                            Gross ₹{item.totalAmount.toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
 
             <Text style={styles.sectionHeader}>TODAY AT A GLANCE</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
@@ -721,4 +882,30 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 16, fontWeight: '900', flex: 1 },
   modalSafeArea: { flex: 1 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, marginBottom: 12 },
+  gstCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 20 },
+  gstHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  gstHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  gstIconCircle: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  gstTitle: { fontSize: 14, fontWeight: '800' },
+  gstSub: { fontSize: 10, marginTop: 2 },
+  netGstBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  netGstBadgeText: { fontSize: 10, fontWeight: '800' },
+  gstMetricsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+  gstMetricCol: { flex: 1, alignItems: 'center' },
+  gstMetricDivider: { width: 1, height: 36 },
+  gstMetricLabel: { fontSize: 10, fontWeight: '600' },
+  gstMetricVal: { fontSize: 15, fontWeight: '900', marginTop: 3 },
+  gstMetricSub: { fontSize: 9, fontWeight: '600', marginTop: 2 },
+  gstDetailsToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 10, borderTopWidth: 1 },
+  gstDetailsToggleText: { fontSize: 12, fontWeight: '800', marginLeft: 6 },
+  gstCountBadge: { backgroundColor: BRAND_COLORS.blue600, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, marginLeft: 6 },
+  gstCountBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  gstAccordionContent: { marginTop: 10, paddingTop: 6, borderTopWidth: 1 },
+  gstEmptyText: { fontSize: 11, textAlign: 'center', paddingVertical: 12 },
+  gstProductRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  gstProdName: { fontSize: 13, fontWeight: '800' },
+  gstProdMeta: { fontSize: 10, marginTop: 2 },
+  gstProdTaxes: { fontSize: 10, marginTop: 2 },
+  gstProdTotal: { fontSize: 13, fontWeight: '900' },
+  gstProdSub: { fontSize: 9, marginTop: 2 },
 });

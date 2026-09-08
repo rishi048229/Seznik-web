@@ -44,6 +44,12 @@ export function useReports(period: 'today' | '7days' | '30days' | 'year' = '30da
     staleTime: 1000 * 60 * 5,
   });
 
+  const topProductsQuery = useQuery({
+    queryKey: ['reports', 'topProducts', period, startDate, endDate],
+    queryFn: () => reportsApi.getTopProducts(100, startDate, endDate),
+    staleTime: 1000 * 60 * 5,
+  });
+
   const totalSales = (salesReportQuery.data?.revenue || []).reduce((sum, val) => sum + val, 0);
   const totalInvoices = (salesReportQuery.data?.invoiceCount || []).reduce((sum, val) => sum + val, 0);
   const grossProfit = plReportQuery.data?.netProfit ?? 0;
@@ -65,20 +71,22 @@ export function useReports(period: 'today' | '7days' | '30days' | 'year' = '30da
     salesReport: salesReportQuery.data,
     plReport: plReportQuery.data,
     taxReport: taxReportQuery.data,
+    productsReport: topProductsQuery.data || [],
     isLoading:
       (!salesReportQuery.data && salesReportQuery.isLoading) ||
       (!plReportQuery.data && plReportQuery.isLoading) ||
-      (!taxReportQuery.data && taxReportQuery.isLoading),
+      (!topProductsQuery.data && topProductsQuery.isLoading),
     isRefetching:
-      salesReportQuery.isRefetching || plReportQuery.isRefetching || taxReportQuery.isRefetching,
+      salesReportQuery.isRefetching || plReportQuery.isRefetching || topProductsQuery.isRefetching,
     isError:
       (salesReportQuery.isError && !salesReportQuery.data) ||
       (plReportQuery.isError && !plReportQuery.data) ||
-      (taxReportQuery.isError && !taxReportQuery.data),
+      (topProductsQuery.isError && !topProductsQuery.data),
     refetchAll: () => {
       salesReportQuery.refetch();
       plReportQuery.refetch();
       taxReportQuery.refetch();
+      topProductsQuery.refetch();
     },
   };
 }

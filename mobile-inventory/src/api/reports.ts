@@ -51,8 +51,10 @@ export interface ProfitBreakdownData {
 export interface TopProductData {
   id: string;
   name: string;
+  categoryName?: string;
   unitsSold: number;
   revenue: number;
+  averagePrice?: number;
 }
 
 export interface TopCategoryData {
@@ -75,6 +77,26 @@ export interface DaybookTransaction {
   createdAt: string;
 }
 
+export interface GstProductDetail {
+  name: string;
+  quantity: number;
+  taxRate: number;
+  taxableAmount: number;
+  cgst: number;
+  sgst: number;
+  totalGst: number;
+  totalAmount: number;
+}
+
+export interface DaybookGstSummary {
+  collected: number;
+  paid: number;
+  net: number;
+  cgstCollected: number;
+  sgstCollected: number;
+  products: GstProductDetail[];
+}
+
 export interface DaybookData {
   date: string;
   moneyIn: number;
@@ -83,6 +105,7 @@ export interface DaybookData {
   creditGiven: number;
   creditCollectedToday: number;
   paymentModeBreakdown: { method: string; amount: number }[];
+  gstSummary?: DaybookGstSummary;
   gstCollectedToday: { total: number; cgst: number; sgst: number };
   topSellingItemToday: { name: string; unitsSold: number; revenue: number } | null;
   remindersSentToday: number;
@@ -152,8 +175,11 @@ export const reportsApi = {
     return fetchApi<ProfitBreakdownData>('/reports/profit-breakdown');
   },
 
-  getTopProducts: async (limit = 5): Promise<TopProductData[]> => {
-    return fetchApi<TopProductData[]>(`/reports/top-products?limit=${limit}`);
+  getTopProducts: async (limit = 100, start?: string, end?: string): Promise<TopProductData[]> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (start) params.append('start', start);
+    if (end) params.append('end', end);
+    return fetchApi<TopProductData[]>(`/reports/top-products?${params.toString()}`);
   },
 
   getTopCategories: async (limit = 3): Promise<TopCategoryData[]> => {
