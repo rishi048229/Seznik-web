@@ -9,8 +9,9 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
 } from 'react-native';
-import { X, Package, Plus, Minus, Save } from 'lucide-react-native';
+import { X, Package, Plus, Minus, Save, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -56,6 +57,7 @@ export function PosProductSheet({
   const [costPrice, setCostPrice] = useState('');
   const [barcode, setBarcode] = useState('');
   const [stock, setStock] = useState('');
+  const [isAvailable, setIsAvailable] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   // Reseeded whenever a different product is opened, so the sheet never shows the
@@ -72,6 +74,7 @@ export function PosProductSheet({
     setCostPrice(product ? String(product.costPrice ?? '') : '');
     setBarcode(product?.barcode ?? '');
     setStock(product ? String(product.currentStock ?? 0) : '0');
+    setIsAvailable(product ? (product.isAvailable !== false && product.isActive !== false) : true);
   }
 
   const stockNum = Number(stock) || 0;
@@ -101,6 +104,7 @@ export function PosProductSheet({
             sellingPrice: priceNum,
             costPrice: Number(costPrice) || 0,
             barcode: barcode.trim() || undefined,
+            isAvailable,
           },
         });
 
@@ -118,8 +122,9 @@ export function PosProductSheet({
           sellingPrice: priceNum,
           costPrice: Number(costPrice) || 0,
           barcode: barcode.trim() || undefined,
-          currentStock: trackStock ? stockNum : 999999,
+          currentStock: stockNum > 0 ? stockNum : 0,
           lowStockThreshold: trackStock ? 5 : 0,
+          isAvailable,
           unit: 'Pc',
           taxRate: 0,
         });
@@ -157,6 +162,53 @@ export function PosProductSheet({
             </View>
 
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 380 }}>
+              {/* Quick Availability Status Toggle */}
+              <View
+                style={[
+                  styles.availabilityCard,
+                  {
+                    backgroundColor: isAvailable
+                      ? (theme.isDark ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5')
+                      : (theme.isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2'),
+                    borderColor: isAvailable
+                      ? (theme.isDark ? 'rgba(16, 185, 129, 0.35)' : '#A7F3D0')
+                      : (theme.isDark ? 'rgba(239, 68, 68, 0.35)' : '#FECACA'),
+                  },
+                ]}
+              >
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {isAvailable ? (
+                      <CheckCircle2 size={16} color="#10B981" />
+                    ) : (
+                      <AlertCircle size={16} color="#EF4444" />
+                    )}
+                    <Text
+                      style={[
+                        styles.availabilityTitle,
+                        { color: isAvailable ? (theme.isDark ? '#34D399' : '#065F46') : (theme.isDark ? '#F87171' : '#991B1B') },
+                      ]}
+                    >
+                      {isAvailable ? 'Item is Available' : 'Item is Not Available'}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.availabilitySub,
+                      { color: isAvailable ? (theme.isDark ? '#A7F3D0' : '#047857') : (theme.isDark ? '#FCA5A5' : '#B91C1C') },
+                    ]}
+                  >
+                    {isAvailable ? 'Active for sales and billing' : 'Unavailable / Out of stock for sales'}
+                  </Text>
+                </View>
+                <Switch
+                  value={isAvailable}
+                  onValueChange={setIsAvailable}
+                  trackColor={{ false: '#EF4444', true: '#10B981' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
               <Text style={[styles.label, { color: theme.textSecondary }]}>Product name</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.borderColor }]}
@@ -281,6 +333,25 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 16, fontWeight: '900' },
   sub: { fontSize: 11.5, marginTop: 2 },
+  availabilityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 13,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 8,
+    marginTop: 2,
+  },
+  availabilityTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  availabilitySub: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
   label: { fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 12 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11, fontSize: 14, fontWeight: '600' },
   row: { flexDirection: 'row' },

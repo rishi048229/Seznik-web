@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding, updateBusinessType, redeemAccessCode as redeemAccessCodeApi } from '@/services/authService'
 import type { UserProfile, UserRole, UserPermissions, CompleteOnboardingPayload, BusinessType } from '@/types/auth.types'
 import { getAuthToken } from '@/services/api'
+import { queryClient } from '@/lib/queryClient'
 
 interface AuthContextType {
   user: UserProfile | null
@@ -163,6 +164,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const nextProfile = updatedProfile ?? { ...user, ...updated, businessType }
       setUser(nextProfile)
       setUserProfile((prev) => (prev ? { ...nextProfile, role: prev.role } : nextProfile))
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['tables'] })
+      queryClient.invalidateQueries({ queryKey: ['kot-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
     } catch (error) {
       setUserProfile((prev) => (prev ? { ...prev, businessType: previousType } : prev))
       setUser((prev) => (prev ? { ...prev, businessType: previousType } : prev))

@@ -883,12 +883,6 @@ export const completeOnboarding = async (req: Request, res: Response) => {
       },
     });
 
-    if (businessType === 'restaurant_cafe') {
-      await prisma.product.updateMany({
-        where: { userId, currentStock: { lt: 999999 } },
-        data: { currentStock: 999999, lowStockThreshold: 0 },
-      });
-    }
 
     const { password, ...userWithoutPassword } = user;
     res.json({

@@ -77,10 +77,10 @@ export const PosProductTile = memo(function PosProductTile({
       ? (product as any).stockQty
       : undefined;
 
-  const stock = rawStock !== undefined ? Math.max(0, rawStock) : undefined;
+  const stock = rawStock !== undefined ? Math.max(0, rawStock) : (trackStock ? 0 : undefined);
   const threshold = product.lowStockThreshold ?? (product as any).reorderThreshold ?? 5;
   const isUnavailable = !isProductAvailable(product);
-  const isOutOfStock = trackStock && stock !== undefined && stock <= 0;
+  const isOutOfStock = trackStock && (stock === undefined || stock <= 0 || isUnavailable);
   const isLowStock = trackStock && !isOutOfStock && stock !== undefined && stock <= threshold;
   const isDisabled = trackStock ? isOutOfStock : isUnavailable;
 
@@ -113,48 +113,61 @@ export const PosProductTile = memo(function PosProductTile({
     }
     if (stock !== undefined) {
       return (
-        <Text style={[styles.stockCountText, { color: textSecondary }]}>
-          Stock: {stock}
-        </Text>
+        <View style={[styles.stockBadge, { backgroundColor: isDark ? 'rgba(14, 165, 233, 0.18)' : 'rgba(14, 165, 233, 0.12)' }]}>
+          <Text style={[styles.stockBadgeText, { color: BRAND_COLORS.sky500 }]}>
+            Stock: {stock}
+          </Text>
+        </View>
       );
     }
     return null;
   };
 
-  const gridStockMeta = () => {
+  const renderCornerStockBadge = () => {
     if (!trackStock) {
       if (isUnavailable) {
         return (
-          <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-            <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Not available</Text>
+          <View style={[styles.cornerStockBadge, { backgroundColor: '#EF4444' }]}>
+            <Text style={styles.cornerStockBadgeText}>Not available</Text>
           </View>
         );
       }
       return null;
     }
+
     if (isOutOfStock) {
       return (
-        <View style={[styles.stockBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-          <Text style={[styles.stockBadgeText, { color: '#EF4444' }]}>Out of Stock</Text>
+        <View style={[styles.cornerStockBadge, { backgroundColor: '#EF4444' }]}>
+          <Text style={styles.cornerStockBadgeText}>Out of Stock</Text>
         </View>
       );
     }
+
     if (isLowStock) {
       return (
-        <View style={[styles.stockBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-          <Text style={[styles.stockBadgeText, { color: '#F59E0B' }]}>
-            {lowStockLabel}: {stock}
-          </Text>
+        <View style={[styles.cornerStockBadge, { backgroundColor: '#F59E0B' }]}>
+          <Text style={styles.cornerStockBadgeText}>{lowStockLabel}: {stock}</Text>
         </View>
       );
     }
+
     if (stock !== undefined) {
       return (
-        <Text style={[styles.stockCountText, { color: textSecondary }]}>
-          {stock} left
-        </Text>
+        <View
+          style={[
+            styles.cornerStockBadge,
+            {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(15, 23, 42, 0.82)',
+              borderColor: 'rgba(255, 255, 255, 0.25)',
+              borderWidth: 0.5,
+            },
+          ]}
+        >
+          <Text style={styles.cornerStockBadgeText}>Stock: {stock}</Text>
+        </View>
       );
     }
+
     return null;
   };
 
@@ -275,7 +288,7 @@ export const PosProductTile = memo(function PosProductTile({
         },
       ]}
     >
-      {/* Top Header: Code Tag & Stock/Discount Badges */}
+      {/* Top Header: Code Tag & Discount Badges */}
       <View style={styles.tileHeaderRow}>
         <Text style={[styles.codeTagText, { color: textSecondary }]}>#{codeNumber}</Text>
         <View style={styles.badgesRow}>
@@ -286,8 +299,6 @@ export const PosProductTile = memo(function PosProductTile({
               </Text>
             </View>
           ) : null}
-
-          {gridStockMeta()}
         </View>
       </View>
 
@@ -305,6 +316,9 @@ export const PosProductTile = memo(function PosProductTile({
             ) : null}
           </View>
         )}
+
+        {/* High-visibility Corner Stock Badge */}
+        {renderCornerStockBadge()}
 
         {/* Quantity Indicator Bubble on top-right of image */}
         {inCart ? (
@@ -386,6 +400,28 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   stockBadgeText: { fontSize: 9, fontWeight: '800' },
+  cornerStockBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+  },
+  cornerStockBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
 
   /* Image & Hero Initial Badge */
   tileImageWrapper: {

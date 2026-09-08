@@ -31,8 +31,9 @@ export function usesStockTracking(
   businessType: BusinessType | null | undefined,
   trackStockSetting?: boolean | null
 ): boolean {
+  if (isKotFirstNav(businessType)) return false;
   if (typeof trackStockSetting === 'boolean') return trackStockSetting;
-  return !isKotFirstNav(businessType);
+  return true;
 }
 
 /** Product is sellable/orderable. Prefers isAvailable; falls back to isActive for legacy rows. */

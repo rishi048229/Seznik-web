@@ -39,6 +39,7 @@ import {
   Flashlight,
   FlashlightOff,
   QrCode,
+  Edit3,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
@@ -347,14 +348,13 @@ function PosScreen() {
     if (matched) {
       if (!trackStock) {
         if (!isProductAvailable(matched)) {
-          setScanToast({ message: `"${matched.name}" is not available`, isError: true });
+          setScanToast({ message: `"${matched.name}" is not available on the menu`, isError: true });
         } else {
           addItem(matched, 1);
           setScanToast({ message: `+1 ${matched.name} (₹${matched.sellingPrice.toFixed(2)})` });
         }
-      } else if (typeof matched.currentStock === 'number' && matched.currentStock <= 0) {
-        setScanToast({ message: `🚨 Out of Stock: "${matched.name}" (0 left)`, isError: true });
-        addItem(matched, 1);
+      } else if ((typeof matched.currentStock === 'number' && matched.currentStock <= 0) || !isProductAvailable(matched)) {
+        setScanToast({ message: `Out of Stock: "${matched.name}" (0 remaining)`, isError: true });
       } else {
         addItem(matched, 1);
         setScanToast({ message: `+1 ${matched.name} (₹${matched.sellingPrice.toFixed(2)})` });
@@ -1027,18 +1027,30 @@ function PosScreen() {
                 </View>
               ) : (
                 cartItems.map((item) => (
-                  <View
+                  <TouchableOpacity
                     key={item.product.id}
+                    activeOpacity={0.85}
+                    delayLongPress={300}
+                    onLongPress={() => openEditProductSheet(item.product)}
                     style={[styles.scannerCartItemRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                   >
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={[styles.scannerCartItemName, { color: theme.textPrimary }]} numberOfLines={1}>
-                        {item.product.name}
-                      </Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => openEditProductSheet(item.product)}
+                      onLongPress={() => openEditProductSheet(item.product)}
+                      delayLongPress={300}
+                      style={{ flex: 1, marginRight: 8 }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <Text style={[styles.scannerCartItemName, { color: theme.textPrimary, flex: 1 }]} numberOfLines={1}>
+                          {item.product.name}
+                        </Text>
+                        <Edit3 size={12} color={theme.textSecondary} />
+                      </View>
                       <Text style={[styles.scannerCartItemPrice, { color: theme.textSecondary }]}>
                         ₹{item.product.sellingPrice.toFixed(2)} × {item.quantity} = <Text style={{ fontWeight: '900', color: BRAND_COLORS.blue600 }}>₹{(item.product.sellingPrice * item.quantity).toFixed(2)}</Text>
                       </Text>
-                    </View>
+                    </TouchableOpacity>
 
                     <View style={styles.scannerQtyStepper}>
                       <TouchableOpacity
@@ -1055,7 +1067,7 @@ function PosScreen() {
                         <Plus size={12} color="#FFFFFF" />
                       </TouchableOpacity>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </ScrollView>
@@ -1214,21 +1226,34 @@ function PosScreen() {
                     style={[styles.cartRowCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {/* Item Image Thumbnail */}
-                      {item.product.imageUrl ? (
-                        <Image source={{ uri: item.product.imageUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} resizeMode="cover" />
-                      ) : (
-                        <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                          <Package size={18} color={theme.textSecondary} />
-                        </View>
-                      )}
+                      {/* Item Image Thumbnail & Info Touch Target (tap or hold to edit) */}
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => openEditProductSheet(item.product)}
+                        onLongPress={() => openEditProductSheet(item.product)}
+                        delayLongPress={300}
+                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}
+                      >
+                        {item.product.imageUrl ? (
+                          <Image source={{ uri: item.product.imageUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} resizeMode="cover" />
+                        ) : (
+                          <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                            <Package size={18} color={theme.textSecondary} />
+                          </View>
+                        )}
 
-                      <View style={{ flex: 1, marginRight: 10 }}>
-                        <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>{item.product.name}</Text>
-                        <Text style={[styles.itemSub, { color: theme.textSecondary }]}>
-                          ₹{item.product.sellingPrice.toFixed(2)} each
-                        </Text>
-                      </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.itemTitle, { color: theme.textPrimary, flex: 1 }]} numberOfLines={1}>
+                              {item.product.name}
+                            </Text>
+                            <Edit3 size={13} color={theme.textSecondary} />
+                          </View>
+                          <Text style={[styles.itemSub, { color: theme.textSecondary }]}>
+                            ₹{item.product.sellingPrice.toFixed(2)} each · <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '700' }}>Hold to edit</Text>
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
 
                       <View style={styles.qtyControls}>
                         <TouchableOpacity
@@ -1537,7 +1562,12 @@ function PosScreen() {
         product={productSheetTarget}
         onClose={() => setProductSheetOpen(false)}
         onCreate={(payload) => createProduct(payload as any)}
-        onUpdate={({ id, payload }) => updateProduct({ id, payload: payload as any })}
+        onUpdate={async ({ id, payload }) => {
+          await updateProduct({ id, payload: payload as any });
+          if (payload.isAvailable === false) {
+            removeItem(id);
+          }
+        }}
         onAdjustStock={({ id, quantity, reason }) => adjustStock({ id, payload: { change: quantity, reason } })}
       />
 

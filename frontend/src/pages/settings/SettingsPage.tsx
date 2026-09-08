@@ -22,6 +22,7 @@ import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { BUSINESS_TYPE_OPTIONS, type BusinessType } from '@/constants/businessTypes'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -56,7 +57,31 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
-  const { userProfile } = useAuth()
+  const { userProfile, updateBusinessType } = useAuth()
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType | null>(
+    userProfile?.businessType ?? null
+  )
+  const [isSavingBusinessType, setIsSavingBusinessType] = useState(false)
+
+  useEffect(() => {
+    if (userProfile?.businessType) {
+      setSelectedBusinessType(userProfile.businessType)
+    }
+  }, [userProfile?.businessType])
+
+  const handleSaveBusinessType = async (newType: BusinessType) => {
+    if (!newType || newType === userProfile?.businessType) return
+    setIsSavingBusinessType(true)
+    try {
+      await updateBusinessType(newType)
+      setSelectedBusinessType(newType)
+      toast.success(`Workspace switched to ${BUSINESS_TYPE_OPTIONS.find(o => o.id === newType)?.label}`)
+    } catch (err) {
+      toastError(err, 'Failed to update business type')
+    } finally {
+      setIsSavingBusinessType(false)
+    }
+  }
   const showKotSettings = isNavFeatureVisible(userProfile?.businessType, 'kot')
 
   const current = settings ?? DEFAULT_SETTINGS
@@ -372,6 +397,44 @@ export const SettingsPage = () => {
                   id="settings-business-gstin"
                   placeholder="e.g. 27AAPFU0939F1ZV"
                 />
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                    Business Type & Workspace Mode
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Switching your business type adapts your navigation, POS screens, and catalog features. Product stock counts are safely preserved across modes.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {BUSINESS_TYPE_OPTIONS.map((opt) => {
+                      const isSelected = (selectedBusinessType || userProfile?.businessType) === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBusinessType(opt.id)
+                            handleSaveBusinessType(opt.id)
+                          }}
+                          disabled={isSavingBusinessType}
+                          className={`flex flex-col text-left p-3.5 rounded-xl border transition-all ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500/20 shadow-sm'
+                              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-dark-card text-gray-800 dark:text-gray-200'
+                          } ${isSavingBusinessType ? 'opacity-70 cursor-wait' : 'cursor-pointer'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold">{opt.label}</span>
+                            {isSelected && <Check size={16} className="text-blue-600 dark:text-blue-400" />}
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                            {opt.description}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('business')} loading={isPending} className="w-full sm:w-auto">
                     {hasSettings ? t('settings.updateBusinessProfile') : t('settings.saveBusinessProfile')}

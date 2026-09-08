@@ -96,7 +96,7 @@ export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItem
         taxRate: parseFloat(taxRate) || 0,
         priceIncludesGst: true,
         // Prepared on demand — no stock gating in KOT
-        currentStock: 999999,
+        currentStock: 0,
         lowStockThreshold: 0,
         unit: 'piece',
         isActive: true,

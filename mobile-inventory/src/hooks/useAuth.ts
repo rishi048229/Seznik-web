@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { CompleteOnboardingPayload, LoginPayload, RegisterPayload } from '@/types/auth';
+import { setCachedTrackStockSetting } from '@/hooks/useSettings';
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -94,6 +95,13 @@ export function useAuth() {
     onSuccess: async (profile) => {
       await updateUser(profile);
       queryClient.setQueryData(['auth', 'profile'], profile);
+      setCachedTrackStockSetting(profile?.businessType === 'restaurant_cafe' ? false : true);
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      queryClient.invalidateQueries({ queryKey: ['kot-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
     },
   });
 

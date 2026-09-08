@@ -19,6 +19,13 @@ export function setCachedSettings(settings: Settings | null): void {
   }
 }
 
+export function setCachedTrackStockSetting(track: boolean | null | undefined): void {
+  cachedTrackStockSetting = track;
+  if (cachedSettings && typeof track === 'boolean') {
+    cachedSettings = { ...cachedSettings, trackStock: track };
+  }
+}
+
 export function getCachedTrackStockSetting(): boolean | null | undefined {
   return cachedTrackStockSetting;
 }

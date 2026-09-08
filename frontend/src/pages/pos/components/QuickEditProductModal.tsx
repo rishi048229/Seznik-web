@@ -108,7 +108,9 @@ export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: Qui
           sellingPrice,
           taxRate,
           priceIncludesGst: form.priceIncludesGst,
-          currentStock: trackStock ? (parseInt(form.currentStock) || 0) : 999999,
+          currentStock: form.currentStock !== '' && !isNaN(parseInt(form.currentStock))
+            ? (parseInt(form.currentStock) || 0)
+            : product.currentStock,
           lowStockThreshold: trackStock ? (parseInt(form.lowStockThreshold) || 10) : 0,
           unit: form.unit,
         },

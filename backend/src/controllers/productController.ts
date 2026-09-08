@@ -287,9 +287,11 @@ export const createProduct = async (req: Request, res: Response) => {
     delete rest.isFoodItem;
 
     const tracksStock = await userTracksStock(userId);
-    if (!tracksStock) {
-      rest.currentStock = 999999;
-      rest.lowStockThreshold = 0;
+    if (rest.currentStock === undefined || rest.currentStock === null) {
+      rest.currentStock = 0;
+    }
+    if (rest.lowStockThreshold === undefined || rest.lowStockThreshold === null) {
+      rest.lowStockThreshold = tracksStock ? 5 : 0;
     }
     if (rest.isAvailable === undefined) {
       rest.isAvailable = true;

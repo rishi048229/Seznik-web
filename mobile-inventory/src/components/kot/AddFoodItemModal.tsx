@@ -95,7 +95,7 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
         sellingPrice,
         costPrice: parseFloat(costPrice) || 0,
         // In KOT restaurants, food items are prepared on demand without inventory stock limits
-        currentStock: 999999,
+        currentStock: 0,
         lowStockThreshold: 0,
         unit,
         taxRate: parseFloat(taxRate) || 0,

@@ -134,6 +134,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     issueToken: 'Issue Token',
     totalItems: 'Total Items',
     lowStock: 'Low Stock',
+    outOfStock: 'Out of Stock',
+    unavailable: 'Unavailable',
     totalStockValue: 'Total Stock Value',
     all: 'All',
     allItems: 'All Items',

@@ -184,8 +184,9 @@ export default function ProductsScreen() {
     'Can (can)',
   ];
 
-  const lowStockCount = products.filter((p) => p.currentStock <= p.lowStockThreshold).length;
-  const totalStockValue = products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * p.currentStock, 0);
+  const outOfStockCount = products.filter((p) => p.currentStock <= 0).length;
+  const lowStockCount = products.filter((p) => p.currentStock > 0 && p.currentStock <= p.lowStockThreshold).length;
+  const totalStockValue = products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * Math.max(0, p.currentStock), 0);
   const unavailableCount = products.filter((p) => !isProductAvailable(p)).length;
 
   const filteredProducts = useMemo(() => products.filter((p) => {
@@ -488,7 +489,7 @@ export default function ProductsScreen() {
           ? Math.max(0, parseInt(stock) || 0)
           : editingProduct
             ? editingProduct.currentStock
-            : 999999,
+            : 0,
         lowStockThreshold: trackStock
           ? Math.max(0, parseInt(lowStockThreshold) || 10)
           : editingProduct
@@ -667,8 +668,13 @@ export default function ProductsScreen() {
             {trackStock ? (
               <>
                 <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('outOfStock', 'Out of Stock')}</Text>
+                  <Text style={[styles.statValue, { color: outOfStockCount > 0 ? '#EF4444' : '#10B981' }]}>{outOfStockCount}</Text>
+                </View>
+
+                <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
-                  <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#EF4444' : '#10B981' }]}>{lowStockCount}</Text>
+                  <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#F59E0B' : '#10B981' }]}>{lowStockCount}</Text>
                 </View>
 
                 <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -678,7 +684,7 @@ export default function ProductsScreen() {
               </>
             ) : (
               <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Unavailable</Text>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('unavailable', 'Unavailable')}</Text>
                 <Text style={[styles.statValue, { color: unavailableCount > 0 ? '#EF4444' : '#10B981' }]}>
                   {unavailableCount}
                 </Text>
@@ -782,7 +788,8 @@ export default function ProductsScreen() {
             removeClippedSubviews={Platform.OS === 'android'}
             contentContainerStyle={{ paddingBottom: 60 }}
             renderItem={({ item }) => {
-              const isLowStock = item.currentStock <= item.lowStockThreshold;
+              const isOutOfStock = item.currentStock <= 0 || !isProductAvailable(item);
+              const isLowStock = !isOutOfStock && item.currentStock <= item.lowStockThreshold;
               const available = isProductAvailable(item);
 
               return (
@@ -794,7 +801,7 @@ export default function ProductsScreen() {
                     {
                       backgroundColor: theme.cardBg,
                       borderColor: theme.borderColor,
-                      opacity: !trackStock && !available ? 0.72 : 1,
+                      opacity: !trackStock && !available ? 0.72 : (trackStock && isOutOfStock ? 0.82 : 1),
                     },
                   ]}
                 >
@@ -814,11 +821,27 @@ export default function ProductsScreen() {
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
                       {trackStock ? (
-                        <View style={[styles.stockPill, { backgroundColor: isLowStock ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
-                          <Text style={[styles.stockPillText, { color: isLowStock ? '#EF4444' : '#10B981' }]}>
-                            Stock: {item.currentStock} {item.unit || 'pcs'}
-                          </Text>
-                        </View>
+                        <>
+                          {isOutOfStock ? (
+                            <View style={[styles.stockPill, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                              <Text style={[styles.stockPillText, { color: '#EF4444', fontWeight: '800' }]}>
+                                Out of Stock
+                              </Text>
+                            </View>
+                          ) : isLowStock ? (
+                            <View style={[styles.stockPill, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                              <Text style={[styles.stockPillText, { color: '#F59E0B' }]}>
+                                Low Stock: {item.currentStock} {item.unit || 'pcs'}
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={[styles.stockPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                              <Text style={[styles.stockPillText, { color: '#10B981' }]}>
+                                Stock: {item.currentStock} {item.unit || 'pcs'}
+                              </Text>
+                            </View>
+                          )}
+                        </>
                       ) : (
                         <View
                           style={[
@@ -992,11 +1015,25 @@ export default function ProductsScreen() {
                       <Text style={styles.heroPillDarkText}>Unit: {detailProduct.unit || 'piece'}</Text>
                     </View>
                     {trackStock ? (
-                      <View style={[styles.heroPillGreen, detailProduct.currentStock <= detailProduct.lowStockThreshold && { backgroundColor: 'rgba(239, 68, 68, 0.25)' }]}>
-                        <Text style={[styles.heroPillGreenText, detailProduct.currentStock <= detailProduct.lowStockThreshold && { color: '#EF4444' }]}>
-                          {detailProduct.currentStock <= detailProduct.lowStockThreshold ? 'Low Stock' : 'In Stock'}
-                        </Text>
-                      </View>
+                      detailProduct.currentStock <= 0 || !isProductAvailable(detailProduct) ? (
+                        <View style={[styles.heroPillGreen, { backgroundColor: 'rgba(239, 68, 68, 0.25)' }]}>
+                          <Text style={[styles.heroPillGreenText, { color: '#EF4444' }]}>
+                            Out of Stock
+                          </Text>
+                        </View>
+                      ) : detailProduct.currentStock <= detailProduct.lowStockThreshold ? (
+                        <View style={[styles.heroPillGreen, { backgroundColor: 'rgba(245, 158, 11, 0.25)' }]}>
+                          <Text style={[styles.heroPillGreenText, { color: '#F59E0B' }]}>
+                            Low Stock ({detailProduct.currentStock})
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.heroPillGreen}>
+                          <Text style={styles.heroPillGreenText}>
+                            In Stock ({detailProduct.currentStock})
+                          </Text>
+                        </View>
+                      )
                     ) : (
                       <View
                         style={[
@@ -1133,8 +1170,15 @@ export default function ProductsScreen() {
                     <View style={styles.stockBlockGrid}>
                       <View style={[styles.stockBox, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}>
                         <Text style={[styles.stockBoxLabel, { color: theme.textSecondary }]}>Current Stock</Text>
-                        <Text style={[styles.stockBoxVal, { color: theme.textPrimary }]}>
-                          {detailProduct.currentStock} {detailProduct.unit || 'piece'}
+                        <Text
+                          style={[
+                            styles.stockBoxVal,
+                            { color: detailProduct.currentStock <= 0 ? '#EF4444' : theme.textPrimary },
+                          ]}
+                        >
+                          {detailProduct.currentStock <= 0
+                            ? `0 ${detailProduct.unit || 'piece'} (Out of Stock)`
+                            : `${detailProduct.currentStock} ${detailProduct.unit || 'piece'}`}
                         </Text>
                       </View>
 

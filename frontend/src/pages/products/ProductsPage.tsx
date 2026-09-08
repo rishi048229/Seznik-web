@@ -661,7 +661,9 @@ export const ProductsPage = () => {
       sellingPrice: enteredPrice,
       taxRate,
       priceIncludesGst: form.priceIncludesGst,
-      currentStock: trackStock ? (parseInt(form.currentStock) || 0) : 999999,
+      currentStock: form.currentStock !== '' && !isNaN(parseInt(form.currentStock))
+        ? (parseInt(form.currentStock) || 0)
+        : (editingProduct ? editingProduct.currentStock : 0),
       lowStockThreshold: trackStock ? (parseInt(form.lowStockThreshold) || 10) : 0,
       unit: form.unit,
       imageURL: form.imageURL || '',
@@ -1195,10 +1197,19 @@ export const ProductsPage = () => {
                             <td className="px-6 py-4">
                               {trackStock ? (
                                 <div className="flex flex-col gap-1">
-                                  <span className={`text-sm font-semibold ${
+                                  <span className={`text-sm font-semibold flex items-center gap-1.5 ${
                                     isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
                                   }`}>
-                                    {storeStock} Units
+                                    {isOutOfStock ? (
+                                      <>
+                                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold">
+                                          Out of Stock
+                                        </span>
+                                        <span className="text-xs opacity-75">(0 Units)</span>
+                                      </>
+                                    ) : (
+                                      `${storeStock} Units`
+                                    )}
                                   </span>
                                   {browseStoreId && (
                                     <span className="text-[10px] text-gray-400">at {browseStoreName}</span>

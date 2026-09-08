@@ -108,11 +108,10 @@ export const useCartStore = create<CartState>((set, get) => ({
         return;
       }
     } else {
-      // Check if product is out of stock (stock is 0 or negative)
       const availableStock = extractAvailableStock(product);
-      if (availableStock !== undefined && availableStock <= 0) {
+      if ((availableStock !== undefined && availableStock <= 0) || !isProductAvailable(product)) {
         Alert.alert(
-          'Out of Stock 🚨',
+          'Out of Stock',
           `Cannot add "${product.name}" to cart because it is currently out of stock (0 ${product.unit || 'units'} left in inventory). Please restock before billing.`
         );
         return;

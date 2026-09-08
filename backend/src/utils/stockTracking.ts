@@ -21,6 +21,11 @@ export async function userTracksStock(userId: string): Promise<boolean> {
     }),
   ])
 
+  // Restaurants/cafes prepare food on demand — never track stock quantity
+  if (user?.businessType === 'restaurant_cafe') {
+    return false
+  }
+
   if (typeof settings?.trackStock === 'boolean') {
     return settings.trackStock
   }
@@ -37,12 +42,4 @@ export async function syncTrackStockForUser(
     update: { trackStock },
     create: { userId, trackStock },
   })
-
-  if (!trackStock) {
-    // Non-gating stock so quantity checks never block restaurant menus.
-    await prisma.product.updateMany({
-      where: { userId, currentStock: { lt: 999999 } },
-      data: { currentStock: 999999, lowStockThreshold: 0 },
-    })
-  }
 }

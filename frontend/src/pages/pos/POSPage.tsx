@@ -873,7 +873,24 @@ export const POSPage = () => {
                       : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-400 hover:bg-blue-50/70 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 hover:shadow-md'
                   }`}
                 >
-                  <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center relative">
+                    {trackStock ? (
+                      <span className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm z-10 ${
+                        isOutOfStock
+                          ? 'bg-red-600 text-white'
+                          : isLowStock
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-slate-900/80 text-white border border-white/20 backdrop-blur-sm'
+                      }`}>
+                        {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
+                      </span>
+                    ) : (
+                      !isProductAvailable(product) && (
+                        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm z-10 bg-red-600 text-white">
+                          Not available
+                        </span>
+                      )
+                    )}
                     {product.imageURL ? (
                       <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
