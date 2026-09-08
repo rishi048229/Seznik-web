@@ -144,9 +144,9 @@ export default function RegisterScreen() {
   };
 
   // Step 2: Verify OTP
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = async (codeOverride?: string) => {
     setErrorMessage(null);
-    const cleanOtp = otp.trim();
+    const cleanOtp = (codeOverride !== undefined ? codeOverride : otp).trim();
     if (cleanOtp.length < 6) {
       setErrorMessage(t('enterValidOtp', 'Please enter the 6-digit verification code'));
       return;
@@ -524,8 +524,12 @@ export default function RegisterScreen() {
                       placeholderTextColor="#94A3B8"
                       value={otp}
                       onChangeText={(val) => {
-                        setOtp(val.replace(/[^0-9]/g, '').slice(0, 6));
+                        const numeric = val.replace(/[^0-9]/g, '').slice(0, 6);
+                        setOtp(numeric);
                         if (errorMessage) setErrorMessage(null);
+                        if (numeric.length === 6) {
+                          handleVerifyOtp(numeric);
+                        }
                       }}
                       onFocus={() => setFocusedField('otp')}
                       onBlur={() => setFocusedField(null)}
@@ -537,7 +541,7 @@ export default function RegisterScreen() {
                 </View>
 
                 <TouchableOpacity
-                  onPress={handleVerifyOtp}
+                  onPress={() => handleVerifyOtp()}
                   disabled={isVerifyingOtp || otp.length < 6}
                   style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }, (otp.length < 6 || isVerifyingOtp) && { opacity: 0.7 }]}
                   activeOpacity={0.85}

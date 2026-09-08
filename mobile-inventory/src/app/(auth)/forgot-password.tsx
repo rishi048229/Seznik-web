@@ -96,10 +96,10 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    const cleanOtp = otp.trim();
-    if (!cleanOtp || cleanOtp.length < 4) {
-      setErrorMsg(t('enterValidOtp', 'Please enter a valid verification code'));
+  const handleVerifyOtp = async (codeOverride?: string) => {
+    const cleanOtp = (codeOverride !== undefined ? codeOverride : otp).trim();
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setErrorMsg(t('enterValidOtp', 'Please enter a valid 6-digit verification code'));
       return;
     }
     setErrorMsg(null);
@@ -352,8 +352,12 @@ export default function ForgotPasswordScreen() {
                         maxLength={6}
                         value={otp}
                         onChangeText={(val) => {
-                          setOtp(val.replace(/[^0-9]/g, '').slice(0, 6));
+                          const numeric = val.replace(/[^0-9]/g, '').slice(0, 6);
+                          setOtp(numeric);
                           if (errorMsg) setErrorMsg(null);
+                          if (numeric.length === 6) {
+                            handleVerifyOtp(numeric);
+                          }
                         }}
                         onFocus={() => setFocusedField('otp')}
                         onBlur={() => setFocusedField(null)}
@@ -363,8 +367,8 @@ export default function ForgotPasswordScreen() {
                   </View>
 
                   <TouchableOpacity
-                    onPress={handleVerifyOtp}
-                    disabled={loading || otp.length < 4}
+                    onPress={() => handleVerifyOtp()}
+                    disabled={loading || otp.length < 6}
                     style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }, (otp.length < 4 || loading) && { opacity: 0.7 }]}
                     activeOpacity={0.85}
                   >
