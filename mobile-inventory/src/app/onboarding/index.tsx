@@ -12,7 +12,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode } from 'lucide-react-native';
+import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode, Globe } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -47,9 +47,9 @@ export default function OnboardingScreen() {
   const { currentLanguage, setLanguage, t } = useTranslation();
 
   const pickTypeOnly = user?.onboardingCompleted === true && !user?.businessType;
-  const lastStep = pickTypeOnly ? 2 : 3;
+  const lastStep = pickTypeOnly ? 2 : 4;
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [businessName, setBusinessName] = useState(user?.businessName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [businessAddress, setBusinessAddress] = useState('');
@@ -68,8 +68,12 @@ export default function OnboardingScreen() {
     () => BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label,
     [selectedBusinessType]
   );
-  const showPaymentStep = !pickTypeOnly && step === 2;
-  const showWorkspaceStep = pickTypeOnly ? step === 2 : step === 3;
+
+  const showLanguageStep = (step === 1);
+  const showShopStep = !pickTypeOnly && step === 2;
+  const showPaymentStep = !pickTypeOnly && step === 3;
+  const showWorkspaceStep = pickTypeOnly ? step === 2 : step === 4;
+
   const upiPreview = isValidUpiVpa(upiId)
     ? buildUpiPayString(upiId.trim(), businessName.trim() || 'Your shop', 100, 'Sample bill')
     : '';
@@ -134,6 +138,7 @@ export default function OnboardingScreen() {
   const handleNext = async () => {
     if (pickTypeOnly) {
       if (step === 1) {
+        await setLanguage(selectedLanguage);
         setStep(2);
         return;
       }
@@ -148,12 +153,18 @@ export default function OnboardingScreen() {
     }
 
     if (step === 1) {
-      if (!validateShopDetails()) return;
+      await setLanguage(selectedLanguage);
       setStep(2);
       return;
     }
 
     if (step === 2) {
+      if (!validateShopDetails()) return;
+      setStep(3);
+      return;
+    }
+
+    if (step === 3) {
       if (!isValidUpiVpa(upiId)) {
         Alert.alert(
           t('onboardingUpiRequired', 'UPI ID required'),
@@ -164,7 +175,7 @@ export default function OnboardingScreen() {
         );
         return;
       }
-      setStep(3);
+      setStep(4);
       return;
     }
 
@@ -213,7 +224,7 @@ export default function OnboardingScreen() {
               </Text>
               {step > 1 ? (
                 <TouchableOpacity
-                  onPress={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))}
+                  onPress={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev))}
                   hitSlop={12}
                 >
                   <View style={styles.backRow}>
@@ -232,129 +243,122 @@ export default function OnboardingScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {step === 1 ? (
+              {/* Step 1: Language Selection */}
+              {showLanguageStep ? (
+                <View style={styles.stepBox}>
+                  <View style={styles.iconCircle}>
+                    <Globe size={32} color="#FFFFFF" />
+                  </View>
+                  <Text style={[styles.title, { color: theme.textPrimary }]}>
+                    {t('onboardingLanguageTitle', 'Choose your preferred language')}
+                  </Text>
+                  <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                    {t(
+                      'onboardingLanguageDesc',
+                      'Select your language so you can set up your store and run POS in your own language.'
+                    )}
+                  </Text>
+                  <LanguagePicker
+                    selectedLanguage={selectedLanguage}
+                    onSelect={handleSelectLanguage}
+                    theme={theme}
+                  />
+                </View>
+              ) : null}
+
+              {/* Step 2: Store Information */}
+              {showShopStep ? (
                 <View style={styles.stepBox}>
                   <View style={styles.iconCircle}>
                     <Store size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
-                    {pickTypeOnly ? t('onboardingPickTypeTitle') : t('onboardingShopDetailsTitle')}
+                    {t('onboardingShopDetailsTitle')}
                   </Text>
                   <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                    {pickTypeOnly ? t('onboardingPickTypeDesc') : t('onboardingShopDetailsDesc')}
+                    {t('onboardingShopDetailsDesc')}
                   </Text>
 
-                  {pickTypeOnly ? (
-                    <>
-                      <BusinessTypePicker
-                        selectedBusinessType={selectedBusinessType}
-                        onSelect={setSelectedBusinessType}
-                        theme={theme}
-                      />
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingAppLanguage')}
-                      </Text>
-                      <LanguagePicker
-                        selectedLanguage={selectedLanguage}
-                        onSelect={handleSelectLanguage}
-                        theme={theme}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingShopName')} *
-                      </Text>
-                      <TextInput
-                        style={inputStyle}
-                        value={businessName}
-                        onChangeText={setBusinessName}
-                        placeholder="e.g. Seznik Cafe"
-                        placeholderTextColor="#94A3B8"
-                        autoCapitalize="words"
-                      />
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                    {t('onboardingShopName')} *
+                  </Text>
+                  <TextInput
+                    style={inputStyle}
+                    value={businessName}
+                    onChangeText={setBusinessName}
+                    placeholder="e.g. Seznik Cafe"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="words"
+                  />
 
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingShopLogo')}
-                      </Text>
-                      <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-                        {t('onboardingLogoOptional')}
-                      </Text>
-                      {logoUri ? (
-                        <View style={styles.logoRow}>
-                          <Image source={{ uri: logoUri }} style={styles.logoPreview} />
-                          <View style={{ flex: 1 }}>
-                            <TouchableOpacity onPress={handlePickLogo} style={styles.logoSecondaryBtn}>
-                              <Text style={styles.logoSecondaryText}>Replace</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => setLogoUri(null)}
-                              style={[styles.logoSecondaryBtn, { marginTop: 8 }]}
-                            >
-                              <Text style={[styles.logoSecondaryText, { color: '#EF4444' }]}>Remove</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          onPress={handlePickLogo}
-                          style={[
-                            styles.logoPicker,
-                            { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
-                          ]}
-                        >
-                          <ImageIcon size={22} color={theme.textSecondary} />
-                          <Text style={[styles.logoPickerText, { color: theme.textSecondary }]}>
-                            Tap to upload logo
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                    {t('onboardingShopLogo')}
+                  </Text>
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+                    {t('onboardingLogoOptional')}
+                  </Text>
+                  {logoUri ? (
+                    <View style={styles.logoRow}>
+                      <Image source={{ uri: logoUri }} style={styles.logoPreview} />
+                      <View style={{ flex: 1 }}>
+                        <TouchableOpacity onPress={handlePickLogo} style={styles.logoSecondaryBtn}>
+                          <Text style={styles.logoSecondaryText}>
+                            {t('onboardingReplaceLogo', 'Replace')}
                           </Text>
                         </TouchableOpacity>
-                      )}
-
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingPhone')} *
+                        <TouchableOpacity
+                          onPress={() => setLogoUri(null)}
+                          style={[styles.logoSecondaryBtn, { marginTop: 8 }]}
+                        >
+                          <Text style={[styles.logoSecondaryText, { color: '#EF4444' }]}>
+                            {t('onboardingRemoveLogo', 'Remove')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={handlePickLogo}
+                      style={[
+                        styles.logoPicker,
+                        { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                      ]}
+                    >
+                      <ImageIcon size={22} color={theme.textSecondary} />
+                      <Text style={[styles.logoPickerText, { color: theme.textSecondary }]}>
+                        {t('onboardingUploadLogo', 'Tap to upload logo')}
                       </Text>
-                      <TextInput
-                        style={inputStyle}
-                        value={phone}
-                        onChangeText={setPhone}
-                        placeholder="e.g. 9876543210"
-                        placeholderTextColor="#94A3B8"
-                        keyboardType="phone-pad"
-                      />
-
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingAddress')} *
-                      </Text>
-                      <TextInput
-                        style={[inputStyle, styles.multiline]}
-                        value={businessAddress}
-                        onChangeText={setBusinessAddress}
-                        placeholder="Street, area, city"
-                        placeholderTextColor="#94A3B8"
-                        multiline
-                      />
-
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingBusinessType')} *
-                      </Text>
-                      <BusinessTypePicker
-                        selectedBusinessType={selectedBusinessType}
-                        onSelect={setSelectedBusinessType}
-                        theme={theme}
-                      />
-
-                      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                        {t('onboardingAppLanguage')}
-                      </Text>
-                      <LanguagePicker
-                        selectedLanguage={selectedLanguage}
-                        onSelect={handleSelectLanguage}
-                        theme={theme}
-                      />
-                    </>
+                    </TouchableOpacity>
                   )}
+
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                    {t('onboardingPhone')} *
+                  </Text>
+                  <TextInput
+                    style={inputStyle}
+                    value={phone}
+                    onChangeText={setPhone}
+                    placeholder="e.g. 9876543210"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                  />
+
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                    {t('onboardingAddress')} *
+                  </Text>
+                  <TextInput
+                    style={[inputStyle, styles.multiline]}
+                    value={businessAddress}
+                    onChangeText={setBusinessAddress}
+                    placeholder="Street, area, city"
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                  />
                 </View>
-              ) : showPaymentStep ? (
+              ) : null}
+
+              {/* Step 3: UPI Payment Details */}
+              {showPaymentStep ? (
                 <View style={styles.stepBox}>
                   <View style={styles.iconCircle}>
                     <QrCode size={32} color="#FFFFFF" />
@@ -411,17 +415,31 @@ export default function OnboardingScreen() {
                     </View>
                   ) : null}
                 </View>
-              ) : showWorkspaceStep ? (
+              ) : null}
+
+              {/* Step 4 (or Step 2 for pickTypeOnly): Workspace Type & Confirmation */}
+              {showWorkspaceStep ? (
                 <View style={styles.stepBox}>
                   <View style={styles.iconCircle}>
                     <Layers size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
-                    {t('onboardingConfirmTitle').replace('{type}', selectedLabel ?? 'workspace')}
+                    {pickTypeOnly
+                      ? t('onboardingPickTypeTitle')
+                      : t('onboardingConfirmTitle').replace('{type}', selectedLabel ?? 'workspace')}
                   </Text>
                   <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                    {t('onboardingConfirmDesc')}
+                    {pickTypeOnly ? t('onboardingPickTypeDesc') : t('onboardingConfirmDesc')}
                   </Text>
+
+                  <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                    {t('onboardingBusinessType')} *
+                  </Text>
+                  <BusinessTypePicker
+                    selectedBusinessType={selectedBusinessType}
+                    onSelect={setSelectedBusinessType}
+                    theme={theme}
+                  />
 
                   <View
                     style={[
@@ -429,6 +447,7 @@ export default function OnboardingScreen() {
                       {
                         backgroundColor: theme.cardBg,
                         borderColor: BRAND_COLORS.blue600,
+                        marginTop: 14,
                       },
                     ]}
                   >

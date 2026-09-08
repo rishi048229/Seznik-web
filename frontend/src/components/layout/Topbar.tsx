@@ -80,6 +80,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
         <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-dark-elevated mx-1" />
         {/* New Bill (restaurant) or New Sale (retail) */}
         <Button
+          data-tour="pos-shortcut"
           variant="ghost"
           size="sm"
           onClick={openPrimaryAction}

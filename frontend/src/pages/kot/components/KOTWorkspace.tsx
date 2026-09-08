@@ -12,8 +12,7 @@ import { useCategories } from '@/hooks/useCategories'
 import { useLocationStock } from '@/hooks/useLocations'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { useAuth } from '@/hooks/useAuth'
-import { useUserProfile } from '@/hooks/useUserProfile'
+import { useAuth } from '@/contexts/AuthContext'
 import { isRestaurantBusiness } from '@/constants/businessTypes'
 import { useRestaurantTables } from '@/hooks/useRestaurantTables'
 import {
@@ -90,8 +89,7 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
   }))
 
 export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
-  const { user } = useAuth()
-  const { data: userProfile } = useUserProfile()
+  const { user, userProfile } = useAuth()
   const isRestaurant = isRestaurantBusiness(user?.businessType ?? userProfile?.businessType)
   const { data: restaurantTables = [] } = useRestaurantTables()
 

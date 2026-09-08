@@ -23,9 +23,9 @@ export const OnboardingPage = () => {
   const navigate = useNavigate()
 
   const pickTypeOnly = userProfile?.onboardingCompleted === true && !userProfile?.businessType
-  const lastStep = pickTypeOnly ? 2 : 3
+  const lastStep = pickTypeOnly ? 2 : 4
 
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [businessName, setBusinessName] = useState(userProfile?.businessName ?? '')
   const [phone, setPhone] = useState(userProfile?.phone ?? '')
   const [businessAddress, setBusinessAddress] = useState('')
@@ -41,8 +41,12 @@ export const OnboardingPage = () => {
   const template = BUSINESS_TEMPLATES[selectedBusinessType]
   const selectedLabel =
     BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'workspace'
-  const showPaymentStep = !pickTypeOnly && step === 2
-  const showWorkspaceStep = pickTypeOnly ? step === 2 : step === 3
+  
+  const showLanguageStep = (step === 1)
+  const showShopStep = !pickTypeOnly && step === 2
+  const showPaymentStep = !pickTypeOnly && step === 3
+  const showWorkspaceStep = pickTypeOnly ? step === 2 : step === 4
+
   const upiPreview = isValidUpiVpa(upiId)
     ? buildUpiPayLink({
         upiId: upiId.trim(),
@@ -75,6 +79,7 @@ export const OnboardingPage = () => {
 
     if (pickTypeOnly) {
       if (step === 1) {
+        setLanguage(selectedLanguage)
         setStep(2)
         return
       }
@@ -92,17 +97,23 @@ export const OnboardingPage = () => {
     }
 
     if (step === 1) {
-      if (!validateShopDetails()) return
+      setLanguage(selectedLanguage)
       setStep(2)
       return
     }
 
     if (step === 2) {
+      if (!validateShopDetails()) return
+      setStep(3)
+      return
+    }
+
+    if (step === 3) {
       if (!isValidUpiVpa(upiId)) {
         setError(t('onboarding.upiRequired'))
         return
       }
-      setStep(3)
+      setStep(4)
       return
     }
 
@@ -210,25 +221,29 @@ export const OnboardingPage = () => {
               {pickTypeOnly ? (
                 <>
                   <button type="button" onClick={() => setStep(1)} className="focus:outline-none cursor-pointer">
-                    {stepLabel(1, t('onboarding.stepBusinessType'), step === 1)}
+                    {stepLabel(1, t('onboarding.stepLanguage') || 'Language', step === 1)}
                   </button>
                   <div className="w-8 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
                   <button type="button" onClick={() => step > 1 && setStep(2)} disabled={step < 2} className="focus:outline-none disabled:cursor-default">
-                    {stepLabel(2, t('onboarding.stepWorkspace'), step === 2)}
+                    {stepLabel(2, t('onboarding.stepWorkspace') || 'Workspace', step === 2)}
                   </button>
                 </>
               ) : (
                 <>
                   <button type="button" onClick={() => setStep(1)} className="focus:outline-none cursor-pointer">
-                    {stepLabel(1, t('onboarding.stepShopDetails'), step === 1)}
+                    {stepLabel(1, t('onboarding.stepLanguage') || 'Language', step === 1)}
                   </button>
-                  <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
-                  <button type="button" onClick={() => (step > 2 || validateShopDetails()) && setStep(2)} className="focus:outline-none cursor-pointer">
-                    {stepLabel(2, t('onboarding.stepPayment'), step === 2)}
+                  <div className="w-4 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
+                  <button type="button" onClick={() => setStep(2)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(2, t('onboarding.stepShopDetails') || 'Shop', step === 2)}
                   </button>
-                  <div className="w-6 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
-                  <button type="button" onClick={() => (step === 3 || (validateShopDetails() && isValidUpiVpa(upiId))) && setStep(3)} className="focus:outline-none cursor-pointer">
-                    {stepLabel(3, t('onboarding.stepWorkspace'), step === 3)}
+                  <div className="w-4 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
+                  <button type="button" onClick={() => (step > 2 || validateShopDetails()) && setStep(3)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(3, t('onboarding.stepPayment') || 'UPI', step === 3)}
+                  </button>
+                  <div className="w-4 h-px bg-slate-200 dark:bg-dark-border hidden sm:block" />
+                  <button type="button" onClick={() => (step === 4 || (validateShopDetails() && isValidUpiVpa(upiId))) && setStep(4)} className="focus:outline-none cursor-pointer">
+                    {stepLabel(4, t('onboarding.stepWorkspace') || 'Workspace', step === 4)}
                   </button>
                 </>
               )}
@@ -236,28 +251,68 @@ export const OnboardingPage = () => {
 
             <header className="mb-6">
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2">
-                {step === 1
-                  ? pickTypeOnly
-                    ? t('onboarding.pickTypeTitle')
-                    : t('onboarding.shopDetailsTitle')
-                  : showPaymentStep
-                    ? t('onboarding.paymentTitle')
-                    : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
+                {showLanguageStep
+                  ? (t('onboarding.languageTitle') || 'Choose your preferred language')
+                  : showShopStep
+                    ? t('onboarding.shopDetailsTitle')
+                    : showPaymentStep
+                      ? t('onboarding.paymentTitle')
+                      : t('onboarding.confirmTitle').replace('{type}', selectedLabel)}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 leading-relaxed">
-                {step === 1
-                  ? pickTypeOnly
-                    ? t('onboarding.pickTypeDesc')
-                    : t('onboarding.shopDetailsDesc')
-                  : showPaymentStep
-                    ? t('onboarding.paymentDesc')
-                    : t('onboarding.confirmDescAlt')}
+                {showLanguageStep
+                  ? (t('onboarding.languageDesc') || 'Select your language so you can set up your store and run POS in your own language.')
+                  : showShopStep
+                    ? t('onboarding.shopDetailsDesc')
+                    : showPaymentStep
+                      ? t('onboarding.paymentDesc')
+                      : t('onboarding.confirmDescAlt')}
               </p>
             </header>
 
             <form onSubmit={handleNext} className="flex flex-col gap-4 sm:gap-5">
-              {/* Step 1: Shop Information */}
-              {step === 1 && !pickTypeOnly ? (
+              {/* Step 1: Language Selection */}
+              {showLanguageStep ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {LANGUAGES.map(lang => {
+                      const selected = selectedLanguage === lang.code
+                      return (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => {
+                            setSelectedLanguage(lang.code)
+                            setLanguage(lang.code)
+                          }}
+                          className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col justify-between gap-2 cursor-pointer ${
+                            selected
+                              ? 'border-blue-600 dark:border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 ring-2 ring-blue-600 dark:ring-blue-500 shadow-sm'
+                              : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-slate-300 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-dark-card'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                              {lang.nativeName}
+                            </span>
+                            {selected ? (
+                              <div className="w-5 h-5 rounded-full bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center">
+                                <Check size={12} strokeWidth={3} />
+                              </div>
+                            ) : null}
+                          </div>
+                          <span className="text-xs text-slate-500 dark:text-gray-400">
+                            {lang.label}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Step 2: Shop Information */}
+              {showShopStep ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label={t('onboarding.shopName') + ' *'}>
@@ -315,7 +370,7 @@ export const OnboardingPage = () => {
                 </>
               ) : null}
 
-              {/* Step 2: UPI Payment Details */}
+              {/* Step 3: UPI Payment Details */}
               {showPaymentStep ? (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 p-4">
@@ -352,8 +407,8 @@ export const OnboardingPage = () => {
                 </div>
               ) : null}
 
-              {/* Step 3 (or Step 1 for pickTypeOnly): Workspace Type & Language */}
-              {(showWorkspaceStep || (pickTypeOnly && step === 1)) ? (
+              {/* Step 4 (or Step 2 for pickTypeOnly): Workspace Type & Confirmation */}
+              {showWorkspaceStep ? (
                 <div className="space-y-5">
                   <Field label={t('onboarding.businessType') + ' *'}>
                     <div className="space-y-3">
@@ -364,7 +419,7 @@ export const OnboardingPage = () => {
                             key={option.id}
                             type="button"
                             onClick={() => setSelectedBusinessType(option.id)}
-                            className={`w-full text-left p-4 sm:p-4.5 rounded-2xl border transition-all flex items-center gap-4 ${
+                            className={`w-full text-left p-4 sm:p-4.5 rounded-2xl border transition-all flex items-center gap-4 cursor-pointer ${
                               selected
                                 ? 'border-blue-600 dark:border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 ring-1 ring-blue-600 dark:ring-blue-500 shadow-sm'
                                 : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-slate-300 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-dark-card'
@@ -386,33 +441,22 @@ export const OnboardingPage = () => {
                     </div>
                   </Field>
 
-                  <Field label={t('onboarding.appLanguage')}>
-                    <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-                      {LANGUAGES.map(lang => {
-                        const selected = selectedLanguage === lang.code
-                        return (
-                          <button
-                            key={lang.code}
-                            type="button"
-                            onClick={() => {
-                              setSelectedLanguage(lang.code)
-                              setLanguage(lang.code)
-                            }}
-                            className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center justify-between gap-1.5 ${
-                              selected
-                                ? 'border-blue-600 dark:border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 ring-1 ring-blue-600 dark:ring-blue-500 text-blue-950 dark:text-white font-semibold shadow-sm'
-                                : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-slate-300 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-dark-card text-slate-800 dark:text-gray-200'
-                            }`}
-                          >
-                            <span className="text-xs sm:text-sm font-medium truncate">
-                              {lang.label}
-                            </span>
-                            {selected ? <Check size={14} className="text-blue-600 dark:text-blue-400 shrink-0 font-bold" /> : null}
-                          </button>
-                        )
-                      })}
+                  {/* Template Features Preview */}
+                  <div className="rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/20 p-4 sm:p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers size={18} className="text-blue-600 dark:text-blue-400" />
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{template.title}</h3>
                     </div>
-                  </Field>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">{template.subtitle}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {template.features.map(feature => (
+                        <div key={feature} className="flex items-center gap-2">
+                          <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="text-xs text-slate-700 dark:text-gray-300 font-medium">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
@@ -425,12 +469,12 @@ export const OnboardingPage = () => {
                   onClick={() => {
                     setError('')
                     if (step > 1) {
-                      setStep(prev => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))
+                      setStep(prev => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev))
                     } else {
                       navigate(ROUTES.LOGIN)
                     }
                   }}
-                  className="flex items-center justify-center gap-2 py-3 px-6 rounded-2xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-elevated hover:bg-slate-100 dark:hover:bg-dark-border text-xs sm:text-sm font-semibold text-slate-700 dark:text-gray-200 transition-all active:scale-[0.98] shadow-sm"
+                  className="flex items-center justify-center gap-2 py-3 px-6 rounded-2xl border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-elevated hover:bg-slate-100 dark:hover:bg-dark-border text-xs sm:text-sm font-semibold text-slate-700 dark:text-gray-200 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
                 >
                   <ArrowLeft size={16} />
                   <span>Back</span>
@@ -439,7 +483,7 @@ export const OnboardingPage = () => {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex items-center justify-center gap-2 py-3 px-8 rounded-2xl bg-[#0a0a2e] hover:bg-[#1a1555] text-white dark:bg-blue-600 dark:hover:bg-blue-500 text-xs sm:text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 ml-auto"
+                  className="flex items-center justify-center gap-2 py-3 px-8 rounded-2xl bg-[#0a0a2e] hover:bg-[#1a1555] text-white dark:bg-blue-600 dark:hover:bg-blue-500 text-xs sm:text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 ml-auto cursor-pointer"
                 >
                   {isSaving ? (
                     <Spinner size="sm" className="text-white" />

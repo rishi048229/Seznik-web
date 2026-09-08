@@ -4,16 +4,16 @@
 
 export type LanguageCode = 'en' | 'hi' | 'mr' | 'ta' | 'te' | 'gu' | 'bn' | 'ml' | 'or'
 
-export const LANGUAGES: { code: LanguageCode; label: string }[] = [
-  { code: 'en', label: 'English' },
-  { code: 'hi', label: 'हिंदी (Hindi)' },
-  { code: 'mr', label: 'मराठी (Marathi)' },
-  { code: 'ta', label: 'தமிழ் (Tamil)' },
-  { code: 'te', label: 'తెలుగు (Telugu)' },
-  { code: 'gu', label: 'ગુજરાતી (Gujarati)' },
-  { code: 'bn', label: 'বাংলা (Bengali)' },
-  { code: 'ml', label: 'മലയാളം (Malayalam)' },
-  { code: 'or', label: 'ଓଡ଼ିଆ (Odia)' },
+export const LANGUAGES: { code: LanguageCode; label: string; nativeName: string }[] = [
+  { code: 'en', label: 'English', nativeName: 'English' },
+  { code: 'hi', label: 'Hindi', nativeName: 'हिन्दी' },
+  { code: 'mr', label: 'Marathi', nativeName: 'मराठी' },
+  { code: 'ta', label: 'Tamil', nativeName: 'தமிழ்' },
+  { code: 'te', label: 'Telugu', nativeName: 'తెలుగు' },
+  { code: 'gu', label: 'Gujarati', nativeName: 'ગુજરાતી' },
+  { code: 'bn', label: 'Bengali', nativeName: 'বাংলা' },
+  { code: 'ml', label: 'Malayalam', nativeName: 'മലയാളം' },
+  { code: 'or', label: 'Odia', nativeName: 'ଓଡ଼ିଆ' },
 ]
 
 export type TranslationKey = keyof typeof en
@@ -984,6 +984,9 @@ const en = {
   'sidebar.retailPos': 'PREMIUM RETAIL POS',
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'Language',
+  'onboarding.languageTitle': 'Choose your preferred language',
+  'onboarding.languageDesc': 'Select your language so you can set up your store and run POS in your own language.',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
@@ -1948,8 +1951,11 @@ const hi: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'भाषा (Language)',
+  'onboarding.languageTitle': 'अपनी पसंदीदा भाषा चुनें',
+  'onboarding.languageDesc': 'अपनी भाषा चुनें ताकि आप अपनी भाषा में स्टोर सेट कर सकें और बिलिंग चला सकें।',
   'onboarding.stepBusinessType': 'Business type',
-  'onboarding.stepShopDetails': 'Shop details',
+  'onboarding.stepShopDetails': 'दुकान का विवरण',
   'onboarding.stepPayment': 'UPI ID',
   'onboarding.stepWorkspace': 'Workspace',
   'onboarding.confirmDescAlt': 'Confirm this workspace. You can change business type later if needed.',
@@ -2869,8 +2875,11 @@ const mr: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'भाषा (Language)',
+  'onboarding.languageTitle': 'तुमची पसंतीची भाषा निवडा',
+  'onboarding.languageDesc': 'तुमची भाषा निवडा जेणेकरून तुम्ही तुमच्या भाषेत स्टोअर सेट करू शकता आणि बिलिंग करू शकता.',
   'onboarding.stepBusinessType': 'Business type',
-  'onboarding.stepShopDetails': 'Shop details',
+  'onboarding.stepShopDetails': 'दुकानाचे तपशील',
   'onboarding.stepPayment': 'UPI ID',
   'onboarding.stepWorkspace': 'Workspace',
   'onboarding.confirmDescAlt': 'Confirm this workspace. You can change business type later if needed.',
@@ -3790,6 +3799,9 @@ const ta: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'மொழி (Language)',
+  'onboarding.languageTitle': 'உங்கள் விருப்பமான மொழியைத் தேர்ந்தெடுக்கவும்',
+  'onboarding.languageDesc': 'உங்கள் கடையை அமைக்கவும் உங்கள் சொந்த மொழியில் பில்லிங் செய்யவும் மொழியைத் தேர்ந்தெடுக்கவும்.',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
@@ -4707,6 +4719,9 @@ const te: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'భాష (Language)',
+  'onboarding.languageTitle': 'మీ ప్రాధాన్య భాషను ఎంచుకోండి',
+  'onboarding.languageDesc': 'మీ స్టోర్‌ను సెటప్ చేయడానికి మరియు మీ స్వంత భాషలో బిల్లింగ్ చేయడానికి భాషను ఎంచుకోండి.',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
@@ -5624,6 +5639,9 @@ const gu: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'ભાષા (Language)',
+  'onboarding.languageTitle': 'તમારી પસંદગીની ભાષા પસંદ કરો',
+  'onboarding.languageDesc': 'તમારી ભાષા પસંદ કરો જેથી તમે તમારી ભાષામાં સ્ટોર સેટ કરી શકો અને બિલિંગ ચલાવી શકો.',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
@@ -6541,6 +6559,9 @@ const bn: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'ভাষা (Language)',
+  'onboarding.languageTitle': 'আপনার পছন্দের ভাষা নির্বাচন করুন',
+  'onboarding.languageDesc': 'আপনার পছন্দের ভাষা নির্বাচন করুন যাতে আপনি নিজের ভাষায় স্টোর সেট আপ এবং বিলিং করতে পারেন।',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
@@ -7458,6 +7479,9 @@ const ml: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'ഭാഷ (Language)',
+  'onboarding.languageTitle': 'നിങ്ങളുടെ ഇഷ്ടപ്പെട്ട ഭാഷ തിരഞ്ഞെടുക്കുക',
+  'onboarding.languageDesc': 'നിങ്ങളുടെ ഭാഷയിൽ സ്റ്റോർ സജ്ജീകരിക്കാനും ബില്ലിംഗ് നടത്താനും ഭാഷ തിരഞ്ഞെടുക്കുക.',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
@@ -8375,6 +8399,9 @@ const or: Partial<Record<TranslationKey, string>> = {
 
   'onboarding.continue': 'Continue',
   'onboarding.changeBusinessType': 'Change business type',
+  'onboarding.stepLanguage': 'ଭାଷା (Language)',
+  'onboarding.languageTitle': 'ଆପଣଙ୍କର ପସନ୍ଦର ଭାଷା ବାଛନ୍ତୁ',
+  'onboarding.languageDesc': 'ଆପଣଙ୍କର ଭାଷା ବାଛନ୍ତୁ ଯାହାଦ୍ୱାରା ଆପଣ ନିଜ ଭାଷାରେ ଷ୍ଟୋର୍ ସେଟ୍ ଅପ୍ ଏବଂ ବିଲିଂ କରିପାରିବେ।',
   'onboarding.stepBusinessType': 'Business type',
   'onboarding.stepShopDetails': 'Shop details',
   'onboarding.stepPayment': 'UPI ID',
