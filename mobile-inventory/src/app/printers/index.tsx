@@ -1054,6 +1054,7 @@ export default function PrintersScreen() {
               )}
             </>
           ) : (
+            <>
               {/* TEXT TO THERMAL PRINT CARD */}
               <TouchableOpacity
                 onPress={() => router.push('/printers/quick-print' as any)}
