@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, QrCode, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Check, QrCode, ArrowLeft, ArrowRight, Layers } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Spinner } from '@/components/ui/Spinner'
 import { ImageUpload } from '@/components/forms/ImageUpload'
+import { BusinessTypeIcon } from '@/components/icons/BusinessTypeIcon'
 import { ROUTES } from '@/constants/routes'
 import {
   BUSINESS_TEMPLATES,
@@ -40,8 +41,8 @@ export const OnboardingPage = () => {
 
   const template = selectedBusinessType ? BUSINESS_TEMPLATES[selectedBusinessType] : null
   const selectedLabel = selectedBusinessType
-    ? (BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'workspace')
-    : ''
+    ? (BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'Workspace')
+    : 'Workspace'
   
   const showLanguageStep = (step === 1)
   const showShopStep = !pickTypeOnly && step === 2
@@ -383,12 +384,24 @@ export const OnboardingPage = () => {
               {/* Step 3: UPI Payment Details */}
               {showPaymentStep ? (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 p-4">
+                  <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/20 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <QrCode size={18} />
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20 mt-0.5">
+                        <QrCode size={20} />
                       </div>
-                      <p className="text-xs sm:text-sm text-emerald-950 dark:text-emerald-200 leading-relaxed">{t('onboarding.upiHint')}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-bold text-emerald-900 dark:text-emerald-100">
+                            Direct QR Payments
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+                            Optional
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-emerald-950/90 dark:text-emerald-200 leading-relaxed">
+                          {t('onboarding.upiHint')}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -404,14 +417,17 @@ export const OnboardingPage = () => {
                       autoFocus
                       className={fieldClass}
                     />
+                    <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-1">
+                      Enter your Virtual Payment Address (e.g. shopname@okhdfcbank). You can skip this step anytime.
+                    </p>
                   </Field>
 
                   {upiPreview ? (
-                    <div className="flex flex-col items-center gap-2.5 rounded-2xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated p-5">
-                      <div className="bg-white p-3 rounded-2xl shadow-sm">
+                    <div className="flex flex-col items-center gap-2.5 rounded-2xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated p-5 shadow-inner">
+                      <div className="bg-white p-3.5 rounded-2xl shadow-sm ring-1 ring-slate-200/60">
                         <QRCodeSVG value={upiPreview} size={140} />
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-gray-400 text-center">{t('onboarding.upiPreviewNote')}</p>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 text-center max-w-xs">{t('onboarding.upiPreviewNote')}</p>
                     </div>
                   ) : null}
                 </div>
@@ -435,7 +451,7 @@ export const OnboardingPage = () => {
                                 : 'border-slate-200 dark:border-dark-border bg-white dark:bg-dark-elevated hover:border-slate-300 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-dark-card'
                             }`}
                           >
-                            <span className="text-3xl shrink-0">{option.emoji}</span>
+                            <BusinessTypeIcon type={option.id} selected={selected} size={22} />
                             <span className="flex-1 min-w-0">
                               <span className="block text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                                 {option.label}

@@ -15,6 +15,7 @@ export function isPersistentLogoUri(uri: string): boolean {
 export async function persistBusinessLogo(sourceUri: string): Promise<string> {
   const trimmed = String(sourceUri || '').trim();
   if (!trimmed) return trimmed;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   if (isPersistentLogoUri(trimmed)) return trimmed;
 
   await FileSystem.makeDirectoryAsync(LOGO_DIR, { intermediates: true }).catch(() => {});

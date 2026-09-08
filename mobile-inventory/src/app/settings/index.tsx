@@ -52,6 +52,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
+import { BusinessTypeIcon } from '@/components/ui/BusinessTypeIcon';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 
 
@@ -441,7 +442,7 @@ export default function SettingsScreen() {
                           },
                         ]}
                       >
-                        <Text style={styles.businessTypeEmoji}>{option.emoji}</Text>
+                        <BusinessTypeIcon type={option.id} selected={selected} size={20} />
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.businessTypeLabel, { color: theme.textPrimary }]}>{option.label}</Text>
                           <Text style={{ fontSize: 11, color: theme.textSecondary }}>{option.description}</Text>

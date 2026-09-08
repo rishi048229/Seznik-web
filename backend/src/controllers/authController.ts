@@ -823,10 +823,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     if (!phone || !PHONE_RE.test(phone)) {
       return res.status(400).json({ error: 'A valid phone number is required' });
     }
-    if (!businessAddress) {
+    if (businessAddress.length === 0) {
       return res.status(400).json({ error: 'Shop address is required' });
     }
-    if (!isValidUpiVpa(upiId)) {
+    if (upiId && !isValidUpiVpa(upiId)) {
       return res.status(400).json({ error: 'A valid UPI ID is required (e.g. shopname@okhdfcbank)' });
     }
 

@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   StatusBar,
   ActivityIndicator,
@@ -12,7 +11,8 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode, Globe } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode, Globe, Wand2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -26,6 +26,8 @@ import {
   BUSINESS_TYPE_OPTIONS,
   BusinessType,
 } from '@/constants/businessTypes';
+import { BusinessTypeIcon } from '@/components/ui/BusinessTypeIcon';
+import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { useTranslation } from '@/store/useLanguageStore';
 import { persistBusinessLogo } from '@/utils/businessLogoStorage';
@@ -57,6 +59,8 @@ export default function OnboardingScreen() {
     user?.businessType ?? null
   );
   const [logoUri, setLogoUri] = useState<string | null>(null);
+  const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
+  const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
   const [upiId, setUpiId] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(currentLanguage);
 
@@ -65,7 +69,7 @@ export default function OnboardingScreen() {
   const isSaving = isCompletingOnboarding || isUpdatingBusinessType;
   const template = selectedBusinessType ? BUSINESS_TEMPLATES[selectedBusinessType] : null;
   const selectedLabel = useMemo(
-    () => (selectedBusinessType ? BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label : undefined),
+    () => (selectedBusinessType ? BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label : 'Workspace'),
     [selectedBusinessType]
   );
 
@@ -113,21 +117,34 @@ export default function OnboardingScreen() {
     }
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.7,
+      quality: 0.85,
       allowsEditing: true,
     });
     if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
-      setLogoUri(pickerResult.assets[0].uri);
+      const pickedUri = pickerResult.assets[0].uri;
+      setLogoBgModalUri(pickedUri);
+      setLogoBgCallback(() => (finalUri: string) => {
+        setLogoUri(finalUri);
+      });
     }
   };
 
-  const cacheLogoForLaterS3 = async (uri: string): Promise<string> => {
-    const persisted = await persistBusinessLogo(uri);
-    if (persisted.startsWith('data:')) return persisted;
-    const base64 = await FileSystem.readAsStringAsync(persisted, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return `data:image/jpeg;base64,${base64}`;
+  const cacheLogoForLaterS3 = async (uri: string): Promise<string | undefined> => {
+    try {
+      if (!uri) return undefined;
+      if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+      if (uri.startsWith('data:')) return uri;
+      const persisted = await persistBusinessLogo(uri);
+      if (persisted.startsWith('data:')) return persisted;
+      if (persisted.startsWith('http://') || persisted.startsWith('https://')) return persisted;
+      const base64 = await FileSystem.readAsStringAsync(persisted, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/jpeg;base64,${base64}`;
+    } catch (e) {
+      console.warn('Failed to cache logo:', e);
+      return uri.startsWith('http') || uri.startsWith('data:') ? uri : undefined;
+    }
   };
 
   const handleSelectLanguage = (code: LanguageCode) => {
@@ -151,7 +168,7 @@ export default function OnboardingScreen() {
         await updateBusinessType(selectedBusinessType);
         router.replace('/');
       } catch (err: any) {
-        Alert.alert('Setup failed', err?.message || t('onboardingSetupFailed'));
+        Alert.alert('Error', err?.message || 'Failed to update business type');
       }
       return;
     }
@@ -194,7 +211,7 @@ export default function OnboardingScreen() {
       await completeOnboarding({
         businessName: businessName.trim(),
         businessType: selectedBusinessType,
-        phone: phone.trim(),
+        phone: phone.replace(/\D/g, '').slice(0, 10),
         businessAddress: businessAddress.trim(),
         upiId: upiId.trim(),
         ...(businessLogoURL ? { businessLogoURL } : {}),
@@ -202,6 +219,18 @@ export default function OnboardingScreen() {
       router.replace('/');
     } catch (err: any) {
       Alert.alert('Setup failed', err?.message || t('onboardingSetupFailed'));
+    }
+  };
+
+  const handleBackNavigation = () => {
+    if (step > 1) {
+      setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev));
+    } else {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(auth)/login' as any);
+      }
     }
   };
 
@@ -216,35 +245,75 @@ export default function OnboardingScreen() {
 
   return (
     <ScreenBackground color={theme.bg}>
-      <SafeAreaView style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.bg} />
         <KeyboardAvoidingWrapper>
           <View style={styles.mainWrapper}>
-            <View style={styles.topRow}>
-              <Text style={styles.stepIndicator}>
-                {pickTypeOnly
-                  ? t('onboardingChooseWorkspace')
-                  : t('onboardingStepOf')
-                      .replace('{step}', String(step))
-                      .replace('{total}', String(lastStep))}
-              </Text>
+            {/* Top Navigation Bar */}
+            <View style={styles.topNavBar}>
               <TouchableOpacity
-                onPress={() => {
-                  if (step > 1) {
-                    setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev));
-                  } else {
-                    router.back();
-                  }
-                }}
-                hitSlop={12}
+                onPress={handleBackNavigation}
+                style={styles.backButtonRow}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                activeOpacity={0.7}
               >
-                <View style={styles.backRow}>
-                  <ArrowLeft size={14} color={isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
-                  <Text style={[styles.backText, { color: isDark ? '#60A5FA' : BRAND_COLORS.blue600 }]}>
-                    {step > 1 ? t('onboardingBack', 'Back') : t('backToLogin', 'Back')}
-                  </Text>
+                <View
+                  style={[
+                    styles.backIconCircle,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                      borderColor: theme.borderColor,
+                    },
+                  ]}
+                >
+                  <ArrowLeft size={18} color={theme.textPrimary} strokeWidth={2.2} />
                 </View>
+                <Text style={[styles.backButtonText, { color: theme.textPrimary }]}>
+                  {step > 1 ? t('onboardingBack', 'Back') : t('backToLogin', 'Back')}
+                </Text>
               </TouchableOpacity>
+
+              <View
+                style={[
+                  styles.stepBadge,
+                  {
+                    backgroundColor: isDark ? 'rgba(37, 99, 235, 0.15)' : 'rgba(37, 99, 235, 0.08)',
+                    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(37, 99, 235, 0.2)',
+                  },
+                ]}
+              >
+                <Text style={[styles.stepIndicator, { color: isDark ? '#93C5FD' : BRAND_COLORS.blue600 }]}>
+                  {pickTypeOnly
+                    ? t('onboardingChooseWorkspace')
+                    : t('onboardingStepOf')
+                        .replace('{step}', String(step))
+                        .replace('{total}', String(lastStep))}
+                </Text>
+              </View>
+            </View>
+
+            {/* Stepper Progress Bar */}
+            <View style={styles.stepperContainer}>
+              {Array.from({ length: lastStep }).map((_, idx) => {
+                const stepNum = idx + 1;
+                const isActive = step >= stepNum;
+                return (
+                  <View
+                    key={stepNum}
+                    style={[
+                      styles.stepperPill,
+                      {
+                        backgroundColor: isActive
+                          ? BRAND_COLORS.blue600
+                          : isDark
+                          ? 'rgba(255,255,255,0.1)'
+                          : 'rgba(0,0,0,0.08)',
+                        flex: 1,
+                      },
+                    ]}
+                  />
+                );
+              })}
             </View>
 
             <ScrollView
@@ -311,19 +380,37 @@ export default function OnboardingScreen() {
                     <View style={styles.logoRow}>
                       <Image source={{ uri: logoUri }} style={styles.logoPreview} />
                       <View style={{ flex: 1 }}>
-                        <TouchableOpacity onPress={handlePickLogo} style={styles.logoSecondaryBtn}>
-                          <Text style={styles.logoSecondaryText}>
-                            {t('onboardingReplaceLogo', 'Replace')}
-                          </Text>
-                        </TouchableOpacity>
                         <TouchableOpacity
-                          onPress={() => setLogoUri(null)}
-                          style={[styles.logoSecondaryBtn, { marginTop: 8 }]}
+                          onPress={() => {
+                            if (logoUri) {
+                              setLogoBgModalUri(logoUri);
+                              setLogoBgCallback(() => (finalUri: string) => {
+                                setLogoUri(finalUri);
+                              });
+                            }
+                          }}
+                          style={[styles.logoSecondaryBtn, { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 }]}
                         >
-                          <Text style={[styles.logoSecondaryText, { color: '#EF4444' }]}>
-                            {t('onboardingRemoveLogo', 'Remove')}
+                          <Wand2 size={13} color={BRAND_COLORS.blue600} />
+                          <Text style={styles.logoSecondaryText}>
+                            {t('receiptEffect', 'Receipt Effect')}
                           </Text>
                         </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <TouchableOpacity onPress={handlePickLogo} style={styles.logoSecondaryBtn}>
+                            <Text style={styles.logoSecondaryText}>
+                              {t('onboardingReplaceLogo', 'Replace')}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setLogoUri(null)}
+                            style={styles.logoSecondaryBtn}
+                          >
+                            <Text style={[styles.logoSecondaryText, { color: '#EF4444' }]}>
+                              {t('onboardingRemoveLogo', 'Remove')}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </View>
                   ) : (
@@ -374,24 +461,33 @@ export default function OnboardingScreen() {
                     <QrCode size={32} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.title, { color: theme.textPrimary }]}>
-                    {t('onboardingPaymentTitle', 'Enter your UPI ID')}
+                    {t('onboardingPaymentTitle', 'Setup Business UPI (Optional)')}
                   </Text>
                   <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                     {t(
                       'onboardingPaymentDesc',
-                      'We use this UPI ID on every printed bill. Scanning the QR opens GPay, PhonePe, Paytm, or BHIM with the exact bill amount already filled.'
+                      'Collect instant payments via dynamic QR codes on your receipts. You can also skip this and configure it later in Settings.'
                     )}
                   </Text>
                   <View
                     style={[
                       styles.hintCard,
-                      { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5' },
+                      {
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                        borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : '#A7F3D0',
+                        borderWidth: 1,
+                      },
                     ]}
                   >
-                    <Text style={styles.hintText}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Text style={[styles.hintBadge, { color: isDark ? '#34D399' : '#047857' }]}>
+                        DIRECT QR PAYMENTS • OPTIONAL
+                      </Text>
+                    </View>
+                    <Text style={[styles.hintText, { color: isDark ? '#D1FAE5' : '#065F46' }]}>
                       {t(
                         'onboardingUpiHint',
-                        'Do not upload a QR image. Enter your UPI ID (like shopname@okhdfcbank). Each bill generates its own QR from this ID and that bill’s total.'
+                        'Adding your UPI ID is completely optional. When enabled, every bill automatically generates a dynamic payment QR code with the exact bill amount, allowing customers to scan and pay directly to your account. You can configure or change this anytime in Settings.'
                       )}
                     </Text>
                   </View>
@@ -402,12 +498,15 @@ export default function OnboardingScreen() {
                     style={inputStyle}
                     value={upiId}
                     onChangeText={setUpiId}
-                    placeholder={t('onboardingUpiPlaceholder', 'shopname@okhdfcbank')}
+                    placeholder={t('onboardingUpiPlaceholder', 'e.g. shopname@okhdfcbank or 9876543210@paytm')}
                     placeholderTextColor="#94A3B8"
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
                   />
+                  <Text style={[styles.helperText, { color: theme.textSecondary, marginTop: 4 }]}>
+                    Enter your Virtual Payment Address (e.g. shopname@okhdfcbank). Tap Next to skip.
+                  </Text>
                   {upiPreview ? (
                     <View
                       style={[
@@ -485,18 +584,19 @@ export default function OnboardingScreen() {
             <View style={styles.bottomNavRow}>
               {step > 1 ? (
                 <TouchableOpacity
-                  onPress={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev))}
+                  onPress={handleBackNavigation}
                   style={[
                     styles.backBtn,
                     {
                       borderColor: theme.borderColor,
                       backgroundColor: theme.cardBg,
+                      shadowColor: isDark ? '#000000' : '#94A3B8',
                     },
                   ]}
                   disabled={isSaving}
-                  activeOpacity={0.85}
+                  activeOpacity={0.8}
                 >
-                  <ArrowLeft size={18} color={theme.textPrimary} />
+                  <ArrowLeft size={18} color={theme.textPrimary} strokeWidth={2.2} />
                   <Text style={[styles.backBtnText, { color: theme.textPrimary }]}>
                     {t('onboardingBack', 'Back')}
                   </Text>
@@ -531,6 +631,17 @@ export default function OnboardingScreen() {
             </View>
           </View>
         </KeyboardAvoidingWrapper>
+        {logoBgModalUri ? (
+          <LogoBackgroundModal
+            visible={!!logoBgModalUri}
+            imageUri={logoBgModalUri}
+            onApply={(finalUri) => {
+              logoBgCallback?.(finalUri);
+              setLogoBgModalUri(null);
+            }}
+            onCancel={() => setLogoBgModalUri(null)}
+          />
+        ) : null}
       </SafeAreaView>
     </ScreenBackground>
   );
@@ -604,7 +715,7 @@ function BusinessTypePicker({
             ]}
           >
             <View style={styles.optionTextWrap}>
-              <Text style={styles.optionEmoji}>{option.emoji}</Text>
+              <BusinessTypeIcon type={option.id} selected={selected} size={20} />
               <View style={{ flex: 1 }}>
                 <Text
                   style={[
@@ -629,14 +740,56 @@ function BusinessTypePicker({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mainWrapper: { flex: 1, padding: 24 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stepIndicator: { fontSize: 12, fontWeight: '800', color: BRAND_COLORS.sky500, textTransform: 'uppercase' },
-  backRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backText: { fontSize: 12, fontWeight: '700', color: BRAND_COLORS.sky500 },
-  scroll: { flex: 1, marginTop: 12 },
+  safeArea: { flex: 1 },
+  mainWrapper: { flex: 1, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 10 },
+  topNavBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  backButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  stepBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  stepIndicator: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  stepperPill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  scroll: { flex: 1, marginTop: 4 },
   scrollContent: { paddingBottom: 16 },
-  stepBox: { marginTop: 8 },
+  stepBox: { marginTop: 4 },
   iconCircle: {
     width: 58,
     height: 58,
@@ -753,10 +906,15 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
   },
+  hintBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   hintText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#065F46',
     lineHeight: 18,
   },
   qrPreview: {

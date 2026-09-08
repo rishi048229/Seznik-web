@@ -4,25 +4,21 @@ export const BUSINESS_TYPE_OPTIONS: ReadonlyArray<{
   id: BusinessType;
   label: string;
   description: string;
-  emoji: string;
 }> = [
   {
     id: 'restaurant_cafe',
     label: 'Restaurant & Cafe',
     description: 'Table service, KOT kitchen orders, and counter tokens',
-    emoji: '🍽️',
   },
   {
     id: 'online_store',
     label: 'Online Store',
     description: 'E-commerce inventory, orders, and multi-location stock',
-    emoji: '🛒',
   },
   {
     id: 'retail_shop',
     label: 'Retail Shop',
     description: 'In-store POS, barcode billing, and stock management',
-    emoji: '🏪',
   },
 ];
 

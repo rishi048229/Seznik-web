@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Image as ImageIcon, AlertTriangle, Trash2, RefreshCw } from 'lucide-react'
+import { X, Image as ImageIcon, AlertTriangle, Trash2, RefreshCw, Wand2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal'
 
 function cn(...inputs: unknown[]): string {
   return twMerge(clsx(inputs))
@@ -62,6 +63,7 @@ interface ImageUploadProps {
   maxSizeMB?: number
   className?: string
   previewSize?: 'sm' | 'md' | 'lg'
+  enableBackgroundCleanup?: boolean
 }
 
 export const ImageUpload = ({
@@ -73,11 +75,13 @@ export const ImageUpload = ({
   maxSizeMB = 5,
   className,
   previewSize = 'md',
+  enableBackgroundCleanup = false,
 }: ImageUploadProps) => {
   const { t } = useLanguage()
   const [preview, setPreview] = useState<string>(value || '')
   const [isUploading, setIsUploading] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [bgModalFile, setBgModalFile] = useState<File | string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sync with value prop changes
@@ -101,6 +105,12 @@ export const ImageUpload = ({
     if (file.size > maxBytes) {
       setShowLimitModal(true)
       toast.error(t('image.exceedsLimitMsg'))
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
+
+    if (enableBackgroundCleanup) {
+      setBgModalFile(file)
       if (inputRef.current) inputRef.current.value = ''
       return
     }
@@ -184,10 +194,20 @@ export const ImageUpload = ({
           </p>
           {preview ? (
             <div className="flex flex-wrap items-center gap-2 mt-2">
+              {enableBackgroundCleanup ? (
+                <button
+                  type="button"
+                  onClick={() => setBgModalFile(preview)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md transition-colors"
+                >
+                  <Wand2 size={12} />
+                  {t('image.cleanLogo', 'Clean Background')}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-gray-200 hover:text-slate-900 bg-slate-100 dark:bg-dark-elevated px-2.5 py-1 rounded-md transition-colors"
               >
                 <RefreshCw size={12} />
                 {t('image.changePhoto')}
@@ -237,6 +257,20 @@ export const ImageUpload = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Logo Background Cleanup & Thermal Preview Modal */}
+      {enableBackgroundCleanup && bgModalFile && (
+        <LogoBackgroundModal
+          isOpen={!!bgModalFile}
+          imageSrc={bgModalFile}
+          onApply={(finalDataUrl) => {
+            setPreview(finalDataUrl)
+            onChange(finalDataUrl)
+            setBgModalFile(null)
+          }}
+          onCancel={() => setBgModalFile(null)}
+        />
       )}
     </div>
   )
