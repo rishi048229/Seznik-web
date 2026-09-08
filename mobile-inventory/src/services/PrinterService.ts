@@ -3336,6 +3336,10 @@ class ThermalPrinterServiceManager {
     return Boolean(JoshLabelPrinter);
   }
 
+  public isYxSupported(): boolean {
+    return this.isYxLabelPrinterAvailable();
+  }
+
   public async joshStartDiscovery(): Promise<boolean> {
     if (!JoshLabelPrinter) return false;
     return JoshLabelPrinter.startDiscovery();

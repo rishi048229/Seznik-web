@@ -135,6 +135,9 @@ class YxLabelPrinterModule : Module() {
     override fun onStart() {}
     override fun onFound(item: DeviceItem?) {
       if (item == null || item.address.isNullOrBlank() || item.name.isNullOrBlank()) return
+      if (item.modelKey.isNullOrEmpty()) {
+        item.modelKey = "Z212"
+      }
       known[item.address] = item
       sendEvent("onPrinterFound", bundleOf("address" to item.address, "name" to item.name))
     }
@@ -192,6 +195,9 @@ class YxLabelPrinterModule : Module() {
         ensureSdkInitialized()
         val bonded = PrinterManage.getInstance().bondedDevices ?: emptyList()
         promise.resolve(bonded.map { item ->
+          if (item.modelKey.isNullOrEmpty()) {
+            item.modelKey = "Z212"
+          }
           known[item.address] = item
           mapOf("address" to item.address, "name" to (item.name ?: item.address))
         })
@@ -204,6 +210,9 @@ class YxLabelPrinterModule : Module() {
       try {
         ensureSdkInitialized()
         val item = known[address] ?: DeviceItem.build(address)
+        if (item.modelKey.isNullOrEmpty()) {
+          item.modelKey = "Z212"
+        }
         if (helper == null) {
           // Obtained once, independent of connection state — mirrors YXSDK.setListen(),
           // which grabs the helper before ever calling connect().

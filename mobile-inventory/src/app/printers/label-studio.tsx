@@ -216,13 +216,30 @@ export default function LabelStudioScreen() {
     }
   }, [labelPrinter.isConnected, labelPrinter.kind, shouldShowTip]);
 
+  const [zoomScale, setZoomScale] = useState(1.0);
+  const [isInteractingWithElement, setIsInteractingWithElement] = useState(false);
+
   const maxAvailableCanvasWidth = windowWidth - 32;
-  const pxPerMm = useMemo(() => {
+  const basePxPerMm = useMemo(() => {
     return Math.max(4, Math.min(8, Math.floor(maxAvailableCanvasWidth / template.widthMm)));
   }, [maxAvailableCanvasWidth, template.widthMm]);
 
+  const pxPerMm = useMemo(() => {
+    return Math.max(2, Math.round(basePxPerMm * zoomScale * 10) / 10);
+  }, [basePxPerMm, zoomScale]);
+
   const canvasWidthPx = template.widthMm * pxPerMm;
   const canvasOverflowsScreen = canvasWidthPx > maxAvailableCanvasWidth;
+
+  const handleZoomIn = () => {
+    setZoomScale((prev) => Math.min(3.0, Math.round((prev + 0.25) * 100) / 100));
+  };
+  const handleZoomOut = () => {
+    setZoomScale((prev) => Math.max(0.6, Math.round((prev - 0.25) * 100) / 100));
+  };
+  const handleZoomReset = () => {
+    setZoomScale(1.0);
+  };
 
   const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
   const [, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
@@ -625,22 +642,57 @@ export default function LabelStudioScreen() {
             style={styles.mainScroll}
             contentContainerStyle={styles.mainScrollContent}
             keyboardShouldPersistTaps="handled"
+            scrollEnabled={!isInteractingWithElement}
           >
             {/* CANVAS WORK AREA */}
             <View style={[styles.canvasCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
               <View style={styles.canvasHeader}>
-                <Text style={[styles.canvasBadge, { color: theme.textSecondary }]}>
-                  CANVAS ({template.widthMm}mm × {template.heightMm}mm)
-                </Text>
-                <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                  Drag to reposition • Handles to resize
-                </Text>
+                <View>
+                  <Text style={[styles.canvasBadge, { color: theme.textSecondary }]}>
+                    CANVAS ({template.widthMm}mm × {template.heightMm}mm)
+                  </Text>
+                  <Text style={{ fontSize: 10, color: theme.textSecondary }}>
+                    Drag to move • Handles/Pinch to resize
+                  </Text>
+                </View>
+
+                {/* Canvas Zoom Controls */}
+                <View style={styles.zoomControlGroup}>
+                  <TouchableOpacity
+                    style={[styles.zoomBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                    onPress={handleZoomOut}
+                    disabled={zoomScale <= 0.6}
+                    activeOpacity={0.7}
+                  >
+                    <Minus size={13} color={zoomScale <= 0.6 ? theme.textSecondary : BRAND_COLORS.blue600} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.zoomIndicator, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                    onPress={handleZoomReset}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.zoomIndicatorText, { color: theme.textPrimary }]}>
+                      {Math.round(zoomScale * 100)}%
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.zoomBtn, { borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                    onPress={handleZoomIn}
+                    disabled={zoomScale >= 3.0}
+                    activeOpacity={0.7}
+                  >
+                    <Plus size={13} color={zoomScale >= 3.0 ? theme.textSecondary : BRAND_COLORS.blue600} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <ScrollView
                 horizontal={canvasOverflowsScreen}
                 contentContainerStyle={canvasOverflowsScreen ? { minWidth: canvasWidthPx } : styles.canvasCenterWrapper}
                 showsHorizontalScrollIndicator={false}
+                scrollEnabled={!isInteractingWithElement}
               >
                 <TouchableOpacity activeOpacity={1} onPress={() => setSelectedId(null)}>
                   <View
@@ -670,6 +722,8 @@ export default function LabelStudioScreen() {
                         onChange={(box) => updateElement(el.id, box)}
                         onDuplicate={() => duplicateElement(el.id)}
                         onDelete={() => deleteElement(el.id)}
+                        onGestureStart={() => setIsInteractingWithElement(true)}
+                        onGestureEnd={() => setIsInteractingWithElement(false)}
                       >
                         {renderElementContent(el)}
                       </DraggableElement>
@@ -1573,6 +1627,31 @@ const styles = StyleSheet.create({
   canvasCard: { borderRadius: 16, padding: 12, borderWidth: 1, marginBottom: 10 },
   canvasHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   canvasBadge: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  zoomControlGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  zoomBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomIndicator: {
+    paddingHorizontal: 7,
+    height: 26,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomIndicatorText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
   canvasCenterWrapper: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   canvas: {
     borderWidth: 1.5,

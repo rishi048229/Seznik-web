@@ -1132,7 +1132,6 @@ export default function PrintersScreen() {
                     JOSH DUAL-MODE SMART PRINTER (RECEIPTS & LABELS)
                   </Text>
                   <JoshPrinterCard />
-                  <YxPrinterCard />
                 </View>
               )}
 
@@ -1525,13 +1524,24 @@ export default function PrintersScreen() {
 
                   {/* Dedicated LPAPI label printer — only renders on builds that
                       include the vendored SDK, and takes over label jobs while linked. */}
-                  <View style={{ marginTop: 16 }}>
-                    <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                      JOSH DUAL-MODE SMART PRINTER (STICKER LABELS & RECEIPTS)
-                    </Text>
-                    <JoshPrinterCard />
-                    <YxPrinterCard />
-                  </View>
+                  {ThermalPrinterService.isJoshSupported() && (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                        JOSH DUAL-MODE SMART PRINTER (STICKER LABELS & RECEIPTS)
+                      </Text>
+                      <JoshPrinterCard />
+                    </View>
+                  )}
+
+                  {/* Dedicated YX / Y50 label printer (com.yx.print SDK) */}
+                  {ThermalPrinterService.isYxSupported() && (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                        YX / Y50 SMART LABEL PRINTER (BLUETOOTH)
+                      </Text>
+                      <YxPrinterCard />
+                    </View>
+                  )}
 
                   {labelPaperMode === 'gap' ? (
                     <>

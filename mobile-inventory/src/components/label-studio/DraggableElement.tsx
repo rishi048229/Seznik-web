@@ -25,6 +25,10 @@ interface DraggableElementProps extends ElementBox {
   onCommit?: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
+  /** Fires when any gesture (drag, resize, pinch, rotate) starts — useful to disable canvas scroll. */
+  onGestureStart?: () => void;
+  /** Fires when the active gesture concludes — restores canvas scroll. */
+  onGestureEnd?: () => void;
   minWidthMm?: number;
   minHeightMm?: number;
   /** The label's own size — drag/resize clamp to keep the element fully on the printable area. */
@@ -48,6 +52,8 @@ export function DraggableElement({
   onCommit,
   onDuplicate,
   onDelete,
+  onGestureStart,
+  onGestureEnd,
   minWidthMm = 2,
   minHeightMm = 2,
   boundsWidthMm,
@@ -61,6 +67,7 @@ export function DraggableElement({
   const growHeight = useSharedValue(0);
   const shiftX = useSharedValue(0);
   const shiftY = useSharedValue(0);
+  const pinchScale = useSharedValue(1);
   const liveRotation = useSharedValue(rotation);
   const isRotating = useSharedValue(false);
 
@@ -70,6 +77,14 @@ export function DraggableElement({
   const commitBox = (next: ElementBox) => {
     onChange(next);
     onCommit?.();
+  };
+
+  const handleGestureStart = () => {
+    onGestureStart?.();
+  };
+
+  const handleGestureEnd = () => {
+    onGestureEnd?.();
   };
 
   const handleToggleLock = () => {
@@ -86,6 +101,9 @@ export function DraggableElement({
     Gesture.Pan()
       .minDistance(1)
       .enabled(!locked)
+      .onBegin(() => {
+        if (onGestureStart) runOnJS(handleGestureStart)();
+      })
       .onUpdate((e) => {
         const dx = e.translationX;
         const dy = e.translationY;
@@ -125,6 +143,14 @@ export function DraggableElement({
         shiftX.value = 0;
         shiftY.value = 0;
         runOnJS(commitBox)(nextBox);
+        if (onGestureEnd) runOnJS(handleGestureEnd)();
+      })
+      .onFinalize(() => {
+        growWidth.value = 0;
+        growHeight.value = 0;
+        shiftX.value = 0;
+        shiftY.value = 0;
+        if (onGestureEnd) runOnJS(handleGestureEnd)();
       });
 
   // Konva-Style Top Rotation Gesture
@@ -132,10 +158,9 @@ export function DraggableElement({
     .enabled(!locked)
     .onBegin(() => {
       isRotating.value = true;
+      if (onGestureStart) runOnJS(handleGestureStart)();
     })
     .onUpdate((e) => {
-      // e.translationX and e.translationY from the knob position
-      // Calculate angle in degrees from element center
       const currentWidth = widthMm * pxPerMm;
       const currentHeight = heightMm * pxPerMm;
       const cx = currentWidth / 2;
@@ -163,6 +188,11 @@ export function DraggableElement({
       isRotating.value = false;
       const finalRot = liveRotation.value % 360;
       runOnJS(commitBox)({ xMm, yMm, widthMm, heightMm, rotation: finalRot, locked });
+      if (onGestureEnd) runOnJS(handleGestureEnd)();
+    })
+    .onFinalize(() => {
+      isRotating.value = false;
+      if (onGestureEnd) runOnJS(handleGestureEnd)();
     });
 
   const tlGesture = makeResizeGesture('tl');
@@ -173,6 +203,37 @@ export function DraggableElement({
   const rGesture = makeResizeGesture('r');
   const tGesture = makeResizeGesture('t');
   const bGesture = makeResizeGesture('b');
+
+  // Two-Finger Pinch-to-Resize Gesture (scales element directly with fingers)
+  const pinchGesture = Gesture.Pinch()
+    .enabled(!locked && selected)
+    .onBegin(() => {
+      pinchScale.value = 1;
+      if (onGestureStart) runOnJS(handleGestureStart)();
+    })
+    .onUpdate((e) => {
+      pinchScale.value = e.scale;
+    })
+    .onEnd((e) => {
+      const finalScale = e.scale;
+      pinchScale.value = 1;
+      const newWidth = Math.max(minWidthMm, Math.min(widthMm * finalScale, boundsWidthMm - xMm));
+      const newHeight = Math.max(minHeightMm, Math.min(heightMm * finalScale, boundsHeightMm - yMm));
+      const nextBox: ElementBox = {
+        xMm,
+        yMm,
+        widthMm: Math.round(newWidth * 10) / 10,
+        heightMm: Math.round(newHeight * 10) / 10,
+        rotation,
+        locked,
+      };
+      runOnJS(commitBox)(nextBox);
+      if (onGestureEnd) runOnJS(handleGestureEnd)();
+    })
+    .onFinalize(() => {
+      pinchScale.value = 1;
+      if (onGestureEnd) runOnJS(handleGestureEnd)();
+    });
 
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
@@ -189,13 +250,14 @@ export function DraggableElement({
       runOnJS(onSelect)();
     });
 
+  // Body Move Pan Gesture
   const moveGesture = Gesture.Pan()
     .enabled(!locked)
-    .blocksExternalGesture(tlGesture, trGesture, blGesture, brGesture, lGesture, rGesture, tGesture, bGesture, rotateGesture)
-    .activeOffsetX([-5, 5])
-    .activeOffsetY([-5, 5])
+    .activeOffsetX([-4, 4])
+    .activeOffsetY([-4, 4])
     .onBegin(() => {
       runOnJS(onSelect)();
+      if (onGestureStart) runOnJS(handleGestureStart)();
     })
     .onUpdate((e) => {
       translateX.value = e.translationX;
@@ -213,9 +275,17 @@ export function DraggableElement({
       translateX.value = 0;
       translateY.value = 0;
       runOnJS(commitBox)(nextBox);
+      if (onGestureEnd) runOnJS(handleGestureEnd)();
+    })
+    .onFinalize(() => {
+      translateX.value = 0;
+      translateY.value = 0;
+      if (onGestureEnd) runOnJS(handleGestureEnd)();
     });
 
-  const composedBodyGesture = Gesture.Exclusive(doubleTapGesture, moveGesture, singleTapGesture);
+  // Simultaneous pinch + tap/move on the body content area
+  const bodyTapAndDrag = Gesture.Exclusive(doubleTapGesture, moveGesture, singleTapGesture);
+  const composedBodyGesture = Gesture.Simultaneous(pinchGesture, bodyTapAndDrag);
 
   const baseLeft = xMm * pxPerMm;
   const baseTop = yMm * pxPerMm;
@@ -225,8 +295,8 @@ export function DraggableElement({
   const wrapperStyle = useAnimatedStyle(() => ({
     left: baseLeft + shiftX.value,
     top: baseTop + shiftY.value,
-    width: Math.max(baseWidth + growWidth.value, minWidthMm * pxPerMm),
-    height: Math.max(baseHeight + growHeight.value, minHeightMm * pxPerMm),
+    width: Math.max(baseWidth + growWidth.value, minWidthMm * pxPerMm) * pinchScale.value,
+    height: Math.max(baseHeight + growHeight.value, minHeightMm * pxPerMm) * pinchScale.value,
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
@@ -234,10 +304,10 @@ export function DraggableElement({
     ],
   }));
 
-  const handleTouchSize = 32;
-  const handleDotSize = 11;
-  const edgeHandleW = 14;
-  const edgeHandleH = 8;
+  const handleTouchSize = 36;
+  const handleDotSize = 12;
+  const edgeHandleW = 16;
+  const edgeHandleH = 10;
   const handleOffset = -handleTouchSize / 2;
 
   const cornerPositions: Record<'tl' | 'tr' | 'bl' | 'br', ViewStyle> = {
@@ -254,125 +324,141 @@ export function DraggableElement({
   };
 
   return (
-    <GestureDetector gesture={composedBodyGesture}>
-      <Animated.View
-        style={[
-          styles.wrapper,
-          wrapperStyle,
-          {
-            borderColor: selected ? (locked ? '#F59E0B' : '#3B82F6') : 'transparent',
-            borderWidth: selected ? 1.5 : 0,
-            borderStyle: locked ? 'dashed' : 'solid',
-          },
-        ]}
-      >
-        {children}
+    <Animated.View
+      style={[
+        styles.wrapper,
+        wrapperStyle,
+        {
+          borderColor: selected ? (locked ? '#F59E0B' : '#3B82F6') : 'transparent',
+          borderWidth: selected ? 1.5 : 0,
+          borderStyle: locked ? 'dashed' : 'solid',
+        },
+      ]}
+    >
+      {/* Body Area with tap, drag, double-tap, and pinch-to-resize */}
+      <GestureDetector gesture={composedBodyGesture}>
+        <Animated.View style={styles.bodyContent} collapsable={false}>
+          {children}
 
-        {/* Lock indicator badge when locked */}
-        {locked && (
-          <View style={styles.lockBadge}>
-            <Lock size={10} color="#FFFFFF" />
-          </View>
-        )}
-
-        {selected && (
-          <>
-            {/* Konva-Style Quick Action Floating Toolbar */}
-            <View style={styles.floatingToolbar} pointerEvents="box-none">
-              <TouchableOpacity
-                style={[styles.toolBtn, locked && styles.toolBtnActive]}
-                onPress={handleToggleLock}
-                activeOpacity={0.7}
-              >
-                {locked ? <Lock size={12} color="#F59E0B" /> : <Unlock size={12} color="#475569" />}
-              </TouchableOpacity>
-
-              {!locked && (
-                <TouchableOpacity style={styles.toolBtn} onPress={handleRotate90} activeOpacity={0.7}>
-                  <RotateCw size={12} color="#475569" />
-                </TouchableOpacity>
-              )}
-
-              {onDuplicate && (
-                <TouchableOpacity style={styles.toolBtn} onPress={onDuplicate} activeOpacity={0.7}>
-                  <Copy size={12} color="#475569" />
-                </TouchableOpacity>
-              )}
-
-              {onDelete && (
-                <TouchableOpacity style={[styles.toolBtn, styles.toolBtnDanger]} onPress={onDelete} activeOpacity={0.7}>
-                  <Trash2 size={12} color="#EF4444" />
-                </TouchableOpacity>
-              )}
+          {/* Lock indicator badge when locked */}
+          {locked && (
+            <View style={styles.lockBadge}>
+              <Lock size={10} color="#FFFFFF" />
             </View>
+          )}
+        </Animated.View>
+      </GestureDetector>
 
-            {/* Konva Top Rotation Handle & Stem (Only shown when unlocked) */}
+      {/* Handles & Control Overlay — rendered outside body gesture with pointerEvents="box-none" */}
+      {selected && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Konva-Style Quick Action Floating Toolbar */}
+          <View style={styles.floatingToolbar} pointerEvents="box-none">
+            <TouchableOpacity
+              style={[styles.toolBtn, locked && styles.toolBtnActive]}
+              onPress={handleToggleLock}
+              activeOpacity={0.7}
+            >
+              {locked ? <Lock size={12} color="#F59E0B" /> : <Unlock size={12} color="#475569" />}
+            </TouchableOpacity>
+
             {!locked && (
-              <View style={styles.rotationStemContainer} pointerEvents="box-none">
-                <View style={styles.rotationStem} />
-                <GestureDetector gesture={rotateGesture}>
-                  <Animated.View style={styles.rotationKnob} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <RotateCw size={11} color="#3B82F6" />
-                  </Animated.View>
-                </GestureDetector>
-              </View>
+              <TouchableOpacity style={styles.toolBtn} onPress={handleRotate90} activeOpacity={0.7}>
+                <RotateCw size={12} color="#475569" />
+              </TouchableOpacity>
             )}
 
-            {/* 4 Corner Handles (Only shown when unlocked) */}
-            {!locked &&
-              (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
-                <GestureDetector key={corner} gesture={cornerGestures[corner]}>
+            {onDuplicate && (
+              <TouchableOpacity style={styles.toolBtn} onPress={onDuplicate} activeOpacity={0.7}>
+                <Copy size={12} color="#475569" />
+              </TouchableOpacity>
+            )}
+
+            {onDelete && (
+              <TouchableOpacity style={[styles.toolBtn, styles.toolBtnDanger]} onPress={onDelete} activeOpacity={0.7}>
+                <Trash2 size={12} color="#EF4444" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Konva Top Rotation Handle & Stem (Only shown when unlocked) */}
+          {!locked && (
+            <View style={styles.rotationStemContainer} pointerEvents="box-none">
+              <View style={styles.rotationStem} />
+              <GestureDetector gesture={rotateGesture}>
+                <Animated.View style={styles.rotationKnob} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <RotateCw size={11} color="#3B82F6" />
+                </Animated.View>
+              </GestureDetector>
+            </View>
+          )}
+
+          {/* 4 Corner Handles (Only shown when unlocked) */}
+          {!locked &&
+            (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+              <GestureDetector key={corner} gesture={cornerGestures[corner]}>
+                <Animated.View
+                  style={[
+                    styles.handleContainer,
+                    { width: handleTouchSize, height: handleTouchSize },
+                    cornerPositions[corner],
+                  ]}
+                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                >
                   <Animated.View
                     style={[
-                      styles.handleContainer,
-                      { width: handleTouchSize, height: handleTouchSize },
-                      cornerPositions[corner],
+                      styles.handleDot,
+                      { width: handleDotSize, height: handleDotSize, borderRadius: handleDotSize / 2 },
                     ]}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Animated.View
-                      style={[
-                        styles.handleDot,
-                        { width: handleDotSize, height: handleDotSize, borderRadius: handleDotSize / 2 },
-                      ]}
-                    />
-                  </Animated.View>
-                </GestureDetector>
-              ))}
+                  />
+                </Animated.View>
+              </GestureDetector>
+            ))}
 
-            {/* 4 Edge Middle Handles (Konva style pill anchors) */}
-            {!locked && (
-              <>
-                {/* Top Center */}
-                <GestureDetector gesture={tGesture}>
-                  <Animated.View style={[styles.edgeAnchorH, { top: -edgeHandleH / 2 }]} hitSlop={{ top: 8, bottom: 8 }}>
-                    <View style={styles.edgePillH} />
-                  </Animated.View>
-                </GestureDetector>
-                {/* Bottom Center */}
-                <GestureDetector gesture={bGesture}>
-                  <Animated.View style={[styles.edgeAnchorH, { bottom: -edgeHandleH / 2 }]} hitSlop={{ top: 8, bottom: 8 }}>
-                    <View style={styles.edgePillH} />
-                  </Animated.View>
-                </GestureDetector>
-                {/* Left Center */}
-                <GestureDetector gesture={lGesture}>
-                  <Animated.View style={[styles.edgeAnchorV, { left: -edgeHandleW / 2 }]} hitSlop={{ left: 8, right: 8 }}>
-                    <View style={styles.edgePillV} />
-                  </Animated.View>
-                </GestureDetector>
-                {/* Right Center */}
-                <GestureDetector gesture={rGesture}>
-                  <Animated.View style={[styles.edgeAnchorV, { right: -edgeHandleW / 2 }]} hitSlop={{ left: 8, right: 8 }}>
-                    <View style={styles.edgePillV} />
-                  </Animated.View>
-                </GestureDetector>
-              </>
-            )}
-          </>
-        )}
-      </Animated.View>
-    </GestureDetector>
+          {/* 4 Edge Middle Handles (Konva style pill anchors) */}
+          {!locked && (
+            <>
+              {/* Top Center */}
+              <GestureDetector gesture={tGesture}>
+                <Animated.View
+                  style={[styles.edgeAnchorH, { top: -edgeHandleH / 2 }]}
+                  hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+                >
+                  <View style={styles.edgePillH} />
+                </Animated.View>
+              </GestureDetector>
+              {/* Bottom Center */}
+              <GestureDetector gesture={bGesture}>
+                <Animated.View
+                  style={[styles.edgeAnchorH, { bottom: -edgeHandleH / 2 }]}
+                  hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+                >
+                  <View style={styles.edgePillH} />
+                </Animated.View>
+              </GestureDetector>
+              {/* Left Center */}
+              <GestureDetector gesture={lGesture}>
+                <Animated.View
+                  style={[styles.edgeAnchorV, { left: -edgeHandleW / 2 }]}
+                  hitSlop={{ top: 12, bottom: 12, left: 14, right: 14 }}
+                >
+                  <View style={styles.edgePillV} />
+                </Animated.View>
+              </GestureDetector>
+              {/* Right Center */}
+              <GestureDetector gesture={rGesture}>
+                <Animated.View
+                  style={[styles.edgeAnchorV, { right: -edgeHandleW / 2 }]}
+                  hitSlop={{ top: 12, bottom: 12, left: 14, right: 14 }}
+                >
+                  <View style={styles.edgePillV} />
+                </Animated.View>
+              </GestureDetector>
+            </>
+          )}
+        </View>
+      )}
+    </Animated.View>
   );
 }
 
@@ -380,6 +466,11 @@ const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
     borderRadius: 3,
+  },
+  bodyContent: {
+    width: '100%',
+    height: '100%',
+    overflow: 'visible',
   },
   handleContainer: {
     position: 'absolute',
@@ -395,16 +486,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1.5 },
     shadowOpacity: 0.25,
     shadowRadius: 3,
-    elevation: 4,
+    elevation: 5,
   },
   /* Konva Top Rotation Knob & Connector Stem */
   rotationStemContainer: {
     position: 'absolute',
-    top: -26,
+    top: -28,
     left: '50%',
     marginLeft: -12,
     width: 24,
-    height: 26,
+    height: 28,
     alignItems: 'center',
     zIndex: 1000,
   },
@@ -416,9 +507,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
   rotationKnob: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#3B82F6',
@@ -428,7 +519,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
-    elevation: 5,
+    elevation: 6,
   },
   /* Edge Middle Pill Handles */
   edgeAnchorH: {
@@ -442,12 +533,17 @@ const styles = StyleSheet.create({
     zIndex: 998,
   },
   edgePillH: {
-    width: 12,
-    height: 6,
-    borderRadius: 3,
+    width: 14,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#3B82F6',
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 4,
   },
   edgeAnchorV: {
     position: 'absolute',
@@ -460,38 +556,43 @@ const styles = StyleSheet.create({
     zIndex: 998,
   },
   edgePillV: {
-    width: 6,
-    height: 12,
-    borderRadius: 3,
+    width: 7,
+    height: 14,
+    borderRadius: 3.5,
     backgroundColor: '#3B82F6',
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 4,
   },
   /* Floating Mini Toolbar */
   floatingToolbar: {
     position: 'absolute',
-    top: -46,
+    top: -48,
     left: '50%',
     transform: [{ translateX: -54 }],
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.22,
     shadowRadius: 4,
-    elevation: 6,
+    elevation: 7,
     zIndex: 1002,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 3,
+    gap: 4,
   },
   toolBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
