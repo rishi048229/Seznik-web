@@ -41,8 +41,6 @@ import {
   Bluetooth,
   Compass,
   BluetoothConnected,
-  Wallet,
-  PieChart as PieChartIcon,
   Tag,
   ExternalLink,
 } from 'lucide-react'
@@ -56,32 +54,58 @@ const PRINTER_STATUS_KEY: Record<string, TranslationKey> = {
 }
 
 const PAYMENT_MODE_COLORS: Record<string, string> = {
-  cash: '#2563eb',
-  upi: '#10b981',
-  card: '#f59e0b',
-  credit: '#ef4444',
+  cash: '#2563EB',
+  upi: '#10B981',
+  credit: '#F59E0B',
+  card: '#8B5CF6',
+}
+
+const PAYMENT_MODE_PILLS: Record<string, string> = {
+  cash: 'bg-blue-50 dark:bg-blue-950/40',
+  upi: 'bg-emerald-50 dark:bg-emerald-950/40',
+  credit: 'bg-amber-50 dark:bg-amber-950/40',
+  card: 'bg-violet-50 dark:bg-violet-950/40',
 }
 
 const PRODUCT_RANK_COLORS = ['bg-amber-500', 'bg-gray-400', 'bg-amber-700', 'bg-gray-300', 'bg-gray-300']
 
-// Inline-SVG donut chart (no external chart lib). Renders each slice as a stroked
-// circle arc via stroke-dasharray, matching the app's hand-rolled SVG chart style.
-const DonutChart = ({ data, size = 180, thickness = 20 }: { data: { value: number; color: string }[]; size?: number; thickness?: number }) => {
+/** Rounded-cap donut. Pass scaleTotal to draw a progress arc (e.g. margin %) on a grey track. */
+const DonutChart = ({
+  data,
+  size = 168,
+  thickness = 18,
+  scaleTotal,
+}: {
+  data: { value: number; color: string }[]
+  size?: number
+  thickness?: number
+  scaleTotal?: number
+}) => {
   const radius = (size - thickness) / 2
   const circumference = 2 * Math.PI * radius
-  const total = data.reduce((sum, d) => sum + d.value, 0)
+  const sum = data.reduce((acc, d) => acc + Math.max(d.value, 0), 0)
+  const total = scaleTotal && scaleTotal > 0 ? scaleTotal : sum
+  const active = data.filter(d => d.value > 0)
+  const gap = !scaleTotal && active.length > 1 ? circumference * 0.018 : 0
   let offset = 0
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
       <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-        {total === 0 ? (
-          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e5e7eb" strokeWidth={thickness} />
-        ) : (
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#F3F4F6"
+          className="dark:stroke-gray-700"
+          strokeWidth={thickness}
+        />
+        {total > 0 &&
           data.map((slice, i) => {
+            if (slice.value <= 0) return null
             const fraction = slice.value / total
-            const dash = fraction * circumference
-            const gap = circumference - dash
+            const dash = Math.max(0, fraction * circumference - gap)
             const el = (
               <circle
                 key={i}
@@ -91,32 +115,83 @@ const DonutChart = ({ data, size = 180, thickness = 20 }: { data: { value: numbe
                 fill="none"
                 stroke={slice.color}
                 strokeWidth={thickness}
-                strokeDasharray={`${dash} ${gap}`}
+                strokeLinecap="round"
+                strokeDasharray={`${dash} ${circumference}`}
                 strokeDashoffset={-offset}
               />
             )
-            offset += dash
+            offset += fraction * circumference
             return el
-          })
-        )}
+          })}
       </g>
     </svg>
   )
 }
 
-const WidgetHeader = ({ icon, title, onView }: { icon: React.ReactNode; title: string; onView: () => void }) => (
-  <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4 min-w-0">
-    <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0 truncate text-sm sm:text-base">
-      {icon}
-      {title}
-    </h3>
+const WidgetHeader = ({
+  icon,
+  title,
+  subtitle,
+  viewLabel,
+  iconWrap,
+  onView,
+}: {
+  icon: React.ReactNode
+  title: string
+  subtitle?: string
+  viewLabel?: string
+  iconWrap?: string
+  onView: () => void
+}) => (
+  <div className="flex items-start justify-between gap-2 mb-4 min-w-0">
+    <div className="flex items-start gap-3 min-w-0">
+      {iconWrap ? (
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconWrap}`}>
+          {icon}
+        </div>
+      ) : (
+        icon
+      )}
+      <div className="min-w-0">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-sm sm:text-base leading-tight">
+          {title}
+        </h3>
+        {subtitle && <p className="text-xs text-gray-400 mt-0.5 truncate">{subtitle}</p>}
+      </div>
+    </div>
     <button
+      type="button"
       onClick={onView}
-      className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
+      className="text-[11px] sm:text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0 whitespace-nowrap"
     >
+      <span>{viewLabel ?? 'View'}</span>
       <ExternalLink size={14} />
-      <span className="hidden sm:inline">View</span>
     </button>
+  </div>
+)
+
+const LegendPill = ({
+  color,
+  label,
+  amount,
+  percent,
+  pillClass,
+}: {
+  color: string
+  label: string
+  amount: string
+  percent: number
+  pillClass: string
+}) => (
+  <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${pillClass}`}>
+    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 truncate">
+      {label}
+    </span>
+    <span className="ml-auto text-xs font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">
+      {amount}
+    </span>
+    <span className="text-[11px] text-gray-400 w-8 text-right shrink-0">{percent}%</span>
   </div>
 )
 
@@ -196,15 +271,21 @@ export const DashboardPage = () => {
   const chartLabels = revenueTrend?.labels ?? []
   const maxRevenue = chartData.length > 0 ? Math.max(...chartData, 1) : 1
 
+  const profitTotal =
+    (profitBreakdown ? Math.max(profitBreakdown.profit, 0) + Math.max(profitBreakdown.tax, 0) + Math.max(profitBreakdown.cost, 0) : 0) || 1
   const profitPieData = profitBreakdown
     ? [
-        { name: 'Profit', value: Math.max(profitBreakdown.profit, 0), color: '#10b981' },
-        { name: 'Tax', value: Math.max(profitBreakdown.tax, 0), color: '#f59e0b' },
-        { name: 'Cost', value: Math.max(profitBreakdown.cost, 0), color: '#2563eb' },
+        { name: t('dashboard.netProfit'), value: Math.max(profitBreakdown.profit, 0), color: '#10B981', pillClass: 'bg-emerald-50 dark:bg-emerald-950/40', percent: Math.round((Math.max(profitBreakdown.profit, 0) / profitTotal) * 100) },
+        { name: t('dashboard.outputTax'), value: Math.max(profitBreakdown.tax, 0), color: '#F59E0B', pillClass: 'bg-amber-50 dark:bg-amber-950/40', percent: Math.round((Math.max(profitBreakdown.tax, 0) / profitTotal) * 100) },
+        { name: t('dashboard.cogsCost'), value: Math.max(profitBreakdown.cost, 0), color: '#2563EB', pillClass: 'bg-blue-50 dark:bg-blue-950/40', percent: Math.round((Math.max(profitBreakdown.cost, 0) / profitTotal) * 100) },
       ]
     : []
 
-  const paymentPieData = (paymentModes?.modes ?? []).map(m => ({
+  const PAYMENT_MODE_ORDER = ['cash', 'upi', 'credit', 'card']
+  const paymentModeRows = [...(paymentModes?.modes ?? [])].sort(
+    (a, b) => PAYMENT_MODE_ORDER.indexOf(a.method) - PAYMENT_MODE_ORDER.indexOf(b.method)
+  )
+  const paymentPieData = paymentModeRows.map(m => ({
     name: m.method,
     value: m.amount,
     color: PAYMENT_MODE_COLORS[m.method] ?? '#94a3b8',
@@ -343,67 +424,83 @@ export const DashboardPage = () => {
       {/* Overview widgets: Payment Modes + Profit Breakdown */}
       <div data-tour="charts-section" className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* Payment Modes */}
-        <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<Wallet size={18} className="text-blue-500" />} title={t('dashboard.paymentModes')} onView={() => navigate(ROUTES.REPORTS_SALES)} />
+        <Card className="p-5 sm:p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
+          <WidgetHeader
+            icon={<CreditCard size={18} className="text-blue-600" />}
+            iconWrap="bg-blue-50 dark:bg-blue-950/40"
+            title={t('dashboard.paymentModes')}
+            subtitle={t('dashboard.paymentModesSubtitle')}
+            viewLabel={t('dashboard.viewBreakdown')}
+            onView={() => navigate(ROUTES.REPORTS_SALES)}
+          />
           {loadingPaymentModes ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !paymentModes || paymentModes.modes.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
-            <>
-              <div className="relative flex justify-center items-center mb-4" style={{ height: 180 }}>
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <div className="relative shrink-0">
                 <DonutChart data={paymentPieData} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatINRCompact(paymentModes.totalSales)}</p>
-                  <p className="text-xs text-gray-400">{t('dashboard.totalSales')}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{t('dashboard.totalSales')}</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-tight">{formatINRCompact(paymentModes.totalSales)}</p>
                 </div>
               </div>
-              <div className="space-y-2">
-                {paymentModes.modes.map(mode => (
-                  <div key={mode.method} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PAYMENT_MODE_COLORS[mode.method] ?? '#94a3b8' }} />
-                      <span className="text-gray-600 dark:text-gray-300 uppercase text-xs font-medium">{mode.method}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINRCompact(mode.amount)}</span>
-                      <span className="text-xs text-gray-400 w-8 text-right">{mode.percent}%</span>
-                    </div>
-                  </div>
+              <div className="w-full flex-1 space-y-2 min-w-0">
+                {paymentModeRows.map(mode => (
+                  <LegendPill
+                    key={mode.method}
+                    color={PAYMENT_MODE_COLORS[mode.method] ?? '#94a3b8'}
+                    pillClass={PAYMENT_MODE_PILLS[mode.method] ?? 'bg-gray-50 dark:bg-gray-800'}
+                    label={mode.method}
+                    amount={formatINR(mode.amount)}
+                    percent={mode.percent}
+                  />
                 ))}
               </div>
-            </>
+            </div>
           )}
         </Card>
 
         {/* Profit Breakdown */}
-        <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<PieChartIcon size={18} className="text-emerald-500" />} title={t('dashboard.profitBreakdown')} onView={() => navigate(ROUTES.REPORTS_PL)} />
+        <Card className="p-5 sm:p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
+          <WidgetHeader
+            icon={<TrendingUp size={18} className="text-emerald-600" />}
+            iconWrap="bg-emerald-50 dark:bg-emerald-950/40"
+            title={t('dashboard.profitBreakdown')}
+            subtitle={t('dashboard.profitBreakdownSubtitle')}
+            viewLabel={t('dashboard.viewLedger')}
+            onView={() => navigate(ROUTES.REPORTS_PL)}
+          />
           {loadingProfitBreakdown ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !profitBreakdown || profitBreakdown.revenue === 0 ? (
             <p className="text-sm text-gray-400 text-center py-10">{t('common.noSalesYet')}</p>
           ) : (
-            <>
-              <div className="relative flex justify-center items-center mb-4" style={{ height: 180 }}>
-                <DonutChart data={profitPieData} />
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <div className="relative shrink-0">
+                <DonutChart
+                  data={[{ value: Math.max(profitBreakdown.marginPercent, 0), color: '#2563EB' }]}
+                  scaleTotal={100}
+                />
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-lg font-bold text-emerald-600">{profitBreakdown.marginPercent}%</p>
-                  <p className="text-xs text-gray-400">{t('dashboard.margin')}</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-none">{profitBreakdown.marginPercent}%</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 mt-1">{t('dashboard.netMargin')}</p>
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="w-full flex-1 space-y-2 min-w-0">
                 {profitPieData.map(entry => (
-                  <div key={entry.name} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                      <span className="text-gray-600 dark:text-gray-300">{entry.name}</span>
-                    </div>
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINRCompact(entry.value)}</span>
-                  </div>
+                  <LegendPill
+                    key={entry.name}
+                    color={entry.color}
+                    pillClass={entry.pillClass}
+                    label={entry.name}
+                    amount={formatINR(entry.value)}
+                    percent={entry.percent}
+                  />
                 ))}
               </div>
-            </>
+            </div>
           )}
         </Card>
       </div>
@@ -412,7 +509,7 @@ export const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* Top Products */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<Package size={18} className="text-amber-500" />} title={t('dashboard.topProducts')} onView={() => navigate(ROUTES.PRODUCTS)} />
+          <WidgetHeader icon={<Package size={18} className="text-amber-600" />} iconWrap="bg-amber-50 dark:bg-amber-950/40" title={t('dashboard.topProducts')} onView={() => navigate(ROUTES.PRODUCTS)} />
           {loadingTopProducts ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topProducts || topProducts.length === 0 ? (
@@ -439,7 +536,7 @@ export const DashboardPage = () => {
 
         {/* Top Categories */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<Tag size={18} className="text-purple-500" />} title={t('dashboard.topCategories')} onView={() => navigate(ROUTES.CATEGORIES)} />
+          <WidgetHeader icon={<Tag size={18} className="text-violet-600" />} iconWrap="bg-violet-50 dark:bg-violet-950/40" title={t('dashboard.topCategories')} onView={() => navigate(ROUTES.CATEGORIES)} />
           {loadingTopCategories ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topCategories || topCategories.length === 0 ? (
@@ -460,7 +557,7 @@ export const DashboardPage = () => {
 
         {/* Expense Summary */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<IndianRupee size={18} className="text-red-500" />} title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
+          <WidgetHeader icon={<IndianRupee size={18} className="text-red-600" />} iconWrap="bg-red-50 dark:bg-red-950/40" title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
           {loadingExpenseSummary ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !expenseSummary ? (
