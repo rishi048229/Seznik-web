@@ -1,14 +1,39 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi, SettingsPayload } from '@/api/settings';
+import { settingsApi, Settings, SettingsPayload } from '@/api/settings';
 import { resolveBusinessLogoUri } from '@/utils/businessLogoStorage';
+import { getStoredSettings, setStoredSettings } from '@/services/secureStore';
 
-/** Latest Settings.trackStock for non-React callers (e.g. cart store). */
+/** In-memory cache of latest Settings for non-React callers (e.g. cart, printer service, POS). */
+let cachedSettings: Settings | null = null;
 let cachedTrackStockSetting: boolean | null | undefined;
+
+export function getCachedSettings(): Settings | null {
+  return cachedSettings;
+}
+
+export function setCachedSettings(settings: Settings | null): void {
+  cachedSettings = settings;
+  if (settings && typeof settings.trackStock === 'boolean') {
+    cachedTrackStockSetting = settings.trackStock;
+  }
+}
 
 export function getCachedTrackStockSetting(): boolean | null | undefined {
   return cachedTrackStockSetting;
 }
+
+// Eagerly restore stored settings from disk into memory on startup
+getStoredSettings<Settings>()
+  .then((saved) => {
+    if (saved && !cachedSettings) {
+      cachedSettings = saved;
+      if (typeof saved.trackStock === 'boolean') {
+        cachedTrackStockSetting = saved.trackStock;
+      }
+    }
+  })
+  .catch(() => {});
 
 /**
  * Real business Settings (name/address/phone/GSTIN etc.), used anywhere a receipt/invoice
@@ -26,18 +51,24 @@ export function useSettings() {
         return null;
       }
       cachedTrackStockSetting = settings.trackStock;
+      let resolvedSettings = settings;
       if (settings.businessLogoURL) {
         const resolved = await resolveBusinessLogoUri(settings.businessLogoURL);
-        return { ...settings, businessLogoURL: resolved };
+        resolvedSettings = { ...settings, businessLogoURL: resolved };
       }
-      return settings;
+      cachedSettings = resolvedSettings;
+      setStoredSettings(resolvedSettings).catch(() => {});
+      return resolvedSettings;
     },
+    initialData: () => cachedSettings || undefined,
     staleTime: 1000 * 60 * 5,
   });
 
   useEffect(() => {
     if (settingsQuery.data) {
+      cachedSettings = settingsQuery.data;
       cachedTrackStockSetting = settingsQuery.data.trackStock;
+      setStoredSettings(settingsQuery.data).catch(() => {});
     }
   }, [settingsQuery.data]);
 
@@ -48,21 +79,27 @@ export function useSettings() {
       }
       return settingsApi.createSettings(payload);
     },
-    onSuccess: (data) => {
-      if (data && typeof (data as { trackStock?: boolean }).trackStock === 'boolean') {
-        cachedTrackStockSetting = (data as { trackStock?: boolean }).trackStock;
+    onSuccess: (data: Settings) => {
+      if (data) {
+        cachedSettings = data;
+        if (typeof data.trackStock === 'boolean') {
+          cachedTrackStockSetting = data.trackStock;
+        }
+        setStoredSettings(data).catch(() => {});
+        queryClient.setQueryData(['settings'], data);
       }
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
 
   return {
-    settings: settingsQuery.data || null,
-    isLoading: !settingsQuery.data && settingsQuery.isLoading,
+    settings: settingsQuery.data || cachedSettings || null,
+    isLoading: !settingsQuery.data && !cachedSettings && settingsQuery.isLoading,
     isRefetching: settingsQuery.isRefetching,
-    isError: settingsQuery.isError && !settingsQuery.data,
+    isError: settingsQuery.isError && !settingsQuery.data && !cachedSettings,
     refetch: settingsQuery.refetch,
     updateSettings: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
   };
 }
+

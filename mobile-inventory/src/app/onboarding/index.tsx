@@ -89,8 +89,10 @@ export default function OnboardingScreen() {
     }
     if (!phone.trim() && profile.storePhone) setPhone(profile.storePhone);
     if (!businessAddress.trim() && profile.storeAddress) setBusinessAddress(profile.storeAddress);
-    if (!upiId.trim() && profile.upiId) setUpiId(profile.upiId);
-    if (!logoUri && profile.storeLogoUrl) setLogoUri(profile.storeLogoUrl);
+    if (!upiId.trim() && (profile.upiId || settings?.upiId)) setUpiId(profile.upiId || settings?.upiId || '');
+    if (!logoUri && (profile.storeLogoUrl || settings?.businessLogoURL)) {
+      setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
+    }
   }, [settings, user]);
 
   const validateShopDetails = () => {

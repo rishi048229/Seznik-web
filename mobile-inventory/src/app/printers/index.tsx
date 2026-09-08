@@ -931,15 +931,15 @@ export default function PrintersScreen() {
                           <CustomReceiptMockup
                             template={ct}
                             storeName={storeProfile.storeName}
-                            storeAddress={settings?.businessAddress || ''}
-                            storePhone={settings?.businessPhone || ''}
-                            storeGstin={settings?.businessGSTIN || ''}
-                            storeLogoUrl={printOptions.storeLogoUrl}
+                            storeAddress={storeProfile.storeAddress}
+                            storePhone={storeProfile.storePhone}
+                            storeGstin={storeProfile.storeGstin}
+                            storeLogoUrl={printOptions.storeLogoUrl || storeProfile.storeLogoUrl}
                             invoiceNumber="INV-1024"
                             date={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                             customerName=""
                             paperWidth={ct.paperWidth || '58mm'}
-                            upiId={settings?.upiId || ''}
+                            upiId={storeProfile.upiId || ''}
                             logoSizeChip={receiptLogoSizeVal}
                             qrSizeChip={receiptQrSizeVal}
                           />

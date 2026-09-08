@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { MobileLoginQrCard } from '@/components/dashboard/MobileLoginQrCard'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import {
   useDashboardStats,
@@ -333,6 +334,9 @@ export const DashboardPage = () => {
           )}
         </div>
       </Card>
+
+      {/* Mobile QR Login */}
+      <MobileLoginQrCard />
 
       {/* Overview widgets: Payment Modes + Profit Breakdown */}
       <div data-tour="charts-section" className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">

@@ -38,6 +38,7 @@ import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -48,6 +49,7 @@ export default function QuickTokensScreen() {
   const { user } = useAuth();
   const { t } = useLanguageStore();
   const { settings } = useSettings();
+  const storeProfile = useStoreProfile();
   const { connectionState } = usePrinterStore();
 
   const {
@@ -95,9 +97,9 @@ export default function QuickTokensScreen() {
 
     try {
       await ThermalPrinterService.printTokenSlip({
-        storeName: settings?.businessName || 'SEZNIK TOKEN',
-        storeAddress: settings?.businessAddress || '',
-        storePhone: settings?.businessPhone || '',
+        storeName: storeProfile.storeName || 'SEZNIK TOKEN',
+        storeAddress: storeProfile.storeAddress,
+        storePhone: storeProfile.storePhone,
         tokenNumber: seq,
         typeName,
         quantity: 1,
@@ -136,9 +138,9 @@ export default function QuickTokensScreen() {
       if (connectionState === 'connected') {
         try {
           await ThermalPrinterService.printTokenSlip({
-            storeName: settings?.businessName || 'SEZNIK TOKEN',
-            storeAddress: settings?.businessAddress || '',
-            storePhone: settings?.businessPhone || '',
+            storeName: storeProfile.storeName || 'SEZNIK TOKEN',
+            storeAddress: storeProfile.storeAddress,
+            storePhone: storeProfile.storePhone,
             tokenNumber: nextSeq,
             typeName: selectedType.name,
             quantity: qty,

@@ -79,3 +79,12 @@ export interface RegisterPayload {
   hasSeznikPrinter?: boolean;
   accessCode?: string;
 }
+
+export interface QrLoginSession {
+  sessionId: string;
+  qrPayload: string;
+  expiresAt: string;
+  expiresInSeconds: number;
+}
+
+export type QrLoginStatus = 'pending' | 'consumed' | 'expired';

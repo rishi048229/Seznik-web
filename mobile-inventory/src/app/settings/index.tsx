@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,9 +40,9 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings, setCachedSettings } from '@/hooks/useSettings';
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
-import { settingsApi } from '@/api/settings';
+import { settingsApi, Settings } from '@/api/settings';
 import { persistBusinessLogo } from '@/utils/businessLogoStorage';
 import { useLanguageStore, useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
@@ -54,6 +54,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { BusinessTypeIcon } from '@/components/ui/BusinessTypeIcon';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
+import { setStoredSettings } from '@/services/secureStore';
 
 
 const SUPPORT_PHONE = '+918237869618';
@@ -70,7 +71,7 @@ export default function SettingsScreen() {
     'menu' | 'profile' | 'language' | 'support'
   >('menu');
 
-  // Business Profile Form State — seeded from the real backend Settings once loaded, not hardcoded.
+  // Business Profile Form State
   const [storeName, setStoreName] = useState('');
   const [storeGstin, setStoreGstin] = useState('');
   const [storePhone, setStorePhone] = useState('');
@@ -80,27 +81,55 @@ export default function SettingsScreen() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>('retail_shop');
 
-  // Seed the form once real Settings arrive from the backend — done as a conditional setState
-  // during render (React's documented pattern for "adjust state when a prop/query result
-  // changes") rather than in a useEffect, so it doesn't trigger a redundant extra render.
-  const [hasSeededProfile, setHasSeededProfile] = useState(false);
-  const [hasSeededBusinessType, setHasSeededBusinessType] = useState(false);
-  if ((settings || user) && !hasSeededProfile) {
-    const profile = resolveStoreProfile(settings, user);
-    setStoreName(profile.storeName);
-    setStoreGstin(profile.storeGstin);
-    setStorePhone(profile.storePhone);
-    setStoreAddress(profile.storeAddress);
-    setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
-    setUpiId(profile.upiId || settings?.upiId || '');
-    setHasSeededProfile(true);
-  }
-  if (user && !hasSeededBusinessType) {
-    if (user.businessType) {
-      setSelectedBusinessType(user.businessType);
+  // Track if user manually typed in each field during the current session
+  const userEditedRef = useRef<{ [key: string]: boolean }>({});
+
+  useEffect(() => {
+    if (settings || user) {
+      const profile = resolveStoreProfile(settings, user);
+      if (!userEditedRef.current.storeName && profile.storeName && profile.storeName !== 'Your Store Name') {
+        setStoreName(profile.storeName);
+      }
+      if (!userEditedRef.current.storeGstin && profile.storeGstin) {
+        setStoreGstin(profile.storeGstin);
+      }
+      if (!userEditedRef.current.storePhone && profile.storePhone) {
+        setStorePhone(profile.storePhone);
+      }
+      if (!userEditedRef.current.storeAddress && profile.storeAddress) {
+        setStoreAddress(profile.storeAddress);
+      }
+      const resolvedLogo = profile.storeLogoUrl || settings?.businessLogoURL || null;
+      if (!userEditedRef.current.logoUri && resolvedLogo) {
+        setLogoUri(resolvedLogo);
+      }
+      const resolvedUpi = profile.upiId || settings?.upiId || '';
+      if (!userEditedRef.current.upiId && resolvedUpi) {
+        setUpiId(resolvedUpi);
+      }
+      if (user?.businessType) {
+        setSelectedBusinessType(user.businessType);
+      }
     }
-    setHasSeededBusinessType(true);
-  }
+  }, [settings, user]);
+
+  useEffect(() => {
+    if (activeSection === 'profile' && (settings || user)) {
+      const profile = resolveStoreProfile(settings, user);
+      if (!storeName && profile.storeName && profile.storeName !== 'Your Store Name') {
+        setStoreName(profile.storeName);
+      }
+      if (!storeGstin && profile.storeGstin) setStoreGstin(profile.storeGstin);
+      if (!storePhone && profile.storePhone) setStorePhone(profile.storePhone);
+      if (!storeAddress && profile.storeAddress) setStoreAddress(profile.storeAddress);
+      if (!logoUri && (profile.storeLogoUrl || settings?.businessLogoURL)) {
+        setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
+      }
+      if (!upiId && (profile.upiId || settings?.upiId)) {
+        setUpiId(profile.upiId || settings?.upiId || '');
+      }
+    }
+  }, [activeSection]);
 
   const [rawPickedLogo, setRawPickedLogo] = useState<string | null>(null);
   const [showLogoBgModal, setShowLogoBgModal] = useState<boolean>(false);
@@ -121,6 +150,7 @@ export default function SettingsScreen() {
       allowsEditing: true,
     });
     if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
+      userEditedRef.current.logoUri = true;
       setLogoUri(pickerResult.assets[0].uri);
     }
   };
@@ -161,10 +191,16 @@ export default function SettingsScreen() {
           receiptConfigUpdatedAt: new Date().toISOString(),
         },
       };
+      let savedResult: Settings;
       if (settings?.id) {
-        await settingsApi.updateSettings(settings.id, payload);
+        savedResult = await settingsApi.updateSettings(settings.id, payload);
       } else {
-        await settingsApi.createSettings(payload);
+        savedResult = await settingsApi.createSettings(payload);
+      }
+      if (savedResult) {
+        setCachedSettings(savedResult);
+        setStoredSettings(savedResult).catch(() => {});
+        queryClient.setQueryData(['settings'], savedResult);
       }
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       Alert.alert('Settings Saved!', 'Your store configuration has been updated.');
@@ -398,7 +434,10 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      onPress={() => setLogoUri('')}
+                      onPress={() => {
+                        userEditedRef.current.logoUri = true;
+                        setLogoUri(null);
+                      }}
                       style={[styles.logoActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
                     >
                       <Trash2 size={13} color="#EF4444" />
@@ -419,7 +458,10 @@ export default function SettingsScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storeName}
-                onChangeText={setStoreName}
+                onChangeText={(text) => {
+                  userEditedRef.current.storeName = true;
+                  setStoreName(text);
+                }}
               />
 
               {user?.accountType !== 'managed' ? (
@@ -473,21 +515,30 @@ export default function SettingsScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storeGstin}
-                onChangeText={setStoreGstin}
+                onChangeText={(text) => {
+                  userEditedRef.current.storeGstin = true;
+                  setStoreGstin(text);
+                }}
               />
 
               <Text style={[styles.label, { color: theme.textPrimary }]}>{t('businessPhone', 'Store Phone Number')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storePhone}
-                onChangeText={setStorePhone}
+                onChangeText={(text) => {
+                  userEditedRef.current.storePhone = true;
+                  setStorePhone(text);
+                }}
               />
 
               <Text style={[styles.label, { color: theme.textPrimary }]}>{t('businessAddress', 'Store Address')}</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={storeAddress}
-                onChangeText={setStoreAddress}
+                onChangeText={(text) => {
+                  userEditedRef.current.storeAddress = true;
+                  setStoreAddress(text);
+                }}
                 multiline
               />
 
@@ -501,7 +552,10 @@ export default function SettingsScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, color: theme.textPrimary }]}
                 value={upiId}
-                onChangeText={setUpiId}
+                onChangeText={(text) => {
+                  userEditedRef.current.upiId = true;
+                  setUpiId(text);
+                }}
                 placeholder="yourstore@upi"
                 placeholderTextColor="#94A3B8"
                 autoCapitalize="none"
@@ -547,6 +601,7 @@ export default function SettingsScreen() {
         visible={showLogoBgModal}
         imageUri={rawPickedLogo}
         onApply={(finalUri) => {
+          userEditedRef.current.logoUri = true;
           setLogoUri(finalUri);
           setShowLogoBgModal(false);
         }}

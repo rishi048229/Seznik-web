@@ -591,3 +591,40 @@ export async function setStoredJoshDualModeTipCount(count: number): Promise<void
     console.error('Error saving Josh dual-mode tip count:', error);
   }
 }
+
+// Persistent Store Settings (business name, address, phone, GSTIN, UPI, logo, receipt config)
+const SETTINGS_STORAGE_KEY = 'seznik_store_settings';
+
+export async function getStoredSettings<T = any>(): Promise<T | null> {
+  try {
+    let json: string | null = null;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        json = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      }
+    } else {
+      json = await SecureStore.getItemAsync(SETTINGS_STORAGE_KEY);
+    }
+    return json ? (JSON.parse(json) as T) : null;
+  } catch (error) {
+    console.error('Error reading stored settings:', error);
+    return null;
+  }
+}
+
+export async function setStoredSettings(settings: any): Promise<void> {
+  try {
+    if (!settings) return;
+    const json = JSON.stringify(settings);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(SETTINGS_STORAGE_KEY, json);
+      }
+    } else {
+      await SecureStore.setItemAsync(SETTINGS_STORAGE_KEY, json);
+    }
+  } catch (error) {
+    console.error('Error saving stored settings:', error);
+  }
+}
+

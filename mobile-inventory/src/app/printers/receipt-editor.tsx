@@ -70,6 +70,7 @@ import { buildSampleTestSale, buildTestReceiptPrintOptions } from '@/utils/fastS
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
 import { useAuth } from '@/hooks/useAuth';
+import { resolveStoreLogoUrl } from '@/utils/receiptLogo';
 import { TaxBillingPrinterSection } from '@/components/billing/TaxBillingPrinterSection';
 import {
   CustomReceiptTemplate,
@@ -406,7 +407,7 @@ export default function ReceiptEditorScreen() {
           id: newId,
           type: 'image',
           enabled: true,
-          imageUri: settings?.businessLogoURL || undefined,
+          imageUri: resolveStoreLogoUrl(settings?.receiptConfig, settings?.businessLogoURL) || undefined,
           align: 'center',
           widthPercent: RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
         };
@@ -822,7 +823,7 @@ export default function ReceiptEditorScreen() {
                     id: `logo-${Date.now()}`,
                     type: 'image',
                     enabled: val,
-                    imageUri: settings?.businessLogoURL || undefined,
+                    imageUri: resolveStoreLogoUrl(settings?.receiptConfig, settings?.businessLogoURL) || undefined,
                     align: 'center',
                     widthPercent: RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
                   };

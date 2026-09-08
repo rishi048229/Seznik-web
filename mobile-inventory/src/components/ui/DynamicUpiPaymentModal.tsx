@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,8 @@ interface Props {
   onPaymentConfirmed?: () => void;
 }
 
+import { useStoreProfile } from '@/hooks/useStoreProfile';
+
 export function DynamicUpiPaymentModal({
   visible,
   onClose,
@@ -49,12 +51,19 @@ export function DynamicUpiPaymentModal({
   const theme = useAppTheme();
   const isDark = theme.isDark;
   const { settings, updateSettings } = useSettings();
+  const storeProfile = useStoreProfile();
 
   const [isEditingUpi, setIsEditingUpi] = useState(false);
-  const [upiInput, setUpiInput] = useState(settings?.upiId || '');
+  const [upiInput, setUpiInput] = useState(storeProfile.upiId || settings?.upiId || '');
 
-  const storeName = settings?.businessName || 'Seznik Store';
-  const effectiveUpiId = (settings?.upiId || upiInput || '').trim();
+  useEffect(() => {
+    if (visible && (storeProfile.upiId || settings?.upiId)) {
+      setUpiInput(storeProfile.upiId || settings?.upiId || '');
+    }
+  }, [visible, storeProfile.upiId, settings?.upiId]);
+
+  const storeName = storeProfile.storeName || 'Seznik Store';
+  const effectiveUpiId = (storeProfile.upiId || settings?.upiId || upiInput || '').trim();
   const upiPayString = isValidUpiVpa(effectiveUpiId)
     ? buildUpiPayString(effectiveUpiId, storeName, amount, invoiceNumber)
     : '';

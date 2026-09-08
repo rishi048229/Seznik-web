@@ -124,6 +124,8 @@ export function buildSampleTestSale(
   };
 }
 
+import { useAuthStore } from '@/store/useAuthStore';
+
 /** Print options for test receipts — same calibration/logo/GST/footer as a real POS sale. */
 export function buildTestReceiptPrintOptions(input: {
   activeTemplateId: string;
@@ -140,10 +142,13 @@ export function buildTestReceiptPrintOptions(input: {
   settings: SettingsLike;
   customTemplate?: CustomReceiptTemplate | null;
   copies?: number;
+  user?: UserProfile | null;
 }): ReceiptPrintOptions {
+  const currentUser = input.user ?? useAuthStore.getState().user;
+  const profile = resolveStoreProfile(input.settings as any, currentUser);
   const gst = gstPrintOptionOverrides(parseGstBilling(input.settings?.invoiceConfig));
-  const logo = resolveSettingsLogoUrl(input.settings);
-  const footerMessage = resolveSettingsFooterMessage(input.settings?.receiptConfig);
+  const logo = profile.storeLogoUrl || resolveSettingsLogoUrl(input.settings);
+  const footerMessage = profile.footerMessage || resolveSettingsFooterMessage(input.settings?.receiptConfig);
   const receiptConfig = input.settings?.receiptConfig as Record<string, any> | undefined;
   const receiptLogoSize = input.receiptLogoSize || receiptConfig?.receiptLogoSize;
   const receiptQrSize = input.receiptQrSize || receiptConfig?.receiptQrSize;
@@ -158,12 +163,12 @@ export function buildTestReceiptPrintOptions(input: {
     receiptFont: input.receiptFont,
     compactMode: input.compactMode,
     printCopies: input.copies ?? 1,
-    storeName: input.settings?.businessName || undefined,
-    storeAddress: input.settings?.businessAddress || undefined,
-    storePhone: input.settings?.businessPhone || undefined,
-    storeGstin: input.settings?.businessGSTIN || undefined,
+    storeName: profile.storeName,
+    storeAddress: profile.storeAddress,
+    storePhone: profile.storePhone,
+    storeGstin: profile.storeGstin,
     storeLogoUrl: logo,
-    upiId: input.settings?.upiId || undefined,
+    upiId: profile.upiId,
     footerMessage,
     receiptLogoSize,
     receiptQrSize,

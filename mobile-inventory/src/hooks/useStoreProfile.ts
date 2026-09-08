@@ -102,3 +102,13 @@ export function useStoreProfile() {
     [profile, settings, isLoading]
   );
 }
+
+/** Non-React helper to get the latest resolved store profile immediately. */
+export function getResolvedStoreProfile(): StoreProfile {
+  const { getCachedSettings } = require('@/hooks/useSettings');
+  const { useAuthStore } = require('@/store/useAuthStore');
+  const settings = getCachedSettings ? getCachedSettings() : null;
+  const user = useAuthStore ? useAuthStore.getState().user : null;
+  return resolveStoreProfile(settings, user);
+}
+

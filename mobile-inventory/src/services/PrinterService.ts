@@ -40,6 +40,8 @@ import { ensureTemplateHasLogoBlock, resolveReceiptImageSrc } from '../utils/rec
 import { rasterizeReceiptLogoForPrint, clearLogoRasterCache } from '../utils/receiptLogoRaster';
 import { isRestaurantBusiness } from '../constants/businessTypes';
 import { useAuthStore } from '../store/useAuthStore';
+import { resolveStoreProfile } from '../hooks/useStoreProfile';
+import { getCachedSettings } from '../hooks/useSettings';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
@@ -5240,7 +5242,7 @@ class ThermalPrinterServiceManager {
           </style>
         </head>
         <body>
-          <div class="store-title">${product.storeName || 'SEZNIK POS'}</div>
+          <div class="store-title">${product.storeName || resolveStoreProfile(getCachedSettings(), useAuthStore.getState().user).storeName || 'SEZNIK POS'}</div>
           <div class="product-name">${product.name}</div>
           <div class="price">₹${product.sellingPrice.toFixed(2)}</div>
           <div class="code-text">*${product.barcode || '8901234567890'}*</div>
@@ -5328,16 +5330,17 @@ class ThermalPrinterServiceManager {
       copies: effectiveCopies,
     };
 
+    const fallbackProfile = resolveStoreProfile(getCachedSettings(), useAuthStore.getState().user);
     const copies = effectiveCopies;
     const saleData: PrintSaleData = {
       ...data,
-      storeLogoUrl: data.storeLogoUrl || effectiveOptions.storeLogoUrl,
-      footerMessage: data.footerMessage || effectiveOptions.footerMessage,
-      upiId: data.upiId || effectiveOptions.upiId,
-      storeName: data.storeName || effectiveOptions.storeName,
-      storeAddress: data.storeAddress || effectiveOptions.storeAddress,
-      storePhone: data.storePhone || effectiveOptions.storePhone,
-      storeGstin: data.storeGstin || effectiveOptions.storeGstin,
+      storeLogoUrl: data.storeLogoUrl || effectiveOptions.storeLogoUrl || fallbackProfile.storeLogoUrl,
+      footerMessage: data.footerMessage || effectiveOptions.footerMessage || fallbackProfile.footerMessage,
+      upiId: data.upiId || effectiveOptions.upiId || fallbackProfile.upiId,
+      storeName: data.storeName || effectiveOptions.storeName || fallbackProfile.storeName,
+      storeAddress: data.storeAddress || effectiveOptions.storeAddress || fallbackProfile.storeAddress,
+      storePhone: data.storePhone || effectiveOptions.storePhone || fallbackProfile.storePhone,
+      storeGstin: data.storeGstin || effectiveOptions.storeGstin || fallbackProfile.storeGstin,
     };
 
     try {
@@ -6037,15 +6040,16 @@ class ThermalPrinterServiceManager {
           : 40.5;
     const grandTotal = isRestaurantBill ? subtotal + productGst + extraChargesTotal : subtotal + totalTax;
 
+    const fallbackProfile = resolveStoreProfile(getCachedSettings(), useAuthStore.getState().user);
     const now = new Date();
     const sampleData: PrintSaleData = {
-      storeName: options.storeName || '',
-      storeAddress: options.storeAddress || '',
-      storePhone: options.storePhone || '',
-      storeGstin: options.storeGstin || '',
-      storeLogoUrl: options.storeLogoUrl,
-      upiId: options.upiId,
-      footerMessage: options.footerMessage,
+      storeName: options.storeName || fallbackProfile.storeName,
+      storeAddress: options.storeAddress || fallbackProfile.storeAddress,
+      storePhone: options.storePhone || fallbackProfile.storePhone,
+      storeGstin: options.storeGstin || fallbackProfile.storeGstin,
+      storeLogoUrl: options.storeLogoUrl || fallbackProfile.storeLogoUrl,
+      upiId: options.upiId || fallbackProfile.upiId,
+      footerMessage: options.footerMessage || fallbackProfile.footerMessage,
       invoiceNumber: isRestaurantBill
         ? template.previewInvoice || '1842'
         : `INV-${Math.floor(1000 + Math.random() * 9000)}`,

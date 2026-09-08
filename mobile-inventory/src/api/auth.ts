@@ -1,5 +1,15 @@
 import { fetchApi } from './client';
-import { AuthResponse, CompleteOnboardingPayload, CreateManagedUserPayload, LoginPayload, ManagedUser, RegisterPayload, UserProfile } from '@/types/auth';
+import {
+  AuthResponse,
+  CompleteOnboardingPayload,
+  CreateManagedUserPayload,
+  LoginPayload,
+  ManagedUser,
+  QrLoginSession,
+  QrLoginStatus,
+  RegisterPayload,
+  UserProfile,
+} from '@/types/auth';
 
 export const authApi = {
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
@@ -13,6 +23,18 @@ export const authApi = {
     return fetchApi<AuthResponse>('/auth/qr-login', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    });
+  },
+
+  generateQrLoginSession: async (): Promise<QrLoginSession> => {
+    return fetchApi<QrLoginSession>('/auth/qr-login/session', {
+      method: 'POST',
+    });
+  },
+
+  getQrLoginStatus: async (sessionId: string): Promise<{ status: QrLoginStatus }> => {
+    return fetchApi<{ status: QrLoginStatus }>(`/auth/qr-login/session/${sessionId}`, {
+      method: 'GET',
     });
   },
 

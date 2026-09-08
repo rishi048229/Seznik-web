@@ -32,7 +32,10 @@ import {
   setStoredActiveLabelTemplate,
   getStoredPrinterCalibration,
   setStoredPrinterCalibration,
+  getStoredSettings,
+  setStoredSettings,
 } from '@/services/secureStore';
+import { setCachedSettings } from '@/hooks/useSettings';
 
 /** Backoff for automatic reconnects after an unexpected drop. Deliberately brief so app reload is instant. */
 const AUTO_RECONNECT_DELAYS_MS = [1500];
@@ -692,6 +695,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         localLabelTemplates,
         localActiveLabelId,
         localCalibration,
+        localSettings,
       ] = await Promise.all([
         getStoredActiveTemplate(),
         getStoredCustomReceiptTemplates(),
@@ -702,7 +706,12 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         getStoredLabelTemplates(),
         getStoredActiveLabelTemplate(),
         getStoredPrinterCalibration(),
+        getStoredSettings(),
       ]);
+
+      if (localSettings) {
+        setCachedSettings(localSettings);
+      }
 
       const initialTemplates = localCustomTemplates && localCustomTemplates.length > 0
         ? localCustomTemplates
@@ -745,6 +754,10 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
       // 2. Fetch server settings to sync cloud configuration
       const settings = await settingsApi.getSettings();
+      if (settings) {
+        setCachedSettings(settings);
+        setStoredSettings(settings).catch(() => {});
+      }
       const printerConfig = (settings?.printerConfig || {}) as Record<string, any>;
       const receiptConfig = (settings?.receiptConfig || {}) as Record<string, any>;
       const labelConfig = (settings?.labelConfig || {}) as Record<string, any>;
