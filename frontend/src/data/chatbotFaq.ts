@@ -755,7 +755,7 @@ export const FAQ_DATA: FaqEntry[] = [
       gu: 'વેચાણ રિપોર્ટ કેવી રીતે જોવું?',
     },
     answer: {
-      en: 'Go to **Reports** from the sidebar. Available reports:\n\n📊 **Sales Report** — Daily/weekly/monthly sales trends\n💰 **Profit & Loss** — Revenue vs costs analysis\n🧾 **Tax Report** — GST summary for filing\n\nEach report includes charts, summary cards, and date range filters.',
+      en: 'Go to **Reports** from the sidebar. Available reports:\n\n📊 **Sales Report** — Daily/weekly/monthly sales trends\n💰 **Profit & Loss** — Revenue vs costs analysis\n\nGST collected vs paid is on **Daybook**, not here. File GST returns only on the GST portal.',
       hi: 'साइडबार से **रिपोर्ट** पर जाएं। उपलब्ध रिपोर्ट:\n• बिक्री रिपोर्ट\n• लाभ और हानि\n• टैक्स रिपोर्ट',
       mr: '**रिपोर्ट्स** वर जा. उपलब्ध अहवाल:\n• विक्री अहवाल\n• नफा आणि तोटा\n• कर अहवाल',
       ta: '**அறிக்கைகள்** செல்லவும். கிடைக்கும் அறிக்கைகள்:\n• விற்பனை அறிக்கை\n• லாபம் & நஷ்டம்\n• வரி அறிக்கை',
@@ -775,7 +775,7 @@ export const FAQ_DATA: FaqEntry[] = [
       gu: 'GST/ટેક્સ રિપોર્ટિંગ કેવી રીતે કામ કરે છે?',
     },
     answer: {
-      en: 'Each product has a configurable GST tax rate (%). When sales are made, the tax is automatically calculated. Go to **Reports** → **Tax Report** to see:\n\n• Total taxable amount\n• GST collected (CGST + SGST / IGST)\n• Tax breakdown by rate slab\n• Date range filter for filing periods\n\nYour GSTIN displays on receipts and invoices when enabled.',
+      en: 'Each product has a GST rate. Seznik calculates GST on bills automatically.\n\nOpen **Daybook** to see:\n• GST collected from customers\n• GST paid on purchases\n• Net GST for the day\n• Breakdown by GST % and by product\n\nThis is a store recap only — it is **not** a GST return. File GSTR-1 / GSTR-3B on the government GST portal. Your GSTIN still prints on receipts when enabled.',
       hi: 'प्रत्येक प्रोडक्ट में GST टैक्स दर (%) सेट होती है। बिक्री पर टैक्स ऑटो-कैलकुलेट होता है। **रिपोर्ट** → **टैक्स रिपोर्ट** पर जाएं।',
       mr: 'प्रत्येक प्रॉडक्टला GST दर (%) असतो. विक्रीवर कर ऑटो-कॅल्क्युलेट होतो.',
       ta: 'ஒவ்வொரு தயாரிப்புக்கும் GST வரி விகிதம் (%) உள்ளது.',

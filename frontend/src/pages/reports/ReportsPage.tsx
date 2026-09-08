@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { ROUTES } from '@/constants/routes'
 import { useNavigate } from 'react-router-dom'
 import { ReportTabs } from './ReportTabs'
-import { TrendingUp, FileText, Receipt } from 'lucide-react'
+import { TrendingUp, FileText } from 'lucide-react'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
@@ -20,7 +20,7 @@ export const ReportsPage = () => {
         <PageHeader title={t('page.reports')} onWatchTutorial={pageTutorial.openTutorial} />
       </div>
       <ReportTabs />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card
           data-tour="report-card-sales"
           className="p-6 cursor-pointer hover:shadow-lg transition-all hover:border-blue-200 dark:hover:border-blue-800"
@@ -53,23 +53,6 @@ export const ReportsPage = () => {
             </div>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.profitLossDesc')}</p>
-        </Card>
-
-        <Card
-          data-tour="report-card-tax"
-          className="p-6 cursor-pointer hover:shadow-lg transition-all hover:border-purple-200 dark:hover:border-purple-800"
-          onClick={() => navigate(ROUTES.REPORTS_TAX)}
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 rounded-xl">
-              <Receipt size={24} />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('reports.taxReportTitle')}</h3>
-              <p className="text-xs text-purple-600 font-medium">{t('reports.viewOutputTaxCollected')}</p>
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('reports.taxReportDesc')}</p>
         </Card>
       </div>
 

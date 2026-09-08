@@ -340,8 +340,8 @@ export const LoginPage = () => {
                 <CheckCircle2 size={16} />
               </div>
               <div>
-                <p className="text-xs font-semibold">Automated GST Invoicing</p>
-                <p className="text-[10px] sm:text-xs text-slate-300">Ready-to-file tax reports in one click</p>
+                <p className="text-xs font-semibold">GST on every bill</p>
+                <p className="text-[10px] sm:text-xs text-slate-300">See GST collected vs paid on Daybook — file returns on the GST portal</p>
               </div>
             </div>
           </div>

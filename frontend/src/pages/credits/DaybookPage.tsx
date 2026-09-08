@@ -12,6 +12,8 @@ import { useSales } from '@/hooks/useSales'
 import { useExpenses, useCreateExpense } from '@/hooks/useExpenses'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useTokens } from '@/hooks/useTokens'
+import { useProducts } from '@/hooks/useProducts'
+import { usePurchases } from '@/hooks/usePurchases'
 import { useSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -29,6 +31,7 @@ import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { ROUTES } from '@/constants/routes'
 import { printCompletedSale } from '@/utils/printCompletedSale'
+import { GstLedgerPanel, useGstLedger } from '@/components/common/GstLedgerPanel'
 import {
   CASH_IN_TAG, CASH_OPENING_TAG, CASH_OUT_TAG,
   dayBounds, isCashInDesc, isCashOutDesc, isOpeningCashDesc,
@@ -95,7 +98,18 @@ export const DaybookPage = () => {
   const { data: expenses, isLoading: expensesLoading, isFetching: expFetching, dataUpdatedAt: expAt } = useExpenses(liveOpts)
   const { data: customers } = useCustomers()
   const { data: tokens } = useTokens(date, liveOpts)
+  const { data: products } = useProducts()
+  const { data: purchases } = usePurchases(liveOpts)
   const { mutate: createExpense, isPending: isSavingCash } = useCreateExpense()
+  const gstStart = dayBounds(date).startVal
+  const gstEnd = dayBounds(effectiveEnd).endVal
+  const gstLedger = useGstLedger({
+    sales,
+    purchases,
+    products,
+    startTs: gstStart,
+    endTs: gstEnd,
+  })
 
   const canEditCash = userProfile?.role === 'admin' || permissions?.canAccessExpenses !== false
   const lastUpdated = Math.max(salesAt || 0, expAt || 0, txAt || 0)
@@ -347,6 +361,10 @@ export const DaybookPage = () => {
       [t('daybook.net'), '', '', '', '', net],
       [t('daybook.creditGiven'), '', '', '', '', creditGiven],
       [t('daybook.expectedDrawer'), '', '', '', '', expectedDrawer],
+      [t('gst.collected'), '', '', '', '', gstLedger.collected],
+      [t('gst.paid'), '', '', '', '', gstLedger.paid],
+      [t('gst.net'), '', '', '', '', gstLedger.net],
+      ...gstLedger.products.map(p => [p.productName, `${p.rate}%`, '', '', '', p.tax]),
       ...remarks.map(r => ['Remark', r]),
     ])
     const wb = XLSX.utils.book_new()
@@ -371,6 +389,10 @@ export const DaybookPage = () => {
     `${t('daybook.upi')}: ${formatINR(upiTotal)}`,
     `${t('daybook.creditCollected')}: ${formatINR(creditCollected)}`,
     `${t('daybook.expectedDrawer')}: ${formatINR(expectedDrawer)}`,
+    '',
+    `${t('gst.collected')}: ${formatINR(gstLedger.collected)}`,
+    `${t('gst.paid')}: ${formatINR(gstLedger.paid)}`,
+    `${t('gst.net')}: ${formatINR(gstLedger.net)}`,
   ]
 
   const handleWhatsAppShare = () => {
@@ -406,6 +428,7 @@ export const DaybookPage = () => {
       <p><b>${t('daybook.moneyIn')}</b> ${formatINR(moneyIn)} &nbsp; <b>${t('daybook.moneyOut')}</b> ${formatINR(moneyOut)} &nbsp; <b>${t('daybook.net')}</b> ${formatINR(net)}</p>
       <p><b>${t('daybook.cash')}</b> ${formatINR(cashTotal)} &nbsp; <b>${t('daybook.card')}</b> ${formatINR(cardTotal)} &nbsp; <b>${t('daybook.upi')}</b> ${formatINR(upiTotal)} &nbsp; <b>${t('daybook.creditCollected')}</b> ${formatINR(creditCollected)}</p>
       <p><b>${t('daybook.expectedDrawer')}</b> ${formatINR(expectedDrawer)}</p>
+      <p><b>${t('gst.collected')}</b> ${formatINR(gstLedger.collected)} &nbsp; <b>${t('gst.paid')}</b> ${formatINR(gstLedger.paid)} &nbsp; <b>${t('gst.net')}</b> ${formatINR(gstLedger.net)}</p>
       <table><thead><tr><th>Time</th><th>Description</th><th>Mode</th><th>Amount</th></tr></thead>
       <tbody>${rows}</tbody></table>
       </body></html>`
@@ -685,6 +708,10 @@ export const DaybookPage = () => {
             </div>
           </Card>
         ))}
+      </div>
+
+      <div className="mb-6">
+        <GstLedgerPanel ledger={gstLedger} />
       </div>
 
       <Card className="p-4">

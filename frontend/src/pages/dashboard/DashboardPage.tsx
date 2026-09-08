@@ -21,6 +21,9 @@ import {
 } from '@/hooks/useReports'
 import { useProducts } from '@/hooks/useProducts'
 import { useSales } from '@/hooks/useSales'
+import { usePurchases } from '@/hooks/usePurchases'
+import { GstLedgerPanel, useGstLedger } from '@/components/common/GstLedgerPanel'
+import { dayBounds, toDateInputValue } from '@/utils/daybook'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getBlePrinterState, getBluetoothUnsupportedReason } from '@/utils/blePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -248,6 +251,15 @@ export const DashboardPage = () => {
   const { data: topProducts, isLoading: loadingTopProducts } = useTopProducts(5)
   const { data: topCategories, isLoading: loadingTopCategories } = useTopCategories(3)
   const { data: expenseSummary, isLoading: loadingExpenseSummary } = useExpenseSummary()
+  const { data: purchases } = usePurchases()
+  const todayBounds = dayBounds(toDateInputValue(new Date()))
+  const gstToday = useGstLedger({
+    sales,
+    purchases,
+    products,
+    startTs: todayBounds.startVal,
+    endTs: todayBounds.endVal,
+  })
 
   // Calculate actual gross profit from sales
   const grossProfit = useMemo(() => {
@@ -503,6 +515,15 @@ export const DashboardPage = () => {
             </div>
           )}
         </Card>
+      </div>
+
+      <div className="mb-4">
+        <GstLedgerPanel
+          compact
+          ledger={gstToday}
+          onView={() => navigate(ROUTES.DAYBOOK)}
+          viewLabel={t('gst.viewDaybook')}
+        />
       </div>
 
       {/* Overview widgets: Top Products + Top Categories + Expense Summary */}

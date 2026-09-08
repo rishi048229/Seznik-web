@@ -73,7 +73,6 @@ const DaybookPage = lazyPage(() => import('@/pages/credits/DaybookPage'), 'Daybo
 const ReportsPage = lazyPage(() => import('@/pages/reports/ReportsPage'), 'ReportsPage')
 const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage'), 'SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
-const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 const KOTPage = lazyPage(() => import('@/pages/kot/KOTPage'), 'KOTPage')
@@ -269,7 +268,7 @@ function App() {
                 <Route path={ROUTES.REPORTS} element={<PermissionRoute permission="canAccessReports"><ReportsPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_SALES} element={<PermissionRoute permission="canAccessReports"><SalesReportPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_PL} element={<PermissionRoute permission="canAccessReports"><ProfitLossPage /></PermissionRoute>} />
-                <Route path={ROUTES.REPORTS_TAX} element={<PermissionRoute permission="canAccessReports"><TaxReportPage /></PermissionRoute>} />
+                <Route path={ROUTES.REPORTS_TAX} element={<Navigate to={ROUTES.DAYBOOK} replace />} />
                 <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
                 <Route path={ROUTES.PRINTERS} element={<PrintersPage />} />
                 <Route path={ROUTES.KOT_KDS} element={<KDSPage />} />
