@@ -1328,14 +1328,29 @@ export const POSLitePage = () => {
                 </button>
               ))}
             </div>
-            {method === 'upi' && settings?.receiptConfig?.upiId && (
-              <div className="mt-3">
-                <UpiQrPanel
-                  upiId={settings.receiptConfig.upiId}
-                  payeeName={settings?.businessName || 'Store'}
-                  amount={finalTotal}
-                />
-              </div>
+            {method === 'upi' && (
+              settings?.receiptConfig?.upiId || settings?.upiId ? (
+                <div className="mt-3">
+                  <UpiQrPanel
+                    upiId={settings?.receiptConfig?.upiId || settings?.upiId || ''}
+                    payeeName={settings?.businessName || 'Store'}
+                    amount={finalTotal}
+                  />
+                </div>
+              ) : (
+                <div className="mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between gap-3">
+                  <div className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                    <span className="font-bold">Business UPI ID missing.</span> Add your Business UPI ID in Settings to display dynamic payment QR codes.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate(ROUTES.SETTINGS)}
+                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer"
+                  >
+                    Add UPI ID
+                  </button>
+                </div>
+              )
             )}
           </div>
 

@@ -29,8 +29,8 @@ export const OnboardingPage = () => {
   const [businessName, setBusinessName] = useState(userProfile?.businessName ?? '')
   const [phone, setPhone] = useState(userProfile?.phone ?? '')
   const [businessAddress, setBusinessAddress] = useState('')
-  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(
-    userProfile?.businessType ?? 'retail_shop'
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType | null>(
+    userProfile?.businessType ?? null
   )
   const [logoUrl, setLogoUrl] = useState('')
   const [upiId, setUpiId] = useState('')
@@ -38,9 +38,10 @@ export const OnboardingPage = () => {
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
-  const template = BUSINESS_TEMPLATES[selectedBusinessType]
-  const selectedLabel =
-    BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'workspace'
+  const template = selectedBusinessType ? BUSINESS_TEMPLATES[selectedBusinessType] : null
+  const selectedLabel = selectedBusinessType
+    ? (BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'workspace')
+    : ''
   
   const showLanguageStep = (step === 1)
   const showShopStep = !pickTypeOnly && step === 2
@@ -83,6 +84,10 @@ export const OnboardingPage = () => {
         setStep(2)
         return
       }
+      if (!selectedBusinessType) {
+        setError('Please select your business type to proceed')
+        return
+      }
       setIsSaving(true)
       try {
         setLanguage(selectedLanguage)
@@ -109,11 +114,16 @@ export const OnboardingPage = () => {
     }
 
     if (step === 3) {
-      if (!isValidUpiVpa(upiId)) {
-        setError(t('onboarding.upiRequired'))
+      if (upiId.trim() && !isValidUpiVpa(upiId.trim())) {
+        setError('Please enter a valid Business UPI ID (e.g. shopname@okhdfcbank) or leave it blank.')
         return
       }
       setStep(4)
+      return
+    }
+
+    if (!selectedBusinessType) {
+      setError('Please select your business type to proceed')
       return
     }
 
@@ -382,7 +392,7 @@ export const OnboardingPage = () => {
                     </div>
                   </div>
 
-                  <Field label={t('onboarding.upiId') + ' *'}>
+                  <Field label={t('onboarding.upiId') + ' (Optional)'}>
                     <input
                       type="text"
                       value={upiId}
@@ -442,21 +452,23 @@ export const OnboardingPage = () => {
                   </Field>
 
                   {/* Template Features Preview */}
-                  <div className="rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/20 p-4 sm:p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Layers size={18} className="text-blue-600 dark:text-blue-400" />
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{template.title}</h3>
+                  {template ? (
+                    <div className="rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/20 p-4 sm:p-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Layers size={18} className="text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">{template.title}</h3>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">{template.subtitle}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {template.features.map(feature => (
+                          <div key={feature} className="flex items-center gap-2">
+                            <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span className="text-xs text-slate-700 dark:text-gray-300 font-medium">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">{template.subtitle}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {template.features.map(feature => (
-                        <div key={feature} className="flex items-center gap-2">
-                          <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <span className="text-xs text-slate-700 dark:text-gray-300 font-medium">{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  ) : null}
                 </div>
               ) : null}
 

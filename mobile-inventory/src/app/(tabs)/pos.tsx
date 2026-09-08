@@ -393,7 +393,18 @@ function PosScreen() {
     if (method === 'credit' && !selectedCustomerId) {
       setShowCustomerPicker(true);
     } else if (method === 'upi' && cartItems.length > 0) {
-      setShowUpiModal(true);
+      if (!storeProfile.upiId) {
+        Alert.alert(
+          'Business UPI ID Missing',
+          'Please add your Business UPI ID in Settings to display dynamic payment QR codes.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => router.push('/settings') },
+          ]
+        );
+      } else {
+        setShowUpiModal(true);
+      }
     }
   };
 
@@ -855,6 +866,17 @@ function PosScreen() {
 
           <TouchableOpacity
             onPress={() => {
+              if (!storeProfile.upiId) {
+                Alert.alert(
+                  'Business UPI ID Missing',
+                  'Please add your Business UPI ID in Settings to display dynamic payment QR codes.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => router.push('/settings') },
+                  ]
+                );
+                return;
+              }
               setPaymentMethod('upi');
               setShowUpiModal(true);
             }}

@@ -53,8 +53,8 @@ export default function OnboardingScreen() {
   const [businessName, setBusinessName] = useState(user?.businessName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [businessAddress, setBusinessAddress] = useState('');
-  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType>(
-    user?.businessType ?? 'retail_shop'
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType | null>(
+    user?.businessType ?? null
   );
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [upiId, setUpiId] = useState('');
@@ -63,9 +63,9 @@ export default function OnboardingScreen() {
   const theme = useAppTheme();
   const isDark = theme.isDark;
   const isSaving = isCompletingOnboarding || isUpdatingBusinessType;
-  const template = BUSINESS_TEMPLATES[selectedBusinessType];
+  const template = selectedBusinessType ? BUSINESS_TEMPLATES[selectedBusinessType] : null;
   const selectedLabel = useMemo(
-    () => BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label,
+    () => (selectedBusinessType ? BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label : undefined),
     [selectedBusinessType]
   );
 
@@ -142,6 +142,10 @@ export default function OnboardingScreen() {
         setStep(2);
         return;
       }
+      if (!selectedBusinessType) {
+        Alert.alert('Business Type Required', 'Please select your business type to continue.');
+        return;
+      }
       try {
         await setLanguage(selectedLanguage);
         await updateBusinessType(selectedBusinessType);
@@ -165,17 +169,19 @@ export default function OnboardingScreen() {
     }
 
     if (step === 3) {
-      if (!isValidUpiVpa(upiId)) {
+      if (upiId.trim() && !isValidUpiVpa(upiId.trim())) {
         Alert.alert(
-          t('onboardingUpiRequired', 'UPI ID required'),
-          t(
-            'onboardingUpiRequiredMsg',
-            'Enter a valid UPI ID (e.g. shopname@okhdfcbank) to continue.'
-          )
+          'Invalid UPI ID',
+          'Please enter a valid Business UPI ID (e.g. shopname@okhdfcbank) or leave it blank.'
         );
         return;
       }
       setStep(4);
+      return;
+    }
+
+    if (!selectedBusinessType) {
+      Alert.alert('Business Type Required', 'Please select your business type to continue.');
       return;
     }
 
@@ -222,19 +228,23 @@ export default function OnboardingScreen() {
                       .replace('{step}', String(step))
                       .replace('{total}', String(lastStep))}
               </Text>
-              {step > 1 ? (
-                <TouchableOpacity
-                  onPress={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev))}
-                  hitSlop={12}
-                >
-                  <View style={styles.backRow}>
-                    <ArrowLeft size={14} color={BRAND_COLORS.sky500} />
-                    <Text style={styles.backText}>
-                      {pickTypeOnly ? t('onboardingChangeType') : t('onboardingBack', 'Back')}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ) : null}
+              <TouchableOpacity
+                onPress={() => {
+                  if (step > 1) {
+                    setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev));
+                  } else {
+                    router.back();
+                  }
+                }}
+                hitSlop={12}
+              >
+                <View style={styles.backRow}>
+                  <ArrowLeft size={14} color={isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
+                  <Text style={[styles.backText, { color: isDark ? '#60A5FA' : BRAND_COLORS.blue600 }]}>
+                    {step > 1 ? t('onboardingBack', 'Back') : t('backToLogin', 'Back')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
 
             <ScrollView
@@ -386,7 +396,7 @@ export default function OnboardingScreen() {
                     </Text>
                   </View>
                   <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                    {t('onboardingUpiId', 'UPI ID')} *
+                    {t('onboardingUpiId', 'Business UPI ID')} ({t('optional', 'Optional')})
                   </Text>
                   <TextInput
                     style={inputStyle}
@@ -441,59 +451,84 @@ export default function OnboardingScreen() {
                     theme={theme}
                   />
 
-                  <View
-                    style={[
-                      styles.templateCard,
-                      {
-                        backgroundColor: theme.cardBg,
-                        borderColor: BRAND_COLORS.blue600,
-                        marginTop: 14,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.templateTitle, { color: theme.textPrimary }]}>
-                      {template.title}
-                    </Text>
-                    <Text style={[styles.templateSubtitle, { color: theme.textSecondary }]}>
-                      {template.subtitle}
-                    </Text>
-                    {template.features.map((feature) => (
-                      <View key={feature} style={styles.featureRow}>
-                        <Check size={14} color={BRAND_COLORS.blue600} />
-                        <Text style={[styles.featureText, { color: theme.textPrimary }]}>
-                          {feature}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
+                  {template ? (
+                    <View
+                      style={[
+                        styles.templateCard,
+                        {
+                          backgroundColor: theme.cardBg,
+                          borderColor: BRAND_COLORS.blue600,
+                          marginTop: 14,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.templateTitle, { color: theme.textPrimary }]}>
+                        {template.title}
+                      </Text>
+                      <Text style={[styles.templateSubtitle, { color: theme.textSecondary }]}>
+                        {template.subtitle}
+                      </Text>
+                      {template.features.map((feature) => (
+                        <View key={feature} style={styles.featureRow}>
+                          <Check size={14} color={BRAND_COLORS.blue600} />
+                          <Text style={[styles.featureText, { color: theme.textPrimary }]}>
+                            {feature}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </ScrollView>
 
-            <TouchableOpacity
-              onPress={handleNext}
-              style={[
-                styles.nextBtn,
-                {
-                  backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
-                  shadowColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
-                },
-                isSaving && styles.nextBtnDisabled,
-              ]}
-              disabled={isSaving}
-              activeOpacity={0.85}
-            >
-              {isSaving ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.nextBtnText}>
-                    {step === lastStep ? t('onboardingUseSetup') : t('onboardingNextStep')}
+            <View style={styles.bottomNavRow}>
+              {step > 1 ? (
+                <TouchableOpacity
+                  onPress={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev))}
+                  style={[
+                    styles.backBtn,
+                    {
+                      borderColor: theme.borderColor,
+                      backgroundColor: theme.cardBg,
+                    },
+                  ]}
+                  disabled={isSaving}
+                  activeOpacity={0.85}
+                >
+                  <ArrowLeft size={18} color={theme.textPrimary} />
+                  <Text style={[styles.backBtnText, { color: theme.textPrimary }]}>
+                    {t('onboardingBack', 'Back')}
                   </Text>
-                  <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
-                </>
-              )}
-            </TouchableOpacity>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={handleNext}
+                style={[
+                  styles.nextBtn,
+                  {
+                    flex: 1,
+                    backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
+                    shadowColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
+                  },
+                  isSaving && styles.nextBtnDisabled,
+                ]}
+                disabled={isSaving}
+                activeOpacity={0.85}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.nextBtnText}>
+                      {step === lastStep ? t('onboardingUseSetup') : t('onboardingNextStep')}
+                    </Text>
+                    <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingWrapper>
       </SafeAreaView>
@@ -548,7 +583,7 @@ function BusinessTypePicker({
   onSelect,
   theme,
 }: {
-  selectedBusinessType: BusinessType;
+  selectedBusinessType: BusinessType | null;
   onSelect: (type: BusinessType) => void;
   theme: { cardBg: string; borderColor: string; textPrimary: string; textSecondary: string };
 }) {
@@ -646,6 +681,27 @@ const styles = StyleSheet.create({
   templateSubtitle: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
   featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
   featureText: { fontSize: 13, fontWeight: '600', flex: 1, lineHeight: 18 },
+  bottomNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  backBtn: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  backBtnText: {
+    fontWeight: '700',
+    fontSize: 15,
+  },
   nextBtn: {
     backgroundColor: BRAND_COLORS.navyInk,
     borderRadius: 16,
@@ -653,8 +709,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    marginBottom: 10,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
