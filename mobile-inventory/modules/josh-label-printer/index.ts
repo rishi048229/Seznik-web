@@ -137,6 +137,7 @@ declare class JoshLabelPrinterNativeModule extends NativeModule<JoshLabelPrinter
   } | null>;
   printLabel(spec: JoshLabelSpec): Promise<boolean>;
   printLabelBatch(batch: JoshLabelBatchSpec): Promise<boolean>;
+  rasterizeLabelBase64(spec: JoshLabelSpec & { headMm?: number }): Promise<string>;
 }
 
 /**

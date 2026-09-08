@@ -1497,7 +1497,10 @@ export default function PrintersScreen() {
                       Where should barcode/QR labels actually print?
                     </Text>
                     <TouchableOpacity
-                      onPress={() => setLabelPaperMode('gap')}
+                      onPress={() => {
+                        setLabelPaperMode('gap');
+                        ThermalPrinterService.yxCalibrate(2).catch(() => {});
+                      }}
                       style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'gap' ? BRAND_COLORS.blue600 : theme.borderColor }]}
                     >
                       <View style={{ flex: 1 }}>
@@ -1507,7 +1510,10 @@ export default function PrintersScreen() {
                       {labelPaperMode === 'gap' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => setLabelPaperMode('continuous')}
+                      onPress={() => {
+                        setLabelPaperMode('continuous');
+                        ThermalPrinterService.yxCalibrate(0).catch(() => {});
+                      }}
                       style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'continuous' ? BRAND_COLORS.blue600 : theme.borderColor, marginBottom: 0 }]}
                     >
                       <View style={{ flex: 1 }}>

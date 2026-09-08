@@ -164,6 +164,24 @@ export function YxPrinterCard() {
     }
   };
 
+  const [isCalibrating, setIsCalibrating] = useState(false);
+
+  const handleCalibrate = async () => {
+    setIsCalibrating(true);
+    try {
+      const ok = await ThermalPrinterService.yxCalibrate();
+      if (ok) {
+        Alert.alert('Calibrated', 'Printer gap sensor calibrated and positioned successfully.');
+      } else {
+        Alert.alert('Calibration Sent', 'Calibration command sent to printer.');
+      }
+    } catch (e: any) {
+      Alert.alert('Calibration Error', e?.message || 'Failed to calibrate.');
+    } finally {
+      setIsCalibrating(false);
+    }
+  };
+
   // On iOS, or on a JS-only client that has not been rebuilt with the SDK compiled in,
   // there is nothing actionable to show.
   if (!supported) return null;
@@ -210,6 +228,20 @@ export function YxPrinterCard() {
 
         {connected ? (
           <>
+            <TouchableOpacity
+              onPress={handleCalibrate}
+              disabled={isCalibrating}
+              style={[styles.secondaryBtn, { borderColor: BRAND_COLORS.blue600 }]}
+            >
+              {isCalibrating ? (
+                <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+              ) : (
+                <Text style={[styles.secondaryBtnText, { color: BRAND_COLORS.blue600 }]} numberOfLines={1}>
+                  Calibrate
+                </Text>
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={handleTestPrint}
               disabled={isTestPrinting}

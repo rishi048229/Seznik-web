@@ -65,6 +65,12 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const { shouldShowTip, markTipShown, dismissPermanently } = useJoshDualModeTip();
 
   React.useEffect(() => {
+    if (visible && activeLabelTemplateId && activeLabelTemplate && templateHasPrintableContent(activeLabelTemplate)) {
+      setPrintMode('template');
+    }
+  }, [visible, activeLabelTemplateId, activeLabelTemplate]);
+
+  React.useEffect(() => {
     if (visible && labelPrinter.isConnected && labelPrinter.kind === 'label' && shouldShowTip) {
       setShowTipModal(true);
     }
@@ -87,25 +93,30 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       let modeLabel: string;
       const copies = Math.max(1, printCopies);
 
-      const isJosh = await ThermalPrinterService.joshIsConnected();
+      const labelKind = await ThermalPrinterService.getConnectedLabelPrinterKind();
+      const hasLabelPrinter = labelKind !== null;
+      const isJosh = labelKind === 'josh';
+      const isYx = labelKind === 'yx';
 
       if (presetId) {
         const preset = buildLabelPreset(presetId, sizeW, sizeH, storeName);
         ok = await ThermalPrinterService.printLabelFromTemplate(product, preset, copies, labelGapMm);
-        modeLabel = isJosh ? `${preset.name} (Josh — ${sizeW}x${sizeH}mm)` : `${preset.name} — ${sizeW}x${sizeH}mm`;
+        modeLabel = hasLabelPrinter
+          ? `${preset.name} (${isYx ? 'YX' : 'Josh'} — ${sizeW}x${sizeH}mm)`
+          : `${preset.name} — ${sizeW}x${sizeH}mm`;
       } else if (printMode === 'template' && usableTemplate) {
-        if (labelPaperMode === 'continuous' && !isJosh) {
+        if (labelPaperMode === 'continuous' && !hasLabelPrinter) {
           ok = await ThermalPrinterService.printLabelTemplateOnReceiptPaper(product, usableTemplate, paperWidth, copies);
           modeLabel = `"${usableTemplate.name}" template (receipt roll)`;
         } else {
           ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, copies, labelGapMm);
-          modeLabel = isJosh
-            ? `"${usableTemplate.name}" template (Josh Label)`
-            : `"${usableTemplate.name}" template (TSPL Label)`;
+          modeLabel = hasLabelPrinter
+            ? `"${usableTemplate.name}" template (${isYx ? 'YX' : 'Josh'} Label)`
+            : `"${usableTemplate.name}" template (Label)`;
         }
       } else {
         // Direct Product Barcode/QR Print
-        if (labelPaperMode === 'continuous' && !isJosh) {
+        if (labelPaperMode === 'continuous' && !hasLabelPrinter) {
           ok = await ThermalPrinterService.printLabelOnReceiptPaper(product, selectedFormat, paperWidth, copies);
           modeLabel = `Receipt Roll (${selectedFormat.toUpperCase()})`;
         } else {
@@ -118,8 +129,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             labelGapMm,
             copies
           );
-          modeLabel = isJosh
-            ? `Josh Label Printer (${selectedFormat.toUpperCase()})`
+          modeLabel = hasLabelPrinter
+            ? `${isYx ? 'YX' : 'Josh'} Label Printer (${selectedFormat.toUpperCase()})`
             : `Label Printer (${selectedFormat.toUpperCase()})`;
         }
       }

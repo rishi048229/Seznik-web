@@ -3241,31 +3241,116 @@ class ThermalPrinterServiceManager {
    * Reconnect-or-confirm for either vendor. Josh keeps its saved-printer reconnect;
    * YX is treated as connected-or-not, since it has no stored-reconnect flow yet.
    */
-  public async labelPrinterEnsureConnected(): Promise<boolean> {
-    if (await this.joshEnsureConnected()) return true;
-    if (this.isYxLabelPrinterAvailable() && (await this.yxIsConnected())) return true;
-    return false;
+  public getLabelPaperMode(): 'gap' | 'continuous' {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      return usePrinterStore.getState().labelPaperMode || 'gap';
+    } catch {
+      return 'gap';
+    }
+  }
+
+  public getEscPosPaperWidth(): '58mm' | '80mm' {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      return usePrinterStore.getState().paperWidth || '58mm';
+    } catch {
+      return '58mm';
+    }
+  }
+
+  public async yxCalibrate(gapType?: number): Promise<boolean> {
+    if (!YxLabelPrinter || typeof (YxLabelPrinter as any).calibrate !== 'function') return false;
+    try {
+      const gType = typeof gapType === 'number' ? gapType : (this.getLabelPaperMode() === 'continuous' ? 0 : 2);
+      return await (YxLabelPrinter as any).calibrate(gType);
+    } catch (e) {
+      console.warn('[PrinterService] yxCalibrate failed:', e);
+      return false;
+    }
   }
 
   /**
-   * The no-saved-template layout (name / price / code) drawn on the label printer.
-   * Proportional to the label so it holds up across every stock size rather than
-   * assuming the 50x30mm default.
+   * Converts any JoshLabelSpec (custom template or auto-layout) into a high-res (203 DPI)
+   * monochrome PNG base64 string via the phone's native Android Canvas rasterizer.
    */
-  private async printAutoLabelViaJosh(
+  public async rasterizeLabelSpec(spec: JoshLabelSpec, headMm: number = 48): Promise<string | null> {
+    try {
+      if (YxLabelPrinter && typeof (YxLabelPrinter as any).rasterizeLabelBase64 === 'function') {
+        return await (YxLabelPrinter as any).rasterizeLabelBase64({ ...spec, headMm });
+      }
+      if (JoshLabelPrinter && typeof (JoshLabelPrinter as any).rasterizeLabelBase64 === 'function') {
+        return await (JoshLabelPrinter as any).rasterizeLabelBase64({ ...spec, headMm });
+      }
+    } catch (e) {
+      console.warn('[PrinterService] rasterizeLabelSpec failed:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Prints any JoshLabelSpec onto a standard Bluetooth ESC/POS thermal printer as a pixel-perfect
+   * graphic. Solves alignment, custom templates, and cross-gap splitting on normal receipt/label printers.
+   */
+  public async printSpecViaEscposGraphic(
+    spec: JoshLabelSpec,
+    paperWidth: '58mm' | '80mm' = '58mm',
+    copies: number = 1,
+    labelGapMm: number = 2
+  ): Promise<boolean> {
+    if (!NativeEscposPrinter || typeof NativeEscposPrinter.printPic !== 'function') return false;
+
+    const paperSizeDots = paperWidth === '80mm' ? 576 : 384;
+    const headMm = paperWidth === '80mm' ? 72 : 48;
+
+    const base64 = await this.rasterizeLabelSpec(spec, headMm);
+    if (!base64) {
+      console.warn('[PrinterService] printSpecViaEscposGraphic: could not rasterize label spec');
+      return false;
+    }
+
+    await this.initPrinter(paperWidth);
+
+    const labelWidthDots = Math.min(paperSizeDots, Math.round(spec.widthMm * 8));
+
+    for (let i = 0; i < Math.max(1, copies); i++) {
+      await this.printEscPosBitmap(base64, {
+        width: labelWidthDots,
+        center: true,
+        autoCut: false,
+        paperSize: paperSizeDots,
+      });
+
+      if (labelGapMm > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
+        try {
+          const feedDots = Math.min(60, Math.max(8, Math.round(labelGapMm * 8)));
+          await NativeEscposPrinter.printAndFeed(feedDots);
+        } catch (feedErr) {
+          console.warn('[PrinterService] printAndFeed gap advance failed:', feedErr);
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Builds an auto-layout JoshLabelSpec for a product (name, price, barcode/QR)
+   * cleanly proportioned to the specified label dimensions.
+   */
+  public buildAutoLabelSpec(
     product: { name: string; sellingPrice: number; barcode?: string | null; sku?: string | null; id?: string },
     rawCode: string,
     format: 'qr' | 'code128' | 'ean13',
     widthMmRaw: number,
     heightMmRaw: number,
-    gapMm: number,
-    copies: number = 1
-  ): Promise<boolean> {
-    if (!JoshLabelPrinter && !YxLabelPrinter) return false;
-
-    const headMm = await this.getJoshHeadWidthMm();
+    gapMm: number = 2,
+    copies: number = 1,
+    gapType?: number
+  ): JoshLabelSpec {
+    const headMm = 48;
     const calWidthMm = this.safeMm(widthMmRaw, 50);
-    const widthMm = headMm > 0 ? Math.min(calWidthMm, headMm) : calWidthMm;
+    const widthMm = Math.min(calWidthMm, headMm);
     const heightMm = this.safeMm(heightMmRaw, 30);
 
     const pad = Math.max(1.5, widthMm * 0.04);
@@ -3330,18 +3415,60 @@ class ThermalPrinterServiceManager {
       });
     }
 
-    return this.printSpecOnLabelPrinter({
+    const resolvedGapType = typeof gapType === 'number' ? gapType : (this.getLabelPaperMode() === 'continuous' ? 0 : 2);
+
+    return {
       widthMm,
       heightMm,
       rotation: 0,
       copies: Math.max(1, copies),
       gapMm: this.safeMm(gapMm, 3),
-      // Die-cut gap stock — this path is only reached in 'gap' label mode.
-      gapType: 2,
+      gapType: resolvedGapType,
       speed: 5,
       darkness: 7,
       elements,
-    });
+    };
+  }
+
+  /**
+   * Reconnect-or-confirm for either vendor. Josh keeps its saved-printer reconnect;
+   * YX is treated as connected-or-not, since it has no stored-reconnect flow yet.
+   */
+  public async labelPrinterEnsureConnected(): Promise<boolean> {
+    if (await this.joshEnsureConnected()) return true;
+    if (this.isYxLabelPrinterAvailable() && (await this.yxIsConnected())) return true;
+    return false;
+  }
+
+  /**
+   * The no-saved-template layout (name / price / code) drawn on the label printer.
+   * Proportional to the label so it holds up across every stock size rather than
+   * assuming the 50x30mm default.
+   */
+  private async printAutoLabelViaJosh(
+    product: { name: string; sellingPrice: number; barcode?: string | null; sku?: string | null; id?: string },
+    rawCode: string,
+    format: 'qr' | 'code128' | 'ean13',
+    widthMmRaw: number,
+    heightMmRaw: number,
+    gapMm: number,
+    copies: number = 1
+  ): Promise<boolean> {
+    if (!JoshLabelPrinter && !YxLabelPrinter) return false;
+
+    const gapType = this.getLabelPaperMode() === 'continuous' ? 0 : 2;
+    const spec = this.buildAutoLabelSpec(
+      product,
+      rawCode,
+      format,
+      widthMmRaw,
+      heightMmRaw,
+      gapMm,
+      copies,
+      gapType
+    );
+
+    return this.printSpecOnLabelPrinter(spec);
   }
 
   public isJoshSupported(): boolean {
@@ -4098,13 +4225,14 @@ class ThermalPrinterServiceManager {
       );
     }
 
+    const gapType = this.getLabelPaperMode() === 'continuous' ? 0 : 2;
     return await this.printSpecOnLabelPrinter({
       widthMm,
       heightMm,
       rotation: 0,
       copies: Math.max(1, copies),
       gapMm: this.safeMm(labelGapMm, 3),
-      gapType: 2,
+      gapType,
       speed: 5,
       darkness: 7,
       elements,
@@ -4285,6 +4413,33 @@ class ThermalPrinterServiceManager {
     if ((await this.getConnectedLabelPrinterKind()) !== null) {
       const ok = await this.printLabelViaJosh(product, template, copies, labelGapMm);
       if (ok) return true;
+    }
+
+    // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer
+    try {
+      if (await this.isSocketConnected()) {
+        const elements = await this.buildJoshElementsForTemplate(product, template, 1);
+        if (elements.length > 0) {
+          const spec: JoshLabelSpec = {
+            widthMm: this.safeMm(template.widthMm, 50),
+            heightMm: this.safeMm(template.heightMm, 30),
+            rotation: 0,
+            copies: 1,
+            gapMm: this.safeMm(labelGapMm, 2),
+            gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+            elements,
+          };
+          const ok = await this.printSpecViaEscposGraphic(
+            spec,
+            this.getEscPosPaperWidth(),
+            copies,
+            labelGapMm
+          );
+          if (ok) return true;
+        }
+      }
+    } catch (graphicErr) {
+      console.warn('[PrinterService] printSpecViaEscposGraphic for template failed, trying TSPL:', graphicErr);
     }
 
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
@@ -4678,6 +4833,31 @@ class ThermalPrinterServiceManager {
       if (ok) return true;
     }
 
+    // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer
+    try {
+      if (await this.isSocketConnected()) {
+        const spec = this.buildAutoLabelSpec(
+          product,
+          rawCode,
+          format,
+          labelWidthMm,
+          labelHeightMm,
+          labelGapMm,
+          1,
+          this.getLabelPaperMode() === 'continuous' ? 0 : 2
+        );
+        const ok = await this.printSpecViaEscposGraphic(
+          spec,
+          this.getEscPosPaperWidth(),
+          safeCopies,
+          labelGapMm
+        );
+        if (ok) return true;
+      }
+    } catch (graphicErr) {
+      console.warn('[PrinterService] printSpecViaEscposGraphic for auto label failed, trying TSPL:', graphicErr);
+    }
+
     try {
       if (NativeTscPrinter && typeof NativeTscPrinter.printLabel === 'function') {
         // TSPL label jobs never go through initPrinter(), so they need their own socket check.
@@ -4788,6 +4968,24 @@ class ThermalPrinterServiceManager {
       );
     }
 
+    // Try high-resolution graphic raster for clean barcode/QR label formatting
+    try {
+      const spec = this.buildAutoLabelSpec(
+        product,
+        rawCode,
+        format,
+        50,
+        30,
+        2,
+        1,
+        0
+      );
+      const ok = await this.printSpecViaEscposGraphic(spec, paperWidth, copies, 2);
+      if (ok) return true;
+    } catch (gErr) {
+      console.warn('[PrinterService] Graphic label on receipt paper failed, using text fallback:', gErr);
+    }
+
     if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;
     // Cap the product name length so it stays on one line instead of wrapping mid-word and
     // throwing off the compact label look — purely a truncation guard now, NOT used for padding
@@ -4888,6 +5086,26 @@ class ThermalPrinterServiceManager {
     // continuous branch too, since it lands here.
     if (await this.labelPrinterEnsureConnected()) {
       return this.printLabelViaJosh(product, template, copies);
+    }
+
+    // Try high-resolution graphic raster for ESC/POS receipt & label printer
+    try {
+      const elements = await this.buildJoshElementsForTemplate(product, template, 1);
+      if (elements.length > 0) {
+        const spec: JoshLabelSpec = {
+          widthMm: this.safeMm(template.widthMm, 50),
+          heightMm: this.safeMm(template.heightMm, 30),
+          rotation: 0,
+          copies: 1,
+          gapMm: 2,
+          gapType: 0,
+          elements,
+        };
+        const ok = await this.printSpecViaEscposGraphic(spec, paperWidth, copies, 2);
+        if (ok) return true;
+      }
+    } catch (gErr) {
+      console.warn('[PrinterService] Graphic template print on receipt paper failed, using text fallback:', gErr);
     }
 
     if (!NativeEscposPrinter || typeof NativeEscposPrinter.printText !== 'function') return false;

@@ -292,7 +292,8 @@ class YxLabelPrinterModule : Module() {
           else -> PrinterConstantPool.PaperType.GAP
         }
 
-        val bitmap = buildLabelBitmap(spec, widthMm, heightMm)
+        val headMm = 48.0
+        val bitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
         isPrinting = true
         jobPromise = promise
 
@@ -316,6 +317,57 @@ class YxLabelPrinterModule : Module() {
       } catch (e: Throwable) {
         isPrinting = false
         promise.reject(CodedException("ERR_YX_PRINT", e.message ?: "Printing failed", e))
+      }
+    }
+
+    AsyncFunction("calibrate") { gapTypeParam: Int?, promise: Promise ->
+      try {
+        ensureSdkInitialized()
+        if (!printer.isConnect) {
+          promise.resolve(false)
+          return@AsyncFunction
+        }
+        val h = helper ?: printer.getHelper().also { helper = it }
+        val gapType = gapTypeParam ?: 2
+        val paperType = if (gapType == 0) PrinterConstantPool.PaperType.CONTINUOUS else PrinterConstantPool.PaperType.GAP
+        val build = h.build(object : TaskCallback() {
+          override fun readCall(bean: TaskCallBean) {
+            promise.resolve(true)
+          }
+          override fun sendStatus(bean: TaskCallBean) {
+            if (bean.status != PrinterConstantPool.Status.OK) {
+              promise.resolve(false)
+            }
+          }
+        })
+        build.enable()
+        build.paperType(paperType)
+        if (paperType == PrinterConstantPool.PaperType.GAP) {
+          build.fixedPoint()
+          build.forwardPaper()
+        } else {
+          build.printLinedots(20 * 8)
+        }
+        build.disenable()
+        h.run(build)
+      } catch (e: Throwable) {
+        promise.resolve(false)
+      }
+    }
+
+    AsyncFunction("rasterizeLabelBase64") { spec: Map<String, Any?>, promise: Promise ->
+      try {
+        val widthMm = finite(spec["widthMm"], 50.0)
+        val heightMm = finite(spec["heightMm"], 30.0)
+        val headMm = 48.0
+        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
+        val stream = java.io.ByteArrayOutputStream()
+        labelBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
+        labelBitmap.recycle()
+        promise.resolve(base64)
+      } catch (e: Throwable) {
+        promise.reject(CodedException("ERR_RASTERIZE", e.message ?: "Failed to rasterize label", e))
       }
     }
 
@@ -409,15 +461,24 @@ class YxLabelPrinterModule : Module() {
         finishJob(h, false, "The printer timed out.")
         return
       }
-      val data = bean.data ?: return
-
+      val data = bean.data ?: byteArrayOf()
       var acked = false
-      if (jobPaperType == PrinterConstantPool.PaperType.CONTINUOUS) {
-        acked = (data.size == 1 && data[0] == 0xAA.toByte()) || (data.size == 3 && data[2] == 0xAA.toByte())
-      } else {
-        for (j in 0 until data.size - 1) {
-          if (data[j] == 0x4F.toByte() && data[j + 1] == 0x4B.toByte()) { acked = true; break }
+      if (data.isNotEmpty()) {
+        if ((data.size == 1 && data[0] == 0xAA.toByte()) ||
+            (data.size >= 3 && data[2] == 0xAA.toByte()) ||
+            data[0] == 0xAA.toByte()) {
+          acked = true
+        } else {
+          for (j in 0 until data.size - 1) {
+            if (data[j] == 0x4F.toByte() && data[j + 1] == 0x4B.toByte()) {
+              acked = true
+              break
+            }
+          }
         }
+      }
+      if (!acked && bean.status == PrinterConstantPool.Status.OK) {
+        acked = true
       }
       if (!acked) return
 
@@ -459,10 +520,19 @@ class YxLabelPrinterModule : Module() {
   // JoshLabelSpec shape identically rather than via two implementations that could drift.
   // ---------------------------------------------------------------------------------------
 
-  private fun buildLabelBitmap(spec: Map<String, Any?>, widthMm: Double, heightMm: Double): Bitmap {
+  private fun buildLabelBitmap(
+    spec: Map<String, Any?>,
+    widthMm: Double,
+    heightMm: Double,
+    headMm: Double = 48.0
+  ): Bitmap {
     val dotsPerMm = 8.0 // 203 DPI
-    val wPx = (widthMm * dotsPerMm).toInt().coerceAtLeast(64)
-    val hPx = (heightMm * dotsPerMm).toInt().coerceAtLeast(64)
+    val printWmm = minOf(widthMm, headMm)
+    val printHmm = heightMm
+    val fit = if (widthMm > 0) printWmm / widthMm else 1.0
+
+    val wPx = (printWmm * dotsPerMm).toInt().coerceAtLeast(64)
+    val hPx = (printHmm * dotsPerMm).toInt().coerceAtLeast(64)
 
     val bmp = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
@@ -473,7 +543,7 @@ class YxLabelPrinterModule : Module() {
 
     elements.forEach { el ->
       try {
-        drawElementOnCanvas(canvas, el, dotsPerMm, wPx, hPx)
+        drawElementOnCanvas(canvas, el, dotsPerMm, fit, wPx, hPx)
       } catch (e: Throwable) {
         android.util.Log.w("YxLabel", "Skipping element on canvas: ${e.message}")
       }
@@ -486,13 +556,14 @@ class YxLabelPrinterModule : Module() {
     canvas: Canvas,
     el: Map<String, Any?>,
     dotsPerMm: Double,
+    fit: Double,
     canvasWidthPx: Int,
     canvasHeightPx: Int
   ) {
-    val xPx = (finite(el["x"], 0.0) * dotsPerMm).toFloat()
-    val yPx = (finite(el["y"], 0.0) * dotsPerMm).toFloat()
-    val wPx = (finite(el["width"], 0.0) * dotsPerMm).toFloat()
-    val hPx = (finite(el["height"], 0.0) * dotsPerMm).toFloat()
+    val xPx = (finite(el["x"], 0.0) * fit * dotsPerMm).toFloat()
+    val yPx = (finite(el["y"], 0.0) * fit * dotsPerMm).toFloat()
+    val wPx = (finite(el["width"], 0.0) * fit * dotsPerMm).toFloat()
+    val hPx = (finite(el["height"], 0.0) * fit * dotsPerMm).toFloat()
 
     val rot = finite(el["rotation"], 0.0).toFloat()
     val hasRot = rot % 360f != 0f
@@ -507,7 +578,7 @@ class YxLabelPrinterModule : Module() {
       "text" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val fontHeightMm = finite(el["fontHeight"], 3.5)
+        val fontHeightMm = finite(el["fontHeight"], 3.5) * fit
         val fontSizePx = (fontHeightMm * dotsPerMm).toFloat().coerceAtLeast(14f)
         val bold = (el["bold"] as? Boolean) == true
         val align = finiteInt(el["align"], 0)
@@ -542,7 +613,7 @@ class YxLabelPrinterModule : Module() {
         val barcodeW = if (wPx > 0) wPx.toInt() else (canvasWidthPx - xPx.toInt()).coerceAtLeast(100)
         val barcodeH = if (hPx > 0) hPx.toInt() else 80
         val type = finiteInt(el["barcodeType"], 60)
-        val textHeight = (finite(el["textHeight"], 3.0) * dotsPerMm).toFloat()
+        val textHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
 
         val barOnlyHeight = if (textHeight > 0) (barcodeH - textHeight.toInt()).coerceAtLeast(30) else barcodeH
         val barcodeBmp = generateBarcodeBitmap(value, type, barcodeW, barOnlyHeight)
@@ -566,7 +637,7 @@ class YxLabelPrinterModule : Module() {
       "qrcode" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val rawSize = finite(el["size"], 15.0) * dotsPerMm
+        val rawSize = finite(el["size"], 15.0) * fit * dotsPerMm
         val sizePx = rawSize.toInt().coerceIn(32, minOf(canvasWidthPx, canvasHeightPx))
         val qrBmp = generateQrBitmap(value, sizePx)
         if (qrBmp != null) {
@@ -587,9 +658,9 @@ class YxLabelPrinterModule : Module() {
         }
       }
       "line" -> {
-        val x2 = (finite(el["x2"], el["x"] as? Double ?: 0.0) * dotsPerMm).toFloat()
-        val y2 = (finite(el["y2"], el["y"] as? Double ?: 0.0) * dotsPerMm).toFloat()
-        val thickness = (finite(el["thickness"], 0.3) * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val x2 = (finite(el["x2"], el["x"] as? Double ?: 0.0) * fit * dotsPerMm).toFloat()
+        val y2 = (finite(el["y2"], el["y"] as? Double ?: 0.0) * fit * dotsPerMm).toFloat()
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val paint = Paint().apply {
           color = Color.BLACK
           strokeWidth = thickness
@@ -599,9 +670,9 @@ class YxLabelPrinterModule : Module() {
       }
       "rectangle" -> {
         if (wPx <= 0 || hPx <= 0) return
-        val thickness = (finite(el["thickness"], 0.3) * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val filled = (el["filled"] as? Boolean) == true
-        val radius = (finite(el["cornerRadius"], 0.0) * dotsPerMm).toFloat()
+        val radius = (finite(el["cornerRadius"], 0.0) * fit * dotsPerMm).toFloat()
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
           color = Color.BLACK
           strokeWidth = thickness
@@ -613,7 +684,7 @@ class YxLabelPrinterModule : Module() {
       }
       "ellipse" -> {
         if (wPx <= 0 || hPx <= 0) return
-        val thickness = (finite(el["thickness"], 0.3) * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val filled = (el["filled"] as? Boolean) == true
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
           color = Color.BLACK

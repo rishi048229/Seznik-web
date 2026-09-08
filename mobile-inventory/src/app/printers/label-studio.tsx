@@ -391,10 +391,11 @@ export default function LabelStudioScreen() {
     const doPrint = async () => {
       setIsTestPrinting(true);
       const copies = Math.max(1, printCopies);
-      const isJosh = await ThermalPrinterService.joshIsConnected();
+      const labelKind = await ThermalPrinterService.getConnectedLabelPrinterKind();
+      const hasLabelPrinter = labelKind !== null;
       try {
         const ok =
-          labelPaperMode === 'continuous' && !isJosh
+          labelPaperMode === 'continuous' && !hasLabelPrinter
             ? await ThermalPrinterService.printLabelTemplateOnReceiptPaper(targetProduct, template, paperWidth, copies)
             : await ThermalPrinterService.printLabelFromTemplate(targetProduct, template, copies, labelGapMm);
         if (ok) Alert.alert('Print Sent!', `Printed ${copies} label${copies > 1 ? 's' : ''} for "${targetProduct.name}".`);
@@ -405,23 +406,6 @@ export default function LabelStudioScreen() {
         setIsTestPrinting(false);
       }
     };
-
-    if (labelPrinter.isConnected && labelPrinter.kind === 'thermal' && labelPaperMode === 'gap') {
-      Alert.alert(
-        'Receipt Printer Connected',
-        `Your connected printer (${labelPrinter.name || 'Receipt Printer'}) is designed for continuous receipt paper rolls, not adhesive sticker labels.\n\nThe label will print on receipt paper. For adhesive sticker labels, connect a Josh Dual-Mode printer.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Print on Receipt Paper',
-            onPress: () => {
-              void doPrint();
-            },
-          },
-        ]
-      );
-      return;
-    }
 
     await doPrint();
   };

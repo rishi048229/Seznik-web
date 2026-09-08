@@ -549,6 +549,22 @@ class JoshLabelPrinterModule : Module() {
       }
     }
 
+    AsyncFunction("rasterizeLabelBase64") { spec: Map<String, Any?>, promise: Promise ->
+      try {
+        val widthMm = finite(spec["widthMm"], 50.0)
+        val heightMm = finite(spec["heightMm"], 30.0)
+        val headMm = (spec["headMm"] as? Number)?.toDouble() ?: 48.0
+        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
+        val stream = java.io.ByteArrayOutputStream()
+        labelBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
+        labelBitmap.recycle()
+        promise.resolve(base64)
+      } catch (e: Throwable) {
+        promise.reject(CodedException("ERR_RASTERIZE", e.message ?: "Failed to rasterize label", e))
+      }
+    }
+
     OnDestroy {
       try {
         api?.quit()
