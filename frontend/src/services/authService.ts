@@ -62,8 +62,8 @@ export const redeemAccessCode = async (
 }
 
 // Pre-signup email verification
-export const sendEmailOtp = async (email: string): Promise<void> => {
-  await fetchApi('/auth/send-otp', {
+export const sendEmailOtp = async (email: string): Promise<{ devOtp?: string; message?: string }> => {
+  return fetchApi('/auth/send-otp', {
     method: 'POST',
     body: JSON.stringify({ email }),
   })

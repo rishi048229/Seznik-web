@@ -142,10 +142,15 @@ export const LoginPage = () => {
     setOtpMessage('')
     setVerifyStep('sending')
     try {
-      await sendEmailOtp(email.trim())
+      const res = await sendEmailOtp(email.trim())
       setVerifyStep('sent')
       setResendIn(60)
-      setOtpMessage(`We sent a 6-digit code to ${email.trim()}`)
+      if (res?.devOtp) {
+        setOtp(res.devOtp)
+        setOtpMessage(res.message || `OTP generated! Code: ${res.devOtp}`)
+      } else {
+        setOtpMessage(res?.message || `We sent a 6-digit code to ${email.trim()}`)
+      }
     } catch (err) {
       setVerifyStep('idle')
       setError(toUserMessage(err, 'Failed to send verification code'))
