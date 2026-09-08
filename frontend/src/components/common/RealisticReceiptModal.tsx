@@ -9,12 +9,13 @@ import {
 import QRCode from 'qrcode'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { buildUpiPayLink } from '@/utils/upiQr'
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 
 export interface EditableReceiptItem {
   id?: string
@@ -139,6 +140,7 @@ export const RealisticReceiptModal = ({
   const [isEditing, setIsEditing] = useState(false)
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>('')
   const [isPrintingBle, setIsPrintingBle] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
   const prevOpenRef = useRef(false)
@@ -330,11 +332,20 @@ export const RealisticReceiptModal = ({
     printReceipt(html, '210mm', payload.sale.invoiceNumber)
   }
 
-  const handleDownloadA4Pdf = () => {
+  const handleDownloadA4Pdf = async () => {
     const payload = printPayload()
     const html = generateReceiptHTML({ ...payload, width: '210mm' })
-    downloadA4InvoicePdf(html, `${payload.sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success('Invoice opened — click Save as PDF')
+    const toastId = toast.loading('Preparing PDF…')
+    setIsDownloadingPdf(true)
+    try {
+      await downloadA4InvoicePdf(html, `${payload.sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+      toast.success('Invoice downloaded', { id: toastId })
+    } catch (error) {
+      toast.dismiss(toastId)
+      toastError(error, 'Could not download the invoice PDF')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   return (
@@ -391,6 +402,7 @@ export const RealisticReceiptModal = ({
               size="sm"
               leftIcon={<Download size={15} />}
               onClick={handleDownloadA4Pdf}
+              loading={isDownloadingPdf}
               className="min-h-10 font-semibold"
             >
               Download PDF

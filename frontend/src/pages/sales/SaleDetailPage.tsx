@@ -12,7 +12,7 @@ import { ArrowLeft, Printer, FileText, Bluetooth, Download } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
@@ -31,6 +31,7 @@ export const SaleDetailPage = () => {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const blePrinter = useBlePrinter()
 
   // Accept format directly to avoid React state update race condition
@@ -87,7 +88,7 @@ export const SaleDetailPage = () => {
     })
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!sale) return
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const customerName = sale.customerId
@@ -105,8 +106,17 @@ export const SaleDetailPage = () => {
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
     })
-    downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — click Save as PDF`)
+    const toastId = toast.loading('Preparing PDF…')
+    setIsDownloadingPdf(true)
+    try {
+      await downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+      toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} downloaded`, { id: toastId })
+    } catch (error) {
+      toast.dismiss(toastId)
+      toastError(error, 'Could not download the invoice PDF')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   const handlePrintBluetooth = async () => {
@@ -174,7 +184,7 @@ export const SaleDetailPage = () => {
             <Button variant="ghost" onClick={() => setIsPrintModalOpen(true)} leftIcon={<Printer size={16} />}>
               {t('pos.print')}
             </Button>
-            <Button variant="ghost" onClick={handleDownloadPdf} leftIcon={<Download size={16} />}>
+            <Button variant="ghost" onClick={handleDownloadPdf} leftIcon={<Download size={16} />} loading={isDownloadingPdf}>
               Download PDF
             </Button>
             <Button variant="ghost" onClick={() => navigate(ROUTES.SALES)} leftIcon={<ArrowLeft size={16} />}>

@@ -14,7 +14,7 @@ import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetoot
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -36,6 +36,7 @@ export const SalesPage = () => {
   const [printFormat, setPrintFormat] = useState<'a4' | 'thermal'>('a4')
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [shareSaleId, setShareSaleId] = useState<string | null>(null)
   const [sharePhone, setSharePhone] = useState('')
   const navigate = useNavigate()
@@ -132,7 +133,7 @@ export const SalesPage = () => {
     setIsPrintModalOpen(true)
   }
 
-  const handleDownload = (saleId: string) => {
+  const handleDownload = async (saleId: string) => {
     const sale = sales?.find(s => s.id === saleId)
     if (!sale) return
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
@@ -151,8 +152,17 @@ export const SalesPage = () => {
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
     })
-    downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — click Save as PDF`)
+    const toastId = toast.loading('Preparing PDF…')
+    setIsDownloadingPdf(true)
+    try {
+      await downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+      toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} downloaded`, { id: toastId })
+    } catch (error) {
+      toast.dismiss(toastId)
+      toastError(error, 'Could not download the invoice PDF')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   const filtered = sales?.filter(sale => {
@@ -342,7 +352,7 @@ export const SalesPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openPrintModal(row.id)} title={t('pos.printReceiptTitle')}>
             <Printer size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleDownload(row.id)} title={t('sales.downloadInvoiceTitle')}>
+          <Button variant="ghost" size="sm" onClick={() => handleDownload(row.id)} title={t('sales.downloadInvoiceTitle')} loading={isDownloadingPdf}>
             <Download size={16} />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone('') }} title={t('daybook.shareWhatsApp')}>
@@ -490,6 +500,7 @@ export const SalesPage = () => {
               className="w-full"
               leftIcon={<Download size={16} />}
               onClick={() => handleDownload(printSaleId)}
+              loading={isDownloadingPdf}
             >
               Download PDF
             </Button>

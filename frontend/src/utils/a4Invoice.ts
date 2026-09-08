@@ -105,59 +105,6 @@ export function wrapA4Document(innerHtml: string, title: string, paper: 'A4' | '
 </html>`
 }
 
-export function downloadA4InvoicePdf(innerHtml: string, filename: string, paper: 'A4' | 'Letter' = 'A4') {
-  const title = filename.replace(/\.pdf$/i, '')
-  const full = wrapA4Document(innerHtml, title, paper)
-  const w = window.open('', '_blank')
-  if (!w) {
-    const blob = new Blob([full], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${title}.html`
-    a.click()
-    URL.revokeObjectURL(url)
-    return
-  }
-  w.document.open()
-  w.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>${esc(title)}</title>
-  <style>
-    @page { size: ${paper}; margin: 10mm 12mm; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #e2e8f0; }
-    .bar {
-      position: sticky; top: 0; z-index: 2;
-      display: flex; gap: 8px; align-items: center; justify-content: flex-end;
-      padding: 10px 14px; background: #0f172a; color: #fff;
-      font-family: Arial, sans-serif; font-size: 13px;
-    }
-    .bar button {
-      border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer;
-      background: #fff; color: #0f172a;
-    }
-    .sheet { max-width: 210mm; margin: 16px auto; background: #fff; }
-    @media print {
-      .bar { display: none !important; }
-      html, body { background: #fff; }
-      .sheet { margin: 0; max-width: none; }
-    }
-  </style>
-</head>
-<body>
-  <div class="bar">
-    <span style="margin-right:auto;font-weight:700;">${esc(title)}</span>
-    <button type="button" onclick="window.print()">Save as PDF</button>
-  </div>
-  <div class="sheet">${innerHtml}</div>
-</body>
-</html>`)
-  w.document.close()
-}
-
 type ResolvedA4 = {
   templateId: string
   layout: A4InvoiceLayout
