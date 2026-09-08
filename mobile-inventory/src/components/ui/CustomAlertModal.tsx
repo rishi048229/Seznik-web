@@ -31,14 +31,14 @@ export function CustomAlertModal() {
   const actionBlue = theme.isDark ? IOS_BLUE_DARK : IOS_BLUE;
   const actionRed = theme.isDark ? IOS_RED_DARK : IOS_RED;
   const separator = theme.isDark ? 'rgba(84, 84, 88, 0.65)' : 'rgba(60, 60, 67, 0.29)';
-  const cardBg = theme.isDark ? '#2C2C2E' : '#FFFFFF';
+  const cardBg = theme.isDark ? '#252526' : '#F2F2F7';
 
   const handleButtonPress = (onPress?: () => void) => {
     hideAlert();
     if (onPress) {
       setTimeout(() => {
         onPress();
-      }, 50);
+      }, 60);
     }
   };
 
@@ -56,15 +56,28 @@ export function CustomAlertModal() {
   ) => {
     const isCancel = btn.style === 'cancel';
     const isDestructive = btn.style === 'destructive';
-    // iOS: the non-cancel action in a dual-button alert is semibold.
-    const isEmphasized =
-      layout === 'row' && !isCancel && buttons.some((b) => b.style === 'cancel');
+
+    // iOS rule: In a 2-button alert, the primary/preferred action is semibold ('600').
+    // If one button is destructive and the other is cancel, the cancel action is semibold.
+    let isEmphasized = false;
+    if (layout === 'single') {
+      isEmphasized = true;
+    } else if (layout === 'row') {
+      const hasDestructive = buttons.some((b) => b.style === 'destructive');
+      if (hasDestructive) {
+        isEmphasized = isCancel;
+      } else {
+        isEmphasized = !isCancel;
+      }
+    } else if (layout === 'stack') {
+      isEmphasized = isCancel;
+    }
 
     return (
       <TouchableOpacity
         key={`${btn.text}-${index}`}
         onPress={() => handleButtonPress(btn.onPress)}
-        activeOpacity={0.45}
+        activeOpacity={0.4}
         style={[
           styles.btn,
           layout === 'row' && styles.btnRow,
@@ -94,6 +107,7 @@ export function CustomAlertModal() {
       transparent
       animationType="fade"
       statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={handleBackdropPress}
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
@@ -106,12 +120,12 @@ export function CustomAlertModal() {
                   backgroundColor: cardBg,
                   ...Platform.select({
                     ios: {
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 8 },
-                      shadowOpacity: theme.isDark ? 0.45 : 0.22,
+                      shadowColor: '#000000',
+                      shadowOffset: { width: 0, height: 10 },
+                      shadowOpacity: theme.isDark ? 0.45 : 0.18,
                       shadowRadius: 24,
                     },
-                    android: { elevation: 12 },
+                    android: { elevation: 16 },
                     default: {},
                   }),
                 },
@@ -125,7 +139,7 @@ export function CustomAlertModal() {
                   <Text
                     style={[
                       styles.message,
-                      { color: theme.isDark ? 'rgba(255,255,255,0.78)' : 'rgba(0,0,0,0.72)' },
+                      { color: theme.isDark ? 'rgba(255, 255, 255, 0.82)' : 'rgba(0, 0, 0, 0.82)' },
                     ]}
                   >
                     {message}
@@ -177,8 +191,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   content: {
-    paddingTop: 19,
-    paddingBottom: 15,
+    paddingTop: 20,
+    paddingBottom: 16,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
@@ -186,7 +200,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     textAlign: 'center',
-    letterSpacing: -0.2,
+    letterSpacing: -0.4,
     lineHeight: 22,
   },
   message: {
@@ -194,6 +208,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '400',
     textAlign: 'center',
+    letterSpacing: -0.2,
     lineHeight: 18,
   },
   separatorH: {
@@ -230,5 +245,6 @@ const styles = StyleSheet.create({
   btnText: {
     fontSize: 17,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
 });

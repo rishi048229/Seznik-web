@@ -81,10 +81,29 @@ export const useAlertStore = create<AlertState>((set) => ({
   options: undefined,
 
   showAlert: (title, message, buttons, options) => {
-    const alertButtons: CustomAlertButton[] =
+    const rawButtons: CustomAlertButton[] =
       buttons && buttons.length > 0
         ? buttons
         : [{ text: 'OK', style: 'default' as const }];
+
+    const alertButtons: CustomAlertButton[] = rawButtons.map((btn) => {
+      const lower = (btn.text || '').toLowerCase().trim();
+      let style = btn.style;
+      if (!style) {
+        if (['cancel', 'dismiss', 'no', 'close'].includes(lower)) {
+          style = 'cancel';
+        } else if (
+          ['delete', 'remove', 'void', 'discard', 'clear', 'revoke', 'erase', 'reset'].some(
+            (term) => lower.includes(term)
+          )
+        ) {
+          style = 'destructive';
+        } else {
+          style = 'default';
+        }
+      }
+      return { ...btn, style };
+    });
 
     const type = inferAlertType(title, message, alertButtons);
     const sanitizedMsg = message
