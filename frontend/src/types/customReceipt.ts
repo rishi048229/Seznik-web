@@ -179,8 +179,8 @@ export const createDefaultReceiptTemplate = (name = 'Shop Custom Receipt'): Cust
       { id: `entry-11-${ts}`, type: 'horizontal_line', enabled: true, lineStyle: 'double' },
       { id: `entry-12-${ts}`, type: 'left_right_text', enabled: true, left: 'GRAND TOTAL', right: '{{grand_total}}', size: 'medium', bold: true },
       { id: `entry-13-${ts}`, type: 'horizontal_line', enabled: true, lineStyle: 'dashed' },
-      { id: `entry-14-${ts}`, type: 'barcode', enabled: true, codeType: 'qr_code', format: 'qr', value: '{{bill_pdf_url}}', align: 'center', size: 'medium', qrType: 'digital_bill' },
-      { id: `entry-15-${ts}`, type: 'text', enabled: true, text: 'Scan QR to View & Download Bill PDF', size: 'small', align: 'center' },
+      { id: `entry-14-${ts}`, type: 'barcode', enabled: false, codeType: 'qr_code', format: 'qr', value: '{{bill_pdf_url}}', align: 'center', size: 'medium', qrType: 'digital_bill' },
+      { id: `entry-15-${ts}`, type: 'text', enabled: false, text: 'Scan QR to View & Download Bill PDF', size: 'small', align: 'center' },
       { id: `entry-16-${ts}`, type: 'text', enabled: true, text: '{{footer_message}}', size: 'small', bold: true, align: 'center' },
     ],
   }

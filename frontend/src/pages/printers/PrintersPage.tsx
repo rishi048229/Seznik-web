@@ -582,10 +582,7 @@ export const PrintersPage = () => {
         ...settings,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
-        receiptConfig: {
-          ...receiptConfig,
-          showPaymentQR: config.invoiceShowPaymentQR,
-        },
+        receiptConfig,
         printerConfig: config,
       },
       receiptConfig,

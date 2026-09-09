@@ -134,6 +134,17 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     setDirty(true)
   }, [])
 
+  const working = useMemo(() => {
+    const base = draft || selectedTemplate
+    if (!base) return null
+    return ensureTemplateHasLogoBlock(base, storeLogoUrl)
+  }, [draft, selectedTemplate, storeLogoUrl])
+
+  const isWorkingRestaurant = useMemo(() => {
+    if (!working) return isRestaurant
+    return isRestaurantReceiptTemplate(working)
+  }, [working, isRestaurant])
+
   const previewContext = useMemo(() => ({
     ...SAMPLE_RECEIPT_CONTEXT,
     storeName: effectiveReceiptConfig.companyName || settings?.businessName || user?.businessName || user?.displayName || SAMPLE_RECEIPT_CONTEXT.storeName,
@@ -143,25 +154,19 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     storeLogoUrl,
     upiId: storeUpiId,
     footerMessage: effectiveReceiptConfig.footerMessage || SAMPLE_RECEIPT_CONTEXT.footerMessage,
-    ...(isRestaurant ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' } : {}),
-  }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId, user, isRestaurant])
+    ...(isWorkingRestaurant ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' } : {}),
+  }), [effectiveReceiptConfig, settings, storeLogoUrl, storeUpiId, user, isWorkingRestaurant])
 
   const gstOpts = useMemo(
     () => ({
       ...previewGstOpts,
-      isRestaurant,
+      isRestaurant: isWorkingRestaurant,
       receiptFont: resolveReceiptFontId(
         receiptFont ?? previewGstOpts?.receiptFont ?? settings?.printerConfig?.receiptFont
       ),
     }),
-    [previewGstOpts, isRestaurant, receiptFont, settings?.printerConfig?.receiptFont]
+    [previewGstOpts, isWorkingRestaurant, receiptFont, settings?.printerConfig?.receiptFont]
   )
-
-  const working = useMemo(() => {
-    const base = draft || selectedTemplate
-    if (!base) return null
-    return ensureTemplateHasLogoBlock(base, storeLogoUrl)
-  }, [draft, selectedTemplate, storeLogoUrl])
 
   const updateDraft = useCallback((updater: (tpl: CustomReceiptTemplate) => CustomReceiptTemplate) => {
     if (!working) return
@@ -226,7 +231,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
         invoiceConfig: settings?.invoiceConfig,
         connectionType,
         bleConnected,
-        isRestaurant,
+        isRestaurant: isWorkingRestaurant,
         receiptFont: receiptFont ?? settings?.printerConfig?.receiptFont,
       })
       toast.success('Test print sent')
@@ -235,6 +240,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     }
   }, [
     working,
+    isWorkingRestaurant,
     effectiveReceiptConfig,
     customTemplates,
     previewContext,
@@ -244,7 +250,6 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
     bleConnected,
     storeUpiId,
     t,
-    isRestaurant,
     receiptFont,
   ])
 

@@ -6,6 +6,7 @@ import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/
 import { generateReceiptEscPos, generateReceiptHTML, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { printEscPos } from '@/utils/blePrinter'
 import { prefetchPrintableLogoSrc, resolveStoreLogoUrl } from '@/utils/receiptLogo'
+import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 
 export function buildReceiptConfigForTemplate(
   receiptConfig: Partial<ReceiptConfig>,
@@ -128,13 +129,14 @@ export async function runReceiptTemplateTestPrint({
   const effectivePaper = (template?.paperWidth || paperSize) as '58mm' | '80mm'
   const printerConfig = settings?.printerConfig
   const effectiveReceiptFont = receiptFont ?? printerConfig?.receiptFont
+  const effectiveIsRestaurant = isRestaurant ?? (template ? isRestaurantReceiptTemplate(template) : false)
   const identity = {
     businessName: businessName || mergedReceipt.companyName || settings?.businessName,
     businessAddress: businessAddress || mergedReceipt.address || settings?.businessAddress,
     businessPhone: businessPhone || mergedReceipt.phone || settings?.businessPhone,
     businessGSTIN: businessGSTIN || mergedReceipt.gstin || settings?.businessGSTIN,
-    isRestaurant,
-    ...(isRestaurant
+    isRestaurant: effectiveIsRestaurant,
+    ...(effectiveIsRestaurant
       ? { tableNo: '12', tokenNo: '42', waiterName: 'RAJ' }
       : {}),
   }

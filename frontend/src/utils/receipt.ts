@@ -119,7 +119,7 @@ export const resolveEffectiveReceiptConfig = (
     showTerms: rConf?.showTerms ?? true,
     showBarcode: rConf?.showBarcode ?? true,
     showLogo: rConf?.showLogo ?? pConf?.showLogo ?? true,
-    showPaymentQR: rConf?.showPaymentQR ?? pConf?.invoiceShowPaymentQR ?? Boolean((rConf?.upiId || settings?.upiId || '').trim()),
+    showPaymentQR: rConf?.showPaymentQR ?? false,
     upiId: rConf?.upiId || settings?.upiId || '',
     paymentQrURL: rConf?.paymentQrURL || pConf?.paymentQrURL || '',
     customTemplates: rConf?.customTemplates,

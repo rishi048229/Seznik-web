@@ -78,10 +78,8 @@ export const SAMPLE_RECEIPT_CONTEXT: ReceiptPrintContext = {
   grandTotal: 1080.5,
   amountPaid: 1100,
   changeReturned: 19.5,
-  paymentMethod: 'UPI',
+  paymentMethod: 'Cash',
   footerMessage: 'Thank you! Visit again.',
-  tableNo: 'T-4',
-  waiterName: 'Raj',
 }
 
 export function saleToReceiptContext(
@@ -241,7 +239,7 @@ export function resolveShowItemNumbers(entry: CustomReceiptEntry, isRestaurant?:
   if (entry.type !== 'table') return false
   if (entry.showItemNumbers === true) return true
   if (entry.showItemNumbers === false) return false
-  return isRestaurant === true
+  return isRestaurant === true && entry.tableType === 'advanced'
 }
 
 /** Advanced table blocks use compact ITEM | QTY | AMT columns (restaurant thermal layout). */
@@ -756,10 +754,12 @@ export function compileCustomReceiptHtml(
             amount: data.grandTotal,
             note: data.invoiceNumber,
           })
+        } else {
+          rawVal = ''
         }
       } else if (entry.qrType === 'custom') {
         rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
-      } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
+      } else if (entry.qrType === 'digital_bill' || rawVal === '{{bill_pdf_url}}') {
         const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
         rawVal = typeof window !== 'undefined'
           ? `${window.location.origin}/receipt/${targetId}`
@@ -994,10 +994,12 @@ export async function appendCustomTemplateToEscPos(
               amount: data.grandTotal,
               note: data.invoiceNumber,
             })
+          } else {
+            rawVal = ''
           }
         } else if (entry.qrType === 'custom') {
           rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
-        } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
+        } else if (entry.qrType === 'digital_bill' || rawVal === '{{bill_pdf_url}}') {
           const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
           rawVal = typeof window !== 'undefined'
             ? `${window.location.origin}/receipt/${targetId}`
@@ -1007,12 +1009,14 @@ export async function appendCustomTemplateToEscPos(
         }
 
         if (entry.format === 'qr' || entry.codeType === 'qr_code') {
-          b.feed(1)
-          b.align(toEscPosAlign(entry.align || 'center'))
-          b.qr(rawVal || 'https://seznik.com', qrModuleSize(entry, opts?.receiptQrSize))
-          b.feed(1)
-          b.align('left')
-        } else {
+          if (rawVal) {
+            b.feed(1)
+            b.align(toEscPosAlign(entry.align || 'center'))
+            b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize))
+            b.feed(1)
+            b.align('left')
+          }
+        } else if (rawVal) {
           alignText(`* ${rawVal} *`, entry.align || 'center')
         }
         break

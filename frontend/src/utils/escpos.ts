@@ -138,7 +138,9 @@ export class EscPosBuilder {
   qr(data: string, moduleSize = 6): this {
     const cn = 0x31 // '1' — fixed value for 2D symbol commands
 
-    this.push(GS, 0x28, 0x6b, 0x04, 0x00, cn, 0x41, 0x32, 0x00) // select Model 2
+    // Omit explicit Model 2 command (0x41 0x32 0x00): ESC/POS printers default to
+    // Model 2 natively, but many clone/POS-58 firmwares fail to parse Function 165 and
+    // dump the 0x32 byte onto the paper as an unwanted literal '2' above the QR code.
     this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x43, moduleSize) // module size (1-16)
     this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x45, 0x31) // error correction level M (~15%)
 

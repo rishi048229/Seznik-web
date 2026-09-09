@@ -1,5 +1,4 @@
 import { generateReceiptHTML } from './utils/receipt'
-import { sanitizeTemplateForBusinessType } from './utils/customReceiptEngine'
 
 const sampleRetailTemplate = {
   id: 'receipt-tpl-1787829767601',
@@ -128,7 +127,7 @@ const sampleRetailTemplate = {
       value: '{{bill_pdf_url}}',
       format: 'qr' as const,
       qrType: 'digital_bill' as const,
-      enabled: true,
+      enabled: false,
       codeType: 'qr_code' as const,
     },
     {
@@ -137,7 +136,7 @@ const sampleRetailTemplate = {
       text: 'SCAN TO PAY VIA UPI',
       type: 'text' as const,
       align: 'center' as const,
-      enabled: true,
+      enabled: false,
     },
     {
       id: 'entry-16-1787829767601',

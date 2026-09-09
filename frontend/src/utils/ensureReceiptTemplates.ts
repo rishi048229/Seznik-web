@@ -95,6 +95,37 @@ export function sanitizeScanToPayEntries(template: CustomReceiptTemplate): Custo
   return changed ? { ...template, entries } : template
 }
 
+/**
+ * Normalizes legacy default templates that had digital bill QR automatically enabled
+ * on initial seed so it doesn't force a QR code on test print or billing unless the user
+ * configured a custom QR or UPI QR.
+ */
+export function normalizeLegacyDefaultTemplateQr(template: CustomReceiptTemplate): CustomReceiptTemplate {
+  if (template.name !== STANDARD_RECEIPT_TEMPLATE_NAME && !template.isDefault) return template
+  let changed = false
+  const entries = template.entries.map((entry) => {
+    if (
+      entry.type === 'barcode' &&
+      entry.enabled &&
+      (entry.qrType === 'digital_bill' || !entry.qrType || entry.value === '{{bill_pdf_url}}') &&
+      !entry.upiId
+    ) {
+      changed = true
+      return { ...entry, enabled: false }
+    }
+    if (
+      (entry.type === 'text' || entry.type === 'text_special') &&
+      entry.enabled &&
+      /scan.*bill/i.test(entry.text || '')
+    ) {
+      changed = true
+      return { ...entry, enabled: false }
+    }
+    return entry
+  })
+  return changed ? { ...template, entries } : template
+}
+
 function applyUpiQrOnSeed(template: CustomReceiptTemplate, upiId: string): CustomReceiptTemplate {
   return {
     ...template,
@@ -261,7 +292,8 @@ export function normalizeReceiptTemplates(
   let templates = fromServer.map((t) => {
     const withLogo = ensureTemplateHasLogoBlock(t, logoURL)
     const withGst = normalizeLegacyTableGstColumn(withLogo)
-    const next = sanitizeScanToPayEntries(withGst)
+    const withCleanQr = normalizeLegacyDefaultTemplateQr(withGst)
+    const next = sanitizeScanToPayEntries(withCleanQr)
     if (next !== t) shouldPersist = true
     return next
   })
