@@ -3252,6 +3252,20 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  /**
+   * Which label command language the connected printer understands. Defaults to the
+   * WYSIWYG graphic path because it works on any thermal printer; TSPL is opt-in since
+   * a non-TSPL printer prints those commands out as literal text rather than a label.
+   */
+  public getLabelEngine(): 'graphic' | 'tspl' {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      return usePrinterStore.getState().labelEngine || 'graphic';
+    } catch {
+      return 'graphic';
+    }
+  }
+
   public getEscPosPaperWidth(): '58mm' | '80mm' {
     try {
       const { usePrinterStore } = require('../store/usePrinterStore');
@@ -3313,7 +3327,19 @@ class ThermalPrinterServiceManager {
 
     await this.initPrinter(paperWidth);
 
-    const labelWidthDots = Math.min(paperSizeDots, Math.round(spec.widthMm * 8));
+    const requestedWidthDots = Math.round(spec.widthMm * 8);
+    const labelWidthDots = Math.min(paperSizeDots, requestedWidthDots);
+
+    // printPic scales to the requested width and keeps the aspect ratio, so a label
+    // wider than the print head (a 50mm label on a 58mm roll's 48mm head) comes out
+    // SHORTER than its true height too. Feeding a fixed gap after that leaves the paper
+    // a few dots short of the next label every time, and the error accumulates until
+    // content straddles the gap — the creeping misalignment seen on die-cut stock.
+    // Feed the remainder of the real label pitch instead of a constant.
+    const scale = requestedWidthDots > 0 ? labelWidthDots / requestedWidthDots : 1;
+    const printedHeightDots = Math.round(spec.heightMm * 8 * scale);
+    const pitchDots = Math.round((spec.heightMm + Math.max(0, labelGapMm)) * 8);
+    const advanceDots = Math.max(0, pitchDots - printedHeightDots);
 
     for (let i = 0; i < Math.max(1, copies); i++) {
       await this.printEscPosBitmap(base64, {
@@ -3323,10 +3349,9 @@ class ThermalPrinterServiceManager {
         paperSize: paperSizeDots,
       });
 
-      if (labelGapMm > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
+      if (advanceDots > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
         try {
-          const feedDots = Math.min(60, Math.max(8, Math.round(labelGapMm * 8)));
-          await NativeEscposPrinter.printAndFeed(feedDots);
+          await NativeEscposPrinter.printAndFeed(Math.min(255, advanceDots));
         } catch (feedErr) {
           console.warn('[PrinterService] printAndFeed gap advance failed:', feedErr);
         }
@@ -4444,6 +4469,16 @@ class ThermalPrinterServiceManager {
       console.warn('[PrinterService] printSpecViaEscposGraphic for template failed, trying TSPL:', graphicErr);
     }
 
+    // TSPL is only correct on a genuine TSPL label printer. Reaching here means the
+    // graphic path did not print, and emitting TSPL blindly is what made non-TSPL
+    // printers spit out pages of 'SIZE 50 mm / BARCODE ... / PRINT 1,1' as plain text.
+    // Fail loudly instead, unless the printer has been set to TSPL explicitly.
+    if (this.getLabelEngine() !== 'tspl') {
+      throw new Error(
+        'Could not print this label. If you have a dedicated label printer (Josh or YX), connect it from its own card on the Printers screen rather than the general Bluetooth scan — it does not understand receipt-printer commands. If it is a TSPL label printer, set Label Engine to TSPL in Printers settings.'
+      );
+    }
+
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
     // TSPL label jobs never go through initPrinter(), so they need their own socket check.
@@ -4858,6 +4893,15 @@ class ThermalPrinterServiceManager {
       }
     } catch (graphicErr) {
       console.warn('[PrinterService] printSpecViaEscposGraphic for auto label failed, trying TSPL:', graphicErr);
+    }
+
+    // Same reasoning as printLabelFromTemplate: TSPL only goes out to a printer that has
+    // actually been set to TSPL, so a non-TSPL unit can never be handed commands it will
+    // print as literal text.
+    if (this.getLabelEngine() !== 'tspl') {
+      throw new Error(
+        'Could not print this label. If you have a dedicated label printer (Josh or YX), connect it from its own card on the Printers screen rather than the general Bluetooth scan — it does not understand receipt-printer commands. If it is a TSPL label printer, set Label Engine to TSPL in Printers settings.'
+      );
     }
 
     try {

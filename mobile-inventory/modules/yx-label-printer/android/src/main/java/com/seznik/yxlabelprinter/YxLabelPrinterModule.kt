@@ -297,20 +297,35 @@ class YxLabelPrinterModule : Module() {
         isPrinting = true
         jobPromise = promise
 
-        // Status must be checked before every print, exactly as the vendor demo does:
-        // sending straight to a printer with an open lid or empty tray fails silently
-        // otherwise. Rejected/accepted state is decoded from the same status bits the
-        // demo's intState() reads (see checkStatusAndPrint below).
+        // Status is checked before every print, as the vendor demo does: sending straight
+        // to a printer with an open lid or an empty tray otherwise fails silently.
+        //
+        // But the reply is not guaranteed — not every model answers get_status, and a
+        // missing answer used to leave the promise unsettled and isPrinting stuck true,
+        // so that print produced nothing AND every later print was refused as "still
+        // printing". A watchdog now proceeds without the status if none arrives, and
+        // whichever of the two fires first wins.
+        val statusHandled = java.util.concurrent.atomic.AtomicBoolean(false)
+
         printer.addTask(
           Command.get_status(),
           "print-status-check",
           false,
           object : TaskCallback() {
             override fun readCall(bean: TaskCallBean) {
-              checkStatusAndPrint(bean, h, bitmap, copies, paperType, density)
+              if (statusHandled.compareAndSet(false, true)) {
+                checkStatusAndPrint(bean, h, bitmap, copies, paperType, density)
+              }
             }
           }
         )
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+          if (statusHandled.compareAndSet(false, true)) {
+            android.util.Log.w("YxLabel", "No status reply — printing without the pre-flight check")
+            startPrintJob(h, bitmap, copies, paperType, density)
+          }
+        }, 3000)
       } catch (e: CodedException) {
         isPrinting = false
         promise.reject(e)
@@ -402,20 +417,35 @@ class YxLabelPrinterModule : Module() {
     paperType: Int,
     density: Int
   ) {
+    // Only a definite, reportable fault stops the job. An unrecognised status byte
+    // (-99) means the reply could not be parsed, not that the printer is broken —
+    // refusing to print on that basis turns a chatty printer into a silent one, so
+    // anything that is not a known fault falls through and prints.
     val state = decodeStatus(bean.data)
-    if (state != 0 && state != -4 && state != -1) {
+    val fault = when (state) {
+      -2 -> "The printer's lid is open."
+      -3 -> "The printer is out of labels."
+      -5 -> "The printer is too hot — let it cool down."
+      else -> null
+    }
+    if (fault != null) {
       isPrinting = false
-      val reason = when (state) {
-        -2 -> "The printer's lid is open."
-        -3 -> "The printer is out of labels."
-        -5 -> "The printer is too hot — let it cool down."
-        else -> "The printer is not ready."
-      }
-      jobPromise?.reject(CodedException("ERR_YX_NOT_READY", reason, null))
+      jobPromise?.reject(CodedException("ERR_YX_NOT_READY", fault, null))
       jobPromise = null
       return
     }
 
+    startPrintJob(h, bitmap, copies, paperType, density)
+  }
+
+  /** Density, image cache and the send state machine — the actual job, once cleared to print. */
+  private fun startPrintJob(
+    h: PrintImgHelper,
+    bitmap: Bitmap,
+    copies: Int,
+    paperType: Int,
+    density: Int
+  ) {
     printer.addTask(Command.set_Density(density), true)
 
     jobImgNames = mutableListOf()

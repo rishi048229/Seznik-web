@@ -88,6 +88,17 @@ interface PrinterState {
    */
   labelPaperMode: 'gap' | 'continuous';
   /**
+   * Which command language the connected label printer actually understands.
+   *
+   * 'graphic' rasterizes the label to an image and prints it with ESC/POS printPic —
+   * it works on any thermal printer and is WYSIWYG, so it is the default. 'tspl' emits
+   * TSPL text commands, which only genuine TSPL label printers understand: sent to
+   * anything else the printer prints the commands out as literal text (SIZE 50 mm,
+   * BARCODE ..., PRINT 1,1), which is where the pages of gibberish came from. TSPL is
+   * therefore opt-in rather than a blind last-resort fallback.
+   */
+  labelEngine: 'graphic' | 'tspl';
+  /**
    * The physical die-cut label stock's real size in mm — only meaningful in 'gap' mode. Every
    * TSPL text/barcode/QR position is computed FROM these numbers (see PrinterService.buildTsplLabelFields),
    * so if they don't match the actual roll loaded in the printer, content is centered for the wrong
@@ -128,6 +139,7 @@ interface PrinterState {
   setPrintCopies: (copies: number) => void;
   setTopMargin: (margin: number) => void;
   setLabelPaperMode: (mode: 'gap' | 'continuous') => void;
+  setLabelEngine: (engine: 'graphic' | 'tspl') => void;
   setLabelWidthMm: (mm: number) => void;
   setLabelHeightMm: (mm: number) => void;
   setLabelGapMm: (mm: number) => void;
@@ -197,6 +209,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   // Defaults to 'gap' (the pre-existing TSPL label-printer behavior) so nothing changes for stores
   // that already have a separate die-cut label printer set up — 'continuous' is an opt-in switch.
   labelPaperMode: 'gap',
+  labelEngine: 'graphic',
   // Measured on the real SEZNIK label stock (user-confirmed, explicit): 50mm wide x 30mm tall,
   // landscape — matches what was originally hardcoded before any of this was made configurable.
   // Adjustable via the calibration steppers if a different roll is ever loaded.
@@ -453,6 +466,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   setPrintCopies: (printCopies) => set({ printCopies }),
   setTopMargin: (topMargin) => set({ topMargin }),
   setLabelPaperMode: (labelPaperMode) => set({ labelPaperMode }),
+  setLabelEngine: (labelEngine) => set({ labelEngine }),
   setLabelWidthMm: (labelWidthMm) => set({ labelWidthMm }),
   setLabelHeightMm: (labelHeightMm) => set({ labelHeightMm }),
   setLabelGapMm: (labelGapMm) => set({ labelGapMm }),

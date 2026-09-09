@@ -117,6 +117,8 @@ export default function PrintersScreen() {
     hydrateFromSettings,
     labelPaperMode,
     setLabelPaperMode,
+    labelEngine,
+    setLabelEngine,
     labelWidthMm,
     labelHeightMm,
     labelGapMm,
@@ -1568,6 +1570,37 @@ export default function PrintersScreen() {
                         <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Prints real barcode/QR on the connected receipt printer — no gap sensor</Text>
                       </View>
                       {labelPaperMode === 'continuous' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={[styles.sectionHeader, { marginTop: 16 }]}>LABEL ENGINE</Text>
+                  <View style={[styles.stepperRow, { flexDirection: 'column', alignItems: 'stretch' }, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.stepperSub, { color: theme.textSecondary, marginBottom: 10 }]}>
+                      How labels are sent to the printer. Leave this on Picture unless labels come out blank.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setLabelEngine('graphic')}
+                      style={[styles.modeOptionRow, { borderColor: labelEngine === 'graphic' ? BRAND_COLORS.blue600 : theme.borderColor }]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Picture (recommended)</Text>
+                        <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                          Sends the label as an image, so it prints exactly as designed. Works on almost every printer.
+                        </Text>
+                      </View>
+                      {labelEngine === 'graphic' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setLabelEngine('tspl')}
+                      style={[styles.modeOptionRow, { borderColor: labelEngine === 'tspl' ? BRAND_COLORS.blue600 : theme.borderColor, marginBottom: 0 }]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>TSPL commands</Text>
+                        <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                          Only for true TSPL label printers. On any other printer the commands print out as pages of text.
+                        </Text>
+                      </View>
+                      {labelEngine === 'tspl' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
                     </TouchableOpacity>
                   </View>
 
