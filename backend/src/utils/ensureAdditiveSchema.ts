@@ -29,6 +29,31 @@ const ADDITIVE_TABLES = [
     ON "ApiUsageBucket" ("businessType", "bucketStart")`,
   `CREATE INDEX IF NOT EXISTS "ApiUsageBucket_featureKey_bucketStart_idx"
     ON "ApiUsageBucket" ("featureKey", "bucketStart")`,
+  `
+  CREATE TABLE IF NOT EXISTS "UtilityBill" (
+    "id" TEXT PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "billType" TEXT NOT NULL DEFAULT 'Electricity',
+    "provider" TEXT,
+    "consumerNumber" TEXT,
+    "consumerName" TEXT,
+    "dueDate" TEXT,
+    "unitsConsumed" TEXT,
+    "billAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "convenienceFee" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalReceived" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'SUCCESS (PAID)',
+    "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "rawText" TEXT,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UtilityBill_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )
+  `,
+  `CREATE INDEX IF NOT EXISTS "UtilityBill_userId_idx" ON "UtilityBill" ("userId")`,
+  `CREATE INDEX IF NOT EXISTS "UtilityBill_userId_date_idx" ON "UtilityBill" ("userId", "date")`,
+  `CREATE INDEX IF NOT EXISTS "UtilityBill_consumerNumber_idx" ON "UtilityBill" ("consumerNumber")`,
 ] as const
 
 let ensured: Promise<void> | null = null

@@ -35,6 +35,7 @@ import kotOrderRoutes from './routes/kotOrderRoutes';
 import locationRoutes from './routes/locationRoutes';
 import publicReceiptRoutes from './routes/publicReceiptRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import utilityBillRoutes from './routes/utilityBillRoutes';
 import { trackApiUsage } from './middlewares/apiUsageMiddleware';
 const app = express();
 
@@ -82,7 +83,14 @@ app.use(
 );
 
 app.use(
-  ['/api/products', '/api/products/ai-extract', '/api/products/ai-extract-document', '/api/products/ai-convert-invoice'],
+  [
+    '/api/products',
+    '/api/products/ai-extract',
+    '/api/products/ai-extract-document',
+    '/api/products/ai-convert-invoice',
+    '/api/utility-bills',
+    '/api/utility-bills/extract',
+  ],
   express.json({ limit: '10mb' })
 );
 app.use(express.json({ limit: '2mb' }));
@@ -111,6 +119,7 @@ app.use('/api/restaurant-tables', restaurantTableRoutes);
 app.use('/api/kot-orders', kotOrderRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/utility-bills', utilityBillRoutes);
 app.use(publicReceiptRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint

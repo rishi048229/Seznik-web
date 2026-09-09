@@ -52,6 +52,7 @@ model User {
   locations             Location[]
   productLocationStocks ProductLocationStock[]
   stockTransfers        StockTransfer[]
+  utilityBills          UtilityBill[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -621,4 +622,30 @@ model ApiUsageBucket {
   @@index([bucketStart])
   @@index([businessType, bucketStart])
   @@index([featureKey, bucketStart])
+}
+
+/// Utility bills converted to thermal payment receipts (A4 to Receipt feature).
+model UtilityBill {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billType       String   @default("Electricity") // Electricity | Water | Gas | Telecom | Other
+  provider       String?
+  consumerNumber String?
+  consumerName   String?
+  dueDate        String?
+  unitsConsumed  String?
+  billAmount     Float    @default(0)
+  convenienceFee Float    @default(0)
+  totalReceived  Float    @default(0)
+  status         String   @default("SUCCESS (PAID)")
+  date           DateTime @default(now())
+  rawText        String?  @db.Text
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([consumerNumber])
 }

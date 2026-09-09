@@ -158,7 +158,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       items: [
         { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
         { id: 'quick-print', label: t('quickPrint', 'Text to Thermal Print'), icon: FileText, route: '/printers/quick-print' },
-        { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, onPress: () => setShowBillConverter(true) },
+        { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, route: '/a4-to-receipt' },
       ],
     },
     {

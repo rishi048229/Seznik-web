@@ -6358,6 +6358,115 @@ class ThermalPrinterServiceManager {
       throw error;
     }
   }
+
+  /**
+   * Prints a specialized Utility Bill Kiosk Receipt matching the exact reference layout.
+   */
+  public async printUtilityBillSlip(
+    billData: {
+      kioskName?: string;
+      billType?: string;
+      provider?: string;
+      consumerNumber?: string;
+      consumerName?: string;
+      dueDate?: string | null;
+      billDate?: string | null;
+      unitsConsumed?: string | null;
+      billAmount: number;
+      convenienceFee: number;
+      totalAmount: number;
+      status?: string;
+      receiptNumber?: string;
+      createdAt?: string;
+    },
+    paperWidth: '58mm' | '80mm' = '58mm',
+    options: { copies?: number; autoCut?: boolean } = {}
+  ): Promise<boolean> {
+    const effectiveWidth = paperWidth || '58mm';
+    const copies = Math.max(1, options.copies || 1);
+    const {
+      formatUtilityReceiptText,
+      generateUtilityReceiptHtml,
+    } = require('../components/bill-converter/UtilityReceiptSlip');
+    const textContent = formatUtilityReceiptText(billData, effectiveWidth);
+
+    try {
+      // 1. Direct Josh Printer support if connected
+      if (await this.joshEnsureConnected()) {
+        try {
+          const fakeSaleData: PrintSaleData = {
+            invoiceNumber: billData.receiptNumber || 'BILL',
+            date: billData.billDate || new Date().toLocaleDateString('en-GB'),
+            items: [
+              {
+                productName: `${(billData.provider || billData.billType || 'Bill').slice(0, 24)}`,
+                quantity: 1,
+                unitPrice: billData.billAmount,
+                total: billData.billAmount,
+              },
+            ],
+            subtotal: billData.billAmount,
+            totalDiscount: 0,
+            totalTax: 0,
+            grandTotal: billData.totalAmount,
+            paymentMethod: 'CASH',
+            storeName: billData.kioskName || 'SEZNIK KIOSK',
+            footerMessage: 'Thank you! Keep this slip.',
+            consumerNo: billData.consumerNumber || undefined,
+            customerName: billData.consumerName || undefined,
+            dueDate: billData.dueDate || undefined,
+            providerName: billData.provider || undefined,
+            unitsConsumed: billData.unitsConsumed || undefined,
+          };
+          if (billData.convenienceFee > 0) {
+            fakeSaleData.items.push({
+              productName: 'Convenience / Fee',
+              quantity: 1,
+              unitPrice: billData.convenienceFee,
+              total: billData.convenienceFee,
+            });
+          }
+          const ok = await this.printReceiptViaJosh(fakeSaleData, effectiveWidth, { copies });
+          if (ok) return true;
+        } catch (joshErr) {
+          console.warn('Josh utility bill print error, falling back:', joshErr);
+        }
+      }
+
+      // 2. ESC/POS Bluetooth Printer
+      if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
+        try {
+          await this.ensureConnected();
+          await this.initPrinter(effectiveWidth);
+          const sanitized = this.sanitizeForThermalPrint(textContent);
+          const printOptions = { widthtimes: 0, heigthtimes: 0, cut: false };
+
+          for (let i = 0; i < copies; i++) {
+            await NativeEscposPrinter.printText(sanitized + '\n', printOptions);
+            if (typeof NativeEscposPrinter.printAndFeed === 'function') {
+              await NativeEscposPrinter.printAndFeed(RECEIPT_BOTTOM_FEED);
+            }
+            if (options.autoCut && typeof NativeEscposPrinter.cutOnePoint === 'function') {
+              await NativeEscposPrinter.cutOnePoint();
+            }
+          }
+          return true;
+        } catch (escErr) {
+          console.warn('ESC/POS print failed, falling back to system print:', escErr);
+        }
+      }
+
+      // 3. System Print / PDF Fallback
+      const html = generateUtilityReceiptHtml(billData, effectiveWidth);
+      for (let i = 0; i < copies; i++) {
+        await Print.printAsync({ html });
+      }
+      return true;
+    } catch (error: any) {
+      console.error('Utility bill print error:', error);
+      throw error;
+    }
+  }
 }
 
 export const ThermalPrinterService = new ThermalPrinterServiceManager();

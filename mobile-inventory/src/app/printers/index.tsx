@@ -42,6 +42,7 @@ import {
   Receipt,
   QrCode,
   Edit2,
+  Zap,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -1163,6 +1164,52 @@ export default function PrintersScreen() {
                       {activeCustomTemplate
                         ? `Using "${activeCustomTemplate.name}" • Tap to customize layout`
                         : 'Design receipt layout, add custom blocks & enable Digital Bill QR'}
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color={theme.textSecondary} />
+                </View>
+              </TouchableOpacity>
+
+              {/* A4 TO THERMAL RECEIPT KIOSK DASHBOARD */}
+              <TouchableOpacity
+                onPress={() => router.push('/a4-to-receipt' as any)}
+                activeOpacity={0.88}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: '#10B981',
+                    borderWidth: 1.5,
+                    padding: 16,
+                    marginBottom: 14,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                    }}
+                  >
+                    <Zap size={22} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary }}>
+                        A4 Bill to Thermal Receipt Kiosk
+                      </Text>
+                      <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#16A34A' }}>AI Kiosk</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                      Convert A4 bills to thermal slips, track earnings & share receipts on WhatsApp
                     </Text>
                   </View>
                   <ChevronRight size={20} color={theme.textSecondary} />
