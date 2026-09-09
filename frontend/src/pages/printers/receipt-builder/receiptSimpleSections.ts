@@ -11,6 +11,7 @@ import type {
 import { createEmptyBlock } from '@/types/customReceipt'
 import {
   containsTemplateVar,
+  humanizeTemplateText,
   isOnlyTemplateVar,
   parseTemplateSide,
   serializeTemplateSide,
@@ -284,7 +285,7 @@ export function isSectionEnabled(mapped: MappedSimpleTemplate, section: SimpleSe
   return Boolean(entry?.enabled)
 }
 
-function createSectionBlocks(section: SimpleSectionId): CustomReceiptEntry[] {
+export function createSectionBlocks(section: SimpleSectionId): CustomReceiptEntry[] {
   switch (section) {
     case 'logo':
       return [createEmptyBlock('image')]
@@ -425,7 +426,7 @@ function lastRelatedId(mapped: MappedSimpleTemplate, section: SimpleSectionId): 
   return getSectionEntry(mapped, section)?.id || null
 }
 
-function insertAfter(entries: CustomReceiptEntry[], afterId: string | null, blocks: CustomReceiptEntry[]): CustomReceiptEntry[] {
+export function insertAfter(entries: CustomReceiptEntry[], afterId: string | null, blocks: CustomReceiptEntry[]): CustomReceiptEntry[] {
   if (!afterId) return [...blocks, ...entries]
   const idx = entries.findIndex((e) => e.id === afterId)
   if (idx < 0) return [...entries, ...blocks]
@@ -649,3 +650,294 @@ export const SIMPLE_ADD_CUSTOM_LINE = (): CustomReceiptEntry => {
 }
 
 export const SIMPLE_ADD_QR = (): CustomReceiptEntry => createEmptyBlock('barcode')
+
+export interface SimpleSectionItem {
+  id: string
+  sectionKey: SimpleSectionId | 'totals' | 'custom'
+  title: string
+  description: string
+  enabled: boolean
+  entryIds: string[]
+  customEntry?: CustomReceiptEntry
+}
+
+export function buildSimpleSectionsList(
+  template: CustomReceiptTemplate,
+  isRestaurant: boolean
+): SimpleSectionItem[] {
+  const mapped = mapTemplateToSimple(template)
+  const entries = template.entries
+
+  const logoId = mapped.logo?.id
+  const storeNameId = mapped.storeName?.id
+  const storeDetailsId = mapped.storeDetails?.id
+  const invoiceRowId = mapped.invoiceRow?.id
+  const customerRowId = mapped.customerRow?.id
+  const itemsId = mapped.items?.id
+  const tokenRowId = mapped.tokenRow?.id
+  const qrId = mapped.qr?.id
+  const qrCaptionId = mapped.qrCaption?.id
+  const footerId = mapped.footer?.id
+
+  const totalPrimaryIds = [
+    mapped.subtotal?.id,
+    mapped.discount?.id,
+    mapped.tax?.id,
+    mapped.grandTotal?.id,
+  ].filter(Boolean) as string[]
+
+  const totalIndices = totalPrimaryIds
+    .map((id) => entries.findIndex((e) => e.id === id))
+    .filter((i) => i >= 0)
+  const minTotalIdx = totalIndices.length > 0 ? Math.min(...totalIndices) : -1
+  const maxTotalIdx = totalIndices.length > 0 ? Math.max(...totalIndices) : -1
+
+  const assigned = new Set<string>()
+
+  // Collect entry IDs for standard sections, including immediately following divider
+  const collectSectionEntryIds = (
+    primaryIds: string[],
+    includePrecedingDivider = false
+  ): string[] => {
+    if (primaryIds.length === 0) return []
+    const idxs = primaryIds
+      .map((id) => entries.findIndex((e) => e.id === id))
+      .filter((i) => i >= 0)
+    if (idxs.length === 0) return []
+
+    let start = Math.min(...idxs)
+    let end = Math.max(...idxs)
+
+    if (includePrecedingDivider && start > 0 && entries[start - 1].type === 'horizontal_line') {
+      const prevH = entries[start - 1]
+      if (!mapped.customEntries.some((c) => c.id === prevH.id) && !assigned.has(prevH.id)) {
+        start--
+      }
+    }
+
+    if (end + 1 < entries.length && entries[end + 1].type === 'horizontal_line') {
+      const nextH = entries[end + 1]
+      if (!mapped.customEntries.some((c) => c.id === nextH.id) && !assigned.has(nextH.id)) {
+        end++
+      }
+    }
+
+    const res: string[] = []
+    for (let i = start; i <= end; i++) {
+      const e = entries[i]
+      if (!assigned.has(e.id)) {
+        res.push(e.id)
+        assigned.add(e.id)
+      }
+    }
+    return res
+  }
+
+  // Totals block (including surrounding dividers)
+  const totalsEntryIds: string[] = []
+  if (minTotalIdx >= 0 && maxTotalIdx >= 0) {
+    let tStart = minTotalIdx
+    let tEnd = maxTotalIdx
+    if (tStart > 0 && entries[tStart - 1].type === 'horizontal_line') {
+      const prevH = entries[tStart - 1]
+      if (!mapped.customEntries.some((c) => c.id === prevH.id)) tStart--
+    }
+    if (tEnd + 1 < entries.length && entries[tEnd + 1].type === 'horizontal_line') {
+      const nextH = entries[tEnd + 1]
+      if (!mapped.customEntries.some((c) => c.id === nextH.id)) tEnd++
+    }
+    for (let i = tStart; i <= tEnd; i++) {
+      totalsEntryIds.push(entries[i].id)
+      assigned.add(entries[i].id)
+    }
+  }
+
+  const logoEntryIds = logoId ? collectSectionEntryIds([logoId]) : []
+  const storeNameEntryIds = storeNameId ? collectSectionEntryIds([storeNameId]) : []
+  const storeDetailsEntryIds = storeDetailsId ? collectSectionEntryIds([storeDetailsId]) : []
+  const invoiceRowEntryIds = invoiceRowId ? collectSectionEntryIds([invoiceRowId]) : []
+  const customerRowEntryIds = customerRowId ? collectSectionEntryIds([customerRowId]) : []
+  const itemsEntryIds = itemsId ? collectSectionEntryIds([itemsId]) : []
+  const tokenRowEntryIds = tokenRowId ? collectSectionEntryIds([tokenRowId]) : []
+  const qrEntryIds = qrId ? collectSectionEntryIds([qrId, qrCaptionId].filter(Boolean) as string[]) : []
+  const footerEntryIds = footerId ? collectSectionEntryIds([footerId]) : []
+
+  // Check custom entries
+  const customItems: SimpleSectionItem[] = []
+  mapped.customEntries.forEach((c) => {
+    assigned.add(c.id)
+    customItems.push({
+      id: `custom-${c.id}`,
+      sectionKey: 'custom',
+      title: c.type === 'horizontal_line' ? 'Divider' : c.type === 'barcode' ? 'Extra Barcode / QR' : 'Custom line',
+      description:
+        c.type === 'horizontal_line'
+          ? `${c.lineStyle || 'dashed'} divider line`
+          : c.type === 'text' || c.type === 'text_special'
+          ? humanizeTemplateText(c.text || 'Custom text line').slice(0, 48)
+          : 'Custom block',
+      enabled: c.enabled,
+      entryIds: [c.id],
+      customEntry: c,
+    })
+  })
+
+  // Any remaining entries that are not in customEntries and not assigned yet
+  entries.forEach((e) => {
+    if (!assigned.has(e.id)) {
+      assigned.add(e.id)
+      customItems.push({
+        id: `custom-${e.id}`,
+        sectionKey: 'custom',
+        title: e.type === 'horizontal_line' ? 'Divider' : 'Line',
+        description: e.type === 'horizontal_line' ? `${(e as any).lineStyle || 'dashed'} divider line` : 'Additional line',
+        enabled: e.enabled,
+        entryIds: [e.id],
+        customEntry: e,
+      })
+    }
+  })
+
+  const standardSections: SimpleSectionItem[] = [
+    {
+      id: 'section-logo',
+      sectionKey: 'logo',
+      title: 'Store logo',
+      description: 'Printed at the top of the bill',
+      enabled: isSectionEnabled(mapped, 'logo'),
+      entryIds: logoEntryIds,
+    },
+    {
+      id: 'section-storeName',
+      sectionKey: 'storeName',
+      title: 'Store name',
+      description: 'Always uses the name from store settings',
+      enabled: isSectionEnabled(mapped, 'storeName'),
+      entryIds: storeNameEntryIds,
+    },
+    {
+      id: 'section-storeDetails',
+      sectionKey: 'storeDetails',
+      title: 'Store details',
+      description: 'Address, phone, and GSTIN from store settings',
+      enabled: isSectionEnabled(mapped, 'storeDetails'),
+      entryIds: storeDetailsEntryIds,
+    },
+    {
+      id: 'section-invoiceRow',
+      sectionKey: 'invoiceRow',
+      title: 'Invoice row',
+      description: 'Bill number and date',
+      enabled: isSectionEnabled(mapped, 'invoiceRow'),
+      entryIds: invoiceRowEntryIds,
+    },
+    {
+      id: 'section-customerRow',
+      sectionKey: 'customerRow',
+      title: 'Customer row',
+      description: 'Customer name and time',
+      enabled: isSectionEnabled(mapped, 'customerRow'),
+      entryIds: customerRowEntryIds,
+    },
+    {
+      id: 'section-items',
+      sectionKey: 'items',
+      title: 'Items table',
+      description: 'Sold items with quantity and amount',
+      enabled: isSectionEnabled(mapped, 'items'),
+      entryIds: itemsEntryIds,
+    },
+    {
+      id: 'section-totals',
+      sectionKey: 'totals',
+      title: 'Totals',
+      description: 'Subtotal, discount, tax, and grand total',
+      enabled:
+        isSectionEnabled(mapped, 'subtotal') ||
+        isSectionEnabled(mapped, 'discount') ||
+        isSectionEnabled(mapped, 'tax') ||
+        isSectionEnabled(mapped, 'grandTotal'),
+      entryIds: totalsEntryIds,
+    },
+    ...(isRestaurant || mapped.tokenRow
+      ? [
+          {
+            id: 'section-tokenRow',
+            sectionKey: 'tokenRow' as const,
+            title: 'Token / table number',
+            description: 'Large number printed above the QR — token, order, or table',
+            enabled: isSectionEnabled(mapped, 'tokenRow'),
+            entryIds: tokenRowEntryIds,
+          },
+        ]
+      : []),
+    {
+      id: 'section-qr',
+      sectionKey: 'qr',
+      title: 'QR code',
+      description: 'UPI payment, digital bill, or custom link',
+      enabled: isSectionEnabled(mapped, 'qr'),
+      entryIds: qrEntryIds,
+    },
+    {
+      id: 'section-footer',
+      sectionKey: 'footer',
+      title: 'Footer',
+      description: 'Thank-you line at the bottom',
+      enabled: isSectionEnabled(mapped, 'footer'),
+      entryIds: footerEntryIds,
+    },
+  ]
+
+  const allSections = [...standardSections, ...customItems]
+
+  // Canonical fallback order for sections that don't have entries in template.entries yet
+  const canonicalOrder = [
+    'logo',
+    'storeName',
+    'storeDetails',
+    'invoiceRow',
+    'customerRow',
+    'items',
+    'totals',
+    'tokenRow',
+    'qr',
+    'footer',
+  ]
+
+  // Sort sections by their earliest entry position in template.entries
+  allSections.sort((a, b) => {
+    const aIndices = a.entryIds.map((id) => entries.findIndex((e) => e.id === id)).filter((i) => i >= 0)
+    const bIndices = b.entryIds.map((id) => entries.findIndex((e) => e.id === id)).filter((i) => i >= 0)
+    const aFirst = aIndices.length > 0 ? Math.min(...aIndices) : 1000 + canonicalOrder.indexOf(a.sectionKey)
+    const bFirst = bIndices.length > 0 ? Math.min(...bIndices) : 1000 + canonicalOrder.indexOf(b.sectionKey)
+    return aFirst - bFirst
+  })
+
+  return allSections
+}
+
+export function reorderSimpleSections(
+  template: CustomReceiptTemplate,
+  reorderedSections: SimpleSectionItem[]
+): CustomReceiptTemplate {
+  const newEntries: CustomReceiptEntry[] = []
+
+  for (const sec of reorderedSections) {
+    for (const id of sec.entryIds) {
+      const found = template.entries.find((e) => e.id === id)
+      if (found && !newEntries.some((existing) => existing.id === found.id)) {
+        newEntries.push(found)
+      }
+    }
+  }
+
+  // Preserve any untracked entries
+  for (const e of template.entries) {
+    if (!newEntries.some((existing) => existing.id === e.id)) {
+      newEntries.push(e)
+    }
+  }
+
+  return { ...template, entries: newEntries }
+}

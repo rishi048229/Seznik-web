@@ -130,7 +130,12 @@ export const resolveEffectiveReceiptConfig = (
     receiptQrSize: rConf?.receiptQrSize,
   }
 
-  const withOverrides = { ...merged, ...(overrides || {}) }
+  const withOverrides: ReceiptConfig = {
+    ...merged,
+    ...(overrides || {}),
+    customTemplates: overrides?.customTemplates ?? merged.customTemplates,
+    activeCustomTemplateId: overrides?.activeCustomTemplateId ?? merged.activeCustomTemplateId,
+  }
   const printGst = resolveReceiptPrintGst(settings?.invoiceConfig, withOverrides)
   withOverrides.showTaxBreakdown = printGst.showTaxBreakdown
   return withOverrides

@@ -148,9 +148,6 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
           <div key={entry.id || idx} className={`my-2 flex ${entry.align === 'left' ? 'justify-start' : entry.align === 'right' ? 'justify-end' : 'justify-center'}`}>
             {isQr ? (
               <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 inline-block">
-                {isUpi ? (
-                  <div className="text-[9px] font-bold tracking-wider text-center mb-1">SCAN TO PAY VIA UPI</div>
-                ) : null}
                 <QRCodeSVG
                   value={rawVal || 'https://seznik.com'}
                   size={qrSize}

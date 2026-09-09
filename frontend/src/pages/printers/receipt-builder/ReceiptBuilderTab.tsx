@@ -191,8 +191,11 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
         ? customTemplates.map((tpl) => (tpl.id === toSave.id ? toSave : tpl))
         : [...customTemplates, toSave]
       const logoToPersist = toSave.entries.find((e) => e.type === 'image')?.imageURL || storeLogoUrl || ''
+      const hasQr = toSave.entries.some((e) => e.type === 'barcode' && e.enabled)
       await saveReceiptPatch({
         customTemplates: list,
+        activeCustomTemplateId: toSave.id,
+        showPaymentQR: hasQr,
         ...(logoToPersist ? { logoURL: logoToPersist } : {}),
         ...(isValidUpiVpa(storeUpiId) ? { upiId: storeUpiId.trim() } : {}),
       })

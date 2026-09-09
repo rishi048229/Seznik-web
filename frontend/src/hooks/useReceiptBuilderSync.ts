@@ -99,7 +99,7 @@ export function useReceiptBuilderSync() {
       const list = customTemplates.some((t) => t.id === updated.id)
         ? customTemplates.map((t) => (t.id === updated.id ? updated : t))
         : [...customTemplates, updated]
-      return saveReceiptPatch({ customTemplates: list })
+      return saveReceiptPatch({ customTemplates: list, activeCustomTemplateId: updated.id })
     },
     [customTemplates, saveReceiptPatch]
   )
@@ -127,7 +127,7 @@ export function useReceiptBuilderSync() {
         createdAt: now,
         updatedAt: now,
       }
-      return saveReceiptPatch({ customTemplates: [...customTemplates, cloned] })
+      return saveReceiptPatch({ customTemplates: [...customTemplates, cloned], activeCustomTemplateId: cloned.id })
     },
     [customTemplates, saveReceiptPatch]
   )
@@ -140,7 +140,7 @@ export function useReceiptBuilderSync() {
   const createTemplate = useCallback(
     async (name?: string) => {
       const tpl = createDefaultReceiptTemplate(name || `Custom Receipt ${customTemplates.length + 1}`)
-      await saveReceiptPatch({ customTemplates: [...customTemplates, tpl] })
+      await saveReceiptPatch({ customTemplates: [...customTemplates, tpl], activeCustomTemplateId: tpl.id })
       return tpl
     },
     [customTemplates, saveReceiptPatch]

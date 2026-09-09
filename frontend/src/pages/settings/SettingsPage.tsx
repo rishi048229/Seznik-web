@@ -23,6 +23,7 @@ import { toastError } from '@/utils/userMessage'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNavFeatureVisible } from '@/utils/businessFeatures'
 import { BUSINESS_TYPE_OPTIONS, type BusinessType } from '@/constants/businessTypes'
+import { BusinessTypeIcon } from '@/components/icons/BusinessTypeIcon'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -356,6 +357,8 @@ export const SettingsPage = () => {
                       setIsLogoUploading(false)
                     }}
                     previewSize="lg"
+                    aspectRatio="banner"
+                    enableBackgroundCleanup={true}
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
                   />
                   {isLogoUploading && (
@@ -404,7 +407,7 @@ export const SettingsPage = () => {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                     Switching your business type adapts your navigation, POS screens, and catalog features. Product stock counts are safely preserved across modes.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                     {BUSINESS_TYPE_OPTIONS.map((opt) => {
                       const isSelected = (selectedBusinessType || userProfile?.businessType) === opt.id
                       return (
@@ -416,16 +419,30 @@ export const SettingsPage = () => {
                             handleSaveBusinessType(opt.id)
                           }}
                           disabled={isSavingBusinessType}
-                          className={`flex flex-col text-left p-3.5 rounded-xl border transition-all ${
+                          className={`group relative flex flex-col text-left p-4 rounded-xl border transition-all ${
                             isSelected
-                              ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500/20 shadow-sm'
-                              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-dark-card text-gray-800 dark:text-gray-200'
+                              ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/35 text-blue-950 dark:text-blue-100 ring-2 ring-blue-500/25 shadow-sm'
+                              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-dark-card text-gray-800 dark:text-gray-200 hover:shadow-xs'
                           } ${isSavingBusinessType ? 'opacity-70 cursor-wait' : 'cursor-pointer'}`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold">{opt.label}</span>
-                            {isSelected && <Check size={16} className="text-blue-600 dark:text-blue-400" />}
+                          <div className="flex items-start justify-between w-full mb-3">
+                            <BusinessTypeIcon
+                              type={opt.id}
+                              selected={isSelected}
+                              containerSize="sm"
+                              size={20}
+                            />
+                            {isSelected ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white shadow-xs">
+                                <Check size={12} strokeWidth={3} />
+                              </span>
+                            ) : (
+                              <span className="w-5 h-5 rounded-full border border-gray-200 dark:border-gray-700 group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors" />
+                            )}
                           </div>
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">
+                            {opt.label}
+                          </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
                             {opt.description}
                           </span>

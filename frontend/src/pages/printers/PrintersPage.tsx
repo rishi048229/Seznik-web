@@ -335,6 +335,7 @@ export const PrintersPage = () => {
       receiptConfig: {
         ...receiptConfig,
         customTemplates: updatedTemplates,
+        activeCustomTemplateId: activeCustomTemplate?.id || activeCustomTemplateId || null,
       },
       printerConfig: withSyncedPaperKeys(config),
       businessLogoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
@@ -577,15 +578,24 @@ export const PrintersPage = () => {
       return
     }
 
+    const testPrintTemplate = effectivePreviewTemplate || activeCustomTemplate
     const effectiveReceiptConfig = resolveEffectiveReceiptConfig(
       {
         ...settings,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
-        receiptConfig,
+        receiptConfig: {
+          ...receiptConfig,
+          customTemplates,
+          activeCustomTemplateId: testPrintTemplate?.id || activeCustomTemplateId,
+        },
         printerConfig: config,
       },
-      receiptConfig,
+      {
+        ...receiptConfig,
+        customTemplates,
+        activeCustomTemplateId: testPrintTemplate?.id || activeCustomTemplateId,
+      },
     )
 
     if (activeTab === 'receipt') {
@@ -615,6 +625,7 @@ export const PrintersPage = () => {
           const bytes = await generateReceiptEscPos({
             sale: testSale as any,
             receiptConfig: effectiveReceiptConfig,
+            templateOverride: testPrintTemplate ?? undefined,
             paperSize: config.paperSize,
             printerConfig: config,
             receiptFont: config.receiptFont,
@@ -634,6 +645,7 @@ export const PrintersPage = () => {
       const receiptHTML = generateReceiptHTML({
         sale: testSale as any,
         receiptConfig: effectiveReceiptConfig,
+        templateOverride: testPrintTemplate ?? undefined,
         printerConfig: config,
         receiptFont: config.receiptFont,
         businessName: settings?.businessName,

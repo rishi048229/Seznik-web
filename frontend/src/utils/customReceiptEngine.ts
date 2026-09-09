@@ -777,9 +777,8 @@ export function compileCustomReceiptHtml(
           isUpi || entry.qrType === 'digital_bill' || !entry.size
             ? receiptStandardQrHtmlPxFromChip(gstOpts.receiptQrSize)
             : receiptQrHtmlPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
-        const upiHeader = isUpi ? `<div style="font-size:10px;font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div>` : ''
         parts.push(
-          `<div style="text-align:${align};margin:10px 0;width:100%;">${upiHeader}<img src="${qrImg}" width="${qrDim}" height="${qrDim}" alt="QR Code" style="display:inline-block;image-rendering:pixelated;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" /></div>`
+          `<div style="text-align:${align};margin:10px 0;width:100%;"><img src="${qrImg}" width="${qrDim}" height="${qrDim}" alt="QR Code" style="display:inline-block;image-rendering:pixelated;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" /></div>`
         )
       } else {
         parts.push(

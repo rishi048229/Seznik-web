@@ -197,9 +197,7 @@ function ensureStandardShopTemplateForBusiness(
     return { templates, shouldPersist: false }
   }
 
-  const hasStandard = templates.some(
-    (t) => t.name === STANDARD_RECEIPT_TEMPLATE_NAME || (t.isDefault && !isRestaurantReceiptTemplate(t))
-  )
+  const hasStandard = templates.some((t) => !isRestaurantReceiptTemplate(t))
   if (hasStandard) {
     return { templates, shouldPersist: false }
   }
@@ -224,26 +222,21 @@ function resolveActiveTemplateForBusinessType(
   const current = currentActiveId ? templates.find((t) => t.id === currentActiveId) : null
 
   if (isRestaurantBusiness(businessType)) {
+    if (current) {
+      return { activeId: currentActiveId, changed: false }
+    }
     const restaurant = templates.find(isRestaurantReceiptTemplate)
-    if (!restaurant) {
-      const fallback = preferredActiveId ?? resolveDefaultActiveTemplateId(templates, businessType)
-      return { activeId: fallback, changed: fallback !== currentActiveId }
-    }
-    if (!current || !isRestaurantReceiptTemplate(current)) {
-      return { activeId: restaurant.id, changed: restaurant.id !== currentActiveId }
-    }
+    const fallback = preferredActiveId ?? restaurant?.id ?? resolveDefaultActiveTemplateId(templates, businessType)
+    return { activeId: fallback, changed: fallback !== currentActiveId }
+  }
+
+  if (current) {
     return { activeId: currentActiveId, changed: false }
   }
 
   const standardId =
     preferredActiveId ?? resolveDefaultActiveTemplateId(templates, businessType)
-  if (!current || isRestaurantReceiptTemplate(current)) {
-    return { activeId: standardId, changed: standardId !== currentActiveId }
-  }
-  if (!currentActiveId || !templates.some((t) => t.id === currentActiveId)) {
-    return { activeId: standardId, changed: true }
-  }
-  return { activeId: currentActiveId, changed: false }
+  return { activeId: standardId, changed: standardId !== currentActiveId }
 }
 
 function resolveDefaultActiveTemplateId(
