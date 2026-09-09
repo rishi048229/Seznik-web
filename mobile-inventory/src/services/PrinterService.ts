@@ -3252,20 +3252,6 @@ class ThermalPrinterServiceManager {
     }
   }
 
-  /**
-   * Which label command language the connected printer understands. Defaults to the
-   * WYSIWYG graphic path because it works on any thermal printer; TSPL is opt-in since
-   * a non-TSPL printer prints those commands out as literal text rather than a label.
-   */
-  public getLabelEngine(): 'graphic' | 'tspl' {
-    try {
-      const { usePrinterStore } = require('../store/usePrinterStore');
-      return usePrinterStore.getState().labelEngine || 'graphic';
-    } catch {
-      return 'graphic';
-    }
-  }
-
   public getEscPosPaperWidth(): '58mm' | '80mm' {
     try {
       const { usePrinterStore } = require('../store/usePrinterStore');
@@ -3327,19 +3313,7 @@ class ThermalPrinterServiceManager {
 
     await this.initPrinter(paperWidth);
 
-    const requestedWidthDots = Math.round(spec.widthMm * 8);
-    const labelWidthDots = Math.min(paperSizeDots, requestedWidthDots);
-
-    // printPic scales to the requested width and keeps the aspect ratio, so a label
-    // wider than the print head (a 50mm label on a 58mm roll's 48mm head) comes out
-    // SHORTER than its true height too. Feeding a fixed gap after that leaves the paper
-    // a few dots short of the next label every time, and the error accumulates until
-    // content straddles the gap — the creeping misalignment seen on die-cut stock.
-    // Feed the remainder of the real label pitch instead of a constant.
-    const scale = requestedWidthDots > 0 ? labelWidthDots / requestedWidthDots : 1;
-    const printedHeightDots = Math.round(spec.heightMm * 8 * scale);
-    const pitchDots = Math.round((spec.heightMm + Math.max(0, labelGapMm)) * 8);
-    const advanceDots = Math.max(0, pitchDots - printedHeightDots);
+    const labelWidthDots = Math.min(paperSizeDots, Math.round(spec.widthMm * 8));
 
     for (let i = 0; i < Math.max(1, copies); i++) {
       await this.printEscPosBitmap(base64, {
@@ -3349,9 +3323,10 @@ class ThermalPrinterServiceManager {
         paperSize: paperSizeDots,
       });
 
-      if (advanceDots > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
+      if (labelGapMm > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
         try {
-          await NativeEscposPrinter.printAndFeed(Math.min(255, advanceDots));
+          const feedDots = Math.min(60, Math.max(8, Math.round(labelGapMm * 8)));
+          await NativeEscposPrinter.printAndFeed(feedDots);
         } catch (feedErr) {
           console.warn('[PrinterService] printAndFeed gap advance failed:', feedErr);
         }
@@ -3380,10 +3355,10 @@ class ThermalPrinterServiceManager {
     const widthMm = Math.min(calWidthMm, headMm);
     const heightMm = this.safeMm(heightMmRaw, 30);
 
-    const pad = Math.max(2.0, widthMm * 0.04);
+    const pad = Math.max(1.5, widthMm * 0.04);
     const innerWidth = widthMm - pad * 2;
-    const nameHeight = Math.max(2.6, Math.min(3.8, heightMm * 0.13));
-    const priceHeight = Math.max(2.8, Math.min(4.0, heightMm * 0.14));
+    const nameHeight = Math.max(2.8, Math.min(4.5, heightMm * 0.15));
+    const priceHeight = Math.max(3.2, Math.min(5.0, heightMm * 0.18));
 
     const elements: JoshLabelElement[] = [
       {
@@ -3401,7 +3376,7 @@ class ThermalPrinterServiceManager {
         type: 'text',
         value: `Rs. ${(product.sellingPrice ?? 0).toFixed(2)}`,
         x: pad,
-        y: pad + nameHeight + 0.5,
+        y: pad + nameHeight + 0.6,
         width: innerWidth,
         height: priceHeight,
         fontHeight: priceHeight,
@@ -3410,9 +3385,8 @@ class ThermalPrinterServiceManager {
       },
     ];
 
-    const codeTop = pad + nameHeight + priceHeight + 1.2;
-    const bottomPad = 2.5; // Ensure 2.5mm margin at bottom so barcode never crosses label gap
-    const codeSpace = Math.max(4, heightMm - codeTop - bottomPad);
+    const codeTop = pad + nameHeight + priceHeight + 1.6;
+    const codeSpace = Math.max(4, heightMm - codeTop - pad);
 
     if (format === 'qr') {
       const size = Math.min(codeSpace, innerWidth);
@@ -3426,7 +3400,7 @@ class ThermalPrinterServiceManager {
     } else {
       const digits = rawCode.replace(/\D/g, '');
       const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
-      const textHeight = Math.min(2.6, codeSpace * 0.28);
+      const textHeight = Math.min(2.8, codeSpace * 0.28);
       const barHeight = Math.max(4, codeSpace - textHeight);
       const barWidth = Math.min(innerWidth, widthMm * 0.88);
 
@@ -4470,16 +4444,6 @@ class ThermalPrinterServiceManager {
       console.warn('[PrinterService] printSpecViaEscposGraphic for template failed, trying TSPL:', graphicErr);
     }
 
-    // Fallback for ESC/POS printers: use sequential ESC/POS template print
-    if (this.getLabelEngine() !== 'tspl') {
-      return await this.printLabelTemplateOnReceiptPaper(
-        product,
-        template,
-        this.getEscPosPaperWidth(),
-        copies
-      );
-    }
-
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
 
     // TSPL label jobs never go through initPrinter(), so they need their own socket check.
@@ -4894,16 +4858,6 @@ class ThermalPrinterServiceManager {
       }
     } catch (graphicErr) {
       console.warn('[PrinterService] printSpecViaEscposGraphic for auto label failed, trying TSPL:', graphicErr);
-    }
-
-    // Fallback for ESC/POS printers: use hardware ESC/POS label print
-    if (this.getLabelEngine() !== 'tspl') {
-      return await this.printLabelOnReceiptPaper(
-        product,
-        format,
-        this.getEscPosPaperWidth(),
-        safeCopies
-      );
     }
 
     try {
@@ -6158,21 +6112,6 @@ class ThermalPrinterServiceManager {
         labelGapMm
       );
       if (ok) return true;
-    }
-
-    // If the label engine is set to graphic (or user has a standard ESC/POS thermal printer),
-    // route through printCustomLabel to render a high-res graphic instead of sending raw TSPL commands
-    // which print as literal text on ESC/POS printers.
-    if (this.getLabelEngine() !== 'tspl') {
-      return this.printCustomLabel(
-        item,
-        format,
-        density,
-        labelWidthMm,
-        labelHeightMm,
-        labelGapMm,
-        1
-      );
     }
 
     try {
