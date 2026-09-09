@@ -415,7 +415,7 @@ export const CategoriesPage = () => {
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold ${
                             currentPage === page
-                              ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                              ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900'
                               : 'bg-gray-200 dark:bg-dark-hover text-gray-600 dark:text-gray-300'
                           }`}
                         >

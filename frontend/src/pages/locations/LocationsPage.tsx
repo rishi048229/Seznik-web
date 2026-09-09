@@ -531,7 +531,7 @@ export const LocationsPage = () => {
                       onClick={() => setTransferProductId(p.id)}
                       className={`w-full px-3 py-2 text-left flex items-center justify-between transition-colors ${
                         isSelected
-                          ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900'
+                          ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900'
                           : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-800 dark:text-gray-200'
                       }`}
                     >

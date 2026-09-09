@@ -14,7 +14,7 @@ interface KotSettingsFieldsProps {
 const chipClass = (active: boolean) =>
   `inline-flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg text-xs font-medium transition-colors duration-150 ${
     active
-      ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+      ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900'
       : 'bg-gray-100 dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-elevated hover:text-gray-800 dark:hover:text-gray-200'
   }`
 

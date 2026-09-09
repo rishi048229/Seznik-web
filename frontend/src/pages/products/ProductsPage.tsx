@@ -1057,7 +1057,7 @@ export const ProductsPage = () => {
             onClick={() => setCategoryFilter('')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
               !categoryFilter
-                ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
+                ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
                 : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
             }`}
           >
@@ -1072,7 +1072,7 @@ export const ProductsPage = () => {
                 onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
                   categoryFilter === c.value
-                    ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
+                    ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
                     : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
                 }`}
               >
@@ -1279,7 +1279,7 @@ export const ProductsPage = () => {
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold ${
                             currentPage === page
-                              ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900'
+                              ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900'
                               : 'bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
                           }`}
                         >
@@ -2126,7 +2126,7 @@ export const ProductsPage = () => {
                       onClick={() => handleSelectSizePreset(p.id)}
                       className={`p-2 rounded-xl border text-center transition-all ${
                         isSelected
-                          ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
+                          ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
                           : 'bg-white dark:bg-dark-card/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
                       }`}
                     >

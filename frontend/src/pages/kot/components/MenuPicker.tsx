@@ -206,7 +206,7 @@ export const MenuPicker = ({
             }}
             className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${
               !unavailableMode && categoryId === ''
-                ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500'
+                ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500'
                 : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border'
             }`}
           >
@@ -236,7 +236,7 @@ export const MenuPicker = ({
               }}
               className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${
                 !unavailableMode && categoryId === cat.id
-                  ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500'
+                  ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 border-[#0a0a2e] dark:border-zinc-500'
                   : 'bg-white dark:bg-dark-elevated text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-border'
               }`}
             >

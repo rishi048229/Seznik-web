@@ -130,7 +130,7 @@ export const KOTBillModal = ({
           }
           disabled={!isComplete || loading || net < 0}
           loading={loading}
-          className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
+          className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 hover:bg-[#1a1555] dark:hover:bg-white"
         >
           <Printer size={18} className="mr-2" />
           {isComplete ? 'Print Bill & Mark Settled' : 'Select customer for unpaid balance'}
@@ -148,7 +148,7 @@ export const KOTBillModal = ({
                 onClick={() => onOrderTypeChange(opt.id)}
                 className={`py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                   orderType === opt.id
-                    ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                    ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900'
                     : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
                 }`}
               >
@@ -238,7 +238,7 @@ export const KOTBillModal = ({
                 }}
                 className={`py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                   roomType === opt.id
-                    ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                    ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900'
                     : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
                 }`}
               >

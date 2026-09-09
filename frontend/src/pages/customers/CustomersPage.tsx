@@ -356,7 +356,7 @@ export const CustomersPage = () => {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded text-xs font-bold ${
                         currentPage === page
-                          ? 'bg-[#0a0a2e] dark:bg-zinc-100 dark:text-zinc-900'
+                          ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900'
                           : 'hover:bg-gray-200 dark:hover:bg-dark-elevated text-gray-600 dark:text-gray-300'
                       }`}
                     >

@@ -359,7 +359,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                       onClick={() => handleToleranceChange(s.val)}
                       className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
                         tolerance === s.val
-                          ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 shadow-sm'
+                          ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm'
                           : 'bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-dark-border-strong hover:bg-gray-100'
                       }`}
                     >

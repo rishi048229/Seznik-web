@@ -43,14 +43,14 @@ export function BillChargesSettingsPanel({ presets, onChange }: BillChargesSetti
             <button
               type="button"
               onClick={() => update(index, { type: 'percent' })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'percent' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'percent' ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
             >
               %
             </button>
             <button
               type="button"
               onClick={() => update(index, { type: 'flat' })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'flat' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${preset.type === 'flat' ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
             >
               ₹
             </button>
@@ -68,14 +68,14 @@ export function BillChargesSettingsPanel({ presets, onChange }: BillChargesSetti
               <button
                 type="button"
                 onClick={() => update(index, { applyOn: 'net_subtotal' })}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn !== 'gross' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn !== 'gross' ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
               >
                 On net (after discount)
               </button>
               <button
                 type="button"
                 onClick={() => update(index, { applyOn: 'gross' })}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn === 'gross' ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${preset.applyOn === 'gross' ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 border-blue-600' : 'border-gray-300 dark:border-dark-border-strong text-gray-500'}`}
               >
                 On gross (before discount)
               </button>

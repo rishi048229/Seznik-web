@@ -287,7 +287,7 @@ export const DaybookPage = () => {
               className={clsx(
                 'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                 filter === chip.key
-                  ? 'bg-blue-600 dark:bg-zinc-100 dark:text-zinc-900'
+                  ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-elevated dark:text-gray-300'
               )}
             >
