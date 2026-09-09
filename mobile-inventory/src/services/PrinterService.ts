@@ -4470,13 +4470,13 @@ class ThermalPrinterServiceManager {
       console.warn('[PrinterService] printSpecViaEscposGraphic for template failed, trying TSPL:', graphicErr);
     }
 
-    // TSPL is only correct on a genuine TSPL label printer. Reaching here means the
-    // graphic path did not print, and emitting TSPL blindly is what made non-TSPL
-    // printers spit out pages of 'SIZE 50 mm / BARCODE ... / PRINT 1,1' as plain text.
-    // Fail loudly instead, unless the printer has been set to TSPL explicitly.
+    // Fallback for ESC/POS printers: use sequential ESC/POS template print
     if (this.getLabelEngine() !== 'tspl') {
-      throw new Error(
-        'Could not print this label. If you have a dedicated label printer (Josh or YX), connect it from its own card on the Printers screen rather than the general Bluetooth scan — it does not understand receipt-printer commands. If it is a TSPL label printer, set Label Engine to TSPL in Printers settings.'
+      return await this.printLabelTemplateOnReceiptPaper(
+        product,
+        template,
+        this.getEscPosPaperWidth(),
+        copies
       );
     }
 
@@ -4896,12 +4896,13 @@ class ThermalPrinterServiceManager {
       console.warn('[PrinterService] printSpecViaEscposGraphic for auto label failed, trying TSPL:', graphicErr);
     }
 
-    // Same reasoning as printLabelFromTemplate: TSPL only goes out to a printer that has
-    // actually been set to TSPL, so a non-TSPL unit can never be handed commands it will
-    // print as literal text.
+    // Fallback for ESC/POS printers: use hardware ESC/POS label print
     if (this.getLabelEngine() !== 'tspl') {
-      throw new Error(
-        'Could not print this label. If you have a dedicated label printer (Josh or YX), connect it from its own card on the Printers screen rather than the general Bluetooth scan — it does not understand receipt-printer commands. If it is a TSPL label printer, set Label Engine to TSPL in Printers settings.'
+      return await this.printLabelOnReceiptPaper(
+        product,
+        format,
+        this.getEscPosPaperWidth(),
+        safeCopies
       );
     }
 
