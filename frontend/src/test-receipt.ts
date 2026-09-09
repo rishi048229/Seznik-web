@@ -1,0 +1,338 @@
+import { generateReceiptHTML } from './utils/receipt'
+import { sanitizeTemplateForBusinessType } from './utils/customReceiptEngine'
+
+const sampleRetailTemplate = {
+  id: 'receipt-tpl-1787829767601',
+  name: 'Standard Shop Receipt',
+  paperWidth: '58mm',
+  isDefault: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  entries: [
+    {
+      id: 'entry-0-1787829767601',
+      type: 'image' as const,
+      enabled: true,
+      align: 'center' as const,
+      widthPercent: 60,
+    },
+    {
+      id: 'entry-1-1787829767601',
+      bold: true,
+      size: 'large' as const,
+      text: '{{store_name}}',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+    {
+      id: 'entry-2-1787829767601',
+      size: 'small' as const,
+      text: '{{store_address}}\nPh: {{store_phone}}\nGSTIN: {{store_gstin}}',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+    {
+      id: 'entry-3-1787829767601',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-4-1787829767601',
+      left: 'Invoice: {{invoice_no}}',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{date}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-5-1787829767601',
+      left: 'Customer: {{customer_name}}',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{time}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-6-1787829767601',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-7-1787829767601',
+      type: 'table' as const,
+      enabled: true,
+      tableType: 'simple' as const,
+    },
+    {
+      id: 'entry-8-1787829767601',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-9-1787829767601',
+      left: 'Sub Total',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{subtotal}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-9b-1787829767601',
+      bold: true,
+      left: 'Discount',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '-{{discount}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-10-1787829767601',
+      left: 'Tax',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{tax}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-11-1787829767601',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'double' as const,
+    },
+    {
+      id: 'entry-12-1787829767601',
+      bold: true,
+      left: 'GRAND TOTAL',
+      size: 'medium' as const,
+      type: 'left_right_text' as const,
+      right: '{{grand_total}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-13-1787829767601',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-14-1787829767601',
+      size: 'medium' as const,
+      type: 'barcode' as const,
+      align: 'center' as const,
+      upiId: '',
+      value: '{{bill_pdf_url}}',
+      format: 'qr' as const,
+      qrType: 'digital_bill' as const,
+      enabled: true,
+      codeType: 'qr_code' as const,
+    },
+    {
+      id: 'entry-15-1787829767601',
+      size: 'small' as const,
+      text: 'SCAN TO PAY VIA UPI',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+    {
+      id: 'entry-16-1787829767601',
+      bold: true,
+      size: 'small' as const,
+      text: '{{footer_message}}',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+  ],
+}
+
+const sampleRestaurantTemplate = {
+  id: 'receipt-tpl-restaurant-bill',
+  name: 'Restaurant Bill',
+  paperWidth: '58mm',
+  isDefault: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  entries: [
+    {
+      id: 'entry-logo-restaurant',
+      type: 'image' as const,
+      enabled: true,
+      align: 'center' as const,
+      widthPercent: 60,
+    },
+    {
+      id: 'entry-store-name-restaurant',
+      bold: true,
+      size: 'large' as const,
+      text: '{{store_name}}',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+    {
+      id: 'entry-store-details-restaurant',
+      size: 'small' as const,
+      text: '{{store_address}}\nPh: {{store_phone}}\nGSTIN: {{store_gstin}}',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+    {
+      id: 'entry-cash-bill-restaurant',
+      bold: true,
+      size: 'medium' as const,
+      text: 'CASH/BILL',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+    {
+      id: 'entry-divider-restaurant-1',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-bill-row-restaurant',
+      left: 'Bill: {{invoice_no}}',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{date}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-table-row-restaurant',
+      left: 'TNo {{table_no}} {{waiter_name}}',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{time}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-divider-restaurant-2',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-items-restaurant',
+      type: 'table' as const,
+      enabled: true,
+      tableType: 'advanced' as const,
+      columnHeaders: {
+        qty: 'QTY',
+        item: 'ITEM',
+        total: 'AMT',
+      },
+      showItemNumbers: false,
+    },
+    {
+      id: 'entry-divider-restaurant-3',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-subtotal-restaurant',
+      left: 'Sub Total',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{subtotal}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-tax-restaurant',
+      left: 'Tax',
+      size: 'small' as const,
+      type: 'left_right_text' as const,
+      right: '{{tax}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-divider-restaurant-4',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-grand-restaurant',
+      bold: true,
+      left: 'Net Amount',
+      size: 'medium' as const,
+      type: 'left_right_text' as const,
+      right: '{{grand_total}}',
+      enabled: true,
+    },
+    {
+      id: 'entry-divider-restaurant-5',
+      type: 'horizontal_line' as const,
+      enabled: true,
+      lineStyle: 'dashed' as const,
+    },
+    {
+      id: 'entry-footer-restaurant',
+      bold: true,
+      size: 'small' as const,
+      text: '{{footer_message}}',
+      type: 'text' as const,
+      align: 'center' as const,
+      enabled: true,
+    },
+  ],
+}
+
+const testSale = {
+  id: 'test-sale-1',
+  invoiceNumber: 'INV-TEST-001',
+  items: [
+    { productId: '1', productName: 'Demo Premium Item A', quantity: 2, sellingPrice: 450.0, discount: 0, taxRate: 18, taxAmount: 162.0, total: 900.0 },
+    { productId: '2', productName: 'Standard Service B', quantity: 1, sellingPrice: 250.0, discount: 0, taxRate: 18, taxAmount: 45.0, total: 250.0 },
+  ],
+  subtotal: 1150.0,
+  totalDiscount: 0,
+  totalTax: 207.0,
+  grandTotal: 1357.0,
+  paymentMethod: 'cash',
+  amountPaid: 1500.0,
+  changeReturned: 143.0,
+  isQuickBill: false,
+  createdAt: new Date().toISOString(),
+}
+
+console.log('=== TEST 1: Standard Retail Template (isRestaurant: false) ===')
+const html1 = generateReceiptHTML({
+  sale: testSale as any,
+  receiptConfig: {
+    customTemplates: [sampleRetailTemplate, sampleRestaurantTemplate],
+    activeCustomTemplateId: 'receipt-tpl-1787829767601',
+  } as any,
+  isRestaurant: false,
+  templateOverride: sampleRetailTemplate,
+})
+console.log(html1.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '))
+
+console.log('\n=== TEST 2: Restaurant Template with isRestaurant: false ===')
+const html2 = generateReceiptHTML({
+  sale: testSale as any,
+  receiptConfig: {
+    customTemplates: [sampleRetailTemplate, sampleRestaurantTemplate],
+    activeCustomTemplateId: 'receipt-tpl-1787829767601',
+  } as any,
+  isRestaurant: false,
+  templateOverride: sampleRestaurantTemplate,
+})
+console.log(html2.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '))
+
+console.log('\n=== TEST 3: Fallback (no template) with isRestaurant: false ===')
+const html3 = generateReceiptHTML({
+  sale: testSale as any,
+  receiptConfig: {} as any,
+  isRestaurant: false,
+})
+console.log(html3.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '))
