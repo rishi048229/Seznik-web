@@ -3380,10 +3380,10 @@ class ThermalPrinterServiceManager {
     const widthMm = Math.min(calWidthMm, headMm);
     const heightMm = this.safeMm(heightMmRaw, 30);
 
-    const pad = Math.max(1.5, widthMm * 0.04);
+    const pad = Math.max(2.0, widthMm * 0.04);
     const innerWidth = widthMm - pad * 2;
-    const nameHeight = Math.max(2.8, Math.min(4.5, heightMm * 0.15));
-    const priceHeight = Math.max(3.2, Math.min(5.0, heightMm * 0.18));
+    const nameHeight = Math.max(2.6, Math.min(3.8, heightMm * 0.13));
+    const priceHeight = Math.max(2.8, Math.min(4.0, heightMm * 0.14));
 
     const elements: JoshLabelElement[] = [
       {
@@ -3401,7 +3401,7 @@ class ThermalPrinterServiceManager {
         type: 'text',
         value: `Rs. ${(product.sellingPrice ?? 0).toFixed(2)}`,
         x: pad,
-        y: pad + nameHeight + 0.6,
+        y: pad + nameHeight + 0.5,
         width: innerWidth,
         height: priceHeight,
         fontHeight: priceHeight,
@@ -3410,8 +3410,9 @@ class ThermalPrinterServiceManager {
       },
     ];
 
-    const codeTop = pad + nameHeight + priceHeight + 1.6;
-    const codeSpace = Math.max(4, heightMm - codeTop - pad);
+    const codeTop = pad + nameHeight + priceHeight + 1.2;
+    const bottomPad = 2.5; // Ensure 2.5mm margin at bottom so barcode never crosses label gap
+    const codeSpace = Math.max(4, heightMm - codeTop - bottomPad);
 
     if (format === 'qr') {
       const size = Math.min(codeSpace, innerWidth);
@@ -3425,7 +3426,7 @@ class ThermalPrinterServiceManager {
     } else {
       const digits = rawCode.replace(/\D/g, '');
       const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
-      const textHeight = Math.min(2.8, codeSpace * 0.28);
+      const textHeight = Math.min(2.6, codeSpace * 0.28);
       const barHeight = Math.max(4, codeSpace - textHeight);
       const barWidth = Math.min(innerWidth, widthMm * 0.88);
 
@@ -6156,6 +6157,21 @@ class ThermalPrinterServiceManager {
         labelGapMm
       );
       if (ok) return true;
+    }
+
+    // If the label engine is set to graphic (or user has a standard ESC/POS thermal printer),
+    // route through printCustomLabel to render a high-res graphic instead of sending raw TSPL commands
+    // which print as literal text on ESC/POS printers.
+    if (this.getLabelEngine() !== 'tspl') {
+      return this.printCustomLabel(
+        item,
+        format,
+        density,
+        labelWidthMm,
+        labelHeightMm,
+        labelGapMm,
+        1
+      );
     }
 
     try {

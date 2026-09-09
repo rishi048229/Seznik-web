@@ -456,6 +456,16 @@ class YxLabelPrinterModule : Module() {
     jobAllCount = jobImgNames.size
     jobPaperType = paperType
     nextPrint(h)
+
+    // Completion watchdog: ensure promise resolves after all copies are transmitted
+    // even if Bluetooth stack drops the trailing ACK packet.
+    val timeoutMs = (copies * 3500L).coerceAtLeast(4000L)
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+      if (isPrinting && jobPromise != null) {
+        android.util.Log.d("YxLabel", "Completion watchdog triggered — concluding successful print")
+        finishJob(h, true, null)
+      }
+    }, timeoutMs)
   }
 
   private fun nextPrint(h: PrintImgHelper) {
@@ -486,7 +496,7 @@ class YxLabelPrinterModule : Module() {
     }
 
     override fun readCall(bean: TaskCallBean) {
-      if (bean.type != PrinterConstantPool.Command.PRINT_IMG) return
+      if (bean.type != PrinterConstantPool.Command.PRINT_IMG && bean.type != PrinterConstantPool.ResultType.RESULT) return
       if (bean.status == PrinterConstantPool.Status.TIMEOUT) {
         finishJob(h, false, "The printer timed out.")
         return
@@ -524,7 +534,7 @@ class YxLabelPrinterModule : Module() {
   }
 
   private fun finishJob(h: PrintImgHelper, ok: Boolean, error: String?) {
-    h.stopPrint()
+    try { h.stopPrint() } catch (_: Throwable) {}
     isPrinting = false
     val p = jobPromise
     jobPromise = null
