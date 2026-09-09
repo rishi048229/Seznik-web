@@ -95,9 +95,9 @@ export function ReceiptBlockEditorPanel({
             value={purpose}
             onChange={(e) => onChange(applyQrPurpose(entry, e.target.value as QrPurpose))}
           >
-            <option value="upi">💳 UPI payment QR</option>
-            <option value="digital_bill">📄 Digital bill / Invoice PDF QR</option>
-            <option value="custom">🔗 Custom link / Website</option>
+            <option value="upi">UPI Payment QR</option>
+            <option value="digital_bill">Digital Bill / Invoice PDF QR</option>
+            <option value="custom">Custom Link / Website</option>
           </select>
           {purpose === 'upi' ? (
             <ReceiptUpiIdField

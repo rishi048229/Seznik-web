@@ -72,7 +72,15 @@ import {
   Bold,
   Sparkles,
   Image as ImageIcon,
+  Globe,
 } from 'lucide-react'
+
+const UpiIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M14 4.5L19.5 12L14 19.5H9.8L15.3 12L9.8 4.5H14Z" fill="#00B569" />
+    <path d="M8.2 4.5L13.7 12L8.2 19.5H4L9.5 12L4 4.5H8.2Z" fill="#F47920" />
+  </svg>
+)
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `el-${Date.now()}-${Math.random()}`)
 
@@ -748,7 +756,7 @@ export const PrintersPage = () => {
             </div>
           }
         />
-        <p className="text-sm text-slate-500 dark:text-slate-400 -mt-3 mb-1 max-w-2xl">
+        <p className="text-sm text-slate-500 dark:text-slate-400 -mt-3 mb-1 max-w-4xl">
           Connect a printer, then set up receipts, barcode labels, or A4 invoices. Nothing here changes until you save.
         </p>
       </div>
@@ -1295,19 +1303,49 @@ export const PrintersPage = () => {
                             {
                               id: 'upi' as const,
                               title: 'UPI Payment QR',
-                              icon: '💳',
+                              badge: (sel: boolean) => (
+                                <div
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
+                                    sel
+                                      ? 'bg-emerald-100 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-700 shadow-xs'
+                                      : 'bg-gray-100 dark:bg-dark-elevated border-gray-200 dark:border-dark-border'
+                                  }`}
+                                >
+                                  <UpiIcon className="w-4 h-4" />
+                                </div>
+                              ),
                               desc: 'Live dynamic UPI QR for customer checkout payments',
                             },
                             {
                               id: 'digital_bill' as const,
                               title: 'Digital Bill PDF',
-                              icon: '📄',
+                              badge: (sel: boolean) => (
+                                <div
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
+                                    sel
+                                      ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/70 dark:text-blue-400 border-blue-300 dark:border-blue-700 shadow-xs'
+                                      : 'bg-gray-100 text-gray-500 dark:bg-dark-elevated dark:text-gray-400 border-gray-200 dark:border-dark-border'
+                                  }`}
+                                >
+                                  <FileText size={15} />
+                                </div>
+                              ),
                               desc: 'Scan to view & download invoice / receipt PDF',
                             },
                             {
                               id: 'custom' as const,
                               title: 'Custom Link / Web',
-                              icon: '🔗',
+                              badge: (sel: boolean) => (
+                                <div
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
+                                    sel
+                                      ? 'bg-purple-100 text-purple-600 dark:bg-purple-950/70 dark:text-purple-400 border-purple-300 dark:border-purple-700 shadow-xs'
+                                      : 'bg-gray-100 text-gray-500 dark:bg-dark-elevated dark:text-gray-400 border-gray-200 dark:border-dark-border'
+                                  }`}
+                                >
+                                  <Globe size={15} />
+                                </div>
+                              ),
                               desc: 'Store website, Google review, menu, or link',
                             },
                           ]).map(opt => {
@@ -1330,13 +1368,13 @@ export const PrintersPage = () => {
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-1.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-base">{opt.icon}</span>
+                                  <div className="flex items-center gap-2">
+                                    {opt.badge(isSelected)}
                                     <span className={`text-xs font-bold ${isSelected ? 'text-emerald-900 dark:text-emerald-200' : 'text-gray-900 dark:text-gray-100'}`}>
                                       {opt.title}
                                     </span>
                                   </div>
-                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300 dark:border-dark-border'}`}>
+                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300 dark:border-dark-border'}`}>
                                     {isSelected ? <div className="w-1.5 h-1.5 bg-white rounded-full" /> : null}
                                   </div>
                                 </div>
@@ -1377,7 +1415,10 @@ export const PrintersPage = () => {
 
                       {(receiptConfig.qrType || 'upi') === 'digital_bill' && (
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200">
-                          <p className="font-semibold mb-0.5">📄 Digital Bill / Invoice PDF URL</p>
+                          <div className="flex items-center gap-1.5 font-semibold mb-0.5">
+                            <FileText size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span>Digital Bill / Invoice PDF URL</span>
+                          </div>
                           <p className="text-[11px] text-blue-700 dark:text-blue-300">
                             Automatically generates a QR code linking to each invoice&apos;s digital receipt page where customers can view, download, or share their PDF bill.
                           </p>
