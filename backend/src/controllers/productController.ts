@@ -64,11 +64,10 @@ const PRODUCT_CATALOG_SELECT = {
 //   gemini-3.1-pro-preview  -> 429 RESOURCE_EXHAUSTED, free-tier quota is 0 for "pro" models —
 //                              always fails on this account, never worth trying
 const GEMINI_MODEL_FALLBACK_LIST = [
-  'gemini-3.6-flash',
   'gemini-flash-latest',
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
+  'gemini-flash-lite-latest',
 ];
 
 /**
@@ -85,7 +84,7 @@ async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extr
         config: { responseMimeType: 'application/json', ...extraConfig },
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 16000)
+        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
       );
       const response: any = await Promise.race([generatePromise, timeoutPromise]);
       const text = response?.text || '';

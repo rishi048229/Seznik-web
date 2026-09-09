@@ -4,11 +4,10 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 
 const GEMINI_MODEL_FALLBACK_LIST = [
-  'gemini-3.6-flash',
   'gemini-flash-latest',
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
+  'gemini-flash-lite-latest',
 ];
 
 async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extraConfig: Record<string, any> = {}): Promise<string> {
@@ -21,7 +20,7 @@ async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extr
         config: { responseMimeType: 'application/json', ...extraConfig },
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 16000)
+        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
       );
       const response: any = await Promise.race([generatePromise, timeoutPromise]);
       const text = response?.text || '';

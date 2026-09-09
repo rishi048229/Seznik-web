@@ -91,10 +91,10 @@ app.use(
     '/api/utility-bills',
     '/api/utility-bills/extract',
   ],
-  express.json({ limit: '10mb' })
+  express.json({ limit: '50mb' })
 );
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ limit: '2mb', extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Track authenticated + public API usage (hourly buckets) for admin analytics.
 // Mounted before routes so every response is observed; feature resolved from path.

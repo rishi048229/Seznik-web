@@ -5034,6 +5034,7 @@ class ThermalPrinterServiceManager {
           if (barcodeContent) {
             // widthX=2 (narrowest module, dots), height=64dots (~8mm), HRI font A, text below the bars.
             NativeEscposPrinter.printBarCode(barcodeContent, nType, 2, 64, 0, 2);
+            await NativeEscposPrinter.printText('\n', { widthtimes: 0, heigthtimes: 0, cut: false });
           }
         }
 
@@ -5160,6 +5161,7 @@ class ThermalPrinterServiceManager {
             if (typeof NativeEscposPrinter.printBarCode === 'function') {
               const height = Math.max(24, Math.min(160, toDots(el.heightMm)));
               NativeEscposPrinter.printBarCode(content, nType, 2, height, 0, 2);
+              await NativeEscposPrinter.printText('\n', { widthtimes: 0, heigthtimes: 0, cut: false });
             }
           } else if (el.type === 'qrcode') {
             const content = this.resolveLabelCodeValue(product, el);
