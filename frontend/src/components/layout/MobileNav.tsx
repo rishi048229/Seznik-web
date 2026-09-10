@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   Home,
   ShoppingCart,
@@ -37,6 +38,7 @@ type NavItem = {
 
 export const MobileNav = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const shouldReduceMotion = useReducedMotion()
   const { permissions, userProfile } = useAuth()
   const navigate = useNavigate()
   const businessType = userProfile?.businessType
@@ -86,7 +88,12 @@ export const MobileNav = () => {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 lg:hidden safe-bottom">
+      <motion.nav
+        initial={shouldReduceMotion ? false : { y: 26, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.08, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200/80 dark:border-gray-700 lg:hidden safe-bottom"
+      >
         <div className="flex justify-around items-center h-16">
           {primaryItems.slice(0, 2).map(item => (
             <NavLink
@@ -149,13 +156,26 @@ export const MobileNav = () => {
             <span>More</span>
           </button>
         </div>
-      </nav>
+      </motion.nav>
 
       {/* More drawer */}
+      <AnimatePresence>
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setIsDrawerOpen(false)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl pb-safe">
+        <motion.div
+          className="fixed inset-0 z-50 lg:hidden"
+          initial={shouldReduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+        >
+          <motion.div className="absolute inset-0 bg-black/50" onClick={() => setIsDrawerOpen(false)} />
+          <motion.div
+            className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl pb-safe shadow-[0_-12px_36px_rgba(15,23,42,0.16)]"
+            initial={shouldReduceMotion ? false : { y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 27, stiffness: 300 }}
+          >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
               <span className="text-base font-semibold text-gray-900 dark:text-gray-100">Menu</span>
               <button onClick={() => setIsDrawerOpen(false)} className="p-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -184,9 +204,10 @@ export const MobileNav = () => {
                 </NavLink>
               ))}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </>
   )
 }

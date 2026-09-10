@@ -89,7 +89,10 @@ export function CustomReceiptMockup({
     if (!str) return '';
     const phoneVal = (storePhone || '').trim();
     const gstinVal = (storeGstin || '').trim();
-    const custNameVal = (customerName || '').trim();
+    const rawCustName = (customerName || 'Walk-in Customer').trim();
+    const isWalkIn = !customerName || /walk[- ]*in/i.test(customerName);
+    const custNameVal = isWalkIn ? 'Walk-in Customer' : rawCustName;
+    const custLabelVal = isWalkIn ? 'Walk-in' : rawCustName;
     const custPhoneVal = (customerPhone || '').trim();
     const storeNameVal = (storeName || '').trim();
     const storeAddrVal = (storeAddress || '').trim();
@@ -97,7 +100,7 @@ export function CustomReceiptMockup({
     return str
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, phoneVal ? `Phone: ${phoneVal}` : '')
       .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, gstinVal ? `GSTIN: ${gstinVal}` : '')
-      .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, custNameVal ? `Customer: ${custNameVal}` : '')
+      .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, `Customer: ${custLabelVal}`)
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhoneVal ? `Phone: ${custPhoneVal}` : '')
       .replace(/\{\{store_name\}\}/gi, storeNameVal)
       .replace(/\{\{store_address\}\}/gi, storeAddrVal)

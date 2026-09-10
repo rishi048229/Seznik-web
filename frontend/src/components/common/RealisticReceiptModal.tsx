@@ -120,7 +120,7 @@ export const RealisticReceiptModal = ({
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL || '',
       invoiceNumber: sale?.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
       date: sale?.createdAt ? new Date(sale.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
-      customerName: initialCustomerName || (sale as any)?.customer?.name || 'Walk-in Customer',
+      customerName: initialCustomerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer',
       customerPhone: initialCustomerPhone || (sale as any)?.customer?.phone || '',
       items: mappedItems.length > 0 ? mappedItems : [
         { productName: 'Standard Item', quantity: 1, unitPrice: grand || 100, discount: 0, taxRate: 0, total: grand || 100 }

@@ -544,6 +544,8 @@ export const generateReceiptHTML = ({
     ? ensureTemplateHasLogoBlock(customTemplateRaw, resolvedLogo || effectiveLogo)
     : null
 
+  const effectiveCustomerName = (customerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer').trim() || 'Walk-in Customer'
+
   if (customTemplate) {
     const showLogo = effectiveConfig?.showLogo ?? true
     const storeLogoUrl = showLogo ? preferPrintableSrc(resolvedLogo, effectiveLogo, logoURL, effectiveConfig?.logoURL) : undefined
@@ -555,7 +557,7 @@ export const generateReceiptHTML = ({
       businessLogoURL: storeLogoUrl,
       upiId: effectiveConfig?.upiId,
       footerMessage,
-      customerName,
+      customerName: effectiveCustomerName,
       tableNo,
       waiterName,
       tokenNo,
@@ -596,7 +598,7 @@ ${bodyHtml}
     businessAddress,
     businessPhone: effectiveConfig?.phone,
     businessGSTIN: effectiveConfig?.gstin,
-    customerName,
+    customerName: effectiveCustomerName,
     paperSize: paperSizeKey,
     receiptFont: effectiveReceiptFont,
     gstStyle,
@@ -872,6 +874,8 @@ export const generateReceiptEscPos = async ({
   const effectivePaper = (customTemplate?.paperWidth || paperSize) as '58mm' | '80mm'
 
 
+  const effectiveCustomerName = (customerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer').trim() || 'Walk-in Customer'
+
   const context = saleToReceiptContext(sale, {
     businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName,
     businessAddress: businessAddress || printConfig?.address || effectiveConfig?.address,
@@ -880,7 +884,7 @@ export const generateReceiptEscPos = async ({
     businessLogoURL: resolvedLogo,
     upiId: printConfig?.upiId || effectiveConfig?.upiId,
     footerMessage: printConfig?.footerMessage || effectiveConfig?.footerMessage,
-    customerName,
+    customerName: effectiveCustomerName,
     tableNo,
     waiterName,
     tokenNo,
@@ -914,7 +918,7 @@ export const generateReceiptEscPos = async ({
     businessAddress,
     businessPhone: printConfig?.phone || effectiveConfig?.phone || businessPhone,
     businessGSTIN: printConfig?.gstin || effectiveConfig?.gstin || businessGSTIN,
-    customerName,
+    customerName: effectiveCustomerName,
     paperSize: effectivePaper,
     receiptFont: effectiveReceiptFont,
     gstStyle: printGst.gstStyle,

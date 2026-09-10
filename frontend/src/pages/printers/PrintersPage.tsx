@@ -601,18 +601,21 @@ export const PrintersPage = () => {
     if (activeTab === 'receipt') {
       const testSale = {
         id: 'test-sale-1',
-        invoiceNumber: 'INV-TEST-001',
+        invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+        customerName: 'Walk-in Customer',
+        customerPhone: '+91 99887 76655',
         items: [
-          { productId: '1', productName: 'Demo Premium Item A', quantity: 2, sellingPrice: 450.00, discount: 0, taxRate: 18, taxAmount: 162.00, total: 900.00 },
-          { productId: '2', productName: 'Standard Service B', quantity: 1, sellingPrice: 250.00, discount: 0, taxRate: 18, taxAmount: 45.00, total: 250.00 },
+          { productId: '1', productName: 'Basmati Rice 5kg', quantity: 1, sellingPrice: 450.00, discount: 0, taxRate: 5, taxAmount: 22.50, total: 450.00 },
+          { productId: '2', productName: 'Sunflower Oil 1L', quantity: 2, sellingPrice: 180.00, discount: 0, taxRate: 5, taxAmount: 18.00, total: 360.00 },
+          { productId: '3', productName: 'Whole Wheat Flour 5kg', quantity: 1, sellingPrice: 280.00, discount: 0, taxRate: 0, taxAmount: 0, total: 280.00 },
         ],
-        subtotal: 1150.00,
+        subtotal: 1090.00,
         totalDiscount: 0,
-        totalTax: 207.00,
-        grandTotal: 1357.00,
+        totalTax: 40.50,
+        grandTotal: 1130.50,
         paymentMethod: 'cash',
-        amountPaid: 1500.00,
-        changeReturned: 143.00,
+        amountPaid: 1130.50,
+        changeReturned: 0,
         isQuickBill: false,
         createdAt: new Date().toISOString(),
       }
@@ -631,6 +634,7 @@ export const PrintersPage = () => {
             receiptFont: config.receiptFont,
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
+            customerName: 'Walk-in Customer',
           })
           await printEscPos(bytes)
           toast.success('Test receipt sent to Bluetooth printer!')
@@ -650,7 +654,7 @@ export const PrintersPage = () => {
         receiptFont: config.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
-        customerName: 'Sample Customer',
+        customerName: 'Walk-in Customer',
         width: config.paperSize === '80mm' ? '80mm' : '50mm',
         logoURL: settings?.businessLogoURL || effectiveReceiptConfig.logoURL,
         settingsTaxName: 'GST',

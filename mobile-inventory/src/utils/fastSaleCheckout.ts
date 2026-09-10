@@ -105,7 +105,8 @@ export function buildSampleTestSale(
     upiId: profile.upiId,
     footerMessage: profile.footerMessage,
     invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-    date: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+    date: new Date().toLocaleDateString('en-GB'),
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     customerName: 'Walk-in Customer',
     customerPhone: '9988776655',
     items: [

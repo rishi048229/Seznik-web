@@ -42,6 +42,8 @@ export function sampleTestSaleFromContext(): Sale {
   return {
     id: 'test',
     invoiceNumber: SAMPLE_RECEIPT_CONTEXT.invoiceNumber,
+    customerName: SAMPLE_RECEIPT_CONTEXT.customerName || 'Walk-in Customer',
+    customerPhone: SAMPLE_RECEIPT_CONTEXT.customerPhone,
     items: SAMPLE_RECEIPT_CONTEXT.items.map((it, i) => ({
       id: String(i),
       productName: it.productName,
@@ -149,7 +151,7 @@ export async function runReceiptTemplateTestPrint({
       printerConfig,
       receiptFont: effectiveReceiptFont,
       ...identity,
-      customerName,
+      customerName: customerName || SAMPLE_RECEIPT_CONTEXT.customerName || 'Walk-in Customer',
       templateOverride: template ?? undefined,
       businessLogoURL: logoForPrint || businessLogoURL || logoURL || settings?.businessLogoURL,
       invoiceConfig: invoiceConfig ?? settings?.invoiceConfig,
@@ -164,7 +166,7 @@ export async function runReceiptTemplateTestPrint({
     printerConfig,
     receiptFont: effectiveReceiptFont,
     ...identity,
-    customerName: customerName || SAMPLE_RECEIPT_CONTEXT.customerName,
+    customerName: customerName || SAMPLE_RECEIPT_CONTEXT.customerName || 'Walk-in Customer',
     width: effectivePaper === '80mm' ? '80mm' : '50mm',
     logoURL: logoForPrint || logoURL || mergedReceipt.logoURL || settings?.businessLogoURL,
     settingsTaxName: 'GST',

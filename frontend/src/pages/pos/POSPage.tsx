@@ -536,6 +536,7 @@ export const POSPage = () => {
         total: item.sellingPrice * item.quantity - item.discount,
       })),
       customerId: selectedCustomer,
+      customerName: (selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : undefined) || 'Walk-in Customer',
     }
     setCurrentSaleForReceipt(tempSale)
     setIsRealisticReceiptOpen(true)
@@ -547,6 +548,8 @@ export const POSPage = () => {
     return {
       id: completedSaleId,
       invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
+      customerId: lastSaleData.selectedCustomer,
+      customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || 'Walk-in Customer',
       items: lastSaleData.items.map(item => ({
         productId: item.productId,
         productName: item.productName,
@@ -589,9 +592,9 @@ export const POSPage = () => {
     setIsPrintingAnimating(true)
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = lastSaleData.selectedCustomer
+    const customerName = (lastSaleData.selectedCustomer
       ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-      : ''
+      : undefined) || 'Walk-in Customer'
 
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
@@ -624,9 +627,9 @@ export const POSPage = () => {
         await blePrinter.connect()
       }
       const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerName = lastSaleData.selectedCustomer
+      const customerName = (lastSaleData.selectedCustomer
         ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-        : ''
+        : undefined) || 'Walk-in Customer'
       const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,

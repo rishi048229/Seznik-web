@@ -107,6 +107,7 @@ export interface PrintSaleData {
   footerMessage?: string;
   invoiceNumber: string;
   date: string;
+  time?: string;
   customerName?: string;
   customerPhone?: string;
   items: { productName: string; quantity: number; unitPrice: number; total: number; unit?: string; gstRate?: number; discount?: number }[];
@@ -1103,7 +1104,7 @@ class ThermalPrinterServiceManager {
   }
 
   public resolveActiveCustomTemplate(options?: ReceiptPrintOptions): CustomReceiptTemplate | null {
-    if (options?.customTemplate) return options.customTemplate;
+    if (options && options.customTemplate !== undefined) return options.customTemplate;
     try {
       const { usePrinterStore } = require('../store/usePrinterStore');
       const state = usePrinterStore.getState();
@@ -1138,14 +1139,34 @@ class ThermalPrinterServiceManager {
     if (/scan/i.test(text) && /pay/i.test(text)) {
       return 'SCAN TO PAY VIA UPI';
     }
-    const dateStr = data.date || new Date().toLocaleDateString('en-GB');
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const rawDate = (data.date || '').trim();
+    let dateStr = rawDate;
+    let timeStr = (data.time || '').trim();
+
+    // If date contains both date and time (e.g. "10/09/2026, 05:05 PM", "10/09/2026 17:05", "2026-09-10 17:05:00")
+    // extract them so {{date}} and {{time}} never duplicate the time component.
+    const dtMatch = rawDate.match(/^(\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4})[,\sT]+(.+)$/);
+    if (dtMatch) {
+      dateStr = dtMatch[1];
+      if (!timeStr) {
+        timeStr = dtMatch[2];
+      }
+    }
+    if (!dateStr) {
+      dateStr = new Date().toLocaleDateString('en-GB');
+    }
+    if (!timeStr) {
+      timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
     const billPdfUrl = buildBillPdfUrl(data);
     const upiStr = this.upiPayPayload(data) || '';
 
     const phoneVal = (data.storePhone || '').trim();
     const gstinVal = (data.storeGstin || '').trim();
-    const custNameVal = (data.customerName || '').trim();
+    const rawCustName = (data.customerName || 'Walk-in Customer').trim();
+    const isWalkIn = !data.customerName || /walk[- ]*in/i.test(data.customerName);
+    const custNameVal = isWalkIn ? 'Walk-in Customer' : rawCustName;
+    const custLabelVal = isWalkIn ? 'Walk-in' : rawCustName;
     const custPhoneVal = (data.customerPhone || '').trim();
     const tableVal = (data.tableNo || '').trim();
     const waiterVal = (data.waiterName || '').trim();
@@ -1157,7 +1178,7 @@ class ThermalPrinterServiceManager {
     return text
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, phoneVal ? `Phone: ${phoneVal}` : '')
       .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, gstinVal ? `GSTIN: ${gstinVal}` : '')
-      .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, custNameVal ? `Customer: ${custNameVal}` : '')
+      .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, `Customer: ${custLabelVal}`)
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhoneVal ? `Phone: ${custPhoneVal}` : '')
       .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, tableVal ? `Table: ${tableVal}` : '')
       .replace(/(?:Waiter)?:\s*\{\{waiter_name\}\}/gi, waiterVal ? `Waiter: ${waiterVal}` : '')
@@ -1205,15 +1226,33 @@ class ThermalPrinterServiceManager {
     // Top margin
     for (let i = 0; i < (options.topMargin || 0); i++) lines.push('');
 
-    const padLine = (left: string, right: string) => {
-      const leftStr = String(left ?? '');
-      const rightStr = String(right ?? '');
-      const available = width - leftStr.length - rightStr.length;
-      if (available <= 0) {
-        const maxLeft = Math.max(1, width - rightStr.length - 1);
-        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
+    const padTwoColLines = (left: string, right: string): string[] => {
+      const leftStr = String(left ?? '').trim();
+      const rightStr = String(right ?? '').trim();
+      if (!leftStr && !rightStr) return [];
+      if (!leftStr) return [rightStr.padStart(width, ' ')];
+      if (!rightStr) return [leftStr];
+      if (leftStr.length + rightStr.length + 1 <= width) {
+        return [leftStr + ' '.repeat(width - leftStr.length - rightStr.length) + rightStr];
       }
-      return leftStr + ' '.repeat(available) + rightStr;
+      const res: string[] = [];
+      if (leftStr.length <= width) {
+        res.push(leftStr);
+      } else {
+        let rem = leftStr;
+        while (rem.length > width) {
+          res.push(rem.slice(0, width));
+          rem = rem.slice(width);
+        }
+        if (rem.length > 0) res.push(rem);
+      }
+      res.push(rightStr.padStart(width, ' '));
+      return res;
+    };
+
+    const padLine = (left: string, right: string) => {
+      const res = padTwoColLines(left, right);
+      return res[0] || '';
     };
 
     const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
@@ -1267,7 +1306,9 @@ class ThermalPrinterServiceManager {
             left = 'SCAN TO PAY VIA UPI';
             right = '';
           }
-          if (left || right) lines.push(padLine(left, right));
+          if (left || right) {
+            padTwoColLines(left, right).forEach((l) => lines.push(l));
+          }
           break;
         }
 
@@ -1689,10 +1730,12 @@ class ThermalPrinterServiceManager {
     lines.push(divider('=', COLS));
 
     // ── 2. META DETAILS ──
+    const billLabel = `${(template?.billLabel || 'Bill No').trim()} :`;
+    const divChar = template?.dividerChar || '-';
     if (options.compactMode) {
       lines.push(row(`Inv:#${data.invoiceNumber}`, data.date, COLS));
     } else {
-      lines.push(row('Bill No :', data.invoiceNumber, COLS));
+      lines.push(row(billLabel, data.invoiceNumber, COLS));
       lines.push(row('Date    :', data.date, COLS));
     }
     if (data.providerName) {
@@ -1716,23 +1759,25 @@ class ThermalPrinterServiceManager {
         lines.push(row('Phone   :', custPhone, COLS));
       }
     }
-    lines.push(divider('-', COLS));
+    lines.push(divider(divChar, COLS));
 
     // ── 3. ITEMS TABLE ──
     const items = data.items || [];
+    const itemColLeft = template?.itemColumnLeft || 'ITEM';
+    const itemColRight = template?.itemColumnRight || 'AMOUNT';
     if (COLS >= 48) {
       // 48-Column One-Line Layout
       const headerFields: { text: string; width: number; align: 'L' | 'R' }[] = [
-        { text: 'ITEM', width: showItemGst ? 22 : 27, align: 'L' },
+        { text: itemColLeft, width: showItemGst ? 22 : 27, align: 'L' },
         { text: 'QTY', width: 5, align: 'R' },
       ];
       if (showItemGst) headerFields.push({ text: 'GST', width: 5, align: 'R' });
       headerFields.push(
         { text: 'RATE', width: 8, align: 'R' },
-        { text: 'AMOUNT', width: 8, align: 'R' }
+        { text: itemColRight, width: 8, align: 'R' }
       );
       lines.push(cols(headerFields, COLS));
-      lines.push(divider('-', COLS));
+      lines.push(divider(divChar, COLS));
 
       items.forEach((item, index) => {
         const lineAmt = item.total;
@@ -1765,8 +1810,8 @@ class ThermalPrinterServiceManager {
       });
     } else {
       // 32-Column Two-Line Layout
-      lines.push(row('ITEM', 'AMOUNT', COLS));
-      lines.push(divider('-', COLS));
+      lines.push(row(itemColLeft, itemColRight, COLS));
+      lines.push(divider(divChar, COLS));
 
       items.forEach((item, index) => {
         const lineAmt = item.total;
@@ -5354,6 +5399,7 @@ class ThermalPrinterServiceManager {
     const copies = effectiveCopies;
     const saleData: PrintSaleData = {
       ...data,
+      customerName: (data.customerName || '').trim() || 'Walk-in Customer',
       storeLogoUrl: data.storeLogoUrl || effectiveOptions.storeLogoUrl || fallbackProfile.storeLogoUrl,
       footerMessage: data.footerMessage || effectiveOptions.footerMessage || fallbackProfile.footerMessage,
       upiId: data.upiId || effectiveOptions.upiId || fallbackProfile.upiId,
@@ -5555,15 +5601,33 @@ class ThermalPrinterServiceManager {
       await NativeEscposPrinter.printText('\n'.repeat(topMargin), baseTextOpts);
     }
 
-    const padLine = (left: string, right: string) => {
-      const leftStr = String(left ?? '');
-      const rightStr = String(right ?? '');
-      const available = widthCols - leftStr.length - rightStr.length;
-      if (available <= 0) {
-        const maxLeft = Math.max(1, widthCols - rightStr.length - 1);
-        return leftStr.slice(0, maxLeft) + ' ' + rightStr;
+    const padTwoColLines = (left: string, right: string): string[] => {
+      const leftStr = String(left ?? '').trim();
+      const rightStr = String(right ?? '').trim();
+      if (!leftStr && !rightStr) return [];
+      if (!leftStr) return [rightStr.padStart(widthCols, ' ')];
+      if (!rightStr) return [leftStr];
+      if (leftStr.length + rightStr.length + 1 <= widthCols) {
+        return [leftStr + ' '.repeat(widthCols - leftStr.length - rightStr.length) + rightStr];
       }
-      return leftStr + ' '.repeat(available) + rightStr;
+      const res: string[] = [];
+      if (leftStr.length <= widthCols) {
+        res.push(leftStr);
+      } else {
+        let rem = leftStr;
+        while (rem.length > widthCols) {
+          res.push(rem.slice(0, widthCols));
+          rem = rem.slice(widthCols);
+        }
+        if (rem.length > 0) res.push(rem);
+      }
+      res.push(rightStr.padStart(widthCols, ' '));
+      return res;
+    };
+
+    const padLine = (left: string, right: string) => {
+      const res = padTwoColLines(left, right);
+      return res[0] || '';
     };
 
     const alignCode = (align?: 'left' | 'center' | 'right') => {
@@ -5677,7 +5741,9 @@ class ThermalPrinterServiceManager {
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.LEFT ?? 0);
           }
-          await NativeEscposPrinter.printText(padLine(left, right) + '\n', { ...baseTextOpts });
+          for (const line of padTwoColLines(left, right)) {
+            await NativeEscposPrinter.printText(line + '\n', { ...baseTextOpts });
+          }
           break;
         }
 
@@ -6018,7 +6084,9 @@ class ThermalPrinterServiceManager {
   /**
    * 1-Tap Sample Test Print for Receipts
    */
-  public async printTestReceipt(paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
+  public async printTestReceipt(paperWidth?: '58mm' | '80mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
+    const storePaperWidth = require('../store/usePrinterStore').usePrinterStore.getState().paperWidth;
+    const effectivePaperWidth = paperWidth || storePaperWidth || '58mm';
     const customTemplate = options.customTemplate !== undefined ? options.customTemplate : this.resolveActiveCustomTemplate(options);
     const template = this.resolveActiveTemplate(options);
 
@@ -6062,6 +6130,11 @@ class ThermalPrinterServiceManager {
 
     const fallbackProfile = resolveStoreProfile(getCachedSettings(), useAuthStore.getState().user);
     const now = new Date();
+    const sampleDate = isRestaurantBill
+      ? template.previewDate || now.toLocaleDateString('en-GB')
+      : now.toLocaleDateString('en-GB');
+    const sampleTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     const sampleData: PrintSaleData = {
       storeName: options.storeName || fallbackProfile.storeName,
       storeAddress: options.storeAddress || fallbackProfile.storeAddress,
@@ -6069,15 +6142,14 @@ class ThermalPrinterServiceManager {
       storeGstin: options.storeGstin || fallbackProfile.storeGstin,
       storeLogoUrl: options.storeLogoUrl || fallbackProfile.storeLogoUrl,
       upiId: options.upiId || fallbackProfile.upiId,
-      footerMessage: options.footerMessage || fallbackProfile.footerMessage,
+      footerMessage: options.footerMessage || (!customTemplate ? template.footerMessage : undefined) || fallbackProfile.footerMessage,
       invoiceNumber: isRestaurantBill
         ? template.previewInvoice || '1842'
         : `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-      date: isRestaurantBill
-        ? template.previewDate || now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
-        : now.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-      customerName: options.customerName || '',
-      customerPhone: options.customerPhone || '',
+      date: sampleDate,
+      time: sampleTime,
+      customerName: options.customerName || (template.previewCustomerName || 'Walk-in Customer'),
+      customerPhone: options.customerPhone || (template.previewCustomerPhone || ''),
       tableNo: isRestaurantBill ? template.previewTableNo || '12' : resolvePrintIsRestaurant(options) ? '12' : undefined,
       waiterName: isRestaurantBill ? template.previewWaiter || 'WAITER' : resolvePrintIsRestaurant(options) ? 'RAJ' : undefined,
       tokenNo: isRestaurantBill || resolvePrintIsRestaurant(options) ? '42' : undefined,
@@ -6094,7 +6166,7 @@ class ThermalPrinterServiceManager {
       gstSlabs,
     };
 
-    return this.printReceipt(sampleData, paperWidth, { ...options, customTemplate, template });
+    return this.printReceipt(sampleData, effectivePaperWidth, { ...options, customTemplate, template });
   }
 
   /**

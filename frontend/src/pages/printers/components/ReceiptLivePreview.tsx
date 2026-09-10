@@ -58,13 +58,13 @@ export const ReceiptLivePreview = ({
           { productName: 'Fresh Lime Soda', quantity: 2, unitPrice: 70, total: 140, gstRate: 5 },
         ]
       : [
-          { productName: 'Wireless Keyboard', quantity: 1, unitPrice: 1499, total: 1499, gstRate: 18 },
-          { productName: 'Optical Mouse Pro', quantity: 2, unitPrice: 600, total: 1200, gstRate: 18 },
-          { productName: 'Fresh Milk 1L', quantity: 2, unitPrice: 30, total: 60, gstRate: 0 },
+          { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
+          { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Btl', gstRate: 5 },
+          { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
         ]
     const subtotal = items.reduce((s, it) => s + it.total, 0)
-    const totalTax = isRest ? 35 : 411.71
-    const grandTotal = subtotal + (isRest ? totalTax : 0)
+    const totalTax = isRest ? 35 : 40.5
+    const grandTotal = subtotal + (isRest ? totalTax : totalTax)
 
     return {
       storeName: receiptConfig.companyName || settings?.businessName || 'SEZNIK POS STORE',
@@ -76,7 +76,7 @@ export const ReceiptLivePreview = ({
       invoiceNumber: 'INV/2026/00142',
       date: new Date().toLocaleDateString('en-GB'),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      customerName: '',
+      customerName: 'Walk-in Customer',
       customerPhone: '',
       items,
       subtotal,
@@ -127,7 +127,7 @@ export const ReceiptLivePreview = ({
         businessAddress: previewContext.storeAddress,
         businessPhone: previewContext.storePhone,
         businessGSTIN: previewContext.storeGstin,
-        customerName: '',
+        customerName: previewContext.customerName || 'Walk-in Customer',
         customerPhone: '',
         paperSize,
         receiptFont: effectiveFont,

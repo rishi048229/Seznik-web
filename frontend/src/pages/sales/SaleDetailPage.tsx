@@ -38,9 +38,9 @@ export const SaleDetailPage = () => {
     if (!sale) return
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = sale.customerId
+    const customerName = (sale.customerId
       ? customers?.find(c => c.id === sale.customerId)?.name
-      : ''
+      : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
 
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
@@ -92,9 +92,9 @@ export const SaleDetailPage = () => {
   const handleDownloadPdf = () => {
     if (!sale) return
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = sale.customerId
+    const customerName = (sale.customerId
       ? customers?.find(c => c.id === sale.customerId)?.name
-      : ''
+      : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
     const html = generateReceiptHTML({
       sale,
       receiptConfig: { ...receiptConfig, showTaxBreakdown },
@@ -119,9 +119,9 @@ export const SaleDetailPage = () => {
         await blePrinter.connect()
       }
       const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerName = sale.customerId
+      const customerName = (sale.customerId
         ? customers?.find(c => c.id === sale.customerId)?.name
-        : ''
+        : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
       const bytes = await generateReceiptEscPos({
         sale,
         receiptConfig,

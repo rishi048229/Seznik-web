@@ -1252,6 +1252,7 @@ export default function ReceiptEditorScreen() {
                           .replace(/{{store_gstin}}/gi, samplePrintData.storeGstin || '27AAAAA0000A1Z5')
                           .replace(/{{invoice_no}}/gi, samplePrintData.invoiceNumber || 'INV-1024')
                           .replace(/{{date}}/gi, samplePrintData.date || '19/08/2026')
+                          .replace(/{{time}}/gi, (samplePrintData as any).time || '12:45 PM')
                           .replace(/{{customer_name}}/gi, samplePrintData.customerName || 'Aarav Sharma')
                           .replace(/{{grand_total}}/gi, `₹${samplePrintData.grandTotal?.toFixed(2) || '1,080.50'}`)
                           : editingEntry.text || '(Empty text)'}
@@ -1790,7 +1791,8 @@ export default function ReceiptEditorScreen() {
                             .replace(/{{discount}}/gi, '₹50.00')
                             .replace(/{{invoice_no}}/gi, 'INV-1024')
                             .replace(/{{payment_method}}/gi, 'UPI')
-                            .replace(/{{date}}/gi, '19/08/2026') || 'Value'}
+                            .replace(/{{date}}/gi, '19/08/2026')
+                            .replace(/{{time}}/gi, '12:45 PM') || 'Value'}
                         </Text>
                       </View>
                     </View>

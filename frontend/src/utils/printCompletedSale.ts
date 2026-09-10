@@ -22,6 +22,7 @@ export const printCompletedSale = async (args: {
   skipBrowserFallback?: boolean
 }): Promise<void> => {
   const { sale, settings, customerName, ble, onDone, skipBrowserFallback } = args
+  const effectiveCustomerName = (customerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer').trim() || 'Walk-in Customer'
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
   const paperSize = resolveThermalPaper(settings?.printerConfig)
   const width = thermalWidth(paperSize)
@@ -40,7 +41,7 @@ export const printCompletedSale = async (args: {
         receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
-        customerName,
+        customerName: effectiveCustomerName,
       })
       await ble.print(bytes)
       onDone?.()
@@ -58,7 +59,7 @@ export const printCompletedSale = async (args: {
     printerConfig: settings?.printerConfig,
     businessName: settings?.businessName,
     businessAddress: settings?.businessAddress,
-    customerName,
+    customerName: effectiveCustomerName,
     width,
     logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
     settingsTaxName: 'GST',

@@ -64,22 +64,22 @@ export const SAMPLE_RECEIPT_CONTEXT: ReceiptPrintContext = {
   storeGstin: '27AAAAA0000A1Z5',
   invoiceNumber: 'INV-2026-0042',
   date: new Date().toLocaleDateString('en-GB'),
-  time: '12:45 PM',
-  customerName: 'Aarav Sharma',
+  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  customerName: 'Walk-in Customer',
   customerPhone: '+91 99887 76655',
   items: [
-    { productName: 'Premium Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
-    { productName: 'Cold Pressed Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Bottle', gstRate: 5 },
-    { productName: 'Organic Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
+    { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
+    { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Btl', gstRate: 5 },
+    { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
   ],
   subtotal: 1090,
-  totalDiscount: 50,
+  totalDiscount: 0,
   totalTax: 40.5,
-  grandTotal: 1080.5,
-  amountPaid: 1100,
-  changeReturned: 19.5,
-  paymentMethod: 'Cash',
-  footerMessage: 'Thank you! Visit again.',
+  grandTotal: 1130.5,
+  amountPaid: 1130.5,
+  changeReturned: 0,
+  paymentMethod: 'CASH',
+  footerMessage: 'Thank you for your purchase!',
 }
 
 export function saleToReceiptContext(
@@ -125,8 +125,13 @@ export function saleToReceiptContext(
     invoiceNumber: sale.invoiceNumber || sale.id?.slice(0, 8) || 'INV-0000',
     date: d.toLocaleDateString('en-GB'),
     time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    customerName: opts?.customerName || '',
-    customerPhone: undefined,
+    customerName: (
+      opts?.customerName ||
+      (sale as any)?.customerName ||
+      (sale as any)?.customer?.name ||
+      'Walk-in Customer'
+    ).trim() || 'Walk-in Customer',
+    customerPhone: (opts?.customerPhone || (sale as any)?.customerPhone || (sale as any)?.customer?.phone || '').trim() || undefined,
     items,
     subtotal,
     totalDiscount,
@@ -157,13 +162,36 @@ export function interpolateReceiptVariables(
     ? `${window.location.origin}/receipt/${targetId}`
     : `https://api.seznik.com/receipt/${targetId}`
 
+  const rawDate = (data.date || '').trim()
+  let dateStr = rawDate
+  let timeStr = (data.time || '').trim()
+  const dtMatch = rawDate.match(/^(\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4})[,\sT]+(.+)$/)
+  if (dtMatch) {
+    dateStr = dtMatch[1]
+    if (!timeStr) {
+      timeStr = dtMatch[2]
+    }
+  }
+  if (!dateStr) {
+    dateStr = new Date().toLocaleDateString('en-GB')
+  }
+  if (!timeStr) {
+    timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const rawCustName = (data.customerName || 'Walk-in Customer').trim()
+  const isWalkIn = !data.customerName || /walk[- ]*in/i.test(data.customerName)
+  const custName = isWalkIn ? 'Walk-in Customer' : rawCustName
+  const custLabelVal = isWalkIn ? 'Walk-in' : rawCustName
+  const custPhone = (data.customerPhone || '').trim()
+
   const money = (n: number) => (opts?.thermal ? formatThermalMoney(n) : `₹${n.toFixed(2)}`)
 
   return text
     .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, data.storePhone ? `Ph: ${data.storePhone}` : '')
     .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, data.storeGstin ? `GSTIN: ${data.storeGstin}` : '')
-    .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, data.customerName ? `Customer: ${data.customerName}` : '')
-    .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, data.customerPhone ? `Phone: ${data.customerPhone}` : '')
+    .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, `Customer: ${custLabelVal}`)
+    .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhone ? `Phone: ${custPhone}` : '')
     .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, data.tableNo ? `Table: ${data.tableNo}` : '')
     .replace(/(?:Waiter)?:\s*\{\{waiter_name\}\}/gi, data.waiterName ? `Waiter: ${data.waiterName}` : '')
     .replace(/(?:Token)?:\s*\{\{token_no\}\}/gi, data.tokenNo ? `Token: ${data.tokenNo}` : '')
@@ -172,10 +200,10 @@ export function interpolateReceiptVariables(
     .replace(/\{\{store_phone\}\}/gi, data.storePhone || '')
     .replace(/\{\{store_gstin\}\}/gi, data.storeGstin || '')
     .replace(/\{\{invoice_no\}\}/gi, data.invoiceNumber || '')
-    .replace(/\{\{date\}\}/gi, data.date || '')
-    .replace(/\{\{time\}\}/gi, data.time || '')
-    .replace(/\{\{customer_name\}\}/gi, data.customerName || '')
-    .replace(/\{\{customer_phone\}\}/gi, data.customerPhone || '')
+    .replace(/\{\{date\}\}/gi, dateStr)
+    .replace(/\{\{time\}\}/gi, timeStr)
+    .replace(/\{\{customer_name\}\}/gi, custName)
+    .replace(/\{\{customer_phone\}\}/gi, custPhone)
     .replace(/\{\{subtotal\}\}/gi, money(data.subtotal))
     .replace(/\{\{discount\}\}/gi, money(data.totalDiscount))
     .replace(/\{\{tax\}\}/gi, money(data.totalTax))
@@ -229,6 +257,35 @@ const HTML_ROW =
   'display:flex;justify-content:space-between;align-items:baseline;gap:8px;width:100%;max-width:100%;overflow:hidden;'
 const HTML_LEFT = 'flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;'
 const HTML_RIGHT = 'flex:0 0 auto;white-space:nowrap;text-align:right;'
+
+export function padTwoColLines(left: string, right: string, width: number): string[] {
+  const leftStr = String(left ?? '').trim()
+  const rightStr = String(right ?? '').trim()
+  if (!leftStr && !rightStr) return []
+  if (!leftStr) return [rightStr.padStart(width, ' ')]
+  if (!rightStr) return [leftStr]
+
+  if (leftStr.length + rightStr.length + 1 <= width) {
+    const spaces = width - leftStr.length - rightStr.length
+    return [leftStr + ' '.repeat(spaces) + rightStr]
+  }
+
+  const lines: string[] = []
+  if (leftStr.length <= width) {
+    lines.push(leftStr)
+  } else {
+    let remaining = leftStr
+    while (remaining.length > width) {
+      lines.push(remaining.slice(0, width))
+      remaining = remaining.slice(width)
+    }
+    if (remaining.length > 0) {
+      lines.push(remaining)
+    }
+  }
+  lines.push(rightStr.padStart(width, ' '))
+  return lines
+}
 
 function htmlTwoColRow(left: string, right: string, fontSize: string, bold = false): string {
   const weight = bold ? 'font-weight:700;' : ''
@@ -576,7 +633,7 @@ export function compileCustomReceiptTextLines(
         const l = interpolateReceiptVariables(entry.left, data, thermal).trim()
         const r = interpolateReceiptVariables(entry.right, data, thermal).trim()
         if (l || r) {
-          lines.push(padLine(l, r))
+          lines.push(...padTwoColLines(l, r, width))
         }
         break
       }
@@ -947,7 +1004,7 @@ export async function appendCustomTemplateToEscPos(
           rightVal = ''
         }
         if (!leftVal && !rightVal) break
-        padLine(leftVal, rightVal)
+        padTwoColLines(leftVal, rightVal, width).forEach((line) => b.line(line))
         break
       }
       case 'table': {
