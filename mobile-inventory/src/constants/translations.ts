@@ -107,6 +107,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     dayBook: 'Day Book',
     scanStock: 'Scan Stock',
     aiImport: 'AI Import',
+    bulkUpload: 'Bulk upload',
     thermalPrinter: 'Thermal Printer',
     reports: 'Reports',
     labelStudio: 'Label Studio',

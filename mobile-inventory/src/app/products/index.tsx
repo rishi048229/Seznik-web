@@ -626,7 +626,7 @@ export default function ProductsScreen() {
               style={[styles.headerBtn, { backgroundColor: 'rgba(37, 99, 235, 0.15)', marginRight: 6 }]}
             >
               <Sparkles size={14} color={BRAND_COLORS.blue600} />
-              <Text style={[styles.headerBtnText, { color: BRAND_COLORS.blue600 }]}>{t('aiImport', 'AI Import')}</Text>
+              <Text style={[styles.headerBtnText, { color: BRAND_COLORS.blue600 }]}>{t('bulkUpload', 'Bulk upload')}</Text>
             </TouchableOpacity>
 
             {trackStock ? (
