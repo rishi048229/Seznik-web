@@ -494,173 +494,234 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
   const rowsNeedingReview = extractedProducts.filter(p => issuesById.has(p.id)).length
 
+  const modalFooter = useMemo(() => {
+    if (step === 'upload') {
+      return (
+        <div className="flex items-center justify-end gap-2.5 w-full">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleResetAndClose}
+            className="text-xs font-semibold dark:text-zinc-300 dark:hover:text-white dark:hover:bg-dark-elevated"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleStartExtraction}
+            disabled={!selectedFile || isExtracting}
+            loading={isExtracting}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20"
+            leftIcon={<FileSpreadsheet size={15} />}
+          >
+            Upload & Review Products
+          </Button>
+        </div>
+      )
+    }
+
+    if (step === 'review') {
+      return (
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+          <p className="text-xs text-gray-600 dark:text-zinc-400">
+            Ready to import <strong className="text-purple-600 dark:text-purple-400 font-bold">{selectedCount}</strong> products into inventory.
+          </p>
+          <div className="flex items-center gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleResetAndClose}
+              className="text-xs font-semibold dark:text-zinc-300 dark:hover:text-white dark:hover:bg-dark-elevated"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmImport}
+              disabled={selectedCount === 0 || isImporting}
+              loading={isImporting}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
+              leftIcon={<CheckCircle2 size={15} />}
+            >
+              Import {selectedCount} Selected Products
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    return undefined
+  }, [step, selectedFile, isExtracting, selectedCount, isImporting])
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleResetAndClose}
       title="Bulk Product Upload (Excel / CSV)"
       size="xl"
+      footer={modalFooter}
     >
-      <div className="space-y-6">
+      <div>
         {step === 'upload' && (
-          <div className="space-y-5">
+          <div className="space-y-2.5">
             {/* Step 1: Download Standard Template */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 dark:from-blue-950/30 dark:via-dark-elevated dark:to-indigo-950/20 border border-blue-200/80 dark:border-blue-500/25 space-y-3 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-bold text-blue-950 dark:text-blue-300">
-                      Step 1: Download Bulk Upload Template
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed">
-                      Download our official template with pre-formatted columns and sample items. Fill in your products and upload below.
-                    </p>
-                  </div>
+            <div className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 dark:from-blue-950/30 dark:via-dark-elevated dark:to-indigo-950/20 border border-blue-200/80 dark:border-blue-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 shrink-0">
+                  <FileSpreadsheet className="w-4 h-4" />
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => downloadBulkUploadTemplate('xlsx')}
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm hover:shadow-blue-500/20"
-                    leftIcon={<Download size={14} />}
-                  >
-                    Download Excel (.xlsx)
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => downloadBulkUploadTemplate('csv')}
-                    className="text-xs font-semibold dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white dark:hover:border-blue-400/40"
-                    leftIcon={<Download size={14} />}
-                  >
-                    CSV (.csv)
-                  </Button>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-blue-950 dark:text-blue-300">
+                    Step 1: Download Bulk Upload Template
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-zinc-400 truncate">
+                    Pre-formatted template with standard columns, sample rows & unit codes.
+                  </p>
                 </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => downloadBulkUploadTemplate('xlsx')}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-7 px-2.5 flex items-center gap-1 shadow-sm hover:shadow-blue-500/20"
+                  leftIcon={<Download size={13} />}
+                >
+                  Download Excel (.xlsx)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadBulkUploadTemplate('csv')}
+                  className="text-xs font-semibold h-7 px-2.5 dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white dark:hover:border-blue-400/40"
+                  leftIcon={<Download size={13} />}
+                >
+                  CSV (.csv)
+                </Button>
               </div>
             </div>
 
             {/* Step 2: Format Guidelines & Disclaimer */}
-            <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-dark-elevated/70 border border-amber-200/80 dark:border-dark-border-strong space-y-3.5 text-xs backdrop-blur-sm">
-              <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300">
-                <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-dark-elevated/70 border border-amber-200/70 dark:border-dark-border-strong space-y-2 text-xs backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300 text-xs">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Format Guidelines & Required Columns</span>
                 </div>
-                <span>Format Guidelines & Upload Requirements</span>
+                <div className="flex items-center gap-1.5 text-[10.5px] text-slate-600 dark:text-zinc-400">
+                  <span>Accepted:</span>
+                  <span className="font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded border border-blue-200/60 dark:border-blue-800/50 text-[10px]">
+                    .xlsx / .xls
+                  </span>
+                  <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded border border-indigo-200/60 dark:border-indigo-800/50 text-[10px]">
+                    .csv
+                  </span>
+                </div>
               </div>
-              <p className="text-[11.5px] leading-relaxed text-slate-700 dark:text-zinc-300">
-                Please upload your product list strictly according to the format in the template. Only{' '}
-                <span className="font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50">
-                  Excel (.xlsx, .xls)
-                </span>{' '}
-                and{' '}
-                <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/50">
-                  CSV (.csv)
-                </span>{' '}
-                formats are supported.
-              </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60 dark:border-dark-border text-[11px]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
                 {/* Compulsory Fields */}
-                <div className="space-y-2 bg-white/90 dark:bg-dark-card p-3.5 rounded-xl border border-emerald-200/80 dark:border-emerald-500/25 shadow-sm">
+                <div className="space-y-1 bg-white/90 dark:bg-dark-card p-2 rounded-lg border border-emerald-200/80 dark:border-emerald-500/25 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5 text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <p className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       Compulsory Fields
                     </p>
-                    <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border dark:border-emerald-800/60">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border dark:border-emerald-800/60">
                       Required
                     </span>
                   </div>
-                  <ul className="space-y-1.5 text-slate-700 dark:text-zinc-300 pl-4 list-disc marker:text-emerald-500">
-                    <li>
+
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10.5px]">
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Product Name*</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Title / item name</span>
-                    </li>
-                    <li>
+                      <span className="text-slate-500 dark:text-zinc-400">Item title</span>
+                    </div>
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Category*</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Category name (auto-created if new)</span>
-                    </li>
-                    <li>
+                      <span className="text-slate-500 dark:text-zinc-400">Category name</span>
+                    </div>
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Cost Price*</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Supplier purchase cost in ₹</span>
-                    </li>
-                    <li>
+                      <span className="text-slate-500 dark:text-zinc-400">Supplier cost ₹</span>
+                    </div>
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Selling Price*</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Retail customer selling price in ₹</span>
-                    </li>
-                    <li>
-                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Stock Quantity*</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Initial inventory count (0 or higher)</span>
-                    </li>
-                    <li>
-                      <div className="text-slate-900 dark:text-zinc-100 font-semibold">
-                        <strong>Unit*</strong>: <span className="font-normal text-slate-600 dark:text-zinc-400">Supported measurement codes:</span>
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1 p-2 rounded-lg bg-gray-50 dark:bg-dark-bg/90 border border-gray-200 dark:border-dark-border-strong font-mono text-[10.5px]">
-                        {[
-                          { id: 1, label: 'piece' },
-                          { id: 2, label: 'kg' },
-                          { id: 3, label: 'gram' },
-                          { id: 4, label: 'liter' },
-                          { id: 5, label: 'meter' },
-                          { id: 6, label: 'dozen' },
-                          { id: 7, label: 'box' },
-                        ].map((u) => (
-                          <span
-                            key={u.id}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50"
-                          >
-                            <strong className="text-emerald-900 dark:text-emerald-200 mr-1 font-bold">{u.id}:</strong>{' '}
-                            {u.label}
-                          </span>
-                        ))}
-                      </div>
-                    </li>
-                  </ul>
+                      <span className="text-slate-500 dark:text-zinc-400">Retail price ₹</span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Stock Qty*</strong>:{' '}
+                      <span className="text-slate-500 dark:text-zinc-400">Initial count (≥0)</span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Unit*</strong>:{' '}
+                      <span className="text-slate-500 dark:text-zinc-400">Code (1 to 7)</span>
+                    </div>
+                  </div>
+
+                  {/* Unit codes row */}
+                  <div className="pt-1 border-t border-emerald-100/80 dark:border-dark-border flex flex-wrap items-center gap-1 font-mono text-[9.5px]">
+                    <span className="font-sans font-semibold text-slate-600 dark:text-zinc-400 text-[10px] mr-0.5">
+                      Units:
+                    </span>
+                    {[
+                      { id: 1, label: 'piece' },
+                      { id: 2, label: 'kg' },
+                      { id: 3, label: 'gram' },
+                      { id: 4, label: 'liter' },
+                      { id: 5, label: 'meter' },
+                      { id: 6, label: 'dozen' },
+                      { id: 7, label: 'box' },
+                    ].map((u) => (
+                      <span
+                        key={u.id}
+                        className="inline-flex items-center px-1 py-0.2 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50"
+                      >
+                        <strong className="text-emerald-900 dark:text-emerald-200 mr-0.5 font-bold">{u.id}:</strong>
+                        {u.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Optional Fields */}
-                <div className="space-y-2 bg-white/90 dark:bg-dark-card p-3.5 rounded-xl border border-blue-200/80 dark:border-blue-500/25 shadow-sm">
+                <div className="space-y-1 bg-white/90 dark:bg-dark-card p-2 rounded-lg border border-blue-200/80 dark:border-blue-500/25 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-blue-800 dark:text-blue-400 flex items-center gap-1.5 text-xs">
-                      <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <p className="font-bold text-blue-800 dark:text-blue-400 flex items-center gap-1 text-[11px]">
+                      <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                       Optional Fields
                     </p>
-                    <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 dark:border dark:border-blue-800/60">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 dark:border dark:border-blue-800/60">
                       Auto-Handled
                     </span>
                   </div>
-                  <ul className="space-y-1.5 text-slate-700 dark:text-zinc-300 pl-4 list-disc marker:text-blue-500">
-                    <li>
+
+                  <div className="space-y-0.5 text-[10.5px]">
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Barcode</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Optional. If empty, auto-assigns </span>
-                      <code className="text-blue-700 dark:text-blue-300 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50 text-[10px]">
+                      <span className="text-slate-500 dark:text-zinc-400">If blank, auto-generates </span>
+                      <code className="text-blue-700 dark:text-blue-300 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-1 py-0.2 rounded text-[10px]">
                         SZ...
                       </code>
-                      <span className="text-slate-600 dark:text-zinc-400">. Existing barcodes are preserved 100%.</span>
-                    </li>
-                    <li>
+                    </div>
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Min Stock Alert</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Low stock threshold. Defaults to </span>
-                      <span className="px-1.5 py-0.2 rounded bg-gray-100 dark:bg-dark-elevated text-slate-900 dark:text-zinc-100 font-bold border border-gray-200 dark:border-dark-border-strong text-[10.5px]">
+                      <span className="text-slate-500 dark:text-zinc-400">Threshold. Defaults to </span>
+                      <span className="px-1 rounded bg-gray-100 dark:bg-dark-elevated text-slate-900 dark:text-zinc-100 font-bold text-[10px]">
                         0
-                      </span>
-                      <span className="text-slate-600 dark:text-zinc-400"> if blank.</span>
-                    </li>
-                    <li>
+                      </span>{' '}
+                      <span className="text-slate-500 dark:text-zinc-400">if blank</span>
+                    </div>
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Tax Rate %</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Applicable GST percentage slab (defaults to 0%).</span>
-                    </li>
-                    <li>
+                      <span className="text-slate-500 dark:text-zinc-400">GST percentage slab (defaults to 0%)</span>
+                    </div>
+                    <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Brand & Description</strong>:{' '}
-                      <span className="text-slate-600 dark:text-zinc-400">Optional brand or item description notes.</span>
-                    </li>
-                  </ul>
+                      <span className="text-slate-500 dark:text-zinc-400">Optional brand or item notes</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -670,7 +731,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-blue-200 dark:border-blue-500/30 hover:border-blue-500 dark:hover:border-blue-400 rounded-2xl p-7 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-dark-card hover:bg-blue-50/40 dark:hover:bg-dark-elevated/80 group"
+              className="border-2 border-dashed border-blue-200 dark:border-blue-500/30 hover:border-blue-500 dark:hover:border-blue-400 rounded-xl py-3.5 px-4 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-dark-card hover:bg-blue-50/40 dark:hover:bg-dark-elevated/80 group"
             >
               <input
                 ref={fileInputRef}
@@ -681,64 +742,34 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               />
 
               {selectedFile ? (
-                <div className="space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200/60 dark:border-emerald-500/30">
-                    <FileSpreadsheet className="w-7 h-7 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex items-center justify-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200/60 dark:border-emerald-500/30">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-zinc-100">{selectedFile.name}</p>
-                  <p className="text-xs text-slate-600 dark:text-zinc-300 font-medium">
-                    {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory.toUpperCase()} Format
-                  </p>
-                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">Click or drag to replace file</p>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate max-w-sm">{selectedFile.name}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory.toUpperCase()} Format •{' '}
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">Click to replace file</span>
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-100/80 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto group-hover:scale-105 transition-transform border border-blue-200/50 dark:border-blue-500/30">
-                    <UploadCloud className="w-7 h-7" />
+                <div className="flex items-center justify-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform border border-blue-200/50 dark:border-blue-500/30">
+                    <UploadCloud className="w-4 h-4" />
                   </div>
-                  <div>
-                    <p className="text-base font-bold text-slate-900 dark:text-zinc-100">
-                      Drop your completed Excel (.xlsx) or CSV file here
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                      Drop your Excel (.xlsx) or CSV file here, or{' '}
+                      <span className="text-blue-600 dark:text-blue-400 underline underline-offset-2">Browse File</span>
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-zinc-300 mt-1">
-                      Supports Excel (.xlsx, .xls) and CSV (.csv) — max 20MB, up to 5,000 products per file
-                    </p>
-                    <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 mt-1.5">
-                      Ensure your columns match the template headers for instant 100% extraction.
+                    <p className="text-[10.5px] text-slate-500 dark:text-zinc-400">
+                      Supports .xlsx, .xls, .csv up to 20MB (up to 5,000 products per batch)
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="mt-2 text-xs font-semibold dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white dark:hover:border-blue-400/40"
-                  >
-                    Browse File
-                  </Button>
                 </div>
               )}
-            </div>
-
-            {/* Submit Extraction Button */}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleResetAndClose}
-                className="dark:text-zinc-300 dark:hover:text-white dark:hover:bg-dark-elevated"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleStartExtraction}
-                disabled={!selectedFile || isExtracting}
-                loading={isExtracting}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20"
-                leftIcon={<FileSpreadsheet size={16} />}
-              >
-                Upload & Review Products
-              </Button>
             </div>
           </div>
         )}
@@ -1168,28 +1199,6 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 </p>
               </div>
             )}
-
-            {/* Action Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-dark-border">
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Ready to import <strong className="text-purple-600 dark:text-purple-400">{selectedCount}</strong> products into your inventory.
-              </p>
-              <div className="flex gap-3">
-                <Button type="button" variant="ghost" onClick={handleResetAndClose}>
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleConfirmImport}
-                  disabled={selectedCount === 0 || isImporting}
-                  loading={isImporting}
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
-                  leftIcon={<CheckCircle2 size={16} />}
-                >
-                  Import {selectedCount} Selected Products
-                </Button>
-              </div>
-            </div>
           </div>
         )}
       </div>
