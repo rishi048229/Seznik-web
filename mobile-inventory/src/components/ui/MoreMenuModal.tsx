@@ -13,12 +13,12 @@ import {
   Users,
   Truck,
   ShoppingBag,
-  DollarSign,
+  TrendingDown,
   BookOpen,
   BarChart3,
   Settings,
   ShieldCheck,
-  IndianRupee,
+  TrendingUp,
   Ticket,
   MessageSquarePlus,
   ChefHat,
@@ -51,15 +51,15 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const menuItems: Array<{
     id: string;
     title: string;
-    icon: typeof IndianRupee;
+    icon: typeof TrendingUp;
     color: string;
     route: string;
     feature?: NavFeatureId;
   }> = [
     {
-      id: 'invoices',
-      title: t('invoices', 'Invoices'),
-      icon: IndianRupee,
+      id: 'sales',
+      title: t('sales', 'Sales'),
+      icon: TrendingUp,
       color: '#0284C7',
       route: '/(tabs)/invoices',
     },
@@ -131,8 +131,8 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
     {
       id: 'expenses',
       title: t('expenses', 'Expense Tracker'),
-      icon: DollarSign,
-      color: '#DC2626',
+      icon: TrendingDown,
+      color: '#EF4444',
       route: '/expenses',
     },
     {

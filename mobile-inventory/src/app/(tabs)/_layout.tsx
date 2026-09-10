@@ -37,8 +37,14 @@ export default function TabsLayout() {
   const screenOptions = useMemo(
     () => ({
       headerShown: false,
-      lazy: false,
+      // Mount only the screen the cashier opens. Rendering every tab at once
+      // makes the first interaction compete with several data-heavy screens.
+      lazy: true,
       freezeOnBlur: true,
+      // POS navigation should acknowledge a tap immediately; reserve motion
+      // for modal/task feedback rather than making screen changes wait.
+      animation: 'none' as const,
+      sceneStyle: { backgroundColor: isDark ? '#000000' : '#F8FAFC' },
       tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
       tabBarInactiveTintColor: isDark ? BRAND_COLORS.slate400 : '#64748B',
       tabBarStyle: {

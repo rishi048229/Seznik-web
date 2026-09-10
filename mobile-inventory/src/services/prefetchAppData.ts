@@ -87,30 +87,33 @@ export async function hydrateAndPrefetchAppData(queryClient: QueryClient, userId
     hydrateDashboardFromDisk(queryClient, userId),
   ]);
 
-  await Promise.allSettled([
-    prefetchSettings(queryClient),
-    prefetchProductCatalog(queryClient, userId),
-    queryClient.prefetchQuery({
-      queryKey: ['reports', 'dashboard'],
-      queryFn: async () => {
-        const stats = await reportsApi.getDashboardStats();
-        if (stats) {
-          await writeDashboardCache(userId, stats);
-        }
-        return stats;
-      },
-      staleTime: 1000 * 60,
-    }),
-    queryClient.prefetchQuery({
-      queryKey: ['categories', userId],
-      queryFn: productsApi.getCategories,
-      staleTime: 1000 * 60 * 5,
-    }),
-    queryClient.prefetchQuery({
-      queryKey: ['reports', 'trend', 'month'],
-      queryFn: () => reportsApi.getRevenueTrend('month'),
-      staleTime: 1000 * 60,
-    }),
-  ]);
+  // Disk data is enough to paint the first screen. Wait until that first
+  // interaction has settled before competing for radio/CPU with five requests.
+  setTimeout(() => {
+    Promise.allSettled([
+      prefetchSettings(queryClient),
+      prefetchProductCatalog(queryClient, userId),
+      queryClient.prefetchQuery({
+        queryKey: ['reports', 'dashboard'],
+        queryFn: async () => {
+          const stats = await reportsApi.getDashboardStats();
+          if (stats) {
+            await writeDashboardCache(userId, stats);
+          }
+          return stats;
+        },
+        staleTime: 1000 * 60,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['categories', userId],
+        queryFn: productsApi.getCategories,
+        staleTime: 1000 * 60 * 5,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['reports', 'trend', 'month'],
+        queryFn: () => reportsApi.getRevenueTrend('month'),
+        staleTime: 1000 * 60,
+      }),
+    ]).catch(() => undefined);
+  }, 650);
 }
-

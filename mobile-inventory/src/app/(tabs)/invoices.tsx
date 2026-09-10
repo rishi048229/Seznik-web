@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import {
   Search,
-  IndianRupee,
+  TrendingUp,
   X,
   CreditCard,
   Banknote,
@@ -352,12 +352,12 @@ export default function InvoicesTabScreen() {
         <View style={styles.mainWrapper}>
           <View style={styles.headerRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-              <View style={[styles.pageLogo, { backgroundColor: 'rgba(2, 132, 199, 0.12)' }]}>
-                <IndianRupee size={22} color={BRAND_COLORS.sky500} strokeWidth={2.2} />
+              <View style={[styles.pageLogo, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                <TrendingUp size={22} color={BRAND_COLORS.blue600} strokeWidth={2.4} />
               </View>
               <View style={{ marginLeft: 10 }}>
-                <Text style={styles.headerBadge}>{t('billing', 'Billing')}</Text>
-                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('invoices', 'Invoices')}</Text>
+                <Text style={styles.headerBadge}>{t('salesRecords', 'Sales & Revenue')}</Text>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{t('sales', 'Sales')}</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -510,10 +510,10 @@ export default function InvoicesTabScreen() {
               }}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <IndianRupee size={40} color={BRAND_COLORS.sky500} strokeWidth={2} />
-                  <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>{t('noInvoices', 'No Invoices Found')}</Text>
+                  <TrendingUp size={40} color={BRAND_COLORS.blue600} strokeWidth={2} />
+                  <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>{t('noSales', 'No Sales Found')}</Text>
                   <Text style={[styles.emptySub, { color: theme.textSecondary }]}>
-                    {t('noInvoicesHint', 'Try changing filters or complete a sale from POS.')}
+                    {t('noSalesHint', 'Try changing filters or complete a sale from POS.')}
                   </Text>
                 </View>
               }

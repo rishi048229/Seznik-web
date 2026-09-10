@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Dimensions, ViewStyle } from 'react-native';
+import { View, Animated, StyleSheet, Dimensions, ViewStyle, Easing } from 'react-native';
 import { useAppTheme } from '@/hooks/useAppTheme';
 
-const { width } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
 interface SkeletonBlockProps {
   width?: ViewStyle['width'];
@@ -18,28 +18,27 @@ export function SkeletonBlock({
   style,
 }: SkeletonBlockProps) {
   const theme = useAppTheme();
-  const opacityAnim = useRef(new Animated.Value(0.35)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacityAnim, {
-          toValue: 0.85,
-          duration: 850,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 0.35,
-          duration: 850,
-          useNativeDriver: true,
-        }),
-      ])
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 1250,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      })
     );
     animation.start();
     return () => animation.stop();
-  }, [opacityAnim]);
+  }, [shimmerAnim]);
 
   const skeletonBg = theme.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.07)';
+  const shimmerColor = theme.isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.70)';
+  const shimmerTranslate = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-screenWidth - 60, screenWidth + 60],
+  });
 
   return (
     <Animated.View
@@ -49,11 +48,22 @@ export function SkeletonBlock({
           height,
           borderRadius,
           backgroundColor: skeletonBg,
-          opacity: opacityAnim,
+          overflow: 'hidden',
         },
         style,
       ]}
-    />
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.shimmerBand,
+          {
+            backgroundColor: shimmerColor,
+            transform: [{ translateX: shimmerTranslate }, { rotate: '18deg' }],
+          },
+        ]}
+      />
+    </Animated.View>
   );
 }
 
@@ -511,7 +521,7 @@ export function KotOrdersListSkeleton({ count = 4 }: { count?: number }) {
 /** Restaurant dining tables — 2-column grid cards */
 export function KotTablesGridSkeleton({ count = 6 }: { count?: number }) {
   const theme = useAppTheme();
-  const tileWidth = (width - 32 - 10) / 2;
+  const tileWidth = (screenWidth - 32 - 10) / 2;
   return (
     <View style={styles.kotTablesGrid}>
       {Array.from({ length: count }).map((_, i) => (
@@ -603,7 +613,7 @@ export function CustomerLedgerSkeleton() {
       </View>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 14 }}>
         {[1, 2, 3].map((i) => (
-          <SkeletonBlock key={i} width={(width - 48) / 3} height={36} borderRadius={10} />
+          <SkeletonBlock key={i} width={(screenWidth - 48) / 3} height={36} borderRadius={10} />
         ))}
       </View>
       {[1, 2, 3].map((i) => (
@@ -772,6 +782,12 @@ export function StaffListSkeleton({ count = 4 }: { count?: number }) {
 }
 
 const styles = StyleSheet.create({
+  shimmerBand: {
+    position: 'absolute',
+    top: -24,
+    bottom: -24,
+    width: 42,
+  },
   rowBetween: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -789,7 +805,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   tileBox: {
-    width: (width - 32 - 24) / 4,
+    width: (screenWidth - 32 - 24) / 4,
     height: 76,
     borderRadius: 16,
     borderWidth: 1,
@@ -811,7 +827,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   kpiCard: {
-    width: (width - 32 - 10) / 2,
+    width: (screenWidth - 32 - 10) / 2,
     borderRadius: 18,
     borderWidth: 1,
     padding: 14,
@@ -854,7 +870,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   posTile: {
-    width: (width - 32 - 10) / 2,
+    width: (screenWidth - 32 - 10) / 2,
     borderRadius: 16,
     borderWidth: 1,
     padding: 10,
@@ -931,7 +947,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   customerStatTile: {
-    width: (width - 32 - 8) / 2,
+    width: (screenWidth - 32 - 8) / 2,
     borderRadius: 14,
     borderWidth: 1,
     padding: 10,

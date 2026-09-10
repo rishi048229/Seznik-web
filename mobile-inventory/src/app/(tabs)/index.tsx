@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Menu,
   TrendingUp,
+  TrendingDown,
   IndianRupee,
   AlertTriangle,
   ShoppingBag,
@@ -490,8 +491,8 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label={t('invoices', 'Invoices')}
-                      icon={IndianRupee}
+                      label={t('sales', 'Sales')}
+                      icon={TrendingUp}
                       color="#0284C7"
                       onPress={() => router.push('/(tabs)/invoices' as any)}
                       theme={theme}
@@ -507,8 +508,8 @@ export default function DashboardScreen() {
                       theme={theme}
                     />
                     <FeatureGridTile
-                      label={t('invoices', 'Invoices')}
-                      icon={IndianRupee}
+                      label={t('sales', 'Sales')}
+                      icon={TrendingUp}
                       color="#0284C7"
                       onPress={() => router.push('/(tabs)/invoices' as any)}
                       theme={theme}
@@ -526,8 +527,8 @@ export default function DashboardScreen() {
                     />
                     <FeatureGridTile
                       label={t('expenses', 'Expenses')}
-                      icon={Wallet}
-                      color="#EC4899"
+                      icon={TrendingDown}
+                      color="#EF4444"
                       onPress={() => router.push('/expenses' as any)}
                       theme={theme}
                     />
@@ -618,8 +619,8 @@ export default function DashboardScreen() {
                     />
                     <FeatureGridTile
                       label={t('expenses', 'Expenses')}
-                      icon={Wallet}
-                      color="#EC4899"
+                      icon={TrendingDown}
+                      color="#EF4444"
                       onPress={() => router.push('/expenses' as any)}
                       theme={theme}
                     />

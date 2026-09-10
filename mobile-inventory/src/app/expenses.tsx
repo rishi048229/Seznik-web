@@ -395,9 +395,24 @@ export default function ExpensesScreen() {
             </View>
           </View>
 
-          <Text style={[styles.title, { color: theme.textPrimary }]}>
-            {t('expensesPageTitle', 'Expenses & Purchases')}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 9,
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 8,
+              }}
+            >
+              <TrendingDown size={18} color="#EF4444" strokeWidth={2.5} />
+            </View>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>
+              {t('expensesPageTitle', 'Expenses & Purchases')}
+            </Text>
+          </View>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             Unified business outflows, stock purchase logs & vendor payments
           </Text>

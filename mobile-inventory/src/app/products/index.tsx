@@ -607,9 +607,11 @@ export default function ProductsScreen() {
     setShowGstDropdown(false);
   };
 
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 14;
+
   return (
     <ScreenBackground color={theme.bg}>
-    <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: insets.top || 12 }]}>
+    <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.bg} />
 
       <View style={styles.mainWrapper}>
@@ -620,13 +622,20 @@ export default function ProductsScreen() {
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <TouchableOpacity
               onPress={() => setShowAiModal(true)}
-              style={[styles.headerBtn, { backgroundColor: 'rgba(37, 99, 235, 0.15)', marginRight: 6 }]}
+              style={[
+                styles.headerBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.1)',
+                  borderColor: isDark ? 'rgba(37, 99, 235, 0.35)' : 'transparent',
+                  borderWidth: isDark ? 1 : 0,
+                },
+              ]}
             >
-              <Sparkles size={14} color={BRAND_COLORS.blue600} />
-              <Text style={[styles.headerBtnText, { color: BRAND_COLORS.blue600 }]}>{t('bulkUpload', 'Bulk upload')}</Text>
+              <Sparkles size={13} color={isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
+              <Text style={[styles.headerBtnText, { color: isDark ? '#60A5FA' : BRAND_COLORS.blue600 }]}>{t('bulkUpload', 'Bulk upload')}</Text>
             </TouchableOpacity>
 
             {trackStock ? (
@@ -637,15 +646,38 @@ export default function ProductsScreen() {
                   setLastScannedBarcode(null);
                   setShowStockScanMode(true);
                 }}
-                style={[styles.headerBtn, { backgroundColor: 'rgba(16, 185, 129, 0.15)', marginRight: 6 }]}
+                style={[
+                  styles.headerBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.1)',
+                    borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : 'transparent',
+                    borderWidth: isDark ? 1 : 0,
+                  },
+                ]}
               >
-                <Zap size={14} color="#10B981" />
+                <Zap size={13} color="#10B981" />
                 <Text style={[styles.headerBtnText, { color: '#10B981' }]}>{t('scanStock', 'Scan Stock')}</Text>
               </TouchableOpacity>
             ) : null}
 
-            <TouchableOpacity onPress={handleOpenAddModal} style={styles.addBtn}>
-              <Plus size={15} color="#FFFFFF" />
+            <TouchableOpacity
+              onPress={handleOpenAddModal}
+              activeOpacity={0.8}
+              style={[
+                styles.addBtn,
+                {
+                  backgroundColor: BRAND_COLORS.blue600,
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.55)' : BRAND_COLORS.blue600,
+                  borderWidth: 1,
+                  shadowColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.blue600,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: isDark ? 0.6 : 0.3,
+                  shadowRadius: 8,
+                  elevation: 6,
+                },
+              ]}
+            >
+              <Plus size={15} color="#FFFFFF" strokeWidth={2.8} />
               <Text style={styles.addBtnText}>{t('addProduct', 'Add Product')}</Text>
             </TouchableOpacity>
           </View>
@@ -1817,13 +1849,21 @@ export default function ProductsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mainWrapper: { flex: 1, paddingHorizontal: 16 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingTop: 2 },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   headerBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
   headerBtnText: { fontSize: 12, fontWeight: '800', marginLeft: 4 },
-  addBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
-  addBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },
+  addBtn: {
+    backgroundColor: BRAND_COLORS.blue600,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5, letterSpacing: 0.2 },
   title: { fontSize: 24, fontWeight: '900' },
   statCard: { width: 140, padding: 12, borderRadius: 16, borderWidth: 1, marginRight: 10, height: 60, justifyContent: 'center' },
   statLabel: { fontSize: 10, fontWeight: '600' },
@@ -1865,7 +1905,7 @@ const styles = StyleSheet.create({
   photoPlaceholderBox: { width: '100%', height: 80, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   photoPlaceholderText: { fontSize: 11, marginTop: 6, fontWeight: '600' },
   photoActionsRow: { flexDirection: 'row', justifyContent: 'center', width: '100%' },
-  photoActionBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, flexDirection: 'row', alignItems: 'center', marginHorizontal: 4 },
+  photoActionBtn: { backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, flexDirection: 'row', alignItems: 'center', marginHorizontal: 4 },
   photoActionText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', marginLeft: 6 },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   label: { fontSize: 12, fontWeight: '700' },
@@ -1879,7 +1919,7 @@ const styles = StyleSheet.create({
   dropdownOptionText: { fontSize: 13, fontWeight: '600' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   barcodeSection: { marginTop: 10, marginBottom: 20 },
-  genBarcodeBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
+  genBarcodeBtn: { backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
   genBarcodeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', marginLeft: 4 },
   priceToggleRow: {
     flexDirection: 'row',
@@ -1892,7 +1932,7 @@ const styles = StyleSheet.create({
   },
   stickySaveBar: { padding: 16, borderTopWidth: 1 },
   submitBtn: {
-    backgroundColor: BRAND_COLORS.navyInk,
+    backgroundColor: BRAND_COLORS.blue600,
     borderRadius: 14,
     minHeight: 52,
     paddingVertical: 14,
@@ -1972,7 +2012,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 44,
-    backgroundColor: BRAND_COLORS.navyInk,
+    backgroundColor: BRAND_COLORS.blue600,
     borderRadius: 12,
     paddingHorizontal: 12,
   },

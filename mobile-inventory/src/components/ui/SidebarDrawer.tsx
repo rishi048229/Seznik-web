@@ -15,10 +15,10 @@ import {
   LayoutDashboard,
   ShoppingBag,
   Package,
-  IndianRupee,
+  TrendingUp,
+  TrendingDown,
   Users,
   Truck,
-  DollarSign,
   BookOpen,
   BarChart3,
   Settings,
@@ -77,7 +77,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   const corePosItems = kotFirst
     ? [
         { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
-        { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: IndianRupee, route: '/(tabs)/invoices' },
+        { id: 'sales', label: t('sales', 'Sales'), icon: TrendingUp, route: '/(tabs)/invoices' },
         { id: 'pos', label: t('pos', 'Counter POS'), icon: ShoppingBag, route: '/(tabs)/pos' },
         ...(isFeatureVisible('calculator')
           ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
@@ -92,7 +92,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         ...(isFeatureVisible('calculator')
           ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
           : []),
-        { id: 'invoices', label: t('invoices', 'Invoices & History'), icon: IndianRupee, route: '/(tabs)/invoices' },
+        { id: 'sales', label: t('sales', 'Sales'), icon: TrendingUp, route: '/(tabs)/invoices' },
         ...(isFeatureVisible('tokens')
           ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
           : []),
@@ -190,7 +190,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       items: [
         { id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' },
         { id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' },
-        { id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: DollarSign, route: '/expenses' },
+        { id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: TrendingDown, route: '/expenses' },
       ],
     },
     {
