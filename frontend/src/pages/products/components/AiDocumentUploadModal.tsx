@@ -505,23 +505,27 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
         {step === 'upload' && (
           <div className="space-y-5">
             {/* Step 1: Download Standard Template */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 border border-blue-200 dark:border-blue-800/60 space-y-3">
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 dark:from-blue-950/30 dark:via-dark-elevated dark:to-indigo-950/20 border border-blue-200/80 dark:border-blue-500/25 space-y-3 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-bold text-blue-950 dark:text-blue-200">
-                    <FileSpreadsheet className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    <span>Step 1: Download Bulk Upload Template</span>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 shrink-0">
+                    <FileSpreadsheet className="w-5 h-5" />
                   </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">
-                    Download our official template with pre-formatted columns and sample items. Fill in your products and upload below.
-                  </p>
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-bold text-blue-950 dark:text-blue-300">
+                      Step 1: Download Bulk Upload Template
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed">
+                      Download our official template with pre-formatted columns and sample items. Fill in your products and upload below.
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
                     type="button"
                     size="sm"
                     onClick={() => downloadBulkUploadTemplate('xlsx')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm hover:shadow-blue-500/20"
                     leftIcon={<Download size={14} />}
                   >
                     Download Excel (.xlsx)
@@ -531,7 +535,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                     size="sm"
                     variant="outline"
                     onClick={() => downloadBulkUploadTemplate('csv')}
-                    className="text-xs font-semibold"
+                    className="text-xs font-semibold dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white dark:hover:border-blue-400/40"
                     leftIcon={<Download size={14} />}
                   >
                     CSV (.csv)
@@ -541,55 +545,120 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             </div>
 
             {/* Step 2: Format Guidelines & Disclaimer */}
-            <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 space-y-3 text-xs text-amber-950 dark:text-amber-200">
-              <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-100">
-                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-dark-elevated/70 border border-amber-200/80 dark:border-dark-border-strong space-y-3.5 text-xs backdrop-blur-sm">
+              <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300">
+                <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                </div>
                 <span>Format Guidelines & Upload Requirements</span>
               </div>
-              <p className="text-[11.5px] leading-relaxed text-amber-900/90 dark:text-amber-200/90">
-                Please upload your product list strictly according to the format in the template. Only <strong>Excel (.xlsx, .xls)</strong> and <strong>CSV (.csv)</strong> formats are supported.
+              <p className="text-[11.5px] leading-relaxed text-slate-700 dark:text-zinc-300">
+                Please upload your product list strictly according to the format in the template. Only{' '}
+                <span className="font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50">
+                  Excel (.xlsx, .xls)
+                </span>{' '}
+                and{' '}
+                <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/50">
+                  CSV (.csv)
+                </span>{' '}
+                formats are supported.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60 dark:border-amber-800/40 text-[11px]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60 dark:border-dark-border text-[11px]">
                 {/* Compulsory Fields */}
-                <div className="space-y-1.5 bg-white/70 dark:bg-dark-card/60 p-3 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
-                  <p className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    Compulsory Fields (Required):
-                  </p>
-                  <ul className="space-y-1 text-gray-700 dark:text-gray-300 pl-4 list-disc marker:text-emerald-500">
-                    <li><strong>Product Name*</strong>: Title / item name</li>
-                    <li><strong>Category*</strong>: Category name (auto-created if new)</li>
-                    <li><strong>Cost Price*</strong>: Supplier purchase cost in ₹</li>
-                    <li><strong>Selling Price*</strong>: Retail customer selling price in ₹</li>
-                    <li><strong>Stock Quantity*</strong>: Initial inventory count (0 or higher)</li>
+                <div className="space-y-2 bg-white/90 dark:bg-dark-card p-3.5 rounded-xl border border-emerald-200/80 dark:border-emerald-500/25 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5 text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      Compulsory Fields
+                    </p>
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border dark:border-emerald-800/60">
+                      Required
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-zinc-300 pl-4 list-disc marker:text-emerald-500">
                     <li>
-                      <strong>Unit*</strong>: Measurement unit. Supported codes & index:
-                      <div className="mt-1 text-[10.5px] text-gray-600 dark:text-gray-400 font-mono bg-gray-100/80 dark:bg-dark-bg p-1.5 rounded border border-gray-200 dark:border-dark-border-strong">
-                        1: piece | 2: kg | 3: gram | 4: liter | 5: meter | 6: dozen | 7: box
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Product Name*</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Title / item name</span>
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Category*</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Category name (auto-created if new)</span>
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Cost Price*</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Supplier purchase cost in ₹</span>
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Selling Price*</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Retail customer selling price in ₹</span>
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Stock Quantity*</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Initial inventory count (0 or higher)</span>
+                    </li>
+                    <li>
+                      <div className="text-slate-900 dark:text-zinc-100 font-semibold">
+                        <strong>Unit*</strong>: <span className="font-normal text-slate-600 dark:text-zinc-400">Supported measurement codes:</span>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1 p-2 rounded-lg bg-gray-50 dark:bg-dark-bg/90 border border-gray-200 dark:border-dark-border-strong font-mono text-[10.5px]">
+                        {[
+                          { id: 1, label: 'piece' },
+                          { id: 2, label: 'kg' },
+                          { id: 3, label: 'gram' },
+                          { id: 4, label: 'liter' },
+                          { id: 5, label: 'meter' },
+                          { id: 6, label: 'dozen' },
+                          { id: 7, label: 'box' },
+                        ].map((u) => (
+                          <span
+                            key={u.id}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50"
+                          >
+                            <strong className="text-emerald-900 dark:text-emerald-200 mr-1 font-bold">{u.id}:</strong>{' '}
+                            {u.label}
+                          </span>
+                        ))}
                       </div>
                     </li>
                   </ul>
                 </div>
 
                 {/* Optional Fields */}
-                <div className="space-y-1.5 bg-white/70 dark:bg-dark-card/60 p-3 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
-                  <p className="font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-blue-600" />
-                    Optional Fields:
-                  </p>
-                  <ul className="space-y-1 text-gray-700 dark:text-gray-300 pl-4 list-disc marker:text-blue-500">
+                <div className="space-y-2 bg-white/90 dark:bg-dark-card p-3.5 rounded-xl border border-blue-200/80 dark:border-blue-500/25 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-blue-800 dark:text-blue-400 flex items-center gap-1.5 text-xs">
+                      <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      Optional Fields
+                    </p>
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 dark:border dark:border-blue-800/60">
+                      Auto-Handled
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-zinc-300 pl-4 list-disc marker:text-blue-500">
                     <li>
-                      <strong>Barcode</strong>: Optional. If left blank, Seznik automatically assigns a unique barcode (<code className="text-blue-600 dark:text-blue-400 font-mono">SZ...</code>). Existing barcodes will be preserved 100%.
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Barcode</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Optional. If empty, auto-assigns </span>
+                      <code className="text-blue-700 dark:text-blue-300 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50 text-[10px]">
+                        SZ...
+                      </code>
+                      <span className="text-slate-600 dark:text-zinc-400">. Existing barcodes are preserved 100%.</span>
                     </li>
                     <li>
-                      <strong>Min Stock Alert</strong>: Low stock threshold warning. If not entered, it automatically defaults to <strong className="font-bold">0</strong>.
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Min Stock Alert</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Low stock threshold. Defaults to </span>
+                      <span className="px-1.5 py-0.2 rounded bg-gray-100 dark:bg-dark-elevated text-slate-900 dark:text-zinc-100 font-bold border border-gray-200 dark:border-dark-border-strong text-[10.5px]">
+                        0
+                      </span>
+                      <span className="text-slate-600 dark:text-zinc-400"> if blank.</span>
                     </li>
                     <li>
-                      <strong>Tax Rate %</strong>: Applicable GST percentage slab (defaults to 0%).
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Tax Rate %</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Applicable GST percentage slab (defaults to 0%).</span>
                     </li>
                     <li>
-                      <strong>Brand & Description</strong>: Optional brand or item description / notes.
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Brand & Description</strong>:{' '}
+                      <span className="text-slate-600 dark:text-zinc-400">Optional brand or item description notes.</span>
                     </li>
                   </ul>
                 </div>
@@ -601,7 +670,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-blue-300 dark:border-blue-700/60 hover:border-blue-600 dark:hover:border-blue-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-dark-card/40 hover:bg-blue-50/40 dark:hover:bg-blue-900/20 group"
+              className="border-2 border-dashed border-blue-200 dark:border-blue-500/30 hover:border-blue-500 dark:hover:border-blue-400 rounded-2xl p-7 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-dark-card hover:bg-blue-50/40 dark:hover:bg-dark-elevated/80 group"
             >
               <input
                 ref={fileInputRef}
@@ -613,32 +682,37 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
               {selectedFile ? (
                 <div className="space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center mx-auto">
-                    <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200/60 dark:border-emerald-500/30">
+                    <FileSpreadsheet className="w-7 h-7 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                  <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                  <p className="text-sm font-bold text-slate-900 dark:text-zinc-100">{selectedFile.name}</p>
+                  <p className="text-xs text-slate-600 dark:text-zinc-300 font-medium">
                     {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory.toUpperCase()} Format
                   </p>
-                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Click or drag to replace file</p>
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">Click or drag to replace file</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                    <UploadCloud className="w-8 h-8" />
+                  <div className="w-14 h-14 rounded-2xl bg-blue-100/80 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto group-hover:scale-105 transition-transform border border-blue-200/50 dark:border-blue-500/30">
+                    <UploadCloud className="w-7 h-7" />
                   </div>
                   <div>
-                    <p className="text-base font-bold text-gray-900 dark:text-gray-100">
+                    <p className="text-base font-bold text-slate-900 dark:text-zinc-100">
                       Drop your completed Excel (.xlsx) or CSV file here
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-slate-600 dark:text-zinc-300 mt-1">
                       Supports Excel (.xlsx, .xls) and CSV (.csv) — max 20MB, up to 5,000 products per file
                     </p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
+                    <p className="text-[11.5px] text-slate-500 dark:text-zinc-400 mt-1.5">
                       Ensure your columns match the template headers for instant 100% extraction.
                     </p>
                   </div>
-                  <Button type="button" size="sm" variant="outline" className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 text-xs font-semibold dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white dark:hover:border-blue-400/40"
+                  >
                     Browse File
                   </Button>
                 </div>
@@ -647,7 +721,12 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
             {/* Submit Extraction Button */}
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="ghost" onClick={handleResetAndClose}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleResetAndClose}
+                className="dark:text-zinc-300 dark:hover:text-white dark:hover:bg-dark-elevated"
+              >
                 Cancel
               </Button>
               <Button
@@ -655,7 +734,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 onClick={handleStartExtraction}
                 disabled={!selectedFile || isExtracting}
                 loading={isExtracting}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md"
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-500/20"
                 leftIcon={<FileSpreadsheet size={16} />}
               >
                 Upload & Review Products
@@ -696,13 +775,13 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
         {step === 'review' && (
           <div className="space-y-4">
             {/* AI Verification Notice & Disclaimer Warning Banner */}
-            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+            <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-dark-elevated border border-amber-300/80 dark:border-amber-500/30 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
               <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="space-y-0.5">
-                <p className="font-bold text-amber-950 dark:text-amber-100">
+                <p className="font-bold text-amber-950 dark:text-amber-300">
                   ⚠️ Verification Required: AI & Automated Extraction Notice
                 </p>
-                <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                <p className="text-[11px] text-amber-800 dark:text-zinc-300 leading-relaxed">
                   Automated extraction helps process thousands of products quickly, but AI and file parsers can occasionally misinterpret handwritten text, complex grid columns, or custom formats. <strong>Please inspect and verify product names, prices, categories, and barcodes below before clicking import into your inventory.</strong>
                 </p>
               </div>
@@ -710,27 +789,27 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
             {/* Top Stat Banner */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/40">
-                <p className="text-[11px] text-purple-700 dark:text-purple-300 font-medium">Extracted Products</p>
-                <p className="text-xl font-bold text-purple-900 dark:text-purple-100">{extractedProducts.length}</p>
+              <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-dark-elevated border border-purple-200 dark:border-purple-800/40">
+                <p className="text-[11px] text-purple-700 dark:text-purple-300 font-semibold">Extracted Products</p>
+                <p className="text-xl font-black text-purple-900 dark:text-white">{extractedProducts.length}</p>
               </div>
-              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40">
-                <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">Selected to Import</p>
-                <p className="text-xl font-bold text-blue-900 dark:text-blue-100">{selectedCount}</p>
+              <div className="p-3 rounded-xl bg-blue-50/80 dark:bg-dark-elevated border border-blue-200 dark:border-blue-800/40">
+                <p className="text-[11px] text-blue-700 dark:text-blue-300 font-semibold">Selected to Import</p>
+                <p className="text-xl font-black text-blue-900 dark:text-white">{selectedCount}</p>
               </div>
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40">
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">Doc Barcodes Preserved</p>
-                <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100">{existingBarcodeCount}</p>
+              <div className="p-3 rounded-xl bg-emerald-50/80 dark:bg-dark-elevated border border-emerald-200 dark:border-emerald-800/40">
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">Doc Barcodes Preserved</p>
+                <p className="text-xl font-black text-emerald-900 dark:text-white">{existingBarcodeCount}</p>
               </div>
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
-                <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">Auto-Generated Barcodes</p>
-                <p className="text-xl font-bold text-amber-900 dark:text-amber-100">{autoBarcodeCount}</p>
+              <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-dark-elevated border border-amber-200 dark:border-amber-800/40">
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold">Auto-Generated Barcodes</p>
+                <p className="text-xl font-black text-amber-900 dark:text-white">{autoBarcodeCount}</p>
               </div>
             </div>
 
             {/* Rows the extractor is unsure about */}
             {rowsNeedingReview > 0 && (
-              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 flex items-start gap-2.5">
+              <div className="p-3 rounded-xl bg-rose-50/80 dark:bg-dark-elevated border border-rose-200 dark:border-rose-500/30 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-rose-900 dark:text-rose-200">
                   <strong>{rowsNeedingReview}</strong> {rowsNeedingReview === 1 ? 'row needs' : 'rows need'} a closer look — missing prices, unreadable names, or duplicates. They're marked in the list below and are still safe to import once corrected.
@@ -780,7 +859,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             {/* DESKTOP TABLE VIEW (md:block hidden) */}
             <div className="hidden md:block max-h-96 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-xl">
               <table className="w-full text-left text-xs divide-y divide-gray-200 dark:divide-dark-border">
-                <thead className="bg-gray-50 dark:bg-dark-card sticky top-0 font-bold text-gray-700 dark:text-gray-300 z-10">
+                <thead className="bg-gray-50 dark:bg-dark-elevated sticky top-0 font-bold text-gray-700 dark:text-zinc-200 z-10 border-b border-gray-200 dark:border-dark-border">
                   <tr>
                     <th className="p-3 text-center w-10">
                       <input
@@ -867,7 +946,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                             step="0.01"
                             value={product.costPrice}
                             onChange={e => handleUpdateProductField(product.id, 'costPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs text-gray-700 dark:text-gray-300"
+                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs text-gray-700 dark:text-zinc-200"
                           />
                         </td>
                         <td className="p-2">
@@ -974,7 +1053,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                         className="mt-1.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                       />
                       <div className="flex-1 space-y-1">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Product Name</label>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Product Name</label>
                         <input
                           type="text"
                           value={product.name}
@@ -994,16 +1073,16 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                     {/* Inputs Grid: Category, Sell Price, Cost Price */}
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="text-[10px] font-bold text-gray-500 uppercase">Category</label>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Category</label>
                         <input
                           type="text"
                           value={product.categoryName}
                           onChange={e => handleUpdateProductField(product.id, 'categoryName', e.target.value)}
-                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-medium"
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-medium text-gray-900 dark:text-zinc-100"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-gray-500 uppercase">Selling (₹)</label>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Selling (₹)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -1013,13 +1092,13 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-gray-500 uppercase">Cost (₹)</label>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Cost (₹)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={product.costPrice}
                           onChange={e => handleUpdateProductField(product.id, 'costPrice', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300"
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 text-gray-700 dark:text-zinc-200"
                         />
                       </div>
                     </div>
@@ -1027,7 +1106,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                     {/* Barcode & Regenerate */}
                     <div className="grid grid-cols-2 gap-2 items-center">
                       <div>
-                        <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase flex items-center justify-between">
                           <span>Barcode</span>
                           <button
                             type="button"
@@ -1046,7 +1125,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                       </div>
                       <div className="grid grid-cols-3 gap-1">
                         <div>
-                          <label className="text-[10px] font-bold text-gray-500 uppercase">GST %</label>
+                          <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">GST %</label>
                           <input
                             type="number"
                             value={product.taxRate}
@@ -1055,7 +1134,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-gray-500 uppercase">Stock</label>
+                          <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Stock</label>
                           <input
                             type="number"
                             value={product.currentStock}
@@ -1064,7 +1143,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-gray-500 uppercase">Unit</label>
+                          <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Unit</label>
                           <input
                             type="text"
                             value={product.unit}
