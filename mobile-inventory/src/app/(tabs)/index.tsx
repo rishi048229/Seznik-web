@@ -352,13 +352,32 @@ export default function DashboardScreen() {
                 setScanMode('bill');
                 setShowScanModal(true);
               }}
-              style={[styles.headerPillBtn, { backgroundColor: 'rgba(2, 132, 199, 0.15)', marginRight: 6 }]}
+              style={[
+                styles.headerPillBtn,
+                {
+                  backgroundColor: theme.isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.15)',
+                  borderColor: theme.isDark ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+                  borderWidth: theme.isDark ? 1 : 0,
+                  marginRight: 6,
+                },
+              ]}
             >
-              <Camera size={14} color={BRAND_COLORS.sky500} />
+              <Camera size={14} color={theme.isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500} />
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => router.push('/quick-bill' as any)} style={styles.billNowBtn}>
-              <Zap size={14} color="#FFFFFF" />
+            <TouchableOpacity
+              onPress={() => router.push('/quick-bill' as any)}
+              style={[
+                styles.billNowBtn,
+                {
+                  backgroundColor: theme.isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
+                  borderColor: theme.isDark ? 'rgba(56, 189, 248, 0.35)' : 'transparent',
+                  borderWidth: theme.isDark ? 1 : 0,
+                },
+              ]}
+              activeOpacity={0.82}
+            >
+              <Zap size={13} color="#FFFFFF" fill="#FFFFFF" />
               <Text style={styles.billNowText}>{t('billNow', 'Bill Now')}</Text>
             </TouchableOpacity>
           </View>
@@ -458,7 +477,6 @@ export default function DashboardScreen() {
                     />
                     <FeatureGridTile
                       label={t('newBill', 'New Bill')}
-                      badge="NEW"
                       icon={Plus}
                       color="#F97316"
                       onPress={() => router.push('/kot/new' as any)}
@@ -565,7 +583,6 @@ export default function DashboardScreen() {
                     />
                     <FeatureGridTile
                       label={t('labelStudio', 'Label Studio')}
-                      badge="NEW"
                       icon={Tag}
                       color="#10B981"
                       onPress={() => router.push('/printers/label-studio' as any)}
@@ -589,12 +606,11 @@ export default function DashboardScreen() {
                       label={t('thermalPrinter', 'Thermal Printer')}
                       icon={Printer}
                       color={BRAND_COLORS.blue600}
-                      onPress={() => setShowDirectPrinterModal(true)}
+                      onPress={() => router.push('/printers' as any)}
                       theme={theme}
                     />
                     <FeatureGridTile
                       label={t('quickPrint', 'Quick Print')}
-                      badge="NEW"
                       icon={FileText}
                       color="#10B981"
                       onPress={() => router.push('/printers/quick-print' as any)}
@@ -626,7 +642,6 @@ export default function DashboardScreen() {
                     {showCalculator && !showKot ? (
                       <FeatureGridTile
                         label={t('calculator', 'Calculator')}
-                        badge="NEW"
                         icon={Calculator}
                         color="#6366F1"
                         onPress={() => router.push('/(tabs)/calculator' as any)}
@@ -1110,7 +1125,7 @@ const styles = StyleSheet.create({
   storeTag: { fontSize: 10, fontWeight: '800', color: BRAND_COLORS.sky500, textTransform: 'uppercase', letterSpacing: 0.5 },
   headerTitle: { fontSize: 20, fontWeight: '900' },
   headerPillBtn: { padding: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  billNowBtn: { backgroundColor: BRAND_COLORS.navyInk, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  billNowBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   billNowText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, marginLeft: 4 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40 },
   loadingContainer: { paddingVertical: 60, alignItems: 'center' },

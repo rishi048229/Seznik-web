@@ -14,6 +14,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { PaymentMethod } from '@/types/sale';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 interface PosStickyFooterProps {
   paymentMethod: PaymentMethod;
@@ -35,6 +36,9 @@ export const PosStickyFooter = React.memo(function PosStickyFooter({
   onCreditAmountChange,
 }: PosStickyFooterProps) {
   const { t } = useTranslation();
+  const theme = useAppTheme();
+  const isDark = theme.isDark;
+
   const cartItems = useCartStore((state) => state.items);
   const getGrandTotal = useCartStore((state) => state.getGrandTotal);
   const getTotalDiscount = useCartStore((state) => state.getTotalDiscount);
@@ -44,42 +48,92 @@ export const PosStickyFooter = React.memo(function PosStickyFooter({
   const totalDiscount = getTotalDiscount();
   const creditRemaining = Math.max(0, grandTotalNow - (parseFloat(creditAmountReceivedInput) || 0));
 
-  const PAYMENT_OPTIONS: { method: PaymentMethod; label: string; icon: React.ReactNode }[] = [
-    { method: 'cash', label: 'CASH', icon: <Banknote size={14} color={paymentMethod === 'cash' ? '#FFFFFF' : '#94A3B8'} /> },
-    { method: 'upi', label: 'UPI', icon: <QrCode size={14} color={paymentMethod === 'upi' ? '#FFFFFF' : '#94A3B8'} /> },
-    { method: 'card', label: 'CARD', icon: <CreditCard size={14} color={paymentMethod === 'card' ? '#FFFFFF' : '#94A3B8'} /> },
-    { method: 'credit', label: 'CREDIT', icon: <BookOpen size={14} color={paymentMethod === 'credit' ? '#FFFFFF' : '#94A3B8'} /> },
+  const PAYMENT_OPTIONS: { method: PaymentMethod; label: string; icon: (color: string) => React.ReactNode }[] = [
+    { method: 'cash', label: 'CASH', icon: (color) => <Banknote size={13} color={color} /> },
+    { method: 'upi', label: 'UPI', icon: (color) => <QrCode size={13} color={color} /> },
+    { method: 'card', label: 'CARD', icon: (color) => <CreditCard size={13} color={color} /> },
+    { method: 'credit', label: 'CREDIT', icon: (color) => <BookOpen size={13} color={color} /> },
   ];
 
   return (
-    <View style={[styles.stickyTenderFooter, { backgroundColor: '#0B132B' }]}>
+    <View
+      style={[
+        styles.stickyTenderFooter,
+        {
+          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : BRAND_COLORS.slate200,
+          shadowColor: isDark ? '#000000' : '#0F172A',
+          shadowOpacity: isDark ? 0.4 : 0.08,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 16,
+        },
+      ]}
+    >
       {/* Customer Selector Row */}
-      <TouchableOpacity onPress={onOpenCustomerPicker} style={styles.customerRow}>
+      <TouchableOpacity
+        onPress={onOpenCustomerPicker}
+        style={[
+          styles.customerRow,
+          { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : BRAND_COLORS.slate100 },
+        ]}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          <UserCircle2 size={16} color="#60A5FA" />
-          <Text style={styles.customerRowText} numberOfLines={1}>
+          <UserCircle2 size={16} color={isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
+          <Text
+            style={[
+              styles.customerRowText,
+              { color: theme.textPrimary },
+            ]}
+            numberOfLines={1}
+          >
             {selectedCustomerName || t('walkInCustomer', 'Walk-in Customer')}
           </Text>
         </View>
-        <View style={styles.customerChangeBadge}>
-          <Text style={styles.customerChangeText}>Change</Text>
-          <ChevronDown size={12} color="#94A3B8" />
+        <View
+          style={[
+            styles.customerChangeBadge,
+            { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : BRAND_COLORS.slate100 },
+          ]}
+        >
+          <Text
+            style={[
+              styles.customerChangeText,
+              { color: theme.textSecondary },
+            ]}
+          >
+            {t('change', 'Change')}
+          </Text>
+          <ChevronDown size={12} color={theme.textSecondary} />
         </View>
       </TouchableOpacity>
 
       {/* Credit Partial Amount Input */}
       {paymentMethod === 'credit' ? (
         <View style={styles.creditRow}>
-          <Text style={styles.creditLabel}>{t('receivedNow', 'Received Now')} ₹</Text>
+          <Text style={[styles.creditLabel, { color: theme.textSecondary }]}>{t('receivedNow', 'Received Now')} ₹</Text>
           <TextInput
-            style={styles.creditInput}
+            style={[
+              styles.creditInput,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : BRAND_COLORS.slate100,
+                color: theme.textPrimary,
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : BRAND_COLORS.slate200,
+                borderWidth: 1,
+              },
+            ]}
             keyboardType="numeric"
             value={creditAmountReceivedInput}
             onChangeText={onCreditAmountChange}
             placeholder="0"
-            placeholderTextColor="#64748B"
+            placeholderTextColor={theme.textSecondary}
           />
-          <Text style={styles.creditRemainingText} numberOfLines={1}>
+          <Text
+            style={[
+              styles.creditRemainingText,
+              { color: isDark ? '#F59E0B' : '#D97706' },
+            ]}
+            numberOfLines={1}
+          >
             ₹{creditRemaining.toFixed(2)} to credit
           </Text>
         </View>
@@ -89,24 +143,39 @@ export const PosStickyFooter = React.memo(function PosStickyFooter({
       <View style={styles.tenderPillsRow}>
         {PAYMENT_OPTIONS.map(({ method, label, icon }) => {
           const isSelected = paymentMethod === method;
+          const chipColor = isSelected
+            ? '#FFFFFF'
+            : isDark
+            ? '#94A3B8'
+            : '#475569';
           return (
             <TouchableOpacity
               key={method}
               onPress={() => onSelectPaymentMethod(method)}
               style={[
                 styles.tenderChip,
-                isSelected && {
-                  backgroundColor: BRAND_COLORS.blue600,
-                  borderColor: BRAND_COLORS.sky400,
-                  elevation: 4,
+                {
+                  backgroundColor: isSelected
+                    ? BRAND_COLORS.blue600
+                    : isDark
+                    ? 'rgba(255, 255, 255, 0.06)'
+                    : BRAND_COLORS.slate50,
+                  borderColor: isSelected
+                    ? BRAND_COLORS.blue600
+                    : isDark
+                    ? '#1E293B'
+                    : BRAND_COLORS.slate200,
                 },
               ]}
             >
-              {icon}
+              {icon(chipColor)}
               <Text
                 style={[
                   styles.tenderChipText,
-                  isSelected ? { color: '#FFFFFF', fontWeight: '900' } : { color: '#94A3B8', fontWeight: '700' },
+                  {
+                    color: chipColor,
+                    fontWeight: isSelected ? '800' : '700',
+                  },
                 ]}
               >
                 {label}
@@ -120,17 +189,26 @@ export const PosStickyFooter = React.memo(function PosStickyFooter({
       <View style={styles.footerMainRow}>
         <TouchableOpacity onPress={onOpenCheckout} style={{ flex: 1, marginRight: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.tenderTotalLabel}>
+            <Text style={[styles.tenderTotalLabel, { color: theme.textSecondary }]}>
               {cartTotalCount} {cartTotalCount === 1 ? 'ITEM' : 'ITEMS'}
             </Text>
             {totalDiscount > 0 ? (
-              <View style={styles.savingsPill}>
+              <View
+                style={[
+                  styles.savingsPill,
+                  {
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)',
+                    borderColor: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
+                    borderWidth: 1,
+                  },
+                ]}
+              >
                 <Sparkles size={9} color="#10B981" />
                 <Text style={styles.savingsText}>Save ₹{totalDiscount.toFixed(0)}</Text>
               </View>
             ) : null}
           </View>
-          <Text style={styles.tenderTotalPrice}>₹{grandTotalNow.toFixed(2)}</Text>
+          <Text style={[styles.tenderTotalPrice, { color: theme.textPrimary }]}>₹{grandTotalNow.toFixed(2)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -154,13 +232,8 @@ const styles = StyleSheet.create({
     right: 14,
     borderRadius: 22,
     padding: 12,
-    elevation: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    elevation: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   customerRow: {
     flexDirection: 'row',
@@ -169,19 +242,16 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     marginBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   customerRowText: {
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#F1F5F9',
     marginLeft: 6,
   },
   customerChangeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -189,7 +259,6 @@ const styles = StyleSheet.create({
   customerChangeText: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#94A3B8',
   },
   creditRow: {
     flexDirection: 'row',
@@ -197,10 +266,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     marginBottom: 4,
   },
-  creditLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8' },
+  creditLabel: { fontSize: 11, fontWeight: '700' },
   creditInput: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    color: '#FFFFFF',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -210,7 +277,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginRight: 10,
   },
-  creditRemainingText: { flex: 1, fontSize: 10.5, fontWeight: '700', color: '#F59E0B' },
+  creditRemainingText: { flex: 1, fontSize: 10.5, fontWeight: '700' },
   tenderPillsRow: {
     flexDirection: 'row',
     gap: 6,
@@ -225,8 +292,6 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
   },
   tenderChipText: { fontSize: 11 },
   footerMainRow: {
@@ -238,14 +303,12 @@ const styles = StyleSheet.create({
   tenderTotalLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#94A3B8',
     letterSpacing: 0.5,
   },
   savingsPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: 'rgba(16, 185, 129, 0.18)',
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 6,
@@ -258,7 +321,6 @@ const styles = StyleSheet.create({
   tenderTotalPrice: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#FFFFFF',
     letterSpacing: 0.2,
   },
   checkoutActionBtn: {

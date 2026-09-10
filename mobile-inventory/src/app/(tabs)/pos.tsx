@@ -40,6 +40,9 @@ import {
   FlashlightOff,
   QrCode,
   Edit3,
+  Banknote,
+  CreditCard,
+  BookOpen,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useProducts } from '@/hooks/useProducts';
@@ -806,62 +809,173 @@ function PosScreen() {
         </View>
 
       {/* Sticky Bottom Checkout Footer — customer row, credit amount (when applicable), totals, tender, PRINT */}
-      <View style={[styles.stickyTenderFooter, { backgroundColor: BRAND_COLORS.navyInk }]}>
-        <TouchableOpacity onPress={() => setShowCustomerPicker(true)} style={styles.customerRow}>
-          <UserCircle2 size={14} color="#94A3B8" />
-          <Text style={styles.customerRowText} numberOfLines={1}>
-            {selectedCustomerName || t('walkInCustomer', 'Walk-in Customer')}
-          </Text>
-          <ChevronDown size={13} color="#94A3B8" />
+      <View
+        style={[
+          styles.stickyTenderFooter,
+          {
+            backgroundColor: theme.isDark ? '#0F172A' : '#FFFFFF',
+            borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.1)' : BRAND_COLORS.slate200,
+            shadowColor: theme.isDark ? '#000000' : '#0F172A',
+            shadowOpacity: theme.isDark ? 0.4 : 0.08,
+            shadowOffset: { width: 0, height: 4 },
+            shadowRadius: 16,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => setShowCustomerPicker(true)}
+          style={[
+            styles.customerRow,
+            { borderBottomColor: theme.isDark ? 'rgba(255, 255, 255, 0.08)' : BRAND_COLORS.slate100 },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <UserCircle2 size={15} color={theme.isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
+            <Text
+              style={[
+                styles.customerRowText,
+                { color: theme.textPrimary },
+              ]}
+              numberOfLines={1}
+            >
+              {selectedCustomerName || t('walkInCustomer', 'Walk-in Customer')}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.customerChangeBadge,
+              {
+                backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.08)' : BRAND_COLORS.slate100,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.customerChangeText,
+                { color: theme.textSecondary },
+              ]}
+            >
+              {t('change', 'Change')}
+            </Text>
+            <ChevronDown size={11} color={theme.textSecondary} />
+          </View>
         </TouchableOpacity>
 
         {paymentMethod === 'credit' ? (
           <View style={styles.creditRow}>
-            <Text style={styles.creditLabel}>{t('receivedNow', 'Received Now')} ₹</Text>
+            <Text style={[styles.creditLabel, { color: theme.textSecondary }]}>{t('receivedNow', 'Received Now')} ₹</Text>
             <TextInput
-              style={styles.creditInput}
+              style={[
+                styles.creditInput,
+                {
+                  backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.08)' : BRAND_COLORS.slate100,
+                  color: theme.textPrimary,
+                  borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.15)' : BRAND_COLORS.slate200,
+                  borderWidth: 1,
+                },
+              ]}
               keyboardType="numeric"
               value={creditAmountReceivedInput}
               onChangeText={setCreditAmountReceivedInput}
               placeholder="0"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={theme.textSecondary}
             />
-            <Text style={styles.creditRemainingText} numberOfLines={1}>
+            <Text
+              style={[
+                styles.creditRemainingText,
+                { color: theme.isDark ? '#F59E0B' : '#D97706' },
+              ]}
+              numberOfLines={1}
+            >
               ₹{creditRemaining.toFixed(2)} to {(selectedCustomerName || t('customer', 'customer')).split(' ')[0]}&apos;s credit
             </Text>
           </View>
         ) : null}
 
         <View style={styles.tenderPillsRow}>
-          {(['cash', 'upi', 'card', 'credit'] as const).map((method) => (
-            <TouchableOpacity
-              key={method}
-              onPress={() => handleSelectPaymentMethod(method)}
-              style={[
-                styles.tenderChip,
-                paymentMethod === method && { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
-              ]}
-            >
-              <Text style={[styles.tenderChipText, paymentMethod === method ? { color: '#FFFFFF' } : { color: '#94A3B8' }]}>
-                {method === 'credit' ? t('credit', 'CREDIT') : method.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {([
+            { method: 'cash' as const, label: 'CASH', Icon: Banknote },
+            { method: 'upi' as const, label: 'UPI', Icon: QrCode },
+            { method: 'card' as const, label: 'CARD', Icon: CreditCard },
+            { method: 'credit' as const, label: t('credit', 'CREDIT'), Icon: BookOpen },
+          ] as const).map(({ method, label, Icon }) => {
+            const isSelected = paymentMethod === method;
+            return (
+              <TouchableOpacity
+                key={method}
+                onPress={() => handleSelectPaymentMethod(method)}
+                style={[
+                  styles.tenderChip,
+                  {
+                    backgroundColor: isSelected
+                      ? BRAND_COLORS.blue600
+                      : theme.isDark
+                      ? 'rgba(255, 255, 255, 0.06)'
+                      : BRAND_COLORS.slate50,
+                    borderColor: isSelected
+                      ? BRAND_COLORS.blue600
+                      : theme.isDark
+                      ? '#1E293B'
+                      : BRAND_COLORS.slate200,
+                  },
+                ]}
+              >
+                <Icon
+                  size={12}
+                  color={
+                    isSelected
+                      ? '#FFFFFF'
+                      : theme.isDark
+                      ? '#94A3B8'
+                      : '#64748B'
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                <Text
+                  style={[
+                    styles.tenderChipText,
+                    {
+                      color: isSelected
+                        ? '#FFFFFF'
+                        : theme.isDark
+                        ? '#94A3B8'
+                        : '#475569',
+                      fontWeight: isSelected ? '800' : '700',
+                    },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.footerMainRow}>
           <TouchableOpacity onPress={openCheckoutModal} style={{ flex: 1, marginRight: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={styles.tenderTotalLabel}>
+              <Text style={[styles.tenderTotalLabel, { color: theme.textSecondary }]}>
                 {t('total', 'TOTAL')}: {cartTotalCount} {cartTotalCount === 1 ? t('item', 'ITEM') : t('items', 'ITEMS')}
               </Text>
               {getTotalDiscount() > 0 ? (
-                <View style={{ backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, marginLeft: 6 }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>Save ₹{getTotalDiscount().toFixed(0)}</Text>
+                <View
+                  style={{
+                    backgroundColor: theme.isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)',
+                    borderColor: theme.isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
+                    borderWidth: 1,
+                    paddingHorizontal: 6,
+                    paddingVertical: 1.5,
+                    borderRadius: 6,
+                    marginLeft: 6,
+                  }}
+                >
+                  <Text style={{ color: '#10B981', fontSize: 9, fontWeight: '800' }}>
+                    Save ₹{getTotalDiscount().toFixed(0)}
+                  </Text>
                 </View>
               ) : null}
             </View>
-            <Text style={styles.tenderTotalPrice}>₹{grandTotalNow.toFixed(2)}</Text>
+            <Text style={[styles.tenderTotalPrice, { color: theme.textPrimary }]}>₹{grandTotalNow.toFixed(2)}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -886,7 +1000,7 @@ function PosScreen() {
               liveCartItems.length === 0 && { opacity: 0.4 },
             ]}
           >
-            <QrCode size={16} color="#FFFFFF" />
+            <QrCode size={15} color="#FFFFFF" />
             <Text style={styles.qrPayQuickBtnText}>QR PAY</Text>
           </TouchableOpacity>
 
@@ -898,7 +1012,10 @@ function PosScreen() {
             {isCreating ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.checkoutActionText}>{t('payNow', 'PRINT')}</Text>
+              <>
+                <Printer size={15} color="#FFFFFF" style={{ marginRight: 5 }} />
+                <Text style={styles.checkoutActionText}>{t('payNow', 'PRINT')}</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -1085,8 +1202,8 @@ function PosScreen() {
                       style={[
                         styles.scannerPayChip,
                         {
-                          backgroundColor: active ? BRAND_COLORS.navyInk : theme.bg,
-                          borderColor: active ? BRAND_COLORS.navyInk : theme.borderColor,
+                          backgroundColor: active ? BRAND_COLORS.blue600 : theme.bg,
+                          borderColor: active ? BRAND_COLORS.blue600 : theme.borderColor,
                         },
                       ]}
                     >
@@ -1127,7 +1244,7 @@ function PosScreen() {
                   disabled={cartItems.length === 0 || isCreating}
                   style={[
                     styles.scannerPrintChargeBtn,
-                    { backgroundColor: BRAND_COLORS.navyInk },
+                    { backgroundColor: BRAND_COLORS.blue600 },
                     (cartItems.length === 0 || isCreating) && { opacity: 0.5 },
                   ]}
                 >
@@ -1878,20 +1995,75 @@ const styles = StyleSheet.create({
   tileStepBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
   inCartQtyText: { fontSize: 11, fontWeight: '900', marginHorizontal: 6, minWidth: 14, textAlign: 'center' },
   addCircle: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  stickyTenderFooter: { position: 'absolute', bottom: 12, left: 16, right: 16, borderRadius: 20, padding: 12, elevation: 12 },
-  customerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8, marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)' },
-  customerRowText: { flex: 1, fontSize: 12, fontWeight: '700', color: '#E2E8F0', marginLeft: 6, marginRight: 4 },
+  stickyTenderFooter: {
+    position: 'absolute',
+    bottom: 12,
+    left: 14,
+    right: 14,
+    borderRadius: 22,
+    padding: 12,
+    borderWidth: 1,
+    elevation: 8,
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 8,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+  },
+  customerRowText: { flex: 1, fontSize: 13, fontWeight: '700', marginLeft: 6, marginRight: 4 },
+  customerChangeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  customerChangeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
   creditRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8, marginBottom: 4 },
-  creditLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8' },
-  creditInput: { backgroundColor: 'rgba(255,255,255,0.1)', color: '#FFFFFF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, fontWeight: '800', width: 70, marginLeft: 4, marginRight: 10 },
-  creditRemainingText: { flex: 1, fontSize: 10, fontWeight: '700', color: '#F59E0B' },
+  creditLabel: { fontSize: 11, fontWeight: '700' },
+  creditInput: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 12,
+    fontWeight: '800',
+    width: 70,
+    marginLeft: 4,
+    marginRight: 10,
+  },
+  creditRemainingText: { flex: 1, fontSize: 10, fontWeight: '700' },
   footerMainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tenderTotalLabel: { fontSize: 9, fontWeight: '800', color: '#94A3B8' },
-  tenderTotalPrice: { fontSize: 18, fontWeight: '900', color: '#FFFFFF' },
+  tenderTotalLabel: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.3 },
+  tenderTotalPrice: { fontSize: 19, fontWeight: '900' },
   tenderPillsRow: { flexDirection: 'row', marginBottom: 10 },
-  tenderChip: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: '#334155', marginRight: 6 },
+  tenderChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginRight: 6,
+  },
   tenderChipText: { fontSize: 11, fontWeight: '800' },
-  checkoutActionBtn: { backgroundColor: BRAND_COLORS.blue600, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, minWidth: 64, alignItems: 'center' },
+  checkoutActionBtn: {
+    backgroundColor: BRAND_COLORS.blue600,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    minWidth: 68,
+  },
   checkoutActionText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12 },
   scannerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   modalSafeArea: { flex: 1 },
@@ -1903,7 +2075,7 @@ const styles = StyleSheet.create({
   qtyControls: { flexDirection: 'row', alignItems: 'center' },
   qtyBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   qtyText: { fontSize: 14, fontWeight: '800', paddingHorizontal: 8 },
-  submitBtn: { backgroundColor: BRAND_COLORS.navyInk, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  submitBtn: { backgroundColor: BRAND_COLORS.blue600, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
   submitBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
   checkoutCustomerRow: {
     flexDirection: 'row',

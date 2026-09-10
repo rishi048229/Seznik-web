@@ -34,6 +34,8 @@ import {
   LayoutGrid,
   Zap,
   FileText,
+  MessageSquareHeart,
+  Sparkles,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -105,6 +107,13 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         textSecondary: '#A1A1AA',
         activeBg: 'rgba(255, 255, 255, 0.08)',
         activeText: '#FFFFFF',
+        reviewBg: 'rgba(37, 99, 235, 0.10)',
+        reviewBorder: 'rgba(56, 189, 248, 0.22)',
+        reviewIconBg: 'rgba(56, 189, 248, 0.15)',
+        reviewIconColor: BRAND_COLORS.sky400,
+        reviewTitle: '#FFFFFF',
+        reviewSub: '#94A3B8',
+        reviewArrow: BRAND_COLORS.sky400,
       }
     : {
         bg: '#FFFFFF',
@@ -114,6 +123,13 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         textSecondary: '#64748B',
         activeBg: 'rgba(37, 99, 235, 0.1)',
         activeText: BRAND_COLORS.blue600,
+        reviewBg: 'rgba(37, 99, 235, 0.06)',
+        reviewBorder: 'rgba(37, 99, 235, 0.18)',
+        reviewIconBg: 'rgba(37, 99, 235, 0.12)',
+        reviewIconColor: BRAND_COLORS.blue600,
+        reviewTitle: '#0F172A',
+        reviewSub: '#64748B',
+        reviewArrow: BRAND_COLORS.blue600,
       };
 
   const kotGroup =
@@ -317,23 +333,29 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
             <View style={[styles.drawerFooter, { borderTopColor: theme.borderColor }]}>
               <TouchableOpacity
                 onPress={() => handleNavigate('/feedback')}
-                style={styles.reviewBanner}
-                activeOpacity={0.88}
+                style={[
+                  styles.reviewBanner,
+                  {
+                    backgroundColor: theme.reviewBg,
+                    borderColor: theme.reviewBorder,
+                  },
+                ]}
+                activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={t('reviewBannerTitle', 'Reviews & Suggestions')}
               >
-                <View style={styles.reviewBannerIcon}>
-                  <Star size={16} color="#D97706" fill="#F59E0B" />
+                <View style={[styles.reviewBannerIcon, { backgroundColor: theme.reviewIconBg }]}>
+                  <MessageSquareHeart size={18} color={theme.reviewIconColor} />
                 </View>
                 <View style={styles.reviewBannerCopy}>
-                  <Text style={styles.reviewBannerTitle} numberOfLines={1}>
+                  <Text style={[styles.reviewBannerTitle, { color: theme.reviewTitle }]} numberOfLines={1}>
                     {t('reviewBannerTitle', 'Reviews & Suggestions')}
                   </Text>
-                  <Text style={styles.reviewBannerSub} numberOfLines={1}>
+                  <Text style={[styles.reviewBannerSub, { color: theme.reviewSub }]} numberOfLines={1}>
                     {t('reviewBannerSub', 'Rate the app or send an idea')}
                   </Text>
                 </View>
-                <ChevronRight size={16} color="rgba(255, 255, 255, 0.85)" />
+                <ChevronRight size={16} color={theme.reviewArrow} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -481,16 +503,15 @@ const styles = StyleSheet.create({
   reviewBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D97706',
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 14,
+    borderWidth: 1,
   },
   reviewBannerIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#FFFBEB',
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -500,15 +521,14 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   reviewBannerTitle: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+    letterSpacing: -0.1,
   },
   reviewBannerSub: {
-    color: 'rgba(255, 255, 255, 0.82)',
     fontSize: 11,
-    fontWeight: '600',
-    marginTop: 1,
+    fontWeight: '500',
+    marginTop: 2,
   },
   logoutBtn: {
     flexDirection: 'row',
