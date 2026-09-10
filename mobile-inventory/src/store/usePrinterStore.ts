@@ -351,9 +351,20 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     try {
       // A deliberate disconnect also means "stop trying to reconnect for me".
       PrinterService.cancelAutoConnect();
-      set({ isUserDisconnected: true, isAutoReconnecting: false });
+      set({ isUserDisconnected: true, isAutoReconnecting: false, autoConnect: false });
+      setStoredAutoConnect(false).catch(() => {});
+      try { await PrinterService.joshDisconnect(); } catch {}
+      try { await PrinterService.yxDisconnect(); } catch {}
       await PrinterService.disconnect();
-      set({ activeDevice: null, connectionState: 'disconnected', warningText: '', isAutoReconnecting: false, isUserDisconnected: true });
+      set({
+        activeDevice: null,
+        connectionState: 'disconnected',
+        warningText: '',
+        isAutoReconnecting: false,
+        isUserDisconnected: true,
+        autoConnect: false,
+        connectedPrinterModel: null,
+      });
     } catch (e) {
       // Ignored
     }

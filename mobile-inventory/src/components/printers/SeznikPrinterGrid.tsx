@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Vibration,
 } from 'react-native';
 import {
   CheckCircle2,
@@ -14,9 +15,7 @@ import {
   AlertTriangle,
   Zap,
   Printer,
-  FileText,
-  Tag,
-  Radio,
+  PowerOff,
 } from 'lucide-react-native';
 import {
   PRINTER_MODEL_LIST,
@@ -27,19 +26,26 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
+import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
+import { getCachedSettings } from '@/hooks/useSettings';
 
 interface SeznikPrinterGridProps {
   onSelectModel?: (model: SeznikPrinterModel) => void;
   selectedModelId?: SeznikPrinterModelId | null;
   showWarnings?: boolean;
+  onTestPrint?: (model: SeznikPrinterModel) => void | Promise<void>;
+  onDisconnect?: (model: SeznikPrinterModel) => void | Promise<void>;
 }
 
 export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
   onSelectModel,
   selectedModelId,
   showWarnings = true,
+  onTestPrint,
+  onDisconnect,
 }) => {
   const theme = useAppTheme();
+  const isDark = theme.isDark;
   const {
     activeDevice,
     connectionState,
@@ -50,6 +56,8 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
 
   const [joshConnected, setJoshConnected] = useState(false);
   const [tejConnected, setTejConnected] = useState(false);
+  const [isPrintingTest, setIsPrintingTest] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const refreshSdkStates = async () => {
     try {
@@ -107,18 +115,100 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
     }
   };
 
+  const handleInternalDisconnect = async (model: SeznikPrinterModel) => {
+    setIsDisconnecting(true);
+    try {
+      if (onDisconnect) {
+        await onDisconnect(model);
+      } else {
+        await disconnectDevice();
+      }
+      setJoshConnected(false);
+      setTejConnected(false);
+      try { Vibration.vibrate(60); } catch (e) {}
+    } catch (e) {
+      // Ignored
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
+  const handleInternalTestPrint = async (model: SeznikPrinterModel) => {
+    setIsPrintingTest(true);
+    try {
+      if (onTestPrint) {
+        await onTestPrint(model);
+      } else {
+        if (model.id === 'josh' || model.id === 'tej') {
+          const sample = {
+            name: 'Sample Item 500g',
+            sellingPrice: 250.0,
+            barcode: '8901234567890',
+            id: 'sample-1',
+          };
+          const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
+          const ok = await ThermalPrinterService.printCustomLabel(
+            sample,
+            'ean13',
+            undefined,
+            labelWidthMm,
+            labelHeightMm,
+            labelGapMm
+          );
+          if (ok) {
+            Alert.alert('Test Label Sent!', `Printed test label via ${model.name}.`);
+          } else {
+            Alert.alert('Print Failed', `Could not send test label to ${model.name}.`);
+          }
+        } else {
+          const {
+            paperWidth,
+            activeTemplateId,
+            customTemplates,
+            activeCustomTemplateId,
+            enableBillQrCode,
+            topMargin,
+            autoCut,
+            fontSize,
+          } = usePrinterStore.getState();
+          await ThermalPrinterService.printTestReceipt(
+            paperWidth,
+            buildTestReceiptPrintOptions({
+              activeTemplateId,
+              customTemplates,
+              activeCustomTemplateId,
+              enableBillQrCode,
+              topMargin,
+              autoCut,
+              fontSize,
+              settings: getCachedSettings(),
+              copies: 1,
+            })
+          );
+          Alert.alert('Test Receipt Sent!', 'Diagnostic print job sent to your thermal printer.');
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Print Error', err?.message || 'Failed to print test receipt.');
+    } finally {
+      setIsPrintingTest(false);
+    }
+  };
+
+  // When a printer is connected, hide the rest of the printer options; when disconnected, show all models.
+  const connectedModel = PRINTER_MODEL_LIST.find((model) => getModelStatus(model) === 'connected');
+  const modelsToRender = connectedModel ? [connectedModel] : PRINTER_MODEL_LIST;
+
   return (
     <View style={styles.container}>
-      {PRINTER_MODEL_LIST.map((model) => {
+      {modelsToRender.map((model) => {
         const status = getModelStatus(model);
         const isConnected = status === 'connected';
         const isSelected = selectedModelId === model.id || (connectedPrinterModel === model.id && isConnected);
 
         return (
-          <TouchableOpacity
+          <View
             key={model.id}
-            activeOpacity={0.88}
-            onPress={() => handleSelect(model)}
             style={[
               styles.modelCard,
               {
@@ -132,8 +222,16 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
               },
             ]}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.imageContainer}>
+            <TouchableOpacity
+              activeOpacity={isConnected ? 1 : 0.88}
+              onPress={() => {
+                if (!isConnected) {
+                  handleSelect(model);
+                }
+              }}
+              style={styles.cardHeader}
+            >
+              <View style={[styles.imageContainer, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
                 <Image
                   source={model.image}
                   style={styles.printerImage}
@@ -167,11 +265,19 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
                   {model.tagline}
                 </Text>
 
-                <View style={styles.driverRow}>
-                  <Text style={[styles.driverText, { color: theme.textSecondary }]}>
-                    Driver: <Text style={{ fontWeight: '700', color: theme.textPrimary }}>{model.driver}</Text>
-                  </Text>
-                </View>
+                {isConnected && activeDevice?.name ? (
+                  <View style={styles.driverRow}>
+                    <Text style={[styles.driverText, { color: theme.textSecondary }]}>
+                      Device: <Text style={{ fontWeight: '700', color: isDark ? '#38BDF8' : BRAND_COLORS.blue600 }}>{activeDevice.name}</Text>
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.driverRow}>
+                    <Text style={[styles.driverText, { color: theme.textSecondary }]}>
+                      Driver: <Text style={{ fontWeight: '700', color: theme.textPrimary }}>{model.driver}</Text>
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.statusRow}>
                   <View
@@ -198,15 +304,68 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
                   <ChevronRight size={20} color={theme.textSecondary} />
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
 
-            {showWarnings && model.warningNotice ? (
+            {/* When connected, provide Test Print and Disconnect buttons */}
+            {isConnected ? (
+              <View style={[styles.connectedActionsRow, { borderTopColor: isDark ? '#1F2937' : '#E2E8F0' }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.testPrintBtn,
+                    {
+                      backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF',
+                      borderColor: isDark ? 'rgba(37, 99, 235, 0.3)' : '#BFDBFE',
+                    },
+                  ]}
+                  onPress={() => handleInternalTestPrint(model)}
+                  disabled={isPrintingTest}
+                  activeOpacity={0.7}
+                >
+                  {isPrintingTest ? (
+                    <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                  ) : (
+                    <>
+                      <Printer size={15} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                      <Text style={[styles.testPrintBtnText, { color: BRAND_COLORS.blue600 }]}>
+                        Test Print
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.disconnectBtn,
+                    {
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
+                    },
+                  ]}
+                  onPress={() => handleInternalDisconnect(model)}
+                  disabled={isDisconnecting}
+                  activeOpacity={0.7}
+                >
+                  {isDisconnecting ? (
+                    <ActivityIndicator size="small" color="#EF4444" />
+                  ) : (
+                    <>
+                      <PowerOff size={14} color="#EF4444" style={{ marginRight: 6 }} />
+                      <Text style={styles.disconnectBtnText}>
+                        Disconnect
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {!isConnected && showWarnings && model.warningNotice ? (
               <View
                 style={[
                   styles.warningBox,
                   {
-                    backgroundColor: model.id === 'veer' ? '#FFFBEB' : '#F8FAFC',
-                    borderColor: model.id === 'veer' ? '#FDE68A' : theme.borderColor,
+                    backgroundColor: model.id === 'veer' ? (isDark ? 'rgba(217, 119, 6, 0.12)' : '#FFFBEB') : (isDark ? 'rgba(37, 99, 235, 0.08)' : '#F8FAFC'),
+                    borderColor: model.id === 'veer' ? (isDark ? 'rgba(217, 119, 6, 0.3)' : '#FDE68A') : theme.borderColor,
                   },
                 ]}
               >
@@ -218,14 +377,14 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
                 <Text
                   style={[
                     styles.warningText,
-                    { color: model.id === 'veer' ? '#B45309' : theme.textSecondary },
+                    { color: model.id === 'veer' ? (isDark ? '#FBBF24' : '#B45309') : theme.textSecondary },
                   ]}
                 >
                   {model.warningNotice}
                 </Text>
               </View>
             ) : null}
-          </TouchableOpacity>
+          </View>
         );
       })}
     </View>
@@ -253,7 +412,6 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 12,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -313,6 +471,43 @@ const styles = StyleSheet.create({
   },
   actionArrow: {
     marginLeft: 8,
+  },
+  connectedActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  testPrintBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  testPrintBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  disconnectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  disconnectBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#EF4444',
   },
   warningBox: {
     flexDirection: 'row',

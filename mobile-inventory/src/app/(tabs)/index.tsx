@@ -133,19 +133,20 @@ export default function DashboardScreen() {
 
   const {
     connectionState,
+    connectedPrinterModel,
     activeDevice,
     paperWidth,
     setPaperWidth,
-  disconnectDevice,
-  topMargin,
-  autoCut,
-  fontSize,
-  printCopies,
-  activeTemplateId,
-  customTemplates,
-  activeCustomTemplateId,
-  enableBillQrCode,
-} = usePrinterStore();
+    disconnectDevice,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
+  } = usePrinterStore();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -296,7 +297,39 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleTestPrint = async () => {
+  const handleTestPrint = async (model?: SeznikPrinterModel) => {
+    const targetModelId = model?.id || connectedPrinterModel;
+    const isJosh = targetModelId === 'josh';
+    const isTej = targetModelId === 'tej';
+
+    if (isJosh || isTej) {
+      try {
+        const sample = {
+          name: 'Sample Item 500g',
+          sellingPrice: 250.0,
+          barcode: '8901234567890',
+          id: 'sample-1',
+        };
+        const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
+        const ok = await ThermalPrinterService.printCustomLabel(
+          sample,
+          'ean13',
+          undefined,
+          labelWidthMm,
+          labelHeightMm,
+          labelGapMm
+        );
+        if (ok) {
+          Alert.alert('Test Label Sent!', `Diagnostic test label printed via ${isJosh ? 'SEZNIK JOSH' : 'SEZNIK TEJ'}.`);
+        } else {
+          Alert.alert('Print Failed', `Could not send test label to ${isJosh ? 'SEZNIK JOSH' : 'SEZNIK TEJ'}.`);
+        }
+      } catch (err: any) {
+        Alert.alert('Print Error', err?.message || 'Failed to print test label.');
+      }
+      return;
+    }
+
     if (connectionState !== 'connected') {
       setShowDirectPrinterModal(true);
       return;
@@ -703,9 +736,9 @@ export default function DashboardScreen() {
               <View style={{ marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 2 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Printer size={16} color={BRAND_COLORS.blue600} />
+                    <Printer size={16} color={connectionState === 'connected' ? '#10B981' : BRAND_COLORS.blue600} />
                     <Text style={{ fontSize: 13, fontWeight: '800', color: theme.textPrimary, letterSpacing: 0.3 }}>
-                      SEZNIK PRINTER FLEET (4 MODELS)
+                      {connectionState === 'connected' ? 'CONNECTED PRINTER' : 'SEZNIK PRINTER FLEET (4 MODELS)'}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -722,6 +755,8 @@ export default function DashboardScreen() {
                     setSelectedPrinterModalModel(model.id);
                     setShowDirectPrinterModal(true);
                   }}
+                  onTestPrint={handleTestPrint}
+                  onDisconnect={handleDisconnectPrinter}
                   showWarnings={true}
                 />
               </View>
