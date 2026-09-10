@@ -843,8 +843,7 @@ export const ProductsPage = () => {
             leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
             onClick={() => setShowAiModal(true)}
           >
-            <span className="inline sm:hidden">Bulk upload</span>
-            <span className="hidden sm:inline">SEZ AI Bulk Upload</span>
+            Bulk upload
           </Button>
           {trackStock && (
             <>
