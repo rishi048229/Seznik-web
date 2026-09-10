@@ -28,9 +28,11 @@ import {
   Info,
   RotateCw,
   Zap,
-  Bot
+  Bot,
+  Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { downloadBulkUploadTemplate, normalizeUnit } from '@/utils/bulkTemplateGenerator'
 
 interface AiDocumentUploadModalProps {
   isOpen: boolean
@@ -105,34 +107,24 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       return
     }
 
-    setSelectedFile(file)
     const lowerName = file.name.toLowerCase()
-
-    if (file.type.startsWith('image/')) {
-      setFileTypeCategory('image')
-      const reader = new FileReader()
-      reader.onload = () => setFilePreview(reader.result as string)
-      reader.readAsDataURL(file)
-    } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || file.type.includes('csv')) {
-      setFileTypeCategory('csv')
-      setFilePreview(null)
-    } else if (
+    const isCsv = lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || file.type.includes('csv')
+    const isExcel =
       lowerName.endsWith('.xlsx') ||
       lowerName.endsWith('.xls') ||
       lowerName.endsWith('.xlsm') ||
       lowerName.endsWith('.ods') ||
       file.type.includes('sheet') ||
       file.type.includes('excel')
-    ) {
-      setFileTypeCategory('excel')
-      setFilePreview(null)
-    } else if (file.type === 'application/pdf' || lowerName.endsWith('.pdf')) {
-      setFileTypeCategory('pdf')
-      setFilePreview(null)
-    } else {
-      setFileTypeCategory('text')
-      setFilePreview(null)
+
+    if (!isCsv && !isExcel) {
+      toast.error('Only Excel (.xlsx, .xls) and CSV (.csv) files are supported. Please use the provided template.')
+      return
     }
+
+    setSelectedFile(file)
+    setFileTypeCategory(isCsv ? 'csv' : 'excel')
+    setFilePreview(null)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,29 +154,42 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       return keys.find(k => regex.test(k.trim()))
     }
 
-    // High priority Barcode match (searched BEFORE SKU so SKU index column doesn't override real Barcode column!)
+    // Barcode (Optional)
     const barcodeKey = 
-      findKey(/^barcode$/i) ||
-      findKey(/^(barcode|bar_code|bar code|barcode_no|barcodeno|ean|upc|gtin|item_barcode|product_barcode)$/i) ||
-      findKey(/barcode|bar_code|bar code|ean|upc|gtin/i) ||
+      findKey(/^barcode/i) ||
+      findKey(/^(bar_code|bar\s*code|barcode_no|barcodeno|ean|upc|gtin|item_barcode|product_barcode)$/i) ||
       findKey(/^code$/i) ||
       findKey(/sku/i)
 
+    // Product Name (Compulsory)
     const nameKey = 
-      findKey(/^name$/i) ||
-      findKey(/^(name|product_name|product|item_name|item|description|title|particulars)$/i) ||
+      findKey(/^(product\s*name\*?|product_name|name\*?|product|item\s*name|item|particulars)/i) ||
       findKey(/name|product|item|description|title/i)
 
+    // Selling Price (Compulsory)
     const sellingPriceKey = 
-      findKey(/^price$/i) ||
-      findKey(/^(price|selling_price|sell_price|sellingprice|sale_price|mrp|rate|sales_rate|selling_rate)$/i) ||
+      findKey(/^(selling\s*price\*?|selling_price|price\*?|sale\s*price|mrp|rate|sales_rate|selling_rate)/i) ||
       findKey(/selling|sell|sale|price|mrp|rate/i)
 
-    const costPriceKey = findKey(/cost|cost_price|costprice|purchase_price|buy_price|cost_rate|purchase_rate/i)
-    const categoryKey = findKey(/category|cat|category_name|group|department|productgroup|type/i)
-    const stockKey = findKey(/stock|qty|quantity|current_stock|available_stock|balance|count/i)
-    const taxKey = findKey(/tax|gst|tax_rate|gst_rate|vat/i)
-    const unitKey = findKey(/unit|uom|pack|unit_type|measurementunit/i)
+    // Cost Price (Compulsory)
+    const costPriceKey = 
+      findKey(/^(cost\s*price\*?|cost_price|cost\*?|purchase\s*price|costprice|buy_price|cost_rate|purchase_rate)/i) ||
+      findKey(/cost|purchase/i)
+
+    // Category (Compulsory)
+    const categoryKey = findKey(/^(category\*?|cat|category_name|group|department|productgroup|type)/i)
+
+    // Stock Quantity (Compulsory)
+    const stockKey = findKey(/^(stock\s*quantity\*?|current\s*stock\*?|stock\*?|qty|quantity|available_stock|balance|count)/i)
+
+    // Min Stock Alert (Optional, defaults to 0 if not entered)
+    const minStockKey = findKey(/^(min\s*stock|low\s*stock|threshold|alert)/i)
+
+    // Tax Rate (Optional)
+    const taxKey = findKey(/^(tax\s*rate|gst\s*rate|tax|gst|vat)/i)
+
+    // Unit (Compulsory)
+    const unitKey = findKey(/^(unit\*?|uom|pack|unit_type|measurementunit)/i)
 
     if (!nameKey && !sellingPriceKey && !barcodeKey) return []
 
@@ -200,51 +205,48 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       }
       if (!name) name = `Item ${idx + 1}`
 
-      // Barcode Resolution (Primary barcodeKey + token-level 7-16 digit scan fallback)
+      // Barcode (Optional - auto-generate if blank)
       let rawBarcode = barcodeKey ? String(row[barcodeKey]).trim() : ''
       
-      // If barcode key picked up a short index e.g. "1", "2", or empty, scan ALL row values for a 7-16 digit barcode number
-      if (!rawBarcode || (rawBarcode.length < 6 && /^\d+$/.test(rawBarcode))) {
-        const foundLongDigit = keys.map(k => String(row[k]).trim()).find(v => /^\d{7,16}$/.test(v))
-        if (foundLongDigit) {
-          rawBarcode = foundLongDigit
-        }
-      }
-
-      let isExistingBarcode = false
-      if (rawBarcode && rawBarcode !== 'null' && rawBarcode !== 'undefined' && rawBarcode !== '0') {
-        isExistingBarcode = true
-      } else {
+      if (!rawBarcode || rawBarcode === 'null' || rawBarcode === 'undefined' || rawBarcode === '0') {
         rawBarcode = 'SZ' + Math.floor(1000000000 + Math.random() * 9000000000).toString()
+      } else if (rawBarcode.length < 6 && /^\d+$/.test(rawBarcode) && !barcodeKey.toLowerCase().includes('barcode')) {
+        const foundLongDigit = keys.map(k => String(row[k]).trim()).find(v => /^\d{7,16}$/.test(v))
+        if (foundLongDigit) rawBarcode = foundLongDigit
       }
 
-      // Selling Price
+      const isExistingBarcode = rawBarcode.startsWith('SZ') && rawBarcode.length === 12 ? false : true
+
+      // Selling Price (Compulsory)
       const sellVal = sellingPriceKey ? parseFloat(String(row[sellingPriceKey]).replace(/[^0-9.]/g, '')) : NaN
       let sellingPrice = !isNaN(sellVal) ? sellVal : 0
 
-      if (sellingPrice === 0 && costPriceKey && row[costPriceKey]) {
-        const costVal = parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, ''))
-        if (!isNaN(costVal)) sellingPrice = costVal
+      // Cost Price (Compulsory)
+      const costVal = costPriceKey ? parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, '')) : NaN
+      const costPrice = !isNaN(costVal) ? costVal : (sellingPrice > 0 ? sellingPrice : 0)
+
+      if (sellingPrice === 0 && costPrice > 0) {
+        sellingPrice = costPrice
       }
 
-      // Cost Price
-      const costVal = costPriceKey ? parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, '')) : NaN
-      const costPrice = !isNaN(costVal) ? costVal : sellingPrice
-
-      // Category
+      // Category (Compulsory)
       const categoryName = categoryKey && row[categoryKey] ? String(row[categoryKey]).trim() : 'General'
 
-      // Stock
+      // Stock Quantity (Compulsory)
       const stockVal = stockKey ? parseInt(String(row[stockKey]).replace(/[^0-9]/g, '')) : NaN
-      const currentStock = !isNaN(stockVal) ? stockVal : 10
+      const currentStock = !isNaN(stockVal) ? stockVal : 0
+
+      // Min Stock Alert (Optional, defaults to 0 if not entered)
+      const minStockVal = minStockKey && row[minStockKey] !== '' ? parseInt(String(row[minStockKey]).replace(/[^0-9]/g, '')) : NaN
+      const lowStockThreshold = !isNaN(minStockVal) ? minStockVal : 0
 
       // Tax Rate
       const taxVal = taxKey ? parseFloat(String(row[taxKey]).replace(/[^0-9.]/g, '')) : NaN
       const taxRate = !isNaN(taxVal) ? taxVal : 0
 
-      // Unit
-      const rawUnit = unitKey && row[unitKey] ? String(row[unitKey]).trim().toLowerCase() : ''
-      const unitVal = (!rawUnit || /^\d+(\.\d+)?$/.test(rawUnit)) ? 'piece' : rawUnit
+      // Unit (Normalized using index mapping: 1=piece, 2=kg, etc.)
+      const rawUnit = unitKey && row[unitKey] ? String(row[unitKey]).trim() : ''
+      const unitVal = normalizeUnit(rawUnit)
 
       products.push({
         id: `csv-format-${Date.now()}-${idx}`,
@@ -257,7 +259,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
         barcodeType: 'CODE128',
         taxRate,
         currentStock,
-        lowStockThreshold: 5,
+        lowStockThreshold,
         unit: unitVal,
         priceIncludesGst: false,
         selected: true
@@ -496,91 +498,144 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     <Modal
       isOpen={isOpen}
       onClose={handleResetAndClose}
-      title="SEZ AI Smart Bulk Product & Barcode Extractor"
+      title="Bulk Product Upload (Excel / CSV)"
       size="xl"
     >
       <div className="space-y-6">
         {step === 'upload' && (
           <div className="space-y-5">
-            {/* SEZ AI Capability Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/10 via-blue-900/10 to-indigo-900/10 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-800/50 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-bold text-purple-900 dark:text-purple-200">
-                <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
-                <span>Upload CSV Files, Excel Spreadsheets, Bills, Menus, or Handwritten Receipts</span>
-              </div>
-              <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                SEZ AI intelligently maps CSV files, column tables, sticker label grid sheets, supplier invoices, hotel menus, and price lists. It preserves existing barcodes 100%, auto-generates missing barcodes, and assigns smart categories!
-              </p>
-              
-              {/* Capacity Banner */}
-              <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/40 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded-lg font-medium border border-emerald-200 dark:border-emerald-800/40">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span><strong>CSV & Excel Spreadsheets:</strong> Up to 5,000 products per file (100% Barcode Accuracy)</span>
+            {/* Step 1: Download Standard Template */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 border border-blue-200 dark:border-blue-800/60 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-bold text-blue-950 dark:text-blue-200">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <span>Step 1: Download Bulk Upload Template</span>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Download our official template with pre-formatted columns and sample items. Fill in your products and upload below.
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5 text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg font-medium border border-blue-200 dark:border-blue-800/40">
-                  <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <span><strong>Photos, Screenshots & PDFs:</strong> Handwritten bills, menus & invoices</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => downloadBulkUploadTemplate('xlsx')}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                    leftIcon={<Download size={14} />}
+                  >
+                    Download Excel (.xlsx)
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadBulkUploadTemplate('csv')}
+                    className="text-xs font-semibold"
+                    leftIcon={<Download size={14} />}
+                  >
+                    CSV (.csv)
+                  </Button>
                 </div>
               </div>
             </div>
 
-            {/* File Dropzone */}
+            {/* Step 2: Format Guidelines & Disclaimer */}
+            <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 space-y-3 text-xs text-amber-950 dark:text-amber-200">
+              <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-100">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Format Guidelines & Upload Requirements</span>
+              </div>
+              <p className="text-[11.5px] leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+                Please upload your product list strictly according to the format in the template. Only <strong>Excel (.xlsx, .xls)</strong> and <strong>CSV (.csv)</strong> formats are supported.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60 dark:border-amber-800/40 text-[11px]">
+                {/* Compulsory Fields */}
+                <div className="space-y-1.5 bg-white/70 dark:bg-dark-card/60 p-3 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
+                  <p className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Compulsory Fields (Required):
+                  </p>
+                  <ul className="space-y-1 text-gray-700 dark:text-gray-300 pl-4 list-disc marker:text-emerald-500">
+                    <li><strong>Product Name*</strong>: Title / item name</li>
+                    <li><strong>Category*</strong>: Category name (auto-created if new)</li>
+                    <li><strong>Cost Price*</strong>: Supplier purchase cost in ₹</li>
+                    <li><strong>Selling Price*</strong>: Retail customer selling price in ₹</li>
+                    <li><strong>Stock Quantity*</strong>: Initial inventory count (0 or higher)</li>
+                    <li>
+                      <strong>Unit*</strong>: Measurement unit. Supported codes & index:
+                      <div className="mt-1 text-[10.5px] text-gray-600 dark:text-gray-400 font-mono bg-gray-100/80 dark:bg-dark-bg p-1.5 rounded border border-gray-200 dark:border-dark-border-strong">
+                        1: piece | 2: kg | 3: gram | 4: liter | 5: meter | 6: dozen | 7: box
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Optional Fields */}
+                <div className="space-y-1.5 bg-white/70 dark:bg-dark-card/60 p-3 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
+                  <p className="font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1">
+                    <Info className="w-3.5 h-3.5 text-blue-600" />
+                    Optional Fields:
+                  </p>
+                  <ul className="space-y-1 text-gray-700 dark:text-gray-300 pl-4 list-disc marker:text-blue-500">
+                    <li>
+                      <strong>Barcode</strong>: Optional. If left blank, Seznik automatically assigns a unique barcode (<code className="text-blue-600 dark:text-blue-400 font-mono">SZ...</code>). Existing barcodes will be preserved 100%.
+                    </li>
+                    <li>
+                      <strong>Min Stock Alert</strong>: Low stock threshold warning. If not entered, it automatically defaults to <strong className="font-bold">0</strong>.
+                    </li>
+                    <li>
+                      <strong>Tax Rate %</strong>: Applicable GST percentage slab (defaults to 0%).
+                    </li>
+                    <li>
+                      <strong>Brand & Description</strong>: Optional brand or item description / notes.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3: File Dropzone */}
             <div
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-purple-300 dark:border-purple-700/60 hover:border-purple-600 dark:hover:border-purple-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-dark-card/40 hover:bg-purple-50/40 dark:hover:bg-purple-900/20 group"
+              className="border-2 border-dashed border-blue-300 dark:border-blue-700/60 hover:border-blue-600 dark:hover:border-blue-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-dark-card/40 hover:bg-blue-50/40 dark:hover:bg-blue-900/20 group"
             >
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.heic,.heif,application/pdf,.csv,.xlsx,.xls,.xlsm,.ods,.tsv,.txt,text/csv,text/plain"
+                accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                 onChange={handleFileSelect}
                 className="hidden"
               />
 
-              {filePreview ? (
+              {selectedFile ? (
                 <div className="space-y-3">
-                  <img
-                    src={filePreview}
-                    alt="Document preview"
-                    className="max-h-48 mx-auto rounded-xl shadow-md border border-gray-200 dark:border-dark-border object-contain"
-                  />
-                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">{selectedFile?.name}</p>
-                  <p className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">Click or drag to replace document</p>
-                </div>
-              ) : selectedFile ? (
-                <div className="space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center mx-auto">
-                    {fileTypeCategory === 'csv' || fileTypeCategory === 'excel' ? (
-                      <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
-                    ) : fileTypeCategory === 'pdf' ? (
-                      <FileText className="w-8 h-8 text-blue-600" />
-                    ) : (
-                      <UploadCloud className="w-8 h-8" />
-                    )}
+                  <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center mx-auto">
+                    <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
                   </div>
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{selectedFile.name}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                     {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory.toUpperCase()} Format
                   </p>
-                  <p className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">Click to change file</p>
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Click or drag to replace file</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
                     <UploadCloud className="w-8 h-8" />
                   </div>
                   <div>
                     <p className="text-base font-bold text-gray-900 dark:text-gray-100">
-                      Drop a bill, menu photo, screenshot, spreadsheet, or PDF here
+                      Drop your completed Excel (.xlsx) or CSV file here
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Handwritten bills · printed invoices · menu photos · screenshots · CSV, Excel (.xlsx, .xls, .ods) · PDF — max 20MB
+                      Supports Excel (.xlsx, .xls) and CSV (.csv) — max 20MB, up to 5,000 products per file
                     </p>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
-                      Photos are auto-sharpened and light-corrected before reading, so slightly dim or angled shots are fine.
+                      Ensure your columns match the template headers for instant 100% extraction.
                     </p>
                   </div>
                   <Button type="button" size="sm" variant="outline" className="mt-2">
@@ -600,10 +655,10 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 onClick={handleStartExtraction}
                 disabled={!selectedFile || isExtracting}
                 loading={isExtracting}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold"
-                leftIcon={<Sparkles size={16} />}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md"
+                leftIcon={<FileSpreadsheet size={16} />}
               >
-                Analyze with SEZ AI
+                Upload & Review Products
               </Button>
             </div>
           </div>

@@ -647,6 +647,14 @@ export const ProductsPage = () => {
       toast.error('Please enter a barcode or use Auto-Generate')
       return
     }
+    if (!form.costPrice.trim() || isNaN(parseFloat(form.costPrice))) {
+      toast.error('Please enter a valid cost price')
+      return
+    }
+    if (!form.sellingPrice.trim() || isNaN(parseFloat(form.sellingPrice))) {
+      toast.error('Please enter a valid selling price')
+      return
+    }
 
     const taxRate = parseFloat(form.taxRate) || 0
     const enteredPrice = parseFloat(form.sellingPrice) || 0
@@ -1549,7 +1557,7 @@ export const ProductsPage = () => {
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
-              disabled={!form.name.trim() || !form.categoryId}
+              disabled={!form.name.trim() || !form.categoryId || !form.costPrice.trim() || !form.sellingPrice.trim()}
               className="w-full sm:w-auto"
             >
               {editId ? t('action.update') : t('action.create')}
@@ -1717,7 +1725,7 @@ export const ProductsPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('products.costPrice')}
+                {t('products.costPrice')} *
                 <FieldInfo textKey="tip.product.costPrice" />
               </label>
               <Input
