@@ -12,6 +12,7 @@ import {
 } from '@/utils/a4InvoiceTemplates'
 import { generateA4InvoiceHTML, wrapA4Document } from '@/utils/a4Invoice'
 import { resolveEffectiveReceiptConfig } from '@/utils/receipt'
+import { A4InvoicePreviewPane } from './A4InvoicePreviewPane'
 
 const THEMES: Array<{ id: PrinterConfig['invoiceColorTheme']; label: string }> = [
   { id: 'navy', label: 'Navy' },
@@ -41,7 +42,7 @@ export function A4InvoiceTab({
 }: A4InvoiceTabProps) {
   const template = getA4InvoiceTemplate(config.invoiceTemplateId)
 
-  const previewHtml = useMemo(() => {
+  const { innerHtml, previewHtml } = useMemo(() => {
     const sale = sampleSaleForTemplate(config.invoiceTemplateId)
     const mergedReceipt = resolveEffectiveReceiptConfig(
       {
@@ -71,8 +72,11 @@ export function A4InvoiceTab({
       logoURL: receiptConfig.logoURL || settings?.businessLogoURL,
       settingsTaxName: 'GST',
     })
-    return wrapA4Document(inner, 'A4 preview', config.invoicePaperSize)
-  }, [config, receiptConfig, settings, template.id])
+    return {
+      innerHtml: inner,
+      previewHtml: wrapA4Document(inner, `${template.name} Invoice Preview`, config.invoicePaperSize),
+    }
+  }, [config, receiptConfig, settings, template.id, template.name])
 
   const setField = <K extends keyof PrinterConfig>(key: K, value: PrinterConfig[K]) => {
     setConfig(prev => ({ ...prev, [key]: value }))
@@ -329,25 +333,16 @@ export function A4InvoiceTab({
 
       <div className="w-full xl:w-5/12 flex flex-col xl:sticky xl:top-6 min-w-0">
         <Section
-          eyebrow="Preview"
+          eyebrow="Live Preview"
           title={template.name}
-          description="This is the bill customers get for A4 print and PDF download. Save to use it on Sales and checkout."
+          description="Interactive A4 invoice proof. Changes to templates, colors, and fields update here in real time."
         >
-          <div className="overflow-auto rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-bg p-3">
-            <div className="mx-auto" style={{ width: 210 * 0.48, height: 297 * 0.48 }}>
-              <iframe
-                title="A4 invoice preview"
-                srcDoc={previewHtml}
-                className="origin-top-left bg-white pointer-events-none"
-                style={{
-                  width: '210mm',
-                  height: '297mm',
-                  border: 0,
-                  transform: 'scale(0.48)',
-                }}
-              />
-            </div>
-          </div>
+          <A4InvoicePreviewPane
+            previewHtml={previewHtml}
+            innerHtml={innerHtml}
+            templateName={template.name}
+            paperSize={config.invoicePaperSize}
+          />
         </Section>
       </div>
     </div>

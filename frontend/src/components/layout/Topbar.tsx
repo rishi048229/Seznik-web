@@ -2,7 +2,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useSettings } from '@/hooks/useSettings'
 import { Avatar } from '@/components/ui/Avatar'
-import { Sun, Moon, Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
+import { Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
+import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
 
 import { Button } from '@/components/ui/Button'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -16,7 +17,7 @@ interface TopbarProps {
 
 export const Topbar = ({ onMenuClick }: TopbarProps) => {
   const { user, userProfile } = useAuth()
-  const { isDark, toggleTheme } = useTheme()
+  const { isDark, setTheme } = useTheme()
   const { data: settings } = useSettings()
   const { t } = useLanguage()
   const navigate = useNavigate()
@@ -66,10 +67,15 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
-        {/* Theme toggle — always visible */}
-        <Button variant="ghost" size="sm" onClick={toggleTheme} className="p-2">
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
-        </Button>
+        {/* Theme toggle — animated view transition */}
+        <AnimatedThemeToggler
+          theme={isDark ? 'dark' : 'light'}
+          onThemeChange={(newTheme) => setTheme(newTheme === 'dark')}
+          variant="circle"
+          duration={450}
+          className="p-2 inline-flex items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-elevated dark:hover:text-white transition-colors focus:outline-none"
+          title={isDark ? (t('theme.light') || 'Switch to Light Mode') : (t('theme.dark') || 'Switch to Dark Mode')}
+        />
         {/* Bell + Help — hidden on small screens */}
         <Button variant="ghost" size="sm" className="p-2 hidden sm:flex">
           <Bell size={18} className="text-gray-500" />

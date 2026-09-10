@@ -149,3 +149,20 @@
 .animate-ios-alert-pop {
   animation: iosAlertPop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Animated Theme Toggler View Transitions */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Scoped to AnimatedThemeToggler — sets data-attribute and duration only during theme toggle */
+html[data-magicui-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--magicui-theme-toggle-vt-duration);
+}
+
+html[data-magicui-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--magicui-theme-vt-clip-from, none);
+}
+
