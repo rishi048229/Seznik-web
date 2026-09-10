@@ -3192,7 +3192,7 @@ class ThermalPrinterServiceManager {
     }
   }
 
-  public async yxConnect(address: string): Promise<boolean> {
+  public async yxConnect(address: string, name?: string): Promise<boolean> {
     if (!YxLabelPrinter) return false;
     return YxLabelPrinter.connect(address);
   }
@@ -3315,17 +3315,23 @@ class ThermalPrinterServiceManager {
 
     const labelWidthDots = Math.min(paperSizeDots, Math.round(spec.widthMm * 8));
 
+    // Total advance per label must equal exactly one label pitch (label height + gap),
+    // or the content walks down the roll until it straddles a die-cut. The bitmap itself
+    // advances spec.heightMm, so the only feed wanted afterwards is the gap: printPic's
+    // own trailing feed is pinned to 0 here (it defaults to 30 dots / 3.75mm, which is
+    // what was pushing every successive label further down) and the gap is fed below.
     for (let i = 0; i < Math.max(1, copies); i++) {
       await this.printEscPosBitmap(base64, {
         width: labelWidthDots,
         center: true,
         autoCut: false,
         paperSize: paperSizeDots,
+        feed: 0,
       });
 
       if (labelGapMm > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
         try {
-          const feedDots = Math.min(60, Math.max(8, Math.round(labelGapMm * 8)));
+          const feedDots = Math.min(60, Math.max(1, Math.round(labelGapMm * 8)));
           await NativeEscposPrinter.printAndFeed(feedDots);
         } catch (feedErr) {
           console.warn('[PrinterService] printAndFeed gap advance failed:', feedErr);
@@ -4251,6 +4257,10 @@ class ThermalPrinterServiceManager {
 
     const elements: JoshLabelElement[] = [];
 
+    // QR+barcode combo layouts pack both codes into one label; the barcode's human-readable
+    // digits have nowhere to go there and land on the price/MRP text underneath, so drop them.
+    const hasQrElement = template.elements.some((e) => e.type === 'qrcode');
+
     for (const el of template.elements) {
       const x = this.safeMm(el.xMm, 0) * fit;
       const y = this.safeMm(el.yMm, 0) * fit;
@@ -4292,7 +4302,7 @@ class ThermalPrinterServiceManager {
           width: w,
           height: h,
           rotation: rot,
-          textHeight: Math.max(0, Math.min(3, h * 0.2)),
+          textHeight: hasQrElement ? 0 : Math.max(0, Math.min(3, h * 0.2)),
           barcodeType,
         });
       } else if (el.type === 'qrcode') {
@@ -4414,7 +4424,11 @@ class ThermalPrinterServiceManager {
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
     if ((await this.getConnectedLabelPrinterKind()) !== null) {
       const ok = await this.printLabelViaJosh(product, template, copies, labelGapMm);
-      if (ok) return true;
+      // A linked label printer is the destination, so stop here either way. Falling
+      // through to the ESC/POS graphic or TSPL paths pushes those bytes down the
+      // receipt socket, which is exactly what makes a non-ESC/POS label printer
+      // spit out raw command gibberish instead of a label.
+      return ok;
     }
 
     // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer
@@ -4832,7 +4846,11 @@ class ThermalPrinterServiceManager {
         labelGapMm,
         safeCopies
       );
-      if (ok) return true;
+      // A linked label printer is the destination, so stop here either way. Falling
+      // through to the ESC/POS graphic or TSPL paths pushes those bytes down the
+      // receipt socket, which is exactly what makes a non-ESC/POS label printer
+      // spit out raw command gibberish instead of a label.
+      return ok;
     }
 
     // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer
@@ -5270,7 +5288,7 @@ class ThermalPrinterServiceManager {
    */
   private async printEscPosBitmap(
     base64: string,
-    opts: { width: number; center?: boolean; autoCut?: boolean; paperSize?: number }
+    opts: { width: number; center?: boolean; autoCut?: boolean; paperSize?: number; feed?: number }
   ): Promise<void> {
     if (typeof NativeEscposPrinter.printPic !== 'function') return;
     const result = NativeEscposPrinter.printPic(base64, { autoCut: false, ...opts });
@@ -6111,7 +6129,11 @@ class ThermalPrinterServiceManager {
         labelHeightMm,
         labelGapMm
       );
-      if (ok) return true;
+      // A linked label printer is the destination, so stop here either way. Falling
+      // through to the ESC/POS graphic or TSPL paths pushes those bytes down the
+      // receipt socket, which is exactly what makes a non-ESC/POS label printer
+      // spit out raw command gibberish instead of a label.
+      return ok;
     }
 
     try {

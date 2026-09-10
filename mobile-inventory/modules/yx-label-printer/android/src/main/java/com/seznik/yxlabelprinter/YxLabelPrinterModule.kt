@@ -87,6 +87,14 @@ class YxLabelPrinterModule : Module() {
   private var jobPaperType = PrinterConstantPool.PaperType.GAP
   private var jobPromise: Promise? = null
 
+  // The vendor's own Printer_Y50 header says "Y50 没有主动上报" — this model does not
+  // actively report. So the pre-print get_status reply may simply never arrive, and
+  // waiting on it forever leaves jobPromise unsettled and isPrinting stuck true, which
+  // then refuses every later job as "still printing". These two make the status check
+  // advisory: whichever of the reply and the timeout lands first wins, exactly once.
+  private val statusHandled = java.util.concurrent.atomic.AtomicBoolean(false)
+  private val statusWatchdog = android.os.Handler(android.os.Looper.getMainLooper())
+
   private fun ensureSdkInitialized() {
     if (sdkInitialized) return
     synchronized(this) {
@@ -301,6 +309,7 @@ class YxLabelPrinterModule : Module() {
         // sending straight to a printer with an open lid or empty tray fails silently
         // otherwise. Rejected/accepted state is decoded from the same status bits the
         // demo's intState() reads (see checkStatusAndPrint below).
+        statusHandled.set(false)
         printer.addTask(
           Command.get_status(),
           "print-status-check",
@@ -311,6 +320,17 @@ class YxLabelPrinterModule : Module() {
             }
           }
         )
+        // If no status comes back within 3s, print anyway rather than hanging. A
+        // genuinely faulted printer still fails loudly further down the job.
+        statusWatchdog.postDelayed({
+          if (statusHandled.compareAndSet(false, true)) {
+            try {
+              startPrintJob(h, bitmap, copies, paperType, density)
+            } catch (e: Throwable) {
+              finishJob(h, false, e.message ?: "Printing failed")
+            }
+          }
+        }, 3000L)
       } catch (e: CodedException) {
         isPrinting = false
         promise.reject(e)
@@ -402,20 +422,35 @@ class YxLabelPrinterModule : Module() {
     paperType: Int,
     density: Int
   ) {
+    if (!statusHandled.compareAndSet(false, true)) return
+    statusWatchdog.removeCallbacksAndMessages(null)
+
+    // Only a definite, user-fixable fault aborts. decodeStatus returns -99 for anything
+    // it cannot parse, and this model often answers with nothing meaningful at all —
+    // treating that as "not ready" would block every print on a perfectly healthy unit.
     val state = decodeStatus(bean.data)
-    if (state != 0 && state != -4 && state != -1) {
+    if (state == -2 || state == -3 || state == -5) {
       isPrinting = false
       val reason = when (state) {
         -2 -> "The printer's lid is open."
         -3 -> "The printer is out of labels."
-        -5 -> "The printer is too hot — let it cool down."
-        else -> "The printer is not ready."
+        else -> "The printer is too hot — let it cool down."
       }
       jobPromise?.reject(CodedException("ERR_YX_NOT_READY", reason, null))
       jobPromise = null
       return
     }
 
+    startPrintJob(h, bitmap, copies, paperType, density)
+  }
+
+  private fun startPrintJob(
+    h: PrintImgHelper,
+    bitmap: Bitmap,
+    copies: Int,
+    paperType: Int,
+    density: Int
+  ) {
     printer.addTask(Command.set_Density(density), true)
 
     jobImgNames = mutableListOf()
@@ -494,6 +529,8 @@ class YxLabelPrinterModule : Module() {
   }
 
   private fun finishJob(h: PrintImgHelper, ok: Boolean, error: String?) {
+    statusWatchdog.removeCallbacksAndMessages(null)
+    statusHandled.set(true)
     h.stopPrint()
     isPrinting = false
     val p = jobPromise
@@ -613,23 +650,29 @@ class YxLabelPrinterModule : Module() {
         val barcodeW = if (wPx > 0) wPx.toInt() else (canvasWidthPx - xPx.toInt()).coerceAtLeast(100)
         val barcodeH = if (hPx > 0) hPx.toInt() else 80
         val type = finiteInt(el["barcodeType"], 60)
-        val textHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
-
-        val barOnlyHeight = if (textHeight > 0) (barcodeH - textHeight.toInt()).coerceAtLeast(30) else barcodeH
+        val requestedTextHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
+        // The human-readable digits have to fit inside this element's own box. The old
+        // floor of 30 dots on the bar height let the digit strip run past the bottom
+        // edge on short barcodes, printing on top of the price/MRP text underneath.
+        val textHeight = if (requestedTextHeight > 0f) requestedTextHeight.coerceAtMost(barcodeH * 0.4f) else 0f
+        val showText = textHeight >= 10f
+        val barOnlyHeight = (if (showText) barcodeH - textHeight.toInt() else barcodeH).coerceAtLeast(1)
         val barcodeBmp = generateBarcodeBitmap(value, type, barcodeW, barOnlyHeight)
 
         if (barcodeBmp != null) {
           canvas.drawBitmap(barcodeBmp, xPx, yPx, null)
           barcodeBmp.recycle()
 
-          if (textHeight > 0) {
+          if (showText) {
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
               color = Color.BLACK
-              textSize = textHeight.coerceAtLeast(12f)
+              textSize = textHeight
               typeface = Typeface.DEFAULT
               textAlign = Paint.Align.CENTER
             }
-            val textY = yPx + barOnlyHeight + textHeight
+            // Baseline sits on the box's bottom edge less the descent, so no glyph
+            // can ever spill below yPx + barcodeH.
+            val textY = yPx + barcodeH - textPaint.fontMetrics.descent
             canvas.drawText(value, xPx + barcodeW / 2f, textY, textPaint)
           }
         }

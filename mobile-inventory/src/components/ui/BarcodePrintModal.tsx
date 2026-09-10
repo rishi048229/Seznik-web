@@ -55,6 +55,21 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   // because the roll and the sticker design change per print run, not per device.
   const [sizeW, setSizeW] = useState(labelWidthMm);
   const [sizeH, setSizeH] = useState(labelHeightMm);
+  // usePrinterStore hydrates asynchronously (hydrateFromSettings), but this modal is
+  // mounted alongside the products list, long before that resolves — so the useState
+  // initialisers above capture the 50x30 defaults and never see the real saved roll
+  // size. That silently rendered a 30mm layout onto 25mm media: on a gap-sensing
+  // printer the bottom of every label spilled past the die-cut, and on ESC/POS (which
+  // has no gap sensor) the extra 5mm accumulated until the content walked onto the
+  // next label. Track the store's calibration and adopt it whenever it actually
+  // changes (React's "adjust state during render" pattern — no effect, no extra pass),
+  // which still leaves a per-run size the user picks below untouched.
+  const [syncedSize, setSyncedSize] = useState({ w: labelWidthMm, h: labelHeightMm });
+  if (syncedSize.w !== labelWidthMm || syncedSize.h !== labelHeightMm) {
+    setSyncedSize({ w: labelWidthMm, h: labelHeightMm });
+    setSizeW(labelWidthMm);
+    setSizeH(labelHeightMm);
+  }
   const [presetId, setPresetId] = useState<LabelPresetId | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -69,6 +84,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       setPrintMode('template');
     }
   }, [visible, activeLabelTemplateId, activeLabelTemplate]);
+
 
   React.useEffect(() => {
     if (visible && labelPrinter.isConnected && labelPrinter.kind === 'label' && shouldShowTip) {

@@ -82,6 +82,8 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { AiProductImportModal } from '@/components/products/AiProductImportModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { SeznikPrinterGrid } from '@/components/printers/SeznikPrinterGrid';
+import { SeznikPrinterModel, SeznikPrinterModelId, SEZNIK_PRINTER_MODELS } from '@/constants/printerModels';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { DashboardSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
@@ -153,6 +155,7 @@ export default function DashboardScreen() {
   // Modals & Action States
   const [showAiImportModal, setShowAiImportModal] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
+  const [selectedPrinterModalModel, setSelectedPrinterModalModel] = useState<SeznikPrinterModelId>('dev');
   const [showScanModal, setShowScanModal] = useState(false);
   const [scanMode, setScanMode] = useState<'bill' | 'stock'>('bill');
 
@@ -680,86 +683,31 @@ export default function DashboardScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* 2.5 LIVE THERMAL & BLUETOOTH PRINTER HARDWARE STATUS CARD */}
-              <View style={[styles.printerCard, { backgroundColor: theme.cardBg, borderColor: connectionState === 'connected' ? '#10B981' : theme.borderColor }]}>
-                <View style={styles.printerCardHeader}>
-                  <View style={[styles.printerIconBadge, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)' }]}>
-                    <Printer size={18} color={connectionState === 'connected' ? '#10B981' : '#64748B'} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
-                    <Text style={[styles.printerCardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                      {t('thermalPrinter', 'Thermal POS Printer')}
+              {/* 2.5 SEZNIK SMART PRINTER HARDWARE FLEET (4 MODELS) */}
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 2 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Printer size={16} color={BRAND_COLORS.blue600} />
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: theme.textPrimary, letterSpacing: 0.3 }}>
+                      SEZNIK PRINTER FLEET (4 MODELS)
                     </Text>
                   </View>
-                  <View style={[styles.statusPill, { backgroundColor: connectionState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
-                    <View style={[styles.statusDot, { backgroundColor: connectionState === 'connected' ? '#10B981' : '#EF4444' }]} />
-                    <Text style={[styles.statusPillText, { color: connectionState === 'connected' ? '#10B981' : '#EF4444' }]}>
-                      {connectionState === 'connected' ? (activeDevice?.name || t('connected', 'Connected')) : t('disconnected', 'Disconnected')}
-                    </Text>
-                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push('/printers' as any)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND_COLORS.blue600 }}>Manage Fleet</Text>
+                    <ChevronRight size={14} color={BRAND_COLORS.blue600} />
+                  </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
-                  {connectionState === 'connected' 
-                    ? `${activeDevice?.name || 'Bluetooth/USB'} • ${paperWidth} ${t('printerReady', 'Paper Ready')}` 
-                    : t('noBluetoothFound', 'No Bluetooth device linked. Tap Scan & Connect to link receipt printer.')}
-                </Text>
-
-                {/* Action Buttons: Connect, paper width, then test/disconnect when linked */}
-                <View style={styles.printerActionsWrap}>
-                  <View style={styles.printerPrimaryRow}>
-                    <TouchableOpacity
-                      style={[styles.printerConnectBtn, { backgroundColor: connectionState === 'connected' ? BRAND_COLORS.blue600 : '#10B981' }]}
-                      onPress={() => setShowDirectPrinterModal(true)}
-                      activeOpacity={0.8}
-                    >
-                      <Bluetooth size={14} color="#FFF" style={styles.printerConnectBtnIcon} />
-                      <Text style={styles.printerConnectBtnText} numberOfLines={1}>
-                        {connectionState === 'connected' ? t('changeReconnect', 'Change / Reconnect') : t('scanAndConnect', 'Scan & Connect')}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <View style={[styles.paperToggleContainer, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
-                      <TouchableOpacity
-                        style={[styles.paperToggleBtn, paperWidth === '58mm' && styles.paperToggleActive]}
-                        onPress={() => setPaperWidth('58mm')}
-                      >
-                        <Text style={[styles.paperToggleText, paperWidth === '58mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>58mm</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.paperToggleBtn, paperWidth === '80mm' && styles.paperToggleActive]}
-                        onPress={() => setPaperWidth('80mm')}
-                      >
-                        <Text style={[styles.paperToggleText, paperWidth === '80mm' ? styles.paperToggleTextActive : { color: theme.textSecondary }]}>80mm</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {connectionState === 'connected' ? (
-                    <View style={styles.printerSecondaryRow}>
-                      <TouchableOpacity
-                        style={[styles.printerTestBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
-                        onPress={handleTestPrint}
-                        activeOpacity={0.8}
-                      >
-                        <Zap size={14} color={BRAND_COLORS.sky500} style={styles.printerSecondaryBtnIcon} />
-                        <Text style={[styles.printerTestBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
-                          {t('testPrint', 'Test Print')}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.printerDisconnectBtn, { borderColor: 'rgba(239, 68, 68, 0.35)', backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
-                        onPress={handleDisconnectPrinter}
-                        activeOpacity={0.8}
-                      >
-                        <PowerOff size={14} color="#EF4444" style={styles.printerSecondaryBtnIcon} />
-                        <Text style={styles.printerDisconnectBtnText} numberOfLines={1}>
-                          {t('disconnect', 'Disconnect')}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                </View>
+                <SeznikPrinterGrid
+                  onSelectModel={(model) => {
+                    setSelectedPrinterModalModel(model.id);
+                    setShowDirectPrinterModal(true);
+                  }}
+                  showWarnings={true}
+                />
               </View>
 
               {/* 2.6 LIVE BUSINESS SPENDING & OUTFLOW CARD */}
@@ -1133,6 +1081,7 @@ export default function DashboardScreen() {
         {/* Direct Bluetooth / Network Thermal Printer Connect Dialog */}
         <DirectPrinterConnectModal
           visible={showDirectPrinterModal}
+          initialModelId={selectedPrinterModalModel}
           onClose={() => setShowDirectPrinterModal(false)}
           onConnected={() => {
             setShowDirectPrinterModal(false);

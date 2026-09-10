@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Image,
+  PermissionsAndroid,
 } from 'react-native';
 import {
   X,
@@ -20,11 +22,24 @@ import {
   Smartphone,
   Share2,
   ChevronDown,
+  AlertTriangle,
+  Zap,
+  Tag,
+  Layers,
 } from 'lucide-react-native';
 import { usePrinterStore, PhoneBluetoothDevice } from '@/store/usePrinterStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
+import {
+  PRINTER_MODEL_LIST,
+  SEZNIK_PRINTER_MODELS,
+  SeznikPrinterModelId,
+  SeznikPrinterModel,
+} from '@/constants/printerModels';
+import ThermalPrinterService from '@/services/PrinterService';
+import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
+import YxLabelPrinter, { isYxPrinterSupported, YxPrinterDevice } from '../../../modules/yx-label-printer';
 
 interface DirectPrinterConnectModalProps {
   visible: boolean;
@@ -35,6 +50,7 @@ interface DirectPrinterConnectModalProps {
   subtitle?: string;
   showContinueWithoutPrinter?: boolean;
   onContinueWithoutPrinter?: () => void;
+  initialModelId?: SeznikPrinterModelId;
 }
 
 export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps> = ({
@@ -45,10 +61,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   subtitle,
   showContinueWithoutPrinter = true,
   onContinueWithoutPrinter,
+  initialModelId = 'dev',
 }) => {
-  const { t, currentLanguage } = useTranslation();
-  const modalTitle = title || t('connectPrinter', 'Connect Thermal Printer');
-  const modalSubtitle = subtitle || t('connectPrinterSub', 'No printer connected. Select or scan a Bluetooth receipt/label printer below to print.');
+  const { t } = useTranslation();
+  const theme = useAppTheme();
+
   const {
     connectionState,
     activeDevice,
@@ -57,43 +74,196 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     isScanning,
     scanForDevices,
     connectDevice,
+    disconnectDevice,
+    connectedPrinterModel,
+    setConnectedPrinterModel,
     warningText,
   } = usePrinterStore();
 
+  const [selectedModel, setSelectedModel] = useState<SeznikPrinterModelId>(
+    connectedPrinterModel || initialModelId
+  );
+
   const [connectingId, setConnectingId] = useState<string | null>(null);
 
-  // A Bluetooth scan in a shop picks up phones, earbuds and TVs as well as the
-  // printer, so the full list is long and the printer is rarely at the top.
-  // Show a short list first and let the rest be revealed deliberately.
+  // Josh SDK state
+  const [joshDevices, setJoshDevices] = useState<JoshPrinterDevice[]>([]);
+  const [isJoshScanning, setIsJoshScanning] = useState(false);
+  const [joshConnectedDevice, setJoshConnectedDevice] = useState<{ address: string; name: string } | null>(null);
+
+  // TEJ / YX SDK state
+  const [yxDevices, setYxDevices] = useState<YxPrinterDevice[]>([]);
+  const [isYxScanning, setIsYxScanning] = useState(false);
+  const [yxConnectedDevice, setYxConnectedDevice] = useState<{ address: string; name: string } | null>(null);
+
   const VISIBLE_DEVICE_LIMIT = 5;
   const [showAllDevices, setShowAllDevices] = useState(false);
-  const theme = useAppTheme();
 
-
-  // Auto scan when modal opens if no paired printers or disconnected
+  // Sync selected model if connectedPrinterModel changes
   useEffect(() => {
-    if (visible && connectionState !== 'connected') {
-      scanForDevices().catch(() => {});
+    if (connectedPrinterModel) {
+      setSelectedModel(connectedPrinterModel);
     }
-  }, [visible]);
+  }, [connectedPrinterModel]);
 
-  const handleConnect = async (device: PhoneBluetoothDevice) => {
+  // Refresh status of all bridges
+  const refreshAllStatuses = useCallback(async () => {
+    if (ThermalPrinterService.isJoshSupported() && JoshLabelPrinter) {
+      try {
+        const isConn = await JoshLabelPrinter.isConnected();
+        if (isConn) {
+          const info = await JoshLabelPrinter.getPrinterInfo();
+          setJoshConnectedDevice(info ? { address: info.address, name: info.name } : null);
+        } else {
+          setJoshConnectedDevice(null);
+        }
+      } catch {
+        setJoshConnectedDevice(null);
+      }
+    }
+
+    if (ThermalPrinterService.isYxSupported() && YxLabelPrinter) {
+      try {
+        const isConn = await YxLabelPrinter.isConnected();
+        if (isConn) {
+          const info = await YxLabelPrinter.getPrinterInfo();
+          setYxConnectedDevice(info ? { address: info.address, name: info.name } : null);
+        } else {
+          setYxConnectedDevice(null);
+        }
+      } catch {
+        setYxConnectedDevice(null);
+      }
+    }
+  }, []);
+
+  const ensureAndroidPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    const needed =
+      Platform.Version >= 31
+        ? [
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          ]
+        : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+    try {
+      const result = await PermissionsAndroid.requestMultiple(needed as any);
+      return Object.values(result).every((v) => v === PermissionsAndroid.RESULTS.GRANTED);
+    } catch {
+      return false;
+    }
+  };
+
+  const scanJoshDevices = async () => {
+    if (!ThermalPrinterService.isJoshSupported() || !JoshLabelPrinter) return;
+    const ok = await ensureAndroidPermissions();
+    if (!ok) return;
+    setIsJoshScanning(true);
+    try {
+      const paired = await JoshLabelPrinter.getPairedPrinters();
+      setJoshDevices(paired || []);
+      await JoshLabelPrinter.startDiscovery();
+      setTimeout(() => {
+        JoshLabelPrinter?.stopDiscovery().catch(() => {});
+        setIsJoshScanning(false);
+      }, 8000);
+    } catch {
+      setIsJoshScanning(false);
+    }
+  };
+
+  const scanYxDevices = async () => {
+    if (!ThermalPrinterService.isYxSupported() || !YxLabelPrinter) return;
+    const ok = await ensureAndroidPermissions();
+    if (!ok) return;
+    setIsYxScanning(true);
+    try {
+      const paired = await YxLabelPrinter.getPairedPrinters();
+      setYxDevices(paired || []);
+      await YxLabelPrinter.startDiscovery();
+      setTimeout(() => {
+        YxLabelPrinter?.stopDiscovery().catch(() => {});
+        setIsYxScanning(false);
+      }, 8000);
+    } catch {
+      setIsYxScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) {
+      refreshAllStatuses();
+      if (selectedModel === 'veer' || selectedModel === 'dev') {
+        if (connectionState !== 'connected') {
+          scanForDevices().catch(() => {});
+        }
+      } else if (selectedModel === 'josh') {
+        scanJoshDevices();
+      } else if (selectedModel === 'tej') {
+        scanYxDevices();
+      }
+    }
+  }, [visible, selectedModel]);
+
+  // Listeners for Josh
+  useEffect(() => {
+    if (!ThermalPrinterService.isJoshSupported() || !JoshLabelPrinter) return;
+    const foundSub = JoshLabelPrinter.addListener('onPrinterFound', (device) => {
+      setJoshDevices((prev) => {
+        const exists = prev.some((d) => d.address === device.address);
+        return exists ? prev : [...prev, device];
+      });
+    });
+    const stateSub = JoshLabelPrinter.addListener('onPrinterStateChange', () => {
+      refreshAllStatuses();
+    });
+    return () => {
+      foundSub.remove();
+      stateSub.remove();
+    };
+  }, [refreshAllStatuses]);
+
+  // Listeners for YX / TEJ
+  useEffect(() => {
+    if (!ThermalPrinterService.isYxSupported() || !YxLabelPrinter) return;
+    const foundSub = YxLabelPrinter.addListener('onPrinterFound', (device) => {
+      setYxDevices((prev) => {
+        const exists = prev.some((d) => d.address === device.address);
+        return exists ? prev : [...prev, device];
+      });
+    });
+    const stateSub = YxLabelPrinter.addListener('onPrinterStateChange', () => {
+      refreshAllStatuses();
+    });
+    return () => {
+      foundSub.remove();
+      stateSub.remove();
+    };
+  }, [refreshAllStatuses]);
+
+  // Connect ESC/POS (VEER / DEV)
+  const handleConnectEscPos = async (device: PhoneBluetoothDevice, modelId: 'dev' | 'veer') => {
     setConnectingId(device.id);
     try {
-      await connectDevice(device.id, device.name);
-      if (onConnected) {
-        onConnected();
+      // Clean disconnect conflicting bridges
+      if (ThermalPrinterService.isJoshSupported()) {
+        ThermalPrinterService.joshDisconnect().catch(() => {});
       }
+      if (ThermalPrinterService.isYxSupported()) {
+        ThermalPrinterService.yxDisconnect().catch(() => {});
+      }
+
+      setConnectedPrinterModel(modelId);
+      await connectDevice(device.id, device.name);
+      if (onConnected) onConnected();
       onClose();
     } catch (e: any) {
-      // Stay open on failure. Closing here (and firing onConnected) is what previously told the
-      // caller a printer was ready when the socket had never opened.
       Alert.alert(
         t('connectionFailed', 'Connection Failed'),
         e?.message || t('connectionFailedSub', 'Could not reach the printer. Check that it is switched on and in range.'),
         [
           { text: t('cancel', 'Cancel'), style: 'cancel' },
-          { text: t('retry', 'Retry'), onPress: () => handleConnect(device) },
+          { text: t('retry', 'Retry'), onPress: () => handleConnectEscPos(device, modelId) },
         ]
       );
     } finally {
@@ -101,9 +271,75 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
-  const handleScanAgain = () => {
-    scanForDevices().catch(() => {});
+  // Connect JOSH (LPAPI)
+  const handleConnectJosh = async (device: JoshPrinterDevice) => {
+    setConnectingId(device.address);
+    try {
+      // Clean disconnect conflicting bridges
+      disconnectDevice().catch(() => {});
+      if (ThermalPrinterService.isYxSupported()) {
+        ThermalPrinterService.yxDisconnect().catch(() => {});
+      }
+
+      setConnectedPrinterModel('josh');
+      await ThermalPrinterService.joshConnect(device.address, device.name);
+      await refreshAllStatuses();
+      if (onConnected) onConnected();
+      onClose();
+    } catch (e: any) {
+      Alert.alert(
+        'Could Not Connect to JOSH',
+        e?.message || 'Connection failed. Please ensure printer is powered on and Bluetooth is enabled.'
+      );
+    } finally {
+      setConnectingId(null);
+    }
   };
+
+  // Connect TEJ (TEJ / YX SDK)
+  const handleConnectTej = async (device: YxPrinterDevice) => {
+    setConnectingId(device.address);
+    try {
+      // Clean disconnect conflicting bridges
+      disconnectDevice().catch(() => {});
+      if (ThermalPrinterService.isJoshSupported()) {
+        ThermalPrinterService.joshDisconnect().catch(() => {});
+      }
+
+      setConnectedPrinterModel('tej');
+      await ThermalPrinterService.yxConnect(device.address, device.name);
+      await refreshAllStatuses();
+      if (onConnected) onConnected();
+      onClose();
+    } catch (e: any) {
+      Alert.alert(
+        'Could Not Connect to TEJ',
+        e?.message || 'Connection failed. Please ensure printer is powered on and Bluetooth is enabled.'
+      );
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const handleScanAgain = () => {
+    if (selectedModel === 'veer' || selectedModel === 'dev') {
+      scanForDevices().catch(() => {});
+    } else if (selectedModel === 'josh') {
+      scanJoshDevices();
+    } else if (selectedModel === 'tej') {
+      scanYxDevices();
+    }
+  };
+
+  const activeModelConfig = SEZNIK_PRINTER_MODELS[selectedModel];
+
+  // Helper to determine if selected model is connected
+  const isSelectedModelConnected =
+    (selectedModel === 'josh' && !!joshConnectedDevice) ||
+    (selectedModel === 'tej' && !!yxConnectedDevice) ||
+    ((selectedModel === 'dev' || selectedModel === 'veer') &&
+      connectionState === 'connected' &&
+      (connectedPrinterModel === selectedModel || (!connectedPrinterModel && selectedModel === 'dev')));
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -119,9 +355,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                 <Bluetooth size={20} color={BRAND_COLORS.blue600} />
               </View>
               <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={[styles.title, { color: theme.textPrimary }]}>{modalTitle}</Text>
-                <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={2}>
-                  {modalSubtitle}
+                <Text style={[styles.title, { color: theme.textPrimary }]}>
+                  {title || 'Connect SEZNIK Printer'}
+                </Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {subtitle || 'Select your printer model below to link via Bluetooth'}
                 </Text>
               </View>
             </View>
@@ -135,163 +373,589 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
             </TouchableOpacity>
           </View>
 
-          {/* Warning Banner if any */}
-          {warningText && connectionState !== 'connected' ? (
+          {/* 4 PRINTER MODEL SELECTOR ROW */}
+          <View style={styles.modelSelectorContainer}>
+            {PRINTER_MODEL_LIST.map((model) => {
+              const isSelected = selectedModel === model.id;
+              const isConn =
+                (model.id === 'josh' && !!joshConnectedDevice) ||
+                (model.id === 'tej' && !!yxConnectedDevice) ||
+                ((model.id === 'dev' || model.id === 'veer') &&
+                  connectionState === 'connected' &&
+                  (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));
+
+              return (
+                <TouchableOpacity
+                  key={model.id}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedModel(model.id)}
+                  style={[
+                    styles.modelTab,
+                    {
+                      backgroundColor: isSelected ? 'rgba(37, 99, 235, 0.08)' : theme.cardBg,
+                      borderColor: isConn
+                        ? '#10B981'
+                        : isSelected
+                        ? BRAND_COLORS.blue600
+                        : theme.borderColor,
+                      borderWidth: isSelected || isConn ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.tabImageWrap}>
+                    <Image source={model.image} style={styles.tabImage} resizeMode="contain" />
+                    {isConn && (
+                      <View style={styles.connectedDotBadge}>
+                        <View style={styles.connectedDot} />
+                      </View>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.tabName,
+                      {
+                        color: isSelected ? BRAND_COLORS.blue600 : theme.textPrimary,
+                        fontWeight: isSelected ? '800' : '600',
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {model.name.replace('SEZNIK ', '')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tabType,
+                      { color: model.id === 'veer' ? '#D97706' : '#059669' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {model.id === 'veer' ? 'Receipt Only' : '2-in-1'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* MODEL CAPABILITY & WARNING NOTICE */}
+          <View
+            style={[
+              styles.modelNoticeBox,
+              {
+                backgroundColor:
+                  selectedModel === 'veer'
+                    ? '#FFFBEB'
+                    : selectedModel === 'josh'
+                    ? '#EEF2FF'
+                    : selectedModel === 'tej'
+                    ? '#ECFDF5'
+                    : '#EFF6FF',
+                borderColor:
+                  selectedModel === 'veer'
+                    ? '#FDE68A'
+                    : selectedModel === 'josh'
+                    ? '#C7D2FE'
+                    : selectedModel === 'tej'
+                    ? '#A7F3D0'
+                    : '#BFDBFE',
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
+              {selectedModel === 'veer' ? (
+                <AlertTriangle size={15} color="#D97706" style={{ marginRight: 6 }} />
+              ) : (
+                <Zap size={15} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+              )}
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '800',
+                  color: selectedModel === 'veer' ? '#B45309' : BRAND_COLORS.blue600,
+                }}
+              >
+                {activeModelConfig.name} • {activeModelConfig.typeBadge} ({activeModelConfig.driver})
+              </Text>
+            </View>
+            <Text
+              style={{
+                fontSize: 11,
+                color: selectedModel === 'veer' ? '#92400E' : theme.textSecondary,
+                lineHeight: 15,
+              }}
+            >
+              {selectedModel === 'veer'
+                ? '⚠️ SEZNIK VEER is a receipt-only printer (ESC/POS). It does NOT support die-cut sticker labels.'
+                : selectedModel === 'dev'
+                ? 'SEZNIK DEV is a 2-in-1 printer supporting continuous receipts and 50x30mm die-cut labels (ESC/POS & TSPL).'
+                : selectedModel === 'josh'
+                ? 'SEZNIK JOSH supports high-precision die-cut labels and receipts via dedicated LPAPI native SDK.'
+                : 'SEZNIK TEJ supports ultra-fast die-cut labels and receipts via proprietary TEJ native SDK.'}
+            </Text>
+          </View>
+
+          {/* Warning Banner if any store warning */}
+          {warningText && !isSelectedModelConnected ? (
             <View style={[styles.warningBanner, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
               <AlertCircle size={14} color="#EF4444" style={{ marginRight: 6 }} />
               <Text style={styles.warningText}>{warningText}</Text>
             </View>
           ) : null}
 
-          {/* Device Lists Scroll */}
+          {/* DEVICE LIST SCROLL */}
           <ScrollView
             style={styles.scrollList}
             contentContainerStyle={{ paddingVertical: 4 }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* PAIRED PRINTERS */}
-            {pairedPrinters.length > 0 ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>SAVED / PAIRED PRINTERS ({pairedPrinters.length})</Text>
-                {pairedPrinters.map((p) => {
-                  const isThisConnecting = connectingId === p.id;
-                  const isThisActive = activeDevice?.id === p.id && connectionState === 'connected';
+            {/* ESC/POS (DEV / VEER) LIST */}
+            {(selectedModel === 'dev' || selectedModel === 'veer') && (
+              <>
+                {/* PAIRED PRINTERS */}
+                {pairedPrinters.length > 0 ? (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>
+                      SAVED / PAIRED PRINTERS ({pairedPrinters.length})
+                    </Text>
+                    {pairedPrinters.map((p) => {
+                      const isThisConnecting = connectingId === p.id;
+                      const isThisActive =
+                        activeDevice?.id === p.id &&
+                        connectionState === 'connected' &&
+                        (connectedPrinterModel === selectedModel || (!connectedPrinterModel && selectedModel === 'dev'));
 
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      activeOpacity={0.8}
-                      onPress={() => handleConnect(p)}
-                      disabled={isThisConnecting || isThisActive}
-                      style={[
-                        styles.deviceItem,
-                        {
-                          backgroundColor: theme.cardBg,
-                          borderColor: isThisActive ? '#10B981' : theme.borderColor,
-                        },
-                      ]}
-                    >
-                      <View style={[styles.deviceIconBox, { backgroundColor: isThisActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(37, 99, 235, 0.1)' }]}>
-                        <Printer size={18} color={isThisActive ? '#10B981' : BRAND_COLORS.blue600} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
-                            {p.name || 'Bluetooth Thermal Printer'}
-                          </Text>
-                          {p.isDefault ? (
-                            <View style={styles.defaultBadge}>
-                              <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+                      return (
+                        <TouchableOpacity
+                          key={p.id}
+                          activeOpacity={0.8}
+                          onPress={() => handleConnectEscPos(p, selectedModel)}
+                          disabled={isThisConnecting || isThisActive}
+                          style={[
+                            styles.deviceItem,
+                            {
+                              backgroundColor: theme.cardBg,
+                              borderColor: isThisActive ? '#10B981' : theme.borderColor,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.deviceIconBox,
+                              {
+                                backgroundColor: isThisActive
+                                  ? 'rgba(16, 185, 129, 0.15)'
+                                  : 'rgba(37, 99, 235, 0.1)',
+                              },
+                            ]}
+                          >
+                            <Printer
+                              size={18}
+                              color={isThisActive ? '#10B981' : BRAND_COLORS.blue600}
+                            />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text
+                                style={[styles.deviceName, { color: theme.textPrimary }]}
+                                numberOfLines={1}
+                              >
+                                {p.name || 'SEZNIK Bluetooth Printer'}
+                              </Text>
+                              {p.isDefault ? (
+                                <View style={styles.defaultBadge}>
+                                  <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+                                </View>
+                              ) : null}
                             </View>
-                          ) : null}
-                        </View>
-                        <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
-                          {p.macAddress || p.id} • {p.statusTag || 'Paired'}
-                        </Text>
-                      </View>
+                            <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
+                              {p.macAddress || p.id} • {p.statusTag || 'Paired'}
+                            </Text>
+                          </View>
 
-                      {isThisConnecting ? (
-                        <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
-                      ) : isThisActive ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <CheckCircle2 size={16} color="#10B981" />
-                          <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '800', marginLeft: 4 }}>Ready</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.connectBtnSmall}>
-                          <Text style={styles.connectBtnSmallText}>Connect</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
+                          {isThisConnecting ? (
+                            <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                          ) : isThisActive ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <CheckCircle2 size={16} color="#10B981" />
+                              <Text
+                                style={{
+                                  color: '#10B981',
+                                  fontSize: 11,
+                                  fontWeight: '800',
+                                  marginLeft: 4,
+                                }}
+                              >
+                                Ready
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.connectBtnSmall}>
+                              <Text style={styles.connectBtnSmallText}>Connect</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
 
-            {/* NEARBY DISCOVERED PRINTERS */}
-            <View style={[styles.section, { marginTop: pairedPrinters.length > 0 ? 10 : 0 }]}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>NEARBY BLUETOOTH DEVICES ({scannedDevices.length})</Text>
-                <TouchableOpacity onPress={handleScanAgain} disabled={isScanning} style={styles.scanRefreshBtn}>
-                  <RefreshCw size={12} color={BRAND_COLORS.blue600} style={isScanning ? { transform: [{ rotate: '45deg' }] } : {}} />
-                  <Text style={styles.scanRefreshText}>{isScanning ? 'Scanning...' : 'Scan Again'}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {isScanning && scannedDevices.length === 0 ? (
-                <View style={styles.scanningPlaceholder}>
-                  <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
-                  <Text style={[styles.scanningPlaceholderText, { color: theme.textSecondary }]}>
-                    Searching for nearby Bluetooth printers...
-                  </Text>
-                </View>
-              ) : scannedDevices.length === 0 ? (
-                <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
-                  <Smartphone size={22} color={theme.textSecondary} />
-                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                    No other Bluetooth devices found nearby. Ensure your printer is turned ON with Bluetooth enabled.
-                  </Text>
-                </View>
-              ) : (
-                (showAllDevices ? scannedDevices : scannedDevices.slice(0, VISIBLE_DEVICE_LIMIT)).map((d) => {
-                  const isThisConnecting = connectingId === d.id;
-                  const isThisActive = activeDevice?.id === d.id && connectionState === 'connected';
-
-                  return (
-                    <TouchableOpacity
-                      key={d.id}
-                      activeOpacity={0.8}
-                      onPress={() => handleConnect(d)}
-                      disabled={isThisConnecting || isThisActive}
-                      style={[
-                        styles.deviceItem,
-                        {
-                          backgroundColor: theme.cardBg,
-                          borderColor: isThisActive ? '#10B981' : theme.borderColor,
-                        },
-                      ]}
-                    >
-                      <View style={[styles.deviceIconBox, { backgroundColor: 'rgba(100, 116, 139, 0.12)' }]}>
-                        <Printer size={18} color={theme.textSecondary} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
-                          {d.name || `Device (${d.id.slice(-6)})`}
-                        </Text>
-                        <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
-                          {d.macAddress || d.id}
-                        </Text>
-                      </View>
-
-                      {isThisConnecting ? (
-                        <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
-                      ) : isThisActive ? (
-                        <CheckCircle2 size={16} color="#10B981" />
-                      ) : (
-                        <View style={styles.connectBtnSmall}>
-                          <Text style={styles.connectBtnSmallText}>Pair & Connect</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-
-              {/* Reveals the rest of the scan rather than making the user wade
-                  through every phone and TV in range to reach the printer. */}
-              {!showAllDevices && scannedDevices.length > VISIBLE_DEVICE_LIMIT ? (
-                <TouchableOpacity
-                  onPress={() => setShowAllDevices(true)}
-                  style={[styles.showMoreBtn, { borderColor: theme.borderColor }]}
+                {/* NEARBY DISCOVERED PRINTERS */}
+                <View
+                  style={[styles.section, { marginTop: pairedPrinters.length > 0 ? 10 : 0 }]}
                 >
-                  <ChevronDown size={15} color={theme.textPrimary} />
-                  <Text style={[styles.showMoreText, { color: theme.textPrimary }]}>
-                    Show {scannedDevices.length - VISIBLE_DEVICE_LIMIT} more device
-                    {scannedDevices.length - VISIBLE_DEVICE_LIMIT === 1 ? '' : 's'}
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionTitle}>
+                      NEARBY BLUETOOTH DEVICES ({scannedDevices.length})
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleScanAgain}
+                      disabled={isScanning}
+                      style={styles.scanRefreshBtn}
+                    >
+                      <RefreshCw
+                        size={12}
+                        color={BRAND_COLORS.blue600}
+                        style={isScanning ? { transform: [{ rotate: '45deg' }] } : {}}
+                      />
+                      <Text style={styles.scanRefreshText}>
+                        {isScanning ? 'Scanning...' : 'Scan Again'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {isScanning && scannedDevices.length === 0 ? (
+                    <View style={styles.scanningPlaceholder}>
+                      <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                      <Text
+                        style={[
+                          styles.scanningPlaceholderText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Searching for nearby Bluetooth printers...
+                      </Text>
+                    </View>
+                  ) : scannedDevices.length === 0 ? (
+                    <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
+                      <Smartphone size={22} color={theme.textSecondary} />
+                      <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                        No devices found. Turn ON {activeModelConfig.name} and pair it in phone
+                        settings first.
+                      </Text>
+                    </View>
+                  ) : (
+                    (showAllDevices
+                      ? scannedDevices
+                      : scannedDevices.slice(0, VISIBLE_DEVICE_LIMIT)
+                    ).map((d) => {
+                      const isThisConnecting = connectingId === d.id;
+                      const isThisActive =
+                        activeDevice?.id === d.id &&
+                        connectionState === 'connected' &&
+                        (connectedPrinterModel === selectedModel || (!connectedPrinterModel && selectedModel === 'dev'));
+
+                      return (
+                        <TouchableOpacity
+                          key={d.id}
+                          activeOpacity={0.8}
+                          onPress={() => handleConnectEscPos(d, selectedModel)}
+                          disabled={isThisConnecting || isThisActive}
+                          style={[
+                            styles.deviceItem,
+                            {
+                              backgroundColor: theme.cardBg,
+                              borderColor: isThisActive ? '#10B981' : theme.borderColor,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.deviceIconBox,
+                              { backgroundColor: 'rgba(100, 116, 139, 0.12)' },
+                            ]}
+                          >
+                            <Printer size={18} color={theme.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text
+                              style={[styles.deviceName, { color: theme.textPrimary }]}
+                              numberOfLines={1}
+                            >
+                              {d.name || `Device (${d.id.slice(-6)})`}
+                            </Text>
+                            <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
+                              {d.macAddress || d.id}
+                            </Text>
+                          </View>
+
+                          {isThisConnecting ? (
+                            <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                          ) : isThisActive ? (
+                            <CheckCircle2 size={16} color="#10B981" />
+                          ) : (
+                            <View style={styles.connectBtnSmall}>
+                              <Text style={styles.connectBtnSmallText}>Pair & Connect</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+
+                  {!showAllDevices && scannedDevices.length > VISIBLE_DEVICE_LIMIT ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllDevices(true)}
+                      style={[styles.showMoreBtn, { borderColor: theme.borderColor }]}
+                    >
+                      <ChevronDown size={15} color={theme.textPrimary} />
+                      <Text style={[styles.showMoreText, { color: theme.textPrimary }]}>
+                        Show {scannedDevices.length - VISIBLE_DEVICE_LIMIT} more device
+                        {scannedDevices.length - VISIBLE_DEVICE_LIMIT === 1 ? '' : 's'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </>
+            )}
+
+            {/* JOSH LPAPI LIST */}
+            {selectedModel === 'josh' && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>
+                    DISCOVERED JOSH SMART PRINTERS ({joshDevices.length})
                   </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+                  <TouchableOpacity
+                    onPress={scanJoshDevices}
+                    disabled={isJoshScanning}
+                    style={styles.scanRefreshBtn}
+                  >
+                    <RefreshCw
+                      size={12}
+                      color={BRAND_COLORS.blue600}
+                      style={isJoshScanning ? { transform: [{ rotate: '45deg' }] } : {}}
+                    />
+                    <Text style={styles.scanRefreshText}>
+                      {isJoshScanning ? 'Scanning...' : 'Scan Josh'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {isJoshScanning && joshDevices.length === 0 ? (
+                  <View style={styles.scanningPlaceholder}>
+                    <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                    <Text
+                      style={[styles.scanningPlaceholderText, { color: theme.textSecondary }]}
+                    >
+                      Searching for nearby SEZNIK JOSH printers...
+                    </Text>
+                  </View>
+                ) : joshDevices.length === 0 ? (
+                  <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
+                    <Smartphone size={22} color={theme.textSecondary} />
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                      No JOSH printers discovered. Ensure SEZNIK JOSH is powered on and within range.
+                    </Text>
+                  </View>
+                ) : (
+                  joshDevices.map((d) => {
+                    const isThisConnecting = connectingId === d.address;
+                    const isThisActive =
+                      joshConnectedDevice?.address === d.address ||
+                      (connectedPrinterModel === 'josh' && !!joshConnectedDevice);
+
+                    return (
+                      <TouchableOpacity
+                        key={d.address}
+                        activeOpacity={0.8}
+                        onPress={() => handleConnectJosh(d)}
+                        disabled={isThisConnecting || isThisActive}
+                        style={[
+                          styles.deviceItem,
+                          {
+                            backgroundColor: theme.cardBg,
+                            borderColor: isThisActive ? '#10B981' : theme.borderColor,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.deviceIconBox,
+                            {
+                              backgroundColor: isThisActive
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : 'rgba(99, 102, 241, 0.12)',
+                            },
+                          ]}
+                        >
+                          <Tag
+                            size={18}
+                            color={isThisActive ? '#10B981' : '#6366F1'}
+                          />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text
+                            style={[styles.deviceName, { color: theme.textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {d.name || 'SEZNIK JOSH Printer'}
+                          </Text>
+                          <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
+                            {d.address} • LPAPI Driver
+                          </Text>
+                        </View>
+
+                        {isThisConnecting ? (
+                          <ActivityIndicator size="small" color="#6366F1" />
+                        ) : isThisActive ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <CheckCircle2 size={16} color="#10B981" />
+                            <Text
+                              style={{
+                                color: '#10B981',
+                                fontSize: 11,
+                                fontWeight: '800',
+                                marginLeft: 4,
+                              }}
+                            >
+                              Ready
+                            </Text>
+                          </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.connectBtnSmall,
+                              { backgroundColor: '#6366F1' },
+                            ]}
+                          >
+                            <Text style={styles.connectBtnSmallText}>Connect JOSH</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            )}
+
+            {/* TEJ / YX LIST */}
+            {selectedModel === 'tej' && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>
+                    DISCOVERED TEJ SMART PRINTERS ({yxDevices.length})
+                  </Text>
+                  <TouchableOpacity
+                    onPress={scanYxDevices}
+                    disabled={isYxScanning}
+                    style={styles.scanRefreshBtn}
+                  >
+                    <RefreshCw
+                      size={12}
+                      color={BRAND_COLORS.blue600}
+                      style={isYxScanning ? { transform: [{ rotate: '45deg' }] } : {}}
+                    />
+                    <Text style={styles.scanRefreshText}>
+                      {isYxScanning ? 'Scanning...' : 'Scan TEJ'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {isYxScanning && yxDevices.length === 0 ? (
+                  <View style={styles.scanningPlaceholder}>
+                    <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                    <Text
+                      style={[styles.scanningPlaceholderText, { color: theme.textSecondary }]}
+                    >
+                      Searching for nearby SEZNIK TEJ printers...
+                    </Text>
+                  </View>
+                ) : yxDevices.length === 0 ? (
+                  <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
+                    <Smartphone size={22} color={theme.textSecondary} />
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                      No TEJ printers discovered. Ensure SEZNIK TEJ is powered on and within range.
+                    </Text>
+                  </View>
+                ) : (
+                  yxDevices.map((d) => {
+                    const isThisConnecting = connectingId === d.address;
+                    const isThisActive =
+                      yxConnectedDevice?.address === d.address ||
+                      (connectedPrinterModel === 'tej' && !!yxConnectedDevice);
+
+                    return (
+                      <TouchableOpacity
+                        key={d.address}
+                        activeOpacity={0.8}
+                        onPress={() => handleConnectTej(d)}
+                        disabled={isThisConnecting || isThisActive}
+                        style={[
+                          styles.deviceItem,
+                          {
+                            backgroundColor: theme.cardBg,
+                            borderColor: isThisActive ? '#10B981' : theme.borderColor,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.deviceIconBox,
+                            {
+                              backgroundColor: isThisActive
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : 'rgba(16, 185, 129, 0.12)',
+                            },
+                          ]}
+                        >
+                          <Zap
+                            size={18}
+                            color={isThisActive ? '#10B981' : '#059669'}
+                          />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text
+                            style={[styles.deviceName, { color: theme.textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {d.name || 'SEZNIK TEJ Printer'}
+                          </Text>
+                          <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
+                            {d.address} • TEJ Native SDK
+                          </Text>
+                        </View>
+
+                        {isThisConnecting ? (
+                          <ActivityIndicator size="small" color="#059669" />
+                        ) : isThisActive ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <CheckCircle2 size={16} color="#10B981" />
+                            <Text
+                              style={{
+                                color: '#10B981',
+                                fontSize: 11,
+                                fontWeight: '800',
+                                marginLeft: 4,
+                              }}
+                            >
+                              Ready
+                            </Text>
+                          </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.connectBtnSmall,
+                              { backgroundColor: '#059669' },
+                            ]}
+                          >
+                            <Text style={styles.connectBtnSmallText}>Connect TEJ</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            )}
           </ScrollView>
 
           {/* Footer Actions */}
@@ -302,14 +966,22 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                   onClose();
                   if (onContinueWithoutPrinter) onContinueWithoutPrinter();
                 }}
-                style={[styles.continueBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                style={[
+                  styles.continueBtn,
+                  { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                ]}
               >
                 <Share2 size={14} color={theme.textSecondary} />
-                <Text style={[styles.continueBtnText, { color: theme.textPrimary }]}>Continue without Printer</Text>
+                <Text style={[styles.continueBtnText, { color: theme.textPrimary }]}>
+                  Continue without Printer
+                </Text>
               </TouchableOpacity>
             ) : null}
 
-            <TouchableOpacity onPress={onClose} style={[styles.dismissBtn, { backgroundColor: BRAND_COLORS.blue600 }]}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={[styles.dismissBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+            >
               <Text style={styles.dismissBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -325,62 +997,114 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 14,
   },
   card: {
     width: '100%',
-    maxWidth: 460,
-    maxHeight: '85%',
+    maxWidth: 480,
+    maxHeight: '90%',
     borderRadius: 24,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   iconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   subtitle: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
-    lineHeight: 15,
   },
   closeBtn: {
+    padding: 4,
+  },
+  modelSelectorContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  modelTab: {
+    flex: 1,
+    borderRadius: 12,
     padding: 6,
-    minWidth: 38,
-    minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+  },
+  tabImageWrap: {
+    width: 38,
+    height: 38,
+    position: 'relative',
+    marginBottom: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabImage: {
+    width: 36,
+    height: 36,
+  },
+  connectedDotBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  connectedDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFF',
+  },
+  tabName: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  tabType: {
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  modelNoticeBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
   },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    padding: 10,
     borderRadius: 10,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   warningText: {
     color: '#EF4444',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     flex: 1,
   },
   scrollList: {
-    maxHeight: 360,
-    marginVertical: 6,
+    maxHeight: 320,
   },
   section: {
     marginBottom: 8,
@@ -389,10 +1113,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     color: '#94A3B8',
     letterSpacing: 0.5,
@@ -400,15 +1124,13 @@ const styles = StyleSheet.create({
   scanRefreshBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
   scanRefreshText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: BRAND_COLORS.blue600,
-    marginLeft: 4,
   },
-  showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 12, paddingVertical: 11, marginTop: 4 },
-  showMoreText: { fontSize: 12.5, fontWeight: '800' },
   deviceItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -418,99 +1140,113 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   deviceIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   deviceName: {
     fontSize: 13,
-    fontWeight: '800',
-  },
-  deviceMac: {
-    fontSize: 10,
-    marginTop: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: '700',
   },
   defaultBadge: {
-    backgroundColor: '#10B981',
-    borderRadius: 4,
-    paddingHorizontal: 4,
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+    paddingHorizontal: 5,
     paddingVertical: 1,
+    borderRadius: 4,
     marginLeft: 6,
   },
   defaultBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '900',
+    color: BRAND_COLORS.blue600,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  deviceMac: {
+    fontSize: 11,
+    marginTop: 2,
   },
   connectBtnSmall: {
     backgroundColor: BRAND_COLORS.blue600,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   connectBtnSmallText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   scanningPlaceholder: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
+    padding: 16,
+    gap: 10,
   },
   scanningPlaceholderText: {
     fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   emptyBox: {
+    padding: 20,
+    borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 14,
-    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 4,
+    gap: 8,
+    marginVertical: 6,
   },
   emptyText: {
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 16,
+    lineHeight: 18,
+  },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+    gap: 6,
+  },
+  showMoreText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   footerRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.2)',
   },
   continueBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
+    gap: 6,
   },
   continueBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    marginLeft: 6,
   },
   dismissBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: 12,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   dismissBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    color: '#FFF',
+    fontSize: 13,
     fontWeight: '800',
   },
 });

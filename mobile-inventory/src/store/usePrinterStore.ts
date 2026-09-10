@@ -119,6 +119,9 @@ interface PrinterState {
   /** Reconnects to the default (or most recently used) saved printer. No-op when autoConnect is off. */
   attemptAutoConnect: () => Promise<void>;
   addPairedPrinter: (device: PrinterDevice) => Promise<void>;
+  /** Active SEZNIK printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
+  connectedPrinterModel: 'tej' | 'dev' | 'veer' | 'josh' | null;
+  setConnectedPrinterModel: (model: 'tej' | 'dev' | 'veer' | 'josh' | null) => void;
   setPaperWidth: (width: '58mm' | '80mm') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setReceiptFont: (font: ReceiptFontId) => void;
@@ -438,6 +441,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await get().connectDevice(device.id, device.name);
   },
 
+  connectedPrinterModel: null,
+  setConnectedPrinterModel: (connectedPrinterModel) => set({ connectedPrinterModel }),
   setPaperWidth: (paperWidth) => set({ paperWidth }),
   setFontSize: (fontSize) => set({ fontSize }),
   setReceiptFont: (receiptFont) => set({ receiptFont: resolveReceiptFontId(receiptFont) }),

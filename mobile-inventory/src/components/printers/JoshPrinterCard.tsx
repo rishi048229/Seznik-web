@@ -1,8 +1,31 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, PermissionsAndroid, Vibration } from 'react-native';
-import { Tag, Bluetooth, PowerOff, RefreshCw, CheckCircle2, Sparkles } from 'lucide-react-native';
-import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Platform,
+  PermissionsAndroid,
+  Vibration,
+  Image,
+} from 'react-native';
+import {
+  Tag,
+  Bluetooth,
+  PowerOff,
+  RefreshCw,
+  CheckCircle2,
+  Sparkles,
+  Zap,
+} from 'lucide-react-native';
+import JoshLabelPrinter, {
+  isJoshPrinterSupported,
+  JoshPrinterDevice,
+} from '../../../modules/josh-label-printer';
 import ThermalPrinterService from '@/services/PrinterService';
+import { usePrinterStore } from '@/store/usePrinterStore';
 import { getStoredJoshPrinter } from '@/services/secureStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -10,11 +33,7 @@ import { useJoshDualModeTip } from '@/hooks/useJoshDualModeTip';
 import { JoshDualModeModal } from '@/components/printers/JoshDualModeModal';
 
 /**
- * Connect/disconnect UI for DothanTech ("Josh") LPAPI label printers.
- *
- * These sit alongside the ESC/POS receipt printer rather than replacing it — a shop
- * can have a receipt printer and a dedicated label printer connected at once, and
- * PrinterService routes label jobs here automatically whenever one is connected.
+ * Connect/disconnect UI for SEZNIK JOSH (LPAPI) label & receipt printers.
  */
 export function JoshPrinterCard() {
   const theme = useAppTheme();
@@ -45,24 +64,17 @@ export function JoshPrinterCard() {
   useEffect(() => {
     if (!supported || !JoshLabelPrinter) return;
 
-    // Kicked off as promises rather than called straight from the effect body, so no
-    // state update happens synchronously during the effect (which would cascade renders).
-    // joshEnsureConnected silently re-links the printer saved from a previous session,
-    // so a shop that connected once sees "ready" here without touching anything.
     Promise.resolve()
       .then(() => ThermalPrinterService.joshEnsureConnected())
       .catch(() => {})
       .then(refreshConnection);
 
-    // Surface the saved printer even before any scan, so reconnecting after the
-    // silent attempt failed (printer was off) is a single tap, not a discovery wait.
     getStoredJoshPrinter()
       .then((saved) => {
         if (saved) setDevices((prev) => mergeDevices(prev, [{ address: saved.address, name: saved.name }]));
       })
       .catch(() => {});
 
-    // Load already-paired printers so a returning user can reconnect without scanning.
     JoshLabelPrinter.getPairedPrinters()
       .then((paired) => setDevices((prev) => mergeDevices(prev, paired)))
       .catch(() => {});
@@ -83,8 +95,6 @@ export function JoshPrinterCard() {
 
   const ensureBluetoothPermissions = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
-    // BLUETOOTH_SCAN/CONNECT exist from Android 12 (API 31); older versions grant
-    // Bluetooth at install time but still gate discovery behind location.
     const needed =
       Platform.Version >= 31
         ? [
@@ -111,8 +121,6 @@ export function JoshPrinterCard() {
     setIsScanning(true);
     try {
       await JoshLabelPrinter.startDiscovery();
-      // LPAPI reports devices through onPrinterFound as they appear; stop after a
-      // short window so the button does not spin forever.
       setTimeout(() => {
         JoshLabelPrinter?.stopDiscovery().catch(() => {});
         setIsScanning(false);
@@ -132,18 +140,23 @@ export function JoshPrinterCard() {
     }
     setConnectingAddress(device.address);
     try {
-      // Routed through PrinterService so the link is persisted — that's what lets
-      // label prints silently reconnect after an app restart.
+      // Disconnect conflicting bridges
+      usePrinterStore.getState().disconnectDevice().catch(() => {});
+      if (ThermalPrinterService.isYxSupported()) {
+        ThermalPrinterService.yxDisconnect().catch(() => {});
+      }
+      usePrinterStore.getState().setConnectedPrinterModel('josh');
+
       const success = await ThermalPrinterService.joshConnect(device.address, device.name);
       if (success) {
         await refreshConnection();
         if (shouldShowTip) {
           setShowTipModal(true);
         } else {
-          Alert.alert('Dual-Mode Printer Linked', `${device.name} is ready for bills and labels.`);
+          Alert.alert('SEZNIK JOSH Linked', `${device.name} is ready for bills and labels.`);
         }
       } else {
-        Alert.alert('Could Not Connect', `${device.name} did not accept the connection. Make sure it is switched on and in range.`);
+        Alert.alert('Could Not Connect', 'Connection was refused. Ensure printer is on and in range.');
       }
     } catch (e: any) {
       Alert.alert('Could Not Connect', e?.message || 'Connection failed.');
@@ -174,9 +187,17 @@ export function JoshPrinterCard() {
         barcode: '8901234567890',
         id: 'sample-1',
       };
-      const ok = await ThermalPrinterService.printCustomLabel(sample, 'ean13', undefined, 50, 30, 3);
+      const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
+      const ok = await ThermalPrinterService.printCustomLabel(
+        sample,
+        'ean13',
+        undefined,
+        labelWidthMm,
+        labelHeightMm,
+        labelGapMm
+      );
       if (ok) {
-        Alert.alert('Test Label Sent!', 'Printed test label via Josh Label Printer.');
+        Alert.alert('Test Label Sent!', 'Printed test label via SEZNIK JOSH.');
       } else {
         Alert.alert('Print Error', 'Could not send test label.');
       }
@@ -194,7 +215,7 @@ export function JoshPrinterCard() {
     try {
       const ok = await ThermalPrinterService.printTestReceipt();
       if (ok) {
-        Alert.alert('Test Receipt Sent!', 'Printed sample receipt via Josh Printer.');
+        Alert.alert('Test Receipt Sent!', 'Printed sample receipt via SEZNIK JOSH.');
       } else {
         Alert.alert('Print Error', 'Could not send test receipt.');
       }
@@ -205,42 +226,44 @@ export function JoshPrinterCard() {
     }
   };
 
-  // On iOS, or on a JS-only client that has not been rebuilt with the SDK, there is
-  // nothing actionable to show — the ESC/POS label path stays in charge.
   if (!supported) return null;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: connected ? '#10B981' : theme.borderColor }]}>
       <View style={styles.headerRow}>
-        <View style={[styles.iconBadge, { backgroundColor: connected ? 'rgba(16,185,129,0.15)' : 'rgba(100,116,139,0.15)' }]}>
-          <Tag size={17} color={connected ? '#10B981' : '#64748B'} />
+        <View style={styles.printerImageWrap}>
+          <Image
+            source={require('@/assets/images/printers/printer_josh.png')}
+            style={styles.printerImage}
+            resizeMode="contain"
+          />
         </View>
-        <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+        <View style={{ flex: 1, marginLeft: 12, marginRight: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>
-              Josh Smart Printer
+              SEZNIK JOSH
             </Text>
             <View style={styles.dualBadge}>
               <Sparkles size={11} color="#6366F1" />
-              <Text style={styles.dualBadgeText}>Dual-Mode</Text>
+              <Text style={styles.dualBadgeText}>Receipt + Label</Text>
             </View>
           </View>
           <Text style={[styles.sub, { color: theme.textSecondary }]} numberOfLines={1}>
-            {connected ? `${connected.name} — ready (Receipts & Labels)` : 'Not connected (2-in-1 Printer)'}
+            {connected ? `${connected.name} — ready (LPAPI SDK)` : 'Not connected (LPAPI Native SDK)'}
           </Text>
         </View>
         {connected ? <CheckCircle2 size={18} color="#10B981" /> : null}
       </View>
 
       <Text style={[styles.blurb, { color: theme.textSecondary }]}>
-        Dual-mode printer capable of printing both continuous POS receipts and die-cut sticker barcode labels. Remember to swap your paper roll when changing modes.
+        SEZNIK JOSH 2-in-1 smart printer with LPAPI native bitmap engine. Supports crystal-clear sticker labels and thermal receipts.
       </Text>
 
       <View style={styles.actionRow}>
         <TouchableOpacity
           onPress={handleScan}
           disabled={isScanning}
-          style={[styles.primaryBtn, { backgroundColor: BRAND_COLORS.blue600, opacity: isScanning ? 0.6 : 1 }]}
+          style={[styles.primaryBtn, { backgroundColor: '#6366F1', opacity: isScanning ? 0.6 : 1 }]}
         >
           {isScanning ? (
             <ActivityIndicator size="small" color="#FFF" />
@@ -248,7 +271,7 @@ export function JoshPrinterCard() {
             <>
               <Bluetooth size={14} color="#FFF" style={{ marginRight: 6 }} />
               <Text style={styles.primaryBtnText} numberOfLines={1}>
-                Scan
+                Scan JOSH
               </Text>
             </>
           )}
@@ -259,13 +282,13 @@ export function JoshPrinterCard() {
             <TouchableOpacity
               onPress={handleTestReceiptPrint}
               disabled={isTestReceiptPrinting}
-              style={[styles.secondaryBtn, { borderColor: '#2563EB' }]}
+              style={[styles.secondaryBtn, { borderColor: '#6366F1' }]}
             >
               {isTestReceiptPrinting ? (
-                <ActivityIndicator size="small" color="#2563EB" />
+                <ActivityIndicator size="small" color="#6366F1" />
               ) : (
-                <Text style={[styles.secondaryBtnText, { color: '#2563EB' }]} numberOfLines={1}>
-                  Bill
+                <Text style={[styles.secondaryBtnText, { color: '#6366F1' }]} numberOfLines={1}>
+                  Bill Test
                 </Text>
               )}
             </TouchableOpacity>
@@ -279,53 +302,62 @@ export function JoshPrinterCard() {
                 <ActivityIndicator size="small" color="#10B981" />
               ) : (
                 <Text style={[styles.secondaryBtnText, { color: '#10B981' }]} numberOfLines={1}>
-                  Label
+                  Label Test
                 </Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleDisconnect} style={[styles.secondaryBtn, { borderColor: '#EF4444' }]}>
-              <PowerOff size={14} color="#EF4444" />
+            <TouchableOpacity
+              onPress={handleDisconnect}
+              style={[styles.secondaryBtn, { borderColor: '#EF4444' }]}
+            >
+              <PowerOff size={13} color="#EF4444" style={{ marginRight: 4 }} />
+              <Text style={[styles.secondaryBtnText, { color: '#EF4444' }]} numberOfLines={1}>
+                Unlink
+              </Text>
             </TouchableOpacity>
           </>
-        ) : (
-          <TouchableOpacity
-            onPress={() => JoshLabelPrinter?.getPairedPrinters().then((p) => setDevices((prev) => mergeDevices(prev, p))).catch(() => {})}
-            style={[styles.secondaryBtn, { borderColor: theme.borderColor }]}
-          >
-            <RefreshCw size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
-            <Text style={[styles.secondaryBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
-              Paired
-            </Text>
-          </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
+      {/* Discovered / Paired Devices list */}
       {devices.length > 0 ? (
         <View style={{ marginTop: 12 }}>
-          {devices.map((device) => {
-            const isThis = connected?.address === device.address;
+          <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textSecondary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Nearby SEZNIK JOSH Printers ({devices.length})
+          </Text>
+          {devices.map((d) => {
+            const isThis = connected?.address === d.address;
+            const isBusy = connectingAddress === d.address;
             return (
               <TouchableOpacity
-                key={device.address}
-                onPress={() => (isThis ? handleDisconnect() : handleConnect(device))}
-                disabled={connectingAddress === device.address}
-                style={[styles.deviceRow, { borderColor: isThis ? '#10B981' : theme.borderColor }]}
+                key={d.address}
+                onPress={() => handleConnect(d)}
+                disabled={isThis || isBusy}
+                style={[
+                  styles.deviceRow,
+                  {
+                    backgroundColor: theme.bg,
+                    borderColor: isThis ? '#10B981' : theme.borderColor,
+                    opacity: isBusy ? 0.6 : 1,
+                  },
+                ]}
               >
-                <View style={{ flex: 1, marginRight: 10 }}>
+                <Tag size={16} color={isThis ? '#10B981' : theme.textSecondary} style={{ marginRight: 10 }} />
+                <View style={{ flex: 1 }}>
                   <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>
-                    {device.name}
+                    {d.name || 'SEZNIK JOSH'}
                   </Text>
                   <Text style={[styles.deviceAddr, { color: theme.textSecondary }]} numberOfLines={1}>
-                    {device.address}
+                    {d.address}
                   </Text>
                 </View>
-                {connectingAddress === device.address ? (
-                  <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                {isBusy ? (
+                  <ActivityIndicator size="small" color="#6366F1" />
+                ) : isThis ? (
+                  <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '800' }}>Active</Text>
                 ) : (
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: isThis ? '#10B981' : BRAND_COLORS.blue600 }}>
-                    {isThis ? 'Connected' : 'Connect'}
-                  </Text>
+                  <Text style={{ color: '#6366F1', fontSize: 11, fontWeight: '800' }}>Connect</Text>
                 )}
               </TouchableOpacity>
             );
@@ -361,8 +393,9 @@ function mergeDevices(existing: JoshPrinterDevice[], incoming: JoshPrinterDevice
 const styles = StyleSheet.create({
   card: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'center' },
-  iconBadge: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 14, fontWeight: '900' },
+  printerImageWrap: { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  printerImage: { width: 40, height: 40 },
+  title: { fontSize: 15, fontWeight: '900' },
   sub: { fontSize: 11.5, marginTop: 2 },
   blurb: { fontSize: 11.5, lineHeight: 16, marginTop: 10, marginBottom: 12 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

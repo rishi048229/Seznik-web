@@ -670,23 +670,29 @@ class JoshLabelPrinterModule : Module() {
         val barcodeW = if (wPx > 0) wPx.toInt() else (canvasWidthPx - xPx.toInt()).coerceAtLeast(100)
         val barcodeH = if (hPx > 0) hPx.toInt() else 80
         val type = finiteInt(el["barcodeType"], 60)
-        val textHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
-
-        val barOnlyHeight = if (textHeight > 0) (barcodeH - textHeight.toInt()).coerceAtLeast(30) else barcodeH
+        val requestedTextHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
+        // The human-readable digits have to fit inside this element's own box. The old
+        // floor of 30 dots on the bar height let the digit strip run past the bottom
+        // edge on short barcodes, printing on top of the price/MRP text underneath.
+        val textHeight = if (requestedTextHeight > 0f) requestedTextHeight.coerceAtMost(barcodeH * 0.4f) else 0f
+        val showText = textHeight >= 10f
+        val barOnlyHeight = (if (showText) barcodeH - textHeight.toInt() else barcodeH).coerceAtLeast(1)
         val barcodeBmp = generateBarcodeBitmap(value, type, barcodeW, barOnlyHeight)
 
         if (barcodeBmp != null) {
           canvas.drawBitmap(barcodeBmp, xPx, yPx, null)
           barcodeBmp.recycle()
 
-          if (textHeight > 0) {
+          if (showText) {
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
               color = Color.BLACK
-              textSize = textHeight.coerceAtLeast(12f)
+              textSize = textHeight
               typeface = Typeface.DEFAULT
               textAlign = Paint.Align.CENTER
             }
-            val textY = yPx + barOnlyHeight + textHeight
+            // Baseline sits on the box's bottom edge less the descent, so no glyph
+            // can ever spill below yPx + barcodeH.
+            val textY = yPx + barcodeH - textPaint.fontMetrics.descent
             canvas.drawText(value, xPx + barcodeW / 2f, textY, textPaint)
           }
         }

@@ -1216,19 +1216,28 @@ export default function PrintersScreen() {
                 </View>
               </TouchableOpacity>
 
-              {/* Dedicated LPAPI / Josh Dual-Mode Printer connector */}
+              {/* SEZNIK 4-PRINTER FLEET CONNECTION CARDS */}
+              {ThermalPrinterService.isYxSupported() && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                    1. SEZNIK TEJ SMART PRINTER (TEJ NATIVE SDK • RECEIPTS & LABELS)
+                  </Text>
+                  <YxPrinterCard />
+                </View>
+              )}
+
               {ThermalPrinterService.isJoshSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    JOSH DUAL-MODE SMART PRINTER (RECEIPTS & LABELS)
+                    4. SEZNIK JOSH SMART PRINTER (LPAPI SDK • RECEIPTS & LABELS)
                   </Text>
                   <JoshPrinterCard />
                 </View>
               )}
 
-              {/* Section: PAIRED & DISCOVERED BLUETOOTH PRINTERS */}
+              {/* Section: PAIRED & DISCOVERED BLUETOOTH PRINTERS (DEV & VEER) */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>STANDARD THERMAL RECEIPT PRINTERS (ESC/POS) ({scannedDevices.length})</Text>
+                <Text style={styles.sectionHeader}>2 & 3. SEZNIK DEV / VEER (ESC/POS & TSPL) ({scannedDevices.length})</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity onPress={() => setShowDeviceModal(true)}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
@@ -1571,24 +1580,23 @@ export default function PrintersScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Dedicated LPAPI label printer — only renders on builds that
-                      include the vendored SDK, and takes over label jobs while linked. */}
-                  {ThermalPrinterService.isJoshSupported() && (
-                    <View style={{ marginTop: 16 }}>
-                      <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                        JOSH DUAL-MODE SMART PRINTER (STICKER LABELS & RECEIPTS)
-                      </Text>
-                      <JoshPrinterCard />
-                    </View>
-                  )}
-
-                  {/* Dedicated YX / Y50 label printer (com.yx.print SDK) */}
+                  {/* Dedicated TEJ / YX label printer (com.yx.print SDK) */}
                   {ThermalPrinterService.isYxSupported() && (
                     <View style={{ marginTop: 16 }}>
                       <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                        YX / Y50 SMART LABEL PRINTER (BLUETOOTH)
+                        1. SEZNIK TEJ SMART PRINTER (TEJ NATIVE SDK • LABELS & BILLS)
                       </Text>
                       <YxPrinterCard />
+                    </View>
+                  )}
+
+                  {/* Dedicated LPAPI label printer (com.dothantech.lpapi SDK) */}
+                  {ThermalPrinterService.isJoshSupported() && (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                        4. SEZNIK JOSH SMART PRINTER (LPAPI SDK • LABELS & BILLS)
+                      </Text>
+                      <JoshPrinterCard />
                     </View>
                   )}
 
