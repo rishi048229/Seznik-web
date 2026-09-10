@@ -34,26 +34,70 @@ import {
 import toast from 'react-hot-toast'
 import { downloadBulkUploadTemplate, normalizeUnit } from '@/utils/bulkTemplateGenerator'
 
-interface AiDocumentUploadModalProps {
+// Custom High-Finish UI SVG Icons
+const CautionBadgeIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path
+      d="M12 2.5L21.5 19C21.9 19.7 21.4 20.6 20.6 20.6H3.4C2.6 20.6 2.1 19.7 2.5 19L12 2.5Z"
+      fill="currentColor"
+      fillOpacity="0.16"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M12 8.5V13.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <circle cx="12" cy="17" r="1.2" fill="currentColor" />
+  </svg>
+)
+
+const SpreadsheetDeleteRowsIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect x="3" y="3" width="18" height="18" rx="3.5" stroke="currentColor" strokeWidth="1.8" fill="currentColor" fillOpacity="0.08" />
+    <path d="M3 8.5H21" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M3 14H21" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M9 3V21" stroke="currentColor" strokeWidth="1.5" />
+    {/* Highlighted sample row with delete dash */}
+    <rect x="9" y="8.5" width="12" height="5.5" fill="currentColor" fillOpacity="0.25" />
+    <path d="M13.5 11.25H16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+)
+
+const CustomLightbulbIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path
+      d="M9 18H15M10 21H14M12 2C8.13401 2 5 5.13401 5 9C5 11.3866 6.19635 13.4937 8.01633 14.7364C8.63665 15.1599 9 15.852 9 16.6006V17C9 17.5523 9.44772 18 10 18H14C14.5523 18 15 17.5523 15 17V16.6006C15 15.852 15.3634 15.1599 15.9837 14.7364C17.8036 13.4937 19 11.3866 19 9C19 5.13401 15.866 2 12 2Z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="currentColor"
+      fillOpacity="0.16"
+    />
+    <path d="M12 6V9M10.5 7.5H13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+interface BulkProductUploadModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
 const SEZ_AI_LOADING_MESSAGES = [
-  '✨ SEZ AI is scanning your CSV / file and parsing all columns & rows...',
-  '🤖 SEZ AI is intelligent-mapping product names, prices & units...',
-  '⚡ SEZ AI is detecting existing barcodes & preserving barcode numbers 100%...',
-  '🏷️ SEZ AI is auto-assigning smart categories & calculating tax rates...',
-  '📊 SEZ AI is building your interactive product review & edit table...'
+  'SEZ AI is scanning your CSV / file and parsing all columns & rows...',
+  'SEZ AI is intelligent-mapping product names, prices & units...',
+  'SEZ AI is detecting existing barcodes & preserving barcode numbers 100%...',
+  'SEZ AI is auto-assigning smart categories & calculating tax rates...',
+  'SEZ AI is building your interactive product review & edit table...'
 ]
 
 const SEZ_AI_IMPORT_MESSAGES = [
-  '📦 SEZ AI is creating missing categories in your database...',
-  '⚡ SEZ AI is executing high-speed batch database insertion...',
-  '✅ SEZ AI is finalizing inventory and category synchronization...'
+  'SEZ AI is creating missing categories in your database...',
+  'SEZ AI is executing high-speed batch database insertion...',
+  'SEZ AI is finalizing inventory and category synchronization...'
 ]
 
-export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ isOpen, onClose }) => {
+export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ isOpen, onClose }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'csv' | 'text'>('image')
@@ -63,6 +107,21 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
 
   const [extractedProducts, setExtractedProducts] = useState<AiExtractedProduct[]>([])
   const [step, setStep] = useState<'upload' | 'analyzing' | 'review'>('upload')
+  const [showSampleConfirmModal, setShowSampleConfirmModal] = useState(false)
+
+  // Close sample confirmation modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showSampleConfirmModal) {
+        e.stopPropagation()
+        setShowSampleConfirmModal(false)
+      }
+    }
+    if (showSampleConfirmModal) {
+      window.addEventListener('keydown', handleKeyDown, true)
+      return () => window.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [showSampleConfirmModal])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
@@ -125,6 +184,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     setSelectedFile(file)
     setFileTypeCategory(isCsv ? 'csv' : 'excel')
     setFilePreview(null)
+    setShowSampleConfirmModal(true)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -269,9 +329,9 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     return products
   }
 
-  const handleStartExtraction = () => {
+  const startActualExtraction = () => {
     if (!selectedFile) {
-      toast.error('Please select a CSV file, Excel sheet, PDF, bill, or menu file first.')
+      toast.error('Please select an Excel (.xlsx) or CSV file first.')
       return
     }
 
@@ -324,6 +384,19 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     }
   }
 
+  const handleStartExtraction = () => {
+    if (!selectedFile) {
+      toast.error('Please select an Excel (.xlsx) or CSV file first.')
+      return
+    }
+    setShowSampleConfirmModal(true)
+  }
+
+  const handleConfirmAndStartExtraction = () => {
+    setShowSampleConfirmModal(false)
+    startActualExtraction()
+  }
+
   const readAndSendFile = async (file: File) => {
     // Photos and screenshots get downscaled + contrast-normalized first —
     // oversized, unevenly-lit images are the main reason extraction fails.
@@ -331,7 +404,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
       try {
         const processed = await preprocessImageForOcr(file)
         if (processed.isLowResolution) {
-          toast('This image is quite low resolution — extraction may miss items.', { icon: '⚠️' })
+          toast('This image is quite low resolution — extraction may miss items.')
         }
         sendExtractionRequest(processed.dataUrl, processed.mimeType)
         return
@@ -441,6 +514,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     setFileTypeCategory('image')
     setExtractedProducts([])
     setStep('upload')
+    setShowSampleConfirmModal(false)
     onClose()
   }
 
@@ -493,6 +567,17 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
   }, [extractedProducts])
 
   const rowsNeedingReview = extractedProducts.filter(p => issuesById.has(p.id)).length
+
+  const sampleItemsFound = useMemo(() => {
+    const sampleNames = [
+      'parle-g gold 100g',
+      'amul butter 500g',
+      'basmati rice classic 1kg',
+      'ariel matic detergent powder 2kg',
+      'fresh cow milk 1l',
+    ]
+    return extractedProducts.filter(p => sampleNames.includes(p.name.toLowerCase().trim()))
+  }, [extractedProducts])
 
   const modalFooter = useMemo(() => {
     if (step === 'upload') {
@@ -563,19 +648,19 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
     >
       <div>
         {step === 'upload' && (
-          <div className="space-y-2.5">
+          <div className="space-y-3.5">
             {/* Step 1: Download Standard Template */}
-            <div className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 dark:from-blue-950/30 dark:via-dark-elevated dark:to-indigo-950/20 border border-blue-200/80 dark:border-blue-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 shrink-0">
-                  <FileSpreadsheet className="w-4 h-4" />
+            <div className="px-4 py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 dark:from-blue-950/30 dark:via-dark-elevated dark:to-indigo-950/20 border border-blue-200/80 dark:border-blue-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-500/30">
+                  <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-blue-950 dark:text-blue-300">
+                  <div className="text-xs sm:text-sm font-bold text-blue-950 dark:text-blue-300">
                     Step 1: Download Bulk Upload Template
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-zinc-400 truncate">
-                    Pre-formatted template with standard columns, sample rows & unit codes.
+                  <p className="text-xs text-slate-600 dark:text-zinc-300 mt-0.5">
+                    Pre-formatted columns, in-cell dropdown for Units & sample rows.
                   </p>
                 </div>
               </div>
@@ -584,8 +669,8 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   type="button"
                   size="sm"
                   onClick={() => downloadBulkUploadTemplate('xlsx')}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-7 px-2.5 flex items-center gap-1 shadow-sm hover:shadow-blue-500/20"
-                  leftIcon={<Download size={13} />}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-8 sm:h-8.5 px-3.5 flex items-center gap-1.5 shadow-xs"
+                  leftIcon={<Download size={14} />}
                 >
                   Download Excel (.xlsx)
                 </Button>
@@ -594,75 +679,99 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                   size="sm"
                   variant="outline"
                   onClick={() => downloadBulkUploadTemplate('csv')}
-                  className="text-xs font-semibold h-7 px-2.5 dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white dark:hover:border-blue-400/40"
-                  leftIcon={<Download size={13} />}
+                  className="text-xs font-semibold h-8 sm:h-8.5 px-3 dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-200 dark:hover:bg-dark-hover dark:hover:text-white flex items-center gap-1.5"
+                  leftIcon={<Download size={14} />}
                 >
                   CSV (.csv)
                 </Button>
               </div>
             </div>
 
+            {/* Warning: Remove Sample Products Before Uploading */}
+            <div className="px-4 py-3 rounded-xl bg-amber-500/10 dark:bg-amber-950/25 border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs backdrop-blur-sm">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="w-8.5 h-8.5 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0 border border-amber-500/25 flex items-center justify-center mt-0.5 sm:mt-0">
+                  <SpreadsheetDeleteRowsIcon className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-amber-950 dark:text-amber-200 text-xs sm:text-[13px] flex items-center gap-1.5">
+                    <CautionBadgeIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Delete Demo Rows (2–6) Before Uploading:</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-zinc-300 mt-0.5 leading-relaxed">
+                    Template includes 5 demo items. Delete rows 2–6 in Excel so demo products aren't imported.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200 shrink-0 bg-amber-500/15 dark:bg-amber-950/60 px-2.5 py-1 rounded-lg border border-amber-500/25 self-start sm:self-center">
+                <CustomLightbulbIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Select Rows 2–6 &rarr; Delete</span>
+              </div>
+            </div>
+
             {/* Step 2: Format Guidelines & Disclaimer */}
-            <div className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-dark-elevated/70 border border-amber-200/70 dark:border-dark-border-strong space-y-2 text-xs backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300 text-xs">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="px-4 py-3 sm:py-3.5 rounded-xl bg-amber-50/50 dark:bg-dark-elevated/70 border border-amber-200/70 dark:border-dark-border-strong space-y-2.5 text-xs backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300 text-xs sm:text-sm">
+                  <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                  </div>
                   <span>Format Guidelines & Required Columns</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10.5px] text-slate-600 dark:text-zinc-400">
+                <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-zinc-400">
                   <span>Accepted:</span>
-                  <span className="font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded border border-blue-200/60 dark:border-blue-800/50 text-[10px]">
-                    .xlsx / .xls
+                  <span className="font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50 text-[10.5px]">
+                    Excel (.xlsx, .xls)
                   </span>
-                  <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded border border-indigo-200/60 dark:border-indigo-800/50 text-[10px]">
-                    .csv
+                  <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/50 text-[10.5px]">
+                    CSV (.csv)
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 {/* Compulsory Fields */}
-                <div className="space-y-1 bg-white/90 dark:bg-dark-card p-2 rounded-lg border border-emerald-200/80 dark:border-emerald-500/25 shadow-sm">
+                <div className="space-y-2 bg-white/90 dark:bg-dark-card p-3 rounded-lg border border-emerald-200/80 dark:border-emerald-500/25 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <p className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5 text-xs sm:text-[13px]">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       Compulsory Fields
                     </p>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border dark:border-emerald-800/60">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                       Required
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10.5px]">
+                  <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 text-[11px]">
                     <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Product Name*</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Item title</span>
+                      <span className="text-slate-500 dark:text-zinc-400">Title</span>
                     </div>
                     <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Category*</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Category name</span>
+                      <span className="text-slate-500 dark:text-zinc-400">Category</span>
                     </div>
                     <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Cost Price*</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Supplier cost ₹</span>
+                      <span className="text-slate-500 dark:text-zinc-400">Cost ₹</span>
                     </div>
                     <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Selling Price*</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Retail price ₹</span>
+                      <span className="text-slate-500 dark:text-zinc-400">MRP ₹</span>
                     </div>
                     <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Stock Qty*</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Initial count (≥0)</span>
+                      <span className="text-slate-500 dark:text-zinc-400">Count (≥ 0)</span>
                     </div>
                     <div>
                       <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Unit*</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Code (1 to 7)</span>
+                      <span className="text-slate-500 dark:text-zinc-400">Dropdown</span>
                     </div>
                   </div>
 
                   {/* Unit codes row */}
-                  <div className="pt-1 border-t border-emerald-100/80 dark:border-dark-border flex flex-wrap items-center gap-1 font-mono text-[9.5px]">
-                    <span className="font-sans font-semibold text-slate-600 dark:text-zinc-400 text-[10px] mr-0.5">
+                  <div className="pt-2 border-t border-emerald-100/80 dark:border-dark-border flex flex-wrap items-center gap-1 font-mono text-[9.5px]">
+                    <span className="font-sans font-semibold text-slate-700 dark:text-zinc-300 text-[10.5px] mr-0.5">
                       Units:
                     </span>
                     {[
@@ -676,52 +785,49 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                     ].map((u) => (
                       <span
                         key={u.id}
-                        className="inline-flex items-center px-1 py-0.2 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50"
+                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50"
                       >
-                        <strong className="text-emerald-900 dark:text-emerald-200 mr-0.5 font-bold">{u.id}:</strong>
                         {u.label}
+                        <span className="text-emerald-700/60 dark:text-emerald-400/60 ml-0.5 font-sans text-[8.5px]">({u.id})</span>
                       </span>
                     ))}
                   </div>
                 </div>
 
                 {/* Optional Fields */}
-                <div className="space-y-1 bg-white/90 dark:bg-dark-card p-2 rounded-lg border border-blue-200/80 dark:border-blue-500/25 shadow-sm">
+                <div className="space-y-2 bg-white/90 dark:bg-dark-card p-3 rounded-lg border border-blue-200/80 dark:border-blue-500/25 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-blue-800 dark:text-blue-400 flex items-center gap-1 text-[11px]">
-                      <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <p className="font-bold text-blue-800 dark:text-blue-400 flex items-center gap-1.5 text-xs sm:text-[13px]">
+                      <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                       Optional Fields
                     </p>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 dark:border dark:border-blue-800/60">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
                       Auto-Handled
                     </span>
                   </div>
 
-                  <div className="space-y-0.5 text-[10.5px]">
-                    <div>
-                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Barcode</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">If blank, auto-generates </span>
-                      <code className="text-blue-700 dark:text-blue-300 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-1 py-0.2 rounded text-[10px]">
+                  <ul className="space-y-1.5 text-[11px] text-slate-600 dark:text-zinc-300 pl-3.5 list-disc marker:text-blue-500">
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Barcode</strong>: If blank, auto-generates{' '}
+                      <code className="text-blue-700 dark:text-blue-300 font-mono font-bold bg-blue-50 dark:bg-blue-950/60 px-1 py-0.2 rounded border border-blue-200/60 dark:border-blue-800/50 text-[9.5px]">
                         SZ...
-                      </code>
-                    </div>
-                    <div>
-                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Min Stock Alert</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Threshold. Defaults to </span>
-                      <span className="px-1 rounded bg-gray-100 dark:bg-dark-elevated text-slate-900 dark:text-zinc-100 font-bold text-[10px]">
+                      </code>{' '}
+                      (existing preserved)
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Min Stock Alert</strong>: Defaults to{' '}
+                      <span className="px-1 py-0.2 rounded bg-gray-100 dark:bg-dark-elevated text-slate-900 dark:text-zinc-100 font-bold border border-gray-200 dark:border-dark-border-strong text-[9.5px]">
                         0
                       </span>{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">if blank</span>
-                    </div>
-                    <div>
-                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Tax Rate %</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">GST percentage slab (defaults to 0%)</span>
-                    </div>
-                    <div>
-                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Brand & Description</strong>:{' '}
-                      <span className="text-slate-500 dark:text-zinc-400">Optional brand or item notes</span>
-                    </div>
-                  </div>
+                      if blank
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Tax Rate %</strong>: Applicable GST percentage (default 0%)
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-zinc-100 font-semibold">Brand & Description</strong>: Optional product notes
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -731,7 +837,7 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-blue-200 dark:border-blue-500/30 hover:border-blue-500 dark:hover:border-blue-400 rounded-xl py-3.5 px-4 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-dark-card hover:bg-blue-50/40 dark:hover:bg-dark-elevated/80 group"
+              className="border-2 border-dashed border-blue-200 dark:border-blue-500/30 hover:border-blue-500 dark:hover:border-blue-400 rounded-xl px-6 py-5 sm:py-6 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-dark-card hover:bg-blue-50/40 dark:hover:bg-dark-elevated/80 group shadow-2xs"
             >
               <input
                 ref={fileInputRef}
@@ -742,32 +848,30 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
               />
 
               {selectedFile ? (
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200/60 dark:border-emerald-500/30">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex items-center justify-center gap-3.5 py-1">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200/60 dark:border-emerald-500/30 shadow-2xs">
+                    <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <div className="text-left">
-                    <p className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate max-w-sm">{selectedFile.name}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100 truncate max-w-md">{selectedFile.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
                       {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory.toUpperCase()} Format •{' '}
-                      <span className="text-blue-600 dark:text-blue-400 font-medium">Click to replace file</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold underline">Click to replace file</span>
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100/80 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform border border-blue-200/50 dark:border-blue-500/30">
-                    <UploadCloud className="w-4 h-4" />
+                <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100/80 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform border border-blue-200/50 dark:border-blue-500/30 shadow-2xs mb-0.5">
+                    <UploadCloud className="w-5 h-5" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-slate-900 dark:text-zinc-100">
-                      Drop your Excel (.xlsx) or CSV file here, or{' '}
-                      <span className="text-blue-600 dark:text-blue-400 underline underline-offset-2">Browse File</span>
-                    </p>
-                    <p className="text-[10.5px] text-slate-500 dark:text-zinc-400">
-                      Supports .xlsx, .xls, .csv up to 20MB (up to 5,000 products per batch)
-                    </p>
-                  </div>
+                  <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100">
+                    Drop your completed Excel (.xlsx) or CSV file here, or{' '}
+                    <span className="text-blue-600 dark:text-blue-400 underline decoration-blue-400/50 hover:text-blue-500 font-semibold">Browse</span>
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">
+                    Supports Excel (.xlsx, .xls) and CSV (.csv) — max 20MB, up to 5,000 products per batch
+                  </p>
                 </div>
               )}
             </div>
@@ -807,10 +911,12 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
           <div className="space-y-4">
             {/* AI Verification Notice & Disclaimer Warning Banner */}
             <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-dark-elevated border border-amber-300/80 dark:border-amber-500/30 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
-              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
+              <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                <CautionBadgeIcon className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5 min-w-0 flex-1">
                 <p className="font-bold text-amber-950 dark:text-amber-300">
-                  ⚠️ Verification Required: AI & Automated Extraction Notice
+                  Verification Required: AI & Automated Extraction Notice
                 </p>
                 <p className="text-[11px] text-amber-800 dark:text-zinc-300 leading-relaxed">
                   Automated extraction helps process thousands of products quickly, but AI and file parsers can occasionally misinterpret handwritten text, complex grid columns, or custom formats. <strong>Please inspect and verify product names, prices, categories, and barcodes below before clicking import into your inventory.</strong>
@@ -837,6 +943,37 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                 <p className="text-xl font-black text-amber-900 dark:text-white">{autoBarcodeCount}</p>
               </div>
             </div>
+
+            {/* Detected Sample Demo Products Banner */}
+            {sampleItemsFound.length > 0 && (
+              <div className="p-3 sm:p-3.5 rounded-xl bg-rose-50/90 dark:bg-rose-950/30 border border-rose-300/80 dark:border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="p-1.5 rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5">
+                    <SpreadsheetDeleteRowsIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-rose-950 dark:text-rose-300">
+                      Template Sample Products Detected ({sampleItemsFound.length} items)
+                    </p>
+                    <p className="text-[11px] text-rose-800 dark:text-zinc-300 mt-0.5">
+                      Your file includes demo items from the template ({sampleItemsFound.map(s => s.name).join(', ')}). 
+                      Remove them if they are not part of your real store inventory.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setExtractedProducts(prev => prev.filter(p => !sampleItemsFound.some(s => s.id === p.id)))
+                    toast.success(`Removed ${sampleItemsFound.length} demo products from import list`)
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-7 px-3 shrink-0"
+                >
+                  Remove {sampleItemsFound.length} Demo Items
+                </Button>
+              </div>
+            )}
 
             {/* Rows the extractor is unsure about */}
             {rowsNeedingReview > 0 && (
@@ -1006,12 +1143,12 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
                               <RotateCw className="w-3.5 h-3.5" />
                             </button>
                             {product.isExistingBarcode ? (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 whitespace-nowrap">
-                                📌 Doc
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 whitespace-nowrap inline-flex items-center gap-1">
+                                <FileText className="w-2.5 h-2.5" /> Doc
                               </span>
                             ) : (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 whitespace-nowrap">
-                                ✨ Auto
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 whitespace-nowrap inline-flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5" /> Auto
                               </span>
                             )}
                           </div>
@@ -1201,7 +1338,87 @@ export const AiDocumentUploadModal: React.FC<AiDocumentUploadModalProps> = ({ is
             )}
           </div>
         )}
+
+        {/* Confirmation Popup: Did you remove sample products? */}
+        {showSampleConfirmModal && selectedFile && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={() => setShowSampleConfirmModal(false)}
+          >
+            <div
+              className="relative w-full max-w-md bg-white dark:bg-dark-card border border-amber-300/80 dark:border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start gap-3.5">
+                <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                  <SpreadsheetDeleteRowsIcon className="w-6 h-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-300 text-sm sm:text-base">
+                    <CautionBadgeIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Did you remove sample products?</span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 truncate">
+                    {selectedFile.name} • {(selectedFile.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSampleConfirmModal(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors"
+                  aria-label="Close dialog"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2 text-xs text-slate-700 dark:text-zinc-300 leading-relaxed">
+                <p>
+                  The downloaded Excel template contains <strong>5 demo sample products</strong> (<em>Parle-G, Amul Butter, etc.</em>).
+                </p>
+                <p>
+                  Before we upload and start executing the processing, please confirm that you have <strong>deleted rows 2 to 6</strong> (or replaced them with your real store catalog) so sample items are not added to your inventory.
+                </p>
+              </div>
+
+              {/* Tip Box */}
+              <div className="p-3 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/25 text-[11px] text-amber-900 dark:text-amber-200/90 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-300">
+                  <CustomLightbulbIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>How to remove in Excel / Sheets:</span>
+                </div>
+                <p className="text-slate-700 dark:text-zinc-300">
+                  Select rows <strong>2 through 6</strong> on the left &rarr; right-click &rarr; click <strong className="underline text-amber-950 dark:text-amber-200">Delete Rows</strong>.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-dark-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowSampleConfirmModal(false)}
+                  className="text-xs font-semibold px-3 py-2 dark:bg-dark-elevated dark:border-dark-border-strong dark:text-zinc-300"
+                >
+                  Check File First
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmAndStartExtraction}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 flex items-center gap-1.5 shadow-md shadow-blue-500/20"
+                  leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                >
+                  Yes, Proceed & Process
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   )
 }
+
+export const AiDocumentUploadModal = BulkProductUploadModal

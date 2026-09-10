@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
-import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
+import { BulkProductUploadModal } from './components/BulkProductUploadModal'
 import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
 import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
 import {
@@ -167,7 +167,7 @@ export const ProductsPage = () => {
   const [stockFilter, setStockFilter] = useState('')
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
-  const [showAiModal, setShowAiModal] = useState(false)
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
   const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
   const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
@@ -849,7 +849,7 @@ export const ProductsPage = () => {
             variant="outline"
             className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800 font-bold shrink-0 whitespace-nowrap"
             leftIcon={<Sparkles size={16} className="text-purple-600 dark:text-purple-400 animate-pulse" />}
-            onClick={() => setShowAiModal(true)}
+            onClick={() => setShowBulkUploadModal(true)}
           >
             Bulk upload
           </Button>
@@ -2365,9 +2365,9 @@ export const ProductsPage = () => {
         onPrintLabel={handlePrintLabel}
       />
 
-      <AiDocumentUploadModal
-        isOpen={showAiModal}
-        onClose={() => setShowAiModal(false)}
+      <BulkProductUploadModal
+        isOpen={showBulkUploadModal}
+        onClose={() => setShowBulkUploadModal(false)}
       />
 
       <ConsecutiveLabelModal
