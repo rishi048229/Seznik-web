@@ -860,6 +860,20 @@ export const completeOnboarding = async (req: Request, res: Response) => {
       existingReceipt,
     });
 
+    const existingPersonalInfo =
+      currentSettings?.personalInfo &&
+      typeof currentSettings.personalInfo === 'object' &&
+      !Array.isArray(currentSettings.personalInfo)
+        ? (currentSettings.personalInfo as Record<string, unknown>)
+        : {};
+
+    const initialPersonalInfo = {
+      ownerName: String(existingPersonalInfo.ownerName || user.displayName || '').trim(),
+      ownerPhone: String(existingPersonalInfo.ownerPhone || phone || user.phone || '').trim(),
+      ownerAddress: String(existingPersonalInfo.ownerAddress || businessAddress || '').trim(),
+      ...existingPersonalInfo,
+    };
+
     await prisma.settings.upsert({
       where: { userId },
       update: {
@@ -867,6 +881,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessAddress,
         businessPhone: phone,
         upiId,
+        personalInfo: initialPersonalInfo,
         receiptConfig: receiptConfig as any,
         trackStock: businessType !== 'restaurant_cafe',
         ...(businessLogoURL ? { businessLogoURL } : {}),
@@ -877,6 +892,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
         businessAddress,
         businessPhone: phone,
         upiId,
+        personalInfo: initialPersonalInfo,
         receiptConfig: receiptConfig as any,
         trackStock: businessType !== 'restaurant_cafe',
         ...(businessLogoURL ? { businessLogoURL } : {}),

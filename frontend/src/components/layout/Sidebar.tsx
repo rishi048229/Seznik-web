@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+  import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
@@ -152,7 +152,8 @@ const getAllNavItems = (kotFirst: boolean): NavItem[] => [
   },
   { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
   { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
-  { path: ROUTES.LOCATIONS, labelKey: 'nav.locations', icon: Store, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
+  // Multi-store implementation temporarily hidden
+  // { path: ROUTES.LOCATIONS, labelKey: 'nav.locations', icon: Store, section: 'inventory', animClass: 'animate-nav-swing origin-top' },
 
   // Finance & Operations
   { path: ROUTES.CUSTOMERS, labelKey: 'nav.customers', icon: Users, section: 'finance', animClass: 'animate-nav-pulse' },

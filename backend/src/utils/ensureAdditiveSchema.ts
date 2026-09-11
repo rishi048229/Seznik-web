@@ -90,6 +90,24 @@ const runEnsure = async () => {
       AND u."businessName" IS NOT NULL
       AND btrim(u."businessName") <> ''
   `)
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE "Settings" AS s
+    SET "personalInfo" = jsonb_build_object(
+      'ownerName', COALESCE(u."displayName", ''),
+      'ownerPhone', COALESCE(s."businessPhone", u."phone", ''),
+      'ownerAddress', COALESCE(s."businessAddress", '')
+    )
+    FROM "User" AS u
+    WHERE s."userId" = u.id
+      AND (
+        s."personalInfo" IS NULL
+        OR s."personalInfo"->>'ownerName' IS NULL
+        OR btrim(s."personalInfo"->>'ownerName') = ''
+      )
+      AND u."displayName" IS NOT NULL
+      AND btrim(u."displayName") <> ''
+  `)
 }
 
 export const ensureAdditiveSchema = async () => {

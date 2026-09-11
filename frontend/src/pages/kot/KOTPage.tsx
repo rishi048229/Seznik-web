@@ -265,10 +265,11 @@ export const KOTPage = () => {
                 {kotCfg.kitchenTicketsEnabled ? <Check size={14} /> : <ChefHat size={14} />}
                 {kotCfg.kitchenTicketsEnabled ? 'Kitchen tickets on' : 'Kitchen tickets off'}
               </DropdownMenuItem>
+              {/* Multi-store implementation temporarily hidden
               <DropdownMenuItem onClick={() => openSettings('stores')}>
                 <LayoutGrid size={14} />
                 Franchises / stores
-              </DropdownMenuItem>
+              </DropdownMenuItem> */}
             </DropdownMenu>
           </>
         }

@@ -57,6 +57,19 @@ export function enrichSettingsWithUserProfile(
     enrichedReceipt.footerMessage = 'Thank you for your purchase!';
   }
 
+  const personalInfoRaw = settings.personalInfo;
+  const personalInfo = isPlainObject(personalInfoRaw) ? { ...personalInfoRaw } : {};
+  const ownerName = str(personalInfo.ownerName) || str(user.displayName) || '';
+  const ownerPhone = str(personalInfo.ownerPhone) || businessPhone || '';
+  const ownerAddress = str(personalInfo.ownerAddress) || businessAddress || '';
+
+  const enrichedPersonalInfo: Record<string, unknown> = {
+    ...personalInfo,
+    ownerName,
+    ownerPhone,
+    ownerAddress,
+  };
+
   return {
     ...settings,
     businessName: businessName || settings.businessName,
@@ -66,6 +79,7 @@ export function enrichSettingsWithUserProfile(
     businessLogoURL: businessLogoURL || settings.businessLogoURL,
     upiId: upiId || settings.upiId,
     receiptConfig: enrichedReceipt as Settings['receiptConfig'],
+    personalInfo: enrichedPersonalInfo as Settings['personalInfo'],
   };
 }
 

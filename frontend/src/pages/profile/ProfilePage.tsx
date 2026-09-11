@@ -114,11 +114,6 @@ export const ProfilePage = () => {
                     <Sparkles size={11} className="text-amber-500" /> SEZNIK VIP
                   </Badge>
                 )}
-                {userProfile?.plan && (
-                  <Badge variant={userProfile.plan === 'pro' ? 'success' : 'default'}>
-                    {userProfile.plan.toUpperCase()}
-                  </Badge>
-                )}
               </div>
             </div>
             <Button
@@ -218,7 +213,7 @@ export const ProfilePage = () => {
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.ownerName')}</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {personalInfo?.ownerName || '—'}
+                  {personalInfo?.ownerName || userProfile?.displayName || user?.displayName || '—'}
                 </p>
               </div>
             </div>

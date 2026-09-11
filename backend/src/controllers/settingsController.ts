@@ -135,6 +135,15 @@ export const createSettings = async (req: Request, res: Response) => {
         create: { ...data, userId },
       })
     );
+
+    const ownerName = typeof data.personalInfo?.ownerName === 'string' ? data.personalInfo.ownerName.trim() : '';
+    if (ownerName) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { displayName: ownerName },
+      }).catch((err) => console.warn('Could not sync ownerName to User.displayName:', err));
+    }
+
     res.status(201).json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to create settings:', error);
@@ -165,6 +174,15 @@ export const updateSettings = async (req: Request, res: Response) => {
         create: { ...data, userId },
       })
     );
+
+    const ownerName = typeof data.personalInfo?.ownerName === 'string' ? data.personalInfo.ownerName.trim() : '';
+    if (ownerName) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { displayName: ownerName },
+      }).catch((err) => console.warn('Could not sync ownerName to User.displayName:', err));
+    }
+
     res.json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
     console.error('Failed to update settings:', error);

@@ -39,7 +39,7 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     calculator: true,
     purchases: true,
     suppliers: true,
-    stores: true,
+    stores: false, // Multi-store implementation temporarily hidden
     posPrimary: false,
     calculatorPrimary: false,
   },
@@ -49,7 +49,7 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     calculator: false,
     purchases: true,
     suppliers: true,
-    stores: true,
+    stores: false, // Multi-store implementation temporarily hidden
     posPrimary: true,
     calculatorPrimary: false,
   },
@@ -59,7 +59,7 @@ export const BUSINESS_NAV_FEATURES: Record<BusinessType, Record<NavFeatureId, bo
     calculator: true,
     purchases: true,
     suppliers: true,
-    stores: true,
+    stores: false, // Multi-store implementation temporarily hidden
     posPrimary: true,
     calculatorPrimary: true,
   },

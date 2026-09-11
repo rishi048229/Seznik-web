@@ -13,6 +13,16 @@ const STORAGE_KEY = 'pos_selected_location_id'
  * physically at one location for a whole shift, not per cart-line).
  */
 export function LocationSelector({ onChange }: { onChange: (locationId: string | null) => void }) {
+  // Multi-store implementation temporarily hidden
+  useEffect(() => {
+    onChange(null)
+  }, [onChange])
+
+  return null
+}
+
+// Retain existing implementation below for future re-enablement
+function _UnusedLocationSelector({ onChange }: { onChange: (locationId: string | null) => void }) {
   const { data: settings } = useSettings()
   const { data: locations = [] } = useLocations()
   const enabled = settings?.locationConfig?.enabled ?? false

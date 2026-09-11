@@ -164,9 +164,10 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
           icon: Package,
           route: '/products',
         },
-        ...(isFeatureVisible('stores')
+        // Multi-store implementation temporarily hidden
+        /* ...(isFeatureVisible('stores')
           ? [{ id: 'stores', label: t('stores', 'Stores & Locations'), icon: LayoutGrid, route: '/stores' }]
-          : []),
+          : []), */
       ],
     },
     {

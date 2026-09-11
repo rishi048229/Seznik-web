@@ -31,7 +31,8 @@ const TABS: Array<{ id: KOTSettingsTab; label: string; icon: typeof Building2 }>
   { id: 'business', label: 'Business', icon: Building2 },
   { id: 'bill', label: 'Customer bill', icon: Receipt },
   { id: 'kot', label: 'Kitchen', icon: ChefHat },
-  { id: 'stores', label: 'Franchises', icon: Store },
+  // Multi-store implementation temporarily hidden
+  // { id: 'stores', label: 'Franchises', icon: Store },
 ]
 
 export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: KOTSettingsModalProps) => {

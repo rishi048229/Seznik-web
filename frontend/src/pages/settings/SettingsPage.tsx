@@ -58,7 +58,7 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
-  const { userProfile, updateBusinessType } = useAuth()
+  const { user, userProfile, updateBusinessType } = useAuth()
   const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType | null>(
     userProfile?.businessType ?? null
   )
@@ -464,20 +464,34 @@ export const SettingsPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label={t('common.ownerName')}
-                    defaultValue={(current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ?? ''}
+                    defaultValue={
+                      (current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ||
+                      userProfile?.displayName ||
+                      user?.displayName ||
+                      ''
+                    }
                     id="settings-owner-name"
                     placeholder="e.g. Rajesh Kumar"
                   />
                   <Input
                     label={t('customers.phoneNumber')}
-                    defaultValue={(current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ?? ''}
+                    defaultValue={
+                      (current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ||
+                      userProfile?.phone ||
+                      current.businessPhone ||
+                      ''
+                    }
                     id="settings-owner-phone"
                     placeholder="+91 98765 43210"
                   />
                 </div>
                 <Input
                   label={t('common.address')}
-                  defaultValue={(current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ?? ''}
+                  defaultValue={
+                    (current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ||
+                    current.businessAddress ||
+                    ''
+                  }
                   id="settings-owner-address"
                   placeholder={t('settings.residentialAddressPlaceholder')}
                 />
