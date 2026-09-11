@@ -573,6 +573,7 @@ export const POSPage = () => {
       invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
       customerId: lastSaleData.selectedCustomer,
       customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || 'Walk-in Customer',
+      customerPhone: lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.phone : undefined,
       items: lastSaleData.items.map(item => {
         const itemTaxRate = item.taxRate || 0
         const lineTotal = item.sellingPrice * item.quantity - item.discount
@@ -605,8 +606,17 @@ export const POSPage = () => {
     }
   }
 
+  const handleOpenRealisticReceipt = () => {
+    const tempSale = buildTempSale()
+    if (!tempSale) return
+    setCurrentSaleForReceipt(tempSale)
+    setIsRealisticReceiptOpen(true)
+  }
+
   const finishPrintFlow = () => {
+    setIsPrintingAnimating(false)
     setIsPrintModalOpen(false)
+    setLastSaleData(null)
     setCompletedSaleId('')
     setCompletedInvoiceNumber('')
     setMethod('cash')
@@ -624,9 +634,11 @@ export const POSPage = () => {
     setIsPrintingAnimating(true)
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = (lastSaleData.selectedCustomer
-      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-      : undefined) || 'Walk-in Customer'
+    const customerObj = lastSaleData.selectedCustomer
+      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)
+      : undefined
+    const customerName = customerObj?.name || 'Walk-in Customer'
+    const customerPhone = customerObj?.phone || undefined
 
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
@@ -639,7 +651,10 @@ export const POSPage = () => {
       printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
+      businessPhone: settings?.businessPhone,
+      businessGSTIN: settings?.businessGSTIN,
       customerName,
+      customerPhone,
       width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
@@ -659,9 +674,11 @@ export const POSPage = () => {
         await blePrinter.connect()
       }
       const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerName = (lastSaleData.selectedCustomer
-        ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name
-        : undefined) || 'Walk-in Customer'
+      const customerObj = lastSaleData.selectedCustomer
+        ? customers?.find(c => c.id === lastSaleData.selectedCustomer)
+        : undefined
+      const customerName = customerObj?.name || 'Walk-in Customer'
+      const customerPhone = customerObj?.phone || undefined
       const bytes = await generateReceiptEscPos({
         sale: tempSale,
         receiptConfig,
@@ -670,7 +687,11 @@ export const POSPage = () => {
         receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
+        businessPhone: settings?.businessPhone,
+        businessGSTIN: settings?.businessGSTIN,
+        businessLogoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
         customerName,
+        customerPhone,
       })
       await blePrinter.print(bytes)
       finishPrintFlow()

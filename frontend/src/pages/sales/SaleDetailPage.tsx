@@ -72,13 +72,19 @@ export const SaleDetailPage = () => {
       return
     }
 
+    const customerObj = sale.customerId ? customers?.find(c => c.id === sale.customerId) : undefined
+    const customerPhone = customerObj?.phone || (sale as any).customerPhone || (sale as any).customer?.phone || undefined
+
     const receiptHTML = generateReceiptHTML({
       sale,
       receiptConfig: { ...receiptConfig, showTaxBreakdown },
       printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
+      businessPhone: settings?.businessPhone,
+      businessGSTIN: settings?.businessGSTIN,
       customerName,
+      customerPhone,
       width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
@@ -92,17 +98,20 @@ export const SaleDetailPage = () => {
   const handleDownloadPdf = () => {
     if (!sale) return
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = (sale.customerId
-      ? customers?.find(c => c.id === sale.customerId)?.name
-      : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
+    const customerObj = sale.customerId ? customers?.find(c => c.id === sale.customerId) : undefined
+    const customerName = (customerObj?.name) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
+    const customerPhone = customerObj?.phone || (sale as any).customerPhone || (sale as any).customer?.phone || undefined
     const html = generateReceiptHTML({
       sale,
       receiptConfig: { ...receiptConfig, showTaxBreakdown },
       printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
+      businessPhone: settings?.businessPhone,
+      businessGSTIN: settings?.businessGSTIN,
       customerName,
-      customer: sale.customerId ? customers?.find(c => c.id === sale.customerId) : null,
+      customerPhone,
+      customer: customerObj || null,
       width: '210mm',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
@@ -119,9 +128,9 @@ export const SaleDetailPage = () => {
         await blePrinter.connect()
       }
       const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerName = (sale.customerId
-        ? customers?.find(c => c.id === sale.customerId)?.name
-        : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
+      const customerObj = sale.customerId ? customers?.find(c => c.id === sale.customerId) : undefined
+      const customerName = (customerObj?.name) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
+      const customerPhone = customerObj?.phone || (sale as any).customerPhone || (sale as any).customer?.phone || undefined
       const bytes = await generateReceiptEscPos({
         sale,
         receiptConfig,
@@ -130,7 +139,11 @@ export const SaleDetailPage = () => {
         receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
+        businessPhone: settings?.businessPhone,
+        businessGSTIN: settings?.businessGSTIN,
+        businessLogoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
         customerName,
+        customerPhone,
       })
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)

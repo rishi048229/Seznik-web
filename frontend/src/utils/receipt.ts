@@ -8,9 +8,10 @@ import {
   compileCustomReceiptTextLines,
   resolveActiveCustomTemplate,
   saleToReceiptContext,
+  renderQrToSvg,
 } from './customReceiptEngine'
 import type { CustomReceiptTemplate } from '@/types/customReceipt'
-import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from './upiQr'
+import { buildUpiPayLink, isValidUpiVpa } from './upiQr'
 import { resolveStoreLogoUrl, prefetchPrintableLogoSrc, isBrowserLoadableImageSrc, preferPrintableSrc, inlineHtmlImageSources } from './receiptLogo'
 import { ensureTemplateHasLogoBlock } from './ensureReceiptTemplates'
 import { resolveReceiptPrintGst, type GstBreakdownStyle } from '@/constants/gstBilling'
@@ -160,6 +161,8 @@ export interface GenerateReceiptHTMLParams {
   businessPhone?: string
   businessGSTIN?: string
   customerName?: string
+  customerPhone?: string
+  customer?: any
   width?: '50mm' | '80mm' | '210mm'
   logoURL?: string
   settingsTaxRate?: number
@@ -211,6 +214,7 @@ export const generateReceiptHTML = ({
   businessPhone,
   businessGSTIN,
   customerName,
+  customerPhone,
   width = '50mm',
   logoURL,
   settingsTaxRate,
@@ -230,10 +234,10 @@ export const generateReceiptHTML = ({
   }
   const gstStyle = printGst.gstStyle
   const itemWiseGst = printGst.itemWiseGst
-  const companyName = effectiveConfig?.companyName || businessName || ''
-  const companyAddress = effectiveConfig?.address || businessAddress || ''
-  const companyPhone = effectiveConfig?.phone || businessPhone || ''
-  const companyGSTIN = effectiveConfig?.gstin || businessGSTIN || ''
+  const companyName = effectiveConfig?.companyName || businessName || (sale as any)?.storeName || ''
+  const companyAddress = effectiveConfig?.address || businessAddress || (sale as any)?.storeAddress || ''
+  const companyPhone = effectiveConfig?.phone || businessPhone || (sale as any)?.storePhone || ''
+  const companyGSTIN = effectiveConfig?.gstin || businessGSTIN || (sale as any)?.storeGstin || ''
   const footerMessage = effectiveConfig?.footerMessage || ''
 
   const saleItems = sale.items ?? []
@@ -310,14 +314,14 @@ export const generateReceiptHTML = ({
   )
   const effectiveLogo = (effectiveConfig?.showLogo ?? true) && isBrowserLoadableImageSrc(resolvedLogo) ? resolvedLogo! : ''
   const isPaymentQrEnabled = effectiveConfig?.showPaymentQR ?? false
-  const effectivePaymentQR = isPaymentQrEnabled
+  const paymentQrPayload = isPaymentQrEnabled
     ? (isValidUpiVpa(effectiveConfig?.upiId)
-        ? getUpiQrImageUrl({
+        ? buildUpiPayLink({
             upiId: effectiveConfig.upiId!,
             payeeName: companyName,
             amount: billTotal,
             note: sale.invoiceNumber || 'Bill Payment',
-          }, 180)
+          })
         : (effectiveConfig?.paymentQrURL || ''))
     : ''
 
@@ -477,10 +481,10 @@ export const generateReceiptHTML = ({
       <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;">Total In Words</div>
       <div style="font-size:12px;font-weight:700;font-style:italic;">${totalInWords}</div>
       ${footerMessage ? `<div style="font-size:11px;margin-top:8px;color:#374151;"><span style="font-weight:600;">Notes</span><br/>${footerMessage}</div>` : ''}
-      ${effectivePaymentQR ? `
+      ${paymentQrPayload ? `
       <div style="margin-top:12px;padding-top:8px;border-top:1px dashed #cbd5e1;">
         <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Scan &amp; Pay Exact Bill (&#x20B9;${billTotal.toFixed(2)}) via UPI:</div>
-        <img src="${effectivePaymentQR}" alt="Payment QR" style="width:110px;height:110px;object-fit:contain;display:block;" />
+        <div style="width:110px;height:110px;margin-top:4px;">${renderQrToSvg(paymentQrPayload, 110)}</div>
       </div>` : ''}
     </div>
     <!-- Right: summary -->
@@ -545,6 +549,7 @@ export const generateReceiptHTML = ({
     : null
 
   const effectiveCustomerName = (customerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer').trim() || 'Walk-in Customer'
+  const effectiveCustomerPhone = (customerPhone || (sale as any)?.customerPhone || (sale as any)?.customer?.phone || '').trim() || undefined
 
   if (customTemplate) {
     const showLogo = effectiveConfig?.showLogo ?? true
@@ -558,6 +563,7 @@ export const generateReceiptHTML = ({
       upiId: effectiveConfig?.upiId,
       footerMessage,
       customerName: effectiveCustomerName,
+      customerPhone: effectiveCustomerPhone,
       tableNo,
       waiterName,
       tokenNo,
@@ -594,11 +600,12 @@ ${bodyHtml}
   const textLines = compileReceiptTextLines({
     sale,
     receiptConfig: effectiveConfig,
-    businessName,
-    businessAddress,
-    businessPhone: effectiveConfig?.phone,
-    businessGSTIN: effectiveConfig?.gstin,
+    businessName: companyName,
+    businessAddress: companyAddress,
+    businessPhone: companyPhone,
+    businessGSTIN: companyGSTIN,
     customerName: effectiveCustomerName,
+    customerPhone: effectiveCustomerPhone,
     paperSize: paperSizeKey,
     receiptFont: effectiveReceiptFont,
     gstStyle,
@@ -614,11 +621,7 @@ ${bodyHtml}
     typeof window !== 'undefined'
       ? `${window.location.origin}/receipt/${billPdfTarget}`
       : `https://api.seznik.com/receipt/${billPdfTarget}`
-  const billQrImg = enableBillQr
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(billPdfUrl)}`
-    : ''
   const lineFontFamily = receiptFontCssFamily(effectiveReceiptFont)
-  const isMono = isReceiptFontMonospace(effectiveReceiptFont)
 
   const renderedLinesHtml = textLines
     .map((line) => {
@@ -638,8 +641,8 @@ ${bodyHtml}
   <div style="${thermalReceiptContainerStyle(paperSizeKey, smallFS, effectiveReceiptFont)}">
 ${receiptLogoImgHtml(effectiveLogo, logoHtml.maxHeight, logoHtml.maxWidth)}
 ${renderedLinesHtml}
-${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
-${billQrImg ? `<div style="text-align:center;margin-top:8px;padding:4px 0;display:block;"><div style="font-size:${tinyFS};font-weight:700;margin-bottom:4px;">Scan QR to View &amp; Download Bill PDF</div><img src="${billQrImg}" alt="Digital Bill QR" style="width:${qrDimension}px;height:${qrDimension}px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+${paymentQrPayload ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY VIA UPI</div><div style="display:flex;justify-content:center;margin:4px 0;">${renderQrToSvg(paymentQrPayload, qrDimension)}</div></div>` : ''}
+${enableBillQr ? `<div style="text-align:center;margin-top:8px;padding:4px 0;display:block;"><div style="font-size:${tinyFS};font-weight:700;margin-bottom:4px;">Scan QR to View &amp; Download Bill PDF</div><div style="display:flex;justify-content:center;margin:4px 0;">${renderQrToSvg(billPdfUrl, qrDimension)}</div></div>` : ''}
   </div>`
 }
 
@@ -825,6 +828,7 @@ interface GenerateReceiptEscPosParams {
   businessPhone?: string
   businessGSTIN?: string
   customerName?: string
+  customerPhone?: string
   settingsTaxRate?: number
   invoiceConfig?: unknown
   templateOverride?: CustomReceiptTemplate
@@ -875,16 +879,18 @@ export const generateReceiptEscPos = async ({
 
 
   const effectiveCustomerName = (customerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer').trim() || 'Walk-in Customer'
+  const effectiveCustomerPhone = (customerPhone || (sale as any)?.customerPhone || (sale as any)?.customer?.phone || '').trim() || undefined
 
   const context = saleToReceiptContext(sale, {
-    businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName,
-    businessAddress: businessAddress || printConfig?.address || effectiveConfig?.address,
-    businessPhone: businessPhone || printConfig?.phone || effectiveConfig?.phone,
-    businessGSTIN: businessGSTIN || printConfig?.gstin || effectiveConfig?.gstin,
+    businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName || (sale as any)?.storeName,
+    businessAddress: businessAddress || printConfig?.address || effectiveConfig?.address || (sale as any)?.storeAddress,
+    businessPhone: businessPhone || printConfig?.phone || effectiveConfig?.phone || (sale as any)?.storePhone,
+    businessGSTIN: businessGSTIN || printConfig?.gstin || effectiveConfig?.gstin || (sale as any)?.storeGstin,
     businessLogoURL: resolvedLogo,
     upiId: printConfig?.upiId || effectiveConfig?.upiId,
     footerMessage: printConfig?.footerMessage || effectiveConfig?.footerMessage,
     customerName: effectiveCustomerName,
+    customerPhone: effectiveCustomerPhone,
     tableNo,
     waiterName,
     tokenNo,
@@ -914,11 +920,12 @@ export const generateReceiptEscPos = async ({
   const textLines = compileReceiptTextLines({
     sale,
     receiptConfig: printConfig ?? effectiveConfig,
-    businessName,
-    businessAddress,
+    businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName,
+    businessAddress: businessAddress || printConfig?.address || effectiveConfig?.address,
     businessPhone: printConfig?.phone || effectiveConfig?.phone || businessPhone,
     businessGSTIN: printConfig?.gstin || effectiveConfig?.gstin || businessGSTIN,
     customerName: effectiveCustomerName,
+    customerPhone: effectiveCustomerPhone,
     paperSize: effectivePaper,
     receiptFont: effectiveReceiptFont,
     gstStyle: printGst.gstStyle,

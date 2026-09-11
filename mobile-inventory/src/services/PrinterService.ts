@@ -1178,11 +1178,12 @@ class ThermalPrinterServiceManager {
     const storeAddrVal = (data.storeAddress || '').trim();
     const footerVal = (data.footerMessage || '').trim();
 
-    return text
+    const replaced = text
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, phoneVal ? `Phone: ${phoneVal}` : '')
       .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, gstinVal ? `GSTIN: ${gstinVal}` : '')
       .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, `Customer: ${custLabelVal}`)
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhoneVal ? `Phone: ${custPhoneVal}` : '')
+      .replace(/(?:Invoice|Bill|Inv)?:\s*\{\{invoice_no\}\}/gi, data.invoiceNumber ? `Inv: ${data.invoiceNumber}` : '')
       .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, tableVal ? `Table: ${tableVal}` : '')
       .replace(/(?:Waiter)?:\s*\{\{waiter_name\}\}/gi, waiterVal ? `Waiter: ${waiterVal}` : '')
       .replace(/(?:Token)?:\s*\{\{token_no\}\}/gi, tokenVal ? `Token: ${tokenVal}` : '')
@@ -1209,6 +1210,14 @@ class ThermalPrinterServiceManager {
       .replace(/\{\{token_no\}\}/gi, tokenVal)
       .replace(/\{\{table_no\}\}/gi, tableVal)
       .replace(/\{\{waiter_name\}\}/gi, waiterVal);
+
+    return replaced
+      .split('\n')
+      .filter((line, idx, arr) => {
+        if (!line.trim() && (idx === 0 || idx === arr.length - 1 || !arr[idx - 1]?.trim())) return false;
+        return true;
+      })
+      .join('\n');
   }
 
   public formatCustomReceiptText(
@@ -1333,9 +1342,17 @@ class ThermalPrinterServiceManager {
 
         case 'barcode': {
           const val = this.interpolateReceiptVariables(entry.value, data);
-          if (entry.format === 'qr' || entry.codeType === 'qr_code') {
-            alignText(`[QR: ${val}]`, entry.align || 'center').forEach((l) => lines.push(l));
-          } else {
+          const isQr =
+            entry.format === 'qr' ||
+            entry.codeType === 'qr_code' ||
+            entry.qrType === 'upi' ||
+            entry.qrType === 'digital_bill' ||
+            entry.qrType === 'custom' ||
+            Boolean(entry.upiId) ||
+            val.startsWith('http') ||
+            val.startsWith('upi://');
+          // In plain text compilation, do not print long link strings or raw text URLs for QR codes
+          if (!isQr && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {
             alignText(`* ${val} *`, entry.align || 'center').forEach((l) => lines.push(l));
           }
           break;
@@ -6338,7 +6355,19 @@ class ThermalPrinterServiceManager {
             break;
           }
 
-          const isQr = entry.format === 'qr' || entry.codeType === 'qr_code';
+          const isQr =
+            entry.format === 'qr' ||
+            entry.codeType === 'qr_code' ||
+            entry.qrType === 'upi' ||
+            entry.qrType === 'digital_bill' ||
+            entry.qrType === 'custom' ||
+            Boolean(entry.upiId) ||
+            Boolean(entry.value?.includes('{{upi_qr}}')) ||
+            Boolean(entry.value?.includes('{{bill_pdf_url}}')) ||
+            rawVal.startsWith('http://') ||
+            rawVal.startsWith('https://') ||
+            rawVal.startsWith('upi://');
+
           if (typeof NativeEscposPrinter.printerAlign === 'function') {
             await NativeEscposPrinter.printerAlign(alignCode(entry.align));
           }
@@ -6356,15 +6385,11 @@ class ThermalPrinterServiceManager {
                 entry.size === 'large' || entry.size === 'small' ? entry.size : options.receiptQrSize || 'medium'
               );
               await NativeEscposPrinter.printQRCode(rawVal.trim(), qrDots, NativeEscposPrinter.ERROR_CORRECTION?.M ?? 0);
-              if (entry.showText) {
-                await NativeEscposPrinter.printText(rawVal.trim() + '\n', { ...baseTextOpts });
-              } else {
-                await NativeEscposPrinter.printText('\n', { ...baseTextOpts });
-              }
+              await NativeEscposPrinter.printText('\n', { ...baseTextOpts });
             } catch (qrErr) {
               console.warn('Thermal print QR code failed:', qrErr);
             }
-          } else {
+          } else if (!isQr && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {
             await NativeEscposPrinter.printText(`* ${rawVal.trim()} *\n`, { ...baseTextOpts });
             if (entry.showText) {
               await NativeEscposPrinter.printText(rawVal.trim() + '\n', { ...baseTextOpts });

@@ -28,6 +28,8 @@ export const printCompletedSale = async (args: {
   const width = thermalWidth(paperSize)
   const preferBle = shouldPrintThermalOverBle(settings, ble)
 
+  const effectiveCustomerPhone = ((sale as any)?.customerPhone || (sale as any)?.customer?.phone || '').trim() || undefined
+
   if (preferBle) {
     try {
       if (ble.status !== 'connected') {
@@ -41,7 +43,11 @@ export const printCompletedSale = async (args: {
         receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
+        businessPhone: settings?.businessPhone,
+        businessGSTIN: settings?.businessGSTIN,
+        businessLogoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
         customerName: effectiveCustomerName,
+        customerPhone: effectiveCustomerPhone,
       })
       await ble.print(bytes)
       onDone?.()
@@ -59,7 +65,10 @@ export const printCompletedSale = async (args: {
     printerConfig: settings?.printerConfig,
     businessName: settings?.businessName,
     businessAddress: settings?.businessAddress,
+    businessPhone: settings?.businessPhone,
+    businessGSTIN: settings?.businessGSTIN,
     customerName: effectiveCustomerName,
+    customerPhone: effectiveCustomerPhone,
     width,
     logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
     settingsTaxName: 'GST',

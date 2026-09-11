@@ -136,7 +136,6 @@ export function CustomReceiptPreview({
         return <hr key={entry.id || idx} className={`my-1 border-black ${style}`} />
       }
       case 'barcode': {
-        const isQr = entry.codeType === 'qr_code' || entry.format === 'qr'
         let rawVal = vars(entry.value)
         if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
           const upi = (entry.upiId || context.upiId || '').trim()
@@ -159,11 +158,25 @@ export function CustomReceiptPreview({
           rawVal = context.invoiceNumber || 'INV-2026-0042'
         }
 
+        const isQr =
+          entry.codeType === 'qr_code' ||
+          entry.format === 'qr' ||
+          entry.qrType === 'upi' ||
+          entry.qrType === 'digital_bill' ||
+          entry.qrType === 'custom' ||
+          Boolean(entry.upiId) ||
+          Boolean(entry.value?.includes('{{upi_qr}}')) ||
+          Boolean(entry.value?.includes('{{bill_pdf_url}}')) ||
+          rawVal.startsWith('http://') ||
+          rawVal.startsWith('https://') ||
+          rawVal.startsWith('upi://')
+
         const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
         const qrSize =
           isUpi || entry.qrType === 'digital_bill' || !entry.size
             ? receiptStandardQrHtmlPxFromChip(gstOpts?.receiptQrSize)
             : receiptQrPreviewPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
+
         return (
           <div key={entry.id || idx} className={`my-2 flex ${entry.align === 'left' ? 'justify-start' : entry.align === 'right' ? 'justify-end' : 'justify-center'}`}>
             {isQr ? (
@@ -175,9 +188,9 @@ export function CustomReceiptPreview({
                   includeMargin={true}
                 />
               </div>
-            ) : (
+            ) : (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d') ? (
               <span className="font-mono text-xs">*{rawVal}*</span>
-            )}
+            ) : null}
           </div>
         )
       }

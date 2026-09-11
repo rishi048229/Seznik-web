@@ -1,6 +1,7 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { CustomReceiptEntry, CustomReceiptTemplate } from '@/types/customReceipt'
 import type { GstBreakdownStyle } from '@/constants/gstBilling'
+import QRCode from 'qrcode'
 import { getCols, padTwoCol, formatThermalAmount, formatThermalMoney } from './receiptEngine'
 import { gstSummaryFromCart } from './gst'
 import { buildUpiPayLink, isValidUpiVpa } from './upiQr'
@@ -192,11 +193,12 @@ export function interpolateReceiptVariables(
 
   const money = (n: number) => (opts?.thermal ? formatThermalMoney(n) : `₹${n.toFixed(2)}`)
 
-  return text
+  const replaced = text
     .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, data.storePhone ? `Ph: ${data.storePhone}` : '')
     .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, data.storeGstin ? `GSTIN: ${data.storeGstin}` : '')
     .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, `Customer: ${custLabelVal}`)
     .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhone ? `Phone: ${custPhone}` : '')
+    .replace(/(?:Invoice|Bill|Inv)?:\s*\{\{invoice_no\}\}/gi, data.invoiceNumber ? `Inv: ${data.invoiceNumber}` : '')
     .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, data.tableNo ? `Table: ${data.tableNo}` : '')
     .replace(/(?:Waiter)?:\s*\{\{waiter_name\}\}/gi, data.waiterName ? `Waiter: ${data.waiterName}` : '')
     .replace(/(?:Token)?:\s*\{\{token_no\}\}/gi, data.tokenNo ? `Token: ${data.tokenNo}` : '')
@@ -223,6 +225,15 @@ export function interpolateReceiptVariables(
     .replace(/\{\{token_no\}\}/gi, data.tokenNo || '')
     .replace(/\{\{table_no\}\}/gi, data.tableNo || '')
     .replace(/\{\{waiter_name\}\}/gi, data.waiterName || '')
+
+  // Clean up blank lines caused by omitted optional fields (e.g. empty store phone or GSTIN in header)
+  return replaced
+    .split('\n')
+    .filter((line, idx, arr) => {
+      if (!line.trim() && (idx === 0 || idx === arr.length - 1 || !arr[idx - 1]?.trim())) return false
+      return true
+    })
+    .join('\n')
 }
 
 const isDiscountEntry = (e: CustomReceiptEntry) =>
@@ -258,6 +269,32 @@ function escapeHtmlText(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/**
+ * Synchronously generates an inline SVG string for a QR code.
+ * Self-contained, zero-network-dependency, crisp vector rendering.
+ */
+export function renderQrToSvg(text: string, dim = 160): string {
+  if (!text || !text.trim()) return ''
+  try {
+    const qr = QRCode.create(text.trim(), { errorCorrectionLevel: 'M' })
+    const size = qr.modules.size
+    const margin = 2
+    const total = size + margin * 2
+    let d = ''
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (qr.modules.get(c, r)) {
+          d += `M${c + margin} ${r + margin}h1v1h-1z `
+        }
+      }
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="${dim}" height="${dim}" style="display:block;margin:0 auto;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;shape-rendering:crispEdges;"><rect width="${total}" height="${total}" fill="#ffffff"/><path fill="#000000" d="${d}"/></svg>`
+  } catch (err) {
+    console.warn('[receipt] SVG QR generation failed:', err)
+    return ''
+  }
+}
+
 const HTML_ROW =
   'display:flex;justify-content:space-between;align-items:baseline;gap:8px;width:100%;max-width:100%;overflow:hidden;'
 const HTML_LEFT = 'flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;'
@@ -270,8 +307,8 @@ export function padTwoColLines(left: string, right: string, width: number): stri
   if (!leftStr) return [rightStr.padStart(width, ' ')]
   if (!rightStr) return wrapReceiptWords(leftStr, width)
 
-  if (leftStr.length + rightStr.length + 1 <= width) {
-    const spaces = width - leftStr.length - rightStr.length
+  if (leftStr.length + rightStr.length <= width) {
+    const spaces = Math.max(0, width - leftStr.length - rightStr.length)
     return [leftStr + ' '.repeat(spaces) + rightStr]
   }
 
@@ -657,9 +694,17 @@ export function compileCustomReceiptTextLines(
       }
       case 'barcode': {
         const val = interpolateReceiptVariables(entry.value, data, thermal)
-        if (entry.format === 'qr' || entry.codeType === 'qr_code') {
-          lines.push(alignText(`[QR: ${val}]`, entry.align || 'center'))
-        } else {
+        const isQr =
+          entry.format === 'qr' ||
+          entry.codeType === 'qr_code' ||
+          entry.qrType === 'upi' ||
+          entry.qrType === 'digital_bill' ||
+          entry.qrType === 'custom' ||
+          Boolean(entry.upiId) ||
+          val.startsWith('http') ||
+          val.startsWith('upi://')
+        // In plain text compilation, do not print long link strings or raw text URLs for QR codes
+        if (!isQr && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {
           lines.push(alignText(`* ${val} *`, entry.align || 'center'))
         }
         break
@@ -798,7 +843,7 @@ export function compileCustomReceiptHtml(
         }
       } else if (entry.qrType === 'custom') {
         rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
-      } else if (entry.qrType === 'digital_bill' || rawVal === '{{bill_pdf_url}}') {
+      } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
         const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
         rawVal = typeof window !== 'undefined'
           ? `${window.location.origin}/receipt/${targetId}`
@@ -808,18 +853,32 @@ export function compileCustomReceiptHtml(
       }
 
       const align = entry.align || 'center'
-      const isQr = entry.format === 'qr' || entry.codeType === 'qr_code'
+      const isQr =
+        entry.format === 'qr' ||
+        entry.codeType === 'qr_code' ||
+        entry.qrType === 'upi' ||
+        entry.qrType === 'digital_bill' ||
+        entry.qrType === 'custom' ||
+        Boolean(entry.upiId) ||
+        Boolean(entry.value?.includes('{{upi_qr}}')) ||
+        Boolean(entry.value?.includes('{{bill_pdf_url}}')) ||
+        rawVal.startsWith('http://') ||
+        rawVal.startsWith('https://') ||
+        rawVal.startsWith('upi://')
+
       const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
       if (isQr && rawVal) {
-        const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=4&data=${encodeURIComponent(rawVal)}`
-      const qrDim =
+        const qrDim =
           isUpi || entry.qrType === 'digital_bill' || !entry.size
             ? receiptStandardQrHtmlPxFromChip(gstOpts.receiptQrSize)
             : receiptQrHtmlPx(entry.size === 'large' || entry.size === 'small' ? entry.size : 'medium')
-        parts.push(
-          `<div style="text-align:${align};margin:10px 0;width:100%;"><img src="${qrImg}" width="${qrDim}" height="${qrDim}" alt="QR Code" style="display:inline-block;image-rendering:pixelated;background:#fff;padding:4px;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;" /></div>`
-        )
-      } else {
+        const qrSvg = renderQrToSvg(rawVal, qrDim)
+        if (qrSvg) {
+          parts.push(
+            `<div style="text-align:${align};margin:8px 0;width:100%;display:flex;justify-content:${align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'};">${qrSvg}</div>`
+          )
+        }
+      } else if (rawVal && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {
         parts.push(
           `<div style="text-align:${align};font-size:${smallFS};width:100%;">* ${escapeHtmlText(rawVal)} *</div>`
         )
@@ -1040,7 +1099,7 @@ export async function appendCustomTemplateToEscPos(
           }
         } else if (entry.qrType === 'custom') {
           rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
-        } else if (entry.qrType === 'digital_bill' || rawVal === '{{bill_pdf_url}}') {
+        } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
           const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
           rawVal = typeof window !== 'undefined'
             ? `${window.location.origin}/receipt/${targetId}`
@@ -1049,15 +1108,26 @@ export async function appendCustomTemplateToEscPos(
           rawVal = data.invoiceNumber || 'INV-2026-0001'
         }
 
-        if (entry.format === 'qr' || entry.codeType === 'qr_code') {
-          if (rawVal) {
-            b.feed(1)
-            b.align(toEscPosAlign(entry.align || 'center'))
-            b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize))
-            b.feed(1)
-            b.align('left')
-          }
-        } else if (rawVal) {
+        const isQr =
+          entry.format === 'qr' ||
+          entry.codeType === 'qr_code' ||
+          entry.qrType === 'upi' ||
+          entry.qrType === 'digital_bill' ||
+          entry.qrType === 'custom' ||
+          Boolean(entry.upiId) ||
+          Boolean(entry.value?.includes('{{upi_qr}}')) ||
+          Boolean(entry.value?.includes('{{bill_pdf_url}}')) ||
+          rawVal.startsWith('http://') ||
+          rawVal.startsWith('https://') ||
+          rawVal.startsWith('upi://')
+
+        if (isQr && rawVal) {
+          b.feed(1)
+          b.align(toEscPosAlign(entry.align || 'center'))
+          b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize))
+          b.feed(1)
+          b.align('left')
+        } else if (rawVal && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {
           alignText(`* ${rawVal} *`, entry.align || 'center')
         }
         break
