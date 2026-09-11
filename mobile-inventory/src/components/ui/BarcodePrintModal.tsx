@@ -472,6 +472,47 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               </View>
             ) : null}
 
+            {/* Label Stock Size Quick-Pick Chips */}
+            <View style={{ marginTop: 8, marginBottom: 12 }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: theme.textSecondary, marginBottom: 6, letterSpacing: 0.5 }}>
+                LABEL STOCK SIZE ({sizeW}×{sizeH}mm)
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {LABEL_SIZE_PRESETS.map((preset) => {
+                  const isActive = sizeW === preset.widthMm && sizeH === preset.heightMm;
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      onPress={() => {
+                        setSizeW(preset.widthMm);
+                        setSizeH(preset.heightMm);
+                        usePrinterStore.getState().setLabelWidthMm(preset.widthMm);
+                        usePrinterStore.getState().setLabelHeightMm(preset.heightMm);
+                      }}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        borderWidth: 1.5,
+                        borderColor: isActive ? BRAND_COLORS.blue600 : theme.borderColor,
+                        backgroundColor: isActive ? BRAND_COLORS.blue600 : (isDark ? '#1E293B' : '#FFFFFF'),
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: isActive ? '800' : '600',
+                          color: isActive ? '#FFFFFF' : theme.textPrimary,
+                        }}
+                      >
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
             {/* Live Preview Card */}
             <View style={styles.previewContainer}>
               <View style={styles.labelCard}>

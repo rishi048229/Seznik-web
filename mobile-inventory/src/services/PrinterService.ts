@@ -11,6 +11,7 @@ import { playPrinterConnectFeedback } from '../utils/printerConnectFeedback';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement, JoshLabelSpec } from '../../modules/josh-label-printer';
 import YxLabelPrinter, { isYxPrinterSupported } from '../../modules/yx-label-printer';
 import { getStoredJoshPrinter, setStoredJoshPrinter, getStoredTejPrinter, setStoredTejPrinter } from './secureStore';
+import { getLabelSizeConfig, TEJ_LABEL_SIZES, LabelSizeConfig } from '../constants/labelSizePresets';
 import {
   enrichCustomReceiptEntries,
   isDiscountReceiptEntry,
@@ -3492,47 +3493,31 @@ class ThermalPrinterServiceManager {
     if (spec.offsetAdjusted) {
       return spec;
     }
-    const isGap = (spec.gapType ?? 2) !== 0;
-    if (!isGap) {
-      return spec;
-    }
-
     const targetHmm = spec.heightMm > 0 ? spec.heightMm : 30.0;
-    const hwOffsetMm = 6.5;
     const userOffsetMm = this.getLabelOffsetMm();
-    const effectiveOffsetMm = Math.max(0, Math.min(targetHmm - 12.0, hwOffsetMm + userOffsetMm));
-    const printableHmm = Math.max(14.0, targetHmm - effectiveOffsetMm);
-    const fitY = printableHmm / targetHmm;
+    const config = getLabelSizeConfig(spec.widthMm, targetHmm, spec.gapMm ?? 2);
 
-    const adaptedElements: JoshLabelElement[] = (spec.elements || []).map((el) => {
-      const copy: any = { ...el };
-      if (typeof copy.y === 'number') {
-        copy.y = Math.round(copy.y * fitY * 100) / 100;
-      }
-      if (typeof copy.height === 'number') {
-        copy.height = Math.round(copy.height * fitY * 100) / 100;
-      }
-      if (typeof copy.fontHeight === 'number') {
-        copy.fontHeight = Math.round(copy.fontHeight * fitY * 100) / 100;
-      }
-      if (typeof copy.textHeight === 'number') {
-        copy.textHeight = Math.round(copy.textHeight * fitY * 100) / 100;
-      }
-      if (typeof copy.size === 'number') {
-        copy.size = Math.round(copy.size * fitY * 100) / 100;
-      }
-      if (typeof copy.y2 === 'number') {
-        copy.y2 = Math.round(copy.y2 * fitY * 100) / 100;
-      }
-      return copy as JoshLabelElement;
-    });
+    let adjustedElements = spec.elements || [];
+    if (userOffsetMm !== 0) {
+      adjustedElements = adjustedElements.map((el) => {
+        const copy: any = { ...el };
+        if (typeof copy.y === 'number') {
+          copy.y = Math.max(0, copy.y + userOffsetMm);
+        }
+        if (typeof copy.y2 === 'number') {
+          copy.y2 = Math.max(0, copy.y2 + userOffsetMm);
+        }
+        return copy as JoshLabelElement;
+      });
+    }
 
     return {
       ...spec,
-      heightMm: Math.round(printableHmm * 100) / 100,
+      widthMm: config.widthMm,
+      heightMm: config.heightMm,
       offsetAdjusted: true,
-      offsetMm: effectiveOffsetMm,
-      elements: adaptedElements,
+      offsetMm: userOffsetMm,
+      elements: adjustedElements,
     };
   }
 
@@ -3724,27 +3709,29 @@ class ThermalPrinterServiceManager {
     copies: number = 1,
     gapType?: number
   ): JoshLabelSpec {
-    const calWidthMm = this.safeMm(widthMmRaw, 50);
-    const widthMm = calWidthMm;
-    const heightMm = this.safeMm(heightMmRaw, 30);
+    const sizeConfig = getLabelSizeConfig(widthMmRaw, heightMmRaw, gapMm);
+    const widthMm = sizeConfig.widthMm;
+    const heightMm = sizeConfig.heightMm;
 
-    // Standard 2mm side margin matching DEV printer MARGIN_2MM = 16 dots at 203 DPI
-    const pad = 2.0;
-    const innerWidth = Math.max(10, widthMm - pad * 2);
+    // Standard 1mm side margins (50mm roll has 48mm active printhead)
+    const pad = 1.0;
+    const innerWidth = Math.max(10, Math.min(widthMm - pad * 2, sizeConfig.printableWidthMm));
 
-    // Dynamic sizing based on label height (50x25, 50x30, 50x50, 50x75, 50x100)
-    const isCompact = heightMm <= 25;
-    const isTall = heightMm >= 50;
+    // Dynamic vertical sizing starting flush from the top (y = 0.4mm to 1.0mm)
+    const isTiny = heightMm <= 18; // 50x15
+    const isCompact = heightMm <= 25; // 50x25
+    const isStandard = heightMm <= 35; // 50x30
+    const isTall = heightMm >= 50; // 50x50, 50x75, 50x100
 
-    const nameY = isCompact ? 0.8 : 1.2;
-    const nameHeight = isCompact ? 2.4 : isTall ? 3.5 : 2.8;
+    const nameY = isTiny ? 0.4 : isCompact ? 0.6 : isStandard ? 0.8 : 1.2;
+    const nameHeight = isTiny ? 1.8 : isCompact ? 2.2 : isStandard ? 2.6 : 3.2;
 
-    const priceY = nameY + nameHeight + (isCompact ? 0.3 : 0.5);
-    const priceHeight = isCompact ? 2.6 : isTall ? 4.0 : 3.0;
+    const priceY = nameY + nameHeight + (isTiny ? 0.2 : 0.3);
+    const priceHeight = isTiny ? 1.8 : isCompact ? 2.2 : isStandard ? 2.6 : 3.2;
 
-    const codeZoneY = priceY + priceHeight + (isCompact ? 0.5 : 1.0);
-    const bottomSafePad = isCompact ? 1.5 : 2.0;
-    const availableCodeH = Math.max(6.0, heightMm - codeZoneY - bottomSafePad);
+    const codeZoneY = priceY + priceHeight + (isTiny ? 0.2 : 0.4);
+    const bottomSafePad = isTiny ? 0.8 : isCompact ? 1.2 : 1.5;
+    const availableCodeH = Math.max(4.0, heightMm - codeZoneY - bottomSafePad);
 
     const elements: JoshLabelElement[] = [
       {
@@ -3772,9 +3759,11 @@ class ThermalPrinterServiceManager {
     ];
 
     if (format === 'qr') {
-      const qrSize = Math.min(availableCodeH, innerWidth, isTall ? 24.0 : 18.0);
+      const qrCap = isTiny ? 8.5 : isCompact ? 15.0 : isStandard ? 18.0 : 26.0;
+      const qrSize = Math.min(availableCodeH, innerWidth, qrCap);
       const qrX = pad + Math.max(0, (innerWidth - qrSize) / 2);
-      const qrY = codeZoneY + Math.max(0, (availableCodeH - qrSize) / 2);
+      // Top-flush right below price: NO vertical centering formula pushing it into the gap!
+      const qrY = codeZoneY;
       elements.push({
         type: 'qrcode',
         value: rawCode,
@@ -3785,20 +3774,15 @@ class ThermalPrinterServiceManager {
     } else {
       const digits = rawCode.replace(/\D/g, '');
       const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
+      const barCap = isTiny ? 7.0 : isCompact ? 13.0 : isStandard ? 17.0 : 25.0;
+      const totalBoxH = Math.min(availableCodeH, barCap);
+      const textHeight = Math.min(2.4, Math.max(1.4, totalBoxH * 0.22));
+      const barHeight = Math.max(3.5, totalBoxH - textHeight);
 
-      const textHeight = Math.min(2.5, Math.max(1.8, availableCodeH * 0.22));
-      const targetBarH = isCompact
-        ? Math.min(8.0, availableCodeH - textHeight)
-        : isTall
-        ? Math.min(18.0, availableCodeH - textHeight)
-        : Math.min(10.0, availableCodeH - textHeight);
-      const barHeight = Math.max(5.0, targetBarH);
-      const totalBoxH = barHeight + textHeight;
-
-      // Width: EAN-13 has 95 modules (~35.6mm at 3 dots/module), CODE-128 is ~35-38mm
       const barWidth = useEan13 ? Math.min(innerWidth, 35.625) : Math.min(innerWidth, 38.0);
       const barX = pad + Math.max(0, (innerWidth - barWidth) / 2);
-      const barY = codeZoneY + Math.max(0, (availableCodeH - totalBoxH) / 2);
+      // Top-flush right below price: NO vertical centering formula pushing it into the gap!
+      const barY = codeZoneY;
 
       elements.push({
         type: 'barcode',
@@ -3807,7 +3791,7 @@ class ThermalPrinterServiceManager {
         y: barY,
         width: barWidth,
         height: totalBoxH,
-        textHeight: textHeight,
+        textHeight,
         barcodeType: useEan13 ? JOSH_BARCODE_TYPE_EAN13 : JOSH_BARCODE_TYPE_CODE128,
         align: 1, // center
       });
@@ -3820,7 +3804,7 @@ class ThermalPrinterServiceManager {
       heightMm,
       rotation: 0,
       copies: Math.max(1, copies),
-      gapMm: this.safeMm(gapMm, 3),
+      gapMm: sizeConfig.gapMm,
       gapType: resolvedGapType,
       speed: 5,
       darkness: 7,
@@ -6834,9 +6818,12 @@ class ThermalPrinterServiceManager {
   ): Promise<boolean> {
     const { usePrinterStore } = require('../store/usePrinterStore');
     const store = usePrinterStore.getState();
-    const widthMm = widthMmOverride || store.labelWidthMm || 50;
-    const heightMm = heightMmOverride || store.labelHeightMm || 30;
-    const gapMm = gapMmOverride ?? store.labelGapMm ?? 2;
+    const config = getLabelSizeConfig(
+      widthMmOverride || store.labelWidthMm || 50,
+      heightMmOverride || store.labelHeightMm || 30,
+      gapMmOverride ?? store.labelGapMm ?? 2
+    );
+    const { widthMm, heightMm, gapMm } = config;
     const safeCopies = Math.max(1, Math.min(10, copies));
 
     let allSucceeded = true;
@@ -6850,48 +6837,53 @@ class ThermalPrinterServiceManager {
         category: 'ALIGN',
       };
 
+      // 1.0mm inset from physical die-cut borders
+      const margin = 1.0;
+      const boxW = Math.max(10, widthMm - margin * 2);
+      const boxH = Math.max(6, heightMm - margin * 2);
+
       const elements: any[] = [
-        // Outer border box (inset 1.5mm horizontally, 1.0mm top, safe bottom)
+        // Outer border box (1.0mm inset from all 4 physical die-cut edges)
         {
           id: 'border',
           type: 'rect',
-          xMm: 1.5,
-          yMm: 1.0,
-          widthMm: Math.max(10, widthMm - 3.0),
-          heightMm: Math.max(10, heightMm - 3.8),
-          thickness: 0.4,
+          xMm: margin,
+          yMm: margin,
+          widthMm: boxW,
+          heightMm: boxH,
+          thickness: 0.35,
         },
-        // Horizontal center line
+        // Horizontal center crosshair
         {
           id: 'cross_h',
           type: 'line',
-          xMm: 2.5,
-          yMm: (heightMm - 1.8) / 2,
-          x2Mm: widthMm - 2.5,
-          y2Mm: (heightMm - 1.8) / 2,
-          thickness: 0.3,
+          xMm: margin + 0.5,
+          yMm: heightMm / 2,
+          x2Mm: widthMm - margin - 0.5,
+          y2Mm: heightMm / 2,
+          thickness: 0.25,
         },
-        // Vertical center line
+        // Vertical center crosshair
         {
           id: 'cross_v',
           type: 'line',
           xMm: widthMm / 2,
-          yMm: 1.5,
+          yMm: margin + 0.5,
           x2Mm: widthMm / 2,
-          y2Mm: heightMm - 3.2,
-          thickness: 0.3,
+          y2Mm: heightMm - margin - 0.5,
+          thickness: 0.25,
         },
         // Title text at top
         {
           id: 'title',
           type: 'text',
           binding: 'custom',
-          customText: `ALIGNMENT (${i + 1}/${safeCopies})`,
-          xMm: 2,
-          yMm: 1.8,
-          widthMm: widthMm - 4,
-          heightMm: 3.2,
-          fontSizePt: 2.5,
+          customText: `CALIBRATION (${i + 1}/${safeCopies})`,
+          xMm: margin + 0.5,
+          yMm: margin + 0.3,
+          widthMm: boxW - 1.0,
+          heightMm: Math.min(2.8, boxH * 0.22),
+          fontSizePt: heightMm <= 18 ? 1.8 : 2.2,
           bold: true,
           align: 'center',
         },
@@ -6900,12 +6892,12 @@ class ThermalPrinterServiceManager {
           id: 'info',
           type: 'text',
           binding: 'custom',
-          customText: `${widthMm}x${heightMm}mm • GAP ${gapMm}mm`,
-          xMm: 2,
-          yMm: Math.max(6, heightMm - 6.5),
-          widthMm: widthMm - 4,
-          heightMm: 2.8,
-          fontSizePt: 2.2,
+          customText: `${widthMm}x${heightMm}mm • GAP ${gapMm}mm • 203 DPI`,
+          xMm: margin + 0.5,
+          yMm: Math.max(margin + 2.5, heightMm - margin - 2.8),
+          widthMm: boxW - 1.0,
+          heightMm: Math.min(2.4, boxH * 0.2),
+          fontSizePt: heightMm <= 18 ? 1.6 : 1.9,
           bold: false,
           align: 'center',
         },
@@ -6913,7 +6905,7 @@ class ThermalPrinterServiceManager {
 
       const testTemplate: any = {
         id: `align-test-${i + 1}`,
-        name: 'Alignment Test',
+        name: `Alignment Test ${widthMm}x${heightMm}`,
         widthMm,
         heightMm,
         elements,
@@ -6923,9 +6915,8 @@ class ThermalPrinterServiceManager {
 
       const ok = await this.printLabelFromTemplate(dummyProduct, testTemplate, 1, gapMm);
       if (!ok) allSucceeded = false;
-      // Slight breath between labels to let hardware settle
       if (i < safeCopies - 1) {
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, 250));
       }
     }
 
