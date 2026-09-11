@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth, addDays, differenceInCalendarDays, subMonths } from 'date-fns';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
-import { computeSaleGrossProfit } from '../utils/saleMetrics';
+import { computeSaleGrossProfit, computeSaleCost } from '../utils/saleMetrics';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -182,22 +182,39 @@ export const getPLReport = async (req: Request, res: Response) => {
     const startDate = parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
     const endDate = parseRangeEnd(end, new Date());
 
-    // No per-day bucketing here — just two totals — so both sides convert cleanly to a single
-    // DB-side aggregate/SUM instead of pulling every row into Node.
-    const [salesAgg, expenseRows] = await Promise.all([
+    // Fetch all sales in the window (needed for per-item cost calculation)
+    const [salesAgg, expenseRows, salesInWindow] = await Promise.all([
       prisma.sale.aggregate({
         where: { userId, createdAt: { gte: startDate, lte: endDate } },
-        _sum: { grandTotal: true },
+        _sum: { grandTotal: true, totalTax: true },
       }),
       prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
         SELECT COALESCE(SUM(amount), 0) AS total FROM "Expense"
         WHERE "userId" = ${userId} AND "expenseDate" >= ${startDate} AND "expenseDate" <= ${endDate}
       `),
+      prisma.sale.findMany({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        select: { items: true },
+      }),
     ]);
+
+    // Build real COGS from snapshot costPrice on each line item, falling back to
+    // the live product catalog for older sales that predate snapshot storage.
+    const productIdsInWindow = collectProductIds(salesInWindow);
+    const productsInWindow = productIdsInWindow.length
+      ? await prisma.product.findMany({
+          where: { id: { in: productIdsInWindow }, userId },
+          select: { id: true, costPrice: true },
+        })
+      : [];
+    const productCosts = buildProductCostMap(productsInWindow);
+    const totalCost = salesInWindow.reduce(
+      (sum, sale) => sum + computeSaleCost(sale, productCosts),
+      0
+    );
 
     const totalRevenue = salesAgg._sum.grandTotal ?? 0;
     const totalExpenses = Number(expenseRows[0]?.total ?? 0);
-    const totalCost = totalRevenue * 0.6; // Simplified
 
     res.json({
       totalRevenue,

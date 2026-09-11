@@ -26,6 +26,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR, roundCurrency } from '@/utils/currency'
+import { gstSummaryFromCart } from '@/utils/gst'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
@@ -340,14 +341,29 @@ export const POSPage = () => {
       }
     })
 
+  // Gross (MRP-inclusive) value before any order-level discount — used as the
+  // base for % discounts so the customer sees the discount against the
+  // price they were quoted, not the GST-stripped taxable value.
+  const grossBeforeOrderDiscount = roundCurrency(
+    items.reduce((s, i) => s + i.sellingPrice * i.quantity - i.discount, 0)
+  )
+
   const orderDiscountAmount = roundCurrency(
     orderDiscountType === 'flat'
       ? orderDiscount
-      : totals.subtotal * (orderDiscount / 100)
+      : grossBeforeOrderDiscount * (orderDiscount / 100)
   )
 
-  const taxAmount = totals.tax
-  const finalTotal = roundCurrency(Math.max(0, totals.subtotal + taxAmount - orderDiscountAmount))
+  // Indian GST rule: discount reduces the taxable base FIRST, then GST is
+  // computed on the reduced base.  gstSummaryFromCart applies a proportional
+  // discount factor across all cart lines before running the per-slab GST
+  // calculation, so the resulting totalGst is always on the discounted value.
+  const gstSummary = gstSummaryFromCart(items, orderDiscountAmount)
+  const taxAmount = roundCurrency(gstSummary.totalGst)
+  // Rebuild grand total from the GST-aware components so there is no
+  // rounding gap between what is displayed and what is stored in the DB.
+  const finalTotal = roundCurrency(Math.max(0, gstSummary.taxableValue + taxAmount))
+
 
   useEffect(() => {
     if (isPaymentOpen) {
@@ -460,7 +476,7 @@ export const POSPage = () => {
           total: lineTotal,
         }
       }),
-      subtotal: totals.subtotal,
+      subtotal: gstSummary.taxableValue,
       totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
       grandTotal: finalTotal,
@@ -489,7 +505,7 @@ export const POSPage = () => {
         const invoiceNumber = result.invoiceNumber
         const snapshot = {
           items: [...items],
-          totals: { ...totals, tax: taxAmount },
+          totals: { ...totals, subtotal: gstSummary.taxableValue, tax: taxAmount },
           orderDiscountAmount,
           finalTotal,
           method,
@@ -524,7 +540,7 @@ export const POSPage = () => {
       id: `draft-${Date.now()}`,
       invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
       createdAt: new Date().toISOString(),
-      subtotal: totals.subtotal,
+      subtotal: gstSummary.taxableValue,
       totalDiscount: orderDiscountAmount,
       totalTax: taxAmount,
       grandTotal: finalTotal,

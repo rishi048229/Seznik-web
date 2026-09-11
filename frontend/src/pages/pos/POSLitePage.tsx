@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { formatINR, roundCurrency } from '@/utils/currency'
+import { gstSummaryFromCart } from '@/utils/gst'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
@@ -445,33 +446,24 @@ export const POSLitePage = () => {
     setSelectedCustomer('')
   }
 
-  const rawSubtotal = items.reduce((sum, item) => {
-    const lineTotal = item.sellingPrice * item.quantity - item.discount
-    if (item.priceIncludesGst && item.taxRate > 0) {
-      return sum + (lineTotal / (1 + item.taxRate / 100))
-    }
-    return sum + lineTotal
-  }, 0)
-
-  const rawTax = items.reduce((sum, item) => {
-    const lineTotal = item.sellingPrice * item.quantity - item.discount
-    if (item.priceIncludesGst && item.taxRate > 0) {
-      const baseAmt = lineTotal / (1 + item.taxRate / 100)
-      return sum + (lineTotal - baseAmt)
-    }
-    return sum + (lineTotal * (item.taxRate || 0) / 100)
-  }, 0)
-
-  const subtotal = roundCurrency(rawSubtotal)
-  const taxAmount = roundCurrency(rawTax)
+  // Gross (MRP-inclusive) line totals — base for % discounts so customers see
+  // the discount against the price they were quoted, not the GST-stripped value.
+  const grossBeforeOrderDiscount = roundCurrency(
+    items.reduce((sum, item) => sum + item.sellingPrice * item.quantity - item.discount, 0)
+  )
 
   const orderDiscountAmount = roundCurrency(
     orderDiscountType === 'flat'
       ? orderDiscount
-      : subtotal * (orderDiscount / 100)
+      : grossBeforeOrderDiscount * (orderDiscount / 100)
   )
 
-  const finalTotal = roundCurrency(Math.max(0, subtotal + taxAmount - orderDiscountAmount))
+  // Indian GST rule: apply order discount to the taxable base FIRST, then
+  // compute GST on the reduced base — not the other way around.
+  const gstSummary = gstSummaryFromCart(items, orderDiscountAmount)
+  const subtotal = roundCurrency(gstSummary.taxableValue)
+  const taxAmount = roundCurrency(gstSummary.totalGst)
+  const finalTotal = roundCurrency(Math.max(0, subtotal + taxAmount))
 
   useEffect(() => {
     if (isPaymentOpen) {
@@ -631,7 +623,14 @@ export const POSLitePage = () => {
         sellingPrice: item.sellingPrice,
         discount: item.discount,
         taxRate: item.taxRate,
-        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
+        taxAmount: (() => {
+          const rate = item.taxRate || 0
+          const lineTotal = item.sellingPrice * item.quantity - item.discount
+          if (rate === 0) return 0
+          return item.priceIncludesGst
+            ? lineTotal - lineTotal / (1 + rate / 100)
+            : lineTotal * rate / 100
+        })(),
         total: item.sellingPrice * item.quantity - item.discount,
       })),
       subtotal: lastSaleData.subtotal,

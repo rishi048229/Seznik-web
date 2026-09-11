@@ -1773,10 +1773,10 @@ export const ProductsPage = () => {
                 if (form.priceIncludesGst) {
                   const base = price / (1 + rate / 100)
                   const gst = price - base
-                  return <p className="text-[11px] text-gray-400 mt-1">Base ₹{base.toFixed(2)} + GST ₹{gst.toFixed(2)} = ₹{price.toFixed(2)}</p>
+                  return <p className="text-[11px] text-gray-400 mt-1">Taxable ₹{base.toFixed(2)} + GST ₹{gst.toFixed(2)} = ₹{price.toFixed(2)} (MRP)</p>
                 } else {
                   const gst = price * rate / 100
-                  return <p className="text-[11px] text-gray-400 mt-1">Base ₹{price.toFixed(2)} + GST ₹{gst.toFixed(2)} = ₹{(price + gst).toFixed(2)} incl.</p>
+                  return <p className="text-[11px] text-gray-400 mt-1">Taxable ₹{price.toFixed(2)} + GST ₹{gst.toFixed(2)} → Customer pays ₹{(price + gst).toFixed(2)}</p>
                 }
               })()}
             </div>

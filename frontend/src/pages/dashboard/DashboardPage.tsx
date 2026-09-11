@@ -255,8 +255,8 @@ export const DashboardPage = () => {
             <CreditCard size={22} className="text-sky-600 dark:text-sky-400 hidden sm:block" />
           </div>
           <p className="text-[11px] sm:text-sm text-gray-500 dark:text-gray-400 leading-tight">{t('dashboard.grossProfit')}</p>
-          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate" title={formatINR(grossProfit)}>
-            {formatINR(grossProfit)}
+          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate" title={formatINR(profitBreakdown?.profit ?? 0)}>
+            {loadingProfitBreakdown ? '—' : formatINR(Math.max(0, profitBreakdown?.profit ?? 0))}
           </p>
         </Card>
 
