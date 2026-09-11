@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { TablePageSkeleton } from '@/components/ui/PageSkeleton'
 import { useCreditTransactions } from '@/hooks/useCredits'
 import { useSales } from '@/hooks/useSales'
+import { completedSales } from '@/utils/saleStatus'
 import { useExpenses, useCreateExpense } from '@/hooks/useExpenses'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useTokens } from '@/hooks/useTokens'
@@ -104,7 +105,7 @@ export const DaybookPage = () => {
   const gstStart = dayBounds(date).startVal
   const gstEnd = dayBounds(effectiveEnd).endVal
   const gstLedger = useGstLedger({
-    sales,
+    sales: completedSales(sales),
     purchases,
     products,
     startTs: gstStart,
@@ -151,6 +152,7 @@ export const DaybookPage = () => {
     }
 
     ;(sales ?? []).forEach(sale => {
+      if ((sale.status || '').toLowerCase() === 'cancelled') return
       const ts = toTs(sale.createdAt, startVal)
       const paidNow = Math.min(sale.grandTotal, Math.max(0, sale.amountPaid ?? (sale.paymentMethod === 'credit' ? 0 : sale.grandTotal)))
       if (ts >= yBounds.startVal && ts < yBounds.endVal) yesterdayMoneyIn += paidNow

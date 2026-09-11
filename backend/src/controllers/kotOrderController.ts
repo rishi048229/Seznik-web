@@ -3,6 +3,30 @@ import prisma from '../config/db';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
+const ORDER_INCLUDE = {
+  table: true,
+  customer: true,
+  items: true,
+  sale: true,
+  printEvents: { orderBy: { createdAt: 'asc' as const } },
+};
+
+const actorName = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { displayName: true, email: true },
+  });
+  return user?.displayName || user?.email || 'Staff';
+};
+
+const itemSnapshot = (items: Array<{ productName: string; quantity: number; notes: string | null; modifiers: string[] }>) =>
+  items.map((it) => ({
+    productName: it.productName,
+    quantity: it.quantity,
+    notes: it.notes,
+    modifiers: it.modifiers,
+  }));
+
 const enrichOrder = (o: { items: Array<{ unitPrice: number; quantity: number; taxRate: number }> }) => {
   const subtotal = o.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
   const tax = o.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
@@ -49,12 +73,7 @@ export const getOrders = async (req: Request, res: Response) => {
         ...(orderType ? { orderType: String(orderType) } : {}),
         ...(tableId ? { tableId: String(tableId) } : {}),
       },
-      include: {
-        table: true,
-        customer: true,
-        items: true,
-        sale: true,
-      },
+      include: ORDER_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -72,12 +91,7 @@ export const getOrderById = async (req: Request, res: Response) => {
 
     const order = await prisma.kOTOrder.findFirst({
       where: { id, userId },
-      include: {
-        table: true,
-        customer: true,
-        items: true,
-        sale: true,
-      },
+      include: ORDER_INCLUDE,
     });
 
     if (!order) {
@@ -148,11 +162,7 @@ export const createOrder = async (req: Request, res: Response) => {
             create: items.map((it: any) => mapItemCreate(it, userId, kitchenAt)),
           },
         },
-        include: {
-          table: true,
-          customer: true,
-          items: true,
-        },
+        include: ORDER_INCLUDE,
       });
 
       return order;
@@ -193,7 +203,7 @@ export const addItemsToOrder = async (req: Request, res: Response) => {
 
     const updated = await prisma.kOTOrder.findFirst({
       where: { id, userId },
-      include: { table: true, customer: true, items: true },
+      include: ORDER_INCLUDE,
     });
 
     res.json(updated ? enrichOrder(updated) : updated);
@@ -210,7 +220,7 @@ export const sendToKitchen = async (req: Request, res: Response) => {
 
     const order = await prisma.kOTOrder.findFirst({
       where: { id, userId },
-      include: { items: true, table: true, customer: true, sale: true },
+      include: ORDER_INCLUDE,
     });
 
     if (!order) {
@@ -223,15 +233,32 @@ export const sendToKitchen = async (req: Request, res: Response) => {
 
     const { waiterName, locationId } = req.body;
     const unprinted = order.items.filter((it) => !it.sentToKitchenAt);
+    if (unprinted.length === 0) {
+      return res.status(400).json({ error: 'No new items to send to kitchen' });
+    }
+
     const now = new Date();
+    const maxBatch = order.items.reduce((max, it) => Math.max(max, it.kotBatchNumber || 0), 0);
+    const nextBatch = maxBatch + 1;
+    const isAdditional = maxBatch > 0;
+    const printedByName = await actorName(userId);
 
     const result = await prisma.$transaction(async (tx) => {
-      if (unprinted.length > 0) {
-        await tx.kOTOrderItem.updateMany({
-          where: { id: { in: unprinted.map((it) => it.id) }, orderId: id },
-          data: { sentToKitchenAt: now, status: 'sent_to_kitchen' },
-        });
-      }
+      await tx.kOTOrderItem.updateMany({
+        where: { id: { in: unprinted.map((it) => it.id) }, orderId: id },
+        data: { sentToKitchenAt: now, status: 'sent_to_kitchen', kotBatchNumber: nextBatch },
+      });
+
+      await tx.kOTPrintEvent.create({
+        data: {
+          orderId: id,
+          batchNumber: nextBatch,
+          kind: 'kot',
+          itemSnapshot: itemSnapshot(unprinted),
+          printedByName,
+          userId,
+        },
+      });
 
       await tx.kOTOrder.update({
         where: { id },
@@ -243,12 +270,10 @@ export const sendToKitchen = async (req: Request, res: Response) => {
         },
       });
 
-      const updated = await tx.kOTOrder.findFirst({
+      return tx.kOTOrder.findFirst({
         where: { id, userId },
-        include: { table: true, customer: true, items: true, sale: true },
+        include: ORDER_INCLUDE,
       });
-
-      return updated;
     });
 
     if (!result) {
@@ -261,6 +286,8 @@ export const sendToKitchen = async (req: Request, res: Response) => {
     res.json({
       ...enrichOrder(result),
       newlySentItems,
+      kotBatchNumber: nextBatch,
+      isAdditional,
     });
   } catch (error) {
     console.error('sendToKitchen error:', error);
@@ -299,7 +326,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     const updated = await prisma.kOTOrder.findFirst({
       where: { id, userId },
-      include: { table: true, customer: true, items: true, sale: true },
+      include: ORDER_INCLUDE,
     });
 
     res.json(updated ? enrichOrder(updated) : { success: true });
@@ -341,7 +368,7 @@ export const generateBill = async (req: Request, res: Response) => {
     const resolvedCustomerId = customerId || order.customerId || null;
 
     const result = await prisma.$transaction(async (tx) => {
-      const count = await tx.sale.count({ where: { userId } });
+      const count = await tx.sale.count({ where: { userId, status: { not: 'cancelled' } } });
       const settingsRow = await tx.settings.findUnique({ where: { userId } });
       const invoicePrefix =
         ((settingsRow?.invoiceConfig as { prefix?: string } | null)?.prefix || 'INV')
@@ -417,6 +444,7 @@ export const generateBill = async (req: Request, res: Response) => {
           amountPaid: paid,
           changeReturned: change,
           locationId: order.locationId || null,
+          status: 'completed',
           userId,
         },
       });
@@ -491,12 +519,7 @@ export const generateBill = async (req: Request, res: Response) => {
           saleId: sale.id,
           ...(orderType ? { orderType: String(orderType) } : {}),
         },
-        include: {
-          table: true,
-          customer: true,
-          items: true,
-          sale: true,
-        },
+        include: ORDER_INCLUDE,
       });
 
       return { order: enrichOrder(updatedOrder), sale };
@@ -506,5 +529,164 @@ export const generateBill = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('generateBill error:', error);
     res.status(500).json({ error: 'Failed to generate bill from KOT order' });
+  }
+};
+
+export const assignTable = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const id = String(req.params.id);
+    const tableId = req.body?.tableId ? String(req.body.tableId) : null;
+
+    if (!tableId) {
+      return res.status(400).json({ error: 'Pick a table to assign' });
+    }
+
+    const order = await prisma.kOTOrder.findFirst({
+      where: { id, userId },
+      include: { table: true },
+    });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.status === 'billed' || order.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot move a billed or cancelled order' });
+    }
+
+    const table = await prisma.restaurantTable.findFirst({
+      where: { id: tableId, userId },
+    });
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    const occupant = await prisma.kOTOrder.findFirst({
+      where: {
+        userId,
+        tableId,
+        id: { not: id },
+        status: { in: ACTIVE_STATUSES },
+      },
+    });
+    if (occupant) {
+      return res.status(400).json({ error: `${table.name} already has an open order` });
+    }
+
+    await prisma.kOTOrder.update({
+      where: { id },
+      data: {
+        tableId,
+        partyLabel: table.name,
+        orderType: order.orderType === 'dine_in' ? order.orderType : 'dine_in',
+      },
+    });
+
+    const updated = await prisma.kOTOrder.findFirst({
+      where: { id, userId },
+      include: ORDER_INCLUDE,
+    });
+    res.json(updated ? enrichOrder(updated) : updated);
+  } catch (error) {
+    console.error('assignTable error:', error);
+    res.status(500).json({ error: 'Failed to assign table' });
+  }
+};
+
+export const cancelOrder = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const id = String(req.params.id);
+    const reason = String(req.body?.reason || '').trim();
+    const printCancelSlip = Boolean(req.body?.printCancelSlip);
+
+    if (!reason) {
+      return res.status(400).json({ error: 'A cancel reason is required' });
+    }
+
+    const order = await prisma.kOTOrder.findFirst({
+      where: { id, userId },
+      include: ORDER_INCLUDE,
+    });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.status === 'billed') {
+      return res.status(400).json({ error: 'This order is already billed' });
+    }
+    if (order.status === 'cancelled') {
+      return res.status(400).json({ error: 'This order is already cancelled' });
+    }
+
+    const now = new Date();
+    const cancelledByName = String(req.body?.cancelledByName || '').trim() || (await actorName(userId));
+    const firedItems = order.items.filter((it) => it.sentToKitchenAt);
+    const hadKitchen = firedItems.length > 0 || !!order.sentToKitchenAt;
+    const subtotal = order.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+    const totalTax = order.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+    const grandTotal = subtotal + totalTax;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.create({
+        data: {
+          invoiceNumber: `CXL-KOT-${order.orderNumber}-${Date.now()}`,
+          customerId: order.customerId || null,
+          items: order.items.map((it) => ({
+            productId: it.productId || undefined,
+            productName: it.productName,
+            quantity: it.quantity,
+            sellingPrice: it.unitPrice,
+            discount: 0,
+            taxRate: it.taxRate,
+            taxAmount: (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100,
+            total: it.unitPrice * it.quantity,
+          })) as any,
+          subtotal,
+          totalDiscount: 0,
+          totalTax,
+          grandTotal,
+          paymentMethod: 'cash',
+          amountPaid: 0,
+          changeReturned: 0,
+          locationId: order.locationId || null,
+          status: 'cancelled',
+          cancelReason: reason,
+          cancelledAt: now,
+          cancelledByName,
+          userId,
+        },
+      });
+
+      if (hadKitchen) {
+        await tx.kOTPrintEvent.create({
+          data: {
+            orderId: id,
+            batchNumber: 0,
+            kind: 'cancel',
+            itemSnapshot: itemSnapshot(firedItems.length ? firedItems : order.items),
+            printedByName: cancelledByName,
+            userId,
+          },
+        });
+      }
+
+      const updatedOrder = await tx.kOTOrder.update({
+        where: { id },
+        data: {
+          status: 'cancelled',
+          cancelledAt: now,
+          cancelReason: reason,
+          cancelledByName,
+          saleId: sale.id,
+        },
+        include: ORDER_INCLUDE,
+      });
+
+      return { order: enrichOrder(updatedOrder), sale, printCancelSlip: printCancelSlip && hadKitchen };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('cancelOrder error:', error);
+    res.status(500).json({ error: 'Failed to cancel order' });
   }
 };

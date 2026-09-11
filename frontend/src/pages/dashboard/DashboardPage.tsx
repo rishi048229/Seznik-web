@@ -21,6 +21,7 @@ import {
 } from '@/hooks/useReports'
 import { useProducts } from '@/hooks/useProducts'
 import { useSales } from '@/hooks/useSales'
+import { completedSales } from '@/utils/saleStatus'
 import { usePurchases } from '@/hooks/usePurchases'
 import { GstLedgerPanel, useGstLedger } from '@/components/common/GstLedgerPanel'
 import { dayBounds, toDateInputValue } from '@/utils/daybook'
@@ -254,7 +255,7 @@ export const DashboardPage = () => {
   const { data: purchases } = usePurchases()
   const todayBounds = dayBounds(toDateInputValue(new Date()))
   const gstToday = useGstLedger({
-    sales,
+    sales: completedSales(sales),
     purchases,
     products,
     startTs: todayBounds.startVal,
@@ -263,19 +264,21 @@ export const DashboardPage = () => {
 
   // Calculate actual gross profit from sales
   const grossProfit = useMemo(() => {
-    if (!sales || sales.length === 0) return 0
-    return sales.reduce((profit, sale) => profit + sale.grandTotal - sale.totalTax, 0)
+    const live = completedSales(sales)
+    if (live.length === 0) return 0
+    return live.reduce((profit, sale) => profit + sale.grandTotal - sale.totalTax, 0)
   }, [sales])
 
   if (isLoading) {
     return <DashboardSkeleton />
   }
 
+  const liveSales = completedSales(sales)
   const lowStockProducts = products?.filter(p => p.currentStock <= p.lowStockThreshold).slice(0, 5) ?? []
-  const recentSales = sales?.slice(0, 5) ?? []
+  const recentSales = liveSales.slice(0, 5)
 
-  const totalRevenue = sales?.reduce((sum, s) => sum + s.grandTotal, 0) ?? 0
-  const totalSales = sales?.length ?? 0
+  const totalRevenue = liveSales.reduce((sum, s) => sum + s.grandTotal, 0)
+  const totalSales = liveSales.length
   const lowStockAlerts = lowStockProducts.length
 
   // Use real revenue data from the trend, or fallback to empty

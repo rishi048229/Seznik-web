@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
+import { isCancelledSale } from '@/utils/saleStatus'
 import { toastError } from '@/utils/userMessage'
 
 export const SaleDetailPage = () => {
@@ -193,6 +194,14 @@ export const SaleDetailPage = () => {
           </div>
         }
       />
+
+      {isCancelledSale(sale) && (
+        <div className="max-w-2xl mx-auto mb-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+          <p className="font-bold">Cancelled</p>
+          {sale.cancelReason && <p>Reason: {sale.cancelReason}</p>}
+          {sale.cancelledByName && <p>By {sale.cancelledByName}</p>}
+        </div>
+      )}
 
       {/* Sale details card (for screen viewing) */}
       <div className="max-w-2xl mx-auto">

@@ -19,6 +19,7 @@ import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import type { Sale } from '@/types/sale.types'
+import { isCancelledSale } from '@/utils/saleStatus'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -291,6 +292,9 @@ export const SalesPage = () => {
       render: (row) => (
         <div>
           <span className="font-medium">{row.invoiceNumber}</span>
+          {isCancelledSale(row) && (
+            <Badge variant="danger" className="ml-2">Cancelled</Badge>
+          )}
           <p className="text-xs text-gray-400">{row.items?.length ?? 0} {t('sales.itemsSuffix')}</p>
         </div>
       ),

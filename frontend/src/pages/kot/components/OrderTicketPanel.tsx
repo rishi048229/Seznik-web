@@ -139,10 +139,11 @@ export const OrderTicketPanel = ({
                     </div>
                     <Check size={16} className="text-emerald-500 shrink-0 mt-0.5" />
                   </div>
-                  {it.sentToKitchenAt && (
+                      {it.sentToKitchenAt && (
                     <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
                       <Clock size={10} />
                       {formatSentTime(it.sentToKitchenAt)}
+                      {it.kotBatchNumber ? ` · Round ${it.kotBatchNumber}` : ''}
                     </p>
                   )}
                 </li>

@@ -14,7 +14,10 @@ export interface Sale {
   changeReturned: number
   isQuickBill: boolean
   createdAt: Date | string
-
+  status?: 'completed' | 'cancelled' | string
+  cancelReason?: string | null
+  cancelledAt?: Date | string | null
+  cancelledByName?: string | null
 }
 
 export interface SaleItem {

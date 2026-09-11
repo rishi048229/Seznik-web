@@ -1,5 +1,7 @@
 import { fetchApi } from './api'
 import type {
+  CancelKOTPayload,
+  CancelKOTResult,
   CreateKOTOrderPayload,
   KOTBillPayload,
   KOTBillResult,
@@ -65,6 +67,20 @@ export const updateOrderStatus = async (
 
 export const generateBill = async (id: string, data: KOTBillPayload): Promise<KOTBillResult> => {
   return await fetchApi(`/kot-orders/${id}/bill`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export const assignTable = async (id: string, tableId: string): Promise<KOTOrder> => {
+  return await fetchApi(`/kot-orders/${id}/assign-table`, {
+    method: 'POST',
+    body: JSON.stringify({ tableId }),
+  })
+}
+
+export const cancelOrder = async (id: string, data: CancelKOTPayload): Promise<CancelKOTResult> => {
+  return await fetchApi(`/kot-orders/${id}/cancel`, {
     method: 'POST',
     body: JSON.stringify(data),
   })

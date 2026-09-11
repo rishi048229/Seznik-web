@@ -44,6 +44,7 @@ export interface KOTOrderItem {
   modifiers: string[]
   status: string
   sentToKitchenAt: string | null
+  kotBatchNumber?: number | null
   userId: string
   createdAt: string
   updatedAt: string
@@ -59,6 +60,16 @@ export interface KOTCustomerRef {
   id: string
   name: string
   phone?: string | null
+}
+
+export interface KOTPrintEvent {
+  id: string
+  orderId: string
+  batchNumber: number
+  kind: 'kot' | 'cancel' | string
+  itemSnapshot: Array<{ productName: string; quantity: number; notes?: string | null; modifiers?: string[] }>
+  printedByName?: string | null
+  createdAt: string
 }
 
 export interface KOTOrder {
@@ -78,9 +89,13 @@ export interface KOTOrder {
   waiterName: string | null
   locationId: string | null
   sentToKitchenAt: string | null
+  cancelledAt?: string | null
+  cancelReason?: string | null
+  cancelledByName?: string | null
   saleId: string | null
   sale?: unknown
   items: KOTOrderItem[]
+  printEvents?: KOTPrintEvent[]
   userId: string
   createdAt: string
   updatedAt: string
@@ -138,6 +153,25 @@ export interface KOTBillPayload {
 
 export interface SendToKitchenResult extends KOTOrder {
   newlySentItems: KOTOrderItem[]
+  kotBatchNumber?: number
+  isAdditional?: boolean
+}
+
+export interface CancelKOTPayload {
+  reason: string
+  printCancelSlip?: boolean
+  cancelledByName?: string
+}
+
+export interface CancelKOTResult {
+  order: KOTOrder
+  sale: KOTBillResult['sale'] & {
+    status?: string
+    cancelReason?: string | null
+    cancelledAt?: string | null
+    cancelledByName?: string | null
+  }
+  printCancelSlip: boolean
 }
 
 export interface KOTBillResult {

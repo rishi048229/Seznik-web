@@ -47,7 +47,7 @@ export const KOTPage = () => {
   const [workspace, setWorkspace] = useState<WorkspaceTarget | null>(null)
 
   const walkIns = useMemo(
-    () => runningOrders.filter((order) => !order.tableId),
+    () => runningOrders.filter((order) => !order.tableId && !!order.sentToKitchenAt),
     [runningOrders]
   )
 
@@ -162,7 +162,7 @@ export const KOTPage = () => {
       {walkIns.length > 0 && (
         <section className="mb-5">
           <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-            {kotCfg.showTables ? 'Open takeaway / delivery bills' : 'Open bills'}
+            {kotCfg.showTables ? 'Walking' : 'Walking / open tickets'}
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
             {walkIns.map((order) => (
@@ -266,7 +266,7 @@ const WalkInCard = ({ order, onClick }: { order: KOTOrder; onClick: () => void }
     <div className="absolute top-0 left-0 w-1.5 h-full bg-sky-500" />
     <div className="flex items-start justify-between gap-2 pl-1 mb-3">
       <h3 className="text-lg font-extrabold tracking-tight text-gray-900 dark:text-gray-100 truncate">
-        {order.partyLabel || orderTypeLabel(order.orderType)}
+        Walking
       </h3>
       <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-900/70 dark:text-sky-200">
         {orderTypeLabel(order.orderType)}

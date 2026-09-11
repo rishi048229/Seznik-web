@@ -56,6 +56,7 @@ model User {
   restaurantTables      RestaurantTable[]
   kotOrders             KOTOrder[]
   kotOrderItems         KOTOrderItem[]
+  kotPrintEvents        KOTPrintEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -309,6 +310,10 @@ model Sale {
   token          Token?
   // Belongs to the "dev" branch (see User model comment above).
   kotOrder       KOTOrder?
+  status         String    @default("completed") // completed | cancelled
+  cancelReason   String?
+  cancelledAt    DateTime?
+  cancelledByName String?
   createdAt      DateTime  @default(now())
 }
 
@@ -472,9 +477,13 @@ model KOTOrder {
   // exactly as it did before, matching the POS behavior.
   locationId      String?
   sentToKitchenAt DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  cancelledByName String?
   saleId          String?          @unique
   sale            Sale?            @relation(fields: [saleId], references: [id], onDelete: SetNull)
   items           KOTOrderItem[]
+  printEvents     KOTPrintEvent[]
   userId          String
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime         @default(now())
@@ -503,8 +512,25 @@ model KOTOrderItem {
   // the NEXT slip, never reprint the whole order and make the kitchen cook
   // it twice. Null = not yet sent.
   sentToKitchenAt DateTime?
+  kotBatchNumber Int?
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model KOTPrintEvent {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         KOTOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  batchNumber   Int
+  kind          String   @default("kot") // kot | cancel
+  itemSnapshot  Json
+  printedByName String?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+  @@index([userId])
 }

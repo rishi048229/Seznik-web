@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { COMPLETED_SALE_WHERE } from '../utils/completedSales';
 
 export const getSales = async (req: Request, res: Response) => {
   try {
@@ -36,7 +37,7 @@ export const createSale = async (req: Request, res: Response) => {
     
     // Generate invoice number. In a real app, use a sequence or locked counter.
     // Here we just count existing sales to generate a number.
-    const count = await prisma.sale.count({ where: { userId } });
+    const count = await prisma.sale.count({ where: { userId, ...COMPLETED_SALE_WHERE } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
     
     // Parse custom bill date if provided, otherwise default to now

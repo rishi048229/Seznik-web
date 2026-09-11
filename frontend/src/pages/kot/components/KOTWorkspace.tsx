@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Printer, CreditCard, Plus } from 'lucide-react'
+import { X, Printer, CreditCard, Plus, Ban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { Button } from '@/components/ui/Button'
@@ -9,8 +9,12 @@ import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRestaurantTables } from '@/hooks/useRestaurantTables'
 import {
   useAddKotItems,
+  useAssignKotTable,
+  useCancelKotOrder,
   useCreateKotOrder,
   useGenerateKotBill,
   useKotOrder,
@@ -26,6 +30,7 @@ import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
 import { OrderTicketPanel } from './OrderTicketPanel'
 import { KOTBillModal } from './KOTBillModal'
+import { CancelOrderDialog } from './CancelOrderDialog'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
@@ -56,6 +61,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const { data: products = [], isLoading: productsLoading } = useProducts()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
+  const { userProfile } = useAuth()
+  const { data: tables = [] } = useRestaurantTables({ refetchInterval: 10000 })
   const { mutate: updateSettings } = useUpdateSettings()
   const { mutate: createSettings } = useCreateSettings()
   const blePrinter = useBlePrinter()
@@ -79,6 +86,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [itemNotes, setItemNotes] = useState('')
   const [itemMods, setItemMods] = useState<string[]>([])
   const [billOpen, setBillOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [assignTableId, setAssignTableId] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [mobileTab, setMobileTab] = useState<'menu' | 'ticket'>('menu')
 
@@ -87,6 +96,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
+  const { mutateAsync: assignTable, isPending: isAssigning } = useAssignKotTable()
+  const { mutateAsync: cancelOrder, isPending: isCancelling } = useCancelKotOrder()
   const { mutate: generateBill, isPending: isBilling } = useGenerateKotBill()
 
   const persistKotConfig = (next: typeof kotCfg, ok?: string) => {
@@ -154,7 +165,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     return { subtotal, tax, grandTotal: subtotal + tax }
   }, [order?.items, pendingItems])
 
-  const busy = isCreating || isAdding || isSending
+  const busy = isCreating || isAdding || isSending || isAssigning || isCancelling
   const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
 
   const openTickets = useMemo(() => {
@@ -275,7 +286,12 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     setPendingItems([])
   }
 
-  const printKitchen = async (items: KOTOrderItem[], orderNumber: number, waiter: string | null | undefined) => {
+  const printKitchen = async (
+    items: KOTOrderItem[],
+    orderNumber: number,
+    waiter: string | null | undefined,
+    opts?: { batchNumber?: number; isAdditional?: boolean; isCancelled?: boolean },
+  ) => {
     if (items.length === 0) return
     const slip = {
       orderNumber,
@@ -284,6 +300,9 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       waiterName: waiter || waiterName,
       showWaiter: kotCfg.showWaiterOnSlip,
       slipTitle: kotCfg.kotSlipTitle,
+      batchNumber: opts?.batchNumber,
+      isAdditional: opts?.isAdditional,
+      isCancelled: opts?.isCancelled,
       orderTime: new Date(),
       notes: order?.notes,
       priority: order?.priority,
@@ -328,9 +347,12 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         id,
         waiterName: waiterName.trim() || undefined,
       })
-      const toPrint = result.newlySentItems?.length ? result.newlySentItems : result.items.filter((it) => !it.sentToKitchenAt)
-      await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName)
-      toast.success('Sent to kitchen')
+      const toPrint = result.newlySentItems?.length ? result.newlySentItems : result.items.filter((it) => it.kotBatchNumber === result.kotBatchNumber)
+      await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName, {
+        batchNumber: result.kotBatchNumber,
+        isAdditional: result.isAdditional,
+      })
+      toast.success(result.isAdditional ? `Additional KOT round ${result.kotBatchNumber} sent` : 'Sent to kitchen')
     } catch (err) {
       toastError(err, 'Could not send to kitchen')
     }
@@ -415,6 +437,48 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       setBillOpen(true)
     } catch (err) {
       toastError(err, 'Could not prepare the bill')
+    }
+  }
+
+  const vacantTables = tables.filter((tb) => tb.isActive !== false && !tb.isOccupied)
+  const canAssignTable = Boolean(orderId && kotCfg.showTables && !order?.tableId && !table?.id)
+
+  const handleAssignTable = async () => {
+    if (!orderId || !assignTableId) {
+      toast.error('Pick a vacant table')
+      return
+    }
+    try {
+      await assignTable({ id: orderId, tableId: assignTableId })
+      setAssignTableId('')
+      toast.success('Moved to table')
+    } catch (err) {
+      toastError(err, 'Could not assign the table')
+    }
+  }
+
+  const handleCancelOrder = async (payload: { reason: string; printCancelSlip: boolean }) => {
+    if (!orderId) return
+    try {
+      const result = await cancelOrder({
+        id: orderId,
+        data: {
+          reason: payload.reason,
+          printCancelSlip: payload.printCancelSlip,
+          cancelledByName: userProfile?.displayName || undefined,
+        },
+      })
+      if (result.printCancelSlip) {
+        const fired = (result.order.items ?? []).filter((it) => it.sentToKitchenAt)
+        await printKitchen(fired.length ? fired : result.order.items, result.order.orderNumber, result.order.waiterName, {
+          isCancelled: true,
+        })
+      }
+      toast.success('Order cancelled')
+      setCancelOpen(false)
+      onClose()
+    } catch (err) {
+      toastError(err, 'Could not cancel the order')
     }
   }
 
@@ -557,6 +621,31 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           )}
 
           <div className="shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 space-y-2 pb-16 sm:pb-3">
+            {canAssignTable && (
+              <div className="flex gap-2">
+                <select
+                  value={assignTableId}
+                  onChange={(e) => setAssignTableId(e.target.value)}
+                  className="min-w-0 flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 text-sm"
+                >
+                  <option value="">Assign a table</option>
+                  {vacantTables.map((tb) => (
+                    <option key={tb.id} value={tb.id}>
+                      {tb.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!assignTableId || busy}
+                  loading={isAssigning}
+                  onClick={() => void handleAssignTable()}
+                >
+                  Seat
+                </Button>
+              </div>
+            )}
             {kotCfg.kitchenTicketsEnabled && (
               <Button
                 onClick={handleSendToKitchen}
@@ -577,6 +666,18 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               <CreditCard size={16} className="mr-2" />
               Settle Bill
             </Button>
+            {orderId && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                disabled={busy}
+                onClick={() => setCancelOpen(true)}
+              >
+                <Ban size={16} className="mr-2" />
+                Cancel Order
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -623,6 +724,15 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
             }
           )
         }}
+      />
+
+      <CancelOrderDialog
+        isOpen={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        orderNumber={order?.orderNumber}
+        hadKitchen={sentItems.length > 0 || !!order?.sentToKitchenAt}
+        loading={isCancelling}
+        onConfirm={(payload) => void handleCancelOrder(payload)}
       />
     </div>
   )

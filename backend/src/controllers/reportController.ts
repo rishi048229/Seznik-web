@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
+import { COMPLETED_SALE_WHERE } from '../utils/completedSales';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -18,6 +19,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     const todaySales = await prisma.sale.findMany({
       where: {
         userId,
+        ...COMPLETED_SALE_WHERE,
         createdAt: { gte: todayStart }
       }
     });
@@ -30,7 +32,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       .slice(0, 20);
 
     const recentSales = await prisma.sale.findMany({
-      where: { userId },
+      where: { userId, ...COMPLETED_SALE_WHERE },
       orderBy: { createdAt: 'desc' },
       take: 5
     });
@@ -66,6 +68,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
     const sales = await prisma.sale.findMany({
       where: {
         userId,
+        ...COMPLETED_SALE_WHERE,
         createdAt: {
           gte: parseDate(start, new Date(0)),
           lte: parseRangeEnd(end, new Date())
@@ -103,6 +106,7 @@ export const getPLReport = async (req: Request, res: Response) => {
     const sales = await prisma.sale.findMany({
       where: {
         userId,
+        ...COMPLETED_SALE_WHERE,
         createdAt: {
           gte: parseDate(start, new Date(0)),
           lte: parseRangeEnd(end, new Date())
@@ -142,6 +146,7 @@ export const getTaxReport = async (req: Request, res: Response) => {
     const sales = await prisma.sale.findMany({
       where: {
         userId,
+        ...COMPLETED_SALE_WHERE,
         createdAt: {
           gte: parseDate(start, new Date(0)),
           lte: parseRangeEnd(end, new Date())
@@ -170,6 +175,7 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
     const sales = await prisma.sale.findMany({
       where: {
         userId,
+        ...COMPLETED_SALE_WHERE,
         createdAt: { gte: startDate }
       }
     });
@@ -224,7 +230,7 @@ export const getTopCustomers = async (req: Request, res: Response) => {
     const limit = Number(req.query.limit) || 10;
 
     const sales = await prisma.sale.findMany({
-      where: { userId },
+      where: { userId, ...COMPLETED_SALE_WHERE },
       orderBy: { createdAt: 'desc' },
       include: { customer: true }
     });
@@ -261,7 +267,7 @@ export const getTopCustomers = async (req: Request, res: Response) => {
 export const getPaymentModeBreakdown = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const sales = await prisma.sale.findMany({ where: { userId } });
+    const sales = await prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } });
 
     const totals = new Map<string, { amount: number; count: number }>();
     let totalSales = 0;
@@ -294,7 +300,7 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
 
     const [sales, products] = await Promise.all([
-      prisma.sale.findMany({ where: { userId } }),
+      prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } }),
       prisma.product.findMany({ where: { userId } }),
     ]);
     const productCosts = new Map<string, number>();
@@ -331,7 +337,7 @@ export const getTopProducts = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const limit = Number(req.query.limit) || 5;
 
-    const sales = await prisma.sale.findMany({ where: { userId } });
+    const sales = await prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } });
 
     const productMap = new Map<string, { name: string; unitsSold: number; revenue: number }>();
     sales.forEach(sale => {
@@ -367,7 +373,7 @@ export const getTopCategories = async (req: Request, res: Response) => {
     const limit = Number(req.query.limit) || 3;
 
     const [sales, products] = await Promise.all([
-      prisma.sale.findMany({ where: { userId } }),
+      prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } }),
       prisma.product.findMany({ where: { userId }, include: { category: true } }),
     ]);
     const categoryByProductId = new Map<string, string>();
@@ -413,8 +419,8 @@ export const getExpenseSummary = async (req: Request, res: Response) => {
       prisma.$queryRaw<any[]>`SELECT * FROM "Expense" WHERE "userId" = ${userId} AND "expenseDate" >= ${todayStart}`,
       prisma.$queryRaw<any[]>`SELECT * FROM "Expense" WHERE "userId" = ${userId} AND "expenseDate" >= ${monthStart}`,
       prisma.$queryRaw<any[]>`SELECT * FROM "Expense" WHERE "userId" = ${userId}`,
-      prisma.sale.findMany({ where: { userId } }),
-      prisma.sale.findMany({ where: { userId, createdAt: { gte: todayStart } } }),
+      prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } }),
+      prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE, createdAt: { gte: todayStart } } }),
     ]);
 
     const today = todayExpenses.reduce((sum, e) => sum + e.amount, 0);

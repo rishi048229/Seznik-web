@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as kotOrderService from '@/services/kotOrderService'
-import type { CreateKOTOrderPayload, KOTBillPayload } from '@/types/kot.types'
+import type { CancelKOTPayload, CreateKOTOrderPayload, KOTBillPayload } from '@/types/kot.types'
 
 const invalidateKotAndTables = (qc: ReturnType<typeof useQueryClient>) => {
   qc.invalidateQueries({ queryKey: [QUERY_KEYS.KOT_ORDERS] })
@@ -87,6 +87,30 @@ export const useGenerateKotBill = () => {
         qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] }),
         qc.refetchQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
         qc.refetchQueries({ queryKey: [QUERY_KEYS.CREDITS] }),
+      ])
+    },
+  })
+}
+
+export const useAssignKotTable = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, tableId }: { id: string; tableId: string }) =>
+      kotOrderService.assignTable(id, tableId),
+    onSuccess: () => invalidateKotAndTables(qc),
+  })
+}
+
+export const useCancelKotOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CancelKOTPayload }) =>
+      kotOrderService.cancelOrder(id, data),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.KOT_ORDERS] }),
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.RESTAURANT_TABLES] }),
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.SALES] }),
       ])
     },
   })
