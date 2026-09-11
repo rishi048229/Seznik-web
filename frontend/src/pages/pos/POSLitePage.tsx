@@ -496,17 +496,24 @@ export const POSLitePage = () => {
         const resolvedProductId = (!item.id.startsWith('temp-'))
           ? item.id
           : (products?.find(p => p.name.toLowerCase() === item.productName.toLowerCase())?.id || '')
-
+        const itemTaxRate = item.taxRate || 0
+        const lineTotal = item.sellingPrice * item.quantity - item.discount
+        const includesGst = item.priceIncludesGst ?? false
+        const computedTaxAmount = itemTaxRate > 0
+          ? includesGst
+            ? lineTotal - (lineTotal / (1 + itemTaxRate / 100))
+            : lineTotal * itemTaxRate / 100
+          : 0
         return {
           productId: resolvedProductId,
           productName: item.productName,
           quantity: item.quantity,
           sellingPrice: item.sellingPrice,
           discount: item.discount,
-          taxRate: item.taxRate,
-          priceIncludesGst: item.priceIncludesGst ?? false,
-          taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
-          total: item.sellingPrice * item.quantity - item.discount,
+          taxRate: itemTaxRate,
+          priceIncludesGst: includesGst,
+          taxAmount: computedTaxAmount,
+          total: lineTotal,
         }
       }),
       subtotal,
@@ -517,7 +524,7 @@ export const POSLitePage = () => {
       amountPaid: amountPaidNum,
       changeReturned: change,
       isQuickBill: true,
-      createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
+      createdAt: billDate ? new Date(`${billDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString() : undefined,
     }
 
     if (selectedCustomer) {

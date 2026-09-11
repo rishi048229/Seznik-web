@@ -441,6 +441,13 @@ export const POSPage = () => {
     const saleData: Parameters<typeof createSale>[0] = {
       items: items.map(item => {
         const itemTaxRate = item.taxRate || 0
+        const lineTotal = item.sellingPrice * item.quantity - item.discount
+        const includesGst = item.priceIncludesGst ?? false
+        const computedTaxAmount = itemTaxRate > 0
+          ? includesGst
+            ? lineTotal - (lineTotal / (1 + itemTaxRate / 100))
+            : lineTotal * itemTaxRate / 100
+          : 0
         return {
           productId: item.productId,
           productName: item.productName,
@@ -448,9 +455,9 @@ export const POSPage = () => {
           sellingPrice: item.sellingPrice,
           discount: item.discount,
           taxRate: itemTaxRate,
-          priceIncludesGst: item.priceIncludesGst ?? false,
-          taxAmount: ((item.sellingPrice * item.quantity - item.discount) * itemTaxRate / 100),
-          total: item.sellingPrice * item.quantity - item.discount,
+          priceIncludesGst: includesGst,
+          taxAmount: computedTaxAmount,
+          total: lineTotal,
         }
       }),
       subtotal: totals.subtotal,
@@ -461,7 +468,7 @@ export const POSPage = () => {
       amountPaid: amountPaidNum,
       changeReturned: change,
       isQuickBill: false,
-      createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
+      createdAt: billDate ? new Date(`${billDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString() : undefined,
     }
 
     // Only set customerId if a customer is selected (Firestore rejects undefined)
@@ -550,16 +557,26 @@ export const POSPage = () => {
       invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
       customerId: lastSaleData.selectedCustomer,
       customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || 'Walk-in Customer',
-      items: lastSaleData.items.map(item => ({
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity,
-        sellingPrice: item.sellingPrice,
-        discount: item.discount,
-        taxRate: item.taxRate,
-        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * item.taxRate / 100),
-        total: item.sellingPrice * item.quantity - item.discount,
-      })),
+      items: lastSaleData.items.map(item => {
+        const itemTaxRate = item.taxRate || 0
+        const lineTotal = item.sellingPrice * item.quantity - item.discount
+        const includesGst = item.priceIncludesGst ?? false
+        const computedTaxAmount = itemTaxRate > 0
+          ? includesGst
+            ? lineTotal - (lineTotal / (1 + itemTaxRate / 100))
+            : lineTotal * itemTaxRate / 100
+          : 0
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          sellingPrice: item.sellingPrice,
+          discount: item.discount,
+          taxRate: itemTaxRate,
+          taxAmount: computedTaxAmount,
+          total: lineTotal,
+        }
+      }),
       subtotal: lastSaleData.totals.subtotal,
       totalDiscount: lastSaleData.orderDiscountAmount + lastSaleData.items.reduce((s, i) => s + i.discount, 0),
       totalTax: lastSaleData.totals.tax,
@@ -569,7 +586,6 @@ export const POSPage = () => {
       changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
       isQuickBill: false,
       createdAt: new Date().toISOString(),
-
     }
   }
 
