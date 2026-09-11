@@ -18,7 +18,7 @@ export interface EscPosRasterImage {
  * thermal printers (unlike Epson "GS ( k" which clone/58mm firmwares reject and
  * dump raw URL text onto the receipt).
  */
-export function rasterizeQrForEscPos(text: string, targetDots = 192): EscPosRasterImage | null {
+export function rasterizeQrForEscPos(text: string, targetDots = 120): EscPosRasterImage | null {
   if (!text || !text.trim()) return null
   try {
     const cleanText = text.trim()
@@ -178,24 +178,33 @@ export class EscPosBuilder {
     return this
   }
 
-  // 2D QR code rendered via standard 1bpp raster bitmap ("GS v 0").
-  // Supported by 100% of ESC/POS thermal printers (RPP02N, POS-58, Epson, clone firmwares).
-  // Prevents budget thermal printers from rejecting Epson "GS ( k" and dumping raw URL text on paper.
-  qr(data: string, targetDotsOrModuleSize: number = 192): this {
+  // 2D QR code rendered via standard 1bpp raster bitmap ("GS v 0") with vertical banding.
+  // Banded into 24-dot slices to strictly prevent printer serial FIFO buffer overflow.
+  qr(data: string, targetDotsOrModuleSize: number = 120, paperWidth: '58mm' | '80mm' = '58mm'): this {
     if (!data || !data.trim()) return this
-    // If a small number (e.g. 2-16) is passed as moduleSize, translate to pixel dots
+    const maxPaperDots = paperWidth === '80mm' ? 576 : 384
     const targetDots = targetDotsOrModuleSize <= 16
-      ? Math.max(120, targetDotsOrModuleSize * 30)
-      : targetDotsOrModuleSize
+      ? (targetDotsOrModuleSize >= 7 ? 150 : 120)
+      : Math.min(160, Math.max(96, targetDotsOrModuleSize))
 
     const raster = rasterizeQrForEscPos(data, targetDots)
     if (raster) {
-      return this.image(raster.packed, raster.widthBytes, raster.heightDots)
+      const leftMarginDots = Math.max(0, Math.floor((maxPaperDots - raster.widthBytes * 8) / 2))
+      if (leftMarginDots > 0) {
+        this.push(GS, 0x4c, leftMarginDots & 0xff, (leftMarginDots >> 8) & 0xff)
+      }
+      this.align('center')
+      this.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 24)
+      if (leftMarginDots > 0) {
+        this.push(GS, 0x4c, 0x00, 0x00)
+      }
+      this.align('left')
+      return this
     }
 
     // Secondary fallback: Epson GS ( k sequence
     const cn = 0x31
-    const moduleSize = Math.max(1, Math.min(16, Math.floor(targetDots / 32)))
+    const moduleSize = Math.max(3, Math.min(8, Math.floor(targetDots / 32)))
     this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x43, moduleSize)
     this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x45, 0x31)
     const bytes = new TextEncoder().encode(data)

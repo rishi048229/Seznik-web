@@ -932,7 +932,7 @@ async function tryAppendEscPosLogo(
     return false
   }
   b.align(align)
-  b.image(raster.packed, raster.widthBytes, raster.heightDots)
+  b.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 24)
   b.feed(1)
   b.align('left')
   return true
@@ -1125,7 +1125,7 @@ export async function appendCustomTemplateToEscPos(
         if (isQr && rawVal) {
           b.feed(1)
           b.align(toEscPosAlign(entry.align || 'center'))
-          b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize))
+          b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize), paperSize)
           b.feed(1)
           b.align('left')
         } else if (rawVal && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {

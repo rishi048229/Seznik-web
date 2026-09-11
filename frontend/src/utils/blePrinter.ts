@@ -251,11 +251,17 @@ export async function printEscPos(bytes: Uint8Array): Promise<void> {
     // Fast stream with writeWithoutResponse and short 3ms pacing (refer commit 473d730 / 273baf4)
     // Eliminates 30-50ms round-trip GATT ACK latency stalls per 20 bytes and streams bitmap logos smoothly
     const useFastStream = supportsWriteWithoutResponse
+    const isDense = bytes.length > 1500
+    const paceDelay = isDense ? 7 : 4
     for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
       const chunk = bytes.slice(offset, offset + CHUNK_SIZE)
       if (useFastStream) {
         await characteristic.writeValueWithoutResponse(chunk)
-        await new Promise(resolve => setTimeout(resolve, 3))
+        await new Promise(resolve => setTimeout(resolve, paceDelay))
+        if (isDense && offset > 0 && offset % 400 === 0) {
+          // Pause every 400 bytes to let the printer UART buffer flush so no packets are dropped
+          await new Promise(resolve => setTimeout(resolve, 20))
+        }
       } else {
         await characteristic.writeValueWithResponse(chunk)
       }
