@@ -1,7 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useSettings } from '@/hooks/useSettings'
-import { Avatar } from '@/components/ui/Avatar'
 import { Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
 
@@ -16,7 +15,7 @@ interface TopbarProps {
 }
 
 export const Topbar = ({ onMenuClick }: TopbarProps) => {
-  const { user, userProfile } = useAuth()
+  const { userProfile } = useAuth()
   const { isDark, setTheme } = useTheme()
   const { data: settings } = useSettings()
   const { t } = useLanguage()
@@ -40,33 +39,42 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
     }
   }
 
-  const showBackButton = location.pathname !== ROUTES.DASHBOARD &&
-                         location.pathname !== ROUTES.LOGIN &&
-                         location.pathname !== ROUTES.ACCESS_SELECTION &&
-                         location.pathname !== ROUTES.ONBOARDING
-
   return (
-    <header className="sticky top-0 z-20 bg-white/80 dark:bg-dark-bg/90 backdrop-blur-xl border-b border-gray-100 dark:border-dark-border px-3 lg:px-6 py-2.5 flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2 min-w-0">
-        <Button variant="ghost" size="sm" onClick={onMenuClick} className="lg:hidden p-2 flex-shrink-0">
+    <header className="h-16 bg-white dark:bg-dark-card border-b border-gray-200 dark:border-dark-border px-4 flex items-center justify-between sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onMenuClick}
+          className="lg:hidden p-2"
+          aria-label="Open menu"
+        >
           <Menu size={20} />
         </Button>
-        {showBackButton && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleGoBack}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-card flex-shrink-0"
-          >
-            <ArrowLeft size={20} />
-          </Button>
-        )}
-        <h2 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-          {settings?.businessName || userProfile?.businessName || t('nav.dashboard')}
-        </h2>
+        
+        {/* Back Button and Store Details */}
+        <div className="flex items-center gap-2">
+          {location.pathname !== ROUTES.DASHBOARD && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleGoBack}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-elevated rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={18} className="text-gray-600 dark:text-gray-300" />
+            </Button>
+          )}
+          
+          <div className="flex flex-col">
+            <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+              {settings?.businessName || 'My Store'}
+            </h1>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex items-center gap-2">
         {/* Theme toggle — animated view transition */}
         <AnimatedThemeToggler
           theme={isDark ? 'dark' : 'light'}
@@ -76,7 +84,6 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
           className="p-2 inline-flex items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-elevated dark:hover:text-white transition-colors focus:outline-none"
           title={isDark ? (t('theme.light') || 'Switch to Light Mode') : (t('theme.dark') || 'Switch to Dark Mode')}
         />
-        {/* Bell + Help — hidden on small screens */}
         <Button variant="ghost" size="sm" className="p-2 hidden sm:flex">
           <Bell size={18} className="text-gray-500" />
         </Button>
@@ -100,18 +107,6 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
             {kotFirst ? t('action.newBill') : t('action.newSale')}
           </span>
         </Button>
-        <button
-          type="button"
-          onClick={() => navigate(ROUTES.PROFILE)}
-          className="flex items-center gap-2 focus:outline-none ml-1 hover:opacity-80 transition-opacity"
-          aria-label={t('topbar.openProfile')}
-        >
-          <Avatar
-            src={user?.photoURL ?? undefined}
-            alt={user?.displayName ?? undefined}
-            size="sm"
-          />
-        </button>
       </div>
     </header>
   )
