@@ -201,7 +201,7 @@ export const generateRestaurantBillEscPos = (ctx: RestaurantBillContext): Uint8A
   b.align('center')
   b.line(ctx.receiptConfig?.footerMessage || 'Thank you. Please visit again.')
   b.line('-- Guest Copy --')
-  b.feed(2)
+  b.feed(6)
   b.cut()
   return b.toBytes()
 }

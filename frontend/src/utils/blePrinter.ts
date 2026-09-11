@@ -248,23 +248,16 @@ export async function printEscPos(bytes: Uint8Array): Promise<void> {
 
   setState({ status: 'printing' })
   try {
-    const isLargePayload = bytes.length > 3000
-    // For large payloads (e.g. rasterized bitmap receipts), prefer writeWithResponse or safe pacing
-    // to strictly prevent the printer's 1-2KB serial buffer from overflowing and printing gibberish.
-    const useWriteWithResponse = supportsWriteWithResponse && isLargePayload
-
     for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
       const chunk = bytes.slice(offset, offset + CHUNK_SIZE)
-      if (useWriteWithResponse) {
-        await characteristic.writeValueWithResponse(chunk)
-      } else if (supportsWriteWithoutResponse) {
+      if (supportsWriteWithoutResponse) {
         await characteristic.writeValueWithoutResponse(chunk)
-        // Adaptive pacing: 12ms for large bitmaps to protect buffer, 3ms for fast short text
-        const paceDelay = isLargePayload ? 12 : 3
-        await new Promise(resolve => setTimeout(resolve, paceDelay))
-        if (isLargePayload && offset > 0 && offset % 1024 === 0) {
-          // Micro-pause every 1KB to let thermal printhead motor process
-          await new Promise(resolve => setTimeout(resolve, 25))
+        // 10ms pacing per 20-byte chunk (~2000 bytes/sec) matches thermal printhead burn speed
+        // and strictly prevents the printer's 256-512 byte UART serial FIFO buffer from overflowing.
+        await new Promise(resolve => setTimeout(resolve, 10))
+        // Micro-pause every 240 bytes (12 chunks) to allow printer microcontroller to flush buffer
+        if (offset > 0 && offset % 240 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 30))
         }
       } else {
         await characteristic.writeValueWithResponse(chunk)

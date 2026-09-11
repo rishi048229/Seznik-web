@@ -79,8 +79,8 @@ const CONNECT_RETRY_DELAYS_MS = [500];
  */
 const NATIVE_PROBE_TIMEOUT_MS = 3000;
 
-/** ESC/POS dot feed after receipt/KOT body so the tail clears the tear bar before auto-cut. */
-const RECEIPT_BOTTOM_FEED = 120;
+/** ESC/POS dot feed after receipt/KOT body so the tail clears the tear bar with 3mm margin before auto-cut. */
+const RECEIPT_BOTTOM_FEED = 144;
 
 /** Default terms line shown under the footer on standard retail slips (preview + print). */
 const RECEIPT_DEFAULT_TERMS = 'Goods once sold cannot be returned.';
